@@ -1,0 +1,35 @@
+strategies:
+  theme_trading:
+    name: "테마주 매매"
+    description: "벡터 유사도로 테마 그룹을 찾아 리더 추종 매매"
+    parameters:
+      vector_similarity_threshold: 0.75
+      min_group_size: 3
+      max_group_size: 15
+      rebalance_days: 5
+      position_size_pct: 0.15
+      stop_loss_pct: 0.07
+      take_profit_pct: 0.15
+
+  cycle_rotation:
+    name: "사이클 순환 매매"
+    description: "업종별 사이클에 따라 순환 매매"
+    parameters:
+      lookback_days: 60
+      cycle_detection_window: 20
+      rotation_threshold: 0.1
+      min_momentum: 0.05
+      max_sector_exposure: 0.30
+      position_size_pct: 0.10
+
+  twin_trading:
+    name: "쌍둥이 매매"
+    description: "상관관계 높은 종목쌍의 가격 차이를 이용한 수렴/발산 매매"
+    parameters:
+      min_correlation: 0.80
+      correlation_period: 60
+      divergence_threshold: 0.05
+      convergence_threshold: 0.01
+      zscore_entry: 2.0
+      zscore_exit: 0.5
+      position_size_pct: 0.08

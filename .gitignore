@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+models/saved_models/*.pkl
+models/saved_models/*.joblib
+data/market/*.csv
+*.log
+.DS_Store
+.omo/

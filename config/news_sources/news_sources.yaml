@@ -1,0 +1,50 @@
+sources:
+  news:
+    - name: "한국경제신문"
+      type: "rss"
+      url: "https://www.hankyung.com/feed"
+      category: "financial"
+
+    - name: "매일경제"
+      type: "rss"
+      url: "https://www.mk.co.kr/rss/30000001/"
+      category: "financial"
+
+    - name: "서울경제"
+      type: "rss"
+      url: "https://www.sedaily.com/Feed/SEH"
+      category: "financial"
+
+    - name: "이데일리"
+      type: "rss"
+      url: "https://www.edaily.co.kr/feed/edaily.xml"
+      category: "financial"
+
+    - name: "머니투데이"
+      type: "rss"
+      url: "https://news.mt.co.kr/rss/mt_recent.xml"
+      category: "general"
+
+    - name: "한국경제TV"
+      type: "rss"
+      url: "https://www.wowtv.co.kr/feed/biz.xml"
+      category: "financial"
+
+    - name: "조선비즈"
+      type: "rss"
+      url: "https://biz.chosun.com/rss/top.xml"
+      category: "general"
+
+    - name: "중앙일보 경제"
+      type: "rss"
+      url: "https://www.joongang.co.kr/economy/rss"
+      category: "general"
+
+  sns:
+    - name: "네이버 주식토론실"
+      type: "naver_cafe"
+      category: "stock_discussion"
+
+    - name: "네이버 뉴스 댓글"
+      type: "naver_comment"
+      category: "news_comments"

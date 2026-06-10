@@ -1,0 +1,180 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: stock_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5.15
+    container_name: stock_neo4j
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["graph-data-science"]'
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: stock_redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  news-analyzer:
+    build:
+      context: ./services/news-analyzer
+      dockerfile: Dockerfile
+    container_name: stock_news_analyzer
+    env_file: .env
+    volumes:
+      - ./services/news-analyzer:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+  yfinance-collector:
+    build:
+      context: ./services/yfinance-collector
+      dockerfile: Dockerfile
+    container_name: stock_yfinance_collector
+    env_file: .env
+    volumes:
+      - ./services/yfinance-collector:/app
+      - ./data/market:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+  stock-vectorizer:
+    build:
+      context: ./services/stock-vectorizer
+      dockerfile: Dockerfile
+    container_name: stock_vectorizer
+    env_file: .env
+    volumes:
+      - ./services/stock-vectorizer:/app
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+  xgboost-ml:
+    build:
+      context: ./services/xgboost-ml
+      dockerfile: Dockerfile
+    container_name: stock_xgboost_ml
+    env_file: .env
+    volumes:
+      - ./services/xgboost-ml:/app
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+  strategy-agents:
+    build:
+      context: ./services/strategy-agents
+      dockerfile: Dockerfile
+    container_name: stock_strategy_agents
+    env_file: .env
+    volumes:
+      - ./services/strategy-agents:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: stock_api_gateway
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/api-gateway:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  neo4j_logs:
+  redis_data:
+
+networks:
+  stock_network:
+    driver: bridge

@@ -1,0 +1,8 @@
+redis==5.0.1
+pydantic==2.5.3
+python-dotenv==1.0.0
+schedule==1.2.0
+pywin32==306
+psycopg2-binary==2.9.9
+requests==2.31.0
+loguru==0.7.2
