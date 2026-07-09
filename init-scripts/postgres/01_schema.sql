@@ -151,3 +151,75 @@ CREATE UNIQUE INDEX idx_stock_sentiment_stock_date ON stock_sentiment(stock_code
 CREATE UNIQUE INDEX idx_ml_predictions_stock_date ON ml_predictions(stock_code, prediction_date, model_version);
 CREATE INDEX idx_trade_orders_status ON trade_orders(order_status);
 CREATE INDEX idx_trade_orders_created ON trade_orders(created_at);
+
+-- ===========================================
+-- Feature Engineering Pipeline 확장 (2026-07)
+-- ===========================================
+
+-- === 재무제표 데이터 ===
+CREATE TABLE financial_statements (
+    id SERIAL PRIMARY KEY,
+    stock_code VARCHAR(10) NOT NULL REFERENCES stocks(stock_code),
+    report_date DATE NOT NULL,
+    revenue DECIMAL(30,4),
+    operating_profit DECIMAL(30,4),
+    net_income DECIMAL(30,4),
+    total_assets DECIMAL(30,4),
+    total_equity DECIMAL(30,4),
+    per DECIMAL(10,4),
+    pbr DECIMAL(10,4),
+    roe DECIMAL(10,4),
+    debt_ratio DECIMAL(10,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(stock_code, report_date)
+);
+
+-- === 거시경제 지표 ===
+CREATE TABLE macro_indicators (
+    id SERIAL PRIMARY KEY,
+    indicator_name VARCHAR(100) NOT NULL,
+    date DATE NOT NULL,
+    value DECIMAL(20,4),
+    unit VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(indicator_name, date)
+);
+
+-- === 외국인/기관 수급 ===
+CREATE TABLE foreign_institutional (
+    id SERIAL PRIMARY KEY,
+    stock_code VARCHAR(10) NOT NULL REFERENCES stocks(stock_code),
+    trade_date DATE NOT NULL,
+    foreign_net_buy DECIMAL(30,4),
+    institution_net_buy DECIMAL(30,4),
+    individual_net_buy DECIMAL(30,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(stock_code, trade_date)
+);
+
+-- === 선물·옵션 ===
+CREATE TABLE futures_options (
+    id SERIAL PRIMARY KEY,
+    trade_date DATE NOT NULL UNIQUE,
+    futures_price DECIMAL(20,4),
+    options_volume BIGINT,
+    basis DECIMAL(20,4),
+    options_put_call_ratio DECIMAL(10,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- === 신규 테이블 인덱스 ===
+CREATE INDEX idx_financial_statements_stock ON financial_statements(stock_code);
+CREATE INDEX idx_financial_statements_date ON financial_statements(report_date);
+CREATE INDEX idx_macro_indicators_name ON macro_indicators(indicator_name);
+CREATE INDEX idx_macro_indicators_date ON macro_indicators(date);
+CREATE INDEX idx_foreign_inst_stock ON foreign_institutional(stock_code);
+CREATE INDEX idx_foreign_inst_date ON foreign_institutional(trade_date);
+CREATE INDEX idx_futures_options_date ON futures_options(trade_date);
+
+-- === 뉴스 임베딩 (pgvector) ===
+ALTER TABLE news_analysis ADD COLUMN IF NOT EXISTS embedding vector(1024);
+
+CREATE INDEX IF NOT EXISTS idx_news_embedding_hnsw ON news_analysis
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 200);

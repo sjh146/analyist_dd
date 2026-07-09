@@ -12,3 +12,8 @@ data/market/*.csv
 *.log
 .DS_Store
 .omo/
+
+# Collected raw data (do not commit)
+data/disclosures/*.json
+data/macro/*.csv
+data/financials/*.csv

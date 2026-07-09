@@ -68,6 +68,7 @@ services:
     env_file: .env
     volumes:
       - ./services/news-analyzer:/app
+      - ./data/disclosures:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,6 +89,8 @@ services:
     volumes:
       - ./services/yfinance-collector:/app
       - ./data/market:/app/data
+      - ./data/financials:/app/data/financials
+      - ./data/macro:/app/data/macro
     depends_on:
       postgres:
         condition: service_healthy
@@ -124,6 +127,9 @@ services:
     volumes:
       - ./services/xgboost-ml:/app
       - ./models:/app/models
+      - ./data/macro:/app/data/macro
+      - ./data/financials:/app/data/financials
+      - ./data/disclosures:/app/data/disclosures
     depends_on:
       postgres:
         condition: service_healthy

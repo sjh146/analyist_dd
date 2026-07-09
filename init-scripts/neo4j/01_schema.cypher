@@ -64,3 +64,33 @@ MERGE (c)-[:AFFECTS {strength: 0.9}]->(sec);
 
 MATCH (c:Cycle {name: '금리 사이클'}), (sec:Sector {name: '금융'})
 MERGE (c)-[:AFFECTS {strength: 0.85}]->(sec);
+
+// ===========================================
+// Feature Engineering Pipeline 확장 (2026-07)
+// ===========================================
+
+// === 공시 노드 ===
+CREATE CONSTRAINT disclosure_id_unique IF NOT EXISTS FOR (d:Disclosure) REQUIRE d.disclosure_id IS UNIQUE;
+
+// === 거시경제 지표 노드 ===
+CREATE CONSTRAINT macroindicator_name_unique IF NOT EXISTS FOR (m:MacroIndicator) REQUIRE m.name IS UNIQUE;
+
+// === 샘플 공시 데이터 ===
+MERGE (d1:Disclosure {disclosure_id: 'D20240331-001', title: '삼성전자 2024년 1분기 보고서', report_type: '분기', filing_date: date('2024-03-31'), summary: '1분기 매출 71.2조, 영업이익 6.6조'});
+MERGE (d2:Disclosure {disclosure_id: 'D20240814-001', title: '삼성전자 2024년 반기보고서', report_type: '반기', filing_date: date('2024-08-14'), summary: '반기 매출 145.2조, 영업이익 16.6조'});
+
+// === 샘플 거시경제 지표 ===
+MERGE (m1:MacroIndicator {name: '기준금리', latest_value: 3.50, unit: 'percent', updated_at: date('2024-07-01')});
+MERGE (m2:MacroIndicator {name: 'USD/KRW 환율', latest_value: 1380.50, unit: 'KRW', updated_at: date('2024-07-01')});
+MERGE (m3:MacroIndicator {name: 'WTI 유가', latest_value: 82.30, unit: 'USD/barrel', updated_at: date('2024-07-01')});
+
+// === 공시-종목 관계 ===
+MATCH (s:Stock {code: '005930'}), (d:Disclosure {disclosure_id: 'D20240331-001'})
+MERGE (s)-[:FILED {filing_date: date('2024-03-31')}]->(d);
+
+MATCH (s:Stock {code: '005930'}), (d:Disclosure {disclosure_id: 'D20240814-001'})
+MERGE (s)-[:FILED {filing_date: date('2024-08-14')}]->(d);
+
+// === 공시-섹터 관계 ===
+MATCH (d:Disclosure {disclosure_id: 'D20240331-001'}), (sec:Sector {name: '반도체'})
+MERGE (d)-[:RELATES_TO]->(sec);
