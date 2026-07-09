@@ -1,0 +1,18 @@
+{
+  "model": "deepseek-chat",
+  "provider": "deepseek",
+  "categories": {
+    "deep": { "model": "deepseek-chat", "provider": "deepseek" },
+    "quick": { "model": "deepseek-chat", "provider": "deepseek" },
+    "unspecified-low": { "model": "deepseek-chat", "provider": "deepseek" },
+    "unspecified-high": { "model": "deepseek-chat", "provider": "deepseek" },
+    "writing": { "model": "deepseek-chat", "provider": "deepseek" }
+  },
+  "subagents": {
+    "oracle": { "model": "deepseek-chat", "provider": "deepseek" },
+    "momus": { "model": "deepseek-chat", "provider": "deepseek" },
+    "metis": { "model": "deepseek-chat", "provider": "deepseek" },
+    "explore": { "model": "deepseek-chat", "provider": "deepseek" },
+    "librarian": { "model": "deepseek-chat", "provider": "deepseek" }
+  }
+}
