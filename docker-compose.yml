@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -175,11 +173,52 @@ services:
       - stock_network
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana:/etc/grafana/provisioning
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/jenkins/init.groovy:/var/jenkins_home/init.groovy.d/init.groovy
+      - ./config/jenkins/plugins.txt:/usr/share/jenkins/ref/plugins.txt
+    networks:
+      - stock_network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   neo4j_data:
   neo4j_logs:
   redis_data:
+  prometheus_data:
+  grafana_data:
+  jenkins_home:
 
 networks:
   stock_network:
