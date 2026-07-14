@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:9100']
+
+  - job_name: 'news-analyzer'
+    static_configs:
+      - targets: ['news-analyzer:9101']
+
+  - job_name: 'xgboost-ml'
+    static_configs:
+      - targets: ['xgboost-ml:9102']
+
+  - job_name: 'strategy-agents'
+    static_configs:
+      - targets: ['strategy-agents:9103']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:9187']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:9121']
+
+  - job_name: 'neo4j'
+    static_configs:
+      - targets: ['neo4j:2004']

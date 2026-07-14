@@ -1,6 +1,6 @@
 """
 Redis Storage for Strategy Agents
-Publishes trade signals to the Redis channel for Windows VM executor.
+Publishes trade signals to Redis Streams.
 """
 
 import redis
@@ -12,11 +12,19 @@ from app.config import Config
 
 logger = logging.getLogger(__name__)
 
+try:
+    from services.shared.redis_streams import RedisStreams
+except ImportError:
+    RedisStreams = None  # type: ignore
+
 
 class RedisStorage:
+    STREAM_NAME = "strategy:signals"
+
     def __init__(self):
         self.config = Config()
         self._client = None
+        self._streams: Optional[RedisStreams] = None
         self._connect()
 
     def _connect(self):
@@ -32,18 +40,45 @@ class RedisStorage:
             logger.info("Connected to Redis for strategy agents")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
+            return
+
+        if RedisStreams:
+            try:
+                redis_url = f"redis://:{self.config.REDIS_PASSWORD or ''}@{self.config.REDIS_HOST}:{self.config.REDIS_PORT}"
+                self._streams = RedisStreams(redis_url=redis_url)
+                self._streams.create_group(self.STREAM_NAME, "trade-executor", mkstream=True)
+            except Exception as e:
+                logger.warning("RedisStreams init failed: %s", e)
+                self._streams = None
 
     def publish_signal(self, signal: Dict) -> bool:
-        """Publish trade signal to Redis."""
+        """Publish trade signal to Redis Streams."""
         if not self._client:
             return False
+
+        signal_data = {
+            "strategy_name": signal.get("strategy_name", "unknown"),
+            "stock_code": signal.get("stock_code", signal.get("ticker", "unknown")),
+            "signal": signal.get("signal", ""),
+            "confidence": str(signal.get("confidence", 0.0)),
+            "timestamp": signal.get("timestamp", ""),
+        }
+
+        if self._streams is None:
+            logger.error("Redis Streams not available; cannot publish signal")
+            return False
+
         try:
-            message = json.dumps(signal, ensure_ascii=False, default=str)
-            self._client.publish(self.config.SIGNAL_CHANNEL, message)
-            logger.info(f"Published signal to {self.config.SIGNAL_CHANNEL}")
+            self._streams.xadd(self.STREAM_NAME, signal_data, maxlen=10000)
+            logger.info(
+                "Published signal to stream %s for %s/%s",
+                self.STREAM_NAME,
+                signal_data["strategy_name"],
+                signal_data["stock_code"],
+            )
             return True
         except Exception as e:
-            logger.error(f"Failed to publish signal: {e}")
+            logger.error(f"Failed to publish signal to stream: {e}")
             return False
 
     def get_pending_orders(self) -> list:

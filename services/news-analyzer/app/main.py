@@ -18,6 +18,7 @@ from app.analyzers.deepseek_analyzer import DeepSeekAnalyzer
 from app.storage.postgres_storage import PostgresStorage
 from app.storage.neo4j_storage import Neo4jStorage
 from app.models.schemas import Article, AnalysisResult
+from app.data_quality_integration import DataQualityIntegration
 
 logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -31,6 +32,10 @@ class NewsAnalyzerService:
         self.analyzer = DeepSeekAnalyzer(api_key=self.config.DEEPSEEK_API_KEY)
         self.pg_storage = PostgresStorage()
         self.neo4j_storage = Neo4jStorage()
+        self.dq_integration = DataQualityIntegration(
+            db_conn_provider=self.pg_storage._get_conn
+        )
+        self._validated_at_ready = self.pg_storage._ensure_validated_at_column()
         self._running = False
 
     async def analyze_recent_articles(self):
@@ -40,7 +45,6 @@ class NewsAnalyzerService:
         # Step 1: Collect articles
         articles = await self.collector.collect_all()
         logger.info(f"Collected {len(articles)} articles")
-
         # Step 2: Analyze each article via DeepSeek
         for article in articles:
             try:
@@ -60,17 +64,37 @@ class NewsAnalyzerService:
                     f"({result.sentiment_score:.2f})"
                 )
 
-                # Step 3: Store in PostgreSQL
                 self.pg_storage.save_news_analysis(article, result)
                 logger.debug(f"Saved to PostgreSQL: {article.title[:50]}")
 
-                # Step 4: Update stock sentiment if related stocks found
+                validated_at = datetime.now() if self._validated_at_ready else None
+                validation_errors = []
+
                 for stock_code in result.related_stocks:
+                    try:
+                        v_result = self.dq_integration.validate_sentiment(
+                            sentiment_score=result.sentiment_score,
+                            stock_code=stock_code,
+                        )
+                        self.dq_integration.log_validation_result(
+                            sentiment_score=result.sentiment_score,
+                            stock_code=stock_code,
+                            article_title=article.title or "",
+                            validation_result=v_result,
+                        )
+                    except Exception as ve:
+                        logger.error(
+                            f"Validation error for {stock_code}: {ve}"
+                        )
+                        v_result = {"passed": 0, "failed": 0, "warned": 1, "details": []}
+                        validation_errors.append(str(ve))
+
                     self.pg_storage.save_stock_sentiment(
                         stock_code=stock_code,
                         date=datetime.now().date(),
                         sentiment_score=result.sentiment_score,
                         is_news=(article.source != "sns"),
+                        validated_at=validated_at,
                     )
 
                     # Step 5: Update Neo4j relationships
@@ -90,7 +114,6 @@ class NewsAnalyzerService:
         logger.info(f"Analysis cycle complete. Processed {len(articles)} articles.")
 
     def run_scheduled(self):
-        """Run analysis on a schedule."""
         # Run every 30 minutes
         schedule.every(30).minutes.do(
             lambda: asyncio.run(self.analyze_recent_articles())

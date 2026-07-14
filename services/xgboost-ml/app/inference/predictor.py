@@ -17,6 +17,11 @@ try:
 except ImportError:
     redis = None
 
+try:
+    from services.shared.redis_streams import RedisStreams
+except ImportError:
+    RedisStreams = None
+
 
 class Predictor:
     """Runs predictions for all tracked stocks and publishes signals."""
@@ -26,6 +31,14 @@ class Predictor:
         self.feature_pipeline = feature_pipeline
         self.model = model
         self.redis_client = redis_client or self._create_redis_client()
+        self._streams = None
+        if RedisStreams:
+            try:
+                host = os.environ.get("REDIS_HOST", "redis")
+                port = int(os.environ.get("REDIS_PORT", 6379))
+                self._streams = RedisStreams(f"redis://{host}:{port}")
+            except Exception:
+                pass
 
     def predict(self, stock_code: str, date: str = None) -> Optional[Dict]:
         """Predict direction for a single stock."""
@@ -70,10 +83,13 @@ class Predictor:
         logger.info(f"Generated {len(predictions)} predictions")
         return predictions
 
+    def _get_signal_stream_name(self) -> str:
+        return os.environ.get("REDIS_SIGNAL_STREAM", "trading:signals")
+
     def publish_signals_to_redis(self, predictions: List[Dict]):
-        """Publish top predictions to Redis trading:signals channel."""
-        if not self.redis_client:
-            logger.warning("Redis client not available; skipping signal publish")
+        """Publish top predictions to Redis Streams."""
+        if not self._streams:
+            logger.warning("Redis Streams not available; skipping signal publish")
             return
 
         filtered = [
@@ -82,30 +98,30 @@ class Predictor:
         ]
         top = sorted(filtered, key=lambda x: x["confidence"], reverse=True)[:10]
 
+        stream_name = self._get_signal_stream_name()
+
         for pred in top:
             try:
                 direction = pred["direction"]
-                prob = pred["probability"]
-                message = json.dumps({
+                timestamp = datetime.now().isoformat()
+
+                signal_data = {
                     "stock_code": pred["stock_code"],
-                    "direction": direction,
+                    "signal": "buy" if direction == "up" else "sell",
                     "confidence": pred["confidence"],
-                    "predicted_change_pct": round(
-                        (prob - 0.5) * 2 * 100, 1
-                    ) if direction == "up" else round(
-                        (0.5 - prob) * 2 * 100, 1
-                    ),
-                    "timestamp": datetime.now().isoformat(),
-                })
-                self.redis_client.publish("trading:signals", message)
+                    "timestamp": timestamp,
+                    "model_version": os.environ.get("ML_MODEL_VERSION", "v1.0"),
+                }
+
+                self._streams.xadd(stream_name, signal_data, maxlen=10000)
                 logger.info(
-                    f"Signal published: {pred['stock_code']} "
+                    f"Signal streamed: {pred['stock_code']} "
                     f"{direction} ({pred['confidence']:.2f})"
                 )
             except Exception as e:
-                logger.error(f"Redis publish failed: {e}")
+                logger.error(f"Redis Streams xadd failed for {pred['stock_code']}: {e}")
 
-        logger.info(f"Published {len(top)} signals to Redis")
+        logger.info(f"Published {len(top)} signals to Redis Streams")
 
     def _create_redis_client(self):
         """Create Redis client from environment config."""

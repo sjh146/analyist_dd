@@ -1,0 +1,235 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "title": "Stock Pipeline Monitoring",
+  "uid": "stock-pipeline-monitoring",
+  "version": 1,
+  "schemaVersion": 36,
+  "timezone": "browser",
+  "editable": true,
+  "panels": [
+    {
+      "title": "Data Collection Rate",
+      "type": "timeseries",
+      "id": 1,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "rate(data_collected_total[5m])",
+          "legendFormat": "{{service}} - {{source}}",
+          "refId": "A"
+        }
+      ],
+      "options": {"legend": {"calcs": ["max", "mean"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "showPoints": "never"}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Features Computed",
+      "type": "stat",
+      "id": 2,
+      "gridPos": {"h": 8, "w": 4, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "sum(features_computed_total) by (service)",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Prediction Latency (Heatmap)",
+      "type": "heatmap",
+      "id": 3,
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "rate(prediction_latency_seconds_bucket[5m])",
+          "legendFormat": "{{le}}",
+          "refId": "A"
+        }
+      ],
+      "options": {"calculate": false, "cellGap": 1, "color": {"mode": "opacity", "spectrum": {"scheme": "interpolateOranges"}}, "yAxis": {"unit": "s", "decimals": 3}},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "tooltip": {"show": true, "showHistogram": true}
+    },
+    {
+      "title": "Feature Count (Gauge)",
+      "type": "gauge",
+      "id": 4,
+      "gridPos": {"h": 8, "w": 4, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "feature_count_gauge",
+          "legendFormat": "{{stock}}",
+          "refId": "A"
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": true}, "showThresholdLabels": false, "showThresholdMarkers": true},
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 200,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 80}, {"color": "red", "value": 150}]},
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Signals Generated",
+      "type": "stat",
+      "id": 5,
+      "gridPos": {"h": 8, "w": 4, "x": 4, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "sum(signal_generated_total)",
+          "legendFormat": "Signals",
+          "refId": "A"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Trades Executed",
+      "type": "stat",
+      "id": 6,
+      "gridPos": {"h": 8, "w": 4, "x": 8, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "sum(trade_executed_total)",
+          "legendFormat": "Trades",
+          "refId": "A"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 50}, {"color": "red", "value": 200}]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Redis Messages",
+      "type": "timeseries",
+      "id": 7,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "rate(redis_publish_total[5m])",
+          "legendFormat": "{{stream}}",
+          "refId": "A"
+        }
+      ],
+      "options": {"legend": {"calcs": ["max", "mean"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {"drawStyle": "bars", "lineInterpolation": "smooth", "showPoints": "auto"}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "DB Query Latency",
+      "type": "timeseries",
+      "id": 8,
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "rate(db_query_latency_seconds_sum[5m]) / rate(db_query_latency_seconds_count[5m])",
+          "legendFormat": "Avg latency",
+          "refId": "A"
+        }
+      ],
+      "options": {"legend": {"calcs": ["max", "mean"], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "showPoints": "never"}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Sentiment Analysis",
+      "type": "stat",
+      "id": 9,
+      "gridPos": {"h": 8, "w": 4, "x": 8, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "sum(sentiment_analysis_total) by (source)",
+          "legendFormat": "{{source}}",
+          "refId": "A"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "values": true}, "textMode": "auto"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Service Status",
+      "type": "stat",
+      "id": 10,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "expr": "up",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "values": true}, "textMode": "auto"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+          "custom": {"displayMode": "list"}
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {"refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]},
+  "tags": ["stock", "pipeline", "monitoring"],
+  "graphTooltip": 1
+}

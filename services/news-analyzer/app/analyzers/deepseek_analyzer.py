@@ -8,6 +8,7 @@ import logging
 from typing import Dict
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
+from app.config import Config
 from app.models.schemas import Article, AnalysisResult
 
 logger = logging.getLogger(__name__)
@@ -85,8 +86,9 @@ class DeepSeekAnalyzer:
     "reasoning": "분석 이유 (한글로 간략히)"
 }}"""
 
+        model_name = Config.DEEPSEEK_MODEL  # 사용 Config에서 모델명 읽기
         response = self.client.chat.completions.create(
-            model="deepseek-chat",
+            model=model_name,
             messages=[
                 {
                     "role": "system",

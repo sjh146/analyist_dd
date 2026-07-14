@@ -1,0 +1,6 @@
+pipeline-model-definition:latest
+blueocean:latest
+slack:latest
+docker-workflow:latest
+git:latest
+credentials-binding:latest

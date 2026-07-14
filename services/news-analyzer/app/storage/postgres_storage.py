@@ -91,12 +91,35 @@ class PostgresStorage:
         finally:
             self._put_conn(conn)
 
+    def _ensure_validated_at_column(self):
+        """Ensure validated_at column exists on stock_sentiment."""
+        conn = self._get_conn()
+        if not conn:
+            return False
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "ALTER TABLE stock_sentiment ADD COLUMN IF NOT EXISTS validated_at TIMESTAMP"
+            )
+            conn.commit()
+            cur.close()
+            return True
+        except Exception as e:
+            logger.warning(
+                f"Cannot add validated_at column: {e}. "
+                "Run: ALTER TABLE stock_sentiment ADD COLUMN validated_at TIMESTAMP;"
+            )
+            return False
+        finally:
+            self._put_conn(conn)
+
     def save_stock_sentiment(
         self,
         stock_code: str,
         date: datetime.date,
         sentiment_score: float,
         is_news: bool = True,
+        validated_at: Optional[datetime] = None,
     ):
         """Upsert stock sentiment data."""
         conn = self._get_conn()
@@ -105,17 +128,18 @@ class PostgresStorage:
 
         try:
             cur = conn.cursor()
-            # Upsert
             cur.execute(
                 """
                 INSERT INTO stock_sentiment
                     (stock_code, analysis_date, avg_sentiment,
                      sentiment_count, news_count,
-                     positive_count, negative_count, neutral_count)
+                     positive_count, negative_count, neutral_count,
+                     validated_at)
                 VALUES (%s, %s, %s, 1, %s,
                         CASE WHEN %s > 0.2 THEN 1 ELSE 0 END,
                         CASE WHEN %s < -0.2 THEN 1 ELSE 0 END,
-                        CASE WHEN %s >= -0.2 AND %s <= 0.2 THEN 1 ELSE 0 END)
+                        CASE WHEN %s >= -0.2 AND %s <= 0.2 THEN 1 ELSE 0 END,
+                        %s)
                 ON CONFLICT (stock_code, analysis_date) DO UPDATE SET
                     avg_sentiment = (stock_sentiment.avg_sentiment * stock_sentiment.sentiment_count + %s)
                                     / (stock_sentiment.sentiment_count + 1),
@@ -134,6 +158,7 @@ class PostgresStorage:
                     sentiment_score,
                     sentiment_score,
                     sentiment_score,
+                    validated_at,
                     sentiment_score,
                     is_news,
                     sentiment_score,

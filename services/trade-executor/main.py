@@ -167,8 +167,8 @@ class TradeExecutor:
         monitor_thread = threading.Thread(target=self.order_monitor.run, daemon=True)
         monitor_thread.start()
 
-        # Subscribe to trade signals
-        self.redis.subscribe(self.config.SIGNAL_CHANNEL, self.on_signal_received)
+        # Subscribe to trade signals via Redis Streams Consumer Groups
+        self.redis.subscribe_streams(self.on_signal_received)
 
         # Keep the main thread alive
         try:
