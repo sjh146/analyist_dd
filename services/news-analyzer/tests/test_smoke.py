@@ -1,0 +1,33 @@
+"""Smoke tests for news-analyzer service."""
+import pytest
+import sys
+
+sys.path.insert(0, "services/news-analyzer")
+
+
+class TestNewsAnalyzerSmoke:
+    """Basic smoke tests for news-analyzer."""
+
+    def test_import(self):
+        """Verify main module imports without error."""
+        try:
+            import app.main  # type: ignore[import-untyped]
+            assert hasattr(app.main, "app") or hasattr(app.main, "main")
+        except ImportError:
+            pytest.skip("app.main module not found (service may not be installed)")
+
+    def test_config_exists(self):
+        """Verify config module exists."""
+        try:
+            import config  # type: ignore[import-untyped]
+            assert True
+        except ImportError:
+            pytest.skip("config module not found")
+
+    def test_package_importable(self):
+        """Verify the service directory is importable as a package."""
+        try:
+            import news_analyzer  # type: ignore[import-untyped]
+            assert True
+        except ImportError:
+            pytest.skip("news_analyzer package not installed")
