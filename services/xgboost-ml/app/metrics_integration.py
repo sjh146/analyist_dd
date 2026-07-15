@@ -2,25 +2,34 @@
 
 import logging
 
-from prometheus_client import Gauge
-
-from services.shared.metrics import (
-    features_computed_total,
-    feature_count_gauge,
-    prediction_latency_seconds,
-    start_metrics_server,
-)
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
 logger = logging.getLogger(__name__)
 
+# ── Shared metrics (inlined from services.shared.metrics) ──────────────
+data_collected_total = Counter('data_collected_total', 'Total data collected', ['service', 'source'])
+features_computed_total = Counter('features_computed_total', 'Total features computed', ['service'])
+feature_count_gauge = Gauge('feature_count_gauge', 'Number of features', ['stock'])
+prediction_latency_seconds = Histogram('prediction_latency_seconds', 'Prediction latency', ['model'], buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0])
+sentiment_analysis_total = Counter('sentiment_analysis_total', 'Sentiment analyses', ['source'])
+signal_generated_total = Counter('signal_generated_total', 'Trading signals generated')
+trade_executed_total = Counter('trade_executed_total', 'Trades executed')
+db_query_latency_seconds = Histogram('db_query_latency_seconds', 'DB query latency', buckets=[0.001, 0.01, 0.1, 0.5, 1.0])
+redis_publish_total = Counter('redis_publish_total', 'Redis messages published', ['stream'])
+
+# ── Service-specific metrics ──────────────────────────────────────────
 model_version_gauge = Gauge(
     "model_version_gauge", "Current model version", ["version"]
 )
 
 
-def init_metrics():
-    """Start Prometheus metrics server on port 9102."""
-    start_metrics_server(9102)
+def init_metrics(port: int = 9102):
+    """Start Prometheus metrics server on given port."""
+    try:
+        start_http_server(port)
+        logger.info(f"Prometheus metrics server started on port {port}")
+    except OSError as e:
+        logger.warning(f"Could not start metrics server on port {port}: {e}")
 
 
 def on_features_computed(count: int):
