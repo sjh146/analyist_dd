@@ -69,7 +69,8 @@ class RedisClient:
 
     def publish(self, channel: str, data: Dict) -> bool:
         """
-        Publish message to Redis channel.
+        [DEPRECATED] Publish message to Redis channel.
+        Use Redis Streams xadd() instead via RedisStreams class.
         
         Args:
             channel: Redis channel name
@@ -78,6 +79,7 @@ class RedisClient:
         Returns:
             True if published successfully
         """
+        logger.warning(f"[DEPRECATED] publish() called for channel '{channel}' — use RedisStreams.xadd() instead")
         if not self.ensure_connected():
             return False
 

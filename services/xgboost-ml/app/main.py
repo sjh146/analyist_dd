@@ -18,6 +18,7 @@ from app.models.model_manager import ModelManager
 from app.training.trainer import Trainer
 from app.inference.predictor import Predictor
 from app.storage.postgres_storage import PostgresStorage
+from app.metrics_integration import init_metrics, on_features_computed, on_prediction
 
 logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class XGBoostMLService:
         self.model = XGBoostModel()
         self.trainer = Trainer(self.pg_storage, self.feature_pipeline)
         self.predictor = Predictor(self.pg_storage, self.feature_pipeline, self.model)
+        init_metrics(9102)
         self._running = False
 
     def initialize(self):
@@ -87,9 +89,13 @@ class XGBoostMLService:
         stocks = self.pg_storage.get_all_stocks()
         predictions = []
 
+        import time as _time
+        _t0_f = _time.time()
         for stock in stocks:
             try:
+                _t0 = _time.time()
                 prediction = self.predictor.predict(stock["stock_code"])
+                on_prediction(_time.time() - _t0)
                 if prediction and prediction["confidence"] >= self.config.PREDICTION_CONFIDENCE_THRESHOLD:
                     predictions.append(prediction)
             except Exception as e:
@@ -107,6 +113,7 @@ class XGBoostMLService:
         self.predictor.publish_signals_to_redis(top_predictions)
 
         logger.info(f"Predictions complete. Generated {len(predictions)} predictions.")
+        on_features_computed(len(predictions))
 
     def run_scheduled(self):
         """Run on schedule."""

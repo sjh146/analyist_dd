@@ -21,6 +21,7 @@ from app.signals.signal_validator import SignalValidator
 from app.risk_management.position_sizer import PositionSizer
 from app.storage.redis_storage import RedisStorage
 from app.storage.postgres_storage import PostgresStorage
+from app.metrics_integration import init_metrics, on_signal_generated
 
 logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class StrategyAgentService:
         self.theme_strategy = ThemeStrategy(self.pg_storage)
         self.cycle_strategy = CycleStrategy(self.pg_storage)
         self.twin_strategy = TwinStrategy(self.pg_storage)
+        init_metrics(9103)
 
         self._running = False
 
@@ -109,6 +111,7 @@ class StrategyAgentService:
                 self.redis.publish_signal(signal)
                 logger.info(f"Published signal: {json.dumps(signal, ensure_ascii=False)}")
                 published_count += 1
+                on_signal_generated(signal.get("strategy_name", "unknown"))
 
             except Exception as e:
                 logger.error(f"Failed to process signal: {e}")

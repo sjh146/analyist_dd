@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.config import Config
+from app.metrics_integration import init_metrics
 
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
     logger.info("API Gateway starting...")
+    init_metrics()
     yield
     # Shutdown
     logger.info("API Gateway shutting down...")
@@ -135,8 +137,9 @@ async def system_status():
             cur.execute("SELECT 1")
             cur.close()
             services["postgres"] = "ok"
-        except:
+        except Exception as e:
             services["postgres"] = "error"
+            logger.error(f"PostgreSQL health check failed: {e}")
 
     return HealthStatus(
         status="running",
