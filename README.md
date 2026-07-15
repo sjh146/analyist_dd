@@ -279,6 +279,401 @@ analyist_dd/
 
 ---
 
+### 4. API 레퍼런스
+
+`services/api-gateway`가 8000번 포트로 제공하는 13개 GET 전용 엔드포인트.
+
+⚠️ **API Gateway에 인증/인가가 구현되어 있지 않다.** 포트 노출 시 누구나 주문/포지션을 조회할 수 있다. 모든 엔드포인트는 **GET 전용**이며, POST/PUT/DELETE는 미구현 상태다.
+
+#### 헬스 체크 & 시스템 상태
+
+```bash
+# 헬스 체크
+curl http://localhost:8000/health
+# 응답: {"status": "ok"}
+
+# 시스템 상태 (PostgreSQL 연결 확인)
+curl http://localhost:8000/api/v1/status
+# 응답: {"db_connected": true, "services": {...}, "timestamp": "..."}
+```
+
+#### 종목 정보
+
+```bash
+# 종목 목록 (KOSPI, 페이지네이션)
+curl "http://localhost:8000/api/v1/stocks?market=KOSPI&sector=&skip=0&limit=100"
+# 응답: {"stocks": [...], "total": 800, "skip": 0, "limit": 100}
+
+# 특정 종목 상세
+curl http://localhost:8000/api/v1/stocks/005930
+# 응답: {"stock_code": "005930", "stock_name": "삼성전자", "market": "KOSPI",
+#        "sector": "전기전자", "industry": "반도체", "market_cap": 400000}
+```
+
+#### 시장 데이터 & 감정 분석
+
+```bash
+# 시장 데이터 (최근 30일)
+curl "http://localhost:8000/api/v1/stocks/005930/market-data?days=30"
+# 응답: {"stock_code": "005930", "data": [{"trade_date": "...", "close": 70000, ...}]}
+
+# 감정 데이터 (최근 30일)
+curl "http://localhost:8000/api/v1/stocks/005930/sentiment?days=30"
+# 응답: {"stock_code": "005930", "avg_sentiment": 0.65, "trend": "up", ...}
+```
+
+#### pgvector 유사 종목 검색
+
+```bash
+# 유사 종목 검색 (cosine similarity)
+curl "http://localhost:8000/api/v1/vectors/similar/005930?top_k=10&vector_type=combined"
+# 응답: {"stock_code": "005930", "similar_stocks": [
+#   {"stock_code": "000660", "similarity": 0.89, "stock_name": "SK하이닉스"}, ...]}
+# vector_type: price, sentiment, fundamental, combined (기본값)
+```
+
+#### ML 예측
+
+```bash
+# 특정 종목 예측
+curl "http://localhost:8000/api/v1/predictions/005930?days=7"
+# 응답: {"stock_code": "005930", "predictions": [
+#   {"date": "...", "direction": "up", "change_pct": 1.2, "confidence": 0.78}, ...]}
+
+# 상위 예측 종목 (방향별)
+curl "http://localhost:8000/api/v1/predictions/top?top_n=10&direction=up"
+# direction: up (상승 예측), down (하락 예측)
+# 응답: {"predictions": [{"stock_code": "...", "direction": "up", "confidence": 0.85}, ...]}
+```
+
+#### 트레이딩 정보
+
+```bash
+# 주문 내역 (상태별 필터)
+curl "http://localhost:8000/api/v1/trading/orders?status=pending&limit=50"
+# status: pending, filled, cancelled, all
+# 응답: {"orders": [{"order_id": 1, "stock_code": "005930", ...}]}
+
+# 현재 포지션
+curl http://localhost:8000/api/v1/trading/positions
+# 응답: {"positions": [{"stock_code": "005930", "quantity": 10, "avg_buy_price": 68000, ...}]}
+```
+
+#### 전략 & 대시보드
+
+```bash
+# 전략 설정 조회
+curl http://localhost:8000/api/v1/strategies
+# 응답: {"strategies": [
+#   {"name": "ThemeStrategy", "is_active": true, "parameters": {...}}, ...]}
+
+# 대시보드 요약
+curl http://localhost:8000/api/v1/dashboard/summary
+# 응답: {"total_predictions": 1500, "active_positions": 3, "total_pnl": 150000, ...}
+```
+
+---
+
+### 5. 데이터 파이프라인 흐름
+
+Linux Docker 서비스와 Windows VM 간 데이터 흐름은 6단계로 구성된다.
+
+```
+[1. 수집]                         [2. 벡터화]
+  yfinance-collector ─────────┐   stock-vectorizer
+  (OHLCV/재무/거시/수급/파생)  ├→  (가격/감정/재무/통합 임베딩)
+  news-analyzer ──────────────┘   ↓
+  (RSS 5개사 + DART 공시)      →  pgvector (HNSW 인덱스)
+  + DeepSeek 감정 분석
+  ↓ PostgreSQL + Neo4j
+
+[3. 특징 엔지니어링]            [4. ML 예측]
+  xgboost-ml                    XGBoost/CatBoost/LightGBM 앙상블
+  70개 특징 생성                → 방향 예측 (up/down)
+  (market/company/sentiment/    + 신뢰도
+   macro/graph/vector)          → PostgreSQL 저장
+
+[5. 전략 신호 생성]             [6. 매매 체결 ─ Windows VM]
+  strategy-agents               trade-executor
+  ThemeStrategy                 ↓
+  CycleStrategy                 Redis Streams 구독
+  TwinStrategy                  → Creon API (대신증권 COM)
+  → SignalValidator             → OrderManager
+  → PositionSizer               → BalanceChecker
+  → Redis Streams 발행           → PositionChecker
+```
+
+**Linux↔Windows 통신:** `services/shared/redis_streams.py`의 Redis Streams(`xadd`/`xreadgroup`)를 사용한다. Linux 서비스가 Redis Streams에 신호를 발행하면, Windows VM의 trade-executor가 Consumer Group으로 구독하여 처리한다. pub/sub 대신 Streams를 사용했으므로 구독 중단 시에도 메시지가 손실되지 않는다.
+
+---
+
+### 6. 백테스팅 & 리스크 분석
+
+`services/backtester/` 모듈은 3가지 도구를 제공한다.
+
+#### BacktestRunner (`runner.py`)
+
+백테스팅 실행기로 과거 데이터 기반 전략 성능을 검증한다.
+
+```python
+from services.backtester.runner import BacktestRunner
+
+r = BacktestRunner()
+result = r.run_backtest('theme_trading', ['005930'], '2024-01-01', '2024-06-30')
+# 반환: BacktestResult(backtest_id=..., sharpe_ratio=1.8, max_drawdown=-0.12,
+#                       win_rate=0.65, total_return=0.18, trades=[...])
+```
+
+- `BacktestTrade`: 날짜, 종목코드, 신호(entry/exit), 손익(PnL)
+- `BacktestResult`: Sharpe Ratio, Maximum Drawdown, Win Rate, Total Return
+
+#### MonteCarloEngine (`monte_carlo.py`)
+
+기하 브라운 운동(GBM) 기반 리스크 분석 엔진. 10,000회 시뮬레이션으로 포트폴리오 리스크를 추정한다.
+
+| 지표 | 설명 |
+|------|------|
+| VaR 95% | 95% 신뢰수준 최대 손실 |
+| VaR 99% | 99% 신뢰수준 최대 손실 |
+| CVaR | Conditional VaR (꼬리 손실 평균) |
+| Sharpe Ratio | 위험 대비 초과 수익 |
+| Sortino Ratio | 하방 위험 대비 수익 |
+| Max Drawdown | 최대 낙폭 |
+
+`batch` 모드로 다수 종목 동시 분석 가능.
+
+#### PaperTradingGate (`paper_trading.py`)
+
+모드 전환 게이트. 항상 `paper` 모드로 시작하며, Sharpe > 1.0 조건을 30일 연속 충족 시 `real` 전환을 제안한다. 실전 전환은 항상 사람 승인이 필요하다.
+
+```python
+gate = PaperTradingGate()
+gate.switch_to_real(approved=True)  # 사람 승인 후 전환
+```
+
+---
+
+### 7. 모니터링 & 알림
+
+`docker-compose.yml`에 정의된 3개 모니터링 도구.
+
+#### Prometheus (포트 9090)
+
+`services/shared/metrics.py`에 정의된 메트릭을 수집한다.
+
+| 메트릭 | 타입 | 레이블 | 설명 |
+|--------|------|--------|------|
+| `data_collected_total` | Counter | service, source | 서비스별/소스별 데이터 수집량 |
+| `features_computed_total` | Counter | service | 특징 엔지니어링 건수 |
+| `prediction_latency_seconds` | Histogram | model | ML 예측 지연 시간 |
+| `sentiment_analysis_total` | Counter | source | 감정 분석 건수 |
+| `signal_generated_total` | Counter | strategy | 전략 신호 생성 건수 |
+| `trade_executed_total` | Counter | type | 매매 체결 건수 |
+| `db_query_latency_seconds` | Histogram | db, operation | DB 쿼리 지연 시간 |
+
+#### Grafana (포트 3000)
+
+- 기본 계정: `admin` / `admin` (최초 로그인 시 변경 가능)
+- 대시보드 프로비저닝: `config/grafana/` 디렉토리에 설정 파일 위치
+- Prometheus를 데이터 소스로 사용
+
+#### Jenkins (포트 8080)
+
+- `config/jenkins/init.groovy`로 사전 설정
+- `config/jenkins/plugins.txt`로 플러그인 자동 설치
+- docker-compose logs로 접속하여 로그 확인
+
+---
+
+### 8. 도커 관리
+
+#### 생명주기
+
+```bash
+docker-compose up -d                    # 전체 서비스 시작
+docker-compose down                     # 전체 서비스 중지
+docker-compose restart [서비스명]       # 특정 서비스 재시작
+```
+
+#### 로그
+
+```bash
+docker-compose logs -f --tail=100 [서비스명]  # 특정 서비스 로그 실시간 확인
+docker-compose logs -f                        # 전체 서비스 로그
+```
+
+#### 개별 재빌드
+
+```bash
+docker-compose build [서비스명] && docker-compose up -d [서비스명]
+```
+
+#### 상태 확인
+
+```bash
+docker-compose ps       # 컨테이너 상태
+docker stats            # 실시간 리소스 사용량
+docker-compose top      # 실행 중 프로세스
+```
+
+#### DB 직접 접속
+
+```bash
+# PostgreSQL
+docker exec -it stock_postgres psql -U stock_user -d stock_trading
+
+# Redis
+docker exec -it stock_redis redis-cli -a ${REDIS_PASSWORD}
+
+# Neo4j Browser: http://localhost:7474
+```
+
+#### 볼륨 & 네트워크
+
+```bash
+docker volume ls                    # 볼륨 목록
+docker volume inspect [볼륨명]       # 볼륨 상세
+docker network inspect stock_network # 네트워크 상세
+```
+
+#### 헬스체크
+
+```bash
+docker inspect --format='{{.State.Health.Status}}' [컨테이너명]
+```
+
+---
+
+### 9. 트러블슈팅
+
+#### 1. DB 연결 실패
+
+각 데이터베이스 연결 상태를 개별 확인한다.
+
+```bash
+docker exec stock_postgres pg_isready -U stock_user
+wget -qO- http://localhost:7474 && echo "Neo4j OK"
+docker exec stock_redis redis-cli ping  # PONG 응답 확인
+```
+
+#### 2. 컨테이너 재시작 루프
+
+```bash
+docker-compose logs [서비스명]                      # 오류 원인 확인
+docker inspect --format='{{.State.Health.Status}}' [컨테이너명]  # 헬스체크 상태
+```
+
+#### 3. 전략 실행 오류
+
+`services/strategy-agents/app/strategies/`의 `base_strategy.py`에서 추상 메서드 `analyze()`가 구현되지 않으면 RuntimeError가 발생한다. 각 전략(ThemeStrategy, CycleStrategy, TwinStrategy)이 `analyze()`를 구현했는지 확인한다.
+
+#### 4. DART API 수집 안 됨
+
+- `.env`의 `DART_API_KEY` 유효성 확인
+- `dart_collector.py`의 `corp_code` 파라미터가 DART OpenAPI 명세와 일치하는지 검증
+- DART OpenAPI는 `crtfc_key` 파라미터명을 사용함 (`api_key` 아님)
+
+#### 5. Redis 신호 손실
+
+기존 pub/sub 방식은 구독자가 없으면 메시지를 폐기한다. `services/shared/redis_streams.py`의 Redis Streams(`xadd`/`xreadgroup`)가 올바르게 사용되고 있는지 확인한다. Consumer Group 미등록 시 메시지가 손실될 수 있다.
+
+#### 6. schedule 라이브러리 행 (Hang)
+
+`schedule.run_pending()`이 60초마다 정상 호출되는지 확인한다. 태스크가 Hang 상태가 되면 이후 모든 태스크가 스킵된다. `apscheduler` 또는 `celery`로 교체를 고려한다.
+
+#### 7. Windows VM 연결 안 됨
+
+`services/trade-executor/config.py`의 `BRIDGE_VM_IP`, `BRIDGE_HOST` 설정이 실제 네트워크와 일치하는지 확인한다. Proxmox Bridge 네트워크에서 양방향 통신이 가능한지 ping으로 확인한다.
+
+#### 8. .env 파일 누락
+
+```bash
+cp .env.example .env
+# 모든 필수 변수(10개)가 설정되었는지 확인
+```
+
+---
+
+### 10. 개발 환경 설정
+
+#### 1. 클론 및 설정
+
+```bash
+git clone <repository-url>
+cd analyist_dd
+cp .env.example .env
+# .env 파일에 DEEPSEEK_API_KEY, POSTGRES_PASSWORD 등 10개 필수 변수 설정
+```
+
+#### 2. Python 가상환경
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r services/*/requirements.txt
+```
+
+#### 3. 개별 서비스 실행
+
+```bash
+# Docker 없이 로컬에서 개별 서비스 실행 가능
+python -m services.news-analyzer.app.main
+python -m services.yfinance-collector.app.main
+python -m services.stock-vectorizer.app.main
+python -m services.xgboost-ml.app.main
+python -m services.strategy-agents.app.main
+python -m services.api-gateway.app.main
+```
+
+#### 4. 테스트 실행
+
+```bash
+pytest services/xgboost-ml/tests/
+pytest tests/
+```
+
+#### 5. Docker 없이 로컬 개발
+
+PostgreSQL, Neo4j, Redis를 Docker로 실행하고 서비스는 로컬에서 `python -m`으로 실행한다.
+
+```bash
+docker-compose up -d postgres neo4j redis
+python -m services.news-analyzer.app.main
+```
+
+로컬 실행 시 서비스 간 통신은 `localhost`를 사용한다.
+
+#### 6. Windows VM 개발
+
+```bash
+# Windows VM (Proxmox)에서 실행
+pip install -r services/trade-executor/requirements.txt
+python services/trade-executor/main.py
+```
+
+Creon Plus (대신증권 HTS)가 설치되어 있어야 하며, 32-bit Python 환경이 필요하다.
+
+#### 7. 스크립트 유틸리티
+
+`scripts/` 디렉토리에 유용한 유틸리티 스크립트가 위치한다.
+
+| 스크립트 | 설명 |
+|----------|------|
+| `scripts/run_all_tests.sh` | 전체 테스트 실행 |
+| `scripts/emergency_revert.sh` | 긴급 복구 (특정 시점으로 롤백) |
+| `scripts/run_tests_in_docker.sh` | 도커 컨테이너 내 테스트 실행 |
+| `scripts/notify.sh` | 시스템 알림 전송 |
+
+#### 8. 데이터 수집 서비스만 단독 실행
+
+```bash
+# DB만 Docker로 실행하고 수집 서비스만 로컬에서 실행
+docker-compose up -d postgres neo4j redis
+python -m services.yfinance-collector.app.main
+```
+
+---
+
 ## 알려진 이슈 (분석 기반)
 
 > ⚠️ Momus(Plan Critic) + Oracle(Architecture Consultant) 심층 분석 결과. 실거래 전 반드시 해결해야 한다.
