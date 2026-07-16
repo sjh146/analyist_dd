@@ -10,7 +10,7 @@ data_collected_total = Counter('data_collected_total', 'Total data collected', [
 features_computed_total = Counter('features_computed_total', 'Total features computed', ['service'])
 feature_count_gauge = None  # not used by this service
 prediction_latency_seconds = Histogram('prediction_latency_seconds', 'Prediction latency', ['model'], buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0])
-sentiment_analysis_total = Counter('sentiment_analysis_total', 'Sentiment analyses', ['source'])
+sentiment_analysis_total = Counter('sentiment_analysis_total', 'Sentiment analyses', ['source', 'sentiment'])
 signal_generated_total = Counter('signal_generated_total', 'Trading signals generated')
 trade_executed_total = Counter('trade_executed_total', 'Trades executed')
 db_query_latency_seconds = Histogram('db_query_latency_seconds', 'DB query latency', buckets=[0.001, 0.01, 0.1, 0.5, 1.0])
@@ -45,10 +45,12 @@ def on_article_collected() -> None:
         logger.debug("Failed to increment collected counter", exc_info=True)
 
 
-def on_article_analyzed(duration: float = 0.0) -> None:
+def on_article_analyzed(duration: float = 0.0, sentiment_label: str = "") -> None:
     """Increment the analyzed counter and observe the duration."""
     try:
-        articles_analyzed_total.labels(source="deepseek").inc()
+        articles_analyzed_total.labels(
+            source="deepseek", sentiment=sentiment_label
+        ).inc()
         if duration > 0:
             sentiment_analysis_duration_seconds.observe(duration)
     except Exception:

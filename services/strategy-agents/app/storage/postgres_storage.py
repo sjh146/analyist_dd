@@ -33,10 +33,17 @@ class PostgresStorage:
             logger.error(f"Failed to init pool: {e}")
 
     def _get_conn(self):
-        return self._pool.getconn() if self._pool else None
+        conn = self._pool.getconn() if self._pool else None
+        if conn:
+            conn.autocommit = True
+        return conn
 
     def _put_conn(self, conn):
         if self._pool and conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             self._pool.putconn(conn)
 
     def get_all_stocks(self) -> List[Dict]:
