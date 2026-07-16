@@ -19,7 +19,7 @@ from app.storage.postgres_storage import PostgresStorage
 from app.storage.neo4j_storage import Neo4jStorage
 from app.models.schemas import Article, AnalysisResult
 from app.data_quality_integration import DataQualityIntegration
-from app.metrics_integration import init_metrics, on_article_collected, on_article_analyzed
+from app.metrics_integration import init_metrics, on_article_collected, on_article_analyzed, sentiment_analysis_total
 
 logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -38,7 +38,28 @@ class NewsAnalyzerService:
         )
         self._validated_at_ready = self.pg_storage._ensure_validated_at_column()
         init_metrics(9101)
+        self._backfill_sentiment_metrics()
         self._running = False
+
+    def _backfill_sentiment_metrics(self):
+        """One-time backfill of sentiment metrics from existing DB records."""
+        try:
+            conn = self.pg_storage._get_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COALESCE(sentiment_label, 'unknown'), count(*) "
+                "FROM news_analysis GROUP BY sentiment_label"
+            )
+            rows = cur.fetchall()
+            cur.close()
+            self.pg_storage._put_conn(conn)
+            for label, cnt in rows:
+                sentiment_analysis_total.labels(
+                    source="deepseek", sentiment=label
+                ).inc(cnt)
+                logger.info(f"Backfilled sentiment metric: {label}={cnt}")
+        except Exception as e:
+            logger.warning(f"Could not backfill sentiment metrics: {e}")
 
     async def analyze_recent_articles(self):
         """Collect and analyze recent articles from all sources."""
@@ -69,7 +90,7 @@ class NewsAnalyzerService:
                     f"Sentiment: {result.sentiment_label} "
                     f"({result.sentiment_score:.2f})"
                 )
-                on_article_analyzed(duration=_t1 - _t0)
+                on_article_analyzed(duration=_t1 - _t0, sentiment_label=result.sentiment_label)
 
                 self.pg_storage.save_news_analysis(article, result)
                 logger.debug(f"Saved to PostgreSQL: {article.title[:50]}")

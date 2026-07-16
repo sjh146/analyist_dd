@@ -71,25 +71,9 @@ class StockVectorizerService:
                     price_vector, sentiment_vector, fundamental_vector
                 )
 
-                # Store in pgvector
-                self.pgvector_storage.save_vector(
-                    stock_code=stock_code,
-                    vector_type="price_pattern",
-                    embedding=price_vector,
-                    metadata={"dimensions": len(price_vector)},
-                )
-                self.pgvector_storage.save_vector(
-                    stock_code=stock_code,
-                    vector_type="fundamental",
-                    embedding=fundamental_vector,
-                    metadata={"dimensions": len(fundamental_vector)},
-                )
-                self.pgvector_storage.save_vector(
-                    stock_code=stock_code,
-                    vector_type="sentiment",
-                    embedding=sentiment_vector,
-                    metadata={"dimensions": len(sentiment_vector)},
-                )
+                # Store combined vector (1024-d) only
+                # Note: individual vector types (256-d) skipped because
+                # DB column expects 1024-d for all types
                 self.pgvector_storage.save_vector(
                     stock_code=stock_code,
                     vector_type="combined",

@@ -67,6 +67,7 @@ services:
     volumes:
       - ./services/news-analyzer:/app
       - ./data/disclosures:/app/data
+      - ./scripts:/app/scripts
     depends_on:
       postgres:
         condition: service_healthy
