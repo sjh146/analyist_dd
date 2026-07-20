@@ -67,12 +67,32 @@ class YFinanceCollectorService:
 
         logger.info(f"Daily collection complete. Processed {len(stocks)} stocks.")
 
+    def run_830am_batch(self):
+        import yfinance as yf, pandas as pd
+        logger.info("=== 8:30 AM Batch: US Market Data ===")
+        tickers = {'NASDAQ':'^IXIC','SOX':'^SOX','SP500':'^GSPC','VIX':'^VIX','USDKRW':'USDKRW=X','KOSPI200_NIGHT':'KOSPI200.KS'}
+        all_data = []
+        for name, sym in tickers.items():
+            try:
+                h = yf.Ticker(sym).history(period='5d')
+                if not h.empty:
+                    lat = h.iloc[-1]
+                    all_data.append({'index_name':name,'close_price':float(lat['Close']),'open_price':float(lat['Open']),'high_price':float(lat['High']),'low_price':float(lat['Low']),'volume':int(lat['Volume'])})
+                    logger.info(f"Collected {name}: {lat['Close']:.2f}")
+            except Exception as e:
+                logger.warning(f"Failed {name}: {e}")
+        if all_data:
+            df = pd.DataFrame(all_data)
+            df['trade_date'] = pd.Timestamp.now().date()
+            self.storage.save_us_market_data(df)
+
     def run_scheduled(self):
         """Run on a schedule."""
+        schedule.every().day.at("08:30").do(self.run_830am_batch)
         schedule.every().day.at("18:00").do(self.run_daily_collection)
         schedule.every(6).hours.do(self.run_daily_collection)
 
-        logger.info("Collector service started. Running daily at 18:00 and every 6 hours.")
+        logger.info("Collector service started. Running daily at 08:30, 18:00 and every 6 hours.")
         self._running = True
 
         # Run once on startup
