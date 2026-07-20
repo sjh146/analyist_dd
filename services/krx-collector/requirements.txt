@@ -1,0 +1,6 @@
+pykrx>=1.2.8
+psycopg2-binary>=2.9
+pandas>=2.0
+numpy>=1.24
+python-dotenv>=1.0
+schedule>=1.2
