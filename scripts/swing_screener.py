@@ -8,6 +8,7 @@ to console table + CSV.
 
 import sys
 import os
+import argparse
 import logging
 from datetime import datetime
 
@@ -23,6 +24,18 @@ from app.models.ensemble_model import EnsembleModel
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Swing trade candidate screener')
+    parser.add_argument('--include-krx-data', action='store_true',
+                        help='Include KRX market data (foreign net buy, program trading, short selling) in scoring')
+    parser.add_argument('--include-economic-events', action='store_true',
+                        help='Include economic calendar impact in scoring')
+    parser.add_argument('--output', type=str, default=None,
+                        help='Output CSV path (default: data/ directory with date-based filename)')
+    return parser.parse_args()
+
 
 PG_HOST = os.environ.get("POSTGRES_HOST", "127.0.0.1")
 PG_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
@@ -56,7 +69,111 @@ def get_kosdaq_stocks(pg_conn):
     return rows  # [(code, name, sector, latest_date), ...]
 
 
+def get_krx_foreign_net_buy(pg_conn, stock_code, lookback_days=5):
+    """Get recent foreign net buy for a stock (positive = foreign buying)."""
+    try:
+        cur = pg_conn.cursor()
+        cur.execute("""
+            SELECT SUM(foreign_net_buy) FROM foreign_institutional
+            WHERE stock_code = %s AND trade_date >= CURRENT_DATE - %s
+        """, (stock_code, lookback_days))
+        result = cur.fetchone()
+        cur.close()
+        return float(result[0]) if result and result[0] else 0.0
+    except Exception:
+        return 0.0
+
+
+def get_krx_program_trading(pg_conn, stock_code, lookback_days=5):
+    """Get recent program trading net value for a stock."""
+    try:
+        cur = pg_conn.cursor()
+        cur.execute("""
+            SELECT SUM(program_net) FROM program_trading
+            WHERE stock_code = %s AND trade_date >= CURRENT_DATE - %s
+        """, (stock_code, lookback_days))
+        result = cur.fetchone()
+        cur.close()
+        return float(result[0]) if result and result[0] else 0.0
+    except Exception:
+        return 0.0
+
+
+def get_krx_short_selling(pg_conn, stock_code, lookback_days=5):
+    """Get recent short selling ratio (lower = more bullish)."""
+    try:
+        cur = pg_conn.cursor()
+        cur.execute("""
+            SELECT AVG(short_selling_ratio) FROM short_selling
+            WHERE stock_code = %s AND trade_date >= CURRENT_DATE - %s
+        """, (stock_code, lookback_days))
+        result = cur.fetchone()
+        cur.close()
+        return float(result[0]) if result and result[0] else 0.0
+    except Exception:
+        return 0.0
+
+
+def get_economic_impact(pg_conn, lookahead_days=7):
+    """Get max importance of upcoming economic events within lookahead_days."""
+    try:
+        cur = pg_conn.cursor()
+        cur.execute("""
+            SELECT MAX(importance) FROM economic_calendar
+            WHERE event_date BETWEEN CURRENT_DATE AND CURRENT_DATE + %s
+              AND importance IS NOT NULL
+        """, (lookahead_days,))
+        result = cur.fetchone()
+        cur.close()
+        return int(result[0]) if result and result[0] else 0
+    except Exception:
+        return 0
+
+
+def apply_krx_score_boost(candidates, pg_conn):
+    """Apply score boost based on KRX data signals."""
+    for c in candidates:
+        code = c["stock_code"]
+        foreign_net = get_krx_foreign_net_buy(pg_conn, code)
+        program_net = get_krx_program_trading(pg_conn, code)
+        short_ratio = get_krx_short_selling(pg_conn, code)
+
+        boost = 1.0
+        if foreign_net > 0:
+            boost += 0.03
+        if program_net > 0:
+            boost += 0.02
+        if short_ratio > 0 and short_ratio < 3.0:
+            boost += 0.01
+
+        c["confidence"] = min(round(c["confidence"] * boost, 4), 1.0)
+        c["expected_return"] = round(
+            (c["confidence"] - 0.5) * 2.0 * 100.0, 2
+        )
+    return candidates
+
+
+def apply_economic_impact(candidates, pg_conn):
+    """Adjust scores based on upcoming economic event importance."""
+    impact = get_economic_impact(pg_conn)
+    if impact >= 3:
+        factor = 0.95
+    elif impact == 2:
+        factor = 0.98
+    else:
+        factor = 1.0
+
+    if factor < 1.0:
+        for c in candidates:
+            c["confidence"] = min(round(c["confidence"] * factor, 4), 1.0)
+            c["expected_return"] = round(
+                (c["confidence"] - 0.5) * 2.0 * 100.0, 2
+            )
+    return candidates
+
+
 def main():
+    args = parse_args()
     today = datetime.now().strftime("%Y-%m-%d")
 
     pg = get_pg_conn()
@@ -109,6 +226,14 @@ def main():
                 logger.debug(f"Error screening {code}: {e}")
             continue
 
+    if args.include_krx_data:
+        logger.info("Applying KRX data score boost...")
+        candidates = apply_krx_score_boost(candidates, pg)
+
+    if args.include_economic_events:
+        logger.info("Applying economic calendar impact...")
+        candidates = apply_economic_impact(candidates, pg)
+
     pg.close()
 
     # Sort by confidence descending
@@ -132,9 +257,15 @@ def main():
 
     # Save CSV
     if top20:
-        csv_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
-        os.makedirs(csv_dir, exist_ok=True)
-        csv_path = os.path.join(csv_dir, f"swing_candidates_{today}.csv")
+        if args.output:
+            csv_path = args.output
+            csv_dir = os.path.dirname(csv_path)
+            if csv_dir:
+                os.makedirs(csv_dir, exist_ok=True)
+        else:
+            csv_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
+            os.makedirs(csv_dir, exist_ok=True)
+            csv_path = os.path.join(csv_dir, f"swing_candidates_{today}.csv")
         pd.DataFrame(top20).to_csv(csv_path, index=False)
         logger.info(f"CSV saved: {csv_path}")
 
