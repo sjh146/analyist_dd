@@ -243,6 +243,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  economic-calendar:
+    build:
+      context: ./services/economic-calendar
+      dockerfile: Dockerfile
+    container_name: stock_economic_calendar
+    env_file: .env
+    volumes:
+      - ./services/economic-calendar:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stock_network
+    restart: unless-stopped
+
   redis-exporter:
     image: oliver006/redis_exporter:latest
     container_name: stock_redis_exporter
