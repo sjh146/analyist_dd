@@ -55,6 +55,9 @@ class PostgresStorage:
             rows = cur.fetchall()
             cur.close()
             return [dict(r) for r in rows]
+        except Exception as e:
+            logger.error(f"get_all_stocks failed: {e}")
+            return []
         finally:
             self._put_conn(conn)
 
@@ -70,6 +73,9 @@ class PostgresStorage:
             row = cur.fetchone()
             cur.close()
             return row[0] if row else None
+        except Exception as e:
+            logger.error(f"get_strategy_config failed: {e}")
+            return None
         finally:
             self._put_conn(conn)
 
@@ -135,7 +141,10 @@ class PostgresStorage:
             cur.execute("SELECT DISTINCT sector FROM stocks WHERE sector IS NOT NULL")
             rows = cur.fetchall()
             cur.close()
-            return [dict(r) for r in rows]
+            return [{"name": r["sector"]} for r in rows]
+        except Exception as e:
+            logger.error(f"get_sectors failed: {e}")
+            return []
         finally:
             self._put_conn(conn)
 
@@ -240,8 +249,30 @@ class PostgresStorage:
             self._put_conn(conn)
 
     def get_twin_pairs(self, min_correlation: float = 0.8) -> List[Dict]:
-        """Get twin stock pairs. This would typically come from Neo4j."""
-        return []  # Implement Neo4j query in production
+        """Get twin stock pairs by computing correlation from market_data."""
+        conn = self._get_conn()
+        if not conn: return []
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("""
+                SELECT a.stock_code as stock_code_a,
+                       b.stock_code as stock_code_b,
+                       CORR(a.close_price, b.close_price) as correlation
+                FROM market_data a
+                JOIN market_data b ON a.trade_date = b.trade_date
+                WHERE a.stock_code < b.stock_code
+                GROUP BY a.stock_code, b.stock_code
+                HAVING CORR(a.close_price, b.close_price) >= %s
+                ORDER BY correlation DESC
+            """, (min_correlation,))
+            rows = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in rows]
+        except Exception as e:
+            logger.warning(f"get_twin_pairs query failed (expected if no data): {e}")
+            return []
+        finally:
+            self._put_conn(conn)
 
     def get_price_series(self, stock_code: str, days: int = 60) -> List[float]:
         conn = self._get_conn()
