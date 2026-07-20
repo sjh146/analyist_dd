@@ -99,6 +99,23 @@ services:
       - stock_network
     restart: unless-stopped
 
+  krx-collector:
+    build:
+      context: ./services/krx-collector
+      dockerfile: Dockerfile
+    container_name: stock_krx_collector
+    env_file: .env
+    volumes:
+      - ./services/krx-collector:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock_network
+    restart: unless-stopped
+
   stock-vectorizer:
     build:
       context: ./services/stock-vectorizer
