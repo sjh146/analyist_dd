@@ -31,7 +31,6 @@ class XGBoostModel:
             "objective": "binary:logistic",
             "eval_metric": ["logloss", "auc"],
             "random_state": 42,
-            "use_label_encoder": False,
         }
         self.is_trained = False
 

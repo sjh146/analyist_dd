@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 import numpy as np
 from typing import Dict, List, Optional
 
@@ -19,15 +21,19 @@ class EnsembleModel:
         self.models = [
             XGBoostModel(),
             LightGBMModel(model_dir),
-            CatBoostModel(),
         ]
-        self.model_names = ['xgboost', 'lightgbm', 'catboost']
+        self.model_names = ['xgboost', 'lightgbm']
         self._is_trained = False
 
     def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None):
+        metrics = {}
         for name, model in zip(self.model_names, self.models):
-            model.train(X_train, y_train, X_val, y_val, feature_names)
+            m = model.train(X_train, y_train, X_val, y_val)
+            if m:
+                for k, v in m.items():
+                    metrics[f"{name}_{k}"] = v
         self._is_trained = True
+        return metrics
 
     def predict(self, X) -> np.ndarray:
         probs = np.mean([m.predict(X) for m in self.models], axis=0)
@@ -72,15 +78,40 @@ class EnsembleModel:
             paths.append(model_path)
         return paths
 
+    def save_feature_names(self, feature_names: list, path: str = None):
+        if path is None:
+            path = "models"
+        os.makedirs(path, exist_ok=True)
+        fp = os.path.join(path, "feature_names.json")
+        with open(fp, "w") as f:
+            json.dump(feature_names, f)
+        logger.info(f"Saved {len(feature_names)} feature names to {fp}")
+
+    def load_feature_names(self, path: str = None) -> list:
+        if path is None:
+            path = "models"
+        fp = os.path.join(path, "feature_names.json")
+        if not os.path.exists(fp):
+            logger.warning(f"No feature_names.json found at {fp}")
+            return []
+        with open(fp, "r") as f:
+            names = json.load(f)
+        logger.info(f"Loaded {len(names)} feature names from {fp}")
+        return names
+
     def load(self, path: str = None):
         if path is None:
             path = "models"
+        loaded = 0
         for name, model in zip(self.model_names, self.models):
             try:
                 model_path = f"{path}/{name}_model.pkl"
                 model.load(model_path)
+                loaded += 1
             except Exception as e:
                 logger.warning(f"Failed to load {name} model: {e}")
+        if loaded > 0:
+            self._is_trained = True
 
     def feature_importance(self) -> dict:
         all_importances = {}

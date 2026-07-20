@@ -61,13 +61,35 @@ class Trainer:
             X = df[available_features].values.astype(np.float32)
             y = self._create_labels(df)
 
-            mask = ~np.isnan(X).any(axis=1) & ~np.isnan(y)
-            X = X[mask]
-            y = y[mask]
+            X = np.nan_to_num(X, nan=0.0)
+            valid = ~np.isnan(y)
+            X = X[valid]
+            y = y[valid]
 
             if len(X) < 50:
                 logger.warning(f"Too few valid samples after NaN removal: {len(X)}")
                 return (None, None, None, None, None, None)
+
+            # Remove constant features (zero variance)
+            col_stds = np.std(X, axis=0)
+            varying_mask = col_stds > 0
+            if varying_mask.sum() < 5:
+                logger.warning(f"Too few varying features: {varying_mask.sum()}")
+                return (None, None, None, None, None, None)
+            X = X[:, varying_mask]
+            available_features = [f for f, m in zip(available_features, varying_mask) if m]
+            logger.info(f"Features after variance filter: {len(available_features)}")
+
+            # Check label balance
+            n_pos = int(y.sum())
+            n_neg = len(y) - n_pos
+            logger.info(f"Label balance: {n_pos} up ({100*n_pos/len(y):.1f}%), {n_neg} down ({100*n_neg/len(y):.1f}%)")
+
+            # Shuffle data to avoid stock-grouped splits (SQL orders by stock_code, trade_date)
+            rng = np.random.RandomState(42)
+            shuffle_idx = rng.permutation(len(X))
+            X = X[shuffle_idx]
+            y = y[shuffle_idx]
 
             n = len(X)
             train_end = int(n * 0.60)
@@ -76,6 +98,11 @@ class Trainer:
             X_train, y_train = X[:train_end], y[:train_end]
             X_val, y_val = X[train_end:val_end], y[train_end:val_end]
             X_test, y_test = X[val_end:], y[val_end:]
+
+            # Log per-split balance
+            for name, ys in [("train", y_train), ("val", y_val), ("test", y_test)]:
+                p = int(ys.sum())
+                logger.info(f"  {name}: {len(ys)} samples, {p} up ({100*p/max(len(ys),1):.1f}%)")
 
             logger.info(
                 f"Training data prepared: {len(X_train)} train, "
