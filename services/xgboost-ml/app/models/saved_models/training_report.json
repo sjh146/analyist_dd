@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-07-20T20:36:59.102173",
+  "stocks_trained": 50,
+  "train_size": 7127,
+  "val_size": 2376,
+  "test_size": 2376,
+  "features": 21,
+  "metrics": {
+    "xgboost_train_accuracy": 0.9309667461765119,
+    "xgboost_val_accuracy": 0.547979797979798,
+    "lightgbm_train_accuracy": 0.5773817875684019,
+    "lightgbm_val_accuracy": 0.5782828282828283
+  },
+  "test_accuracy": 0.5681818181818182,
+  "test_f1": 0.2629310344827586,
+  "test_auc": 0.5550416564791061
+}

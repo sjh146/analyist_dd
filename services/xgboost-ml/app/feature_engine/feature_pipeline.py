@@ -63,6 +63,28 @@ class FeaturePipeline:
 
         features = {}
 
+        # Load market data from DB if not provided
+        if market_df is None or market_df.empty:
+            if self.pg_conn is not None:
+                try:
+                    cur = self.pg_conn.cursor()
+                    cur.execute("""
+                        SELECT trade_date, open_price, high_price, low_price, close_price, volume
+                        FROM market_data
+                        WHERE stock_code = %s AND trade_date <= %s
+                        ORDER BY trade_date DESC
+                        LIMIT 250
+                    """, (stock_code, date))
+                    rows = cur.fetchall()
+                    cur.close()
+                    if rows:
+                        market_df = pd.DataFrame(rows, columns=['trade_date', 'open', 'high', 'low', 'close', 'volume'])
+                        market_df = market_df.sort_values('trade_date').reset_index(drop=True)
+                except Exception as e:
+                    logger.debug(f"Failed to load market data for {stock_code}: {e}")
+                    self.pg_conn.rollback()
+                    market_df = pd.DataFrame()
+
         features.update(self.market.get_all_features(
             market_df if market_df is not None and not market_df.empty else pd.DataFrame(),
             stock_code, self.pg_conn,
@@ -113,15 +135,35 @@ class FeaturePipeline:
 
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
         end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-        date_range = []
-        current = start_dt
-        while current <= end_dt:
-            if current.weekday() < 5:
-                date_range.append(current.strftime("%Y-%m-%d"))
-            current += timedelta(days=1)
+
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                cur.execute("""
+                    SELECT stock_code, trade_date::text
+                    FROM market_data
+                    WHERE stock_code = ANY(%s)
+                      AND trade_date >= %s AND trade_date <= %s
+                    ORDER BY stock_code, trade_date
+                """, (stock_codes, start_date, end_date))
+                available = cur.fetchall()
+                cur.close()
+
+                from collections import defaultdict
+                dates_by_stock = defaultdict(list)
+                for code, dt in available:
+                    dates_by_stock[code].append(dt)
+            except Exception as e:
+                logger.warning(f"Failed to query available dates: {e}")
+                dates_by_stock = {}
+        else:
+            dates_by_stock = {}
 
         for code in stock_codes:
-            for date_str in date_range:
+            stock_dates = dates_by_stock.get(code, [])
+            if not stock_dates:
+                continue
+            for date_str in stock_dates:
                 try:
                     features = self.build_features(code, date_str)
                     if features.get("feature_count", 0) >= 10:
@@ -130,7 +172,7 @@ class FeaturePipeline:
                     logger.debug(f"Feature build failed for {code} {date_str}: {e}")
                     continue
 
-        return pd.DataFrame(rows)
+        return pd.DataFrame(rows) if rows else pd.DataFrame()
 
     def _build_advanced_features(
         self, stock_code: str, date: str,
@@ -182,6 +224,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("sector_momentum unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 2. relative_strength: stock_return / market_return
         features["relative_strength"] = 0.0
@@ -244,6 +287,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("program_trading_ratio unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 9. etf_flow_5d: 5-day ETF fund flow
         # TODO: requires etf_flow table
@@ -261,6 +305,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("etf_flow_5d unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 10. foreign_flow_5d: 5-day foreign investor flow
         # TODO: uses foreign_institutional table; falls back to 0.0
@@ -292,6 +337,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("foreign_ownership_pct unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 13. institution_ownership_pct: institutional ownership percentage
         # TODO: requires ownership table
@@ -310,6 +356,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("institution_ownership_pct unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 14. retail_ownership_pct: retail ownership percentage
         # TODO: requires ownership table
@@ -329,6 +376,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("retail_ownership_pct unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 15. short_interest_ratio: short interest / total shares
         # TODO: requires short_interest table
@@ -347,6 +395,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("short_interest_ratio unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 16. days_to_cover: short interest / average daily volume
         # TODO: requires short_interest table
@@ -370,6 +419,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("days_to_cover unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # ----- Credit / Margin features -----
 
@@ -390,6 +440,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("margin_balance_change unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 18. credit_balance_change: change in credit balance
         # TODO: requires credit_balance table
@@ -408,6 +459,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("credit_balance_change unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # 19. short_selling_ratio: short selling volume / total volume
         # TODO: requires short_selling table
@@ -425,6 +477,7 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("short_selling_ratio unavailable; using 0.0")
+                self.pg_conn.rollback()
 
         # ----- Additional technical features -----
 

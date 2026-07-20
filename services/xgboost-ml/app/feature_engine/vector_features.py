@@ -48,6 +48,8 @@ class VectorFeatures:
 
         except Exception as e:
             logger.debug(f"Vector features failed for {stock_code}: {e}")
+            if db_conn:
+                db_conn.rollback()
 
         return features
 
@@ -88,6 +90,8 @@ class VectorFeatures:
 
         except Exception as e:
             logger.debug(f"Similarity query failed: {e}")
+            if db_conn:
+                db_conn.rollback()
             return []
 
     def _get_return_5d(self, stock_code: str, db_conn) -> Optional[float]:
@@ -108,6 +112,8 @@ class VectorFeatures:
                 return float(rows[0][0] / rows[5][0] - 1) if rows[5][0] else 0.0
             return 0.0
         except Exception:
+            if db_conn:
+                db_conn.rollback()
             return None
 
     def get_vector_features_from_db(

@@ -146,6 +146,8 @@ class MarketFeatures:
 
         except Exception as e:
             logger.debug(f"Supply features failed for {stock_code}: {e}")
+            if db_conn:
+                db_conn.rollback()
 
         return features
 
@@ -177,6 +179,8 @@ class MarketFeatures:
 
         except Exception as e:
             logger.debug(f"Derivatives features failed: {e}")
+            if db_conn:
+                db_conn.rollback()
 
         return features
 
