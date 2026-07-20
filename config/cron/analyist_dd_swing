@@ -1,0 +1,2 @@
+# analyist_dd daily swing pipeline — KST 08:30 Mon-Fri
+30 8 * * 1-5 root cd /home/dduckbeagy/analyist_dd && bash scripts/swing-pipeline.sh >> .omo/evidence/cron-swing-pipeline.log 2>&1
