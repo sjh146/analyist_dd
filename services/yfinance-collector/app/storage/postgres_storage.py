@@ -123,3 +123,12 @@ class PostgresStorage:
             conn.rollback()
         finally:
             self._put_conn(conn)
+
+    def save_us_market_data(self, df):
+        import psycopg2
+        conn = psycopg2.connect(host=self.host, port=self.port, dbname=self.dbname, user=self.user, password=self.password)
+        cur = conn.cursor()
+        cur.execute("""CREATE TABLE IF NOT EXISTS us_market_data(id SERIAL PRIMARY KEY,trade_date DATE NOT NULL,index_name VARCHAR(20) NOT NULL,open_price DECIMAL(12,4),high_price DECIMAL(12,4),low_price DECIMAL(12,4),close_price DECIMAL(12,4),volume BIGINT,created_at TIMESTAMP DEFAULT NOW())""")
+        for _, r in df.iterrows():
+            cur.execute("INSERT INTO us_market_data(trade_date,index_name,open_price,high_price,low_price,close_price,volume) VALUES(%s,%s,%s,%s,%s,%s,%s)",(r['trade_date'],r['index_name'],r.get('open_price'),r.get('high_price'),r.get('low_price'),r.get('close_price'),r.get('volume')))
+        conn.commit(); cur.close(); conn.close()
