@@ -106,9 +106,9 @@ class BacktestRunner:
                 logger.warning("No feature data returned for backtest period")
                 return self._empty_result(strategy, start_date, end_date)
 
-            # 2. Extract feature names and build feature matrix
-            feature_names = self.pipeline.get_feature_names()
-            available_features = [f for f in feature_names if f in df.columns]
+            # 2. Extract feature names from saved model features
+            saved_features = self.ensemble.load_feature_names(self.model_dir)
+            available_features = [f for f in saved_features if f in df.columns]
 
             if len(available_features) < 5:
                 logger.warning(f"Too few features available: {len(available_features)}")

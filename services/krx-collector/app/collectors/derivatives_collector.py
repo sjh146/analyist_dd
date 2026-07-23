@@ -8,10 +8,10 @@ logger = logging.getLogger(__name__)
 
 
 class DerivativesCollector:
-    INDEX_MAP = {
-        "KOSPI200": "KOSPI200",
-        "KOSPI": "KOSPI",
-        "KOSDAQ": "KOSDAQ",
+    INDEX_TICKER = {
+        "KOSPI200": "1001",
+        "KOSPI": "1001",
+        "KOSDAQ": "2001",
     }
 
     def __init__(self, index_name="KOSPI200"):
@@ -21,11 +21,11 @@ class DerivativesCollector:
 
     def collect_index_ohlcv(self) -> pd.DataFrame:
         rows = []
-        for name in self.INDEX_MAP:
+        for name, ticker in self.INDEX_TICKER.items():
             try:
                 time.sleep(1)
                 df = stock.get_index_ohlcv(
-                    self.start_date, self.end_date, name
+                    self.start_date, self.end_date, ticker
                 )
                 if df is None or df.empty:
                     logger.debug(f"No OHLCV data for index {name}")
