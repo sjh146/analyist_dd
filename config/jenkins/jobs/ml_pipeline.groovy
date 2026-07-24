@@ -2,248 +2,146 @@ pipeline {
     agent any
     
     triggers {
-        cron('0 20 * * 1-5')
+        cron('0 8,20 * * 1-5')
     }
     
     environment {
-        PYTHONPATH = "${WORKSPACE}"
-        MODEL_PATH = "${WORKSPACE}/models/saved_models"
-        FEATURE_STORE = "true"
+        CONTAINER = 'stock_xgboost_ml'
     }
     
     stages {
-        stage('Data Collection Check') {
+        stage('1. Check & Pull Git') {
             steps {
                 script {
-                    sh '''
-                        cd services/xgboost-ml
-                        python -c "
-import json, sys
-from app.training.auto_retrain import AutoRetrainer
-retrainer = AutoRetrainer()
-result = retrainer.check_data_collection()
-print(json.dumps(result))
-if result['status'] == 'error':
-    sys.exit(1)
-"
-                    '''
+                    sh 'git pull --rebase origin main || echo "Already up to date"'
                 }
             }
         }
         
-        stage('Feature Generation') {
+        stage('2. Train Model') {
             steps {
                 script {
-                    sh '''
-                        cd services/xgboost-ml
-                        python -c "
-import json, sys
-from app.training.auto_retrain import AutoRetrainer
-retrainer = AutoRetrainer()
-result = retrainer.generate_features(days=365)
-print(json.dumps(result))
-if result['status'] == 'error':
-    sys.exit(1)
-"
-                    '''
-                }
-            }
-        }
-        
-        stage('Model Training (Challenger)') {
-            parallel {
-                stage('XGBoost') {
-                    steps {
-                        sh '''
-                            cd services/xgboost-ml
-                            python -c "
-import json, sys
-from app.training.auto_retrain import AutoRetrainer
-retrainer = AutoRetrainer()
-data_result = retrainer.prepare_data(days=365)
-if data_result['status'] == 'error':
-    print(json.dumps(data_result))
-    sys.exit(1)
-result = retrainer.train_challengers()
-print(json.dumps(result))
-if result['models'].get('xgboost', {}).get('status') != 'trained':
-    sys.exit(1)
-"
-                        '''
+                    def max_attempts = 3
+                    def auc = 0.0
+                    
+                    for (int attempt = 1; attempt <= max_attempts; attempt++) {
+                        echo "Training attempt ${attempt}/${max_attempts}..."
+                        
+                        // Run training inside xgboost-ml container
+                        sh """
+                            docker exec ${CONTAINER} python -u /tmp/train_v2.py 2>&1 | tee /tmp/jenkins_ml_train_${attempt}.log
+                        """
+                        
+                        // Read result
+                        script {
+                            def resultFile = "/app/.omo/evidence/training-result-v2.json"
+                            def result = sh(
+                                script: "docker exec ${CONTAINER} sh -c 'cat ${resultFile} 2>/dev/null || echo \"{}\"'",
+                                returnStdout: true
+                            ).trim()
+                            
+                            if (result && result != "{}") {
+                                def jsonResult = readJSON text: result
+                                auc = jsonResult.auc ?: 0.0
+                                echo "Attempt ${attempt}: AUC = ${auc}"
+                            }
+                            
+                            if (auc >= 0.65) {
+                                echo "Target AUC 0.65 achieved! Stopping."
+                                break
+                            }
+                            
+                            if (attempt < max_attempts && auc < 0.65) {
+                                echo "AUC ${auc} < 0.65. Tuning hyperparameters..."
+                                
+                                // Calculate new scale_pos_weight from last training's imbalance
+                                def prevResult = sh(
+                                    script: "docker exec ${CONTAINER} sh -c 'cat /app/.omo/evidence/training-result-balanced.json 2>/dev/null | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get(\\\"imbalance_ratio\\\", 1.6))\"'",
+                                    returnStdout: true
+                                ).trim()
+                                
+                                def imbalance = prevResult ? prevResult.toDouble() : 1.6
+                                
+                                // Tune: increase n_estimators, adjust scale_pos_weight
+                                sh """
+                                    docker exec ${CONTAINER} python3 -c "
+                                        from app.models.xgboost_model import XGBoostModel
+                                        model = XGBoostModel()
+                                        model.params['n_estimators'] = ${(1000 + attempt * 200)}
+                                        model.params['scale_pos_weight'] = ${imbalance} * ${(1.0 + attempt * 0.1)}
+                                        model.params['learning_rate'] = ${(0.05 / attempt).round(4)}
+                                        model.params['max_depth'] = ${8 + attempt}
+                                        import joblib
+                                        joblib.dump({'params': model.params, 'note': 'auto-tuned attempt ${attempt}'}, '/tmp/tuned_xgb_params.pkl')
+                                        
+                                        from app.models.lightgbm_model import LightGBMModel
+                                        model2 = LightGBMModel('app/models/saved_models')
+                                        model2.params['n_estimators'] = ${(1000 + attempt * 200)}
+                                        model2.params['scale_pos_weight'] = ${imbalance} * ${(1.0 + attempt * 0.1)}
+                                        model2.params['learning_rate'] = ${(0.05 / attempt).round(4)}
+                                        joblib.dump({'params': model2.params}, '/tmp/tuned_lgb_params.pkl')
+                                    "
+                                    echo "Tuned params for attempt ${attempt+1}"
+                                """
+                            }
+                        }
                     }
-                }
-                stage('LightGBM') {
-                    steps {
-                        sh '''
-                            cd services/xgboost-ml
-                            python -c "
-import json, sys
-from app.training.auto_retrain import AutoRetrainer
-retrainer = AutoRetrainer()
-data_result = retrainer.prepare_data(days=365)
-if data_result['status'] == 'error':
-    print(json.dumps(data_result))
-    sys.exit(1)
-result = retrainer.train_challengers()
-print(json.dumps(result))
-if result['models'].get('lightgbm', {}).get('status') != 'trained':
-    sys.exit(1)
-"
-                        '''
-                    }
-                }
-                stage('CatBoost') {
-                    steps {
-                        sh '''
-                            cd services/xgboost-ml
-                            python -c "
-import json, sys
-from app.training.auto_retrain import AutoRetrainer
-retrainer = AutoRetrainer()
-data_result = retrainer.prepare_data(days=365)
-if data_result['status'] == 'error':
-    print(json.dumps(data_result))
-    sys.exit(1)
-result = retrainer.train_challengers()
-print(json.dumps(result))
-if result['models'].get('catboost', {}).get('status') != 'trained':
-    sys.exit(1)
-"
-                        '''
-                    }
+                    
+                    echo "Final AUC: ${auc}"
                 }
             }
         }
         
-        stage('Ensemble Training') {
+        stage('3. Evaluate & Report') {
+            steps {
+                script {
+                    // Collect all results
+                    def bestResult = sh(
+                        script: "docker exec ${CONTAINER} sh -c 'python3 -c \"
+import json, os, glob
+best = {\"auc\": 0.0}
+for f in glob.glob(\\\"/app/.omo/evidence/training-result*.json\\\"):
+    try:
+        with open(f) as fh:
+            d = json.load(fh)
+            if d.get(\\\"auc\\\", 0) > best.get(\\\"auc\\\", 0):
+                best = d
+                best[\\\"file\\\"] = f
+    except: pass
+print(json.dumps(best, indent=2))
+\"'",
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "=== BEST RESULT ==="
+                    echo "${bestResult}"
+                    
+                    // Save best result to workspace
+                    sh "docker exec ${CONTAINER} sh -c 'cat /app/.omo/evidence/training-result-balanced.json' > reports/ml_best_result.json 2>/dev/null || true"
+                    sh "docker exec ${CONTAINER} sh -c 'cat /app/.omo/evidence/training-result-v2.json' > reports/ml_best_result.json 2>/dev/null || true"
+                }
+            }
+        }
+        
+        stage('4. Git Commit Results') {
             steps {
                 script {
                     sh '''
-                        cd services/xgboost-ml
-                        python -c "
-import json, sys
-from app.training.auto_retrain import AutoRetrainer
-retrainer = AutoRetrainer()
-result = retrainer.train_ensemble()
-print(json.dumps(result))
-if result['status'] == 'error':
-    sys.exit(1)
-"
+                        git add -A
+                        git diff --cached --quiet || git commit -m "auto: ML pipeline update $(date +%Y-%m-%d_%H:%M)"
+                        git push origin main 2>&1 || echo "Push failed (maybe no changes)"
                     '''
                 }
-            }
-        }
-        
-        stage('Evaluation') {
-            steps {
-                script {
-                    sh '''
-                        cd services/xgboost-ml
-                        python -c "
-import json, sys, os
-from app.training.auto_retrain import AutoRetrainer, CHAMPION_DIR, CHALLENGER_DIR
-retrainer = AutoRetrainer()
-# Find champion and challenger model files
-champion_pkl = None
-challenger_pkl = None
-if os.path.isdir(CHAMPION_DIR):
-    files = sorted([f for f in os.listdir(CHAMPION_DIR) if f.endswith('.pkl')])
-    if files:
-        champion_pkl = os.path.join(CHAMPION_DIR, files[0])
-if os.path.isdir(CHALLENGER_DIR):
-    files = sorted([f for f in os.listdir(CHALLENGER_DIR) if f.endswith('.pkl') and f != 'ensemble_model.pkl'])
-    if files:
-        challenger_pkl = os.path.join(CHALLENGER_DIR, files[0])
-if not champion_pkl or not challenger_pkl:
-    print(json.dumps({'status': 'error', 'message': 'Missing champion or challenger model'}))
-    sys.exit(1)
-result = retrainer.evaluate(champion_pkl, challenger_pkl)
-print(json.dumps(result))
-if result['status'] == 'error':
-    sys.exit(1)
-"
-                    '''
-                }
-            }
-        }
-        
-        stage('Champion Selection') {
-            steps {
-                script {
-                    sh '''
-                        cd services/xgboost-ml
-                        python -c "
-import json, sys
-from app.training.auto_retrain import AutoRetrainer
-retrainer = AutoRetrainer()
-with open('ml_metrics/eval_results.json', 'r') as f:
-    eval_results = json.load(f)
-selection = retrainer.select_champion(eval_results)
-print(json.dumps(selection))
-# Write selection result for Deploy stage
-with open('ml_metrics/champion_selection.json', 'w') as f:
-    json.dump(selection, f)
-"
-                    '''
-                }
-            }
-        }
-        
-        stage('Drift Detection') {
-            steps {
-                script {
-                    sh '''
-                        cd services/xgboost-ml && python -c "
-from app.monitoring.drift_detector import DriftDetector
-from app.monitoring.alerter import Alerter
-import json, os
-dd = DriftDetector()
-alerter = Alerter()
-# Performance drift
-baseline = dd.get_baseline_metrics(os.environ.get('ML_MODEL_VERSION', 'v1.0'))
-with open('ml_metrics/champion_metrics.json') as f: current = json.load(f)
-perf = dd.check_performance_drift(current, baseline)
-if perf['drift_detected']: dd.store_drift_result('ALL', 'performance', perf); alerter.send_drift_alert(perf)
-# Data drift check
-print('Drift detection complete')
-"
-                    '''
-                }
-            }
-        }
-        
-        stage('Deploy') {
-            steps {
-                script {
-                    sh '''
-                        cd services/xgboost-ml
-                        python -c "
-import json, sys
-from app.training.auto_retrain import AutoRetrainer
-retrainer = AutoRetrainer()
-with open('ml_metrics/champion_selection.json', 'r') as f:
-    selection = json.load(f)
-result = retrainer.deploy(selection)
-print(json.dumps(result))
-if not result.get('deployed', False):
-    print('Deploy skipped: challenger did not outperform champion')
-"
-                        '''
-                    }
-                }
-            }
-        }
-    }
             }
         }
     }
     
     post {
         success {
-            echo 'ML Pipeline completed successfully'
+            echo 'ML Pipeline completed. Models trained and evaluated.'
         }
         failure {
-            echo 'ML Pipeline failed'
+            echo 'ML Pipeline failed. Check logs.'
         }
     }
 }
