@@ -39,6 +39,23 @@ class Predictor:
                 self._streams = RedisStreams(f"redis://{host}:{port}")
             except Exception:
                 pass
+        # Load saved model feature names for inference (model was trained with these)
+        self._saved_feature_names = self._load_saved_feature_names()
+
+    def _load_saved_feature_names(self) -> List[str]:
+        """Load feature names from the saved model's feature_names.json."""
+        try:
+            path = os.path.join(
+                os.path.dirname(__file__), "..", "models", "saved_models", "feature_names.json"
+            )
+            if os.path.exists(path):
+                with open(path) as f:
+                    names = json.load(f)
+                logger.info(f"Loaded {len(names)} saved feature names for inference")
+                return names
+        except Exception as e:
+            logger.warning(f"Could not load saved feature names: {e}")
+        return self.feature_pipeline.get_feature_names()
 
     def predict(self, stock_code: str, date: str = None) -> Optional[Dict]:
         """Predict direction for a single stock."""
@@ -47,7 +64,7 @@ class Predictor:
 
         try:
             features = self.feature_pipeline.build_features(stock_code, date)
-            feature_names = self.feature_pipeline.get_feature_names()
+            feature_names = self._saved_feature_names
             feature_vector = np.array([
                 features.get(f, 0.0) for f in feature_names
             ], dtype=np.float32)

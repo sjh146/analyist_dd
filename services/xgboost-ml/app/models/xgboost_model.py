@@ -18,18 +18,19 @@ class XGBoostModel:
     def __init__(self):
         self.model = None
         self.feature_names = []
+        self.n_estimators = 800
         self.params = {
-            "n_estimators": 300,
-            "max_depth": 7,
+            "max_depth": 8,
             "learning_rate": 0.05,
-            "subsample": 0.8,
-            "colsample_bytree": 0.8,
+            "subsample": 0.7,
+            "colsample_bytree": 0.7,
             "min_child_weight": 3,
             "gamma": 0.1,
             "reg_alpha": 0.1,
             "reg_lambda": 1.0,
+            "scale_pos_weight": 1.4,
             "objective": "binary:logistic",
-            "eval_metric": ["logloss", "auc"],
+            "eval_metric": "auc",
             "random_state": 42,
         }
         self.is_trained = False
@@ -59,9 +60,9 @@ class XGBoostModel:
         self.model = xgb.train(
             self.params,
             dtrain,
-            num_boost_round=self.params["n_estimators"],
+            num_boost_round=self.n_estimators,
             evals=evals,
-            early_stopping_rounds=50,
+            early_stopping_rounds=20,
             verbose_eval=False,
         )
 
