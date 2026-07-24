@@ -28,14 +28,14 @@ class Trainer:
         Prepare features and labels for training using time-series split.
 
         Returns:
-            (X_train, X_val, X_test, y_train, y_val, y_test) or None tuple on failure
+            (X_train, X_val, X_test, y_train, y_val, y_test, feature_names) or None tuple on failure
         """
         if stock_codes is None:
             stock_codes = self._get_stock_list()
 
         if not stock_codes:
             logger.warning("No stocks available for training")
-            return (None, None, None, None, None, None)
+            return (None, None, None, None, None, None, None)
 
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
@@ -49,14 +49,89 @@ class Trainer:
 
             if df is None or len(df) < 100:
                 logger.warning(f"Insufficient training data: {len(df) if df is not None else 0} rows")
-                return (None, None, None, None, None, None)
+                return (None, None, None, None, None, None, None)
 
             feature_names = self.feature_pipeline.get_feature_names()
             available_features = [c for c in feature_names if c in df.columns]
 
             if len(available_features) < 10:
                 logger.warning(f"Too few features available: {available_features}")
-                return (None, None, None, None, None, None)
+                return (None, None, None, None, None, None, None)
+
+            # Sort chronologically for time-series integrity
+            if 'date' in df.columns:
+                df = df.sort_values('date').reset_index(drop=True)
+            elif 'trade_date' in df.columns:
+                df = df.sort_values('trade_date').reset_index(drop=True)
+
+            # --- Feature engineering: interaction features and rolling stats ---
+            interaction_features = []
+
+            # Interaction pairs: (feat_a, feat_b, new_name)
+            interaction_pairs = [
+                ("return_1d", "volatility_20d", "momentum_vs_volatility"),
+                ("return_5d", "return_20d", "trend_interaction"),
+                ("volume_ratio_5", "return_5d", "volume_price_trend"),
+                ("ma_position_5", "ma_position_20", "cross_trend"),
+                ("volatility_20d", "volume_ratio_5", "volatility_volume"),
+                ("return_1d", "return_5d", "short_medium_term_momentum"),
+                ("return_5d", "ma_position_20", "trend_confirmation"),
+                ("price", "volume_ratio_5", "price_volume"),
+            ]
+
+            for a, b, name in interaction_pairs:
+                if a in df.columns and b in df.columns:
+                    df[name] = df[a] * df[b]
+                    interaction_features.append(name)
+
+            # Rolling statistics (per stock_code group)
+            rolling_stats = [
+                ("return_5d", "return_5d_mean_10d", 10),
+                ("volatility_20d", "volatility_20d_mean_10d", 10),
+                ("volume_ratio_5", "volume_ratio_5_mean_10d", 10),
+            ]
+
+            if "stock_code" in df.columns:
+                for col, new_name, window in rolling_stats:
+                    if col in df.columns:
+                        df[new_name] = df.groupby("stock_code")[col].transform(
+                            lambda x: x.rolling(window=window, min_periods=1).mean()
+                        )
+                        interaction_features.append(new_name)
+            else:
+                for col, new_name, window in rolling_stats:
+                    if col in df.columns:
+                        df[new_name] = df[col].rolling(window=window, min_periods=1).mean()
+                        interaction_features.append(new_name)
+
+            # --- Cross-sectional percentile rank features (rank each stock against all others on same date) ---
+            cross_sectional_rank_cols = [
+                "return_5d", "return_20d", "volatility_20d",
+                "volume_ratio_5", "ma_position_5", "volume_ratio_20",
+            ]
+            date_col = "date" if "date" in df.columns else ("trade_date" if "trade_date" in df.columns else None)
+            if date_col is not None:
+                for col in cross_sectional_rank_cols:
+                    if col in df.columns:
+                        rank_name = f"rank_{col}"
+                        df[rank_name] = df.groupby(date_col)[col].rank(pct=True)
+                        interaction_features.append(rank_name)
+
+            # --- Rolling target encoding (rolling mean of return_1d as proxy for future return) ---
+            target_ma_windows = [
+                ("return_1d", "target_ma_5", 5),
+                ("return_1d", "target_ma_10", 10),
+                ("return_1d", "target_ma_20", 20),
+            ]
+            if "stock_code" in df.columns and "return_1d" in df.columns:
+                for col, new_name, window in target_ma_windows:
+                    df[new_name] = df.groupby("stock_code")["return_1d"].transform(
+                        lambda x: x.rolling(window=window, min_periods=1).mean()
+                    )
+                    interaction_features.append(new_name)
+
+            # Extend available_features with new interaction features
+            available_features.extend(interaction_features)
 
             X = df[available_features].values.astype(np.float32)
             y = self._create_labels(df)
@@ -68,14 +143,14 @@ class Trainer:
 
             if len(X) < 50:
                 logger.warning(f"Too few valid samples after NaN removal: {len(X)}")
-                return (None, None, None, None, None, None)
+                return (None, None, None, None, None, None, None)
 
             # Remove constant features (zero variance)
             col_stds = np.std(X, axis=0)
             varying_mask = col_stds > 0
             if varying_mask.sum() < 5:
                 logger.warning(f"Too few varying features: {varying_mask.sum()}")
-                return (None, None, None, None, None, None)
+                return (None, None, None, None, None, None, None)
             X = X[:, varying_mask]
             available_features = [f for f, m in zip(available_features, varying_mask) if m]
             logger.info(f"Features after variance filter: {len(available_features)}")
@@ -84,12 +159,6 @@ class Trainer:
             n_pos = int(y.sum())
             n_neg = len(y) - n_pos
             logger.info(f"Label balance: {n_pos} up ({100*n_pos/len(y):.1f}%), {n_neg} down ({100*n_neg/len(y):.1f}%)")
-
-            # Shuffle data to avoid stock-grouped splits (SQL orders by stock_code, trade_date)
-            rng = np.random.RandomState(42)
-            shuffle_idx = rng.permutation(len(X))
-            X = X[shuffle_idx]
-            y = y[shuffle_idx]
 
             n = len(X)
             train_end = int(n * 0.60)
@@ -109,11 +178,11 @@ class Trainer:
                 f"{len(X_val)} val, {len(X_test)} test, "
                 f"{len(available_features)} features"
             )
-            return (X_train, X_val, X_test, y_train, y_val, y_test)
+            return (X_train, X_val, X_test, y_train, y_val, y_test, available_features)
 
         except Exception as e:
             logger.error(f"Failed to prepare training data: {e}")
-            return (None, None, None, None, None, None)
+            return (None, None, None, None, None, None, None)
 
     def train(self, model, X_train, y_train, X_val, y_val) -> Dict:
         """Train the model and return metrics."""
@@ -138,8 +207,9 @@ class Trainer:
 
     def _create_labels(self, df: pd.DataFrame) -> np.ndarray:
         """
-        Create binary labels: 1 if next-day close > current close, else 0.
-        Labels must NOT use future data — uses shift(-1) within each stock group.
+        Create binary labels: 1 if next trading day's close > current close, else 0.
+        Uses shift(-1) within each stock group. Last row of each group gets label 0
+        (no 1-day future data available).
         """
         if "label" in df.columns and df["label"].notna().any():
             return df["label"].values.astype(int)
@@ -152,10 +222,12 @@ class Trainer:
                 idx = df[mask].index
                 prices = df.loc[idx, "price"].values
                 if len(prices) >= 2:
+                    # Compare price[i] with price[i+1] — 1-day forward return
                     next_up = prices[1:] > prices[:-1]
                     label_vals = np.zeros(len(prices), dtype=int)
                     label_vals[:-1] = next_up.astype(int)
                     labels[idx] = label_vals
+                # len(prices) < 2: all zeros (no 1-day future data)
 
         return labels
 

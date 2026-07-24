@@ -29,7 +29,7 @@ class XGBoostMLService:
         logger.info("Initializing XGBoost ML Service...")
         self.config = Config()
         self.pg_storage = PostgresStorage()
-        self.feature_pipeline = FeaturePipeline()
+        self.feature_pipeline = FeaturePipeline(pg_conn=self.pg_storage._get_conn())
         self.model_manager = ModelManager(self.pg_storage)
         self.model = XGBoostModel()
         self.trainer = Trainer(self.pg_storage, self.feature_pipeline)
@@ -39,7 +39,7 @@ class XGBoostMLService:
 
     def initialize(self):
         """Initialize model - load existing or train new."""
-        model_path = os.path.join(self.config.MODEL_PATH, f"xgboost_{self.config.MODEL_VERSION}.joblib")
+        model_path = os.path.join(self.config.MODEL_PATH, "xgboost_model.pkl")
 
         if os.path.exists(model_path):
             logger.info(f"Loading existing model: {model_path}")
@@ -66,7 +66,7 @@ class XGBoostMLService:
             # Save model
             model_path = os.path.join(
                 self.config.MODEL_PATH,
-                f"xgboost_{self.config.MODEL_VERSION}.joblib"
+                "xgboost_model.pkl"
             )
             os.makedirs(self.config.MODEL_PATH, exist_ok=True)
             self.model.save(model_path)

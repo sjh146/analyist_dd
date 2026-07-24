@@ -21,6 +21,6 @@ class Config:
 
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     MODEL_VERSION = os.getenv("ML_MODEL_VERSION", "v1.0")
-    MODEL_PATH = "/app/models/saved_models"
+    MODEL_PATH = "/app/app/models/saved_models"
     RETRAIN_INTERVAL_DAYS = int(os.getenv("ML_RETRAIN_INTERVAL_DAYS", "7"))
-    PREDICTION_CONFIDENCE_THRESHOLD = 0.6
+    PREDICTION_CONFIDENCE_THRESHOLD = 0.0

@@ -14,39 +14,103 @@ logger = logging.getLogger(__name__)
 class EnsembleModel:
     """
     Soft Voting Ensemble combining XGBoost, LightGBM, and CatBoost.
-    Predicts by averaging probability outputs from all models.
+    Predicts by weighted averaging probability outputs from all models,
+    where weights are derived from validation AUC scores.
     """
 
     def __init__(self, model_dir: str = "models"):
-        self.models = [
-            XGBoostModel(),
-            LightGBMModel(model_dir),
-        ]
-        self.model_names = ['xgboost', 'lightgbm']
+        self.models = []
+        self.model_names = []
+
+        # XGBoost
+        self.models.append(XGBoostModel())
+        self.model_names.append('xgboost')
+
+        # LightGBM
+        self.models.append(LightGBMModel(model_dir))
+        self.model_names.append('lightgbm')
+
+        # CatBoost (with graceful fallback)
+        try:
+            self.models.append(CatBoostModel())
+            self.model_names.append('catboost')
+        except ImportError:
+            logger.warning("CatBoost not installed — skipping CatBoost in ensemble")
+
         self._is_trained = False
+        self.val_weights: Dict[str, float] = {}
 
     def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None):
         metrics = {}
+        self.val_weights = {}
+
         for name, model in zip(self.model_names, self.models):
-            m = model.train(X_train, y_train, X_val, y_val)
-            if m:
-                for k, v in m.items():
-                    metrics[f"{name}_{k}"] = v
+            logger.info(f"Training {name}...")
+            try:
+                m = model.train(X_train, y_train, X_val, y_val)
+                if m:
+                    for k, v in m.items():
+                        metrics[f"{name}_{k}"] = v
+            except ImportError as e:
+                logger.warning(f"Skipping {name} — not available: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"Skipping {name} — train failed: {e}")
+                continue
+
+            # Compute validation AUC for weighting
+            if X_val is not None and y_val is not None:
+                from sklearn.metrics import roc_auc_score
+                try:
+                    val_probs = model.predict(X_val)
+                    auc = roc_auc_score(y_val, val_probs)
+                except Exception:
+                    auc = 0.5
+                # Weight = AUC above random (0.5), minimum 0.01
+                self.val_weights[name] = max(auc - 0.5, 0.01)
+                logger.info(f"  {name} val AUC: {auc:.4f} (weight: {self.val_weights[name]:.4f})")
+            else:
+                self.val_weights[name] = 1.0
+
         self._is_trained = True
         return metrics
 
     def predict(self, X) -> np.ndarray:
-        probs = np.mean([m.predict(X) for m in self.models], axis=0)
-        return probs
+        if not self.models:
+            logger.error("No models loaded for prediction!")
+            return np.zeros(len(X))
+
+        # Weighted average based on validation AUC
+        preds = []
+        total_weight = 0.0
+        for name, model in zip(self.model_names, self.models):
+            probs = model.predict(X)
+            weight = self.val_weights.get(name, 1.0)
+            preds.append(probs * weight)
+            total_weight += weight
+
+        if total_weight > 0:
+            ensemble_pred = np.sum(preds, axis=0) / total_weight
+        else:
+            ensemble_pred = np.mean(preds, axis=0) if preds else np.zeros(len(X))
+
+        return ensemble_pred
 
     def predict_single(self, features: np.ndarray) -> dict:
         results = {}
         model_probs = []
+        total_weight = 0.0
+        weighted_sum = 0.0
+
         for name, model in zip(self.model_names, self.models):
             try:
                 result = model.predict_single(features)
                 results[name] = result
-                model_probs.append(result['predicted_probability'])
+                prob = result['predicted_probability']
+                weight = self.val_weights.get(name, 1.0)
+                model_probs.append(prob)
+                weighted_sum += prob * weight
+                total_weight += weight
             except Exception as e:
                 logger.warning(f"{name} prediction failed: {e}")
                 continue
@@ -54,7 +118,11 @@ class EnsembleModel:
         if not model_probs:
             raise ValueError("All models failed to predict")
 
-        avg_prob = np.mean(model_probs)
+        if total_weight > 0:
+            avg_prob = weighted_sum / total_weight
+        else:
+            avg_prob = np.mean(model_probs)
+
         direction = "up" if avg_prob >= 0.5 else "down"
         confidence = max(avg_prob, 1 - avg_prob)
 

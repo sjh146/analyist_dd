@@ -19,16 +19,22 @@ class LightGBMModel:
         self.model = None
         self.feature_names = []
         self.params = {
-            "n_estimators": 300,
-            "max_depth": 7,
+            "n_estimators": 800,
+            "max_depth": 8,
             "learning_rate": 0.05,
-            "num_leaves": 31,
-            "subsample": 0.8,
-            "colsample_bytree": 0.8,
+            "num_leaves": 64,
+            "subsample": 0.7,
+            "subsample_freq": 1,
+            "colsample_bytree": 0.7,
             "min_child_samples": 20,
+            "min_split_gain": 0.1,
+            "lambda_l1": 0.1,
+            "lambda_l2": 1.0,
+            "scale_pos_weight": 1.4,
             "objective": "binary",
-            "metric": ["binary_logloss", "auc"],
+            "metric": "auc",
             "boosting_type": "gbdt",
+            "early_stopping_rounds": 20,
             "random_state": 42,
             "verbosity": -1,
         }
@@ -69,7 +75,7 @@ class LightGBMModel:
             num_boost_round=self.params["n_estimators"],
             valid_sets=evals,
             valid_names=valid_names,
-            callbacks=[lgb.early_stopping(50), lgb.log_evaluation(0)],
+            callbacks=[lgb.early_stopping(20), lgb.log_evaluation(0)],
         )
 
         self.is_trained = True

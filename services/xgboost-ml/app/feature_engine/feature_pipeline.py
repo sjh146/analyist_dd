@@ -85,6 +85,14 @@ class FeaturePipeline:
                     self.pg_conn.rollback()
                     market_df = pd.DataFrame()
 
+        # Filter market_df to current date only (prevent look-ahead bias / stale price)
+        if market_df is not None and not market_df.empty and date is not None:
+            if 'trade_date' in market_df.columns:
+                market_df = market_df.copy()
+                mkt_dates = pd.to_datetime(market_df['trade_date'])
+                cutoff = pd.Timestamp(date)
+                market_df = market_df[mkt_dates <= cutoff].reset_index(drop=True)
+
         features.update(self.market.get_all_features(
             market_df if market_df is not None and not market_df.empty else pd.DataFrame(),
             stock_code, self.pg_conn,
@@ -94,7 +102,15 @@ class FeaturePipeline:
 
         features.update(self.sentiment.get_all_features(stock_code, self.pg_conn))
 
+        # Real sentiment from stock_sentiment table
+        sentiment = self._get_stock_sentiment(stock_code, date)
+        features.update(sentiment)
+
         features.update(self.macro.get_all_features(self.pg_conn))
+
+        # Economic event features
+        economic = self._get_economic_events(date)
+        features.update(economic)
 
         features.update(self.graph.get_graph_features(stock_code, self.neo4j_conn))
 
@@ -159,15 +175,56 @@ class FeaturePipeline:
         else:
             dates_by_stock = {}
 
+        # Pre-load market data for all stocks (batch)
+        market_data_by_stock = {}
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                # Load up to 365 days of data per stock for lookback indicators (RSI, MA, etc.)
+                lookback_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=365)).strftime("%Y-%m-%d")
+                cur.execute("""
+                    SELECT stock_code, trade_date, open_price, high_price, low_price, close_price, volume
+                    FROM market_data
+                    WHERE stock_code = ANY(%s)
+                      AND trade_date >= %s AND trade_date <= %s
+                    ORDER BY stock_code, trade_date
+                """, (stock_codes, lookback_start, end_date))
+                all_rows = cur.fetchall()
+                cur.close()
+
+                # Group by stock_code as DataFrames
+                stock_data = defaultdict(list)
+                for code, tdate, open_p, high_p, low_p, close_p, vol in all_rows:
+                    stock_data[code].append({
+                        'trade_date': tdate, 'open': open_p, 'high': high_p,
+                        'low': low_p, 'close': close_p, 'volume': vol,
+                    })
+
+                for code, rows_list in stock_data.items():
+                    df = pd.DataFrame(rows_list)
+                    df = df.sort_values('trade_date').reset_index(drop=True)
+                    market_data_by_stock[code] = df
+
+                logger.info(f"Batch-loaded market data for {len(market_data_by_stock)} stocks ({len(all_rows)} rows)")
+            except Exception as e:
+                logger.warning(f"Batch market data load failed: {e}")
+                market_data_by_stock = {}
+
+        total_pairs = sum(len(d) for d in dates_by_stock.values())
+        processed = 0
         for code in stock_codes:
             stock_dates = dates_by_stock.get(code, [])
             if not stock_dates:
                 continue
-            for date_str in stock_dates:
+            stock_market_df = market_data_by_stock.get(code, pd.DataFrame())
+            for i, date_str in enumerate(stock_dates):
                 try:
-                    features = self.build_features(code, date_str)
+                    features = self.build_features(code, date_str, market_df=stock_market_df)
                     if features.get("feature_count", 0) >= 10:
                         rows.append(features)
+                    processed += 1
+                    if processed % 200 == 0:
+                        logger.info(f"Build progress: {processed}/{total_pairs} stock-date pairs")
                 except Exception as e:
                     logger.debug(f"Feature build failed for {code} {date_str}: {e}")
                     continue
@@ -178,7 +235,7 @@ class FeaturePipeline:
         self, stock_code: str, date: str,
         market_df: pd.DataFrame = None,
     ) -> Dict:
-        """Build 25 advanced features: sector/market, volatility/risk, flow, ownership, credit/margin, technical."""
+        """Build 19 advanced features: sector/market, volatility/risk, flow, ownership, credit/margin, technical."""
 
         features = {}
 
@@ -188,9 +245,12 @@ class FeaturePipeline:
             close_series = market_df.get("close_price", market_df.get("close"))
             if close_series is not None:
                 close = close_series.values if hasattr(close_series, "values") else np.array(close_series)
+                # Convert Decimal to float to avoid type errors in numpy operations
+                close = np.array([float(c) for c in close])
             vol_series = market_df.get("volume")
             if vol_series is not None:
                 volume = vol_series.values if hasattr(vol_series, "values") else np.array(vol_series)
+                volume = np.array([float(v) for v in volume])
 
         valid_close = close is not None and len(close) > 0
         valid_vol = volume is not None and len(volume) > 0
@@ -234,18 +294,6 @@ class FeaturePipeline:
             market_return = 0.0
             features["relative_strength"] = float(stock_ret / market_return) if market_return != 0 else 0.0
 
-        # 3. market_breadth: ratio of advancing stocks to declining stocks
-        # TODO: requires daily market breadth from stock_prices aggregation
-        features["market_breadth"] = 0.0
-
-        # 4. high_52w_ratio: ratio of stocks at 52-week highs
-        # TODO: requires 52-week high query from stock_prices
-        features["high_52w_ratio"] = 0.0
-
-        # 5. adr: 1 if ADR stock else 0
-        # TODO: requires adr_flag column in stocks table
-        features["adr"] = 0.0
-
         # ----- Volatility / Risk features -----
 
         # 6. vix_proxy: approximate KOSPI 200 implied volatility from historical vol
@@ -269,16 +317,16 @@ class FeaturePipeline:
 
         # ----- Flow features (from external data) -----
 
-        # 8. program_trading_ratio: program trading volume / total volume
-        # TODO: requires program_trading table
+        # 8. program_trading_ratio: program trading value / total value
+        # Uses krx_program_trading table (foreign_buy_value + foreign_sell_value) / total_value
         features["program_trading_ratio"] = 0.0
         if self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
                 cur.execute("""
-                    SELECT program_buy + program_sell, total_volume
-                    FROM program_trading
-                    WHERE trade_date = %s
+                    SELECT foreign_buy_value + foreign_sell_value, total_value
+                    FROM krx_program_trading
+                    WHERE trade_date = %s AND market = 'KOSPI'
                     ORDER BY trade_date DESC LIMIT 1
                 """, (date,))
                 row = cur.fetchone()
@@ -306,17 +354,6 @@ class FeaturePipeline:
             except Exception:
                 logger.debug("etf_flow_5d unavailable; using 0.0")
                 self.pg_conn.rollback()
-
-        # 10. foreign_flow_5d: 5-day foreign investor flow
-        # TODO: uses foreign_institutional table; falls back to 0.0
-        features["foreign_flow_5d"] = 0.0
-        if valid_close and len(close) >= 2:
-            features["foreign_flow_5d"] = 0.0
-
-        # 11. institution_flow_5d: 5-day institutional flow
-        features["institution_flow_5d"] = 0.0
-        if valid_close and len(close) >= 2:
-            features["institution_flow_5d"] = 0.0
 
         # ----- Sentiment / Ownership features -----
 
@@ -462,13 +499,13 @@ class FeaturePipeline:
                 self.pg_conn.rollback()
 
         # 19. short_selling_ratio: short selling volume / total volume
-        # TODO: requires short_selling table
+        # Uses krx_short_selling table (short_volume / total_volume)
         features["short_selling_ratio"] = 0.0
         if self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
                 cur.execute("""
-                    SELECT short_sell_volume, total_volume FROM short_selling
+                    SELECT short_volume, total_volume FROM krx_short_selling
                     WHERE stock_code = %s AND trade_date = %s
                 """, (stock_code, date))
                 row = cur.fetchone()
@@ -477,6 +514,81 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("short_selling_ratio unavailable; using 0.0")
+                self.pg_conn.rollback()
+
+        # ----- KRX Trading features -----
+
+        # krx_total_trading_value: total KRX trading value for the date
+        features["krx_total_trading_value"] = 0.0
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                cur.execute("""
+                    SELECT trading_value FROM krx_trading
+                    WHERE trade_date = %s AND market = 'KOSPI' AND investor_type = 'Total'
+                    LIMIT 1
+                """, (date,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    features["krx_total_trading_value"] = float(row[0])
+                cur.close()
+            except Exception:
+                logger.debug("krx_total_trading_value unavailable; using 0.0")
+                self.pg_conn.rollback()
+
+        # krx_advance_decline_ratio: net foreign buy / total trading value as proxy
+        features["krx_advance_decline_ratio"] = 0.0
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                cur.execute("""
+                    SELECT net_buy, trading_value FROM krx_trading
+                    WHERE trade_date = %s AND market = 'KOSPI' AND investor_type = 'Foreign'
+                    LIMIT 1
+                """, (date,))
+                row = cur.fetchone()
+                if row and row[1] and row[1] > 0:
+                    features["krx_advance_decline_ratio"] = float(row[0] / row[1])
+                cur.close()
+            except Exception:
+                logger.debug("krx_advance_decline_ratio unavailable; using 0.0")
+                self.pg_conn.rollback()
+
+        # ----- KRX Derivatives features -----
+
+        # futures_premium: KOSPI200 futures close as proxy for market level
+        features["futures_premium"] = 0.0
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                cur.execute("""
+                    SELECT close_price FROM krx_derivatives
+                    WHERE trade_date = %s AND index_name = 'KOSPI200'
+                    LIMIT 1
+                """, (date,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    features["futures_premium"] = float(row[0])
+                cur.close()
+            except Exception:
+                logger.debug("futures_premium unavailable; using 0.0")
+                self.pg_conn.rollback()
+
+        # derivatives_volume: total derivatives volume (KOSPI200 + KOSDAQ)
+        features["derivatives_volume"] = 0.0
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                cur.execute("""
+                    SELECT SUM(volume) FROM krx_derivatives
+                    WHERE trade_date = %s
+                """, (date,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    features["derivatives_volume"] = float(row[0])
+                cur.close()
+            except Exception:
+                logger.debug("derivatives_volume unavailable; using 0.0")
                 self.pg_conn.rollback()
 
         # ----- Additional technical features -----
@@ -506,12 +618,7 @@ class FeaturePipeline:
             # Uses sector_momentum computed above (or 0.0)
             features["price_vs_sector"] = float(stock_ret_1d - features.get("sector_momentum", 0.0))
 
-        # 23. correlation_with_market: 60-day correlation with KOSPI
-        features["correlation_with_market"] = 0.0
-        # TODO: requires market index price data from market_index table
-        features["correlation_with_market"] = 0.0
-
-        # 24. beta_60d: 60-day beta to market
+        # 23. beta_60d: 60-day beta to market
         features["beta_60d"] = 0.0
         # TODO: requires market index price data; compute cov(stock_ret, mkt_ret) / var(mkt_ret)
         if valid_close and len(close) >= 61:
@@ -538,6 +645,61 @@ class FeaturePipeline:
                     features["momentum_divergence"] = float(price_trend * rsi_mid)
 
         return features
+
+    def _get_stock_sentiment(self, stock_code: str, date: str) -> Dict:
+        """Query stock_sentiment table for real sentiment data."""
+        result = {
+            "sentiment_avg_db": 0.0,
+            "sentiment_momentum": 0.0,
+        }
+        if self.pg_conn is None:
+            return result
+        try:
+            cur = self.pg_conn.cursor()
+            cur.execute("""
+                SELECT avg_sentiment, positive_count, negative_count, sentiment_count
+                FROM stock_sentiment
+                WHERE stock_code = %s AND analysis_date = %s
+                LIMIT 1
+            """, (stock_code, date))
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                result["sentiment_avg_db"] = float(row[0])
+                # sentiment_momentum: positive ratio minus negative ratio
+                total = (row[1] or 0) + (row[2] or 0)
+                if total > 0:
+                    result["sentiment_momentum"] = float((row[1] - row[2]) / total)
+            cur.close()
+        except Exception:
+            logger.debug("_get_stock_sentiment unavailable; using 0.0")
+            self.pg_conn.rollback()
+        return result
+
+    def _get_economic_events(self, date: str) -> Dict:
+        """Query economic_events table for event count and impact in past 7 days."""
+        result = {
+            "economic_event_count_7d": 0.0,
+            "economic_event_impact": 0.0,
+        }
+        if self.pg_conn is None:
+            return result
+        try:
+            cur = self.pg_conn.cursor()
+            past_7d = (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
+            cur.execute("""
+                SELECT COUNT(*), SUM(CASE WHEN importance = 'high' THEN 3 WHEN importance = 'medium' THEN 1 ELSE 0 END)
+                FROM economic_events
+                WHERE event_date >= %s AND event_date <= %s
+            """, (past_7d, date))
+            row = cur.fetchone()
+            if row:
+                result["economic_event_count_7d"] = float(row[0] or 0)
+                result["economic_event_impact"] = float(row[1] or 0)
+            cur.close()
+        except Exception:
+            logger.debug("_get_economic_events unavailable; using 0.0")
+            self.pg_conn.rollback()
+        return result
 
     def get_feature_names(self) -> List[str]:
         """Return the list of all expected feature names (for model training consistency)."""
@@ -571,14 +733,41 @@ class FeaturePipeline:
             "similar_count", "similar_stocks_return_avg", "similar_stocks_return_std",
 
             # Advanced features (sector/market, volatility/risk, flow, ownership, credit/margin, technical)
-            "sector_momentum", "relative_strength", "market_breadth", "high_52w_ratio", "adr",
+            "sector_momentum", "relative_strength",
             "vix_proxy", "volatility_skew",
-            "program_trading_ratio", "etf_flow_5d", "foreign_flow_5d", "institution_flow_5d",
+            "program_trading_ratio", "etf_flow_5d",
             "foreign_ownership_pct", "institution_ownership_pct", "retail_ownership_pct",
             "short_interest_ratio", "days_to_cover",
             "margin_balance_change", "credit_balance_change", "short_selling_ratio",
             "volatility_20d_rank", "volume_ratio_vs_avg", "price_vs_sector",
-            "correlation_with_market", "beta_60d", "momentum_divergence",
+            "beta_60d", "momentum_divergence",
+
+            # KRX Trading features
+            "krx_total_trading_value", "krx_advance_decline_ratio",
+
+            # KRX Derivatives features
+            "futures_premium", "derivatives_volume",
+
+            # Stock sentiment features (from stock_sentiment table)
+            "sentiment_avg_db", "sentiment_momentum",
+
+            # Economic event features
+            "economic_event_count_7d", "economic_event_impact",
+
+            # Interaction features (computed in Trainer.prepare_training_data)
+            "momentum_vs_volatility", "trend_interaction", "volume_price_trend",
+            "cross_trend", "volatility_volume", "short_medium_term_momentum",
+            "trend_confirmation", "price_volume",
+
+            # Rolling statistics (computed in Trainer.prepare_training_data)
+            "return_5d_mean_10d", "volatility_20d_mean_10d", "volume_ratio_5_mean_10d",
+
+            # Cross-sectional percentile rank features (computed in Trainer.prepare_training_data)
+            "rank_return_5d", "rank_return_20d", "rank_volatility_20d",
+            "rank_volume_ratio_5", "rank_ma_position_5", "rank_volume_ratio_20",
+
+            # Rolling target encoding features (computed in Trainer.prepare_training_data)
+            "target_ma_5", "target_ma_10", "target_ma_20",
         ])
 
     def set_db_connections(self, pg_conn=None, neo4j_conn=None):
