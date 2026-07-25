@@ -17,6 +17,7 @@ from app.feature_engine.graph_features import GraphFeatures
 from app.feature_engine.vector_features import VectorFeatures
 from app.feature_engine.feature_store import FeatureStore
 from app.feature_engine.factor_features import FactorFeatures
+from app.feature_engine.scorer import QualityScorer
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class FeaturePipeline:
         self.macro = MacroFeatures()
         self.graph = GraphFeatures()
         self.vector = VectorFeatures()
+        self.scorer = QualityScorer()
         self.pg_conn = pg_conn
         self.neo4j_conn = neo4j_conn
         self._cache = {}
@@ -109,6 +111,9 @@ class FeaturePipeline:
         # Real sentiment from stock_sentiment table
         sentiment = self._get_stock_sentiment(stock_code, date)
         features.update(sentiment)
+
+        # Quality score (F-Score from financial data, 0~1)
+        features["quality_score"] = self.scorer.get_f_score(stock_code, self.pg_conn)
 
         features.update(self.macro.get_all_features(self.pg_conn))
 
@@ -781,6 +786,9 @@ class FeaturePipeline:
 
             # Rolling target encoding features (computed in Trainer.prepare_training_data)
             "target_ma_5", "target_ma_10", "target_ma_20",
+
+            # Quality score (F-Score, 0~1)
+            "quality_score",
         ])
 
     def set_db_connections(self, pg_conn=None, neo4j_conn=None):
