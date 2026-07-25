@@ -16,6 +16,7 @@ from app.feature_engine.macro_features import MacroFeatures
 from app.feature_engine.graph_features import GraphFeatures
 from app.feature_engine.vector_features import VectorFeatures
 from app.feature_engine.feature_store import FeatureStore
+from app.feature_engine.factor_features import FactorFeatures
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class FeaturePipeline:
 
     def __init__(self, pg_conn=None, neo4j_conn=None, use_feature_store=False, feature_store: Optional[FeatureStore] = None):
         self.market = MarketFeatures()
+        self.factors = FactorFeatures()
         self.company = CompanyFeatures()
         self.sentiment = SentimentFeatures()
         self.macro = MacroFeatures()
@@ -97,6 +99,8 @@ class FeaturePipeline:
             market_df if market_df is not None and not market_df.empty else pd.DataFrame(),
             stock_code, self.pg_conn,
         ))
+
+        features.update(self.factors.get_all_factors(stock_code, market_df, self.pg_conn))
 
         features.update(self.company.get_all_features(stock_code, self.pg_conn))
 
@@ -733,6 +737,15 @@ class FeaturePipeline:
             "similar_count", "similar_stocks_return_avg", "similar_stocks_return_std",
 
             # Advanced features (sector/market, volatility/risk, flow, ownership, credit/margin, technical)
+            "value_per", "value_pbr", "value_psr", "value_pcr", "value_ncav",
+            "value_ev_ebit", "value_pfcr",
+            "quality_cp_to_assets", "quality_op_to_equity", "quality_roe",
+            "quality_roa", "quality_f_score", "quality_asset_growth",
+            "quality_debt_ratio_change", "quality_op_growth",
+            "quality_earnings_volatility", "quality_price_volatility_60d",
+            "quality_beta",
+            "momentum_1m_reverse", "momentum_3_12m", "momentum_op", "momentum_ni",
+
             "sector_momentum", "relative_strength",
             "vix_proxy", "volatility_skew",
             "program_trading_ratio", "etf_flow_5d",

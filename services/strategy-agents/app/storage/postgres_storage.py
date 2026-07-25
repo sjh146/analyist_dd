@@ -46,12 +46,18 @@ class PostgresStorage:
                 pass
             self._pool.putconn(conn)
 
-    def get_all_stocks(self) -> List[Dict]:
+    def get_all_stocks(self, limit: Optional[int] = None) -> List[Dict]:
         conn = self._get_conn()
         if not conn: return []
         try:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute("SELECT stock_code, stock_name, sector, market FROM stocks")
+            if limit:
+                cur.execute(
+                    "SELECT stock_code, stock_name, sector, market FROM stocks ORDER BY market_cap DESC NULLS LAST LIMIT %s",
+                    (limit,),
+                )
+            else:
+                cur.execute("SELECT stock_code, stock_name, sector, market FROM stocks")
             rows = cur.fetchall()
             cur.close()
             return [dict(r) for r in rows]
