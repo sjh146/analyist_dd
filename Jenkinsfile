@@ -7,13 +7,16 @@ pipeline {
 
     triggers {
         cron('0 20 * * 1-5')
+        cron('H/30 * * * 1-5')
     }
 
     stages {
         stage('Pipeline') {
             steps {
                 script {
-                    if (env.PLAN_FILE == 'daily-830am-pipeline') {
+                    if (env.PLAN_FILE == 'infinite-loop') {
+                        load 'config/jenkins/jobs/ml_infinite_loop.groovy'
+                    } else if (env.PLAN_FILE == 'daily-830am-pipeline') {
                         load 'config/jenkins/jobs/daily_830am_pipeline.groovy'
                     } else if (env.PLAN_FILE) {
                         load 'config/jenkins/jobs/plan-executor.groovy'

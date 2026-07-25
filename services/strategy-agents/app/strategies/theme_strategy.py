@@ -26,8 +26,8 @@ class ThemeStrategy(BaseStrategy):
         """
         signals = []
 
-        # Get all stocks with their vectors
-        stocks = self.storage.get_all_stocks()
+        # Get top stocks by market cap (limit to prevent O(n²) hang with 4121 stocks)
+        stocks = self.storage.get_all_stocks(limit=200)
 
         # For each stock, find similar stocks (theme group)
         for stock in stocks:
