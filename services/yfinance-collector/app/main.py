@@ -44,6 +44,14 @@ class YFinanceCollectorService:
         for stock in stocks:
             self.storage.upsert_stock(stock)
 
+        # Step 2.5: Collect fundamental data (PER, PBR, ROE, market_cap)
+        logger.info("Collecting fundamental data...")
+        fundamentals = self.price_collector.collect_fundamentals_all(stocks)
+        for fund_data in fundamentals:
+            if any([fund_data.get("per"), fund_data.get("pbr"), fund_data.get("roe"), fund_data.get("market_cap")]):
+                self.storage.update_fundamentals(fund_data)
+        logger.info(f"Updated fundamentals for {sum(1 for f in fundamentals if any([f.get('per'), f.get('pbr'), f.get('roe'), f.get('market_cap')]))} stocks")
+
         # Step 3: Collect price data
         df = self.price_collector.collect_all(stocks)
         if df.empty:
