@@ -6,6 +6,7 @@ Downloads OHLCV data from yfinance for KOSPI/KOSDAQ stocks.
 import yfinance as yf
 import pandas as pd
 import logging
+import time
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 
@@ -71,22 +72,47 @@ class PriceCollector:
             logger.error(f"Failed to collect {code} ({stock['name']}): {e}")
             return None
 
+    def collect_fundamentals(self, stock: Dict) -> Dict:
+        """Fetch fundamental data (PER, PBR, ROE, market_cap) from yfinance."""
+        code = stock["code"]
+        market = stock["market"]
+        suffix = ".KS" if market == "KOSPI" else ".KQ"
+        ticker_symbol = f"{code}{suffix}"
+
+        result = {"stock_code": code, "market_cap": None, "per": None, "pbr": None, "roe": None}
+
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            info = ticker.info
+            if info:
+                result["market_cap"] = info.get("marketCap")
+                result["per"] = info.get("trailingPE") or info.get("forwardPE")
+                result["pbr"] = info.get("priceToBook")
+                result["roe"] = info.get("returnOnEquity")
+                shares = info.get("sharesOutstanding")
+                logger.info(f"Fundamentals for {code}: PER={result['per']}, PBR={result['pbr']}, ROE={result['roe']}, mcap={result['market_cap']}, shares={shares}")
+        except Exception as e:
+            logger.warning(f"Failed to collect fundamentals for {code}: {e}")
+
+        return result
+
+    def collect_fundamentals_all(self, stocks: List[Dict]) -> List[Dict]:
+        results = []
+        for i, stock in enumerate(stocks):
+            logger.info(f"[{i+1}/{len(stocks)}] Collecting fundamentals for {stock['code']} ({stock['name']})")
+            result = self.collect_fundamentals(stock)
+            results.append(result)
+            time.sleep(3)
+        return results
+
     def collect_all(self, stocks: List[Dict]) -> pd.DataFrame:
-        """
-        Download data for multiple stocks.
-        
-        Args:
-            stocks: List of stock info dicts
-        
-        Returns:
-            Combined DataFrame for all stocks
-        """
         all_data = []
         for i, stock in enumerate(stocks):
             logger.info(f"[{i+1}/{len(stocks)}] Collecting {stock['code']} ({stock['name']})")
             df = self.collect(stock)
             if df is not None:
                 all_data.append(df)
+            time.sleep(3)
 
         if all_data:
             result = pd.concat(all_data, ignore_index=True)

@@ -124,6 +124,52 @@ class PostgresStorage:
         finally:
             self._put_conn(conn)
 
+    def update_fundamentals(self, data: Dict):
+        """Update fundamental data for a stock."""
+        conn = self._get_conn()
+        if not conn:
+            return
+        try:
+            cur = conn.cursor()
+            if data.get("market_cap") is not None:
+                cur.execute(
+                    "UPDATE stocks SET market_cap = %s, updated_at = CURRENT_TIMESTAMP WHERE stock_code = %s",
+                    (int(data["market_cap"]), data["stock_code"])
+                )
+            cur.execute(
+                "SELECT id FROM financial_statements WHERE stock_code = %s ORDER BY report_date DESC LIMIT 1",
+                (data["stock_code"],)
+            )
+            row = cur.fetchone()
+            if row:
+                updates = []
+                params = []
+                if data.get("per") is not None:
+                    updates.append("per = %s"); params.append(float(data["per"]))
+                if data.get("pbr") is not None:
+                    updates.append("pbr = %s"); params.append(float(data["pbr"]))
+                if data.get("roe") is not None:
+                    updates.append("roe = %s"); params.append(float(data["roe"]))
+                if updates:
+                    params.append(data["stock_code"])
+                    cur.execute(f"UPDATE financial_statements SET {', '.join(updates)} WHERE stock_code = %s AND report_date = (SELECT MAX(report_date) FROM financial_statements WHERE stock_code = %s)", params + [data["stock_code"]])
+            else:
+                cur.execute(
+                    "INSERT INTO financial_statements (stock_code, report_date, per, pbr, roe) VALUES (%s, CURRENT_DATE, %s, %s, %s)",
+                    (data["stock_code"],
+                     float(data["per"]) if data.get("per") else None,
+                     float(data["pbr"]) if data.get("pbr") else None,
+                     float(data["roe"]) if data.get("roe") else None)
+                )
+            conn.commit()
+            cur.close()
+            logger.info(f"Updated fundamentals for {data['stock_code']}")
+        except Exception as e:
+            logger.error(f"Failed to update fundamentals: {e}")
+            conn.rollback()
+        finally:
+            self._put_conn(conn)
+
     def save_us_market_data(self, df):
         import psycopg2
         conn = psycopg2.connect(host=self.host, port=self.port, dbname=self.dbname, user=self.user, password=self.password)
