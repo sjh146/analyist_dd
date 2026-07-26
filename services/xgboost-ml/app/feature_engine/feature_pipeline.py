@@ -18,6 +18,7 @@ from app.feature_engine.vector_features import VectorFeatures
 from app.feature_engine.feature_store import FeatureStore
 from app.feature_engine.factor_features import FactorFeatures
 from app.feature_engine.scorer import QualityScorer
+from app.feature_engine.kalman_filter import KalmanFeatureFilter
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class FeaturePipeline:
         self.graph = GraphFeatures()
         self.vector = VectorFeatures()
         self.scorer = QualityScorer()
+        self.kalman = KalmanFeatureFilter()
         self.pg_conn = pg_conn
         self.neo4j_conn = neo4j_conn
         self._cache = {}
@@ -101,6 +103,13 @@ class FeaturePipeline:
             market_df if market_df is not None and not market_df.empty else pd.DataFrame(),
             stock_code, self.pg_conn,
         ))
+
+        # Kalman filter features (denoised momentum)
+        if market_df is not None and not market_df.empty:
+            close_s = market_df.get("close_price", market_df.get("close"))
+            if close_s is not None and len(close_s) > 0:
+                close_arr = close_s.values if hasattr(close_s, 'values') else np.array(close_s)
+                features.update(self.kalman.smooth_returns(close_arr))
 
         features.update(self.factors.get_all_factors(stock_code, market_df, self.pg_conn))
 
@@ -786,6 +795,9 @@ class FeaturePipeline:
 
             # Rolling target encoding features (computed in Trainer.prepare_training_data)
             "target_ma_5", "target_ma_10", "target_ma_20",
+
+            # Kalman filter features (denoised momentum)
+            "kalman_momentum_1d", "kalman_momentum_5d", "kalman_volatility",
 
             # Quality score (F-Score, 0~1)
             "quality_score",
