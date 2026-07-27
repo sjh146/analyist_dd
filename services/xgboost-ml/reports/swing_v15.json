@@ -1,0 +1,191 @@
+{
+  "date": "2026-07-27",
+  "total": 1683,
+  "up": 0,
+  "down": 1683,
+  "high_confidence": 1198,
+  "auc": 0.6205,
+  "top_up": [],
+  "top_down": [
+    {
+      "code": "474660",
+      "name": "신한제14호스팩",
+      "sector": "-",
+      "close": 2070.0,
+      "prob": 0.2371,
+      "dir": "DOWN",
+      "conf": 0.5258
+    },
+    {
+      "code": "021650",
+      "name": "한국큐빅",
+      "sector": "-",
+      "close": 2220.0,
+      "prob": 0.2638,
+      "dir": "DOWN",
+      "conf": 0.4724
+    },
+    {
+      "code": "493790",
+      "name": "이베스트스팩6호",
+      "sector": "-",
+      "close": 2015.0,
+      "prob": 0.2704,
+      "dir": "DOWN",
+      "conf": 0.4592
+    },
+    {
+      "code": "487720",
+      "name": "",
+      "sector": "-",
+      "close": 2020.0,
+      "prob": 0.2717,
+      "dir": "DOWN",
+      "conf": 0.4565
+    },
+    {
+      "code": "038880",
+      "name": "아이에이",
+      "sector": "-",
+      "close": 3455.0,
+      "prob": 0.2723,
+      "dir": "DOWN",
+      "conf": 0.4553
+    },
+    {
+      "code": "361670",
+      "name": "삼영에스앤씨",
+      "sector": "-",
+      "close": 3430.0,
+      "prob": 0.2764,
+      "dir": "DOWN",
+      "conf": 0.4473
+    },
+    {
+      "code": "014100",
+      "name": "메디앙스",
+      "sector": "-",
+      "close": 1881.0,
+      "prob": 0.2786,
+      "dir": "DOWN",
+      "conf": 0.4429
+    },
+    {
+      "code": "120240",
+      "name": "오늘이엔엠",
+      "sector": "-",
+      "close": 14760.0,
+      "prob": 0.2793,
+      "dir": "DOWN",
+      "conf": 0.4413
+    },
+    {
+      "code": "093380",
+      "name": "풍강",
+      "sector": "-",
+      "close": 2660.0,
+      "prob": 0.281,
+      "dir": "DOWN",
+      "conf": 0.438
+    },
+    {
+      "code": "339950",
+      "name": "마크로젠",
+      "sector": "-",
+      "close": 2825.0,
+      "prob": 0.2812,
+      "dir": "DOWN",
+      "conf": 0.4376
+    },
+    {
+      "code": "214260",
+      "name": "",
+      "sector": "-",
+      "close": 8840.0,
+      "prob": 0.2818,
+      "dir": "DOWN",
+      "conf": 0.4363
+    },
+    {
+      "code": "227610",
+      "name": "아우딘퓨쳐스",
+      "sector": "-",
+      "close": 1468.0,
+      "prob": 0.2834,
+      "dir": "DOWN",
+      "conf": 0.4331
+    },
+    {
+      "code": "069140",
+      "name": "누리플랜",
+      "sector": "-",
+      "close": 1830.0,
+      "prob": 0.2835,
+      "dir": "DOWN",
+      "conf": 0.4331
+    },
+    {
+      "code": "219750",
+      "name": "한국비티비",
+      "sector": "-",
+      "close": 1960.0,
+      "prob": 0.2838,
+      "dir": "DOWN",
+      "conf": 0.4325
+    },
+    {
+      "code": "093320",
+      "name": "케이아이엔엑스",
+      "sector": "-",
+      "close": 143200.0,
+      "prob": 0.2838,
+      "dir": "DOWN",
+      "conf": 0.4323
+    },
+    {
+      "code": "036000",
+      "name": "미투온",
+      "sector": "-",
+      "close": 2860.0,
+      "prob": 0.284,
+      "dir": "DOWN",
+      "conf": 0.4319
+    },
+    {
+      "code": "039830",
+      "name": "흥구석유",
+      "sector": "-",
+      "close": 19340.0,
+      "prob": 0.2841,
+      "dir": "DOWN",
+      "conf": 0.4319
+    },
+    {
+      "code": "079940",
+      "name": "가비아",
+      "sector": "-",
+      "close": 47550.0,
+      "prob": 0.2848,
+      "dir": "DOWN",
+      "conf": 0.4304
+    },
+    {
+      "code": "148930",
+      "name": "에이치와이티씨",
+      "sector": "-",
+      "close": 3435.0,
+      "prob": 0.285,
+      "dir": "DOWN",
+      "conf": 0.4301
+    },
+    {
+      "code": "365660",
+      "name": "레몬헬스케어",
+      "sector": "-",
+      "close": 4605.0,
+      "prob": 0.2862,
+      "dir": "DOWN",
+      "conf": 0.4275
+    }
+  ]
+}

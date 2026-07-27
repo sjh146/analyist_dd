@@ -113,6 +113,8 @@ with open('/app/app/models/saved_models/training-result-v14.json') as f:
 print(f'{d[\"auc\"]:.4f}')
 " 2>/dev/null)
 echo "Best AUC: $AUC"
+docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v14.json ./reports/ml_result.json 2>/dev/null
+echo "  → reports/ml_result.json"
 
 # ==============================================================
 # PHASE 3: 전체 종목 스윙 분석  
@@ -153,6 +155,8 @@ import json as j
 with open('/app/reports/swing_candidates.json', 'w') as f:
     j.dump({'date':today,'total':len(results),'up':len([r for r in results if r['dir']=='UP']),'down':len([r for r in results if r['dir']=='DOWN']),'high_confidence':[r for r in results if r['conf']>=0.30],'top_up':[r for r in results if r['dir']=='UP'][:20],'top_down':[r for r in results if r['dir']=='DOWN'][:20]}, f, indent=2, ensure_ascii=False)
 print(f'Swing analysis saved: {len(results)} stocks, {len([r for r in results if r[\"dir\"]==\"UP\"])} UP, {len([r for r in results if r[\"dir\"]==\"DOWN\"])} DOWN')
+docker cp stock_xgboost_ml:/app/reports/swing_candidates.json ./reports/swing_candidates.json 2>/dev/null
+echo "  → reports/swing_candidates.json"
 pg.close()
 " 2>&1
 
@@ -193,6 +197,8 @@ print(f'Backtest: AUC={auc:.4f}, ACC={acc:.4f}, Samples={len(all_y)}')
 import json as j
 with open('/app/reports/backtest_result.json','w') as f:
     j.dump({'auc':round(auc,4),'accuracy':round(acc,4),'samples':len(all_y)}, f)
+docker cp stock_xgboost_ml:/app/reports/backtest_result.json ./reports/backtest_result.json 2>/dev/null
+echo "  → reports/backtest_result.json"
 pg.close()
 " 2>&1
 
@@ -220,4 +226,6 @@ echo "Results:"
 echo "  - Swing candidates: reports/swing_candidates.json"
 echo "  - Backtest:          reports/backtest_result.json"
 echo "  - Best AUC:          $AUC"
+docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v14.json ./reports/ml_result.json 2>/dev/null
+echo "  → reports/ml_result.json"
 echo "  - News old data:     Purged (30d+)"
