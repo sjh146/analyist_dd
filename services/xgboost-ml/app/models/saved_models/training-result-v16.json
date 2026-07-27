@@ -1,11 +1,11 @@
 {
-  "auc": 0.5616906655204528,
-  "accuracy": 0.5666666666666667,
-  "f1": 0.24198250728862974,
+  "auc": 0.5821792392005158,
+  "accuracy": 0.5741666666666667,
+  "f1": 0.32674571805006586,
   "n_stocks": 50,
   "n_features": 43,
   "n_train_balanced": 2688,
-  "up_predicted": 191,
+  "up_predicted": 264,
   "feature_names": [
     "ma_position_120",
     "ma_position_20",
@@ -53,7 +53,7 @@
   ],
   "val_weights": {
     "xgboost": 0.01,
-    "lightgbm": 0.022161576042593056,
+    "lightgbm": 0.01,
     "catboost": 0.01
   },
   "config": "v16: oversampled + sentiment"
