@@ -1,0 +1,6 @@
+{
+  "auc": 0.5989397521312415,
+  "n_features": 43,
+  "up_predicted": 1002,
+  "config": "v17: OS+HP(lr=0.03,depth=4,est=1200,subsample=0.6)"
+}

@@ -105,6 +105,10 @@ print(d.get('up_predicted', 0))
     echo "  UP predictions: $UP"
     
     # Git commit
+  # Copy results to host
+  docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v${VER}.json ./scripts/training-result-v${VER}.json 2>/dev/null
+  docker cp stock_xgboost_ml:/app/reports/swing_v15.json ./scripts/swing_latest.json 2>/dev/null
+  echo "  → Results saved to scripts/"
     git add -A
     git diff --cached --quiet || git commit -m "auto: v${VER} AUC=${AUC} (best=${BEST_AUC}) strategy=${STRATEGY}"
     git push origin master 2>&1 | tail -1
@@ -189,6 +193,10 @@ echo "  Target met: $(test -f .omo/evidence/auc_target_met.flag && echo 'YES �
 echo "========================================"
 
 # 최종 Git push
+  # Copy results to host
+  docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v${VER}.json ./scripts/training-result-v${VER}.json 2>/dev/null
+  docker cp stock_xgboost_ml:/app/reports/swing_v15.json ./scripts/swing_latest.json 2>/dev/null
+  echo "  → Results saved to scripts/"
 git add -A
 git diff --cached --quiet || git commit -m "auto: loop end best=${BEST_VERSION} AUC=${BEST_AUC}"
 git push origin master 2>&1 | tail -1
