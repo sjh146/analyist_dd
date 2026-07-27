@@ -1,0 +1,108 @@
+{
+  "auc": 0.59257539938391,
+  "up_predicted": 858,
+  "up_total": 1200,
+  "config": "v28: lr=0.02 depth=5 est=2000 very_low_lr+high_est",
+  "up_stocks": [
+    {
+      "index": 0,
+      "prob": 0.5003,
+      "actual": 0
+    },
+    {
+      "index": 1,
+      "prob": 0.5004,
+      "actual": 1
+    },
+    {
+      "index": 2,
+      "prob": 0.5001,
+      "actual": 0
+    },
+    {
+      "index": 4,
+      "prob": 0.5001,
+      "actual": 0
+    },
+    {
+      "index": 5,
+      "prob": 0.5003,
+      "actual": 1
+    },
+    {
+      "index": 6,
+      "prob": 0.5004,
+      "actual": 1
+    },
+    {
+      "index": 7,
+      "prob": 0.5004,
+      "actual": 1
+    },
+    {
+      "index": 8,
+      "prob": 0.5002,
+      "actual": 1
+    },
+    {
+      "index": 9,
+      "prob": 0.5001,
+      "actual": 1
+    },
+    {
+      "index": 10,
+      "prob": 0.5004,
+      "actual": 1
+    },
+    {
+      "index": 11,
+      "prob": 0.5001,
+      "actual": 0
+    },
+    {
+      "index": 12,
+      "prob": 0.5002,
+      "actual": 1
+    },
+    {
+      "index": 13,
+      "prob": 0.5001,
+      "actual": 1
+    },
+    {
+      "index": 14,
+      "prob": 0.5003,
+      "actual": 0
+    },
+    {
+      "index": 16,
+      "prob": 0.5003,
+      "actual": 0
+    },
+    {
+      "index": 17,
+      "prob": 0.5001,
+      "actual": 1
+    },
+    {
+      "index": 18,
+      "prob": 0.5003,
+      "actual": 1
+    },
+    {
+      "index": 19,
+      "prob": 0.5002,
+      "actual": 1
+    },
+    {
+      "index": 20,
+      "prob": 0.5003,
+      "actual": 1
+    },
+    {
+      "index": 22,
+      "prob": 0.5003,
+      "actual": 0
+    }
+  ]
+}
