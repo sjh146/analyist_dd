@@ -1,0 +1,6 @@
+{
+  "auc": 0.6235994397759104,
+  "up_predicted": 1,
+  "n_features": 23,
+  "config": "inference_model (pipeline_only)"
+}
