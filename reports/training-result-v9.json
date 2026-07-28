@@ -1,11 +1,12 @@
 {
-  "auc": 0.5852109749982091,
-  "accuracy": 0.5616666666666666,
-  "f1": 0.32908163265306123,
+  "auc": 0.5915308700238743,
+  "accuracy": 0.7266666666666667,
+  "f1": 0.07865168539325842,
   "n_stocks": 50,
-  "n_features": 43,
-  "n_train_balanced": 2688,
-  "up_predicted": 289,
+  "n_features": 42,
+  "n_train": 3599,
+  "n_val": 1200,
+  "n_test": 1200,
   "feature_names": [
     "ma_position_120",
     "ma_position_20",
@@ -16,8 +17,9 @@
     "op_margin",
     "operating_profit",
     "price",
-    "return_5d",
+    "return_1d",
     "return_20d",
+    "return_5d",
     "revenue",
     "similar_stocks_return_avg",
     "similar_stocks_return_std",
@@ -46,15 +48,13 @@
     "target_ma_10",
     "target_ma_20",
     "momentum_1m_reverse",
-    "quality_score",
-    "kalman_momentum_1d",
-    "kalman_momentum_5d",
-    "kalman_volatility"
+    "roe",
+    "per_current"
   ],
   "val_weights": {
-    "xgboost": 0.01,
-    "lightgbm": 0.01,
-    "catboost": 0.01
+    "xgboost": 0.031934613413618584,
+    "lightgbm": 0.0320647299980783,
+    "catboost": 0.02100281852539876
   },
-  "config": "v16: oversampled + sentiment"
+  "config": "v9: 5d+2pct label, 42 curated features"
 }
