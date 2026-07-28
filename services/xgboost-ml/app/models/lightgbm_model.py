@@ -108,7 +108,7 @@ class LightGBMModel:
             logger.warning("Model not trained yet")
             return np.full(len(features) if len(features.shape) > 1 else 1, 0.5)
 
-        return self.model.predict(features)
+        return self.model.predict(features, predict_disable_shape_check=True)
 
     def predict_single(self, features: np.ndarray) -> Dict:
         """
