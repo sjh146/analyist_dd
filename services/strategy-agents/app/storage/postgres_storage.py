@@ -280,6 +280,38 @@ class PostgresStorage:
         finally:
             self._put_conn(conn)
 
+    def get_positions(self) -> List[Dict]:
+        conn = self._get_conn()
+        if not conn: return []
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("SELECT * FROM positions WHERE quantity > 0")
+            rows = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in rows]
+        except Exception as e:
+            logger.error(f"get_positions failed: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
+
+    def get_latest_price(self, stock_code: str) -> Optional[float]:
+        conn = self._get_conn()
+        if not conn: return None
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT close_price FROM market_data WHERE stock_code = %s ORDER BY trade_date DESC LIMIT 1",
+                (stock_code,),
+            )
+            row = cur.fetchone()
+            cur.close()
+            return float(row[0]) if row else None
+        except Exception:
+            return None
+        finally:
+            self._put_conn(conn)
+
     def get_price_series(self, stock_code: str, days: int = 60) -> List[float]:
         conn = self._get_conn()
         if not conn: return []

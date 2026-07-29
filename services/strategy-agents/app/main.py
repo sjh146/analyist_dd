@@ -19,6 +19,7 @@ from app.strategies.twin_strategy import TwinStrategy
 from app.signals.signal_generator import SignalGenerator
 from app.signals.signal_validator import SignalValidator
 from app.risk_management.position_sizer import PositionSizer
+from app.risk_management.stop_loss import StopLoss
 from app.storage.redis_storage import RedisStorage
 from app.storage.postgres_storage import PostgresStorage
 from app.metrics_integration import init_metrics, on_signal_generated
@@ -36,6 +37,7 @@ class StrategyAgentService:
         self.signal_gen = SignalGenerator()
         self.signal_validator = SignalValidator()
         self.position_sizer = PositionSizer()
+        self.stop_loss = StopLoss(self.pg_storage)
 
         # Initialize strategies
         self.theme_strategy = ThemeStrategy(self.pg_storage)
@@ -86,6 +88,24 @@ class StrategyAgentService:
             self._process_and_publish(all_signals)
         else:
             logger.info("No signals generated this cycle.")
+
+        try:
+            logger.info(">> Stop-Loss Evaluation running...")
+            sl_signals = self.stop_loss.evaluate_positions()
+            if sl_signals:
+                logger.info(f"   Generated {len(sl_signals)} stop-loss/take-profit signals")
+                for signal in sl_signals:
+                    signal["signal_id"] = f"sig_{datetime.now().strftime('%Y%m%d%H%M%S')}_{signal.get('stock_code', 'unknown')}"
+                    signal["timestamp"] = datetime.now().isoformat()
+                    signal["quantity"] = 0
+                    self.redis.publish_signal(signal)
+                    logger.info(f"Published SL signal: {json.dumps(signal, ensure_ascii=False)}")
+                    on_signal_generated("risk_management")
+                logger.info(f"Published {len(sl_signals)} stop-loss signals to Redis.")
+            else:
+                logger.info("   No stop-loss/take-profit signals needed.")
+        except Exception as e:
+            logger.error(f"Stop-loss evaluation failed: {e}")
 
     def _process_and_publish(self, signals: list):
         """Validate, size, and publish signals."""
