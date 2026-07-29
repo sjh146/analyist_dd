@@ -4,9 +4,13 @@ Monitors positions and generates stop-loss/take-profit signals.
 """
 
 import logging
+from datetime import datetime, date
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+SELL_SIGNAL = "sell"
+HOLD_SIGNAL = "hold"
 
 
 class StopLoss:
@@ -86,4 +90,90 @@ class StopLoss:
             "reason": f"Take-profit triggered for {stock_code}",
             "strategy_name": "risk_management",
             "confidence": 0.9,
+        }
+
+    def trailing_stop(
+        self, position: Dict, current_price: float,
+        highest_price: Optional[float] = None, trail_pct: float = 0.07,
+    ) -> Dict:
+        highest = max(highest_price or position.get("avg_price", 0), current_price)
+        stop_price = highest * (1.0 - trail_pct)
+        if current_price <= stop_price:
+            return {
+                "action": SELL_SIGNAL,
+                "signal": SELL_SIGNAL,
+                "stock_code": position.get("stock_code", ""),
+                "price": current_price,
+                "reason": f"Trailing stop triggered at {current_price:.0f} from high {highest:.0f}",
+                "strategy_name": "risk_management",
+                "confidence": 1.0,
+            }
+        return {
+            "action": HOLD_SIGNAL,
+            "signal": HOLD_SIGNAL,
+            "stock_code": position.get("stock_code", ""),
+            "price": current_price,
+            "reason": "Holding",
+            "strategy_name": "risk_management",
+            "confidence": 0.0,
+        }
+
+    def volatility_stop(
+        self, position: Dict, current_price: float,
+        atr: float, multiplier: float = 2.0,
+    ) -> Dict:
+        entry_price = position.get("avg_buy_price", 0)
+        if entry_price <= 0:
+            return {
+                "action": HOLD_SIGNAL, "signal": HOLD_SIGNAL,
+                "stock_code": position.get("stock_code", ""),
+                "price": current_price, "reason": "No entry price",
+                "strategy_name": "risk_management", "confidence": 0.0,
+            }
+        stop_price = entry_price - multiplier * atr
+        if current_price <= stop_price:
+            return {
+                "action": SELL_SIGNAL,
+                "signal": SELL_SIGNAL,
+                "stock_code": position.get("stock_code", ""),
+                "price": current_price,
+                "reason": f"Volatility stop triggered at {current_price:.0f} (stop {stop_price:.0f})",
+                "strategy_name": "risk_management",
+                "confidence": 1.0,
+            }
+        return {
+            "action": HOLD_SIGNAL,
+            "signal": HOLD_SIGNAL,
+            "stock_code": position.get("stock_code", ""),
+            "price": current_price,
+            "reason": "Holding",
+            "strategy_name": "risk_management",
+            "confidence": 0.0,
+        }
+
+    def time_stop(self, position: Dict, max_hold_days: int = 20) -> Dict:
+        entry_date = position.get("entry_date")
+        if entry_date:
+            if isinstance(entry_date, str):
+                entry_date = datetime.strptime(entry_date, "%Y-%m-%d").date()
+            elif isinstance(entry_date, datetime):
+                entry_date = entry_date.date()
+            if (date.today() - entry_date).days >= max_hold_days:
+                return {
+                    "action": SELL_SIGNAL,
+                    "signal": SELL_SIGNAL,
+                    "stock_code": position.get("stock_code", ""),
+                    "price": 0,
+                    "reason": f"Time stop: held {(date.today() - entry_date).days} days >= {max_hold_days}",
+                    "strategy_name": "risk_management",
+                    "confidence": 1.0,
+                }
+        return {
+            "action": HOLD_SIGNAL,
+            "signal": HOLD_SIGNAL,
+            "stock_code": position.get("stock_code", ""),
+            "price": 0,
+            "reason": "Holding",
+            "strategy_name": "risk_management",
+            "confidence": 0.0,
         }
