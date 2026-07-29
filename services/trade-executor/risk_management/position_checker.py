@@ -75,6 +75,7 @@ class PositionChecker:
 
         pos["current_value"] = pos["quantity"] * (price or pos["avg_price"])
         logger.info(f"Position updated: {stock_code} -> {pos['quantity']} shares")
+        self._persist_position(stock_code, pos)
 
     def get_all_positions(self) -> List[Dict]:
         """Get all current positions."""
@@ -125,6 +126,35 @@ class PositionChecker:
             conn.close()
         except Exception as e:
             logger.error(f"Failed to sync positions: {e}")
+
+    def _persist_position(self, stock_code: str, pos: Dict):
+        """Save/update position to PostgreSQL."""
+        try:
+            import psycopg2
+
+            conn = psycopg2.connect(
+                host=self.config.POSTGRES_HOST,
+                port=self.config.POSTGRES_PORT,
+                dbname=self.config.POSTGRES_DB,
+                user=self.config.POSTGRES_USER,
+                password=self.config.POSTGRES_PASSWORD,
+            )
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO positions (stock_code, quantity, avg_buy_price, current_price, updated_at)
+                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (stock_code) DO UPDATE SET
+                    quantity = EXCLUDED.quantity,
+                    avg_buy_price = EXCLUDED.avg_buy_price,
+                    current_price = EXCLUDED.current_price,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (stock_code, pos["quantity"], pos["avg_price"], pos["current_value"]))
+            conn.commit()
+            cur.close()
+            conn.close()
+            logger.debug(f"Position persisted to PG: {stock_code}")
+        except Exception as e:
+            logger.warning(f"Failed to persist position to PG: {e}")
 
     def _get_total_portfolio_value(self) -> float:
         """Calculate total portfolio value."""

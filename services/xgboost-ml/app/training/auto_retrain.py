@@ -365,28 +365,19 @@ class AutoRetrainer:
             auc_1, auc_2 = [], []
 
             for train_idx, test_idx in skf.split(X_train, y_train):
-                X_fold_train = X_train[train_idx]
                 X_fold_test = X_train[test_idx]
-                y_fold_train = y_train[train_idx]
                 y_fold_test = y_train[test_idx]
 
-                # Re-train both models on fold train
-                # Champion
-                m1_cls = XGBoostModel()
-                m1_cls.train(X_fold_train, y_fold_train, X_fold_test, y_fold_test)
-                p1 = (m1_cls.predict(X_fold_test) > 0.5).astype(int)
-                prob1 = m1_cls.predict(X_fold_test)
+                prob1 = pred1(X_fold_test)
+                p1 = (prob1 > 0.5).astype(int)
                 f1_1.append(f1_score(y_fold_test, p1, zero_division=0))
                 try:
                     auc_1.append(roc_auc_score(y_fold_test, prob1))
                 except ValueError:
                     auc_1.append(0.5)
 
-                # Challenger
-                m2_cls = XGBoostModel()
-                m2_cls.train(X_fold_train, y_fold_train, X_fold_test, y_fold_test)
-                p2 = (m2_cls.predict(X_fold_test) > 0.5).astype(int)
-                prob2 = m2_cls.predict(X_fold_test)
+                prob2 = pred2(X_fold_test)
+                p2 = (prob2 > 0.5).astype(int)
                 f1_2.append(f1_score(y_fold_test, p2, zero_division=0))
                 try:
                     auc_2.append(roc_auc_score(y_fold_test, prob2))

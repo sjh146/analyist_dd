@@ -4,7 +4,7 @@ Monitors positions and generates stop-loss/take-profit signals.
 """
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -12,9 +12,35 @@ logger = logging.getLogger(__name__)
 class StopLoss:
     """Manages stop-loss and take-profit logic."""
 
-    def __init__(self):
+    def __init__(self, pg_storage=None):
+        self.pg_storage = pg_storage
         self.default_stop_loss_pct = 0.07  # 7%
         self.default_take_profit_pct = 0.15  # 15%
+
+    def evaluate_positions(self) -> List[Dict]:
+        if not self.pg_storage:
+            logger.warning("StopLoss: pg_storage not configured")
+            return []
+        positions = self.pg_storage.get_positions()
+        if not positions:
+            return []
+        signals = []
+        for pos in positions:
+            stock_code = pos.get("stock_code")
+            if not stock_code:
+                continue
+            current_price = self.pg_storage.get_latest_price(stock_code)
+            if current_price is None or current_price <= 0:
+                continue
+            if self.check_stop_loss(pos, current_price):
+                signal = self.get_stop_signal(pos, stock_code)
+                signal["price"] = current_price
+                signals.append(signal)
+            elif self.check_take_profit(pos, current_price):
+                signal = self.get_profit_signal(pos, stock_code)
+                signal["price"] = current_price
+                signals.append(signal)
+        return signals
 
     def check_stop_loss(self, position: Dict, current_price: float) -> bool:
         """Check if stop-loss should trigger."""
@@ -42,6 +68,7 @@ class StopLoss:
         """Generate stop-loss sell signal."""
         return {
             "action": "sell",
+            "signal": "sell",
             "stock_code": stock_code,
             "price": 0,
             "reason": f"Stop-loss triggered for {stock_code}",
@@ -53,6 +80,7 @@ class StopLoss:
         """Generate take-profit sell signal."""
         return {
             "action": "sell",
+            "signal": "sell",
             "stock_code": stock_code,
             "price": 0,
             "reason": f"Take-profit triggered for {stock_code}",

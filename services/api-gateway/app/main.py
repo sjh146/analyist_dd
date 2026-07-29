@@ -5,11 +5,12 @@ Provides HTTP endpoints for all system components.
 
 import json
 import logging
+import os
 from typing import Optional, List
 from datetime import date, datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -19,6 +20,18 @@ from app.metrics_integration import init_metrics
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
 config = Config()
+
+API_GATEWAY_KEY = os.getenv("API_GATEWAY_KEY", "")
+if not API_GATEWAY_KEY:
+    import secrets
+    API_GATEWAY_KEY = secrets.token_urlsafe(32)
+    logger.warning("API_GATEWAY_KEY not set. Generated random key: %s", API_GATEWAY_KEY)
+
+
+async def verify_api_key(x_api_key: str = Header(None)):
+    if not x_api_key or x_api_key != API_GATEWAY_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
 
 # Pydantic models
 class Stock(BaseModel):
@@ -98,6 +111,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+v1_router = APIRouter(prefix="/api/v1", dependencies=[Depends(verify_api_key)])
+
 
 def _pg_conn():
     """Get PostgreSQL connection."""
@@ -124,7 +139,7 @@ async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 
-@app.get("/api/v1/status", response_model=HealthStatus)
+@v1_router.get("/status", response_model=HealthStatus)
 async def system_status():
     """System status check."""
     services = {"api": "ok", "postgres": "unknown", "redis": "unknown"}
@@ -151,7 +166,7 @@ async def system_status():
 # =================== STOCK ENDPOINTS ===================
 
 
-@app.get("/api/v1/stocks", response_model=List[Stock])
+@v1_router.get("/stocks", response_model=List[Stock])
 async def list_stocks(
     market: Optional[str] = Query(None, description="KOSPI or KOSDAQ"),
     sector: Optional[str] = Query(None, description="Sector filter"),
@@ -186,7 +201,7 @@ async def list_stocks(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/stocks/{stock_code}")
+@v1_router.get("/stocks/{stock_code}")
 async def get_stock(stock_code: str):
     """Get stock details."""
     conn = _pg_conn()
@@ -213,7 +228,7 @@ async def get_stock(stock_code: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/stocks/{stock_code}/market-data", response_model=List[MarketData])
+@v1_router.get("/stocks/{stock_code}/market-data", response_model=List[MarketData])
 async def get_market_data(
     stock_code: str,
     days: int = Query(30, ge=1, le=365),
@@ -248,7 +263,7 @@ async def get_market_data(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/stocks/{stock_code}/sentiment")
+@v1_router.get("/stocks/{stock_code}/sentiment")
 async def get_stock_sentiment(stock_code: str, days: int = 30):
     """Get sentiment data for a stock."""
     conn = _pg_conn()
@@ -288,7 +303,7 @@ async def get_stock_sentiment(stock_code: str, days: int = 30):
 # =================== VECTOR SEARCH ENDPOINTS ===================
 
 
-@app.get("/api/v1/vectors/similar/{stock_code}", response_model=List[SimilarStock])
+@v1_router.get("/vectors/similar/{stock_code}", response_model=List[SimilarStock])
 async def find_similar_stocks(
     stock_code: str,
     top_k: int = Query(10, ge=1, le=50),
@@ -329,7 +344,7 @@ async def find_similar_stocks(
 # =================== PREDICTION ENDPOINTS ===================
 
 
-@app.get("/api/v1/predictions/{stock_code}")
+@v1_router.get("/predictions/{stock_code}")
 async def get_predictions(stock_code: str, days: int = 7):
     """Get ML predictions for a stock."""
     conn = _pg_conn()
@@ -365,7 +380,7 @@ async def get_predictions(stock_code: str, days: int = 7):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/predictions/top")
+@v1_router.get("/predictions/top")
 async def get_top_predictions(
     top_n: int = Query(10, ge=1, le=50),
     direction: Optional[str] = Query(None, regex="^(up|down)$"),
@@ -409,7 +424,7 @@ async def get_top_predictions(
 # =================== TRADING ENDPOINTS ===================
 
 
-@app.get("/api/v1/trading/orders")
+@v1_router.get("/trading/orders")
 async def get_orders(
     status: Optional[str] = Query(None, regex="^(pending|submitted|filled|cancelled)$"),
     limit: int = Query(50, ge=1, le=200),
@@ -449,7 +464,7 @@ async def get_orders(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/trading/positions")
+@v1_router.get("/trading/positions")
 async def get_positions():
     """Get current positions."""
     conn = _pg_conn()
@@ -485,7 +500,7 @@ async def get_positions():
 # =================== STRATEGY ENDPOINTS ===================
 
 
-@app.get("/api/v1/strategies")
+@v1_router.get("/strategies")
 async def get_strategies():
     """Get all trading strategies."""
     conn = _pg_conn()
@@ -513,7 +528,7 @@ async def get_strategies():
 # =================== DASHBOARD ENDPOINTS ===================
 
 
-@app.get("/api/v1/dashboard/summary")
+@v1_router.get("/dashboard/summary")
 async def get_dashboard_summary():
     """Get dashboard summary."""
     conn = _pg_conn()
@@ -555,6 +570,8 @@ async def get_dashboard_summary():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+app.include_router(v1_router)
 
 if __name__ == "__main__":
     import uvicorn

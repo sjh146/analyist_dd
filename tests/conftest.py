@@ -9,6 +9,9 @@ import types
 # Pre-block the broken entrypoint modules BEFORE pytest tries to load them.
 # This must run at import time (conftest.py is imported early).
 _BROKEN = [
+    "launch_testing",
+    "launch_testing.pytest",
+    "launch_testing.pytest.hooks",
     "launch_testing_ros_pytest_entrypoint",
 ]
 for mod_name in _BROKEN:

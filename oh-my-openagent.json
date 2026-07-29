@@ -1,4 +1,17 @@
 {
+  "plugins": [
+    {
+      "name": "pontail",
+      "port": 3030,
+      "routes": ["/plans", "/evidence", "/status"],
+      "enabled": true
+    }
+  ],
+  "commands": {
+    "monitor": "bash scripts/agent_monitor.sh",
+    "pontail": "bash scripts/pontail_setup.sh",
+    "cleanup-zombies": "bash scripts/cleanup_zombies.sh"
+  },
   "model": "deepseek-chat",
   "provider": "deepseek",
   "categories": {
