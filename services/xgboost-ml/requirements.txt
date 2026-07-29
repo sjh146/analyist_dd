@@ -12,3 +12,4 @@ imbalanced-learn==0.13.0
 lightgbm==4.6.0
 schedule==1.2.2
 prometheus_client>=0.14.1
+TA-Lib>=0.4.28
