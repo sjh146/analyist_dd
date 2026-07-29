@@ -258,7 +258,7 @@ echo "  -> reports/backtest_result.json"
 # ==============================================================
 echo ""
 echo "=== Phase 5: Trading Strategies ==="
-docker exec stock_strategy_agents python3 -c "
+docker exec stock_strategy_agents timeout 120 python3 -c "
 import logging; logging.basicConfig(level=logging.INFO)
 from app.main import StrategyAgentService
 StrategyAgentService().run_all_strategies()
