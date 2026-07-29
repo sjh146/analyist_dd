@@ -46,12 +46,43 @@ docker ps --format 'table {{.Names}}\t{{.Status}}' | head -20
 echo ""
 echo "=== Phase 1: Data Collection ==="
 
-# 1-1. yfinance: Market Data
-echo "--- 1-1. yfinance: Market Data ---"
+# 1-1. yfinance: Market Data (OHLCV only — skip fundamentals to avoid rate limit)
+echo "--- 1-1. yfinance: Market Data (OHLCV only) ---"
 docker exec stock_yfinance_collector python3 -c "
 from app.main import YFinanceCollectorService
+from app.collectors.price_collector import PriceCollector
+from app.collectors.stock_list_collector import StockListCollector
+from app.processors.technical_indicators import TechnicalIndicatorCalculator
+from app.processors.data_cleaner import DataCleaner
+from app.storage.postgres_storage import PostgresStorage
 import logging; logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
-YFinanceCollectorService().run_daily_collection()
+
+logger = logging.getLogger(__name__)
+config = __import__('app.config', fromlist=['Config']).Config()
+storage = PostgresStorage()
+slc = StockListCollector()
+stocks = slc.get_all_stocks()
+logger.info(f'Total stocks to collect: {len(stocks)}')
+
+# Upsert stock master data
+for stock in stocks:
+    storage.upsert_stock(stock)
+
+# Price collection only (skip fundamentals to avoid rate limit)
+pc = PriceCollector()
+df = pc.collect_all(stocks)
+if df.empty:
+    logger.warning('No data collected')
+else:
+    logger.info(f'Collected data: {len(df)} rows')
+    ti = TechnicalIndicatorCalculator()
+    df = ti.calculate_all(df)
+    dc = DataCleaner()
+    df = dc.clean(df)
+    for stock_code in df['stock_code'].unique():
+        stock_df = df[df['stock_code'] == stock_code]
+        storage.save_market_data(stock_code, stock_df)
+    logger.info(f'Daily collection complete. Processed {len(stocks)} stocks.')
 print('yfinance DONE')
 " 2>&1
 sleep 30
@@ -68,7 +99,7 @@ sleep 30
 
 # 1-3. News Analyzer: News + Sentiment
 echo "--- 1-3. News Analyzer: News + Sentiment ---"
-docker exec stock_news_analyzer python3 -c "
+docker exec stock_news_analyzer timeout 120 python3 -c "
 import asyncio
 import logging; logging.basicConfig(level=logging.INFO)
 from app.main import NewsAnalyzerService
@@ -92,13 +123,13 @@ sleep 30
 
 # 1-5. Financials: PER/PBR/ROE
 echo "--- 1-5. Financials: PER/PBR/ROE ---"
-docker exec stock_yfinance_collector python3 -c "
+docker exec stock_yfinance_collector timeout 60 python3 -c "
 import logging, psycopg2; logging.basicConfig(level=logging.INFO)
 from app.collectors.price_collector import PriceCollector
 from app.storage.postgres_storage import PostgresStorage
 pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
 cur = pg.cursor()
-cur.execute(\"SELECT stock_code FROM stocks WHERE market = 'KOSDAQ' AND stock_code ~ '^[0-9]' LIMIT 100\")
+cur.execute(\"SELECT stock_code FROM stocks WHERE market = 'KOSDAQ' AND stock_code ~ '^[0-9]' LIMIT 20\")
 codes = [r[0] for r in cur.fetchall()]; cur.close(); pg.close()
 p = PriceCollector(); s = PostgresStorage()
 count = 0
@@ -113,7 +144,7 @@ sleep 30
 
 # 1-6. Stock Vectorizer: Embeddings
 echo "--- 1-6. Stock Vectorizer: Embeddings ---"
-docker exec stock_vectorizer python3 -c "
+docker exec stock_vectorizer timeout 300 python3 -c "
 import logging; logging.basicConfig(level=logging.INFO)
 from app.main import StockVectorizerService
 StockVectorizerService().run_vectorization()
@@ -143,7 +174,7 @@ echo "  -> reports/ml_result.json"
 # ==============================================================
 echo ""
 echo "=== Phase 3: Swing Analysis (All KOSDAQ) ==="
-docker exec stock_xgboost_ml python3 -c "
+docker exec stock_xgboost_ml timeout 300 python3 -c "
 import sys, json, psycopg2, numpy as np
 sys.path.insert(0, '/app')
 from app.feature_engine.feature_pipeline import FeaturePipeline
@@ -186,7 +217,7 @@ echo "  -> reports/swing_candidates.json"
 # ==============================================================
 echo ""
 echo "=== Phase 4: Backtest ==="
-docker exec stock_xgboost_ml python3 -c "
+docker exec stock_xgboost_ml timeout 300 python3 -c "
 import sys, json, psycopg2, numpy as np
 sys.path.insert(0, '/app')
 from app.feature_engine.feature_pipeline import FeaturePipeline
