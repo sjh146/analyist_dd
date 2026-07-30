@@ -5,6 +5,7 @@ yfinance Collector Service
 - Stores data in PostgreSQL
 """
 
+import argparse
 import logging
 import schedule
 import time
@@ -115,6 +116,57 @@ class YFinanceCollectorService:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="yfinance Collector Service")
+    parser.add_argument("--test-mode", action="store_true", help="Skip yfinance collection and generate synthetic data for pipeline testing")
+    args = parser.parse_args()
+
+    if args.test_mode:
+        logger.info("=== TEST MODE: Skipping yfinance collection ===")
+        logger.info("Generating synthetic market data for pipeline testing...")
+        import pandas as pd
+        import random
+        from datetime import timedelta
+
+        storage = PostgresStorage()
+        config = Config()
+
+        stocks = [
+            {"code": "005930", "name": "삼성전자", "market": "KOSPI"},
+            {"code": "000660", "name": "SK하이닉스", "market": "KOSPI"},
+            {"code": "035420", "name": "NAVER", "market": "KOSPI"},
+            {"code": "207940", "name": "삼성바이오로직스", "market": "KOSPI"},
+            {"code": "051910", "name": "LG화학", "market": "KOSPI"},
+        ]
+        base_price = {"005930": 70000, "000660": 180000, "035420": 200000, "207940": 800000, "051910": 400000}
+
+        for stock in stocks:
+            rows = []
+            today = datetime.now()
+            code = stock["code"]
+            bp = base_price.get(code, 50000)
+            for d in range(365):
+                date = today - timedelta(days=d)
+                if date.weekday() >= 5:
+                    continue
+                noise = random.uniform(-0.03, 0.03)
+                close = bp * (1 + noise)
+                rows.append({
+                    "date": date,
+                    "open": round(close * (1 + random.uniform(-0.01, 0.01)), 2),
+                    "high": round(close * (1 + random.uniform(0, 0.02)), 2),
+                    "low": round(close * (1 + random.uniform(-0.02, 0)), 2),
+                    "close": round(close, 2),
+                    "volume": int(random.uniform(500000, 5000000)),
+                    "stock_code": code,
+                    "stock_name": stock["name"],
+                    "market": stock["market"],
+                    "trade_date": date.date(),
+                })
+            df = pd.DataFrame(rows)
+            storage.save_market_data(code, df)
+        logger.info(f"Synthetic data generated for {len(stocks)} stocks")
+        return
+
     service = YFinanceCollectorService()
     try:
         service.run_scheduled()
