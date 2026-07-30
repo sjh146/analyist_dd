@@ -85,7 +85,7 @@ else:
     logger.info(f'Daily collection complete. Processed {len(stocks)} stocks.')
 print('yfinance DONE')
 " 2>&1
-sleep 30
+sleep 60
 
 # 1-2. KRX: Trading/Short/Derivatives
 echo "--- 1-2. KRX: Trading/Short/Derivatives ---"
