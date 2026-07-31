@@ -1,49 +1,98 @@
 #!/bin/bash
-# auto_pipeline_ci.sh — Auto CI/CD loop for full_pipeline_dd.sh
-# Runs repeatedly until all phases pass, max 5 attempts
 set +e
 cd "$(dirname "$0")/.."
-LOG="reports/pipeline_ci_$(date +%Y%m%d_%H%M).log"
+LOG_DIR="reports"
+mkdir -p "$LOG_DIR"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOG_FILE="$LOG_DIR/pipeline_ci_$TIMESTAMP.log"
+RUN_LOG="$LOG_DIR/pipeline_ci_runs.log"
+
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 MAX_ATTEMPTS=5
+ATTEMPT=1
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
-echo "=== Auto Pipeline CI Started ===" | tee -a "$LOG"
+echo "============================================================"
+echo "  analyist_dd AUTO CI/CD PIPELINE"
+echo "  Started: $(date)"
+echo "  Branch: $GIT_BRANCH"
+echo "  Max attempts: $MAX_ATTEMPTS"
+echo "============================================================"
 
-for attempt in $(seq 1 $MAX_ATTEMPTS); do
-    echo "" | tee -a "$LOG"
-    echo "=== Attempt $attempt/$MAX_ATTEMPTS ===" | tee -a "$LOG"
-    echo "Started: $(date)" | tee -a "$LOG"
+phase_reached() {
+    local phase_file="/tmp/pipeline_phase_progress.txt"
+    if [ -f "$phase_file" ]; then cat "$phase_file"; else echo "0"; fi
+}
 
-    # 1. Cleanup
-    bash scripts/cleanup_zombies.sh >> "$LOG" 2>&1
+phase_name() {
+    case "$1" in
+        0) echo "Start" ;; 1) echo "1-1 yfinance OHLCV" ;; 2) echo "1-2 KRX Trading" ;;
+        3) echo "1-3 News" ;; 4) echo "1-4 Econ Calendar" ;; 5) echo "1-5 Financials" ;;
+        6) echo "1-6 Vectorizer" ;; 7) echo "2 ML Training" ;; 8) echo "3 Swing Analysis" ;;
+        9) echo "4 Backtest" ;; 10) echo "5 Strategies" ;; 11) echo "6+7 Cleanup/Report" ;;
+        *) echo "Unknown" ;;
+    esac
+}
 
-    # 2. Git pull latest
-    git pull origin master >> "$LOG" 2>&1
+while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+    echo ""
+    echo "############################################################"
+    echo "  ATTEMPT $ATTEMPT / $MAX_ATTEMPTS"
+    echo "  Started: $(date)"
+    echo "############################################################"
 
-    # 3. Run pipeline (30분 타임아웃)
-    timeout 1800 bash scripts/full_pipeline_dd.sh >> "$LOG" 2>&1
-    EXIT_CODE=$?
+    LAST_PHASE=$(phase_reached)
+    echo "Last completed phase: $(phase_name $LAST_PHASE)"
 
-    echo "Exit code: $EXIT_CODE" | tee -a "$LOG"
+    if [ $ATTEMPT -gt 1 ]; then
+        echo "Waiting 30s for retry..."
+        sleep 30
+        docker compose ps --format 'table {{.Names}}\t{{.Status}}'
+    fi
 
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo "✅ PIPELINE PASSED on attempt $attempt!" | tee -a "$LOG"
-        git add -A && git commit -m "ci: pipeline PASS attempt $attempt" && git push >> "$LOG" 2>&1
+    bash scripts/full_pipeline_dd.sh
+    PIPELINE_EXIT=$?
+
+    echo ""
+    echo "Pipeline exit code: $PIPELINE_EXIT"
+
+    if [ $PIPELINE_EXIT -eq 0 ]; then
+        echo ""
+        echo "============================================================"
+        echo "  PIPELINE SUCCEEDED on attempt $ATTEMPT"
+        echo "============================================================"
+        echo "$(date +%Y-%m-%d_%H:%M:%S) | ATT $ATTEMPT | SUCCESS | Exit=0" >> "$RUN_LOG"
+        git add reports/ -A 2>/dev/null || true
+        git add -A 2>/dev/null || true
+        git commit -m "auto-ci: pipeline PASS at attempt $ATTEMPT ($(date +%Y%m%d_%H%M))" 2>/dev/null || true
         exit 0
     fi
 
-    # Check which phase was reached
-    LAST_PHASE=$(grep -o "Phase [0-9]" "$LOG" 2>/dev/null | tail -1)
-    echo "Reached: $LAST_PHASE" | tee -a "$LOG"
+    echo ""
+    echo "--- ATTEMPT $ATTEMPT FAILED ---"
+    LAST_PHASE=$(phase_reached)
+    FAILED_AT=$(phase_name $((LAST_PHASE + 1)))
+    echo "Failed at: $FAILED_AT"
+    echo "Last OK: $(phase_name $LAST_PHASE)"
 
-    # Commit and retry
-    git add -A && git commit -m "ci: pipeline FAIL attempt $attempt ($LAST_PHASE)" >> "$LOG" 2>&1
-    git push >> "$LOG" 2>&1
+    echo "$(date +%Y-%m-%d_%H:%M:%S) | ATT $ATTEMPT | FAIL | Phase=$FAILED_AT | Exit=$PIPELINE_EXIT" >> "$RUN_LOG"
 
-    if [ $attempt -lt $MAX_ATTEMPTS ]; then
-        echo "Waiting 60s before retry..." | tee -a "$LOG"
+    git add reports/ -A 2>/dev/null || true
+    git add -A 2>/dev/null || true
+    git commit -m "auto-ci: pipeline FAIL at attempt $ATTEMPT ($FAILED_AT) $(date +%Y%m%d_%H%M)" 2>/dev/null || true
+
+    ATTEMPT=$((ATTEMPT + 1))
+    if [ $ATTEMPT -le $MAX_ATTEMPTS ]; then
+        echo ""
+        echo "--- Next attempt $ATTEMPT/$MAX_ATTEMPTS in 60s ---"
         sleep 60
     fi
 done
 
-echo "❌ All $MAX_ATTEMPTS attempts failed" | tee -a "$LOG"
+echo ""
+echo "============================================================"
+echo "  MAX ATTEMPTS ($MAX_ATTEMPTS) REACHED"
+echo "  Pipeline did not complete. Check: $LOG_FILE"
+echo "============================================================"
 exit 1
