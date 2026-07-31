@@ -6,7 +6,12 @@ LOG_DIR="reports"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M)
 LOG_FILE="$LOG_DIR/full_pipeline_dd_$TIMESTAMP.log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+# Log to file always; mirror to stdout ONLY when running in foreground (TTY)
+if [ -t 1 ]; then
+    exec > >(tee -a "$LOG_FILE") 2>&1
+else
+    exec >> "$LOG_FILE" 2>&1
+fi
 
 echo "========================================"
 echo "  analyist_dd FULL PIPELINE DD"
