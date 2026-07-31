@@ -6,6 +6,31 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
+_BALANCE_COLUMN_ALIASES = {
+    "short_volume": ("공매도잔고", "BAL_QTY"),
+    "short_value": ("공매도금액", "BAL_AMT"),
+    "total_volume": ("상장주식수", "LIST_SHRS"),
+    "short_ratio": ("비중", "BAL_RTO"),
+}
+
+
+def _row_value(row, aliases):
+    for name in aliases:
+        if name in row.index:
+            return row[name]
+    return None
+
+
+def _safe_number(value, converter, default=0):
+    try:
+        if value is None or pd.isna(value):
+            return default
+        if isinstance(value, str):
+            value = value.replace(",", "")
+        return converter(value)
+    except (TypeError, ValueError):
+        return default
+
 
 class ShortSellingCollector:
     def __init__(self, market="KOSPI"):
@@ -67,23 +92,38 @@ class ShortSellingCollector:
         current = datetime.strptime(self.start_date, "%Y%m%d")
         end_dt = datetime.strptime(self.end_date, "%Y%m%d")
         while current <= end_dt:
+            if current.weekday() >= 5:
+                logger.debug("Skipping %s (%s): weekend, KRX market closed", current.date(), self.market)
+                current += timedelta(days=1)
+                continue
+            date_str = current.strftime("%Y%m%d")
             try:
-                date_str = current.strftime("%Y%m%d")
                 time.sleep(0.5)
                 df = get_shorting_balance_by_ticker(date_str, self.market)
-                if df is not None and not df.empty and '공매도잔고' in df.columns:
+                if df is None or df.empty:
+                    logger.debug("No short selling balance data for %s (%s)", current.date(), self.market)
+                elif not any(
+                    col in df.columns
+                    for aliases in _BALANCE_COLUMN_ALIASES.values()
+                    for col in aliases
+                ):
+                    logger.debug(
+                        "Unexpected columns %s on %s (%s), skipping",
+                        list(df.columns), current.date(), self.market,
+                    )
+                else:
                     for ticker_code, srow in df.iterrows():
                         rows.append({
                             "trade_date": current.date(),
                             "stock_code": str(ticker_code),
                             "stock_name": "",
-                            "short_volume": int(srow.get("공매도잔고", 0)),
-                            "short_value": int(srow.get("공매도금액", 0)),
-                            "total_volume": int(srow.get("상장주식수", 0)),
-                            "short_ratio": float(srow.get("비중", 0)),
+                            "short_volume": _safe_number(_row_value(srow, _BALANCE_COLUMN_ALIASES["short_volume"]), int),
+                            "short_value": _safe_number(_row_value(srow, _BALANCE_COLUMN_ALIASES["short_value"]), int),
+                            "total_volume": _safe_number(_row_value(srow, _BALANCE_COLUMN_ALIASES["total_volume"]), int),
+                            "short_ratio": _safe_number(_row_value(srow, _BALANCE_COLUMN_ALIASES["short_ratio"]), float),
                         })
-            except Exception:
-                pass  # skip non-trading days
+            except Exception as e:
+                logger.debug("Skipping %s (%s): %s", current.date(), self.market, e)
             current += timedelta(days=1)
         logger.info(f"Collected {len(rows)} rows of short selling by ticker for {self.market}")
         return rows
