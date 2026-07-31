@@ -65,6 +65,7 @@ from app.processors.technical_indicators import TechnicalIndicatorCalculator
 from app.processors.data_cleaner import DataCleaner
 from app.storage.postgres_storage import PostgresStorage
 import logging; logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
+logging.raiseExceptions = False
 
 logger = logging.getLogger(__name__)
 config = __import__('app.config', fromlist=['Config']).Config()
@@ -131,6 +132,7 @@ docker exec -i stock_krx_collector sh -c 'cat > /tmp/phase_1_2.py' << 'PYEOF'
 import sys; sys.path.insert(0, '/app')
 from app.main import KrxCollectorService
 import logging; logging.basicConfig(level=logging.INFO)
+logging.raiseExceptions = False
 KrxCollectorService().run_daily_collection()
 print('KRX DONE')
 PYEOF
@@ -173,6 +175,7 @@ echo "--- 1-5. Financials: PER/PBR/ROE ---"
 docker exec -i stock_yfinance_collector sh -c 'cat > /tmp/phase_1_5.py' << 'PYEOF'
 import sys; sys.path.insert(0, '/app')
 import logging, psycopg2; logging.basicConfig(level=logging.INFO)
+logging.raiseExceptions = False
 from app.collectors.price_collector import PriceCollector
 from app.storage.postgres_storage import PostgresStorage
 pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
