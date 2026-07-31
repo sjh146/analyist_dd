@@ -48,7 +48,8 @@ echo "=== Phase 1: Data Collection ==="
 
 # 1-1. yfinance: Market Data (OHLCV only — skip fundamentals to avoid rate limit)
 echo "--- 1-1. yfinance: Market Data (OHLCV only) ---"
-docker exec stock_yfinance_collector python3 -c "
+docker exec -i stock_yfinance_collector sh -c 'cat > /tmp/phase_1_1.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
 from app.main import YFinanceCollectorService
 from app.collectors.price_collector import PriceCollector
 from app.collectors.stock_list_collector import StockListCollector
@@ -84,22 +85,26 @@ else:
         storage.save_market_data(stock_code, stock_df)
     logger.info(f'Daily collection complete. Processed {len(stocks)} stocks.')
 print('yfinance DONE')
-" 2>&1
-sleep 60
+PYEOF
+docker exec stock_yfinance_collector timeout 1200 python3 /tmp/phase_1_1.py 2>&1
+sleep 10
 
 # 1-2. KRX: Trading/Short/Derivatives
 echo "--- 1-2. KRX: Trading/Short/Derivatives ---"
-docker exec stock_krx_collector python3 -c "
+docker exec -i stock_krx_collector sh -c 'cat > /tmp/phase_1_2.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
 from app.main import KrxCollectorService
 import logging; logging.basicConfig(level=logging.INFO)
 KrxCollectorService().run_daily_collection()
 print('KRX DONE')
-" 2>&1
+PYEOF
+docker exec stock_krx_collector timeout 600 python3 /tmp/phase_1_2.py 2>&1
 sleep 30
 
 # 1-3. News Analyzer: News + Sentiment
 echo "--- 1-3. News Analyzer: News + Sentiment ---"
-docker exec stock_news_analyzer timeout 120 python3 -c "
+docker exec -i stock_news_analyzer sh -c 'cat > /tmp/phase_1_3.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
 import asyncio
 import logging; logging.basicConfig(level=logging.INFO)
 from app.main import NewsAnalyzerService
@@ -108,28 +113,32 @@ async def run():
     await s.run_collection()
     print('News DONE')
 asyncio.run(run())
-" 2>&1
+PYEOF
+docker exec stock_news_analyzer timeout 600 python3 /tmp/phase_1_3.py 2>&1
 sleep 30
 
 # 1-4. Economic Calendar: FOMC/Earnings/CPI
 echo "--- 1-4. Economic Calendar: FOMC/Earnings/CPI ---"
-docker exec stock_economic_calendar python3 -c "
+docker exec -i stock_economic_calendar sh -c 'cat > /tmp/phase_1_4.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
 import logging; logging.basicConfig(level=logging.INFO)
 from app.main import EconomicCalendarService
 EconomicCalendarService().run_daily_update()
 print('Economic Calendar DONE')
-" 2>&1
+PYEOF
+docker exec stock_economic_calendar timeout 600 python3 /tmp/phase_1_4.py 2>&1
 sleep 30
 
 # 1-5. Financials: PER/PBR/ROE
 echo "--- 1-5. Financials: PER/PBR/ROE ---"
-docker exec stock_yfinance_collector timeout 60 python3 -c "
+docker exec -i stock_yfinance_collector sh -c 'cat > /tmp/phase_1_5.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
 import logging, psycopg2; logging.basicConfig(level=logging.INFO)
 from app.collectors.price_collector import PriceCollector
 from app.storage.postgres_storage import PostgresStorage
 pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
 cur = pg.cursor()
-cur.execute(\"SELECT stock_code FROM stocks WHERE market = 'KOSDAQ' AND stock_code ~ '^[0-9]' LIMIT 20\")
+cur.execute("SELECT stock_code FROM stocks WHERE market = 'KOSDAQ' AND stock_code ~ '^[0-9]' LIMIT 20")
 codes = [r[0] for r in cur.fetchall()]; cur.close(); pg.close()
 p = PriceCollector(); s = PostgresStorage()
 count = 0
@@ -139,32 +148,37 @@ for code in codes:
         s.update_fundamentals(r)
         count += 1
 print(f'Financials collected: {count}/{len(codes)} stocks')
-" 2>&1
+PYEOF
+docker exec stock_yfinance_collector timeout 600 python3 /tmp/phase_1_5.py 2>&1
 sleep 30
 
 # 1-6. Stock Vectorizer: Embeddings
 echo "--- 1-6. Stock Vectorizer: Embeddings ---"
-docker exec stock_vectorizer timeout 300 python3 -c "
+docker exec -i stock_vectorizer sh -c 'cat > /tmp/phase_1_6.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
 import logging; logging.basicConfig(level=logging.INFO)
 from app.main import StockVectorizerService
 StockVectorizerService().run_vectorization()
 print('Vectorizer DONE')
-" 2>&1
+PYEOF
+docker exec stock_vectorizer timeout 600 python3 /tmp/phase_1_6.py 2>&1
 
 # ==============================================================
 # PHASE 2: ML Training
 # ==============================================================
 echo ""
 echo "=== Phase 2: ML Training ==="
-docker exec stock_xgboost_ml timeout 300 python /app/scripts/train_quick.py 2>&1 | tail -20
+docker exec stock_xgboost_ml timeout 600 python3 /app/scripts/train_quick.py 2>&1
 
 # Get AUC from the latest run (v15 is the best known model)
-AUC=$(docker exec stock_xgboost_ml python3 -c "
+docker exec -i stock_xgboost_ml sh -c 'cat > /tmp/phase_2_auc.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
 import json
 with open('/app/app/models/saved_models/training-result-v15.json') as f:
     d = json.load(f)
-print(f'{d[\"auc\"]:.4f}')
-" 2>/dev/null)
+print(f'{d["auc"]:.4f}')
+PYEOF
+AUC=$(docker exec stock_xgboost_ml timeout 600 python3 /tmp/phase_2_auc.py 2>/dev/null)
 echo "Best AUC: $AUC"
 docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v15.json ./reports/ml_result.json 2>/dev/null
 echo "  -> reports/ml_result.json"
@@ -174,7 +188,7 @@ echo "  -> reports/ml_result.json"
 # ==============================================================
 echo ""
 echo "=== Phase 3: Swing Analysis (All KOSDAQ) ==="
-docker exec stock_xgboost_ml timeout 300 python3 -c "
+docker exec -i stock_xgboost_ml sh -c 'cat > /tmp/phase_3.py' << 'PYEOF'
 import sys, json, psycopg2, numpy as np
 sys.path.insert(0, '/app')
 from app.feature_engine.feature_pipeline import FeaturePipeline
@@ -184,7 +198,7 @@ from datetime import datetime
 pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
 cur = pg.cursor()
 today = datetime.now().strftime('%Y-%m-%d')
-cur.execute(\"SELECT md.stock_code, s.stock_name, s.sector, md.close_price FROM market_data md JOIN stocks s ON md.stock_code = s.stock_code WHERE md.trade_date = %s AND s.market = 'KOSDAQ' AND md.volume > 0\", (today,))
+cur.execute("SELECT md.stock_code, s.stock_name, s.sector, md.close_price FROM market_data md JOIN stocks s ON md.stock_code = s.stock_code WHERE md.trade_date = %s AND s.market = 'KOSDAQ' AND md.volume > 0", (today,))
 stocks = cur.fetchall()
 pipeline = FeaturePipeline(pg_conn=pg)
 ensemble = EnsembleModel(model_dir='app/models/saved_models')
@@ -206,9 +220,10 @@ results.sort(key=lambda x: x['conf'], reverse=True)
 import json as j
 with open('/app/reports/swing_candidates.json', 'w') as f:
     j.dump({'date':today,'total':len(results),'up':len([r for r in results if r['dir']=='UP']),'down':len([r for r in results if r['dir']=='DOWN']),'high_confidence':[r for r in results if r['conf']>=0.30],'top_up':[r for r in results if r['dir']=='UP'][:20],'top_down':[r for r in results if r['dir']=='DOWN'][:20]}, f, indent=2, ensure_ascii=False)
-print(f'Swing analysis saved: {len(results)} stocks, {len([r for r in results if r[\"dir\"]==\"UP\"])} UP, {len([r for r in results if r[\"dir\"]==\"DOWN\"])} DOWN')
+print(f'Swing analysis saved: {len(results)} stocks, {len([r for r in results if r["dir"]=="UP"])} UP, {len([r for r in results if r["dir"]=="DOWN"])} DOWN')
 pg.close()
-" 2>&1
+PYEOF
+docker exec stock_xgboost_ml timeout 600 python3 /tmp/phase_3.py 2>&1
 docker cp stock_xgboost_ml:/app/reports/swing_candidates.json ./reports/swing_candidates.json 2>/dev/null
 echo "  -> reports/swing_candidates.json"
 
@@ -217,7 +232,7 @@ echo "  -> reports/swing_candidates.json"
 # ==============================================================
 echo ""
 echo "=== Phase 4: Backtest ==="
-docker exec stock_xgboost_ml timeout 300 python3 -c "
+docker exec -i stock_xgboost_ml sh -c 'cat > /tmp/phase_4.py' << 'PYEOF'
 import sys, json, psycopg2, numpy as np
 sys.path.insert(0, '/app')
 from app.feature_engine.feature_pipeline import FeaturePipeline
@@ -227,7 +242,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score
 
 pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
 cur = pg.cursor()
-cur.execute(\"SELECT stock_code FROM market_data WHERE trade_date >= '2026-06-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 20\")
+cur.execute("SELECT stock_code FROM market_data WHERE trade_date >= '2026-06-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 20")
 stocks_list = [r[0] for r in cur.fetchall()]; cur.close()
 pipeline = FeaturePipeline(pg_conn=pg); trainer = Trainer(storage=None, feature_pipeline=pipeline)
 result = trainer.prepare_training_data(stock_codes=stocks_list, days=90)
@@ -249,7 +264,8 @@ import json as j
 with open('/app/reports/backtest_result.json','w') as f:
     j.dump({'auc':round(auc,4),'accuracy':round(acc,4),'samples':len(all_y)}, f)
 pg.close()
-" 2>&1
+PYEOF
+docker exec stock_xgboost_ml timeout 600 python3 /tmp/phase_4.py 2>&1
 docker cp stock_xgboost_ml:/app/reports/backtest_result.json ./reports/backtest_result.json 2>/dev/null
 echo "  -> reports/backtest_result.json"
 
@@ -258,19 +274,21 @@ echo "  -> reports/backtest_result.json"
 # ==============================================================
 echo ""
 echo "=== Phase 5: Trading Strategies ==="
-docker exec stock_strategy_agents timeout 120 python3 -c "
+docker exec -i stock_strategy_agents sh -c 'cat > /tmp/phase_5.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
 import logging; logging.basicConfig(level=logging.INFO)
 from app.main import StrategyAgentService
 StrategyAgentService().run_all_strategies()
 print('Strategies DONE')
-" 2>&1
+PYEOF
+docker exec stock_strategy_agents timeout 600 python3 /tmp/phase_5.py 2>&1
 
 # ==============================================================
 # PHASE 6: Cleanup old news (30d+)
 # ==============================================================
 echo ""
 echo "=== Phase 6: Data Cleanup ==="
-docker exec stock_postgres psql -U stock_user -d stock_trading -c "
+docker exec stock_postgres timeout 600 psql -U stock_user -d stock_trading -c "
 DELETE FROM news_analysis WHERE published_at < NOW() - INTERVAL '30 days';
 DELETE FROM stock_sentiment WHERE analysis_date < NOW() - INTERVAL '30 days';
 " 2>&1

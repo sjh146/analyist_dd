@@ -82,44 +82,59 @@ class PostgresStorage:
         if not conn:
             return
 
-        try:
-            cur = conn.cursor()
+        conn.rollback()
 
-            for _, row in df.iterrows():
-                try:
-                    cur.execute(
-                        """
-                        INSERT INTO market_data
-                            (stock_code, trade_date, open_price, high_price,
-                             low_price, close_price, volume)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (stock_code, trade_date) DO UPDATE SET
-                            open_price = EXCLUDED.open_price,
-                            high_price = EXCLUDED.high_price,
-                            low_price = EXCLUDED.low_price,
-                            close_price = EXCLUDED.close_price,
-                            volume = EXCLUDED.volume
-                        """,
-                        (
-                            stock_code,
-                            row.get("trade_date") or row.get("date"),
-                            row.get("open"),
-                            row.get("high"),
-                            row.get("low"),
-                            row.get("close"),
-                            int(row.get("volume", 0)),
-                        ),
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to insert row for {stock_code}: {e}")
+        cur = conn.cursor()
+        saved_count = 0
+
+        for _, row in df.iterrows():
+            try:
+                trade_date = (
+                    row.get("trade_date")
+                    or row.get("date")
+                    or row.get("날짜")
+                )
+                if trade_date is None:
+                    logger.warning(f"Skip row for {stock_code}: null trade_date")
                     continue
 
+                cur.execute(
+                    """
+                    INSERT INTO market_data
+                        (stock_code, trade_date, open_price, high_price,
+                         low_price, close_price, volume)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (stock_code, trade_date) DO UPDATE SET
+                        open_price = EXCLUDED.open_price,
+                        high_price = EXCLUDED.high_price,
+                        low_price = EXCLUDED.low_price,
+                        close_price = EXCLUDED.close_price,
+                        volume = EXCLUDED.volume
+                    """,
+                    (
+                        stock_code,
+                        trade_date,
+                        row.get("open") or row.get("시가"),
+                        row.get("high") or row.get("고가"),
+                        row.get("low") or row.get("저가"),
+                        row.get("close") or row.get("종가"),
+                        int(row.get("volume") or row.get("거래량") or 0),
+                    ),
+                )
+                saved_count += 1
+            except Exception as e:
+                logger.error(f"Failed to insert row for {stock_code}: {e}")
+                conn.rollback()
+                cur.close()
+                cur = conn.cursor()
+                continue
+
+        try:
             conn.commit()
             cur.close()
-            logger.info(f"Saved market data for {stock_code} ({len(df)} rows)")
-
+            logger.info(f"Saved market data for {stock_code} ({saved_count} rows)")
         except Exception as e:
-            logger.error(f"Failed to save market data for {stock_code}: {e}")
+            logger.error(f"Failed to commit market data for {stock_code}: {e}")
             conn.rollback()
         finally:
             self._put_conn(conn)
