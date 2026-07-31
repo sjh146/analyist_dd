@@ -13,6 +13,9 @@ echo "  analyist_dd FULL PIPELINE DD"
 echo "  Started: $(date)"
 echo "========================================"
 
+PROGRESS_FILE="/tmp/pipeline_phase_progress.txt"
+echo "0" > "$PROGRESS_FILE"
+
 # ==============================================================
 # PHASE 0: Container Start
 # ==============================================================
@@ -80,13 +83,41 @@ else:
     df = ti.calculate_all(df)
     dc = DataCleaner()
     df = dc.clean(df)
-    for stock_code in df['stock_code'].unique():
-        stock_df = df[df['stock_code'] == stock_code]
-        storage.save_market_data(stock_code, stock_df)
+    import psycopg2
+    from psycopg2.extras import execute_values
+    pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='stock_secure_password_2026')
+    cur = pg.cursor()
+    rows = []
+    for r in df.itertuples():
+        td = getattr(r, 'trade_date', None)
+        if td is None:
+            continue
+        try:
+            o, h, l, c = float(r.open), float(r.high), float(r.low), float(r.close)
+            v = int(r.volume) if r.volume == r.volume else 0
+        except (TypeError, ValueError):
+            continue
+        if any(x != x for x in (o, h, l, c)):
+            continue
+        rows.append((r.stock_code, td, o, h, l, c, v))
+    execute_values(cur, """
+        INSERT INTO market_data (stock_code, trade_date, open_price, high_price, low_price, close_price, volume)
+        VALUES %s
+        ON CONFLICT (stock_code, trade_date) DO UPDATE SET
+            open_price = EXCLUDED.open_price,
+            high_price = EXCLUDED.high_price,
+            low_price = EXCLUDED.low_price,
+            close_price = EXCLUDED.close_price,
+            volume = EXCLUDED.volume
+    """, rows, page_size=1000)
+    pg.commit()
+    cur.close()
+    pg.close()
     logger.info(f'Daily collection complete. Processed {len(stocks)} stocks.')
 print('yfinance DONE')
 PYEOF
-docker exec stock_yfinance_collector timeout 1200 python3 /tmp/phase_1_1.py 2>&1
+docker exec stock_yfinance_collector timeout 1800 python3 /tmp/phase_1_1.py 2>&1
+echo "1" > "$PROGRESS_FILE"
 sleep 10
 
 # 1-2. KRX: Trading/Short/Derivatives
@@ -99,6 +130,7 @@ KrxCollectorService().run_daily_collection()
 print('KRX DONE')
 PYEOF
 docker exec stock_krx_collector timeout 600 python3 /tmp/phase_1_2.py 2>&1
+echo "2" > "$PROGRESS_FILE"
 sleep 30
 
 # 1-3. News Analyzer: News + Sentiment
@@ -115,6 +147,7 @@ async def run():
 asyncio.run(run())
 PYEOF
 docker exec stock_news_analyzer timeout 600 python3 /tmp/phase_1_3.py 2>&1
+echo "3" > "$PROGRESS_FILE"
 sleep 30
 
 # 1-4. Economic Calendar: FOMC/Earnings/CPI
@@ -127,6 +160,7 @@ EconomicCalendarService().run_daily_update()
 print('Economic Calendar DONE')
 PYEOF
 docker exec stock_economic_calendar timeout 600 python3 /tmp/phase_1_4.py 2>&1
+echo "4" > "$PROGRESS_FILE"
 sleep 30
 
 # 1-5. Financials: PER/PBR/ROE
@@ -150,6 +184,7 @@ for code in codes:
 print(f'Financials collected: {count}/{len(codes)} stocks')
 PYEOF
 docker exec stock_yfinance_collector timeout 600 python3 /tmp/phase_1_5.py 2>&1
+echo "5" > "$PROGRESS_FILE"
 sleep 30
 
 # 1-6. Stock Vectorizer: Embeddings
@@ -162,6 +197,7 @@ StockVectorizerService().run_vectorization()
 print('Vectorizer DONE')
 PYEOF
 docker exec stock_vectorizer timeout 600 python3 /tmp/phase_1_6.py 2>&1
+echo "6" > "$PROGRESS_FILE"
 
 # ==============================================================
 # PHASE 2: ML Training
@@ -169,6 +205,7 @@ docker exec stock_vectorizer timeout 600 python3 /tmp/phase_1_6.py 2>&1
 echo ""
 echo "=== Phase 2: ML Training ==="
 docker exec stock_xgboost_ml timeout 600 python3 /app/scripts/train_quick.py 2>&1
+echo "7" > "$PROGRESS_FILE"
 
 # Get AUC from the latest run (v15 is the best known model)
 docker exec -i stock_xgboost_ml sh -c 'cat > /tmp/phase_2_auc.py' << 'PYEOF'
@@ -224,6 +261,7 @@ print(f'Swing analysis saved: {len(results)} stocks, {len([r for r in results if
 pg.close()
 PYEOF
 docker exec stock_xgboost_ml timeout 600 python3 /tmp/phase_3.py 2>&1
+echo "8" > "$PROGRESS_FILE"
 docker cp stock_xgboost_ml:/app/reports/swing_candidates.json ./reports/swing_candidates.json 2>/dev/null
 echo "  -> reports/swing_candidates.json"
 
@@ -266,6 +304,7 @@ with open('/app/reports/backtest_result.json','w') as f:
 pg.close()
 PYEOF
 docker exec stock_xgboost_ml timeout 600 python3 /tmp/phase_4.py 2>&1
+echo "9" > "$PROGRESS_FILE"
 docker cp stock_xgboost_ml:/app/reports/backtest_result.json ./reports/backtest_result.json 2>/dev/null
 echo "  -> reports/backtest_result.json"
 
@@ -282,6 +321,7 @@ StrategyAgentService().run_all_strategies()
 print('Strategies DONE')
 PYEOF
 docker exec stock_strategy_agents timeout 600 python3 /tmp/phase_5.py 2>&1
+echo "10" > "$PROGRESS_FILE"
 
 # ==============================================================
 # PHASE 6: Cleanup old news (30d+)
@@ -293,6 +333,7 @@ DELETE FROM news_analysis WHERE published_at < NOW() - INTERVAL '30 days';
 DELETE FROM stock_sentiment WHERE analysis_date < NOW() - INTERVAL '30 days';
 " 2>&1
 echo "Old news purged."
+echo "11" > "$PROGRESS_FILE"
 
 # ==============================================================
 # PHASE 7: Summary Report
