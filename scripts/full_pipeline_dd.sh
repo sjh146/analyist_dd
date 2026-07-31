@@ -121,7 +121,7 @@ else:
     logger.info(f'Daily collection complete. Processed {len(stocks)} stocks.')
 print('yfinance DONE')
 PYEOF
-docker exec stock_yfinance_collector timeout 1800 python3 /tmp/phase_1_1.py 2>&1
+docker exec stock_yfinance_collector timeout 3600 python3 /tmp/phase_1_1.py 2>&1
 echo "1" > "$PROGRESS_FILE"
 sleep 10
 
