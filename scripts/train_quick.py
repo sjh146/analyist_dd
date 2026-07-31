@@ -50,7 +50,7 @@ def get_training_stocks(pg_conn, n=10):
 
 def main():
     pg = get_pg_conn()
-    stock_codes = get_training_stocks(pg, n=30)
+    stock_codes = get_training_stocks(pg, n=10)
     logger.info(f"Validation on {len(stock_codes)} KOSDAQ stocks: {stock_codes}")
 
     pipeline = FeaturePipeline(pg_conn=pg)

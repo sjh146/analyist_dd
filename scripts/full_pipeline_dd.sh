@@ -204,7 +204,7 @@ echo "6" > "$PROGRESS_FILE"
 # ==============================================================
 echo ""
 echo "=== Phase 2: ML Training ==="
-docker exec stock_xgboost_ml timeout 600 python3 /app/scripts/train_quick.py 2>&1
+docker exec stock_xgboost_ml timeout 1800 python3 /app/scripts/train_quick.py 2>&1
 echo "7" > "$PROGRESS_FILE"
 
 # Get AUC from the latest run (v15 is the best known model)
@@ -235,7 +235,7 @@ from datetime import datetime
 pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
 cur = pg.cursor()
 today = datetime.now().strftime('%Y-%m-%d')
-cur.execute("SELECT md.stock_code, s.stock_name, s.sector, md.close_price FROM market_data md JOIN stocks s ON md.stock_code = s.stock_code WHERE md.trade_date = %s AND s.market = 'KOSDAQ' AND md.volume > 0", (today,))
+cur.execute("SELECT md.stock_code, s.stock_name, s.sector, md.close_price FROM market_data md JOIN stocks s ON md.stock_code = s.stock_code WHERE md.trade_date = %s AND s.market = 'KOSDAQ' AND md.volume > 0 ORDER BY md.stock_code LIMIT 10", (today,))
 stocks = cur.fetchall()
 pipeline = FeaturePipeline(pg_conn=pg)
 ensemble = EnsembleModel(model_dir='app/models/saved_models')
@@ -260,7 +260,7 @@ with open('/app/reports/swing_candidates.json', 'w') as f:
 print(f'Swing analysis saved: {len(results)} stocks, {len([r for r in results if r["dir"]=="UP"])} UP, {len([r for r in results if r["dir"]=="DOWN"])} DOWN')
 pg.close()
 PYEOF
-docker exec stock_xgboost_ml timeout 600 python3 /tmp/phase_3.py 2>&1
+docker exec stock_xgboost_ml timeout 900 python3 /tmp/phase_3.py 2>&1
 echo "8" > "$PROGRESS_FILE"
 docker cp stock_xgboost_ml:/app/reports/swing_candidates.json ./reports/swing_candidates.json 2>/dev/null
 echo "  -> reports/swing_candidates.json"
@@ -280,7 +280,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score
 
 pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
 cur = pg.cursor()
-cur.execute("SELECT stock_code FROM market_data WHERE trade_date >= '2026-06-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 20")
+cur.execute("SELECT stock_code FROM market_data WHERE trade_date >= '2026-06-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 10")
 stocks_list = [r[0] for r in cur.fetchall()]; cur.close()
 pipeline = FeaturePipeline(pg_conn=pg); trainer = Trainer(storage=None, feature_pipeline=pipeline)
 result = trainer.prepare_training_data(stock_codes=stocks_list, days=90)
@@ -303,7 +303,7 @@ with open('/app/reports/backtest_result.json','w') as f:
     j.dump({'auc':round(auc,4),'accuracy':round(acc,4),'samples':len(all_y)}, f)
 pg.close()
 PYEOF
-docker exec stock_xgboost_ml timeout 600 python3 /tmp/phase_4.py 2>&1
+docker exec stock_xgboost_ml timeout 900 python3 /tmp/phase_4.py 2>&1
 echo "9" > "$PROGRESS_FILE"
 docker cp stock_xgboost_ml:/app/reports/backtest_result.json ./reports/backtest_result.json 2>/dev/null
 echo "  -> reports/backtest_result.json"
@@ -320,7 +320,7 @@ from app.main import StrategyAgentService
 StrategyAgentService().run_all_strategies()
 print('Strategies DONE')
 PYEOF
-docker exec stock_strategy_agents timeout 600 python3 /tmp/phase_5.py 2>&1
+docker exec stock_strategy_agents timeout 300 python3 /tmp/phase_5.py 2>&1
 echo "10" > "$PROGRESS_FILE"
 
 # ==============================================================
