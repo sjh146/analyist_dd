@@ -60,12 +60,16 @@ class PriceCollector:
             return df
 
         except Exception as e:
-            logger.error(f"Failed to collect {code} ({stock['name']}): {e}")
+            logger.debug(f"Failed to collect {code} ({stock['name']}): {e}")
             return None
 
     def collect_fundamentals(self, stock: Dict) -> Dict:
         code = stock["code"]
         result = {"stock_code": code, "market_cap": None, "per": None, "pbr": None, "roe": None}
+
+        if self.end_date.weekday() >= 5:
+            logger.debug("Skipping fundamentals for %s: weekend, KRX market closed", code)
+            return result
 
         try:
             df = krx_stock.get_market_fundamental_by_date(
@@ -90,7 +94,7 @@ class PriceCollector:
                     result["market_cap"] = int(close_price * shares) if shares else None
 
         except Exception as e:
-            logger.warning(f"Failed to collect fundamentals for {code}: {e}")
+            logger.debug(f"Failed to collect fundamentals for {code}: {e}")
 
         return result
 
