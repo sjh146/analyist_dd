@@ -147,6 +147,7 @@ services:
       - ./data/macro:/app/data/macro
       - ./data/financials:/app/data/financials
       - ./data/disclosures:/app/data/disclosures
+      - ./scripts:/app/scripts
     depends_on:
       postgres:
         condition: service_healthy

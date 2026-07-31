@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
-"""Quick validation: train on KOSDAQ stocks to verify AUC > 0.5."""
-import sys, os, logging, json
-sys.path.insert(0, '/app')
+"""Quick validation: train on 10 KOSDAQ stocks x 90 days to verify AUC > 0.5."""
 
-import psycopg2, numpy as np
+import sys
+import os
+import logging
+import json
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'services', 'xgboost-ml'))
+os.chdir(os.path.join(os.path.dirname(__file__), '..', 'services', 'xgboost-ml'))
+
+import psycopg2
+import numpy as np
 from datetime import datetime, timedelta
 
 from app.feature_engine.feature_pipeline import FeaturePipeline
@@ -13,16 +20,20 @@ from app.training.trainer import Trainer
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-PG_HOST = os.environ.get("POSTGRES_HOST", "postgres")
+PG_HOST = os.environ.get("POSTGRES_HOST", "127.0.0.1")
 PG_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
 PG_DB = os.environ.get("POSTGRES_DB", "stock_trading")
 PG_USER = os.environ.get("POSTGRES_USER", "stock_user")
 PG_PASS = os.environ.get("POSTGRES_PASSWORD", "***REDACTED***")
 
-def get_pg_conn():
-    return psycopg2.connect(host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER, password=PG_PASS)
 
-def get_training_stocks(pg_conn, n=50):
+def get_pg_conn():
+    return psycopg2.connect(
+        host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER, password=PG_PASS
+    )
+
+
+def get_training_stocks(pg_conn, n=10):
     cur = pg_conn.cursor()
     cur.execute("""
         SELECT md.stock_code FROM market_data md
@@ -36,10 +47,11 @@ def get_training_stocks(pg_conn, n=50):
     cur.close()
     return codes
 
+
 def main():
     pg = get_pg_conn()
-    stock_codes = get_training_stocks(pg, n=50)
-    logger.info(f"Training on {len(stock_codes)} KOSDAQ stocks")
+    stock_codes = get_training_stocks(pg, n=10)
+    logger.info(f"Validation on {len(stock_codes)} KOSDAQ stocks: {stock_codes}")
 
     pipeline = FeaturePipeline(pg_conn=pg)
     ensemble = EnsembleModel(model_dir="app/models/saved_models")
@@ -47,7 +59,7 @@ def main():
 
     logger.info("Preparing training data (180 days)...")
     result = trainer.prepare_training_data(stock_codes=stock_codes, days=180)
-    X_train, X_val, X_test, y_train, y_val, y_test, feature_names = result
+    X_train, X_val, X_test, y_train, y_val, y_test = result
 
     if X_train is None:
         logger.error("Training data preparation failed!")
@@ -56,15 +68,28 @@ def main():
     n_features = X_train.shape[1]
     logger.info(f"Data ready: {len(X_train)} train, {len(X_val)} val, {len(X_test)} test, {n_features} features")
 
-    model_dir = "app/models/saved_models"
-    ensemble.save_feature_names(feature_names, model_dir)
-    logger.info(f"Saved {len(feature_names)} feature names")
+    feature_names_path = "app/models/saved_models"
+    feature_names = pipeline.get_feature_names()
+    df = pipeline.build_training_features(
+        stock_codes,
+        (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d"),
+        datetime.now().strftime("%Y-%m-%d"),
+    )
+    if df is not None and not df.empty:
+        available_features = [c for c in feature_names if c in df.columns]
+        X_check = df[available_features].values.astype(np.float32)
+        X_check = np.nan_to_num(X_check, nan=0.0)
+        col_stds = np.std(X_check, axis=0)
+        varying_mask = col_stds > 0
+        varying_features = [f for f, m in zip(available_features, varying_mask) if m]
+        ensemble.save_feature_names(varying_features, feature_names_path)
+        logger.info(f"Saved {len(varying_features)} feature names to {feature_names_path}")
 
     logger.info("Training ensemble...")
     metrics = ensemble.train(X_train, y_train, X_val, y_val)
     logger.info(f"Training metrics: {json.dumps(metrics, indent=2, default=str)}")
 
-    ensemble.save(model_dir)
+    ensemble.save(feature_names_path)
 
     test_probs = ensemble.predict(X_test)
     test_preds = (test_probs > 0.5).astype(int)
@@ -78,25 +103,16 @@ def main():
         auc = 0.5
 
     logger.info(f"Test: accuracy={accuracy:.4f}, f1={f1:.4f}, auc={auc:.4f}")
-    logger.info(f"\n{classification_report(y_test, test_preds, target_names=['down', 'up'], labels=[0, 1], zero_division=0)}")
+    logger.info(f"\n{classification_report(y_test, test_preds, target_names=['down', 'up'])}")
 
     if auc > 0.55:
-        logger.info(f"PASS: AUC={auc:.4f} > 0.55")
+        logger.info(f"PASS: AUC={auc:.4f} > 0.55 — model learning signal confirmed")
     else:
-        logger.warning(f"WARN: AUC={auc:.4f}")
+        logger.warning(f"WARN: AUC={auc:.4f} — model may need more data/features")
 
-    result_dict = {
-        "auc": auc, "accuracy": accuracy, "f1": f1,
-        "n_stocks": len(stock_codes), "n_features": n_features,
-        "n_train": len(X_train), "n_val": len(X_val), "n_test": len(X_test),
-        "feature_names": feature_names
-    }
-    os.makedirs(".omo/evidence", exist_ok=True)
-    with open(".omo/evidence/training-result.json", "w") as f:
-        json.dump(result_dict, f, indent=2)
-    logger.info("Training result saved")
     pg.close()
-    logger.info("Done!")
+    logger.info("Quick validation complete!")
+
 
 if __name__ == "__main__":
     main()
