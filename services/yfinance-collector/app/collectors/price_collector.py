@@ -6,11 +6,36 @@ Downloads OHLCV data from pykrx for KOSPI/KOSDAQ stocks.
 import pandas as pd
 import logging
 import time
+import queue
+import threading
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from pykrx import stock as krx_stock
 
 logger = logging.getLogger(__name__)
+
+
+def _call_with_timeout(func, args, timeout_seconds):
+    result_queue = queue.Queue()
+
+    def worker():
+        try:
+            result_queue.put(("ok", func(*args)))
+        except Exception as e:
+            result_queue.put(("error", e))
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+    t.join(timeout_seconds)
+    if t.is_alive():
+        return None, TimeoutError(f"pykrx call timed out after {timeout_seconds}s")
+    try:
+        status, value = result_queue.get_nowait()
+    except queue.Empty:
+        return None, TimeoutError("no result")
+    if status == "ok":
+        return value, None
+    return None, value
 
 
 class PriceCollector:
@@ -21,18 +46,24 @@ class PriceCollector:
         self.end_date = datetime.now()
         self.start_date = self.end_date - timedelta(days=365)
 
-    def collect(self, stock: Dict) -> Optional[pd.DataFrame]:
+    def collect(self, stock: Dict, timeout_seconds: int = 20) -> Optional[pd.DataFrame]:
         code = stock["code"]
         market = stock["market"]
 
         try:
-            df = krx_stock.get_market_ohlcv_by_date(
-                self.start_date.strftime("%Y%m%d"),
-                self.end_date.strftime("%Y%m%d"),
-                code
+            df, err = _call_with_timeout(
+                krx_stock.get_market_ohlcv_by_date,
+                (
+                    self.start_date.strftime("%Y%m%d"),
+                    self.end_date.strftime("%Y%m%d"),
+                    code,
+                ),
+                timeout_seconds,
             )
-
-            if df.empty:
+            if err is not None:
+                logger.debug(f"Timeout/error collecting {code} ({stock['name']}): {err}")
+                return None
+            if df is None or df.empty:
                 logger.warning(f"No data for {code} ({stock['name']})")
                 return None
 
@@ -63,7 +94,7 @@ class PriceCollector:
             logger.debug(f"Failed to collect {code} ({stock['name']}): {e}")
             return None
 
-    def collect_fundamentals(self, stock: Dict) -> Dict:
+    def collect_fundamentals(self, stock: Dict, timeout_seconds: int = 20) -> Dict:
         code = stock["code"]
         result = {"stock_code": code, "market_cap": None, "per": None, "pbr": None, "roe": None}
 
@@ -72,12 +103,19 @@ class PriceCollector:
             return result
 
         try:
-            df = krx_stock.get_market_fundamental_by_date(
-                self.end_date.strftime("%Y%m%d"),
-                self.end_date.strftime("%Y%m%d"),
-                code
+            df, err = _call_with_timeout(
+                krx_stock.get_market_fundamental_by_date,
+                (
+                    self.end_date.strftime("%Y%m%d"),
+                    self.end_date.strftime("%Y%m%d"),
+                    code,
+                ),
+                timeout_seconds,
             )
-            if not df.empty:
+            if err is not None:
+                logger.debug(f"Failed to collect fundamentals for {code}: {err}")
+                return result
+            if df is not None and not df.empty:
                 latest = df.iloc[-1]
                 result["per"] = float(latest.get("PER", 0)) if pd.notna(latest.get("PER")) else None
                 result["pbr"] = float(latest.get("PBR", 0)) if pd.notna(latest.get("PBR")) else None

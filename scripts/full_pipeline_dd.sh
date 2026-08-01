@@ -13,6 +13,38 @@ else
     exec >> "$LOG_FILE" 2>&1
 fi
 
+# run_docker_phase — run a python script inside a container, writing stdout to a
+# plain file (O_APPEND) instead of the pipeline's stdout. High-volume output never
+# blocks on a pipe buffer, and < /dev/null avoids any stdin wait.
+run_docker_phase() {
+    local container="$1"
+    local script="$2"
+    local timeout="${3:-3600}"
+    local phase_log="$LOG_DIR/$(basename "$script" .py)_${TIMESTAMP}.log"
+    docker exec "$container" timeout "$timeout" python3 "$script" >> "$phase_log" 2>&1 < /dev/null
+    local rc=$?
+    if [ -f "$phase_log" ]; then
+        cat "$phase_log" >> "$LOG_FILE"
+        rm -f "$phase_log"
+    fi
+    return $rc
+}
+
+# run_docker_script — like run_docker_phase, for an already-present in-container script.
+run_docker_script() {
+    local container="$1"
+    local script="$2"
+    local timeout="${3:-1800}"
+    local phase_log="$LOG_DIR/$(basename "$script" .py)_${TIMESTAMP}.log"
+    docker exec "$container" timeout "$timeout" python3 "$script" >> "$phase_log" 2>&1 < /dev/null
+    local rc=$?
+    if [ -f "$phase_log" ]; then
+        cat "$phase_log" >> "$LOG_FILE"
+        rm -f "$phase_log"
+    fi
+    return $rc
+}
+
 echo "========================================"
 echo "  analyist_dd FULL PIPELINE DD"
 echo "  Started: $(date)"
@@ -122,7 +154,7 @@ else:
     logger.info(f'Daily collection complete. Processed {len(stocks)} stocks.')
 print('yfinance DONE')
 PYEOF
-docker exec stock_yfinance_collector timeout 3600 python3 /tmp/phase_1_1.py 2>&1
+run_docker_phase stock_yfinance_collector /tmp/phase_1_1.py 3600
 echo "1" > "$PROGRESS_FILE"
 sleep 10
 
@@ -136,7 +168,7 @@ logging.raiseExceptions = False
 KrxCollectorService().run_daily_collection()
 print('KRX DONE')
 PYEOF
-docker exec stock_krx_collector timeout 600 python3 /tmp/phase_1_2.py 2>&1
+run_docker_phase stock_krx_collector /tmp/phase_1_2.py 600
 echo "2" > "$PROGRESS_FILE"
 sleep 30
 
@@ -153,7 +185,7 @@ async def run():
     print('News DONE')
 asyncio.run(run())
 PYEOF
-docker exec stock_news_analyzer timeout 600 python3 /tmp/phase_1_3.py 2>&1
+run_docker_phase stock_news_analyzer /tmp/phase_1_3.py 600
 echo "3" > "$PROGRESS_FILE"
 sleep 30
 
@@ -166,7 +198,7 @@ from app.main import EconomicCalendarService
 EconomicCalendarService().run_daily_update()
 print('Economic Calendar DONE')
 PYEOF
-docker exec stock_economic_calendar timeout 600 python3 /tmp/phase_1_4.py 2>&1
+run_docker_phase stock_economic_calendar /tmp/phase_1_4.py 600
 echo "4" > "$PROGRESS_FILE"
 sleep 30
 
@@ -191,7 +223,7 @@ for code in codes:
         count += 1
 print(f'Financials collected: {count}/{len(codes)} stocks')
 PYEOF
-docker exec stock_yfinance_collector timeout 600 python3 /tmp/phase_1_5.py 2>&1
+run_docker_phase stock_yfinance_collector /tmp/phase_1_5.py 600
 echo "5" > "$PROGRESS_FILE"
 sleep 30
 
@@ -204,7 +236,7 @@ from app.main import StockVectorizerService
 StockVectorizerService().run_vectorization()
 print('Vectorizer DONE')
 PYEOF
-docker exec stock_vectorizer timeout 600 python3 /tmp/phase_1_6.py 2>&1
+run_docker_phase stock_vectorizer /tmp/phase_1_6.py 600
 echo "6" > "$PROGRESS_FILE"
 
 # ==============================================================
@@ -212,7 +244,7 @@ echo "6" > "$PROGRESS_FILE"
 # ==============================================================
 echo ""
 echo "=== Phase 2: ML Training ==="
-docker exec stock_xgboost_ml timeout 1800 python3 /app/scripts/train_quick.py 2>&1
+run_docker_script stock_xgboost_ml /app/scripts/train_quick.py 1800
 echo "7" > "$PROGRESS_FILE"
 
 # Get AUC from the latest run (v15 is the best known model)
@@ -268,7 +300,7 @@ with open('/app/reports/swing_candidates.json', 'w') as f:
 print(f'Swing analysis saved: {len(results)} stocks, {len([r for r in results if r["dir"]=="UP"])} UP, {len([r for r in results if r["dir"]=="DOWN"])} DOWN')
 pg.close()
 PYEOF
-docker exec stock_xgboost_ml timeout 900 python3 /tmp/phase_3.py 2>&1
+run_docker_phase stock_xgboost_ml /tmp/phase_3.py 900
 echo "8" > "$PROGRESS_FILE"
 docker cp stock_xgboost_ml:/app/reports/swing_candidates.json ./reports/swing_candidates.json 2>/dev/null
 echo "  -> reports/swing_candidates.json"
@@ -311,7 +343,7 @@ with open('/app/reports/backtest_result.json','w') as f:
     j.dump({'auc':round(auc,4),'accuracy':round(acc,4),'samples':len(all_y)}, f)
 pg.close()
 PYEOF
-docker exec stock_xgboost_ml timeout 900 python3 /tmp/phase_4.py 2>&1
+run_docker_phase stock_xgboost_ml /tmp/phase_4.py 900
 echo "9" > "$PROGRESS_FILE"
 docker cp stock_xgboost_ml:/app/reports/backtest_result.json ./reports/backtest_result.json 2>/dev/null
 echo "  -> reports/backtest_result.json"
@@ -328,7 +360,7 @@ from app.main import StrategyAgentService
 StrategyAgentService().run_all_strategies()
 print('Strategies DONE')
 PYEOF
-docker exec stock_strategy_agents timeout 300 python3 /tmp/phase_5.py 2>&1
+run_docker_phase stock_strategy_agents /tmp/phase_5.py 300
 echo "10" > "$PROGRESS_FILE"
 
 # ==============================================================
