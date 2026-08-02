@@ -364,14 +364,11 @@ run_docker_phase stock_strategy_agents /tmp/phase_5.py 300
 echo "10" > "$PROGRESS_FILE"
 
 # ==============================================================
-# PHASE 6: Cleanup old news (30d+)
+# PHASE 6: Cleanup old news (2d+)
 # ==============================================================
 echo ""
 echo "=== Phase 6: Data Cleanup ==="
-docker exec stock_postgres timeout 600 psql -U stock_user -d stock_trading -c "
-DELETE FROM news_analysis WHERE published_at < NOW() - INTERVAL '30 days';
-DELETE FROM stock_sentiment WHERE analysis_date < NOW() - INTERVAL '30 days';
-" 2>&1
+bash scripts/cleanup_news_data.sh
 echo "Old news purged."
 echo "11" > "$PROGRESS_FILE"
 
