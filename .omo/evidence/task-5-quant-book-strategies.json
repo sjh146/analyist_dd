@@ -1,0 +1,17 @@
+{
+  "task": 5,
+  "plan": "quant-book-strategies",
+  "title": "ValueStrategy (가치 전략)",
+  "status": "passed",
+  "date": "2026-08-09",
+  "branch": "feat/quant-book-strategies",
+  "acceptance_command": "pytest tests/test_value_strategy.py -v --tb=short",
+  "acceptance_result": "9 passed, 0 failed (host pytest 9.1.1); 전체 회귀: strategy-agents 100 passed",
+  "qa_happy": "40종목 fake 중 상위 30 buy(인덱스 10~39), 나머지 10 sell(인덱스 0~9) assert 통과; psr mode도 동일 상위 30 buy",
+  "qa_failure": "재무 데이터 없는 종목(0, 39)은 buy 신호 제외, 예외 없음 assert 통과; 전 종목 재무 없음/빈 유니버스 → 신호 0",
+  "deliverables": [
+    "services/strategy-agents/app/strategies/value_strategy.py (ValueStrategy: super().__init__('value_factor'), mode=per_pbr|psr, PER·PBR 동일비중 평균 랭크 상위 30, point-in-time snapshot + 최신 market_cap, rebalance_interval_days=63 리밸런싱 게이트)",
+    "services/strategy-agents/tests/test_value_strategy.py"
+  ],
+  "guardrails": "기존 전략 파일 미수정; 보유 종목 중 top-30 이탈 시 sell, 비리밸런싱일 신호 없음; 신규 전략은 paper:factor_signals 채널 대상"
+}
