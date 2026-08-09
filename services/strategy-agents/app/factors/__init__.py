@@ -20,10 +20,12 @@ from app.factors.factor_base import (
     zscore_scores,
 )
 from app.factors.financial_snapshot import FinancialSnapshot
+from app.factors.universe import filter_universe
 
 __all__ = [
     "FactorBase",
     "FinancialSnapshot",
+    "filter_universe",
     "normalize_rank_confidence",
     "rank_scores",
     "zscore_scores",
