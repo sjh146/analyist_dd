@@ -157,7 +157,7 @@ Your next move: **계획서 완성본으로 `${INSTRUCTIONS}` 지시에 따라 �
   QA: happy — 저변동 2종목 상위 랭크 buy assert. failure — 시가총액·시장 대용 수익률 무(空)여도 종목 제외로 에러 없이 안전 assert. Evidence: `.omo/evidence/task-8-quant-book-strategies.json`
   Commit: Y | `feat(strategies): LowVolStrategy (low 252d vol + beta, long-only)`
 
-- [ ] 9. **MultiFactorStrategy (멀티팩터 결합)**
+- [x] 9. **MultiFactorStrategy (멀티팩터 결합)**
   What to do: `services/strategy-agents/app/strategies/multifactor_strategy.py` 추가. `super().__init__("multifactor", storage)`. 규칙: 가치(T5)·퀄리티(T6)·모멘텀(T7)·저변동(T8) 각 단독 팩터의 **크로스섹션 Z-score**((x-μ)/σ, 시그너 방향 통일: 낮은 PER/PBR=양(+) 등록)을 산출해 **동일가중 합산** → 합산 점수 상위 20~30종목(기본 20). 포트폴리오 동일가중, 월간 리밸런싱. 재사용: T5~T8의 팩터 계산 로직을 호출(중복 코드 금지 — factors 모듈에서 공용 함수). 시그널 dict 패턴 동일, confidence=합산 Z-score 정규화. Must NOT: 기존 전략 수정. Z-score에 |σ| < 1e-8이면 해당 팩터 해당 종목 제외 방어. 과최적화 방지: 팩터 가중치는 책의 '동일가중' 그대로 — 가중치 튜닝 금지.
   Parallelization: Wave 4 | Blocked by: T5,T6,T7,T8 | Blocks: T10
   References: `services/strategy-agents/app/strategies/*_strategy.py`(T5-T8), factors 모듈, theme_strategy.py 패턴
