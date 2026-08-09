@@ -53,16 +53,170 @@ class PostgresStorage:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             if limit:
                 cur.execute(
-                    "SELECT stock_code, stock_name, sector, market FROM stocks ORDER BY market_cap DESC NULLS LAST LIMIT %s",
+                    "SELECT stock_code, stock_name, sector, market, market_cap FROM stocks ORDER BY market_cap DESC NULLS LAST LIMIT %s",
                     (limit,),
                 )
             else:
-                cur.execute("SELECT stock_code, stock_name, sector, market FROM stocks")
+                cur.execute("SELECT stock_code, stock_name, sector, market, market_cap FROM stocks")
             rows = cur.fetchall()
             cur.close()
             return [dict(r) for r in rows]
         except Exception as e:
             logger.error(f"get_all_stocks failed: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
+
+    # ------------------------------------------------------------------
+    # Factor strategy read methods (additive, quant-book-strategies plan T1)
+    # Point-in-time accessors: only rows with report_date/trade_date <=
+    # asof_date are returned so factor computations carry no look-ahead bias.
+    # ------------------------------------------------------------------
+
+    def get_financial_statements(self, stock_code: str, asof_date=None) -> List[Dict]:
+        """Point-in-time financial statements: report_date <= asof_date, ascending.
+
+        Args:
+            stock_code: Stock code (e.g. '005930').
+            asof_date: 'YYYY-MM-DD' or date. Only rows disclosed on or before
+                this date are returned (future reports excluded). None = all rows.
+        """
+        conn = self._get_conn()
+        if not conn: return []
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            if asof_date is not None:
+                cur.execute(
+                    "SELECT * FROM financial_statements WHERE stock_code = %s AND report_date <= %s ORDER BY report_date ASC",
+                    (stock_code, asof_date),
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM financial_statements WHERE stock_code = %s ORDER BY report_date ASC",
+                    (stock_code,),
+                )
+            rows = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in rows]
+        except Exception as e:
+            logger.error(f"get_financial_statements failed: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
+
+    def get_latest_financials(self, stock_code: str) -> Optional[Dict]:
+        """Latest financial statement row (all-time, no asof cut)."""
+        rows = self.get_financial_statements(stock_code)
+        return rows[-1] if rows else None
+
+    def get_market_caps(self) -> Dict[str, Optional[float]]:
+        """Return {stock_code: market_cap} for every stock (NULL caps kept)."""
+        conn = self._get_conn()
+        if not conn: return {}
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("SELECT stock_code, market_cap FROM stocks")
+            rows = cur.fetchall()
+            cur.close()
+            return {r["stock_code"]: r["market_cap"] for r in rows}
+        except Exception as e:
+            logger.error(f"get_market_caps failed: {e}")
+            return {}
+        finally:
+            self._put_conn(conn)
+
+    def get_avg_trading_value(self, stock_code: str, days: int = 30) -> Optional[float]:
+        """Average trading_value over the last `days` rows (latest first)."""
+        return self.get_avg_trading_value_asof(stock_code, days=days, asof_date=None)
+
+    def get_avg_trading_value_asof(self, stock_code: str, days: int = 30, asof_date=None) -> Optional[float]:
+        """Average trading_value over the last `days` rows with trade_date <= asof_date."""
+        conn = self._get_conn()
+        if not conn: return None
+        try:
+            cur = conn.cursor()
+            if asof_date is not None:
+                cur.execute(
+                    """
+                    SELECT AVG(trading_value) FROM (
+                        SELECT trading_value FROM market_data
+                        WHERE stock_code = %s AND trade_date <= %s
+                        ORDER BY trade_date DESC
+                        LIMIT %s
+                    ) sub
+                    """,
+                    (stock_code, asof_date, days),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT AVG(trading_value) FROM (
+                        SELECT trading_value FROM market_data
+                        WHERE stock_code = %s
+                        ORDER BY trade_date DESC
+                        LIMIT %s
+                    ) sub
+                    """,
+                    (stock_code, days),
+                )
+            row = cur.fetchone()
+            cur.close()
+            return float(row[0]) if row and row[0] is not None else None
+        except Exception as e:
+            logger.error(f"get_avg_trading_value failed: {e}")
+            return None
+        finally:
+            self._put_conn(conn)
+
+    def get_first_trade_date(self, stock_code: str) -> Optional[str]:
+        """Earliest trade_date in market_data for a stock (listing-age check)."""
+        conn = self._get_conn()
+        if not conn: return None
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT MIN(trade_date) FROM market_data WHERE stock_code = %s",
+                (stock_code,),
+            )
+            row = cur.fetchone()
+            cur.close()
+            return str(row[0]) if row and row[0] else None
+        except Exception as e:
+            logger.error(f"get_first_trade_date failed: {e}")
+            return None
+        finally:
+            self._put_conn(conn)
+
+    def get_price_series_asof(self, stock_code: str, days: int = 60, asof_date=None) -> List[float]:
+        """Ascending close_price series ending at (inclusive) asof_date, up to `days` rows."""
+        conn = self._get_conn()
+        if not conn: return []
+        try:
+            cur = conn.cursor()
+            if asof_date is not None:
+                cur.execute(
+                    """
+                    SELECT close_price FROM market_data
+                    WHERE stock_code = %s AND trade_date <= %s
+                    ORDER BY trade_date DESC
+                    LIMIT %s
+                    """,
+                    (stock_code, asof_date, days),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT close_price FROM market_data
+                    WHERE stock_code = %s
+                    ORDER BY trade_date DESC
+                    LIMIT %s
+                    """,
+                    (stock_code, days),
+                )
+            rows = cur.fetchall()
+            cur.close()
+            return [float(r[0]) for r in reversed(rows)]
+        except Exception:
             return []
         finally:
             self._put_conn(conn)

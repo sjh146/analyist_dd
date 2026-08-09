@@ -1,0 +1,21 @@
+{
+  "task": 1,
+  "plan": "quant-book-strategies",
+  "title": "공용 팩터 모듈 뼈대 + storage 읽기 메서드 확장 + point-in-time 재무 스냅샷",
+  "status": "passed",
+  "date": "2026-08-09",
+  "branch": "feat/quant-book-strategies",
+  "acceptance_command": "pytest tests/test_factor_base.py tests/test_financial_snapshot.py -v --tb=short",
+  "acceptance_result": "22 passed, 0 failed (host pytest 9.1.1 per EXECUTE_INSTRUCTIONS)",
+  "full_suite_regression": "services/strategy-agents: 63 passed, 0 failed (기존 41 + 신규 22)",
+  "qa_happy": "asof_date=2024-06-30 시 report_date=2024-09-30 미래 행 제외, 최신 1건(2024-06-30) 반환 assert 통과",
+  "qa_failure": "asof_date가 모든 report_date 이전(2023-12-31)이면 빈 결과(None, 에러 아님) assert 통과; 미지 종목/빈 rows도 에러 없이 빈 결과",
+  "deliverables": [
+    "services/strategy-agents/app/storage/postgres_storage.py: get_financial_statements(asof, point-in-time), get_latest_financials, get_market_caps, get_avg_trading_value(_asof), get_first_trade_date, get_price_series_asof 추가 (비파괴, 기존 메서드 시그니처 불변), get_all_stocks SELECT에 market_cap 추가(additive)",
+    "services/strategy-agents/app/factors/__init__.py (공개 API 명세)",
+    "services/strategy-agents/app/factors/factor_base.py (rank_scores, zscore_scores, normalize_rank_confidence, FactorBase)",
+    "services/strategy-agents/app/factors/financial_snapshot.py (FinancialSnapshot point-in-time)",
+    "tests/test_factor_base.py, tests/test_financial_snapshot.py"
+  ],
+  "guardrails": "기존 storage 메서드 삭제/시그니처 변경 없음(추가만), 신규 테스트만 추가(기존 테스트 수정 없음)"
+}
