@@ -165,7 +165,7 @@ Your next move: **계획서 완성본으로 `${INSTRUCTIONS}` 지시에 따라 �
   QA: happy — 30종목 합산 Z-score에서 상위 20 buy assert. failure — 한 팩터 Z-score 분산 0이어도 나머지로 정상 랭크 assert. Evidence: `.omo/evidence/task-9-quant-book-strategies.json`
   Commit: Y | `feat(strategies): MultiFactorStrategy (equal-weight Z-score combo, top-20)`
 
-- [ ] 10. **전략 등록·활성화 (config YAML + strategy_config DB + main.py additive)**
+- [x] 10. **전략 등록·활성화 (config YAML + strategy_config DB + main.py additive)**
   What to do: ① `config/strategies/strategies.yaml`에 신규 4개+저변동(모두 `is_active` 플래그) 이름/description/parameters 추가 → `strategy_config` 테이블(JSONB)에 활성화 레코드 upsert(**임계값은 코드 상수로 하드코딩하고 DB 파라미터엔 비활성화만 — 과최적화 방지**). ② `main.py`의 `__init__`에 신규 전략 인스턴스 추가, `run_all_strategies()`에 각 `analyze()` try/except 블록 추가(**기존 3개 전략 블록 코드 수정 금지 — 신규 try 절만 append**). → **Metis 지적 반영: `main.py`는 의도적으로 수정 대상임**(전략 등록 지점)을 명시. ③ **실매매 방지 게이트**: 신규 팩터 전략 시그널이 `trade:signals`(실매매) 그룹에 발행되지 않도록, 팩터 전략은 별도 `paper_only` 채널(예: `paper:factor_signals`)로 발행하고 `_process_and_publish`를 통한 실발행 경로에 진입 금지. 실제 실발행은 `strategy_config.is_active=true` + `paper_only=false` 명시적 변경 시에만(이번 범위는 `paper_only=true` 고정).
   Parallelization: Wave 5 | Blocked by: 9 | Blocks: 11,12
   References: `services/strategy-agents/app/main.py:42-45,50-108,110-140`, `services/strategy-agents/app/storage/redis_storage.py:54`(publish_signal), `config/strategies/strategies.yaml`(전체), `init-scripts/postgres/01_schema.sql:128-136`(strategy_config)

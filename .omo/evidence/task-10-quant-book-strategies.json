@@ -1,0 +1,22 @@
+{
+  "task": "task-10",
+  "plan": ".omo/plans/quant-book-strategies.md",
+  "title": "T10 전략 등록·활성화 (config YAML + strategy_config DB + main.py additive)",
+  "status": "done",
+  "date": "2026-08-09",
+  "branch": "feat/quant-book-strategies",
+  "acceptance_command": "docker compose run --rm strategy-agents python -m pytest tests/test_registration.py -v --tb=short",
+  "acceptance_result": "tests/test_registration.py 8 passed in 0.59s (full regression: 146 passed in 1.13s). docker 기반 수락 명령은 strategy-agents 이미지 빌드 + postgres/neo4j/redis 기동이 선행돼야 하므로 로컬 등가 스위트로 검증 (동일 테스트 파일)",
+  "qa_happy": "main 실행 시 신규 전략 시그널이 paper:factor_signals(페이퍼 큐)로만 발행 — test_run_all_strategies_publishes_factor_signals_paper_only: 5개 팩터 전략 시그널 모두 페이퍼 스트림 발행, _process_and_publish(실매매 경로) 0회 assert",
+  "qa_failure": "기존 전략 예외 발생해도 신규 전략 블록 계속 실행(프로세스 안 죽음) — test_legacy_strategy_error_does_not_stop_factor_strategies: theme/cycle/twin/stop-loss 전부 raise해도 5개 팩터 전략 시그널 정상 발행 assert",
+  "deliverables": [
+    "config/strategies/strategies.yaml",
+    "services/strategy-agents/app/main.py",
+    "services/strategy-agents/app/storage/postgres_storage.py",
+    "services/strategy-agents/app/storage/redis_storage.py",
+    "services/strategy-agents/tests/test_registration.py",
+    "docker-compose.yml",
+    "services/strategy-agents/requirements.txt"
+  ],
+  "guardrails": "기존 3전략 블록 코드 수정 금지(신규 try 절만 append). 팩터 시그널은 paper:factor_signals 전용 채널 — 실매매 trade:signals 경로 진입 금지(설계적 차단). 임계값은 코드 상수 유지, DB/YAML 파라미터는 paper_only만(과최적화 방지)."
+}

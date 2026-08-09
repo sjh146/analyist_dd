@@ -11,11 +11,19 @@ import schedule
 import time
 import json
 from datetime import datetime
+from pathlib import Path
+
+import yaml
 
 from app.config import Config
 from app.strategies.theme_strategy import ThemeStrategy
 from app.strategies.cycle_strategy import CycleStrategy
 from app.strategies.twin_strategy import TwinStrategy
+from app.strategies.value_strategy import ValueStrategy
+from app.strategies.quality_strategy import QualityStrategy
+from app.strategies.momentum_strategy import MomentumStrategy
+from app.strategies.lowvol_strategy import LowVolatilityStrategy
+from app.strategies.multifactor_strategy import MultiFactorStrategy
 from app.signals.signal_generator import SignalGenerator
 from app.signals.signal_validator import SignalValidator
 from app.risk_management.position_sizer import PositionSizer
@@ -26,6 +34,8 @@ from app.metrics_integration import init_metrics, on_signal_generated
 
 logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
+
+_FACTOR_STRATEGY_NAMES = {"value_factor", "quality_factor", "momentum_factor", "lowvol_factor", "multifactor"}
 
 
 class StrategyAgentService:
@@ -43,6 +53,15 @@ class StrategyAgentService:
         self.theme_strategy = ThemeStrategy(self.pg_storage)
         self.cycle_strategy = CycleStrategy(self.pg_storage)
         self.twin_strategy = TwinStrategy(self.pg_storage)
+
+        # Initialize factor strategies (paper-only; never publishes to trade:signals)
+        self.value_strategy = ValueStrategy(self.pg_storage)
+        self.quality_strategy = QualityStrategy(self.pg_storage)
+        self.momentum_strategy = MomentumStrategy(self.pg_storage)
+        self.lowvol_strategy = LowVolatilityStrategy(self.pg_storage)
+        self.multifactor_strategy = MultiFactorStrategy(self.pg_storage)
+        self._register_factor_strategies()
+
         init_metrics(9103)
 
         self._running = False
@@ -83,11 +102,32 @@ class StrategyAgentService:
         except Exception as e:
             logger.error(f"Twin strategy failed: {e}")
 
+        # 4. Factor strategies (paper-only; signals go to paper:factor_signals, never trade:signals)
+        paper_signals = []
+        factor_strategies = [
+            ("Value", self.value_strategy),
+            ("Quality", self.quality_strategy),
+            ("Momentum", self.momentum_strategy),
+            ("LowVol", self.lowvol_strategy),
+            ("MultiFactor", self.multifactor_strategy),
+        ]
+        for label, strategy in factor_strategies:
+            try:
+                logger.info(f">> {label} Factor Strategy running...")
+                signals = strategy.analyze()
+                logger.info(f"   Generated {len(signals)} {label} factor signals")
+                paper_signals.extend(signals)
+            except Exception as e:
+                logger.error(f"{label} factor strategy failed: {e}")
+
         # Process and publish signals
         if all_signals:
             self._process_and_publish(all_signals)
         else:
             logger.info("No signals generated this cycle.")
+
+        if paper_signals:
+            self._publish_paper_signals(paper_signals)
 
         try:
             logger.info(">> Stop-Loss Evaluation running...")
@@ -138,6 +178,48 @@ class StrategyAgentService:
                 continue
 
         logger.info(f"Published {published_count}/{len(signals)} signals to Redis.")
+
+    def _publish_paper_signals(self, signals: list):
+        """Publish factor-strategy signals to the paper-only stream (no real-trade path)."""
+        published_count = 0
+        for signal in signals:
+            try:
+                signal["signal_id"] = f"paper_{datetime.now().strftime('%Y%m%d%H%M%S')}_{published_count}"
+                signal["timestamp"] = datetime.now().isoformat()
+                if self.redis.publish_paper_signal(signal):
+                    logger.info(f"Published paper signal: {json.dumps(signal, ensure_ascii=False)}")
+                    published_count += 1
+            except Exception as e:
+                logger.error(f"Failed to publish paper signal: {e}")
+                continue
+        logger.info(f"Published {published_count}/{len(signals)} paper signals to Redis.")
+
+    def _register_factor_strategies(self):
+        """Upsert factor strategy configs from strategies.yaml (paper-only, thresholds stay in code)."""
+        try:
+            base = Path(__file__).resolve()
+            candidates = [
+                base.parents[2] / "config" / "strategies" / "strategies.yaml",
+                base.parents[3] / "config" / "strategies" / "strategies.yaml",
+            ]
+            yaml_path = next((p for p in candidates if p.exists()), None)
+            if yaml_path is None:
+                raise FileNotFoundError("strategies.yaml not found")
+            with open(yaml_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            strategies = data.get("strategies", {})
+            for name, spec in strategies.items():
+                if name not in _FACTOR_STRATEGY_NAMES:
+                    continue
+                self.pg_storage.upsert_strategy_config(
+                    strategy_name=name,
+                    strategy_type="factor",
+                    parameters=spec.get("parameters", {}),
+                    is_active=bool(spec.get("is_active", True)),
+                )
+            logger.info("Registered %d factor strategies in strategy_config", len(_FACTOR_STRATEGY_NAMES))
+        except Exception as e:
+            logger.warning(f"Factor strategy registration skipped: {e}")
 
     def run_scheduled(self):
         """Run strategies on schedule."""

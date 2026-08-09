@@ -165,6 +165,7 @@ services:
     env_file: .env
     volumes:
       - ./services/strategy-agents:/app
+      - ./config/strategies:/app/config/strategies:ro
     depends_on:
       postgres:
         condition: service_healthy

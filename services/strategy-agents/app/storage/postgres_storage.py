@@ -6,6 +6,7 @@ Fetches market data, stock vectors, and strategy configs.
 import psycopg2
 import psycopg2.pool
 import psycopg2.extras
+import json
 import logging
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
@@ -236,6 +237,31 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"get_strategy_config failed: {e}")
             return None
+        finally:
+            self._put_conn(conn)
+
+    def upsert_strategy_config(self, strategy_name: str, strategy_type: str, parameters: Dict, is_active: bool = True) -> bool:
+        conn = self._get_conn()
+        if not conn: return False
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO strategy_config (strategy_name, strategy_type, parameters, is_active, updated_at)
+                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (strategy_name) DO UPDATE SET
+                    strategy_type = EXCLUDED.strategy_type,
+                    parameters = EXCLUDED.parameters,
+                    is_active = EXCLUDED.is_active,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (strategy_name, strategy_type, json.dumps(parameters), is_active),
+            )
+            cur.close()
+            return True
+        except Exception as e:
+            logger.error(f"upsert_strategy_config failed: {e}")
+            return False
         finally:
             self._put_conn(conn)
 

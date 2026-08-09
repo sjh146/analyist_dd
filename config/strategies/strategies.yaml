@@ -33,3 +33,41 @@ strategies:
       zscore_entry: 2.0
       zscore_exit: 0.5
       position_size_pct: 0.08
+
+  # ── 팩터 전략 (강환국『하면 된다! 퀀트투자』) ──────────────────────────
+  # 임계값(상위 N, rebalance, Z-score 등)은 코드 상수로 하드코딩 — 과최적화 방지.
+  # DB 파라미터에는 paper_only(실매매 방지)만 저장. is_active=true로 활성화.
+  value_factor:
+    name: "가치주 매매"
+    description: "저PER/저PBR/저PSR 랭크 상위 30종목 동일가중 (팩터)"
+    is_active: true
+    parameters:
+      paper_only: true
+
+  quality_factor:
+    name: "퀄리티 매매"
+    description: "ROE 평균·GP/A·이익안정성 랭크 상위 30종목 동일가중 (팩터)"
+    is_active: true
+    parameters:
+      paper_only: true
+
+  momentum_factor:
+    name: "모멘텀 매매"
+    description: "12-1·3-6·52주 최고가 근접 모멘텀 랭크 상위 30종목 동일가중 (팩터)"
+    is_active: true
+    parameters:
+      paper_only: true
+
+  lowvol_factor:
+    name: "저변동 매매"
+    description: "저변동성·저베타 랭크 상위 30종목 동일가중, long-only (팩터)"
+    is_active: true
+    parameters:
+      paper_only: true
+
+  multifactor:
+    name: "멀티팩터 매매"
+    description: "가치·퀄리티·모멘텀·저변동 Z-score 동일가중 합산 상위 20종목 (팩터)"
+    is_active: true
+    parameters:
+      paper_only: true
