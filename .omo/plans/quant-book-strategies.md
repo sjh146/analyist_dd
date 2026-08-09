@@ -149,7 +149,7 @@ Your next move: **계획서 완성본으로 `${INSTRUCTIONS}` 지시에 따라 �
   QA: happy — 4종목 가격 시리즈로 모멘텀 순위 상위 30 중 2종목 buy assert. failure — 가격 이력 252일 미만 종목 제외 assert. Evidence: `.omo/evidence/task-7-quant-book-strategies.json`
   Commit: Y | `feat(strategies): MomentumStrategy (12-1, 3-6, 52-week proximity)`
 
-- [ ] 8. **LowVolatilityStrategy (저변동성 전략)**
+- [x] 8. **LowVolatilityStrategy (저변동성 전략)**
   What to do: `services/strategy-agents/app/strategies/lowvol_strategy.py` 추가. `super().__init__("lowvol_factor", storage)`. 규칙: ① 252일 연표준편차(일별 로그수익률 std × √252) 낮을수록 ② 베타 = `cov(개별수익률, 시장수익률)/var(시장수익률)` 낮을수록(long-only 구매용. 공매도 금지 — 음수 베타 종목 제외). 시장 대용: `stocks` 마스터의 별도 지수 종목(코드 config `market_index_code` 기본 `"000001"` KRX KOSPI)이 있으면 사용, 없으면 전체 유니버스 평균 수익률을 시장 대용. 두 팩터 랭크 동일비중 → 상위 30(저변동 종목) 구매/이탈 매도. ✓ 이 전략은 '한국 공매도 제한'에 대응해 **long-only 랭킹 전용**(매도 신호는 진입 전 보유분 정리만). Must NOT: 공매도(short) 신호 생성 금지 — 시그널 action은 buy/sell(long 포지션 종료)만.
   Parallelization: Wave 3 | Blocked by: T1,T2 | Blocks: T9
   References: `init-scripts/postgres/01_schema.sql:22-33`, README.md '삼성전자를 시장 지수로 사용'이슈(#6, T8에서 지수 대용 문제 해결 대상), theme_strategy.py 패턴
