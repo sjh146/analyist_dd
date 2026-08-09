@@ -3,6 +3,9 @@ Redis Storage for Strategy Agents
 Publishes trade signals to Redis Streams.
 """
 
+import os
+import hmac
+import hashlib
 import redis
 import json
 import logging
@@ -16,6 +19,38 @@ try:
     from services.shared.redis_streams import RedisStreams
 except ImportError:
     RedisStreams = None  # type: ignore
+
+
+def _sign_signal(data: dict) -> dict:
+    """TRADE_SIGNAL_SECRET로 HMAC-SHA256 서명 추가 (CWE-306 방지 — 무인증 신호 주입 차단).
+
+    canonical: 정렬된 key=value 를 '&'로 결합해 HMAC. 비밀이 없으면 서명 없이 반환
+    (로컬 개발) — 운영은 반드시 TRADE_SIGNAL_SECRET 설정.
+    """
+    secret = os.environ.get("TRADE_SIGNAL_SECRET", "")
+    if not secret:
+        return data
+    canonical = "&".join(f"{k}={v}" for k, v in sorted(data.items()))
+    sig = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    out = dict(data)
+    out["sig"] = sig
+    return out
+
+
+def verify_signal_signature(data: dict) -> bool:
+    """TRADE_SIGNAL_SECRET로 서명 검증 (trade-executor가 사용).
+
+    서명이 없거나 불일치하면 False — 무인증 신호 주입(trade:signals XADD)을 차단한다.
+    """
+    secret = os.environ.get("TRADE_SIGNAL_SECRET", "")
+    if not secret:
+        return True  # 로컬 개발 (비밀 미설정) — 운영은 반드시 설정
+    sig = data.pop("sig", None) if isinstance(data, dict) else None
+    if not sig:
+        return False
+    canonical = "&".join(f"{k}={v}" for k, v in sorted(data.items()))
+    expected = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, sig)
 
 
 class RedisStorage:
@@ -54,7 +89,7 @@ class RedisStorage:
                 self._streams = None
 
     def publish_signal(self, signal: Dict) -> bool:
-        """Publish trade signal to Redis Streams."""
+        """Publish trade signal to Redis Streams (HMAC 서명 포함)."""
         if not self._client:
             return False
 
@@ -65,6 +100,7 @@ class RedisStorage:
             "confidence": str(signal.get("confidence", 0.0)),
             "timestamp": signal.get("timestamp", ""),
         }
+        signal_data = _sign_signal(signal_data)
 
         if self._streams is None:
             logger.error("Redis Streams not available; cannot publish signal")
@@ -95,6 +131,7 @@ class RedisStorage:
             "confidence": str(signal.get("confidence", 0.0)),
             "timestamp": signal.get("timestamp", ""),
         }
+        signal_data = _sign_signal(signal_data)
 
         if self._streams is None:
             logger.error("Redis Streams not available; cannot publish paper signal")

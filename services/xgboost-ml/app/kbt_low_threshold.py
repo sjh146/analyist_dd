@@ -1,3 +1,4 @@
+import os
 import sys, os, json, time, logging
 sys.path.insert(0, "/app")
 import psycopg2
@@ -97,7 +98,7 @@ def log(msg):
     print(f"[{t}] {msg}", flush=True)
 
 log("=== KOSDAQ Backtest (threshold=0.55) ===")
-conn = psycopg2.connect(host="postgres", port=5432, dbname="stock_trading", user="stock_user", password="***REDACTED***")
+conn = psycopg2.connect(host="postgres", port=5432, dbname="stock_trading", user="stock_user", password=os.environ.get("POSTGRES_PASSWORD", ""))
 cur = conn.cursor()
 cur.execute("""
     SELECT md.stock_code FROM market_data md

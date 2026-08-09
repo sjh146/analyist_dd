@@ -5,12 +5,34 @@ Uses Proxmox bridge networking (192.168.1.x).
 """
 
 import json
+import os
+import hmac
+import hashlib
 import socket
 import time
 import redis
 from typing import Callable, Dict, Optional, Any
 from loguru import logger
 from services.shared.redis_streams import RedisStreams
+
+
+def verify_signal_signature(data: dict) -> bool:
+    """TRADE_SIGNAL_SECRET HMAC 검증 (CWE-306 — 무인증 trade 신호 주입 차단).
+
+    발행 측(strategy-agents redis_storage._sign_signal)과 동일한 canonical 방식.
+    비밀 미설정 시 True(로컬 개발) — 운영은 반드시 TRADE_SIGNAL_SECRET 설정.
+    """
+    secret = os.environ.get("TRADE_SIGNAL_SECRET", "")
+    if not secret:
+        return True
+    if not isinstance(data, dict):
+        return False
+    sig = data.pop("sig", None)
+    if not sig:
+        return False
+    canonical = "&".join(f"{k}={v}" for k, v in sorted(data.items()))
+    expected = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, sig)
 
 
 class RedisClient:
@@ -149,6 +171,9 @@ class RedisClient:
                                 if isinstance(data_str, bytes):
                                     data_str = data_str.decode()
                                 data = json.loads(data_str)
+                                if not verify_signal_signature(dict(data)):
+                                    logger.warning(f"DROP unverified signal from {stream_name}: {data}")
+                                    continue
                                 logger.info(f"Received from {stream_name}: {data}")
                                 callback(data)
                             except json.JSONDecodeError as e:
@@ -193,6 +218,9 @@ class RedisClient:
                             if isinstance(data_str, bytes):
                                 data_str = data_str.decode()
                             data = json.loads(data_str)
+                            if not verify_signal_signature(dict(data)):
+                                logger.warning(f"DROP unverified pending signal from {stream}: {data}")
+                                continue
                             logger.info(f"Re-processing pending from {stream}: {data}")
                             callback(data)
                         except Exception as e:

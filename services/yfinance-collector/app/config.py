@@ -5,17 +5,17 @@ load_dotenv()
 
 
 class Config:
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-    POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
-    POSTGRES_DB = os.getenv("POSTGRES_DB", "stock_trading")
-    POSTGRES_USER = os.getenv("POSTGRES_USER", "stock_user")
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "")
+    POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", ""))
+    POSTGRES_DB = os.getenv("POSTGRES_DB", "")
+    POSTGRES_USER = os.getenv("POSTGRES_USER", "")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 
-    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-    REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_HOST = os.getenv("REDIS_HOST", "")
+    REDIS_PORT = int(os.getenv("REDIS_PORT", ""))
     REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 
-    COLLECTION_INTERVAL_HOURS = int(os.getenv("COLLECTION_INTERVAL_HOURS", "24"))
+    COLLECTION_INTERVAL_HOURS = int(os.getenv("COLLECTION_INTERVAL_HOURS", ""))
     DEFAULT_PERIOD = "1y"
 
     @classmethod

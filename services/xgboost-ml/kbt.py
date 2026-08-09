@@ -1,9 +1,10 @@
+import os
 
 import sys,os,json,time
 sys.path.insert(0,'/app')
 from services.backtester.runner import BacktestRunner
 import psycopg2
-conn = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
+conn = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password=os.environ.get("POSTGRES_PASSWORD", ""))
 cur = conn.cursor()
 cur.execute("SELECT stock_code FROM stocks WHERE market='KOSDAQ'")
 stocks=[r[0] for r in cur.fetchall()]; cur.close(); conn.close()

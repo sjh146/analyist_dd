@@ -63,7 +63,7 @@ sys.path.insert(0, '/app')
 from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.training.trainer import Trainer
 
-pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
+pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
 cur = pg.cursor()
 cur.execute(\"SELECT stock_code FROM market_data WHERE trade_date >= '2026-01-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 5\")
 stocks = [r[0] for r in cur.fetchall()]

@@ -123,7 +123,7 @@ else:
     df = dc.clean(df)
     import psycopg2
     from psycopg2.extras import execute_values
-    pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
+    pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
     cur = pg.cursor()
     rows = []
     for r in df.itertuples():
@@ -210,7 +210,7 @@ import logging, psycopg2; logging.basicConfig(level=logging.INFO)
 logging.raiseExceptions = False
 from app.collectors.price_collector import PriceCollector
 from app.storage.postgres_storage import PostgresStorage
-pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
+pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
 cur = pg.cursor()
 cur.execute("SELECT stock_code FROM stocks WHERE market = 'KOSDAQ' AND stock_code ~ '^[0-9]' LIMIT 20")
 codes = [r[0] for r in cur.fetchall()]; cur.close(); pg.close()
@@ -272,7 +272,7 @@ from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.models.ensemble_model import EnsembleModel
 from datetime import datetime
 
-pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
+pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
 cur = pg.cursor()
 today = datetime.now().strftime('%Y-%m-%d')
 cur.execute("SELECT md.stock_code, s.stock_name, s.sector, md.close_price FROM market_data md JOIN stocks s ON md.stock_code = s.stock_code WHERE md.trade_date = %s AND s.market = 'KOSDAQ' AND md.volume > 0 ORDER BY md.stock_code LIMIT 10", (today,))
@@ -318,7 +318,7 @@ from app.models.ensemble_model import EnsembleModel
 from app.training.trainer import Trainer
 from sklearn.metrics import roc_auc_score, accuracy_score
 
-pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password='***REDACTED***')
+pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
 cur = pg.cursor()
 cur.execute("SELECT stock_code FROM market_data WHERE trade_date >= '2026-06-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 10")
 stocks_list = [r[0] for r in cur.fetchall()]; cur.close()

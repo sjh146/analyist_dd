@@ -25,7 +25,9 @@ API_GATEWAY_KEY = os.getenv("API_GATEWAY_KEY", "")
 if not API_GATEWAY_KEY:
     import secrets
     API_GATEWAY_KEY = secrets.token_urlsafe(32)
-    logger.warning("API_GATEWAY_KEY not set. Generated random key: %s", API_GATEWAY_KEY)
+    # 보안: 생성된 키를 로그에 남기지 않는다 (Strix CWE-798). 운영자는 .env로 고정 키를 주입.
+    logger.warning("API_GATEWAY_KEY not set. Generated ephemeral random key (not logged). "
+                   "Set API_GATEWAY_KEY in .env for stable auth.")
 
 
 async def verify_api_key(x_api_key: str = Header(None)):
@@ -103,9 +105,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: 와일드카드(*) + allow_credentials=True 조합은 임의 오리진 반사 허용(CWE-942).
+# API 키 인증을 쓰는 백엔드이므로, 기본은 localhost 개발 오리진만 허용하고
+# 운영 오리진은 CORS_ORIGINS(콤마분리) env로 주입한다.
+_cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins or ["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -198,7 +204,9 @@ async def list_stocks(
         cur.close()
         return [Stock(stock_code=r[0], stock_name=r[1], market=r[2], sector=r[3]) for r in rows]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @v1_router.get("/stocks/{stock_code}")
@@ -225,7 +233,9 @@ async def get_stock(stock_code: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @v1_router.get("/stocks/{stock_code}/market-data", response_model=List[MarketData])
@@ -260,7 +270,9 @@ async def get_market_data(
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @v1_router.get("/stocks/{stock_code}/sentiment")
@@ -297,7 +309,9 @@ async def get_stock_sentiment(stock_code: str, days: int = 30):
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # =================== VECTOR SEARCH ENDPOINTS ===================
@@ -338,7 +352,9 @@ async def find_similar_stocks(
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # =================== PREDICTION ENDPOINTS ===================
@@ -377,7 +393,9 @@ async def get_predictions(stock_code: str, days: int = 7):
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @v1_router.get("/predictions/top")
@@ -418,7 +436,9 @@ async def get_top_predictions(
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # =================== TRADING ENDPOINTS ===================
@@ -461,7 +481,9 @@ async def get_orders(
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @v1_router.get("/trading/positions")
@@ -494,7 +516,9 @@ async def get_positions():
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # =================== STRATEGY ENDPOINTS ===================
@@ -522,7 +546,9 @@ async def get_strategies():
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # =================== DASHBOARD ENDPOINTS ===================
@@ -568,7 +594,9 @@ async def get_dashboard_summary():
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 보안(CWE-209): 상세 예외를 클라이언트에 노출하지 않고 서버 로그에만 기록
+        logger.error("Internal error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 app.include_router(v1_router)

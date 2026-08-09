@@ -34,11 +34,11 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 def pg_connect():
     import psycopg2
     return psycopg2.connect(
-        host=os.environ.get("POSTGRES_HOST", "postgres"),
+        host=os.environ.get("POSTGRES_HOST", ""),
         port=int(os.environ.get("POSTGRES_PORT", 5432)),
-        dbname=os.environ.get("POSTGRES_DB", "stock_trading"),
-        user=os.environ.get("POSTGRES_USER", "stock_user"),
-        password=os.environ.get("POSTGRES_PASSWORD", "***REDACTED***"),
+        dbname=os.environ.get("POSTGRES_DB", ""),
+        user=os.environ.get("POSTGRES_USER", ""),
+        password=os.environ.get("POSTGRES_PASSWORD", ""),
     )
 
 
@@ -231,7 +231,7 @@ def sync_neo4j():
         os.environ.get("NEO4J_URI", "bolt://neo4j:7687"),
         auth=(
             os.environ.get("NEO4J_USER", "neo4j"),
-            os.environ.get("NEO4J_PASSWORD", "***REDACTED***"),
+            os.environ.get("NEO4J_PASSWORD", ""),
         ),
     )
 
