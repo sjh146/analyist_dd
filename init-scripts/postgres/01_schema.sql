@@ -223,3 +223,10 @@ ALTER TABLE news_analysis ADD COLUMN IF NOT EXISTS embedding vector(1024);
 CREATE INDEX IF NOT EXISTS idx_news_embedding_hnsw ON news_analysis
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 200);
+
+-- ===========================================
+-- Quant Book Factor Strategies 확장 (2026-08, 비파괴)
+-- GP/A·PCR 팩터용 재무 컬럼 (멱등 마이그레이션)
+-- ===========================================
+ALTER TABLE financial_statements ADD COLUMN IF NOT EXISTS gross_profit DECIMAL(30,4);
+ALTER TABLE financial_statements ADD COLUMN IF NOT EXISTS operating_cash_flow DECIMAL(30,4);

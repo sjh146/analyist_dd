@@ -139,6 +139,56 @@ class PostgresStorage:
         finally:
             self._put_conn(conn)
 
+    def save_financial_history(self, stock_code: str, rows: list):
+        """Accumulate quarterly financial rows (ON CONFLICT upsert).
+
+        Keeps every report_date row (point-in-time backtests) via schema
+        UNIQUE(stock_code, report_date). Additive - does not touch the
+        existing per/pbr/roe update path.
+        """
+        conn = self._get_conn()
+        if not conn:
+            return
+        try:
+            cur = conn.cursor()
+            for row in rows:
+                cur.execute(
+                    """
+                    INSERT INTO financial_statements
+                        (stock_code, report_date, revenue, operating_profit,
+                         net_income, total_assets, total_equity, gross_profit,
+                         operating_cash_flow)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (stock_code, report_date) DO UPDATE SET
+                        revenue = COALESCE(EXCLUDED.revenue, financial_statements.revenue),
+                        operating_profit = COALESCE(EXCLUDED.operating_profit, financial_statements.operating_profit),
+                        net_income = COALESCE(EXCLUDED.net_income, financial_statements.net_income),
+                        total_assets = COALESCE(EXCLUDED.total_assets, financial_statements.total_assets),
+                        total_equity = COALESCE(EXCLUDED.total_equity, financial_statements.total_equity),
+                        gross_profit = COALESCE(EXCLUDED.gross_profit, financial_statements.gross_profit),
+                        operating_cash_flow = COALESCE(EXCLUDED.operating_cash_flow, financial_statements.operating_cash_flow)
+                    """,
+                    (
+                        stock_code,
+                        row.get("report_date"),
+                        row.get("revenue"),
+                        row.get("operating_profit"),
+                        row.get("net_income"),
+                        row.get("total_assets"),
+                        row.get("total_equity"),
+                        row.get("gross_profit"),
+                        row.get("operating_cash_flow"),
+                    ),
+                )
+            conn.commit()
+            cur.close()
+            logger.info(f"Saved {len(rows)} financial rows for {stock_code}")
+        except Exception as e:
+            logger.error(f"Failed to save financial history for {stock_code}: {e}")
+            conn.rollback()
+        finally:
+            self._put_conn(conn)
+
     def update_fundamentals(self, data: Dict):
         """Update fundamental data for a stock."""
         conn = self._get_conn()

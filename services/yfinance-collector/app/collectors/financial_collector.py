@@ -32,6 +32,8 @@ class FinancialCollector:
         "ifrs-full_Assets": "total_assets",
         "ifrs-full_Equity": "total_equity",
         "ifrs-full_DebtSecurities": "total_debt",
+        "ifrs-full_GrossProfit": "gross_profit",
+        "ifrs-full_CashFlowsFromUsedInOperatingActivities": "operating_cash_flow",
     }
 
     def __init__(self, api_key: str = None):
@@ -169,3 +171,29 @@ class FinancialCollector:
         result["report_date"] = sorted_dates[-1] if sorted_dates else None
 
         return result
+
+    def aggregate_to_financials_history(self, raw_data: List[Dict]) -> List[Dict]:
+        """Aggregate raw DART data into one financial dict per report_date.
+
+        Point-in-time backtests need every quarterly row, so all report_date
+        rows are kept (schema UNIQUE(stock_code, report_date) accumulates
+        them). Latest-only behavior stays in aggregate_to_financials().
+        """
+        if not raw_data:
+            return []
+
+        per_date = {}
+        for item in raw_data:
+            date_key = item["report_date"]
+            if date_key not in per_date:
+                per_date[date_key] = {}
+            per_date[date_key][item["metric"]] = item["value"]
+
+        stock_code = raw_data[0]["stock_code"]
+        rows = []
+        for report_date in sorted(per_date.keys()):
+            row = dict(per_date[report_date])
+            row["stock_code"] = stock_code
+            row["report_date"] = report_date
+            rows.append(row)
+        return rows
