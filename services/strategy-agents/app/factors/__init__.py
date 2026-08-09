@@ -21,10 +21,12 @@ from app.factors.factor_base import (
 )
 from app.factors.financial_snapshot import FinancialSnapshot
 from app.factors.universe import filter_universe
+from app.factors.value_ratios import compute_ratios
 
 __all__ = [
     "FactorBase",
     "FinancialSnapshot",
+    "compute_ratios",
     "filter_universe",
     "normalize_rank_confidence",
     "rank_scores",
