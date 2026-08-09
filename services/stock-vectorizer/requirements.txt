@@ -4,6 +4,6 @@ scikit-learn==1.6.1
 psycopg2-binary==2.9.10
 redis==5.2.1
 pydantic==2.10.4
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 sentence-transformers==3.4.1
 schedule==1.2.2

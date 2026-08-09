@@ -20,10 +20,10 @@ from app.models.ensemble_model import EnsembleModel
 
 logger = logging.getLogger(__name__)
 
-PG_HOST = os.environ.get("POSTGRES_HOST", "")
+PG_HOST = os.environ.get("POSTGRES_HOST", "127.0.0.1")
 PG_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
-PG_DB = os.environ.get("POSTGRES_DB", "")
-PG_USER = os.environ.get("POSTGRES_USER", "")
+PG_DB = os.environ.get("POSTGRES_DB", "stock_trading")
+PG_USER = os.environ.get("POSTGRES_USER", "stock_user")
 PG_PASS = os.environ.get("POSTGRES_PASSWORD", "")
 
 

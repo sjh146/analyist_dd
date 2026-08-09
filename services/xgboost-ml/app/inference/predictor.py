@@ -34,7 +34,7 @@ class Predictor:
         self._streams = None
         if RedisStreams:
             try:
-                host = os.environ.get("REDIS_HOST", "")
+                host = os.environ.get("REDIS_HOST", "redis")
                 port = int(os.environ.get("REDIS_PORT", 6379))
                 self._streams = RedisStreams(f"redis://{host}:{port}")
             except Exception:
@@ -77,7 +77,7 @@ class Predictor:
             return {
                 "stock_code": stock_code,
                 "prediction_date": date,
-                "model_version": os.environ.get("ML_MODEL_VERSION", ""),
+                "model_version": os.environ.get("ML_MODEL_VERSION", "v1.0"),
                 "direction": result["predicted_direction"],
                 "confidence": float(result["confidence"]),
                 "probability": float(result["predicted_probability"]),
@@ -101,7 +101,7 @@ class Predictor:
         return predictions
 
     def _get_signal_stream_name(self) -> str:
-        return os.environ.get("REDIS_SIGNAL_STREAM", "")
+        return os.environ.get("REDIS_SIGNAL_STREAM", "trading:signals")
 
     def publish_signals_to_redis(self, predictions: List[Dict]):
         """Publish top predictions to Redis Streams."""
@@ -127,7 +127,7 @@ class Predictor:
                     "signal": "buy" if direction == "up" else "sell",
                     "confidence": pred["confidence"],
                     "timestamp": timestamp,
-                    "model_version": os.environ.get("ML_MODEL_VERSION", ""),
+                    "model_version": os.environ.get("ML_MODEL_VERSION", "v1.0"),
                 }
 
                 self._streams.xadd(stream_name, signal_data, maxlen=10000)
@@ -145,7 +145,7 @@ class Predictor:
         if not redis:
             return None
         try:
-            host = os.environ.get("REDIS_HOST", "")
+            host = os.environ.get("REDIS_HOST", "redis")
             port = int(os.environ.get("REDIS_PORT", 6379))
             password = os.environ.get("REDIS_PASSWORD", "")
             return redis.Redis(

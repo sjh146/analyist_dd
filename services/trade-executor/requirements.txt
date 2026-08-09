@@ -1,8 +1,8 @@
 redis==5.2.1
 pydantic==2.10.4
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 schedule==1.2.2
 pywin32==308
 psycopg2-binary==2.9.10
-requests==2.32.3
+requests==2.34.2
 loguru==0.7.3

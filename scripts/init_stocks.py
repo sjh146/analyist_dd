@@ -34,10 +34,10 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 def pg_connect():
     import psycopg2
     return psycopg2.connect(
-        host=os.environ.get("POSTGRES_HOST", ""),
+        host=os.environ.get("POSTGRES_HOST", "postgres"),
         port=int(os.environ.get("POSTGRES_PORT", 5432)),
-        dbname=os.environ.get("POSTGRES_DB", ""),
-        user=os.environ.get("POSTGRES_USER", ""),
+        dbname=os.environ.get("POSTGRES_DB", "stock_trading"),
+        user=os.environ.get("POSTGRES_USER", "stock_user"),
         password=os.environ.get("POSTGRES_PASSWORD", ""),
     )
 
