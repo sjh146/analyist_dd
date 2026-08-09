@@ -28,7 +28,7 @@ class PGDataFeed(bt.feeds.PandasData):
 
         self.stock_code = stock_code
         if pg_conn is not None:
-            df = self._fetch_from_db(pg_conn, start_date, end_date)
+            df = self._fetch_from_db(pg_conn, start_date, end_date, stock_code)
         else:
             df = self._generate_synthetic(start_date, end_date)
         df.index = pd.to_datetime(df['datetime'])
@@ -39,7 +39,8 @@ class PGDataFeed(bt.feeds.PandasData):
     @staticmethod
     def _fetch_from_db(pg_conn, start_date: str, end_date: str, stock_code: str = None) -> pd.DataFrame:
         query = """
-            SELECT trade_date, open, high, low, close, volume
+            SELECT trade_date, open_price AS open, high_price AS high, low_price AS low,
+                   close_price AS close, volume
             FROM market_data
             WHERE stock_code = %s
               AND trade_date >= %s
@@ -114,6 +115,56 @@ class StrategyWrapper:
                         self.close()
 
         return _SignalStrategy
+
+
+class FactorPortfolioStrategy:
+    """Rank-based factor portfolio: on rebalance dates hold top-N equal-weight, close dropped names.
+
+    rankings maps 'YYYY-MM-DD' -> ordered stock codes (rank 1 = best); the feed of each
+    stock must carry its code in feed._name so the strategy can map datas to codes.
+    """
+
+    def __init__(self, strategy_name: str, rankings: Dict, top_n: int = 5):
+        self.strategy_name = strategy_name
+        self.rankings = self._normalize_keys(rankings)
+        self.top_n = top_n
+
+    @staticmethod
+    def _normalize_keys(d: Dict) -> Dict:
+        normalized = {}
+        for k, v in d.items():
+            if isinstance(k, str):
+                normalized[k[:10]] = v
+            elif isinstance(k, (date, datetime)):
+                normalized[k.strftime('%Y-%m-%d')] = v
+            else:
+                normalized[str(k)[:10]] = v
+        return normalized
+
+    def get_strategy(self):
+        rankings = self.rankings
+        top_n = self.top_n
+
+        class _FactorPortfolio(bt.Strategy):
+            params = (('name', self.strategy_name),)
+
+            def next(self):
+                dt_str = self.datas[0].datetime.date(0).strftime('%Y-%m-%d')
+                if dt_str not in rankings:
+                    return
+                targets = rankings[dt_str][:top_n]
+                target_set = set(targets)
+                for d in self.datas:
+                    if self.getposition(d).size > 0 and d._name not in target_set:
+                        self.close(data=d)
+                if not targets:
+                    return
+                weight = 1.0 / len(targets)
+                for d in self.datas:
+                    if d._name in target_set:
+                        self.order_target_percent(data=d, target=weight)
+
+        return _FactorPortfolio
 
 
 def create_cerebro(
