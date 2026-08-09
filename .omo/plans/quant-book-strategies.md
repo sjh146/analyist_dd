@@ -141,7 +141,7 @@ Your next move: **계획서 완성본으로 `${INSTRUCTIONS}` 지시에 따라 �
   QA: happy — ROE 높은 2종목 상위 랭크 assert. failure — gross_profit None 종목은 GP/A 무시하고 나머지 팩터로만 랭크(에러 없음) assert. Evidence: `.omo/evidence/task-6-quant-book-strategies.json`
   Commit: Y | `feat(strategies): QualityStrategy (ROE avg, GP/A, earnings stability)`
 
-- [ ] 7. **MomentumStrategy (모멘텀 전략)**
+- [x] 7. **MomentumStrategy (모멘텀 전략)**
   What to do: `services/strategy-agents/app/strategies/momentum_strategy.py` 추가. `super().__init__("momentum_factor", storage)`. 규칙: `market_data.close_price` 기준 ① 12-1 모멘텀 = `(P_t / P_{t-252}) - (P_t / P_{t-21})` (252=1년, 21=1개월 거래일 근사) ② 3-6 모멘텀 = `(P_t / P_{t-63}) - (P_t / P_{t-126})` ③ 52주 고가 근접 = `P_t / MAX(P_{t-252..t})`. 세 팩터 크로스섹션 랭크 → 동일비중 평균 → 상위 30 구매/이탈 매도. **long-only**: 책의 모멘텀 전략은 하락 종목 매도를 원하지만 한국 공매도 제한으로 **short 금지, sell은 long 종료만**. 상장 1년 미만(가격 이력 부족) 종목은 제외(T2). 신규 저장 메서드(T1)의 가격 시리즈로 계산(기존 `get_latest_momentum`은 20일로 서로 다른 horizon — **미사용**, 12-1/3-6/52주용 시리즈 계산 메서드 사용). 시그널 dict 패턴 동일. Must NOT: 기존 전략 수정. 12-1에서 최근 1개월 재사용 금지 규칙 준수(차감 연산 정확히 구현).
   Parallelization: Wave 3 | Blocked by: T1,T2 | Blocks: T9
   References: `init-scripts/postgres/01_schema.sql:22-33`(market_data), `services/strategy-agents/app/storage/postgres_storage.py:88-110,315-336`(가격 시리즈 조회)
