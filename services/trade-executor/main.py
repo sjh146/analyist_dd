@@ -83,8 +83,20 @@ class TradeExecutor:
             return self._reject_signal(signal, "Market closed")
 
         # 3. Validate balance
+        # CWE-20 방어: quantity 검증 + market order(price=0)는 참조가격으로 명목금액 산정
+        # (price=0 → amount=0 → 일일한도/포지션/잔고 검증 우회를 차단)
         action = signal.get("action", "").lower()
-        amount = signal.get("quantity", 0) * signal.get("price", 0)
+        quantity = signal.get("quantity", 0)
+        price = signal.get("price", 0)
+
+        if not isinstance(quantity, (int, float)) or quantity <= 0:
+            return self._reject_signal(signal, "Invalid quantity")
+        if quantity > self.config.MAX_ORDER_QUANTITY:
+            return self._reject_signal(signal, "Quantity exceeds max order size")
+
+        # market order(price<=0)는 참조가격으로 명목금액 계산 — 위험한도가 항상 적용되도록
+        risk_price = price if price and price > 0 else self.config.MARKET_ORDER_REF_PRICE
+        amount = int(quantity * risk_price)
 
         if action == "buy":
             balance_ok = self.balance_checker.check_buyable(amount)

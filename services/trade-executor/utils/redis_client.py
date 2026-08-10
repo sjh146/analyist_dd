@@ -20,11 +20,16 @@ def verify_signal_signature(data: dict) -> bool:
     """TRADE_SIGNAL_SECRET HMAC 검증 (CWE-306 — 무인증 trade 신호 주입 차단).
 
     발행 측(strategy-agents redis_storage._sign_signal)과 동일한 canonical 방식.
-    비밀 미설정 시 True(로컬 개발) — 운영은 반드시 TRADE_SIGNAL_SECRET 설정.
+    비밀 미설정 시 **거부(fail-closed)** — 기본 배포에서 제어가 no-op이 되는
+    CWE-306 경로를 차단한다. 로컬 개발도 TRADE_SIGNAL_SECRET을 설정해야 한다.
     """
     secret = os.environ.get("TRADE_SIGNAL_SECRET", "")
     if not secret:
-        return True
+        logger.critical(
+            "TRADE_SIGNAL_SECRET 미설정 — fail-closed로 모든 신호 거부. "
+            ".env에 강력한 시크릿을 설정하세요 (openssl rand -hex 32)"
+        )
+        return False
     if not isinstance(data, dict):
         return False
     sig = data.pop("sig", None)

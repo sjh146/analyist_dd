@@ -28,6 +28,10 @@ class Config:
     TRADING_END_HOUR = int(os.getenv("TRADING_END_HOUR", "15"))
     MAX_POSITION_SIZE = int(os.getenv("MAX_POSITION_SIZE", "10000000"))
     MAX_DAILY_TRADE = int(os.getenv("MAX_DAILY_TRADE", "50000000"))
+    # CWE-20 방어: market order(price=0)는 참조가격으로 명목금액 산정 + 절대 수량 상한
+    # (price=0 → amount=0 → 모든 위험한도 우회를 차단)
+    MARKET_ORDER_REF_PRICE = int(os.getenv("MARKET_ORDER_REF_PRICE", "100000"))
+    MAX_ORDER_QUANTITY = int(os.getenv("MAX_ORDER_QUANTITY", "100000"))
 
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 

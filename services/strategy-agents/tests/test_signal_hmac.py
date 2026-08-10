@@ -34,11 +34,12 @@ def test_missing_signature_rejected():
     assert verify_signal_signature(dict(data)) is False
 
 
-def test_no_secret_allows_local_dev():
+def test_no_secret_fails_closed():
     os.environ.pop("TRADE_SIGNAL_SECRET", None)
     try:
         data = {"strategy_name": "x", "stock_code": "y", "signal": "buy"}
-        assert verify_signal_signature(dict(data)) is True  # 로컬 개발 허용
+        # fail-closed: 시크릿 미설정 시 모든 신호 거부 (CWE-306 기본 배포 no-op 차단)
+        assert verify_signal_signature(dict(data)) is False
         assert "sig" not in _sign_signal(data)
     finally:
         os.environ["TRADE_SIGNAL_SECRET"] = "unit-test-secret"

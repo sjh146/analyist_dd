@@ -1,6 +1,6 @@
 requests==2.34.2
 beautifulsoup4==4.12.3
-lxml==5.4.0
+lxml>=6.1.0
 psycopg2-binary==2.9.10
 pandas==2.2.3
 yfinance==0.2.54

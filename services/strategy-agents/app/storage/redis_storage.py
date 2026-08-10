@@ -41,10 +41,12 @@ def verify_signal_signature(data: dict) -> bool:
     """TRADE_SIGNAL_SECRET로 서명 검증 (trade-executor가 사용).
 
     서명이 없거나 불일치하면 False — 무인증 신호 주입(trade:signals XADD)을 차단한다.
+    비밀 미설정 시 **거부(fail-closed)** — 기본 배포에서 제어가 no-op이 되는
+    CWE-306 경로를 차단한다. 로컬 개발도 TRADE_SIGNAL_SECRET을 설정해야 한다.
     """
     secret = os.environ.get("TRADE_SIGNAL_SECRET", "")
     if not secret:
-        return True  # 로컬 개발 (비밀 미설정) — 운영은 반드시 설정
+        return False  # fail-closed: 시크릿 없으면 모든 신호 거부
     sig = data.pop("sig", None) if isinstance(data, dict) else None
     if not sig:
         return False

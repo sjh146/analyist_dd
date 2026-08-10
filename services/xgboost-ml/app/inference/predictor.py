@@ -6,6 +6,8 @@ Runs daily inference and publishes high-confidence signals to Redis.
 import json
 import logging
 import os
+import hmac
+import hashlib
 import numpy as np
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -21,6 +23,24 @@ try:
     from services.shared.redis_streams import RedisStreams
 except ImportError:
     RedisStreams = None
+
+
+def _sign_signal(data: dict) -> dict:
+    """TRADE_SIGNAL_SECRET로 HMAC-SHA256 서명 추가 (CWE-306 — 무인증 신호 주입 차단).
+
+    trade-executor의 verify_signal_signature와 동일한 canonical 방식:
+    정렬된 key=value 를 '&'로 결합해 HMAC. 시크릿 미설정 시 서명 없이 반환
+    (소비자 측 fail-closed이므로 운영은 반드시 설정).
+    """
+    secret = os.environ.get("TRADE_SIGNAL_SECRET", "")
+    if not secret:
+        logger.warning("TRADE_SIGNAL_SECRET 미설정 — 서명 없이 발행 (소비자가 거부할 수 있음)")
+        return data
+    canonical = "&".join(f"{k}={v}" for k, v in sorted(data.items()))
+    sig = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    out = dict(data)
+    out["sig"] = sig
+    return out
 
 
 class Predictor:
@@ -129,6 +149,7 @@ class Predictor:
                     "timestamp": timestamp,
                     "model_version": os.environ.get("ML_MODEL_VERSION", "v1.0"),
                 }
+                signal_data = _sign_signal(signal_data)
 
                 self._streams.xadd(stream_name, signal_data, maxlen=10000)
                 logger.info(
