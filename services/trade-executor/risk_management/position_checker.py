@@ -16,14 +16,17 @@ class PositionChecker:
         self._positions: Dict[str, Dict] = {}
         self._last_sync = None
 
-    def check_position_limit(self, stock_code: str, additional_quantity: int) -> bool:
+    def check_position_limit(self, stock_code: str, additional_quantity: int,
+                             order_price: Optional[float] = None) -> bool:
         """
         Check if adding a position would exceed limits.
-        
+
         Args:
             stock_code: Stock code
             additional_quantity: Number of shares to add
-        
+            order_price: Current order price (CWE-862 방어 — avg_price=0/지연 시
+                집중도 계산이 0이 되어 20% 상한을 우회하는 경로 차단)
+
         Returns:
             True if position is within limits
         """
@@ -43,7 +46,9 @@ class PositionChecker:
         # Check position concentration (no single stock > 20% of portfolio)
         total_portfolio_value = self._get_total_portfolio_value()
         if total_portfolio_value > 0:
-            new_value = current_value + (additional_quantity * current_position.get("avg_price", 0))
+            # 신규/avg_price=0 포지션도 order_price 기준으로 가치 산정 (CWE-862)
+            price_for_value = (order_price or 0) if order_price else current_position.get("avg_price", 0)
+            new_value = current_value + (additional_quantity * price_for_value)
             concentration = new_value / total_portfolio_value
             if concentration > 0.20:
                 logger.warning(f"Position concentration {concentration:.2%} exceeds 20%")

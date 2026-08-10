@@ -28,9 +28,10 @@ class BalanceChecker:
         """
         balance = self.get_balance()
         if not balance:
-            # If we can't get balance, default to True (allow)
-            logger.warning("Could not check balance, defaulting to allowed")
-            return True
+            # fail-closed: 잔고를 확인할 수 없으면 주문 거부 (CWE-703 — 브로커 장애 시
+            # 잔고 검증 없이 매수 실행되는 경로 차단)
+            logger.error("Could not check balance — rejecting order (fail-closed)")
+            return False
 
         withdrawable = balance.get("withdrawable", 0)
         max_position = self.config.MAX_POSITION_SIZE

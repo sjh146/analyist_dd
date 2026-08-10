@@ -110,7 +110,7 @@ class TradeExecutor:
         # 5. Check position limits
         stock_code = signal.get("stock_code", "")
         position_ok = self.position_checker.check_position_limit(
-            stock_code, signal.get("quantity", 0)
+            stock_code, signal.get("quantity", 0), order_price=risk_price
         )
         if not position_ok:
             return self._reject_signal(signal, "Position limit exceeded")
