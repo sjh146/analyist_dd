@@ -1,6 +1,6 @@
 {
-  "auc": 0.5487702400893355,
+  "auc": 0.5609045226130653,
   "n_features": 43,
-  "up_predicted": 972,
+  "up_predicted": 219,
   "config": "v20: curated+label_smoothing lr=0.030000000000000002 depth=7"
 }
