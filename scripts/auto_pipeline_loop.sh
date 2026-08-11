@@ -47,9 +47,9 @@ while true; do
         echo ">>> ALL TESTS PASSED ✅"
         
         # Step 4: Commit all changes
-        echo ">>> [Step 4] Committing all changes..."
+        echo ">>> [Step 4] Committing changes..."
         cd /home/dduckbeagy/analyist_dd
-        git add -A
+        git add reports/ .omo/evidence/ tests/ 2>/dev/null
         git diff --cached --quiet || git commit -m "auto: pipeline iteration $ITERATION — all tests passed"
         
         # Step 5: Wait before next run
@@ -67,7 +67,7 @@ while true; do
             
             # Commit fix attempt
             cd /home/dduckbeagy/analyist_dd
-            git add -A
+            git add reports/ .omo/evidence/ tests/ 2>/dev/null
             git diff --cached --quiet || git commit -m "auto: fix attempt $ITERATION — $FAIL_COUNT failures remain"
             
             if [ $ITERATION -ge $MAX_FIX_ATTEMPTS ]; then
