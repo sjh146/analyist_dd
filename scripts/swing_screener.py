@@ -42,7 +42,7 @@ PG_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
 PG_DB = os.environ.get("POSTGRES_DB", "stock_trading")
 PG_USER = os.environ.get("POSTGRES_USER", "stock_user")
 PG_PASS = os.environ.get("POSTGRES_PASSWORD", "")
-CONFIDENCE_THRESHOLD = 0.65
+CONFIDENCE_THRESHOLD = 0.55
 
 
 def get_pg_conn():
@@ -172,6 +172,34 @@ def apply_economic_impact(candidates, pg_conn):
     return candidates
 
 
+def _collect_top_raw(stocks, pipeline, ensemble, feature_names, pg, top_n=20):
+    """임계값 미달 시 상위 confidence 종목을 수집 (승률 추적용)."""
+    import json as _json
+    raw = []
+    for code, name, sector, latest_date in stocks:
+        try:
+            features = pipeline.build_features(code, str(latest_date))
+            if not features or features.get("feature_count", 0) < 10:
+                continue
+            fv = np.array(
+                [float(features.get(f, 0.0)) for f in feature_names],
+                dtype=np.float32,
+            )
+            fv = np.nan_to_num(fv, nan=0.0)
+            prob = float(ensemble.predict(np.array([fv]))[0])
+            raw.append({
+                "stock_code": code,
+                "stock_name": name,
+                "sector": sector,
+                "confidence": round(prob, 4),
+                "expected_return": round((prob - 0.5) * 2.0 * 100.0, 2),
+            })
+        except Exception:
+            continue
+    raw.sort(key=lambda x: x["confidence"], reverse=True)
+    return raw[:top_n]
+
+
 def main():
     args = parse_args()
     today = datetime.now().strftime("%Y-%m-%d")
@@ -181,8 +209,11 @@ def main():
     logger.info(f"Screening {len(stocks)} KOSDAQ stocks...")
 
     pipeline = FeaturePipeline(pg_conn=pg)
-    ensemble = EnsembleModel(model_dir="app/models/saved_models")
-    ensemble.load("app/models/saved_models")
+    # AUC 최고 모델 사용: auto_retrain이 champion을 최고 AUC로 유지
+    # (champion_roc_auc >= challenger_roc_auc 시 승격) → champion 로드
+    model_dir = os.environ.get("MODEL_DIR", "app/models/champion")
+    ensemble = EnsembleModel(model_dir=model_dir)
+    ensemble.load(model_dir)
 
     if not ensemble._is_trained:
         logger.error("No trained model found. Run training first.")
@@ -190,7 +221,25 @@ def main():
         sys.exit(1)
 
     candidates = []
+
+    # 모델이 학습된 피처 목록 사용 — champion/feature_names.json (62개)이 정답
+    # pipeline.get_feature_names()(149개)는 모델 학습 시점과 불일치 → XGBoostError
     feature_names = pipeline.get_feature_names()
+    try:
+        feature_names_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..", "services", "xgboost-ml", "app", "models", "champion",
+            "feature_names.json",
+        )
+        if os.path.exists(feature_names_path):
+            import json
+            with open(feature_names_path) as f:
+                feature_names = json.load(f)
+            logger.info(f"Using champion feature_names.json: {len(feature_names)} features")
+        else:
+            logger.warning("feature_names.json 없음 — pipeline.get_feature_names() 사용")
+    except Exception as e:
+        logger.warning(f"feature_names.json 로드 실패 ({e}) — pipeline 사용")
     errors = 0
 
     for i, (code, name, sector, latest_date) in enumerate(stocks):
@@ -223,7 +272,9 @@ def main():
         except Exception as e:
             errors += 1
             if errors <= 3:
-                logger.debug(f"Error screening {code}: {e}")
+                logger.warning(f"Error screening {code}: {type(e).__name__}: {e}")
+                import traceback
+                logger.warning(traceback.format_exc()[-800:])
             continue
 
     if args.include_krx_data:
@@ -239,6 +290,14 @@ def main():
     # Sort by confidence descending
     candidates.sort(key=lambda x: x["confidence"], reverse=True)
     top20 = candidates[:20]
+
+    # 승률 추적용: 임계값 미달이어도 상위 20개는 항상 저장
+    # (confidence가 낮아도 나중에 실제 수익률과 대조해 모델 성능 검증 가능)
+    if len(top20) < 20 and not top20:
+        logger.info("No candidates above threshold — storing top-20 raw confidence picks for tracking")
+        raw_picks = _collect_top_raw(stocks, pipeline, ensemble, feature_names, pg, top_n=20)
+        if raw_picks:
+            top20 = raw_picks
 
     # Print table
     print(f"\nTop KOSDAQ Swing Candidates ({today})")

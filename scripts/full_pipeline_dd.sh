@@ -364,6 +364,56 @@ run_docker_phase stock_strategy_agents /tmp/phase_5.py 300
 echo "10" > "$PROGRESS_FILE"
 
 # ==============================================================
+# PHASE 5-2: 강환국 팩터 전략 (하면 된다! 퀀트투자)
+# Value/Quality/Momentum/LowVol/MultiFactor 5종 — paper-only
+# ==============================================================
+echo ""
+echo "=== Phase 5-2: 강환국 팩터 전략 (Value/Quality/Momentum/LowVol/MultiFactor) ==="
+docker exec -i stock_strategy_agents sh -c 'cat > /tmp/phase_5b.py' << 'PYEOF'
+import sys; sys.path.insert(0, '/app')
+import json, logging, os
+from datetime import datetime
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
+from app.main import StrategyAgentService
+
+svc = StrategyAgentService()
+results = {}
+factor_strategies = [
+    ("value_factor", svc.value_strategy),
+    ("quality_factor", svc.quality_strategy),
+    ("momentum_factor", svc.momentum_strategy),
+    ("lowvol_factor", svc.lowvol_strategy),
+    ("multifactor", svc.multifactor_strategy),
+]
+for name, strategy in factor_strategies:
+    try:
+        signals = strategy.analyze()
+        results[name] = {
+            "signals": len(signals),
+            "top": [{"stock_code": s.get("stock_code"), "name": s.get("stock_name"),
+                     "score": round(float(s.get("score", 0)), 4)} for s in signals[:10]]
+            if isinstance(signals, list) else [],
+        }
+        print(f"[{name}] signals={len(signals) if isinstance(signals, list) else '?'}")
+        if isinstance(signals, list):
+            for s in signals[:5]:
+                print(f"    {s.get('stock_code')} {s.get('stock_name', '')} score={s.get('score')}")
+    except Exception as e:
+        results[name] = {"error": str(e)}
+        print(f"[{name}] FAILED: {e}")
+
+# 리포트 저장
+os.makedirs("/app/reports", exist_ok=True)
+out = "/app/reports/factor_strategies_result.json"
+with open(out, "w", encoding="utf-8") as f:
+    json.dump({"generated_at": datetime.now().isoformat(), "strategies": results},
+              f, ensure_ascii=False, indent=2)
+print(f"factor strategies result -> {out}")
+PYEOF
+run_docker_phase stock_strategy_agents /tmp/phase_5b.py 300
+echo "10.5" > "$PROGRESS_FILE"
+
+# ==============================================================
 # PHASE 6: Cleanup old news (2d+)
 # ==============================================================
 echo ""
