@@ -70,8 +70,8 @@ for VER in $(seq 16 $MAX_VERSION); do
     EST=$(python3 -c "print(min(2000, 800 + (${VER} - 16) * 200))")
     echo "  HP: lr=$LR depth=$DEPTH est=$EST"
     
-    # 훈련 실행
-    docker exec stock_xgboost_ml python3 -u /tmp/train_v16.py 2>&1 | tail -5 || true
+    # 훈련 실행 (현재 버전 스크립트 사용 — 하드코딩 버그 수정)
+    docker exec stock_xgboost_ml python3 -u /tmp/train_v${VER}.py 2>&1 | tail -5 || true
     
     # AUC 추출
     RESULT_FILE="/app/app/models/saved_models/training-result-v${VER}.json"
@@ -121,7 +121,7 @@ print(d.get('up_predicted', 0))
         break
     fi
     
-    # 다음 버전 스크립트 생성 (점진적 개선)
+    # 훈련 스크립트 생성 (실행 전 — 첫 버전부터 존재하도록)
     cat > /tmp/train_v${VER}.py << SCPYEOF
 #!/usr/bin/env python3
 """v${VER}: auto-generated, lr=${LR} depth=${DEPTH} est=${EST} strategy=${STRATEGY}"""
