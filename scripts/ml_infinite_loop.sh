@@ -15,7 +15,15 @@ echo "  ML Infinite Loop Started at $(date)"
 echo "========================================"
 
 MAX_VERSION=50
+# 기존 champion AUC를 기준으로 시작 — 낮은 모델로 덮어쓰는 회귀 방지
 BEST_AUC=0.0
+if [ -f /app/app/models/champion/auc.txt ]; then
+    CHAMP=$(docker exec stock_xgboost_ml cat /app/app/models/champion/auc.txt 2>/dev/null | tr -d ' \n')
+    if [ -n "$CHAMP" ]; then
+        BEST_AUC=$CHAMP
+        echo "기존 champion AUC 로드: $BEST_AUC (이 값보다 높을 때만 승격)"
+    fi
+fi
 BEST_VERSION=""
 
 # 모델 버전 리스트 (전략 배열)
