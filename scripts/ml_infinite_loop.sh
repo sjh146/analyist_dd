@@ -4,7 +4,7 @@
 #  v16 → v17 → ... → v20 (필요시 더)
 #  Jenkins + Docker + Git 완전 자동화
 # ================================================================
-set -e
+set +e   # 한 반복 실패가 루프 전체를 죽이지 않도록 (실패는 로그로 추적)
 cd "$(dirname "$0")/.."
 mkdir -p reports .omo/evidence
 LOG="reports/ml_loop_$(date +%Y%m%d).log"
