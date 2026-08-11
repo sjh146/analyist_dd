@@ -26,12 +26,14 @@ services:
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
       NEO4J_PLUGINS: '["graph-data-science"]'
+      # 참고: neo4j CE는 Prometheus 메트릭 미지원(Enterprise 전용) — Prometheus 스크랩은 HTTP로 대체
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
     ports:
       - "7474:7474"
       - "7687:7687"
+      - "2004:2004"
     networks:
       - stock_network
     healthcheck:

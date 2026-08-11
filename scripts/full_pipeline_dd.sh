@@ -71,7 +71,11 @@ echo "0" > "$PROGRESS_FILE"
 # ==============================================================
 echo ""
 echo "=== Phase 0: Starting all containers ==="
-docker compose up -d 2>&1
+# --no-build: 파이프라인 실행마다 이미지 빌드(CUDA 등 대용량 다운로드) 방지.
+# 파이프라인 필수 서비스만 기동 (jenkins/grafana/prometheus 등은 호스트에서
+# 별도 실행 중이거나 불필요 — 포트 충돌 방지).
+CORE_SERVICES="postgres redis neo4j krx-collector yfinance-collector economic-calendar news-analyzer stock-vectorizer xgboost-ml strategy-agents api-gateway"
+docker compose up -d --no-build $CORE_SERVICES 2>&1 | tail -5
 
 echo "Waiting for critical services (postgres, redis, neo4j)..."
 for i in $(seq 1 30); do

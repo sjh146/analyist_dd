@@ -27,6 +27,5 @@ scrape_configs:
     static_configs:
       - targets: ['redis-exporter:9121']
 
-  - job_name: 'neo4j'
-    static_configs:
-      - targets: ['neo4j:2004']
+  # neo4j: CE는 Prometheus 메트릭 엔드포인트 미지원(Enterprise 전용).
+  # 가용성은 docker healthcheck(7474 HTTP)로 모니터링하며, Prometheus 스크랩은 제외.
