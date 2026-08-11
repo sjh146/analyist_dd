@@ -164,10 +164,14 @@ yc_t, yc_v2 = y_train[:int(n_train*0.67)], y_train[int(n_train*0.67):]
 ensemble = EnsembleModel(model_dir="app/models/saved_models")
 ensemble.save_feature_names(available, "app/models/saved_models")
 # Override model params for tuning - use direct approach
+# 주의: xgboost는 max_depth, catboost는 depth 파라미터 사용 — 동시 설정 시 충돌
 for model in ensemble.models:
     if hasattr(model, 'params'):
         model.params['learning_rate'] = ${LR}
-        model.params['max_depth'] = ${DEPTH}
+        if 'max_depth' in model.params:
+            model.params['max_depth'] = ${DEPTH}
+        elif 'depth' in model.params:
+            model.params['depth'] = ${DEPTH}
         if 'n_estimators' in model.params: model.params['n_estimators'] = ${EST}
 logger.info("Training v${VER} (lr=${LR} depth=${DEPTH})...")
 metrics = ensemble.train(Xc_t, yc_t, X_val, y_val)
