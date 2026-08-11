@@ -193,6 +193,8 @@ services:
       - "8000:8000"
     volumes:
       - ./services/api-gateway:/app
+      - ./reports:/app/reports
+      - ./services/strategy-agents/reports:/app/factor_reports
     depends_on:
       redis:
         condition: service_healthy

@@ -192,3 +192,60 @@ async def get_signals(symbol: str):
         for r in rows
     ]
     return {"symbol": symbol, "signals": signals}
+
+
+# ── 리포트 산출물 상품 (M6: 스윙 스크리너 / 백테스트 / 강환국 팩터) ─────────
+# 배치 파이프라인이 생성한 JSON을 HTTP로 노출한다. (읽기 전용, 파일 경로 비노출)
+
+import json as _json
+
+# 보고서 경로: 컨테이너 마운트 기준 (docker-compose에서 ./reports → /app/reports 등)
+REPORTS_DIR = os.getenv("REPORTS_DIR", "/app/reports")
+FACTOR_REPORTS_DIR = os.getenv("FACTOR_REPORTS_DIR", "/app/factor_reports")
+
+# 경로 허용 목록 — 임의 파일 읽기 방지 (CWE-22)
+_REPORT_FILES = {
+    "swing_screener": os.path.join(REPORTS_DIR, "swing_latest.json"),
+    "backtest": os.path.join(REPORTS_DIR, "backtest_result.json"),
+    "factor_report": os.path.join(FACTOR_REPORTS_DIR, "factor_strategies_result.json"),
+}
+
+
+def _read_report(name: str):
+    """허용 목록 내 리포트 JSON 로드. 실패 시 None."""
+    path = _REPORT_FILES.get(name)
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return _json.load(f)
+    except (OSError, _json.JSONDecodeError) as e:
+        logger.warning("report %s read failed: %s", name, e)
+        return None
+
+
+@internal_router.get("/swing-screener")
+async def get_swing_screener():
+    """스윙종목 스크리너 최신 결과 (swing_latest.json)."""
+    data = _read_report("swing_screener")
+    if data is None:
+        raise HTTPException(status_code=404, detail="swing screener report not available")
+    return {"report": "swing_screener", "data": data}
+
+
+@internal_router.get("/backtest")
+async def get_backtest():
+    """모델 백테스트 결과 (backtest_result.json)."""
+    data = _read_report("backtest")
+    if data is None:
+        raise HTTPException(status_code=404, detail="backtest report not available")
+    return {"report": "backtest", "data": data}
+
+
+@internal_router.get("/factor-report")
+async def get_factor_report():
+    """강환국 투자팩터 5종 결과 (factor_strategies_result.json)."""
+    data = _read_report("factor_report")
+    if data is None:
+        raise HTTPException(status_code=404, detail="factor report not available")
+    return {"report": "factor_report", "data": data}
