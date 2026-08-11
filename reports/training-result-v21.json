@@ -1,6 +1,6 @@
 {
-  "auc": 0.5354718034617532,
+  "auc": 0.5633361250697935,
   "n_features": 43,
-  "up_predicted": 907,
+  "up_predicted": 483,
   "config": "v21: curated+ensemble_stacking lr=0.025 depth=7"
 }
