@@ -435,22 +435,46 @@ class PostgresStorage:
             self._put_conn(conn)
 
     def get_twin_pairs(self, min_correlation: float = 0.8) -> List[Dict]:
-        """Get twin stock pairs by computing correlation from market_data."""
+        """Get twin stock pairs by computing correlation from market_data.
+
+        O(n²) 폭주 방지: 전체 기간 대신 최근 TWIN_LOOKBACK_DAYS(기본 60일)만 사용.
+        시세 데이터는 96만 행 × 전체 쌍 조인 시 pgsql_tmp 수십 GB 생성 → 기간 제한으로
+        쌍 수를 급감시켜 안전하게 동작한다.
+        """
         conn = self._get_conn()
         if not conn: return []
+        lookback = int(getattr(self, "twin_lookback_days", 0) or 60)
+        universe = int(getattr(self, "twin_universe_size", 0) or 200)
         try:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cur.execute("""
+                WITH recent AS (
+                    SELECT stock_code, trade_date, close_price
+                    FROM market_data
+                    WHERE trade_date >= CURRENT_DATE - %s::int
+                ),
+                -- 유니버스 제한: 최근 거래대금 상위 N개만 (O(n²) 폭주 방지)
+                top AS (
+                    SELECT m.stock_code
+                    FROM market_data m
+                    WHERE m.trade_date >= CURRENT_DATE - 5
+                    GROUP BY m.stock_code
+                    ORDER BY SUM(m.trading_value) DESC
+                    LIMIT %s
+                )
                 SELECT a.stock_code as stock_code_a,
                        b.stock_code as stock_code_b,
                        CORR(a.close_price, b.close_price) as correlation
-                FROM market_data a
-                JOIN market_data b ON a.trade_date = b.trade_date
+                FROM recent a
+                JOIN recent b ON a.trade_date = b.trade_date
+                JOIN top ta ON ta.stock_code = a.stock_code
+                JOIN top tb ON tb.stock_code = b.stock_code
                 WHERE a.stock_code < b.stock_code
                 GROUP BY a.stock_code, b.stock_code
-                HAVING CORR(a.close_price, b.close_price) >= %s
+                HAVING COUNT(*) >= 20
+                   AND CORR(a.close_price, b.close_price) >= %s
                 ORDER BY correlation DESC
-            """, (min_correlation,))
+            """, (lookback, universe, min_correlation))
             rows = cur.fetchall()
             cur.close()
             return [dict(r) for r in rows]
