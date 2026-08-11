@@ -600,6 +600,10 @@ async def get_dashboard_summary():
 
 
 app.include_router(v1_router)
+# 내부 API (M4) — cmall-api 전용, X-Internal-Api-Key 인증 (fail-closed)
+from app.internal_api import internal_router
+
+app.include_router(internal_router)
 
 if __name__ == "__main__":
     import uvicorn
