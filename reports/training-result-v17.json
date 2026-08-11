@@ -1,6 +1,6 @@
 {
-  "auc": 0.5800307091010609,
+  "auc": 0.5591261864879955,
   "n_features": 43,
-  "up_predicted": 590,
+  "up_predicted": 763,
   "config": "v17: curated+oversample+sentiment lr=0.045000000000000005 depth=6"
 }
