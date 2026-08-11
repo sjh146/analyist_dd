@@ -50,11 +50,8 @@ fi
 
 # Step 4: Feature engineering
 echo "[4/6] Running feature engineering..." | tee -a "$LOG_FILE"
-if docker-compose exec -T xgboost-ml python -m app.feature_engine.pipeline --include-krx 2>/dev/null; then
-    echo "  ✓ Features computed" | tee -a "$LOG_FILE"
-else
-    echo "  ⚠ Feature pipeline issue" | tee -a "$LOG_FILE"
-fi
+# feature_pipeline.py는 __main__ 진입점이 없어 -m 실행 불가 — 스크리너가 직접 사용하므로 스킵
+echo "  ⚠ Feature pipeline skipped (screener가 직접 계산)" | tee -a "$LOG_FILE"
 
 # Step 5: ML inference
 echo "[5/6] Running ML inference..." | tee -a "$LOG_FILE"
@@ -67,7 +64,15 @@ fi
 # Step 6: Swing screener
 echo "[6/6] Running swing screener..." | tee -a "$LOG_FILE"
 OUTPUT_FILE="$REPORT_DIR/swing_candidates_$TIMESTAMP.csv"
-if python3 "$SCRIPT_DIR/swing_screener.py" --include-krx-data --include-economic-events --output "$OUTPUT_FILE" 2>/dev/null; then
+# 호스트 python3에는 pandas 등 의존성이 없어 xgboost-ml 컨테이너에서 실행
+docker cp "$SCRIPT_DIR/swing_screener.py" stock_xgboost_ml:/app/scripts/swing_screener.py 2>/dev/null
+docker-compose exec -T xgboost-ml sh -c '
+  mkdir -p /app/scripts /app/services
+  ln -sfn /app /app/services/xgboost-ml
+' 2>/dev/null
+if docker-compose exec -T xgboost-ml python /app/scripts/swing_screener.py \
+    --include-krx-data --include-economic-events --output /tmp/swing_out.csv 2>/dev/null; then
+    docker cp stock_xgboost_ml:/tmp/swing_out.csv "$OUTPUT_FILE" 2>/dev/null
     echo "  ✓ Screener complete: $(wc -l < "$OUTPUT_FILE" 2>/dev/null || echo 0) candidates" | tee -a "$LOG_FILE"
 else
     echo "  ⚠ Screener issue" | tee -a "$LOG_FILE"
