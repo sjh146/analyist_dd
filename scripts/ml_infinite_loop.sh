@@ -71,57 +71,6 @@ for VER in $(seq 16 $MAX_VERSION); do
     echo "  HP: lr=$LR depth=$DEPTH est=$EST"
     
     # 훈련 실행 (현재 버전 스크립트 사용 — 하드코딩 버그 수정)
-    docker exec stock_xgboost_ml python3 -u /tmp/train_v${VER}.py 2>&1 | tail -5 || true
-    
-    # AUC 추출
-    RESULT_FILE="/app/app/models/saved_models/training-result-v${VER}.json"
-    AUC=$(docker exec stock_xgboost_ml python3 -c "
-import json
-try:
-    d=json.load(open('${RESULT_FILE}'))
-    print(d.get('auc',0))
-except: print(0)
-" 2>/dev/null)
-    echo "v${VER} AUC=$AUC"
-    
-    if (( $(echo "$AUC > $BEST_AUC" | bc -l 2>/dev/null) )); then
-        BEST_AUC=$AUC; BEST_VERSION="v${VER}"
-        echo "  ⭐ New best!"
-        # 모델을 champion으로 저장
-        docker exec stock_xgboost_ml sh -c '
-            mkdir -p /app/app/models/champion
-            cp /app/app/models/saved_models/*.pkl /app/app/models/champion/ 2>/dev/null
-            cp /app/app/models/saved_models/feature_names.json /app/app/models/champion/
-            echo '${AUC}' > /app/app/models/champion/auc.txt
-        '
-    fi
-    
-    # UP 예측 확인
-    UP=$(docker exec stock_xgboost_ml python3 -c "
-import json
-d=json.load(open('${RESULT_FILE}'))
-print(d.get('up_predicted', 0))
-" 2>/dev/null)
-    echo "  UP predictions: $UP"
-    
-    # Git commit
-  # Copy results to host
-  docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v${VER}.json ./reports/training-result-v${VER}.json 2>/dev/null
-  docker cp stock_xgboost_ml:/app/reports/swing_v15.json ./reports/swing_latest.json 2>/dev/null
-  echo "  → Results saved to reports/"
-  # 학습 산출물만 커밋 (작업 트리 전체 커밋 금지 — 에이전트/사용자 수정 보호)
-  git add reports/ .omo/evidence/ 2>/dev/null
-  git diff --cached --quiet || git commit -m "auto: v${VER} AUC=${AUC} (best=${BEST_AUC}) strategy=${STRATEGY}"
-  git push origin master 2>&1 | tail -1
-    
-    # 0.65 이상이면 중단
-    if (( $(echo "$AUC >= 0.65" | bc -l 2>/dev/null) )); then
-        echo "🎉 TARGET MET at v${VER}!"
-        touch .omo/evidence/auc_target_met.flag
-        break
-    fi
-    
-    # 훈련 스크립트 생성 (실행 전 — 첫 버전부터 존재하도록)
     cat > /tmp/train_v${VER}.py << SCPYEOF
 #!/usr/bin/env python3
 """v${VER}: auto-generated, lr=${LR} depth=${DEPTH} est=${EST} strategy=${STRATEGY}"""
@@ -188,6 +137,58 @@ with open("app/models/saved_models/training-result-v${VER}.json", "w") as f: jso
 logger.info("Saved"); pg.close()
 SCPYEOF
     docker cp /tmp/train_v${VER}.py stock_xgboost_ml:/tmp/train_v${VER}.py 2>/dev/null
+
+    docker exec stock_xgboost_ml python3 -u /tmp/train_v${VER}.py 2>&1 | tail -5 || true
+    
+    # AUC 추출
+    RESULT_FILE="/app/app/models/saved_models/training-result-v${VER}.json"
+    AUC=$(docker exec stock_xgboost_ml python3 -c "
+import json
+try:
+    d=json.load(open('${RESULT_FILE}'))
+    print(d.get('auc',0))
+except: print(0)
+" 2>/dev/null)
+    echo "v${VER} AUC=$AUC"
+    
+    if (( $(echo "$AUC > $BEST_AUC" | bc -l 2>/dev/null) )); then
+        BEST_AUC=$AUC; BEST_VERSION="v${VER}"
+        echo "  ⭐ New best!"
+        # 모델을 champion으로 저장
+        docker exec stock_xgboost_ml sh -c '
+            mkdir -p /app/app/models/champion
+            cp /app/app/models/saved_models/*.pkl /app/app/models/champion/ 2>/dev/null
+            cp /app/app/models/saved_models/feature_names.json /app/app/models/champion/
+            echo '${AUC}' > /app/app/models/champion/auc.txt
+        '
+    fi
+    
+    # UP 예측 확인
+    UP=$(docker exec stock_xgboost_ml python3 -c "
+import json
+d=json.load(open('${RESULT_FILE}'))
+print(d.get('up_predicted', 0))
+" 2>/dev/null)
+    echo "  UP predictions: $UP"
+    
+    # Git commit
+  # Copy results to host
+  docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v${VER}.json ./reports/training-result-v${VER}.json 2>/dev/null
+  docker cp stock_xgboost_ml:/app/reports/swing_v15.json ./reports/swing_latest.json 2>/dev/null
+  echo "  → Results saved to reports/"
+  # 학습 산출물만 커밋 (작업 트리 전체 커밋 금지 — 에이전트/사용자 수정 보호)
+  git add reports/ .omo/evidence/ 2>/dev/null
+  git diff --cached --quiet || git commit -m "auto: v${VER} AUC=${AUC} (best=${BEST_AUC}) strategy=${STRATEGY}"
+  git push origin master 2>&1 | tail -1
+    
+    # 0.65 이상이면 중단
+    if (( $(echo "$AUC >= 0.65" | bc -l 2>/dev/null) )); then
+        echo "🎉 TARGET MET at v${VER}!"
+        touch .omo/evidence/auc_target_met.flag
+        break
+    fi
+    
+    # 훈련 스크립트 생성 (실행 전 — 첫 버전부터 존재하도록)
 done
 
 echo ""
