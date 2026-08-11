@@ -1,6 +1,6 @@
 {
-  "auc": 0.5716387493020658,
+  "auc": 0.5770630932439978,
   "n_features": 43,
-  "up_predicted": 582,
+  "up_predicted": 521,
   "config": "v19: curated+feature_selection lr=0.035 depth=7"
 }
