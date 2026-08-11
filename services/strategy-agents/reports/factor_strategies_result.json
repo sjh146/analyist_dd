@@ -1,0 +1,280 @@
+{
+  "generated_at": "2026-08-11T04:14:06.935556",
+  "strategies": {
+    "value_factor": {
+      "signals": 10,
+      "top": [
+        {
+          "stock_code": "095610",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "001540",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "247540",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "005290",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "035900",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "290650",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "082920",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "319400",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "241710",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "257720",
+          "name": null,
+          "score": 0.0
+        }
+      ]
+    },
+    "quality_factor": {
+      "signals": 10,
+      "top": [
+        {
+          "stock_code": "257720",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "241710",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "290650",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "001540",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "082920",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "035900",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "005290",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "319400",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "095610",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "247540",
+          "name": null,
+          "score": 0.0
+        }
+      ]
+    },
+    "momentum_factor": {
+      "signals": 30,
+      "top": [
+        {
+          "stock_code": "058610",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "001540",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "241710",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "290650",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "006730",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "347850",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "127120",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "237690",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "131290",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "071200",
+          "name": null,
+          "score": 0.0
+        }
+      ]
+    },
+    "lowvol_factor": {
+      "signals": 30,
+      "top": [
+        {
+          "stock_code": "136480",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "035760",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "001540",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "035900",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "068760",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "071200",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "293490",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "195940",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "241710",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "041510",
+          "name": null,
+          "score": 0.0
+        }
+      ]
+    },
+    "multifactor": {
+      "signals": 20,
+      "top": [
+        {
+          "stock_code": "001540",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "136480",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "241710",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "071200",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "096530",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "195940",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "035900",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "068760",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "035760",
+          "name": null,
+          "score": 0.0
+        },
+        {
+          "stock_code": "145020",
+          "name": null,
+          "score": 0.0
+        }
+      ]
+    }
+  }
+}

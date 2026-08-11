@@ -163,9 +163,13 @@ services:
       dockerfile: Dockerfile
     container_name: stock_strategy_agents
     env_file: .env
+    environment:
+      - PYTHONPATH=/opt
     volumes:
       - ./services/strategy-agents:/app
       - ./config/strategies:/app/config/strategies:ro
+      - ./services/shared:/opt/services/shared:ro
+      - ./services/__init__.py:/opt/services/__init__.py:ro
     depends_on:
       postgres:
         condition: service_healthy

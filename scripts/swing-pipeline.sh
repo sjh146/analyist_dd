@@ -4,6 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$PROJECT_DIR/.omo/evidence"
+# 로그 로테이션: 14일 이상 스윙 로그 삭제 + 최근 10개만 유지
+find "$LOG_DIR" -maxdepth 1 -type f -name "swing-pipeline-*.log" -mtime +14 -delete 2>/dev/null
+ls -1t "$LOG_DIR"/swing-pipeline-*.log 2>/dev/null | tail -n +11 | xargs -r rm -f 2>/dev/null
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="$LOG_DIR/swing-pipeline-$TIMESTAMP.log"
 REPORT_DIR="$PROJECT_DIR/data/reports"

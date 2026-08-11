@@ -4,6 +4,19 @@ set +e
 cd "$(dirname "$0")/.."
 LOG_DIR="reports"
 mkdir -p "$LOG_DIR"
+
+# ── 로그 로테이션: 실행 전 오래된/초과 로그 자동 정리 ──────────────
+# 1) 14일 이상 된 파이프라인 로그 삭제
+find "$LOG_DIR" -maxdepth 1 -type f -name "full_pipeline_dd_*.log" -mtime +14 -delete 2>/dev/null
+# 2) 최근 15개만 유지 (초과분 삭제)
+ls -1t "$LOG_DIR"/full_pipeline_dd_*.log 2>/dev/null | tail -n +16 | xargs -r rm -f 2>/dev/null
+# 3) cron 로그 1MB 초과 시 최근 1000줄만 유지
+for f in "$LOG_DIR"/cron_train.log "$LOG_DIR"/cron_ml_loop.log "$LOG_DIR"/news_cleanup_cron.log .omo/evidence/swing-pipeline-cron.log; do
+  if [ -f "$f" ] && [ "$(stat -c%s "$f" 2>/dev/null || echo 0)" -gt 1048576 ]; then
+    tail -n 1000 "$f" > "$f.tmp" 2>/dev/null && mv "$f.tmp" "$f" 2>/dev/null
+  fi
+done
+
 TIMESTAMP=$(date +%Y%m%d_%H%M)
 LOG_FILE="$LOG_DIR/full_pipeline_dd_$TIMESTAMP.log"
 # Log to file always; mirror to stdout ONLY when running in foreground (TTY)
@@ -121,9 +134,9 @@ else:
     df = ti.calculate_all(df)
     dc = DataCleaner()
     df = dc.clean(df)
-    import psycopg2
+    import os, psycopg2
     from psycopg2.extras import execute_values
-    pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
+    pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password=os.environ.get('POSTGRES_PASSWORD',''))
     cur = pg.cursor()
     rows = []
     for r in df.itertuples():
@@ -206,11 +219,11 @@ sleep 30
 echo "--- 1-5. Financials: PER/PBR/ROE ---"
 docker exec -i stock_yfinance_collector sh -c 'cat > /tmp/phase_1_5.py' << 'PYEOF'
 import sys; sys.path.insert(0, '/app')
-import logging, psycopg2; logging.basicConfig(level=logging.INFO)
+import logging, os, psycopg2; logging.basicConfig(level=logging.INFO)
 logging.raiseExceptions = False
 from app.collectors.price_collector import PriceCollector
 from app.storage.postgres_storage import PostgresStorage
-pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
+pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password=os.environ.get('POSTGRES_PASSWORD',''))
 cur = pg.cursor()
 cur.execute("SELECT stock_code FROM stocks WHERE market = 'KOSDAQ' AND stock_code ~ '^[0-9]' LIMIT 20")
 codes = [r[0] for r in cur.fetchall()]; cur.close(); pg.close()
@@ -266,21 +279,21 @@ echo "  -> reports/ml_result.json"
 echo ""
 echo "=== Phase 3: Swing Analysis (All KOSDAQ) ==="
 docker exec -i stock_xgboost_ml sh -c 'cat > /tmp/phase_3.py' << 'PYEOF'
-import sys, json, psycopg2, numpy as np
+import sys, json, os, psycopg2, numpy as np
 sys.path.insert(0, '/app')
 from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.models.ensemble_model import EnsembleModel
 from datetime import datetime
 
-pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
+pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password=os.environ.get('POSTGRES_PASSWORD',''))
 cur = pg.cursor()
 today = datetime.now().strftime('%Y-%m-%d')
-cur.execute("SELECT md.stock_code, s.stock_name, s.sector, md.close_price FROM market_data md JOIN stocks s ON md.stock_code = s.stock_code WHERE md.trade_date = %s AND s.market = 'KOSDAQ' AND md.volume > 0 ORDER BY md.stock_code LIMIT 10", (today,))
+cur.execute("SELECT md.stock_code, s.stock_name, s.sector, md.close_price FROM market_data md JOIN stocks s ON md.stock_code = s.stock_code WHERE md.trade_date = %s AND s.market = 'KOSDAQ' AND md.volume > 0 ORDER BY md.stock_code", (today,))
 stocks = cur.fetchall()
 pipeline = FeaturePipeline(pg_conn=pg)
-ensemble = EnsembleModel(model_dir='app/models/saved_models')
-ensemble.load('app/models/saved_models')
-model_features = ensemble.load_feature_names('app/models/saved_models')
+ensemble = EnsembleModel(model_dir='app/models/champion')
+ensemble.load('app/models/champion')
+model_features = ensemble.load_feature_names('app/models/champion')
 
 results = []
 for code, name, sector, close in stocks:
@@ -311,16 +324,16 @@ echo "  -> reports/swing_candidates.json"
 echo ""
 echo "=== Phase 4: Backtest ==="
 docker exec -i stock_xgboost_ml sh -c 'cat > /tmp/phase_4.py' << 'PYEOF'
-import sys, json, psycopg2, numpy as np
+import sys, json, os, psycopg2, numpy as np
 sys.path.insert(0, '/app')
 from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.models.ensemble_model import EnsembleModel
 from app.training.trainer import Trainer
 from sklearn.metrics import roc_auc_score, accuracy_score
 
-pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password="")
+pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password=os.environ.get('POSTGRES_PASSWORD',''))
 cur = pg.cursor()
-cur.execute("SELECT stock_code FROM market_data WHERE trade_date >= '2026-06-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 10")
+cur.execute("SELECT stock_code FROM market_data WHERE trade_date >= '2026-06-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 50")
 stocks_list = [r[0] for r in cur.fetchall()]; cur.close()
 pipeline = FeaturePipeline(pg_conn=pg); trainer = Trainer(storage=None, feature_pipeline=pipeline)
 result = trainer.prepare_training_data(stock_codes=stocks_list, days=90)
@@ -328,9 +341,9 @@ if result[0] is None: print('Backtest FAILED - no training data'); exit()
 X_train, X_val, X_test, y_train, y_val, y_test, fnames = result
 all_X = np.concatenate([X_train, X_val, X_test], axis=0)
 all_y = np.concatenate([y_train, y_val, y_test], axis=0)
-ensemble = EnsembleModel(model_dir='app/models/saved_models')
-ensemble.load('app/models/saved_models')
-model_f = ensemble.load_feature_names('app/models/saved_models')
+ensemble = EnsembleModel(model_dir='app/models/champion')
+ensemble.load('app/models/champion')
+model_f = ensemble.load_feature_names('app/models/champion')
 core_idx = [fnames.index(f) for f in model_f if f in fnames]
 all_X_core = all_X[:, core_idx]
 probs = ensemble.predict(all_X_core)
@@ -377,6 +390,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname
 from app.main import StrategyAgentService
 
 svc = StrategyAgentService()
+stock_names = {s["stock_code"]: s.get("stock_name") for s in svc.pg_storage.get_all_stocks()}
 results = {}
 factor_strategies = [
     ("value_factor", svc.value_strategy),
@@ -390,14 +404,14 @@ for name, strategy in factor_strategies:
         signals = strategy.analyze()
         results[name] = {
             "signals": len(signals),
-            "top": [{"stock_code": s.get("stock_code"), "name": s.get("stock_name"),
-                     "score": round(float(s.get("score", 0)), 4)} for s in signals[:10]]
+            "top": [{"stock_code": s.get("stock_code"), "name": stock_names.get(s.get("stock_code")),
+                     "confidence": round(float(s.get("confidence", 0)), 4)} for s in signals[:10]]
             if isinstance(signals, list) else [],
         }
         print(f"[{name}] signals={len(signals) if isinstance(signals, list) else '?'}")
         if isinstance(signals, list):
             for s in signals[:5]:
-                print(f"    {s.get('stock_code')} {s.get('stock_name', '')} score={s.get('score')}")
+                print(f"    {s.get('stock_code')} {stock_names.get(s.get('stock_code'), '')} conf={s.get('confidence')}")
     except Exception as e:
         results[name] = {"error": str(e)}
         print(f"[{name}] FAILED: {e}")
