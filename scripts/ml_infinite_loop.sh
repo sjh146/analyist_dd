@@ -109,9 +109,10 @@ print(d.get('up_predicted', 0))
   docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v${VER}.json ./reports/training-result-v${VER}.json 2>/dev/null
   docker cp stock_xgboost_ml:/app/reports/swing_v15.json ./reports/swing_latest.json 2>/dev/null
   echo "  → Results saved to reports/"
-    git add -A
-    git diff --cached --quiet || git commit -m "auto: v${VER} AUC=${AUC} (best=${BEST_AUC}) strategy=${STRATEGY}"
-    git push origin master 2>&1 | tail -1
+  # 학습 산출물만 커밋 (작업 트리 전체 커밋 금지 — 에이전트/사용자 수정 보호)
+  git add reports/ .omo/evidence/ 2>/dev/null
+  git diff --cached --quiet || git commit -m "auto: v${VER} AUC=${AUC} (best=${BEST_AUC}) strategy=${STRATEGY}"
+  git push origin master 2>&1 | tail -1
     
     # 0.65 이상이면 중단
     if (( $(echo "$AUC >= 0.65" | bc -l 2>/dev/null) )); then
@@ -197,6 +198,7 @@ echo "========================================"
   docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v${VER}.json ./reports/training-result-v${VER}.json 2>/dev/null
   docker cp stock_xgboost_ml:/app/reports/swing_v15.json ./reports/swing_latest.json 2>/dev/null
   echo "  → Results saved to reports/"
-git add -A
+# 학습 산출물만 커밋 (작업 트리 전체 커밋 금지)
+git add reports/ .omo/evidence/ 2>/dev/null
 git diff --cached --quiet || git commit -m "auto: loop end best=${BEST_VERSION} AUC=${BEST_AUC}"
 git push origin master 2>&1 | tail -1
