@@ -1,6 +1,6 @@
 {
-  "auc": 0.5778001116694584,
+  "auc": 0.5166247906197655,
   "n_features": 43,
-  "up_predicted": 235,
+  "up_predicted": 293,
   "config": "v18: curated+smote+kalman lr=0.04 depth=6"
 }
