@@ -14,3 +14,7 @@ lightgbm==4.6.0
 schedule==1.2.2
 prometheus_client>=0.14.1
 TA-Lib>=0.4.28
+numpyro[cpu]==0.15.0
+jax[cpu]==0.4.35
+jaxlib==0.4.35
+scikit-optimize==0.10.2
