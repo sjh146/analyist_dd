@@ -48,9 +48,27 @@ class TestBayesFactorFeaturesCompute:
     @pytest.mark.skipif(not NUMPYRO_AVAILABLE, reason="numpyro not installed")
     def test_posterior_std_is_positive(self):
         bf = BayesFactorFeatures(num_warmup=50, num_samples=50)
+        # Heavy inference is offline: fit once, then compute uses the cache.
+        bf.fit(_synthetic_close())
         out = bf.compute(_synthetic_close())
         # Posterior std must be > 0 (uncertainty preserved, not just mean).
         assert out["bayes_gain_uncertainty"] > 0.0
+
+    @pytest.mark.skipif(not NUMPYRO_AVAILABLE, reason="numpyro not installed")
+    def test_compute_without_fit_returns_defaults(self):
+        """compute() must NOT run MCMC; without a cached posterior it returns 0.0."""
+        bf = BayesFactorFeatures(num_warmup=50, num_samples=50)
+        out = bf.compute(_synthetic_close())
+        assert out == {name: 0.0 for name in BayesFactorFeatures.FEATURE_NAMES}
+
+    @pytest.mark.skipif(not NUMPYRO_AVAILABLE, reason="numpyro not installed")
+    def test_compute_uses_cached_posterior(self):
+        """After fit(), compute() returns real features without re-running MCMC."""
+        bf = BayesFactorFeatures(num_warmup=50, num_samples=50)
+        bf.fit(_synthetic_close())
+        out = bf.compute(_synthetic_close())
+        assert out["bayes_gain_uncertainty"] > 0.0
+        assert out["bayes_momentum_1d"] != 0.0
 
 
 class TestFeaturePipelineIntegration:

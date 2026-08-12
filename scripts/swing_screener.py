@@ -217,28 +217,16 @@ def _build_low_dim_vector(features, low_dim_features):
 def _load_effective_scorer():
     """Load a fitted calibrator + GP for effective_score, or a fallback scorer.
 
-    If the GPR/calibrator cannot be loaded, returns an ``EffectiveScore`` with
-    no components so ``score`` falls back to the raw prob (with a warning).
+    No fitted calibrator/GP artifacts are persisted yet (they are fit offline
+    during training), so this always returns an ``EffectiveScore`` with no
+    components. ``EffectiveScore.score`` then falls back to the raw probability
+    (with a warning) instead of crashing on an unfitted calibrator.
     """
-    calibrator = None
-    gp = None
-    try:
-        from app.calibration.bayesian_calibration import BayesianCalibrator
-        from app.uncertainty.gp_uncertainty import GPUncertainty
-
-        calibrator = BayesianCalibrator()
-        gp = GPUncertainty()
-        logger.warning(
-            "USE_EFFECTIVE_SCORE=true but no fitted calibrator/GP loaded — "
-            "effective_score will fall back to the raw probability."
-        )
-    except Exception as e:
-        logger.warning(
-            "Could not load effective_score components (%s) — falling back to "
-            "raw probability.",
-            e,
-        )
-    return EffectiveScore(calibrator=calibrator, gp=gp)
+    logger.warning(
+        "USE_EFFECTIVE_SCORE=true but no fitted calibrator/GP is available — "
+        "effective_score will fall back to the raw probability."
+    )
+    return EffectiveScore(calibrator=None, gp=None)
 
 
 def main():
