@@ -21,9 +21,15 @@ import pandas as pd
 
 from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.models.ensemble_model import EnsembleModel
+from app.scoring.effective_score import EffectiveScore, score_and_filter_candidates
+from app.uncertainty.gp_uncertainty import LOW_DIM_FEATURES
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
+
+USE_EFFECTIVE_SCORE = os.environ.get("USE_EFFECTIVE_SCORE", "false").lower() in (
+    "1", "true", "yes",
+)
 
 
 def parse_args():
@@ -200,6 +206,41 @@ def _collect_top_raw(stocks, pipeline, ensemble, feature_names, pg, top_n=20):
     return raw[:top_n]
 
 
+def _build_low_dim_vector(features, low_dim_features):
+    """Build the low-dim feature vector for the GP from a feature dict."""
+    return np.array(
+        [float(features.get(f, 0.0)) for f in low_dim_features],
+        dtype=np.float64,
+    )
+
+
+def _load_effective_scorer():
+    """Load a fitted calibrator + GP for effective_score, or a fallback scorer.
+
+    If the GPR/calibrator cannot be loaded, returns an ``EffectiveScore`` with
+    no components so ``score`` falls back to the raw prob (with a warning).
+    """
+    calibrator = None
+    gp = None
+    try:
+        from app.calibration.bayesian_calibration import BayesianCalibrator
+        from app.uncertainty.gp_uncertainty import GPUncertainty
+
+        calibrator = BayesianCalibrator()
+        gp = GPUncertainty()
+        logger.warning(
+            "USE_EFFECTIVE_SCORE=true but no fitted calibrator/GP loaded — "
+            "effective_score will fall back to the raw probability."
+        )
+    except Exception as e:
+        logger.warning(
+            "Could not load effective_score components (%s) — falling back to "
+            "raw probability.",
+            e,
+        )
+    return EffectiveScore(calibrator=calibrator, gp=gp)
+
+
 def main():
     args = parse_args()
     today = datetime.now().strftime("%Y-%m-%d")
@@ -241,6 +282,7 @@ def main():
     except Exception as e:
         logger.warning(f"feature_names.json 로드 실패 ({e}) — pipeline 사용")
     errors = 0
+    raw_candidates = []
 
     for i, (code, name, sector, latest_date) in enumerate(stocks):
         if (i + 1) % 100 == 0:
@@ -259,15 +301,16 @@ def main():
 
             prob = float(ensemble.predict(np.array([feature_vector]))[0])
 
-            if prob >= CONFIDENCE_THRESHOLD:
-                expected_return_pct = (prob - 0.5) * 2.0 * 100.0
-                candidates.append({
-                    "stock_code": code,
-                    "stock_name": name,
-                    "sector": sector,
-                    "confidence": round(prob, 4),
-                    "expected_return": round(expected_return_pct, 2),
-                })
+            raw_candidates.append({
+                "stock_code": code,
+                "stock_name": name,
+                "sector": sector,
+                "prob": prob,
+                "low_dim_vec": (
+                    _build_low_dim_vector(features, LOW_DIM_FEATURES)
+                    if USE_EFFECTIVE_SCORE else None
+                ),
+            })
 
         except Exception as e:
             errors += 1
@@ -276,6 +319,14 @@ def main():
                 import traceback
                 logger.warning(traceback.format_exc()[-800:])
             continue
+
+    effective_scorer = _load_effective_scorer() if USE_EFFECTIVE_SCORE else None
+    candidates = score_and_filter_candidates(
+        raw_candidates,
+        effective_scorer,
+        USE_EFFECTIVE_SCORE,
+        CONFIDENCE_THRESHOLD,
+    )
 
     if args.include_krx_data:
         logger.info("Applying KRX data score boost...")
@@ -287,8 +338,11 @@ def main():
 
     pg.close()
 
-    # Sort by confidence descending
-    candidates.sort(key=lambda x: x["confidence"], reverse=True)
+    # Sort by the active key (effective_score when flag on, else confidence)
+    if USE_EFFECTIVE_SCORE:
+        candidates.sort(key=lambda x: x["effective_score"], reverse=True)
+    else:
+        candidates.sort(key=lambda x: x["confidence"], reverse=True)
     top20 = candidates[:20]
 
     # 승률 추적용: 임계값 미달이어도 상위 20개는 항상 저장

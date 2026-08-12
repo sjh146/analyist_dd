@@ -17,6 +17,8 @@ if _xgboost_ml_path not in sys.path:
 
 from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.models.ensemble_model import EnsembleModel
+from app.scoring.effective_score import EffectiveScore, should_buy
+from app.uncertainty.gp_uncertainty import LOW_DIM_FEATURES
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,12 @@ PG_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
 PG_DB = os.environ.get("POSTGRES_DB", "stock_trading")
 PG_USER = os.environ.get("POSTGRES_USER", "stock_user")
 PG_PASS = os.environ.get("POSTGRES_PASSWORD", "")
+
+# Runtime flag: when true, gate buy signals on effective_score >= 0.65 instead
+# of prob >= 0.65. Default false (old behavior). Flip to true once validated.
+USE_EFFECTIVE_SCORE = os.environ.get("USE_EFFECTIVE_SCORE", "false").lower() in (
+    "1", "true", "yes",
+)
 
 
 @dataclass
@@ -57,13 +65,22 @@ class BacktestRunner:
     Paper trading mode: generates signals without executing real trades.
     """
 
-    def __init__(self, pg_conn=None, model_dir: str = None):
+    def __init__(self, pg_conn=None, model_dir: str = None,
+                 effective_scorer: EffectiveScore = None,
+                 use_effective_score: bool = None):
         self.paper_mode = True
         if model_dir is None:
             model_dir = os.path.join(
                 os.path.dirname(__file__), '..', 'xgboost-ml', 'app', 'models', 'saved_models'
             )
         self.model_dir = os.path.abspath(model_dir)
+
+        if use_effective_score is None:
+            use_effective_score = USE_EFFECTIVE_SCORE
+        self.use_effective_score = use_effective_score
+        if effective_scorer is None:
+            effective_scorer = EffectiveScore()
+        self.effective_scorer = effective_scorer
 
         if pg_conn is not None:
             self.pg_conn = pg_conn
@@ -79,6 +96,22 @@ class BacktestRunner:
         self.pipeline = FeaturePipeline(pg_conn=self.pg_conn)
         self.ensemble = EnsembleModel(model_dir=self.model_dir)
         self.ensemble.load(self.model_dir)
+
+    def _compute_effective_scores(self, df: pd.DataFrame, probs) -> List[float]:
+        """Compute effective_score per row when the flag is on."""
+        low_dim = [f for f in LOW_DIM_FEATURES if f in df.columns]
+        scores = []
+        for i in range(len(df)):
+            prob = float(probs[i])
+            vec = None
+            if low_dim:
+                vec = np.array(
+                    [float(df.iloc[i].get(f, 0.0)) for f in low_dim],
+                    dtype=np.float64,
+                )
+            result = self.effective_scorer.score(prob, feature_vec=vec)
+            scores.append(float(result["effective_score"]))
+        return scores
 
     def run_backtest(
         self,
@@ -120,6 +153,11 @@ class BacktestRunner:
             # 3. Predict up-probability for all rows
             probs = self.ensemble.predict(X)
 
+            # 3b. Compute effective_score per row when the flag is on
+            effective_scores = None
+            if self.use_effective_score:
+                effective_scores = self._compute_effective_scores(df, probs)
+
             # 4. Generate trades from high-confidence buy signals
             trades = []
             daily_returns = []
@@ -140,35 +178,40 @@ class BacktestRunner:
 
                     for i in range(len(stock_df)):
                         prob = float(stock_probs[i])
-                        if prob >= 0.65:
-                            # Buy signal — actual return over next 5 days
-                            if i + 5 < len(prices) and prices[i] > 0:
-                                actual_ret = float((prices[min(i + 5, len(prices) - 1)] - prices[i]) / prices[i])
-                            else:
-                                actual_ret = 0.0
+                        effective = (
+                            float(effective_scores[stock_indices[i]])
+                            if self.use_effective_score else None
+                        )
+                        if not should_buy(prob, effective, self.use_effective_score):
+                            continue
+                        # Buy signal — actual return over next 5 days
+                        if i + 5 < len(prices) and prices[i] > 0:
+                            actual_ret = float((prices[min(i + 5, len(prices) - 1)] - prices[i]) / prices[i])
+                        else:
+                            actual_ret = 0.0
 
-                            trade_date_val = stock_dates[i]
-                            if isinstance(trade_date_val, str):
-                                trade_date = date.fromisoformat(trade_date_val)
-                            elif hasattr(trade_date_val, 'date'):
-                                trade_date = trade_date_val.date()
-                            else:
-                                trade_date = date.today()
+                        trade_date_val = stock_dates[i]
+                        if isinstance(trade_date_val, str):
+                            trade_date = date.fromisoformat(trade_date_val)
+                        elif hasattr(trade_date_val, 'date'):
+                            trade_date = trade_date_val.date()
+                        else:
+                            trade_date = date.today()
 
-                            predicted_ret = float(prob - 0.5)
-                            pnl = actual_ret  # Long-only: PnL = actual return
+                        predicted_ret = float(prob - 0.5)
+                        pnl = actual_ret  # Long-only: PnL = actual return
 
-                            trade = BacktestTrade(
-                                date=trade_date,
-                                stock_code=stock_code,
-                                signal='buy',
-                                confidence=prob,
-                                predicted_return=predicted_ret,
-                                actual_return=actual_ret,
-                                pnl=pnl,
-                            )
-                            trades.append(trade)
-                            daily_returns.append(actual_ret)
+                        trade = BacktestTrade(
+                            date=trade_date,
+                            stock_code=stock_code,
+                            signal='buy',
+                            confidence=prob,
+                            predicted_return=predicted_ret,
+                            actual_return=actual_ret,
+                            pnl=pnl,
+                        )
+                        trades.append(trade)
+                        daily_returns.append(actual_ret)
 
             if not daily_returns:
                 logger.warning("No trades generated — no signals met confidence threshold")
