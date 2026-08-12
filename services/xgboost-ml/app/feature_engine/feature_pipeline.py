@@ -19,6 +19,7 @@ from app.feature_engine.feature_store import FeatureStore
 from app.feature_engine.factor_features import FactorFeatures
 from app.feature_engine.scorer import QualityScorer
 from app.feature_engine.kalman_filter import KalmanFeatureFilter
+from app.feature_engine.bayes_factor_features import BayesFactorFeatures
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class FeaturePipeline:
         self.vector = VectorFeatures()
         self.scorer = QualityScorer()
         self.kalman = KalmanFeatureFilter()
+        self.bayes_factors = BayesFactorFeatures()
         self.pg_conn = pg_conn
         self.neo4j_conn = neo4j_conn
         self._cache = {}
@@ -110,6 +112,13 @@ class FeaturePipeline:
             if close_s is not None and len(close_s) > 0:
                 close_arr = close_s.values if hasattr(close_s, 'values') else np.array(close_s)
                 features.update(self.kalman.smooth_returns(close_arr))
+
+        # Bayesian momentum/factor features (parallel path, A/B against Kalman)
+        if market_df is not None and not market_df.empty:
+            close_s = market_df.get("close_price", market_df.get("close"))
+            if close_s is not None and len(close_s) > 0:
+                close_arr = close_s.values if hasattr(close_s, 'values') else np.array(close_s)
+                features.update(self.bayes_factors.compute(close_arr))
 
         features.update(self.factors.get_all_factors(stock_code, market_df, self.pg_conn))
 
@@ -798,6 +807,10 @@ class FeaturePipeline:
 
             # Kalman filter features (denoised momentum)
             "kalman_momentum_1d", "kalman_momentum_5d", "kalman_volatility",
+
+            # Bayesian momentum/factor features (parallel path, A/B against Kalman)
+            "bayes_momentum_1d", "bayes_momentum_5d",
+            "bayes_volatility", "bayes_gain_uncertainty",
 
             # Quality score (F-Score, 0~1)
             "quality_score",
