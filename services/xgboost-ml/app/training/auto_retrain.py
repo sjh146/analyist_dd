@@ -162,7 +162,7 @@ class AutoRetrainer:
             stock_codes = [s["stock_code"] for s in stocks] if stocks else ["005930"]
 
             data = self.trainer.prepare_training_data(stock_codes, days=days)
-            X_train, X_val, X_test, y_train, y_val, y_test = data
+            X_train, X_val, X_test, y_train, y_val, y_test, feature_names = data
 
             if X_train is None:
                 result["status"] = "error"
@@ -186,6 +186,9 @@ class AutoRetrainer:
             self._y_train = y_train
             self._y_val = y_val
             self._y_test = y_test
+            # Exact feature columns used for training — MUST accompany the
+            # models so champion/feature_names.json always matches the models.
+            self._feature_names = list(feature_names) if feature_names else None
 
         except Exception as e:
             result["status"] = "error"
@@ -248,6 +251,18 @@ class AutoRetrainer:
             trained_count = sum(
                 1 for m in result["models"].values() if m["status"] == "trained"
             )
+            # Persist the exact training feature columns alongside the
+            # challengers so a later deploy keeps champion/feature_names.json
+            # consistent with the models (mismatch breaks inference).
+            feature_names = getattr(self, "_feature_names", None)
+            if feature_names:
+                fn_path = os.path.join(CHALLENGER_DIR, "feature_names.json")
+                with open(fn_path, "w") as f:
+                    json.dump(feature_names, f)
+                logger.info(
+                    "Saved %d training feature names to %s",
+                    len(feature_names), fn_path,
+                )
             result["message"] = f"Trained {trained_count}/3 challenger models"
 
         except Exception as e:
@@ -499,6 +514,20 @@ class AutoRetrainer:
                     dst = os.path.join(CHAMPION_DIR, fname)
                     shutil.copy2(src, dst)
                     result["files_copied"].append(fname)
+
+            # feature_names.json is the inference contract (the screener and
+            # backtester build the feature vector from it), so it MUST be
+            # deployed together with the models — a stale json + fresh models
+            # breaks prediction with "Feature N present in model but not in pool".
+            src_fn = os.path.join(CHALLENGER_DIR, "feature_names.json")
+            if os.path.exists(src_fn):
+                shutil.copy2(src_fn, os.path.join(CHAMPION_DIR, "feature_names.json"))
+                result["files_copied"].append("feature_names.json")
+            else:
+                logger.warning(
+                    "No feature_names.json in challenger dir — champion feature "
+                    "names left unchanged; verify they match the deployed models"
+                )
 
             # Update strategy_config table with evidence
             conn = self.storage._get_conn()

@@ -321,6 +321,32 @@ class FeaturePipeline:
             market_return = 0.0
             features["relative_strength"] = float(stock_ret / market_return) if market_return != 0 else 0.0
 
+        # 3. market_breadth: fraction of advancing stocks on the same date
+        # (advancers / total). Requires the stock_prices table; fallback 0.0.
+        features["market_breadth"] = 0.0
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                cur.execute("""
+                    SELECT COUNT(*) FILTER (WHERE close_price > prev_close),
+                           COUNT(*)
+                    FROM (
+                        SELECT close_price,
+                               LAG(close_price) OVER (
+                                   PARTITION BY stock_code ORDER BY trade_date
+                               ) AS prev_close
+                        FROM stock_prices
+                        WHERE trade_date = %s
+                    ) t
+                """, (date,))
+                row = cur.fetchone()
+                if row and row[1] and row[1] > 0:
+                    features["market_breadth"] = float(row[0] / row[1])
+                cur.close()
+            except Exception:
+                logger.debug("market_breadth unavailable; using 0.0")
+                self.pg_conn.rollback()
+
         # ----- Volatility / Risk features -----
 
         # 6. vix_proxy: approximate KOSPI 200 implied volatility from historical vol
