@@ -69,6 +69,8 @@ PYTEST_TOTAL=0
 # Try --json-report first, fall back to --junitxml
 PYTEST_OUTPUT=$(mktemp)
 set +e
+# pytest is a dev dependency (requirements-dev.txt) — ensure it's present.
+docker compose exec -T xgboost-ml pip install -q -r requirements-dev.txt 2>/dev/null || true
 docker compose exec -T xgboost-ml python -m pytest tests/ -v --tb=short --json-report=.omo/evidence/pytest-report.json 2>&1 | tee "$PYTEST_OUTPUT"
 PYTEST_EXIT_CODE=${PIPESTATUS[0]}
 set -e

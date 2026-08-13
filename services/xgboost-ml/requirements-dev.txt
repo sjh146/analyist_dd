@@ -1,0 +1,5 @@
+# Dev/test dependencies — NOT installed in the runtime image.
+# Install ad hoc in the ephemeral test container:
+#   docker compose run --rm xgboost-ml pip install -r requirements-dev.txt
+pytest>=8.0
+pytest-json-report>=1.5
