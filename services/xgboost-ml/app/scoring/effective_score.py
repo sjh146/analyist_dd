@@ -16,8 +16,11 @@ backtester's gate decision (``should_buy``) live here so they can be unit-tested
 in the container and shared verbatim by both entry points.
 """
 
+import json
 import logging
-from typing import Dict, List, Optional, Sequence
+import os
+import pickle
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from app.calibration.bayesian_calibration import BayesianCalibrator
 from app.uncertainty.gp_uncertainty import GPUncertainty
@@ -26,6 +29,12 @@ logger = logging.getLogger(__name__)
 
 # κ-sweep (Todo 3) showed κ=0.3 gives the best Sharpe. Default penalty.
 DEFAULT_KAPPA = 0.3
+
+# Where the offline fit script (app/training/fit_effective_score.py) persists
+# calibrator.pkl / gp.pkl / bayes_factors.pkl / meta.json. Relative to the
+# xgboost-ml service root (the screener chdirs there); override via
+# EFFECTIVE_SCORE_DIR.
+DEFAULT_EFFECTIVE_SCORE_DIR = "app/models/effective_score"
 
 
 def compute_effective_score(
@@ -210,3 +219,71 @@ def should_buy(
     if use_effective_score:
         return effective_score is not None and effective_score >= threshold
     return prob >= threshold
+
+
+def resolve_effective_score_dir(artifacts_dir: Optional[str] = None) -> str:
+    """Resolve the artifact directory: explicit arg > EFFECTIVE_SCORE_DIR > default."""
+    return artifacts_dir or os.environ.get("EFFECTIVE_SCORE_DIR") or DEFAULT_EFFECTIVE_SCORE_DIR
+
+
+def load_effective_scorer(
+    artifacts_dir: Optional[str] = None,
+) -> Tuple[EffectiveScore, Optional[object], Optional[dict]]:
+    """Load the artifacts persisted by ``app/training/fit_effective_score.py``.
+
+    Returns ``(scorer, bayes_factors, meta)``:
+
+    - ``scorer``: an ``EffectiveScore`` with the fitted calibrator + GP when the
+      artifacts exist, otherwise a raw-prob fallback (warning, never a crash).
+    - ``bayes_factors``: the fitted ``BayesFactorFeatures`` (with cached
+      posterior) or None. The caller may inject it into ``FeaturePipeline`` so
+      the bayes_* features are real instead of 0.0 defaults.
+    - ``meta``: the fit ``meta.json`` dict or None.
+
+    Missing individual files degrade independently: a missing GP only drops the
+    epistemic penalty, a missing calibrator only skips calibration.
+    """
+    d = resolve_effective_score_dir(artifacts_dir)
+    calibrator = None
+    gp = None
+    bayes_factors = None
+    meta: Optional[dict] = None
+
+    cal_path = os.path.join(d, "calibrator.pkl")
+    if os.path.exists(cal_path):
+        try:
+            with open(cal_path, "rb") as f:
+                calibrator = pickle.load(f)
+        except Exception as e:  # pragma: no cover - corrupted artifact
+            logger.warning("effective_score calibrator load failed (%s) — fallback", e)
+    else:
+        logger.warning("effective_score calibrator not found at %s — raw prob fallback", cal_path)
+
+    gp_path = os.path.join(d, "gp.pkl")
+    if os.path.exists(gp_path):
+        try:
+            with open(gp_path, "rb") as f:
+                gp = pickle.load(f)
+        except Exception as e:  # pragma: no cover - corrupted artifact
+            logger.warning("effective_score GP load failed (%s) — no uncertainty penalty", e)
+    else:
+        logger.warning("effective_score GP not found at %s — no uncertainty penalty", gp_path)
+
+    bf_path = os.path.join(d, "bayes_factors.pkl")
+    if os.path.exists(bf_path):
+        try:
+            with open(bf_path, "rb") as f:
+                bayes_factors = pickle.load(f)
+        except Exception as e:  # pragma: no cover - corrupted artifact
+            logger.warning("effective_score bayes_factors load failed (%s)", e)
+
+    meta_path = os.path.join(d, "meta.json")
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+        except Exception:  # pragma: no cover
+            meta = None
+
+    kappa = float(meta.get("kappa", DEFAULT_KAPPA)) if meta else DEFAULT_KAPPA
+    return EffectiveScore(calibrator=calibrator, gp=gp, kappa=kappa), bayes_factors, meta

@@ -21,7 +21,7 @@ import pandas as pd
 
 from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.models.ensemble_model import EnsembleModel
-from app.scoring.effective_score import EffectiveScore, score_and_filter_candidates
+from app.scoring.effective_score import EffectiveScore, load_effective_scorer, score_and_filter_candidates
 from app.uncertainty.gp_uncertainty import LOW_DIM_FEATURES
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
@@ -217,16 +217,14 @@ def _build_low_dim_vector(features, low_dim_features):
 def _load_effective_scorer():
     """Load a fitted calibrator + GP for effective_score, or a fallback scorer.
 
-    No fitted calibrator/GP artifacts are persisted yet (they are fit offline
-    during training), so this always returns an ``EffectiveScore`` with no
-    components. ``EffectiveScore.score`` then falls back to the raw probability
-    (with a warning) instead of crashing on an unfitted calibrator.
+    Delegates to ``app.scoring.effective_score.load_effective_scorer`` which
+    reads the artifacts persisted by ``app/training/fit_effective_score.py``
+    (default ``app/models/effective_score/``, override with
+    ``EFFECTIVE_SCORE_DIR``). When the artifacts are missing, returns an
+    ``EffectiveScore`` with no components and the raw probability is used
+    (with a warning) instead of crashing.
     """
-    logger.warning(
-        "USE_EFFECTIVE_SCORE=true but no fitted calibrator/GP is available — "
-        "effective_score will fall back to the raw probability."
-    )
-    return EffectiveScore(calibrator=None, gp=None)
+    return load_effective_scorer()[0]
 
 
 def main():
@@ -248,6 +246,17 @@ def main():
         logger.error("No trained model found. Run training first.")
         pg.close()
         sys.exit(1)
+
+    # USE_EFFECTIVE_SCORE 활성화: 오프라인 피팅 산출물 로드 (fit_effective_score.py)
+    # + 베이지안 팩터 피처를 파이프라인에 주입 (핫루프에서 MCMC 금지 — 캐시된 사후분포만 사용)
+    effective_scorer = None
+    if USE_EFFECTIVE_SCORE:
+        effective_scorer, bayes_factors, _scorer_meta = load_effective_scorer()
+        if bayes_factors is not None:
+            pipeline.bayes_factors = bayes_factors
+            logger.info("Fitted BayesFactorFeatures injected — bayes_* features active")
+        else:
+            logger.warning("bayes_factors artifact not found — bayes_* features stay 0.0 defaults")
 
     candidates = []
 
@@ -308,7 +317,7 @@ def main():
                 logger.warning(traceback.format_exc()[-800:])
             continue
 
-    effective_scorer = _load_effective_scorer() if USE_EFFECTIVE_SCORE else None
+    # effective_scorer 는 위에서 로드됨 (USE_EFFECTIVE_SCORE 활성화 시)
     candidates = score_and_filter_candidates(
         raw_candidates,
         effective_scorer,
