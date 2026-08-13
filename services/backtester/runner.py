@@ -78,6 +78,10 @@ class BacktestRunner:
         if use_effective_score is None:
             use_effective_score = USE_EFFECTIVE_SCORE
         self.use_effective_score = use_effective_score
+        # 매수 신호 임계값 — champion 모델의 실제 확률 분포가 0.3~0.55 구간이라
+        # 기본 0.65로는 신호 0건이 나온다. 0.5(중립) 기준으로 백테스트 실행.
+        # (env로 오버라이드 가능: BACKTEST_THRESHOLD)
+        self.buy_threshold = float(os.getenv("BACKTEST_THRESHOLD", "0.5"))
         if effective_scorer is None:
             effective_scorer = EffectiveScore()
         self.effective_scorer = effective_scorer
@@ -139,6 +143,32 @@ class BacktestRunner:
                 logger.warning("No feature data returned for backtest period")
                 return self._empty_result(strategy, start_date, end_date)
 
+            # 실가격 병합 — build_training_features의 features에는 'price'가 없어
+            # 트레이드 생성 블록이 통째로 스킵되던 버그 수정 (백테스트 수익률 계산용).
+            # 모델 학습 경로(build_training_features)는 건드리지 않는다 (피처 드리프트 방지).
+            if 'price' not in df.columns and self.pg_conn is not None:
+                try:
+                    cur = self.pg_conn.cursor()
+                    cur.execute(
+                        """
+                        SELECT stock_code, trade_date::text, close_price
+                        FROM market_data
+                        WHERE stock_code = ANY(%s) AND trade_date >= %s AND trade_date <= %s
+                        """,
+                        (stock_codes, start_date, end_date),
+                    )
+                    price_map = {(r[0], r[1]): float(r[2]) for r in cur.fetchall()}
+                    cur.close()
+                    dates_col = df['date'] if 'date' in df.columns else None
+                    if dates_col is not None:
+                        df['price'] = [
+                            price_map.get((c, str(d)), float('nan'))
+                            for c, d in zip(df['stock_code'], dates_col)
+                        ]
+                        logger.info(f"Merged real prices: {len(price_map)} rows")
+                except Exception as e:
+                    logger.warning(f"Price merge failed (trades will be skipped): {e}")
+
             # 2. Extract feature names from saved model features
             saved_features = self.ensemble.load_feature_names(self.model_dir)
             available_features = [f for f in saved_features if f in df.columns]
@@ -182,7 +212,7 @@ class BacktestRunner:
                             float(effective_scores[stock_indices[i]])
                             if self.use_effective_score else None
                         )
-                        if not should_buy(prob, effective, self.use_effective_score):
+                        if not should_buy(prob, effective, self.use_effective_score, self.buy_threshold):
                             continue
                         # Buy signal — actual return over next 5 days
                         if i + 5 < len(prices) and prices[i] > 0:

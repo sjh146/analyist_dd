@@ -189,6 +189,8 @@ services:
       dockerfile: Dockerfile
     container_name: stock_api_gateway
     env_file: .env
+    environment:
+      - JOB_RUNNER_URL=http://job-runner:8010
     ports:
       - "8000:8000"
     volumes:
@@ -197,6 +199,36 @@ services:
       - ./services/strategy-agents/reports:/app/factor_reports
     depends_on:
       redis:
+        condition: service_healthy
+      job-runner:
+        condition: service_started
+    networks:
+      - stock_network
+    restart: unless-stopped
+
+  job-runner:
+    build:
+      context: ./services/job-runner
+      dockerfile: Dockerfile
+    container_name: stock_job_runner
+    env_file: .env
+    environment:
+      - REPORTS_DIR=/app/reports
+      - FACTOR_REPORTS_DIR=/app/factor_reports
+    volumes:
+      # 자체 코드 (라이브) — 스크립트/핸들러 수정 시 재빌드 불필요
+      - ./services/job-runner:/app
+      # 실행 코드/모델 (읽기 전용) — 전략 스크립트는 cwd=/opt/xgboost-ml 기준 상대 경로 사용
+      - ./services/xgboost-ml:/opt/xgboost-ml:ro
+      - ./services/backtester:/opt/backtester:ro
+      - ./services/strategy-agents:/opt/strategy-agents:ro
+      - ./scripts:/opt/scripts:ro
+      - ./config/strategies:/opt/strategy-agents/config/strategies:ro
+      # 리포트 (기록) — api-gateway가 읽는 경로와 동일
+      - ./reports:/app/reports
+      - ./services/strategy-agents/reports:/app/factor_reports
+    depends_on:
+      postgres:
         condition: service_healthy
     networks:
       - stock_network

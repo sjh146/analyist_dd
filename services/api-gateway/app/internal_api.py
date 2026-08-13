@@ -7,6 +7,8 @@
 import logging
 import os
 import uuid
+import urllib.request
+import urllib.error
 from datetime import datetime
 from typing import Optional
 
@@ -18,6 +20,9 @@ logger = logging.getLogger(__name__)
 # fail-closed: INTERNAL_API_KEY 미설정이면 내부 API 자체를 503으로 거부
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 INTERNAL_CONFIGURED = bool(INTERNAL_API_KEY)
+
+# job-runner (온디맨드 전략 실행기) — 미설정 시 잡 타입 요청은 503
+JOB_RUNNER_URL = os.getenv("JOB_RUNNER_URL", "")
 
 if not INTERNAL_CONFIGURED:
     logger.warning("INTERNAL_API_KEY not set — /internal/* will be disabled (fail-closed)")
@@ -36,6 +41,36 @@ internal_router = APIRouter(prefix="/internal", dependencies=[Depends(verify_int
 class AnalysisRequest(BaseModel):
     symbol: str
     request_type: str = "stock_report"
+
+
+class JobRunRequest(BaseModel):
+    """온디맨드 잡 트리거 바디 (stock_report는 symbol 필요)."""
+    symbol: Optional[str] = None
+
+
+# cmall Go가 허용하는 분석 요청 타입 (백엔드 allowlist와 동일)
+ALLOWED_ANALYSIS_TYPES = {"stock_report", "swing_screener", "backtest", "factor_report"}
+
+
+def _job_runner_request(method: str, path: str, payload=None, timeout: int = 10):
+    """job-runner HTTP 호출 (내부망, X-Internal-Api-Key). 실패 시 502."""
+    url = JOB_RUNNER_URL + path
+    data = None
+    if payload is not None:
+        import json as _json
+        data = _json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=data, method=method,
+        headers={"Content-Type": "application/json", "X-Internal-Api-Key": INTERNAL_API_KEY},
+    )
+    import json as _json
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return _json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"job-runner returned {e.code}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"job-runner unavailable: {type(e).__name__}")
 
 
 def _pg_conn():
@@ -73,10 +108,9 @@ def _query(sql: str, params: tuple, limit: int = 50) -> list:
         return []
 
 
-@internal_router.post("/analysis")
-async def run_analysis(req: AnalysisRequest):
-    """온디맨드 분석 리포트 (예측 + 감성 + 최근 시세 합성)."""
-    symbol = req.symbol.strip().upper()
+def _build_stock_report(symbol: str) -> dict:
+    """온디맨드 주식 분석 리포트 (예측 + 감성 + 최근 시세 합성)."""
+    symbol = symbol.strip().upper()
     if not symbol:
         raise HTTPException(status_code=400, detail="symbol required")
 
@@ -157,13 +191,23 @@ async def run_analysis(req: AnalysisRequest):
 
     request_id = str(uuid.uuid4())
     return {
-        "request_id": request_id,
-        "status": "done",
-        "generated_at": datetime.utcnow().isoformat() + "Z",
         "summary": summary,
         "predictions": predictions,
         "sentiment": sentiment,
         "market_data": market,
+    }
+
+
+@internal_router.post("/analysis")
+async def run_analysis(req: AnalysisRequest):
+    """온디맨드 분석 리포트 (기존 동기 경로 — stock_report)."""
+    report = _build_stock_report(req.symbol)
+    request_id = str(uuid.uuid4())
+    return {
+        "request_id": request_id,
+        "status": "done",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        **report,
     }
 
 
@@ -249,3 +293,49 @@ async def get_factor_report():
     if data is None:
         raise HTTPException(status_code=404, detail="factor report not available")
     return {"report": "factor_report", "data": data}
+
+
+# ── 온디맨드 분석 잡 (M6: 결제 후 전략 실행 — job-runner 위임) ──────────────
+
+@internal_router.post("/analysis/{request_type}")
+async def run_analysis_job(request_type: str, req: JobRunRequest):
+    """비동기 분석 잡 트리거.
+
+    - stock_report: DB 합성 (즉시 done, result 포함)
+    - backtest / swing_screener / factor_report: job-runner에 위임 (queued → 폴링)
+    """
+    if request_type not in ALLOWED_ANALYSIS_TYPES:
+        raise HTTPException(status_code=400, detail="unsupported request type")
+
+    if request_type == "stock_report":
+        symbol = (req.symbol or "").strip().upper()
+        if not symbol:
+            raise HTTPException(status_code=400, detail="symbol required for stock_report")
+        report = _build_stock_report(symbol)
+        return {
+            "request_id": str(uuid.uuid4()),
+            "status": "done",
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "result": report,
+        }
+
+    if not JOB_RUNNER_URL:
+        raise HTTPException(status_code=503, detail="job-runner not configured")
+    resp = _job_runner_request("POST", "/run", {"request_type": request_type, "symbol": req.symbol})
+    return {"request_id": resp["request_id"], "status": resp.get("status", "queued")}
+
+
+@internal_router.get("/analysis/{request_id}")
+async def get_analysis_job(request_id: str):
+    """비동기 분석 잡 상태 조회 (job-runner 프록시)."""
+    if not JOB_RUNNER_URL:
+        raise HTTPException(status_code=503, detail="job-runner not configured")
+    job = _job_runner_request("GET", f"/jobs/{request_id}")
+    return {
+        "request_id": request_id,
+        "status": job.get("status"),
+        "result": job.get("result"),
+        "error": job.get("error"),
+        "started_at": job.get("started_at"),
+        "finished_at": job.get("finished_at"),
+    }

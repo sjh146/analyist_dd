@@ -1,0 +1,25 @@
+# ML 실행 의존성 — xgboost-ml 컨테이너와 동일 (champion 모델/피처/GP 추정 로드용)
+xgboost==2.1.4
+catboost==1.2.10
+pandas==2.2.3
+numpy==2.2.4
+scikit-learn==1.6.1
+psycopg2-binary==2.9.10
+neo4j==5.27.0
+redis==5.2.1
+pydantic==2.10.4
+python-dotenv==1.2.2
+joblib==1.4.2
+imbalanced-learn==0.13.0
+lightgbm==4.6.0
+schedule==1.2.2
+prometheus_client>=0.14.1
+TA-Lib>=0.4.28
+numpyro[cpu]==0.15.0
+jax[cpu]==0.4.35
+jaxlib==0.4.35
+scikit-optimize==0.10.2
+pyyaml>=6.0
+# API 서버
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
