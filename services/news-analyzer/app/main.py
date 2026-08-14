@@ -10,14 +10,14 @@ import logging
 import schedule
 import time
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from app.config import Config
 from app.collectors.rss_collector import RssCollector
 from app.analyzers.deepseek_analyzer import DeepSeekAnalyzer
 from app.storage.postgres_storage import PostgresStorage
 from app.storage.neo4j_storage import Neo4jStorage
-from app.models.schemas import Article, AnalysisResult
+from app.models.schemas import Article, AnalysisResult, StructuredNews
 from app.data_quality_integration import DataQualityIntegration
 from app.metrics_integration import init_metrics, on_article_collected, on_article_analyzed, sentiment_analysis_total
 
@@ -95,6 +95,18 @@ class NewsAnalyzerService:
                 self.pg_storage.save_news_analysis(article, result)
                 logger.debug(f"Saved to PostgreSQL: {article.title[:50]}")
 
+                # Phase 2: 구조화 이벤트 추출 (기사당 1회 요청, fail-open)
+                try:
+                    structured = await self.analyzer.extract_structured(article)
+                    if structured is not None:
+                        article_id = self._get_article_id(article.url)
+                        if article_id is not None:
+                            self._save_structured_event(article_id, structured)
+                except Exception as se:
+                    logger.error(
+                        f"Structured extraction failed for '{article.title[:50]}': {se}"
+                    )
+
                 validated_at = datetime.now() if self._validated_at_ready else None
                 validation_errors = []
 
@@ -140,6 +152,36 @@ class NewsAnalyzerService:
                 continue
 
         logger.info(f"Analysis cycle complete. Processed {len(articles)} articles.")
+
+    def _get_article_id(self, url: str) -> Optional[int]:
+        """news_analysis 저장 후 해당 행의 id 조회."""
+        try:
+            existing = self.pg_storage.get_analysis_by_url(url)
+            if existing:
+                return existing.get("id")
+        except Exception as e:
+            logger.error(f"Failed to fetch article id for {url}: {e}")
+        return None
+
+    def _save_structured_event(self, article_id: int, structured: StructuredNews):
+        """종목명→코드 매핑 + 존재 검증 후 구조화 이벤트 저장.
+
+        structured.stock_code는 파서가 추출한 종목명 후보. get_stock_by_name으로
+        정규 매핑하고, 후보 코드가 stocks에 실제 존재하는지 검증한다. 미존재 시
+        stock_code를 None으로 두고 이벤트는 저장한다(관계 무단 생성 방지).
+        """
+        stock_code = None
+        candidate = (structured.stock_code or "").strip()
+        if candidate:
+            try:
+                match = self.pg_storage.get_stock_by_name(candidate)
+                if match and match.get("stock_code"):
+                    stock_code = match["stock_code"]
+            except Exception as e:
+                logger.error(f"Stock mapping failed for '{candidate}': {e}")
+
+        structured.stock_code = stock_code
+        self.pg_storage.save_event_extraction(article_id, structured)
 
     def run_scheduled(self):
         # Run every 30 minutes

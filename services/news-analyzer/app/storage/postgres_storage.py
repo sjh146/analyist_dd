@@ -5,12 +5,13 @@ Handles inserting and updating analysis results.
 
 import psycopg2
 import psycopg2.pool
+import json
 import logging
 from datetime import datetime
 from typing import Optional, Dict
 
 from app.config import Config
-from app.models.schemas import Article, AnalysisResult, StockSentiment
+from app.models.schemas import Article, AnalysisResult, StockSentiment, StructuredNews
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,60 @@ class PostgresStorage:
             cur.close()
         except Exception as e:
             logger.error(f"Failed to save news analysis: {e}")
+            conn.rollback()
+        finally:
+            self._put_conn(conn)
+
+    def save_event_extraction(self, article_id: int, structured: StructuredNews):
+        """Insert structured event extraction (JSONB + article FK).
+
+        article_id는 news_analysis 저장 후 해당 행의 id. stock_code는
+        이미 stocks 테이블에 존재하는 유효 코드만 전달된다(관계 무단 생성 방지).
+        """
+        conn = self._get_conn()
+        if not conn:
+            logger.error("No DB connection available")
+            return
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO news_event_extraction
+                    (article_id, stock_code, event_type, themes,
+                     sentiment_score, importance, novelty, time_range,
+                     core_event_text, raw_json)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    article_id,
+                    structured.stock_code,
+                    structured.event_type,
+                    json.dumps(structured.themes, ensure_ascii=False),
+                    structured.sentiment_score,
+                    structured.importance,
+                    structured.novelty,
+                    structured.time_range,
+                    structured.core_event_text,
+                    json.dumps(
+                        {
+                            "stock_code": structured.stock_code,
+                            "event_type": structured.event_type,
+                            "themes": structured.themes,
+                            "sentiment_score": structured.sentiment_score,
+                            "importance": structured.importance,
+                            "novelty": structured.novelty,
+                            "time_range": structured.time_range,
+                            "core_event_text": structured.core_event_text,
+                        },
+                        ensure_ascii=False,
+                    ),
+                ),
+            )
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            logger.error(f"Failed to save event extraction: {e}")
             conn.rollback()
         finally:
             self._put_conn(conn)
