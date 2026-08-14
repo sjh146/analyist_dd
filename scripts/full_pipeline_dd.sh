@@ -336,9 +336,11 @@ from app.training.trainer import Trainer
 from sklearn.metrics import roc_auc_score, accuracy_score
 
 pg = psycopg2.connect(host='postgres',port=5432,dbname='stock_trading',user='stock_user',password=os.environ.get('POSTGRES_PASSWORD',''))
-cur = pg.cursor()
-cur.execute("SELECT stock_code FROM market_data WHERE trade_date >= '2026-06-01' GROUP BY stock_code HAVING COUNT(*) >= 30 ORDER BY stock_code LIMIT 50")
-stocks_list = [r[0] for r in cur.fetchall()]; cur.close()
+# 유니버스: KOSPI 30 + KOSDAQ 20 층화 무작위 (ETF/ETN 제외, seed 42 고정 → 재현 가능)
+# 2026-08 수정: 기존 ORDER BY stock_code LIMIT 50 (코드순 편향 + 채권/콩 ETN 다수) 제거
+from app.training.universe import select_backtest_universe
+stocks_list = select_backtest_universe(pg, n_kospi=30, n_kosdaq=20, min_days=30, seed=42)
+print('Backtest universe:', len(stocks_list), 'stocks')
 pipeline = FeaturePipeline(pg_conn=pg); trainer = Trainer(storage=None, feature_pipeline=pipeline)
 result = trainer.prepare_training_data(stock_codes=stocks_list, days=90)
 if result[0] is None: print('Backtest FAILED - no training data'); exit()

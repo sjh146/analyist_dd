@@ -87,19 +87,10 @@ def _pg_connect():
 
 
 def _select_stocks(pg, limit: int) -> List[str]:
-    cur = pg.cursor()
-    cur.execute(
-        """
-        SELECT stock_code FROM market_data
-        GROUP BY stock_code HAVING COUNT(*) >= 30
-        ORDER BY MAX(trade_date) DESC, COUNT(*) DESC
-        LIMIT %s
-        """,
-        (limit,),
-    )
-    rows = cur.fetchall()
-    cur.close()
-    return [r[0] for r in rows]
+    """재학습 유니버스 — ETF/ETN 제외 + 최근 데이터 우선 (universe.py 참조)."""
+    from app.training.universe import select_training_universe
+
+    return select_training_universe(pg, limit=limit, min_days=30, seed=0)
 
 
 def retrain_champion(
