@@ -1,13 +1,13 @@
 {
   "kappa": 0.3,
-  "fitted_at": "2026-08-13T01:33:34",
-  "n_rows": 9625,
-  "n_cal_fit": 7700,
-  "n_cal_eval": 1925,
-  "ece_pre": 0.21264,
-  "ece_post": 0.135,
+  "fitted_at": "2026-08-14T09:29:49",
+  "n_rows": 9505,
+  "n_cal_fit": 7604,
+  "n_cal_eval": 1901,
+  "ece_pre": 0.06604,
+  "ece_post": 0.11391,
   "gp_n_rows": 1000,
-  "gp_r2": 0.87174,
+  "gp_r2": 0.8687,
   "gp_features": [
     "return_5d",
     "return_20d",
@@ -17,15 +17,13 @@
     "kalman_momentum_5d",
     "kalman_volatility"
   ],
-  "champion_features_count": 62,
+  "champion_features_count": 153,
   "bayes_ref_stock": "005930",
   "bayes_mcmc": {
     "warmup": 200,
     "samples": 200
   },
   "bayes_posterior_cached": true,
-  "calibrator_rhat": {
-    "p0": 1.0269,
-    "b": 1.026
-  }
+  "calibrator_applied": false,
+  "calibrator_rhat": {}
 }

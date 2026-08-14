@@ -195,6 +195,19 @@ def fit_effective_score_from_df(
         bf._posterior = {k: np.asarray(v) for k, v in bf._posterior.items()}
 
     # ---- 5. Persist ----
+    # If calibration made the held-out ECE WORSE, the learned map does not
+    # generalize (regime shift between fit/eval periods) — degrade to the raw
+    # probability rather than shipping a harmful calibrator. Hit Aug 2026: a
+    # freshly retrained champion had raw ECE 0.066 but calibrated 0.114.
+    calibrator_applied = ece_post <= ece_pre + 0.01
+    if not calibrator_applied:
+        logger.warning(
+            "calibration increased held-out ECE (%.4f -> %.4f) — "
+            "saving WITHOUT calibrator (raw prob fallback)",
+            ece_pre, ece_post,
+        )
+        cal = None
+
     with open(os.path.join(out_dir, "calibrator.pkl"), "wb") as f:
         pickle.dump(cal, f)
     with open(os.path.join(out_dir, "gp.pkl"), "wb") as f:
@@ -217,7 +230,10 @@ def fit_effective_score_from_df(
         "bayes_ref_stock": bayes_ref_stock,
         "bayes_mcmc": {"warmup": num_warmup, "samples": num_samples},
         "bayes_posterior_cached": bf._posterior is not None,
-        "calibrator_rhat": {k: round(v, 4) for k, v in cal.rhat.items()},
+        "calibrator_applied": calibrator_applied,
+        "calibrator_rhat": (
+            {k: round(v, 4) for k, v in cal.rhat.items()} if cal is not None else {}
+        ),
     }
     tmp_path = os.path.join(out_dir, f"meta.json.{os.getpid()}.tmp")
     with open(tmp_path, "w") as f:

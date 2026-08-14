@@ -281,6 +281,10 @@ def main():
     errors = 0
     raw_candidates = []
 
+    # ── Pass 1: 전체 유니버스 피처 빌드 ─────────────────────────────
+    # 크로스섹션 랭크(rank_*)는 같은 날짜의 전 종목 값이 필요 → 전 종목을 먼저
+    # 빌드한 뒤 compute_cross_sectional_ranks()로 주입한다 (트레이너 정합).
+    features_by_code = {}
     for i, (code, name, sector, latest_date) in enumerate(stocks):
         if (i + 1) % 100 == 0:
             logger.info(f"  Progress: {i + 1}/{len(stocks)}")
@@ -289,7 +293,25 @@ def main():
             features = pipeline.build_features(code, str(latest_date))
             if not features or features.get("feature_count", 0) < 10:
                 continue
+            features_by_code[code] = features
+        except Exception as e:
+            errors += 1
+            if errors <= 3:
+                logger.warning(f"Error building features {code}: {type(e).__name__}: {e}")
+                import traceback
+                logger.warning(traceback.format_exc()[-800:])
+            continue
 
+    logger.info(f"Features built for {len(features_by_code)} stocks (errors={errors})")
+    pipeline.compute_cross_sectional_ranks(features_by_code)
+
+    # ── Pass 2: 벡터 구성 + 예측 + 후보 수집 ────────────────────────
+    raw_candidates = []
+    for code, name, sector, latest_date in stocks:
+        features = features_by_code.get(code)
+        if features is None:
+            continue
+        try:
             feature_vector = np.array(
                 [float(features.get(f, 0.0)) for f in feature_names],
                 dtype=np.float32,
@@ -308,47 +330,49 @@ def main():
                     if USE_EFFECTIVE_SCORE else None
                 ),
             })
-
         except Exception as e:
             errors += 1
             if errors <= 3:
-                logger.warning(f"Error screening {code}: {type(e).__name__}: {e}")
+                logger.warning(f"Error scoring {code}: {type(e).__name__}: {e}")
                 import traceback
                 logger.warning(traceback.format_exc()[-800:])
             continue
 
-    # effective_scorer 는 위에서 로드됨 (USE_EFFECTIVE_SCORE 활성화 시)
+    # 항상 유용한 Top-20을 출력한다: 절대 임계값(CONFIDENCE_THRESHOLD)은 소프트
+    # 품질 게이트로 로그에만 기록하고, 활성 스코어(confidence/effective_score)
+    # 기준 상위 20개를 보고한다. 저 base-rate 구간(예: 2026-08, 다음날 상승률
+    # ~41%)에서는 0.55를 넘는 종목이 거의 없어, 임계값 필터만 쓰면 결과가 항상
+    # 비거나 전부 하락 예측(raw 폴백)으로 나오는 문제를 방지한다.
+    above_threshold = score_and_filter_candidates(
+        raw_candidates, effective_scorer, USE_EFFECTIVE_SCORE, CONFIDENCE_THRESHOLD
+    )
     candidates = score_and_filter_candidates(
-        raw_candidates,
-        effective_scorer,
-        USE_EFFECTIVE_SCORE,
-        CONFIDENCE_THRESHOLD,
+        raw_candidates, effective_scorer, USE_EFFECTIVE_SCORE, 0.0
+    )
+    logger.info(
+        "%d candidates above threshold %.2f — reporting top %d by active score",
+        len(above_threshold), CONFIDENCE_THRESHOLD, min(20, len(candidates)),
     )
 
+    # KRX/경제 보정은 상위 40개에만 적용 (전 종목 per-stock 쿼리 방지).
     if args.include_krx_data:
-        logger.info("Applying KRX data score boost...")
-        candidates = apply_krx_score_boost(candidates, pg)
+        logger.info("Applying KRX data score boost (top 40)...")
+        head, rest = candidates[:40], candidates[40:]
+        candidates = apply_krx_score_boost(head, pg) + rest
 
     if args.include_economic_events:
-        logger.info("Applying economic calendar impact...")
-        candidates = apply_economic_impact(candidates, pg)
+        logger.info("Applying economic calendar impact (top 40)...")
+        head, rest = candidates[:40], candidates[40:]
+        candidates = apply_economic_impact(head, pg) + rest
 
     pg.close()
 
-    # Sort by the active key (effective_score when flag on, else confidence)
+    # 활성 키 기준 정렬 (flag on: effective_score, off: confidence)
     if USE_EFFECTIVE_SCORE:
         candidates.sort(key=lambda x: x["effective_score"], reverse=True)
     else:
         candidates.sort(key=lambda x: x["confidence"], reverse=True)
     top20 = candidates[:20]
-
-    # 승률 추적용: 임계값 미달이어도 상위 20개는 항상 저장
-    # (confidence가 낮아도 나중에 실제 수익률과 대조해 모델 성능 검증 가능)
-    if len(top20) < 20 and not top20:
-        logger.info("No candidates above threshold — storing top-20 raw confidence picks for tracking")
-        raw_picks = _collect_top_raw(stocks, pipeline, ensemble, feature_names, pg, top_n=20)
-        if raw_picks:
-            top20 = raw_picks
 
     # Print table
     print(f"\nTop KOSDAQ Swing Candidates ({today})")

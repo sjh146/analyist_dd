@@ -148,6 +148,16 @@ class FeaturePipeline:
         except Exception as e:
             logger.debug(f"Advanced features failed for {stock_code}: {e}")
 
+        # Trainer-consistent engineered features (interactions / rolling means /
+        # target MAs). Without them the champion receives 0.0 fills and
+        # collapses to a constant prediction (Aug 2026 regression). The
+        # cross-sectional rank_* features are injected later via
+        # compute_cross_sectional_ranks() once the full universe is built.
+        try:
+            self._build_trainer_consistent_features(features, market_df)
+        except Exception as e:
+            logger.debug(f"Trainer-consistent features failed for {stock_code}: {e}")
+
         features["feature_count"] = len(features)
         features["stock_code"] = stock_code
         features["date"] = date
@@ -161,6 +171,106 @@ class FeaturePipeline:
                 logger.exception("FeatureStore save failed; continuing")
 
         return features
+
+    def _build_trainer_consistent_features(
+        self, features: Dict, market_df: pd.DataFrame = None,
+    ) -> None:
+        """Replicate the engineered features ``Trainer.prepare_training_data``
+        adds (trainer.py:67-134) so INFERENCE matches TRAINING.
+
+        Without these, the champion model receives 0.0 for ~20 of its 62
+        features at inference and collapses to a near-constant prediction
+        (hit Aug 2026: every KOSDAQ stock predicted DOWN, up:0/down:1668).
+
+        This method covers the per-row pieces (interactions, rolling means,
+        target MAs). The cross-sectional ``rank_*`` features are injected by
+        ``compute_cross_sectional_ranks`` once the whole universe is built
+        (they need the per-date cross-section, see swing_screener main()).
+
+        Mutates ``features`` in place. Failures degrade to the existing values
+        (0.0 fills) rather than crashing the pipeline.
+        """
+        # 1. Interaction pairs — identical formulas to trainer.py:71-80.
+        interaction_pairs = [
+            ("return_1d", "volatility_20d", "momentum_vs_volatility"),
+            ("return_5d", "return_20d", "trend_interaction"),
+            ("volume_ratio_5", "return_5d", "volume_price_trend"),
+            ("ma_position_5", "ma_position_20", "cross_trend"),
+            ("volatility_20d", "volume_ratio_5", "volatility_volume"),
+            ("return_1d", "return_5d", "short_medium_term_momentum"),
+            ("return_5d", "ma_position_20", "trend_confirmation"),
+            ("price", "volume_ratio_5", "price_volume"),
+        ]
+        for a, b, name in interaction_pairs:
+            fa = float(features.get(a, 0.0) or 0.0)
+            fb = float(features.get(b, 0.0) or 0.0)
+            features[name] = fa * fb
+
+        # 2. Per-stock rolling means + target MA — computed from the market
+        #    series with the SAME definitions as MarketFeatures so the values
+        #    equal what the training df contained (trainer.py:87-131).
+        if market_df is None or market_df.empty:
+            return
+        close_s = market_df.get("close_price", market_df.get("close"))
+        if close_s is None or len(close_s) < 5:
+            return
+        try:
+            close = pd.Series(
+                [float(c) for c in close_s], dtype=np.float64
+            ).reset_index(drop=True)
+            rets = close.pct_change()  # return_1d series (first row NaN -> 0)
+            ret_5d = close.pct_change(5)
+            ret_20d = close.pct_change(20)
+            # np.std (ddof=0) matches MarketFeatures.volatility_20d.
+            vol20 = rets.rolling(20, min_periods=2).std(ddof=0)
+
+            vol_s = market_df.get("volume")
+            volr5 = None
+            if vol_s is not None and len(vol_s) >= 5:
+                vol = pd.Series([float(v) for v in vol_s], dtype=np.float64).reset_index(drop=True)
+                volr5 = vol / vol.rolling(5, min_periods=1).mean()
+
+            def _last(s: pd.Series, default: float = 0.0) -> float:
+                v = s.iloc[-1] if len(s) > 0 else default
+                return float(v) if pd.notna(v) else default
+
+            features["return_5d_mean_10d"] = _last(ret_5d.rolling(10, min_periods=1).mean())
+            features["volatility_20d_mean_10d"] = _last(vol20.rolling(10, min_periods=1).mean())
+            features["volume_ratio_5_mean_10d"] = (
+                _last(volr5.rolling(10, min_periods=1).mean()) if volr5 is not None else 0.0
+            )
+            features["target_ma_5"] = _last(rets.rolling(5, min_periods=1).mean())
+            features["target_ma_10"] = _last(rets.rolling(10, min_periods=1).mean())
+            features["target_ma_20"] = _last(rets.rolling(20, min_periods=1).mean())
+        except Exception as e:  # pragma: no cover - defensive
+            logger.debug(f"trainer-consistent rolling features unavailable: {e}")
+
+    def compute_cross_sectional_ranks(self, features_by_code: Dict[str, Dict]) -> None:
+        """Inject ``rank_*`` features — percentile rank within each date's
+        cross-section — replicating ``Trainer.prepare_training_data``
+        (trainer.py:107-118). Mutates the feature dicts in place.
+
+        Must be called AFTER features are built for the whole universe
+        (the screener's first pass) because a rank needs all stocks on the
+        same date. Columns ranked: return_5d, return_20d, volatility_20d,
+        volume_ratio_5, ma_position_5, volume_ratio_20.
+        """
+        rank_cols = [
+            "return_5d", "return_20d", "volatility_20d",
+            "volume_ratio_5", "ma_position_5", "volume_ratio_20",
+        ]
+        by_date: Dict[str, list] = {}
+        for code, feats in features_by_code.items():
+            by_date.setdefault(str(feats.get("date", "")), []).append(feats)
+
+        for _date, group in by_date.items():
+            for col in rank_cols:
+                vals = pd.Series(
+                    [float(f.get(col, 0.0) or 0.0) for f in group], dtype=np.float64
+                )
+                ranks = vals.rank(pct=True)
+                for feats, r in zip(group, ranks):
+                    feats[f"rank_{col}"] = float(r)
 
     def build_training_features(
         self, stock_codes: List[str], start_date: str, end_date: str,
