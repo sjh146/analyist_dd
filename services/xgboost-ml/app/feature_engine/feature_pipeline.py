@@ -20,6 +20,7 @@ from app.feature_engine.factor_features import FactorFeatures
 from app.feature_engine.scorer import QualityScorer
 from app.feature_engine.kalman_filter import KalmanFeatureFilter
 from app.feature_engine.bayes_factor_features import BayesFactorFeatures
+from app.feature_engine.news_event_features import NewsEventFeatures
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class FeaturePipeline:
         self.scorer = QualityScorer()
         self.kalman = KalmanFeatureFilter()
         self.bayes_factors = BayesFactorFeatures()
+        self.news_events = NewsEventFeatures()
         self.pg_conn = pg_conn
         self.neo4j_conn = neo4j_conn
         self._cache = {}
@@ -125,6 +127,9 @@ class FeaturePipeline:
         features.update(self.company.get_all_features(stock_code, self.pg_conn))
 
         features.update(self.sentiment.get_all_features(stock_code, self.pg_conn))
+
+        # News event features (market impact, event taxonomy, theme exposure)
+        features.update(self.news_events.get_all_features(stock_code, self.pg_conn))
 
         # Real sentiment from stock_sentiment table
         sentiment = self._get_stock_sentiment(stock_code, date)
@@ -950,6 +955,16 @@ class FeaturePipeline:
 
             # Quality score (F-Score, 0~1)
             "quality_score",
+
+            # News event features (market impact, event taxonomy, theme exposure)
+            "market_impact_score",
+            "event_realized_5d", "event_mna_5d", "event_capital_increase_5d",
+            "event_cb_bw_5d", "event_stake_change_5d", "event_contract_5d",
+            "event_new_product_5d", "event_patent_5d", "event_regulation_5d",
+            "event_litigation_5d", "event_delisting_5d", "event_recall_5d",
+            "event_treasury_5d", "event_exec_change_5d", "event_partnership_5d",
+            "event_macro_5d", "event_market_liquidity_5d", "event_disaster_5d",
+            "theme_exposure_5d",
         ])
 
     def set_db_connections(self, pg_conn=None, neo4j_conn=None):
