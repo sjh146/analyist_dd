@@ -38,7 +38,8 @@ class NewsAnalyzerService:
         self.neo4j_storage = Neo4jStorage()
         self.news_graph_writer = NewsGraphWriter()
         self.dq_integration = DataQualityIntegration(
-            db_conn_provider=self.pg_storage._get_conn
+            db_conn_provider=self.pg_storage._get_conn,
+            db_conn_putter=self.pg_storage._put_conn,
         )
         self.embedder = NewsEmbedder()
         self._validated_at_ready = self.pg_storage._ensure_validated_at_column()
@@ -48,8 +49,11 @@ class NewsAnalyzerService:
 
     def _backfill_sentiment_metrics(self):
         """One-time backfill of sentiment metrics from existing DB records."""
+        conn = self.pg_storage._get_conn()
+        if not conn:
+            logger.warning("No DB connection for sentiment metric backfill")
+            return
         try:
-            conn = self.pg_storage._get_conn()
             cur = conn.cursor()
             cur.execute(
                 "SELECT COALESCE(sentiment_label, 'unknown'), count(*) "
@@ -57,7 +61,6 @@ class NewsAnalyzerService:
             )
             rows = cur.fetchall()
             cur.close()
-            self.pg_storage._put_conn(conn)
             for label, cnt in rows:
                 sentiment_analysis_total.labels(
                     source="deepseek", sentiment=label
@@ -65,6 +68,9 @@ class NewsAnalyzerService:
                 logger.info(f"Backfilled sentiment metric: {label}={cnt}")
         except Exception as e:
             logger.warning(f"Could not backfill sentiment metrics: {e}")
+        finally:
+            if conn:
+                self.pg_storage._put_conn(conn)
 
     async def analyze_recent_articles(self):
         """Collect and analyze recent articles from all sources."""
@@ -192,6 +198,12 @@ class NewsAnalyzerService:
         순수 그래프 쓰기(LLM 없음). 실패 시 기존 저장 그대로 유지(fail-open).
         """
         try:
+            # stock_code가 없는 클러스터(종목 매칭 실패 기사)는 그래프에 넣지 않는다
+            # — MERGE (:Stock {code: null}) SemanticError 방지 (2026-08 실측).
+            clusters = [cl for cl in clusters if cl.stock_code]
+            if not clusters:
+                logger.debug("No stock-resolved clusters for news graph")
+                return
             self.news_graph_writer.write_events(clusters)
             # Theme: 각 클러스터의 event_type 을 테마로 취급 (taxonomy 기반)
             themes = [
@@ -245,7 +257,7 @@ class NewsAnalyzerService:
         for cl in clusters:
             by_key.setdefault((cl.event_date, cl.event_type), []).append(cl.stock_code)
         for codes in by_key.values():
-            uniq = sorted(set(codes))
+            uniq = sorted({c for c in set(codes) if c})
             for i in range(len(uniq)):
                 for j in range(i + 1, len(uniq)):
                     pairs.append((uniq[i], uniq[j]))

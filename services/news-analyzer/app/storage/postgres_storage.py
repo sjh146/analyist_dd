@@ -220,7 +220,8 @@ class PostgresStorage:
                 SET embedding = %s
                 WHERE cluster_key = %s
                 """,
-                (list(embedding), cluster_key),
+                # numpy.float32는 psycopg2가 adapt 불가 → Python float로 변환
+                ([float(x) for x in embedding], cluster_key),
             )
             conn.commit()
             cur.close()

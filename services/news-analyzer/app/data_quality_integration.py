@@ -12,7 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 class DataQualityIntegration:
-    def __init__(self, db_conn_provider: Optional[Callable] = None):
+    def __init__(
+        self, db_conn_provider: Optional[Callable] = None,
+        db_conn_putter: Optional[Callable] = None,
+    ):
         self.validator = Validator()
         self.zscore_rule = ZScoreRule(threshold=3.0)
         self.rate_change_rule = RateChangeRule(max_change_pct=50.0)
@@ -24,6 +27,7 @@ class DataQualityIntegration:
         self.validator.add_rule(self.null_ratio_rule)
 
         self._db_provider = db_conn_provider
+        self._db_putter = db_conn_putter
 
     def _fetch_recent_scores(
         self, stock_code: str, limit: int = 100
@@ -51,6 +55,11 @@ class DataQualityIntegration:
                 f"Failed to fetch recent scores for {stock_code}: {e}"
             )
             return []
+        finally:
+            # 커넥션 누수 방지: 획득한 conn은 반드시 풀에 반환 (2026-08 실측:
+            # 반환 누락으로 배치 중 'connection pool exhausted' 발생)
+            if self._db_putter:
+                self._db_putter(conn)
 
     def validate_sentiment(
         self,
