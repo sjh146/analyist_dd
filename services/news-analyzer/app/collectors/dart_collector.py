@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
 from app.models.schemas import Article
+from app.normalization.normalizer import normalize_article
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,15 @@ class DartCollector:
                 continue
 
         logger.info(f"Collected {len(articles)} disclosures from DART")
-        return articles
+
+        normalized = []
+        for article in articles:
+            norm = normalize_article(article)
+            if norm is None:
+                logger.debug(f"Dropped invalid disclosure: {article.title[:50]}")
+                continue
+            normalized.append(norm)
+        return normalized
 
     async def _fetch_disclosures(self, stock_code: str) -> List[Article]:
         """Fetch recent disclosures for a single stock."""

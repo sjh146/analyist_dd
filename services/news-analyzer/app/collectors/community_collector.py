@@ -10,6 +10,7 @@ from datetime import datetime
 from urllib.parse import quote
 
 from app.models.schemas import Article
+from app.normalization.normalizer import normalize_article
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,15 @@ class CommunityCollector:
                 continue
 
         logger.info(f"Collected {len(articles)} community posts")
-        return articles
+
+        normalized = []
+        for article in articles:
+            norm = normalize_article(article)
+            if norm is None:
+                logger.debug(f"Dropped invalid post: {article.title[:50]}")
+                continue
+            normalized.append(norm)
+        return normalized
 
     async def _fetch_discussions(self, stock_code: str) -> List[Article]:
         """Fetch recent discussion posts for a stock from Naver."""

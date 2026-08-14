@@ -8,6 +8,8 @@ import logging
 from typing import List
 from datetime import datetime
 from app.models.schemas import Article
+from app.normalization.normalizer import normalize_article
+from app.normalization.dedup import dedupe
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,23 @@ class RssCollector:
                 )
             except Exception as e:
                 logger.error(f"Failed to fetch {source['name']}: {e}")
-        return articles
+
+        # Normalize each article; discard invalid (empty/short content).
+        normalized = []
+        for article in articles:
+            norm = normalize_article(article)
+            if norm is None:
+                logger.debug(f"Dropped invalid article: {article.title[:50]}")
+                continue
+            normalized.append(norm)
+
+        # Content-based dedup (keeps one copy of the same story across media).
+        unique, dropped = dedupe(normalized)
+        for dup in dropped:
+            logger.info(
+                f"Dropped duplicate: {dup.title[:50]} (source={dup.source})"
+            )
+        return unique
 
     async def _fetch_feed(self, source: dict) -> List[Article]:
         """Fetch and parse a single RSS feed."""
