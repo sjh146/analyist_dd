@@ -81,4 +81,10 @@ CREATE INDEX IF NOT EXISTS idx_news_events_event_type
 CREATE INDEX IF NOT EXISTS idx_news_events_event_date
     ON news_events(event_date);
 
+-- === 이벤트 임베딩 HNSW 인덱스 (Phase 4) ===
+-- 384d vector_cosine_ops HNSW 인덱스. 유사 이벤트 검색(ORDER BY embedding <=> $q)에 사용.
+-- 멱등: CREATE INDEX IF NOT EXISTS.
+CREATE INDEX IF NOT EXISTS idx_news_events_embedding_hnsw
+    ON news_events USING hnsw (embedding vector_cosine_ops);
+
 -- End of 03_news_intelligence.sql

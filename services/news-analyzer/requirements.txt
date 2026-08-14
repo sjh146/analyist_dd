@@ -11,3 +11,10 @@ tenacity==9.0.0
 schedule==1.2.2
 pyyaml==6.0.2
 prometheus_client>=0.14.1
+# CPU-only torch 고정 — GPU 없는 서버에서 CUDA 툴킷(900MB+) 다운로드 방지
+# sentence-transformers가 torch를 의존성으로 받지만, 기본 버전은 CUDA 포함.
+# 아래 인덱스에서 CPU 전용 torch를 먼저 설치해 CUDA 다운로드를 원천 차단한다.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu
+sentence-transformers==3.4.1
+numpy==2.2.4

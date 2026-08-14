@@ -19,6 +19,7 @@ from app.storage.postgres_storage import PostgresStorage
 from app.storage.neo4j_storage import Neo4jStorage
 from app.models.schemas import Article, AnalysisResult, StructuredNews
 from app.events.clusterer import cluster
+from app.embedding.news_embedder import NewsEmbedder
 from app.data_quality_integration import DataQualityIntegration
 from app.metrics_integration import init_metrics, on_article_collected, on_article_analyzed, sentiment_analysis_total
 
@@ -37,6 +38,7 @@ class NewsAnalyzerService:
         self.dq_integration = DataQualityIntegration(
             db_conn_provider=self.pg_storage._get_conn
         )
+        self.embedder = NewsEmbedder()
         self._validated_at_ready = self.pg_storage._ensure_validated_at_column()
         init_metrics(9101)
         self._backfill_sentiment_metrics()
@@ -161,6 +163,8 @@ class NewsAnalyzerService:
         """최근 news_event_extraction 을 클러스터링하여 news_events 에 upsert.
 
         순수 계산(LLM 없음). 실패 시 기존 저장 그대로 유지(fail-open).
+        Phase 4: 각 클러스터의 core_event_text 를 임베딩하여 embedding 저장.
+        임베딩 실패 시 해당 클러스터는 저장 진행(선택적 컬럼, fail-open).
         """
         try:
             since = datetime.now() - self.config.CLUSTER_WINDOW
@@ -171,9 +175,28 @@ class NewsAnalyzerService:
             clusters = cluster(rows)
             for cl in clusters:
                 self.pg_storage.save_event_cluster(cl)
+                self._embed_and_save(cl)
             logger.info(f"Clustered {len(rows)} extractions into {len(clusters)} events")
         except Exception as e:
             logger.error(f"Event clustering failed (fail-open): {e}")
+
+    def _embed_and_save(self, cl):
+        """core_event_text 를 임베딩하여 news_events.embedding 에 저장 (fail-open)."""
+        try:
+            text = cl.representative_core_event_text
+            if not text:
+                return
+            vec = self.embedder.embed(text)
+            if vec is None:
+                logger.warning(
+                    f"Embedding unavailable for cluster {cl.cluster_key} (skip)"
+                )
+                return
+            self.pg_storage.update_event_embedding(cl.cluster_key, vec)
+        except Exception as e:
+            logger.error(
+                f"Embedding save failed for cluster {cl.cluster_key} (fail-open): {e}"
+            )
 
     def _get_article_id(self, url: str) -> Optional[int]:
         """news_analysis 저장 후 해당 행의 id 조회."""

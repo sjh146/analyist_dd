@@ -201,6 +201,79 @@ class PostgresStorage:
         finally:
             self._put_conn(conn)
 
+    def update_event_embedding(self, cluster_key: str, embedding) -> None:
+        """Store a 384-dim embedding vector for an event cluster (Phase 4).
+
+        ``embedding`` is a numpy array or list of 384 floats. Fail-open: on
+        error the cluster row is left unchanged.
+        """
+        conn = self._get_conn()
+        if not conn:
+            logger.error("No DB connection available")
+            return
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE news_events
+                SET embedding = %s
+                WHERE cluster_key = %s
+                """,
+                (list(embedding), cluster_key),
+            )
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            logger.error(f"Failed to update event embedding for {cluster_key}: {e}")
+            conn.rollback()
+        finally:
+            self._put_conn(conn)
+
+    def search_similar_events(self, embedding, limit: int = 10) -> List[Dict]:
+        """Find the most similar event clusters by cosine distance (Phase 4).
+
+        Uses the HNSW index on ``news_events.embedding`` via
+        ``ORDER BY embedding <=> $q LIMIT n``. Returns rows with similarity
+        (1 - cosine distance).
+        """
+        conn = self._get_conn()
+        if not conn:
+            return []
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT stock_code, event_type, event_date, cluster_key,
+                       representative_core_event_text,
+                       1 - (embedding <=> %s) AS similarity
+                FROM news_events
+                WHERE embedding IS NOT NULL
+                ORDER BY embedding <=> %s
+                LIMIT %s
+                """,
+                (list(embedding), list(embedding), limit),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [
+                {
+                    "stock_code": r[0],
+                    "event_type": r[1],
+                    "event_date": r[2],
+                    "cluster_key": r[3],
+                    "representative_core_event_text": r[4],
+                    "similarity": r[5],
+                }
+                for r in rows
+            ]
+        except Exception as e:
+            logger.error(f"Failed to search similar events: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
+
     def _ensure_validated_at_column(self):
         """Ensure validated_at column exists on stock_sentiment."""
         conn = self._get_conn()
