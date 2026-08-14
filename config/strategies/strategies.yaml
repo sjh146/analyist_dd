@@ -33,6 +33,9 @@ strategies:
       zscore_entry: 2.0
       zscore_exit: 0.5
       position_size_pct: 0.08
+      twin_universe_kospi: 100
+      twin_universe_kosdaq: 100
+      twin_universe_seed: 42
 
   # ── 팩터 전략 (강환국『하면 된다! 퀀트투자』) ──────────────────────────
   # 임계값(상위 N, rebalance, Z-score 등)은 코드 상수로 하드코딩 — 과최적화 방지.

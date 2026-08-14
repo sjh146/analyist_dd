@@ -199,9 +199,13 @@ class StrategyAgentService:
         try:
             base = Path(__file__).resolve()
             candidates = [
+                # 컨테이너 마운트 (docker compose: ./config/strategies:/app/config/strategies)
+                Path("/app/config/strategies/strategies.yaml"),
                 base.parents[2] / "config" / "strategies" / "strategies.yaml",
-                base.parents[3] / "config" / "strategies" / "strategies.yaml",
             ]
+            # parents[3] 은 경로 깊이에 따라 IndexError 가능(컨테이너 /app 마운트) — 존재 시에만 추가
+            if len(base.parents) > 3:
+                candidates.append(base.parents[3] / "config" / "strategies" / "strategies.yaml")
             yaml_path = next((p for p in candidates if p.exists()), None)
             if yaml_path is None:
                 raise FileNotFoundError("strategies.yaml not found")

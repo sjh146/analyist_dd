@@ -444,23 +444,58 @@ class PostgresStorage:
         conn = self._get_conn()
         if not conn: return []
         lookback = int(getattr(self, "twin_lookback_days", 0) or 60)
-        universe = int(getattr(self, "twin_universe_size", 0) or 200)
+        n_kospi = int(getattr(self, "twin_universe_kospi", 0) or 100)
+        n_kosdaq = int(getattr(self, "twin_universe_kosdaq", 0) or 100)
+        seed = int(getattr(self, "twin_universe_seed", 42) or 42)
         try:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            # 유니버스 (2026-08 수정): 거래대금 상위 N → KOSPI/KOSDAQ 층화 무작위
+            # + ETF/ETN 제외 (universe.py의 패턴과 동일, SQL 복제). seed 고정 →
+            # setseed()로 재현 가능. 전체 종목 페어는 O(n²) 폭주라 유니버스 제한 유지.
+            # setseed는 [-1,1] 범위만 허용 → 정수 시드를 [-1,1)로 정규화.
+            norm_seed = ((seed % 2000) / 1000.0) - 1.0
+            cur.execute("SELECT setseed(%s)", (norm_seed,))
             cur.execute("""
                 WITH recent AS (
                     SELECT stock_code, trade_date, close_price
                     FROM market_data
                     WHERE trade_date >= CURRENT_DATE - %s::int
                 ),
-                -- 유니버스 제한: 최근 거래대금 상위 N개만 (O(n²) 폭주 방지)
+                -- ETF/ETN/파생상품 이름 패턴 (services/xgboost-ml/app/training/universe.py 와 동일)
+                -- 주의: psycopg2에서 리터럴 퍼센트는 %% 로 이스케이프 필수 (주석에도 퍼센트 문자 금지)
+                eligible AS (
+                    SELECT s.stock_code, s.market
+                    FROM stocks s
+                    WHERE s.market IN ('KOSPI', 'KOSDAQ')
+                      AND NOT (
+                            s.stock_name ILIKE '%%ETN%%' OR s.stock_name ILIKE '%%ETF%%'
+                         OR s.stock_name ILIKE '%%레버리지%%' OR s.stock_name ILIKE '%%인버스%%'
+                         OR s.stock_name ILIKE '%%리버스%%' OR s.stock_name ILIKE '%%KODEX%%'
+                         OR s.stock_name ILIKE '%%TIGER%%' OR s.stock_name ILIKE '%%RISE%%'
+                         OR s.stock_name ILIKE '%%HANARO%%' OR s.stock_name ILIKE '%%ARIRANG%%'
+                         OR s.stock_name ILIKE '%%KBSTAR%%' OR s.stock_name ILIKE '%%커버드콜%%'
+                         OR s.stock_name ILIKE '%%국고채%%' OR s.stock_name ILIKE '%%채권%%'
+                         OR s.stock_name ILIKE '%%파생%%' OR s.stock_name ILIKE '%%선물%%'
+                         OR s.stock_name ILIKE '%%골드%%' OR s.stock_name ILIKE '%%원유%%'
+                         OR s.stock_name ILIKE '%%천연가스%%' OR s.stock_name ILIKE '%%금선물%%'
+                         OR s.stock_name ILIKE '%%은선물%%' OR s.stock_name ILIKE '%%리츠%%'
+                         OR s.stock_name ILIKE '%%2X%%' OR s.stock_name ILIKE '%%3X%%'
+                            )
+                      AND EXISTS (
+                            SELECT 1 FROM market_data m2
+                            WHERE m2.stock_code = s.stock_code
+                              AND m2.trade_date >= CURRENT_DATE - 5
+                      )
+                ),
+                -- 층화 무작위: 시장별 rn 부여 후 각각 상위 N개 (setseed로 재현 가능)
                 top AS (
-                    SELECT m.stock_code
-                    FROM market_data m
-                    WHERE m.trade_date >= CURRENT_DATE - 5
-                    GROUP BY m.stock_code
-                    ORDER BY SUM(m.trading_value) DESC
-                    LIMIT %s
+                    SELECT stock_code FROM (
+                        SELECT stock_code, market,
+                               ROW_NUMBER() OVER (PARTITION BY market ORDER BY random()) AS rn
+                        FROM eligible
+                    ) t
+                    WHERE (market = 'KOSPI' AND rn <= %s)
+                       OR (market = 'KOSDAQ' AND rn <= %s)
                 )
                 SELECT a.stock_code as stock_code_a,
                        b.stock_code as stock_code_b,
@@ -474,7 +509,7 @@ class PostgresStorage:
                 HAVING COUNT(*) >= 20
                    AND CORR(a.close_price, b.close_price) >= %s
                 ORDER BY correlation DESC
-            """, (lookback, universe, min_correlation))
+            """, (lookback, n_kospi, n_kosdaq, min_correlation))
             rows = cur.fetchall()
             cur.close()
             return [dict(r) for r in rows]

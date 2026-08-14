@@ -10,7 +10,12 @@ from app.main import StrategyAgentService, _FACTOR_STRATEGY_NAMES
 from app.storage.postgres_storage import PostgresStorage
 from app.storage.redis_storage import RedisStorage
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[3] if len(Path(__file__).resolve().parents) > 3 else Path("/app")
+# 컨테이너 마운트(/app/tests)에서는 parents[3] 이 존재하지 않음 — config 디렉터리로 repo root 탐색
+for _p in Path(__file__).resolve().parents:
+    if (_p / "config" / "strategies" / "strategies.yaml").exists():
+        REPO_ROOT = _p
+        break
 YAML_PATH = REPO_ROOT / "config" / "strategies" / "strategies.yaml"
 FACTOR_NAMES = ["value_factor", "quality_factor", "momentum_factor", "lowvol_factor", "multifactor"]
 
