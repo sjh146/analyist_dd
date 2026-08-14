@@ -66,7 +66,7 @@ class Predictor:
         """Load feature names from the saved model's feature_names.json."""
         try:
             path = os.path.join(
-                os.path.dirname(__file__), "..", "models", "saved_models", "feature_names.json"
+                os.path.dirname(__file__), "..", "models", "champion", "feature_names.json"
             )
             if os.path.exists(path):
                 with open(path) as f:

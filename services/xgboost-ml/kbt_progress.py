@@ -31,7 +31,7 @@ conn.close()
 log(f"Top 100 KOSDAQ stocks selected: {stocks[:5]}...")
 
 t0 = time.time()
-runner = BacktestRunner(model_dir="/app/app/models/saved_models")
+runner = BacktestRunner(model_dir="/app/app/models/champion")
 result = runner.run_backtest("ml_swing", stocks, "2026-05-01", "2026-07-23")
 elapsed = time.time() - t0
 

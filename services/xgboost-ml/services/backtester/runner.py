@@ -61,7 +61,7 @@ class BacktestRunner:
         self.paper_mode = True
         if model_dir is None:
             model_dir = os.path.join(
-                os.path.dirname(__file__), '..', 'xgboost-ml', 'app', 'models', 'saved_models'
+                os.path.dirname(__file__), '..', 'xgboost-ml', 'app', 'models', 'champion'
             )
         self.model_dir = os.path.abspath(model_dir)
 

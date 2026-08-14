@@ -54,7 +54,7 @@ def main():
     logger.info(f"Validation on {len(stock_codes)} KOSDAQ stocks: {stock_codes}")
 
     pipeline = FeaturePipeline(pg_conn=pg)
-    ensemble = EnsembleModel(model_dir="app/models/saved_models")
+    ensemble = EnsembleModel(model_dir="app/models/champion")
     trainer = Trainer(storage=None, feature_pipeline=pipeline)
 
     logger.info("Preparing training data (180 days)...")
@@ -68,7 +68,7 @@ def main():
     n_features = X_train.shape[1]
     logger.info(f"Data ready: {len(X_train)} train, {len(X_val)} val, {len(X_test)} test, {n_features} features")
 
-    feature_names_path = "app/models/saved_models"
+    feature_names_path = "app/models/champion"
     feature_names = pipeline.get_feature_names()
     df = pipeline.build_training_features(
         stock_codes,

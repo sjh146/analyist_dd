@@ -219,7 +219,7 @@ class ModelManager:
             models_dir = os.environ.get(
                 "MODEL_PATH",
                 os.path.join(os.path.dirname(__file__), "..", "..", "..",
-                             "..", "models", "saved_models"),
+                             "..", "models", "champion"),
             )
             models_dir = os.path.abspath(models_dir)
             model_files = glob.glob(os.path.join(models_dir, "xgboost_*.joblib"))
@@ -239,7 +239,7 @@ class ModelManager:
             models_dir = os.environ.get(
                 "MODEL_PATH",
                 os.path.join(os.path.dirname(__file__), "..", "..", "..",
-                             "..", "models", "saved_models"),
+                             "..", "models", "champion"),
             )
             models_dir = os.path.abspath(models_dir)
             model_files = sorted(

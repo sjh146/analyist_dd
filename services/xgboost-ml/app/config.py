@@ -21,6 +21,8 @@ class Config:
 
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     MODEL_VERSION = os.getenv("ML_MODEL_VERSION", "v1.0")
-    MODEL_PATH = "/app/app/models/saved_models"
+    # 단일 챔피언 계약: 모든 소비자(스크리너/백테스터/예측기)가 champion/ 사용.
+    # saved_models/ 는 2026-08 제거됨 (버전별 실험 산출물 보존 정책 폐기).
+    MODEL_PATH = "/app/app/models/champion"
     RETRAIN_INTERVAL_DAYS = int(os.getenv("ML_RETRAIN_INTERVAL_DAYS", "7"))
     PREDICTION_CONFIDENCE_THRESHOLD = 0.0

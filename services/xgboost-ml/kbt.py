@@ -10,7 +10,7 @@ cur.execute("SELECT stock_code FROM stocks WHERE market='KOSDAQ'")
 stocks=[r[0] for r in cur.fetchall()]; cur.close(); conn.close()
 print(f'KOSDAQ stocks: {len(stocks)}')
 t0=time.time()
-runner=BacktestRunner(model_dir='/app/app/models/saved_models')
+runner=BacktestRunner(model_dir='/app/app/models/champion')
 result=runner.run_backtest('ml_swing',stocks,'2026-05-01','2026-07-23')
 elapsed=time.time()-t0
 m={'strategy':result.strategy,'total_return':result.total_return,'sharpe_ratio':result.sharpe_ratio,'max_drawdown':result.max_drawdown,'win_rate':result.win_rate,'num_trades':result.num_trades,'total_stocks':len(stocks),'elapsed_seconds':round(elapsed,1)}
