@@ -8,10 +8,11 @@ import psycopg2.pool
 import json
 import logging
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from app.config import Config
 from app.models.schemas import Article, AnalysisResult, StockSentiment, StructuredNews
+from app.events.clusterer import EventCluster
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +147,60 @@ class PostgresStorage:
         finally:
             self._put_conn(conn)
 
+    def save_event_cluster(self, cluster: EventCluster):
+        """Upsert an event cluster into news_events (Phase 3).
+
+        embedding vector(384) 컬럼은 Phase 4에서 채워진다. Phase 3에서는 저장하지 않는다.
+        """
+        conn = self._get_conn()
+        if not conn:
+            logger.error("No DB connection available")
+            return
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO news_events
+                    (stock_code, event_type, event_date, time_bucket,
+                     cluster_key, article_count, first_article_at,
+                     last_article_at, total_importance, max_sentiment_abs,
+                     representative_core_event_text)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (cluster_key) DO UPDATE SET
+                    stock_code = EXCLUDED.stock_code,
+                    event_type = EXCLUDED.event_type,
+                    event_date = EXCLUDED.event_date,
+                    time_bucket = EXCLUDED.time_bucket,
+                    article_count = EXCLUDED.article_count,
+                    first_article_at = EXCLUDED.first_article_at,
+                    last_article_at = EXCLUDED.last_article_at,
+                    total_importance = EXCLUDED.total_importance,
+                    max_sentiment_abs = EXCLUDED.max_sentiment_abs,
+                    representative_core_event_text = EXCLUDED.representative_core_event_text
+                """,
+                (
+                    cluster.stock_code,
+                    cluster.event_type,
+                    cluster.event_date,
+                    cluster.time_bucket,
+                    cluster.cluster_key,
+                    cluster.article_count,
+                    cluster.first_article_at,
+                    cluster.last_article_at,
+                    cluster.total_importance,
+                    cluster.max_sentiment_abs,
+                    cluster.representative_core_event_text,
+                ),
+            )
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            logger.error(f"Failed to save event cluster: {e}")
+            conn.rollback()
+        finally:
+            self._put_conn(conn)
+
     def _ensure_validated_at_column(self):
         """Ensure validated_at column exists on stock_sentiment."""
         conn = self._get_conn()
@@ -227,6 +282,42 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to save stock sentiment: {e}")
             conn.rollback()
+        finally:
+            self._put_conn(conn)
+
+    def get_recent_event_extractions(self, since: datetime) -> List[Dict]:
+        """Read recent news_event_extraction rows for clustering (Phase 3)."""
+        conn = self._get_conn()
+        if not conn:
+            return []
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT stock_code, event_type, created_at, importance,
+                       sentiment_score, core_event_text
+                FROM news_event_extraction
+                WHERE created_at >= %s
+                """,
+                (since,),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [
+                {
+                    "stock_code": r[0],
+                    "event_type": r[1],
+                    "created_at": r[2],
+                    "importance": r[3],
+                    "sentiment_score": r[4],
+                    "core_event_text": r[5],
+                }
+                for r in rows
+            ]
+        except Exception as e:
+            logger.error(f"Failed to read event extractions: {e}")
+            return []
         finally:
             self._put_conn(conn)
 

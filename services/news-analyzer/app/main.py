@@ -18,6 +18,7 @@ from app.analyzers.deepseek_analyzer import DeepSeekAnalyzer
 from app.storage.postgres_storage import PostgresStorage
 from app.storage.neo4j_storage import Neo4jStorage
 from app.models.schemas import Article, AnalysisResult, StructuredNews
+from app.events.clusterer import cluster
 from app.data_quality_integration import DataQualityIntegration
 from app.metrics_integration import init_metrics, on_article_collected, on_article_analyzed, sentiment_analysis_total
 
@@ -152,6 +153,27 @@ class NewsAnalyzerService:
                 continue
 
         logger.info(f"Analysis cycle complete. Processed {len(articles)} articles.")
+
+        # Phase 3: 이벤트 클러스터 후처리 (스케줄/배치, LLM 없음, fail-open)
+        self._cluster_recent_events()
+
+    def _cluster_recent_events(self):
+        """최근 news_event_extraction 을 클러스터링하여 news_events 에 upsert.
+
+        순수 계산(LLM 없음). 실패 시 기존 저장 그대로 유지(fail-open).
+        """
+        try:
+            since = datetime.now() - self.config.CLUSTER_WINDOW
+            rows = self.pg_storage.get_recent_event_extractions(since)
+            if not rows:
+                logger.debug("No recent event extractions to cluster")
+                return
+            clusters = cluster(rows)
+            for cl in clusters:
+                self.pg_storage.save_event_cluster(cl)
+            logger.info(f"Clustered {len(rows)} extractions into {len(clusters)} events")
+        except Exception as e:
+            logger.error(f"Event clustering failed (fail-open): {e}")
 
     def _get_article_id(self, url: str) -> Optional[int]:
         """news_analysis 저장 후 해당 행의 id 조회."""

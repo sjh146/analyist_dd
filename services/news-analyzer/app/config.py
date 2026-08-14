@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,6 +25,9 @@ class Config:
 
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     NEWS_SOURCES_PATH = "/app/config/news_sources.yaml"
+
+    # Phase 3: 이벤트 클러스터링 후처리 윈도우 (최근 N 시간 내 추출 행 대상)
+    CLUSTER_WINDOW = timedelta(hours=48)
 
     @classmethod
     def get_pg_dsn(cls) -> str:
