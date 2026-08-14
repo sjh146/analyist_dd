@@ -10,7 +10,7 @@ import logging
 import schedule
 import time
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from app.config import Config
 from app.collectors.rss_collector import RssCollector
@@ -18,7 +18,8 @@ from app.analyzers.deepseek_analyzer import DeepSeekAnalyzer
 from app.storage.postgres_storage import PostgresStorage
 from app.storage.neo4j_storage import Neo4jStorage
 from app.models.schemas import Article, AnalysisResult, StructuredNews
-from app.events.clusterer import cluster
+from app.events.clusterer import cluster, EventCluster
+from app.graph.news_graph_writer import NewsGraphWriter
 from app.embedding.news_embedder import NewsEmbedder
 from app.data_quality_integration import DataQualityIntegration
 from app.metrics_integration import init_metrics, on_article_collected, on_article_analyzed, sentiment_analysis_total
@@ -35,6 +36,7 @@ class NewsAnalyzerService:
         self.analyzer = DeepSeekAnalyzer(api_key=self.config.DEEPSEEK_API_KEY)
         self.pg_storage = PostgresStorage()
         self.neo4j_storage = Neo4jStorage()
+        self.news_graph_writer = NewsGraphWriter()
         self.dq_integration = DataQualityIntegration(
             db_conn_provider=self.pg_storage._get_conn
         )
@@ -177,8 +179,77 @@ class NewsAnalyzerService:
                 self.pg_storage.save_event_cluster(cl)
                 self._embed_and_save(cl)
             logger.info(f"Clustered {len(rows)} extractions into {len(clusters)} events")
+            # Phase 7: Neo4j 관계 upsert (LLM 없음, fail-open)
+            self._write_news_graph(clusters)
         except Exception as e:
             logger.error(f"Event clustering failed (fail-open): {e}")
+
+    def _write_news_graph(self, clusters: List[EventCluster]):
+        """클러스터 기반 Neo4j 관계 upsert (Phase 7).
+
+        Event/Theme/ImpactScore 노드 + HAS_EVENT/HAS_THEME/HAS_IMPACT,
+        CO_OCCURS(동시발생), CO_EVENT(공동 이벤트) 관계를 MERGE 로 기록.
+        순수 그래프 쓰기(LLM 없음). 실패 시 기존 저장 그대로 유지(fail-open).
+        """
+        try:
+            self.news_graph_writer.write_events(clusters)
+            # Theme: 각 클러스터의 event_type 을 테마로 취급 (taxonomy 기반)
+            themes = [
+                (cl.stock_code, cl.event_type)
+                for cl in clusters
+                if cl.event_type
+            ]
+            self.news_graph_writer.write_themes(themes)
+            # ImpactScore: 종목별 일자별 총 중요도
+            impacts = [
+                {
+                    "stock_code": cl.stock_code,
+                    "score": cl.total_importance,
+                    "date": cl.event_date,
+                }
+                for cl in clusters
+            ]
+            self.news_graph_writer.write_impact(impacts)
+            # CO_OCCURS: 같은 종목·같은 일자 클러스터 간 동시발생
+            co_occurs = self._co_occur_pairs(clusters)
+            self.news_graph_writer.write_co_occurs(co_occurs)
+            # CO_EVENT: 같은 일자·같은 이벤트 타입을 공유하는 종목 쌍
+            co_event = self._co_event_pairs(clusters)
+            self.news_graph_writer.write_co_event(co_event)
+            logger.info(
+                f"News graph written: {len(clusters)} events, "
+                f"{len(themes)} themes, {len(impacts)} impacts, "
+                f"{len(co_occurs)} co-occur, {len(co_event)} co-event"
+            )
+        except Exception as e:
+            logger.error(f"News graph write failed (fail-open): {e}")
+
+    @staticmethod
+    def _co_occur_pairs(clusters: List[EventCluster]) -> List[Tuple[str, str]]:
+        """같은 종목·같은 일자 클러스터 간 (event_id, event_id) 쌍."""
+        pairs = []
+        by_key: Dict[Tuple[str, str], List[str]] = {}
+        for cl in clusters:
+            by_key.setdefault((cl.stock_code, cl.event_date), []).append(cl.cluster_key)
+        for ids in by_key.values():
+            for i in range(len(ids)):
+                for j in range(i + 1, len(ids)):
+                    pairs.append((ids[i], ids[j]))
+        return pairs
+
+    @staticmethod
+    def _co_event_pairs(clusters: List[EventCluster]) -> List[Tuple[str, str]]:
+        """같은 일자·같은 이벤트 타입을 공유하는 종목 코드 쌍."""
+        pairs = []
+        by_key: Dict[Tuple[str, str], List[str]] = {}
+        for cl in clusters:
+            by_key.setdefault((cl.event_date, cl.event_type), []).append(cl.stock_code)
+        for codes in by_key.values():
+            uniq = sorted(set(codes))
+            for i in range(len(uniq)):
+                for j in range(i + 1, len(uniq)):
+                    pairs.append((uniq[i], uniq[j]))
+        return pairs
 
     def _embed_and_save(self, cl):
         """core_event_text 를 임베딩하여 news_events.embedding 에 저장 (fail-open)."""
