@@ -33,6 +33,20 @@ def apply_sell_cost(price: float) -> float:
     return price * (1.0 - FEE_RATE - TAX_RATE - SLIPPAGE)
 
 
+def split_windows(dates, n_windows: int):
+    """날짜를 n_windows 개의 연속 구간으로 분할 (walk-forward 검증용)."""
+    dates = sorted(dates)
+    if n_windows <= 1 or len(dates) < n_windows:
+        return [(dates[0], dates[-1])] if dates else []
+    size = len(dates) // n_windows
+    windows = []
+    for i in range(n_windows):
+        start = dates[i * size]
+        end = dates[(i + 1) * size - 1] if i < n_windows - 1 else dates[-1]
+        windows.append((start, end))
+    return windows
+
+
 def compute_metrics(equity_curve: np.ndarray, trade_returns: list) -> dict:
     """equity_curve(일별 자산)와 종목별 수익률로 MDD/샤프/승률 계산."""
     eq = np.asarray(equity_curve, dtype=float)
@@ -173,6 +187,9 @@ def main():
     ap.add_argument('--short', action='store_true', help='롱숏 (기본 롱온리)')
     ap.add_argument('--scenarios', action='store_true',
                     help='파라미터 그리드 비교 모드 (패널 1회 빌드로 여러 전략)')
+    ap.add_argument('--walk-forward', action='store_true',
+                    help='기간 분할 검증 (과최적화 방지 — 구간별 일관성 확인)')
+    ap.add_argument('--wf-windows', type=int, default=3, help='분할 구간 수')
     ap.add_argument('--n-kospi', type=int, default=30)
     ap.add_argument('--n-kosdaq', type=int, default=20)
     args = ap.parse_args()
@@ -214,6 +231,44 @@ def main():
     date_col = 'date' if 'date' in df.columns else 'trade_date'
     price_col = 'price' if 'price' in df.columns else ('close' if 'close' in df.columns else 'close_price')
     mode = 'short' if args.short else 'long'
+
+    if args.walk_forward:
+        # 기간 분할 검증: 동일 파라미터로 구간별 일관성 확인 (과최적화 방지)
+        dates_all = sorted(df[date_col].unique())
+        windows = split_windows(dates_all, args.wf_windows)
+        print(f"[P&L walk-forward] thr={args.threshold} k={args.k} hold={args.hold}d "
+              f"windows={len(windows)} ({dates_all[0]} ~ {dates_all[-1]})")
+        print(f"{'구간':>10} {'기간':>22} {'ret':>8} {'mdd':>8} {'sharpe':>6} {'win':>5} {'n':>3}")
+        results = []
+        for wi, (ws, we) in enumerate(windows, 1):
+            sub = df[(df[date_col] >= ws) & (df[date_col] <= we)]
+            m = simulate(sub, date_col, price_col, k=args.k, hold_days=args.hold,
+                         threshold=args.threshold, short=args.short)
+            results.append(m)
+            print(f"  {wi:>2}/{len(windows)} {str(ws)[:10]}~{str(we)[:10]} "
+                  f"{m['total_return']*100:>7.2f}% {m['max_drawdown']*100:>7.2f}% "
+                  f"{m['sharpe']:>6.2f} {m['win_rate']*100:>4.0f}% {m['n_trades']:>3}")
+            try:
+                sys.path.insert(0, '/app/scripts')
+                from record_strategy_run import record_run
+                record_run(
+                    tool='backtest_pnl',
+                    stocks=len(stocks),
+                    metric_value=m['total_return'],
+                    meta={"mode": mode, "k": args.k, "hold_days": args.hold,
+                          "threshold": args.threshold, "cagr": m['cagr'],
+                          "sharpe": m['sharpe'], "max_drawdown": m['max_drawdown'],
+                          "win_rate": m['win_rate'], "n_trades": m['n_trades'],
+                          "walkforward": True, "window": wi, "window_range": f"{ws}~{we}"},
+                )
+            except Exception as e:
+                print(f'[record_run] walk-forward 기록 실패(무시): {e}')
+        n_pos = sum(1 for m in results if m['total_return'] > 0)
+        avg_ret = np.mean([m['total_return'] for m in results])
+        worst_mdd = min(m['max_drawdown'] for m in results)
+        print(f"  → 양수 구간: {n_pos}/{len(results)}, 평균 수익률: {avg_ret*100:.2f}%, "
+              f"최악 MDD: {worst_mdd*100:.2f}%")
+        return
 
     if args.scenarios:
         # 시나리오 그리드: (threshold, k, hold) — 패널 1회 빌드로 여러 전략 비교
