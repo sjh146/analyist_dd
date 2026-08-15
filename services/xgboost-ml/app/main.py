@@ -137,7 +137,7 @@ class XGBoostMLService:
         logger.info("ML Service started. Predictions daily at 19:00.")
         self._running = True
 
-        # Initialize on startup
+        # Initialize on startup (모델 로드 먼저 — 예측 전 필수)
         self.initialize()
 
         # Run prediction once
