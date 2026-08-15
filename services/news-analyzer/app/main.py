@@ -22,7 +22,10 @@ from app.events.clusterer import cluster, EventCluster
 from app.graph.news_graph_writer import NewsGraphWriter
 from app.embedding.news_embedder import NewsEmbedder
 from app.data_quality_integration import DataQualityIntegration
-from app.metrics_integration import init_metrics, on_article_collected, on_article_analyzed, sentiment_analysis_total
+from app.metrics_integration import (
+    init_metrics, on_article_collected, on_article_analyzed, sentiment_analysis_total,
+    on_articles_collected, on_extraction_saved, on_cluster_saved, on_embedding_saved,
+)
 
 logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -79,6 +82,7 @@ class NewsAnalyzerService:
         # Step 1: Collect articles
         articles = await self.collector.collect_all()
         logger.info(f"Collected {len(articles)} articles")
+        on_articles_collected(len(articles))  # post-dedup 수집량
         on_article_collected()  # track collection metrics
         # Step 2: Analyze each article via DeepSeek
         for article in articles:
@@ -183,6 +187,7 @@ class NewsAnalyzerService:
             clusters = cluster(rows)
             for cl in clusters:
                 self.pg_storage.save_event_cluster(cl)
+                on_cluster_saved()
                 self._embed_and_save(cl)
             logger.info(f"Clustered {len(rows)} extractions into {len(clusters)} events")
             # Phase 7: Neo4j 관계 upsert (LLM 없음, fail-open)
@@ -276,6 +281,7 @@ class NewsAnalyzerService:
                 )
                 return
             self.pg_storage.update_event_embedding(cl.cluster_key, vec)
+            on_embedding_saved()
         except Exception as e:
             logger.error(
                 f"Embedding save failed for cluster {cl.cluster_key} (fail-open): {e}"
@@ -310,6 +316,7 @@ class NewsAnalyzerService:
 
         structured.stock_code = stock_code
         self.pg_storage.save_event_extraction(article_id, structured)
+        on_extraction_saved(event_type=structured.event_type or "기타")
 
     def run_scheduled(self):
         # Run every 30 minutes

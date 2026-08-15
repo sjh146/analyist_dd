@@ -45,6 +45,59 @@ def on_article_collected() -> None:
         logger.debug("Failed to increment collected counter", exc_info=True)
 
 
+# ── News intelligence pipeline metrics (Phase 2-7) ─────────────────────
+news_articles_collected_total = Counter(
+    "news_articles_collected_total", "News articles collected (post-dedup)", ["source"]
+)
+news_dedupe_dropped_total = Counter(
+    "news_dedupe_dropped_total", "Duplicate articles dropped by dedup", ["source"]
+)
+news_extractions_total = Counter(
+    "news_extractions_total", "Structured event extractions saved (DeepSeek)", ["event_type"]
+)
+news_clusters_total = Counter(
+    "news_clusters_total", "Event clusters upserted into news_events", []
+)
+news_embeddings_total = Counter(
+    "news_embeddings_total", "Event embeddings stored in pgvector", []
+)
+
+
+def on_articles_collected(count: int = 1, source: str = "rss") -> None:
+    try:
+        news_articles_collected_total.labels(source=source).inc(count)
+    except Exception:
+        logger.debug("Failed to record collected metric", exc_info=True)
+
+
+def on_dedupe_dropped(count: int = 1, source: str = "rss") -> None:
+    try:
+        news_dedupe_dropped_total.labels(source=source).inc(count)
+    except Exception:
+        logger.debug("Failed to record dedupe metric", exc_info=True)
+
+
+def on_extraction_saved(event_type: str = "기타") -> None:
+    try:
+        news_extractions_total.labels(event_type=event_type).inc()
+    except Exception:
+        logger.debug("Failed to record extraction metric", exc_info=True)
+
+
+def on_cluster_saved() -> None:
+    try:
+        news_clusters_total.inc()
+    except Exception:
+        logger.debug("Failed to record cluster metric", exc_info=True)
+
+
+def on_embedding_saved() -> None:
+    try:
+        news_embeddings_total.inc()
+    except Exception:
+        logger.debug("Failed to record embedding metric", exc_info=True)
+
+
 def on_article_analyzed(duration: float = 0.0, sentiment_label: str = "") -> None:
     """Increment the analyzed counter and observe the duration."""
     try:

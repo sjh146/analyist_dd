@@ -1,0 +1,116 @@
+{
+  "uid": "news-intelligence-monitoring",
+  "title": "News Intelligence Monitoring",
+  "tags": ["news", "pipeline", "deepseek"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "뉴스 수집 (배치 누적)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "sum(news_articles_collected_total)", "legendFormat": "수집 기사" },
+        { "expr": "sum(sentiment_analysis_total)", "legendFormat": "분석 완료" },
+        { "expr": "sum(news_dedupe_dropped_total)", "legendFormat": "중복 제거" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    },
+    {
+      "id": 2,
+      "title": "DeepSeek 구조화 추출 (이벤트 타입별)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "sum by (event_type) (news_extractions_total)", "legendFormat": "{{event_type}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "fillOpacity": 60 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "이벤트 클러스터 / 임베딩 (누적)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "sum(news_clusters_total)", "legendFormat": "이벤트 클러스터" },
+        { "expr": "sum(news_embeddings_total)", "legendFormat": "pgvector 임베딩" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "title": "파이프라인 처리율 (30분)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "sum(rate(news_articles_collected_total[30m]))", "legendFormat": "수집/30m" },
+        { "expr": "sum(rate(news_extractions_total[30m]))", "legendFormat": "추출/30m" },
+        { "expr": "sum(rate(news_clusters_total[30m]))", "legendFormat": "클러스터/30m" },
+        { "expr": "sum(rate(news_embeddings_total[30m]))", "legendFormat": "임베딩/30m" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "감성 분석 분포",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "sum by (sentiment) (sentiment_analysis_total)", "legendFormat": "{{sentiment}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "fillOpacity": 60 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "positive" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "negative" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "title": "DeepSeek 분석 지연 (p50/p90)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum by (le) (rate(sentiment_analysis_duration_seconds_bucket[30m])))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.9, sum by (le) (rate(sentiment_analysis_duration_seconds_bucket[30m])))", "legendFormat": "p90" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "서비스 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "up{job=\"news-analyzer\"}", "legendFormat": "news-analyzer" },
+        { "expr": "up{job=\"postgres\"}", "legendFormat": "postgres" },
+        { "expr": "up{job=\"redis\"}", "legendFormat": "redis" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } },
+        "overrides": []
+      }
+    }
+  ]
+}
