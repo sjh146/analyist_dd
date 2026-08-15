@@ -1,191 +1,295 @@
 {
-  "date": "2026-07-27",
-  "total": 1683,
-  "up": 0,
-  "down": 1683,
-  "high_confidence": 1198,
-  "auc": 0.6205,
-  "top_up": [],
-  "top_down": [
+  "request_type": "swing_screener",
+  "date": "2026-08-13",
+  "generated_at": "2026-08-13T16:20:19.144929Z",
+  "total": 20,
+  "up": 20,
+  "down": 0,
+  "high_confidence": 0,
+  "auc": "0.6059588795759008",
+  "top_up": [
     {
-      "code": "474660",
-      "name": "신한제14호스팩",
-      "sector": "-",
-      "close": 2070.0,
-      "prob": 0.2371,
-      "dir": "DOWN",
-      "conf": 0.5258
+      "stock_code": "036800",
+      "stock_name": "나이스정보통신",
+      "sector": "Unknown",
+      "confidence": 0.3805,
+      "expected_return": -23.9
     },
     {
-      "code": "021650",
-      "name": "한국큐빅",
-      "sector": "-",
-      "close": 2220.0,
-      "prob": 0.2638,
-      "dir": "DOWN",
-      "conf": 0.4724
+      "stock_code": "319400",
+      "stock_name": "현대무벡스",
+      "sector": "Unknown",
+      "confidence": 0.3785,
+      "expected_return": -24.3
     },
     {
-      "code": "493790",
-      "name": "이베스트스팩6호",
-      "sector": "-",
-      "close": 2015.0,
-      "prob": 0.2704,
-      "dir": "DOWN",
-      "conf": 0.4592
+      "stock_code": "042370",
+      "stock_name": "엑시콘",
+      "sector": "Unknown",
+      "confidence": 0.3782,
+      "expected_return": -24.36
     },
     {
-      "code": "487720",
-      "name": "",
-      "sector": "-",
-      "close": 2020.0,
-      "prob": 0.2717,
-      "dir": "DOWN",
-      "conf": 0.4565
+      "stock_code": "047770",
+      "stock_name": "티앤알바이오팹",
+      "sector": "Unknown",
+      "confidence": 0.3742,
+      "expected_return": -25.16
     },
     {
-      "code": "038880",
-      "name": "아이에이",
-      "sector": "-",
-      "close": 3455.0,
-      "prob": 0.2723,
-      "dir": "DOWN",
-      "conf": 0.4553
+      "stock_code": "190510",
+      "stock_name": "나무가",
+      "sector": "Unknown",
+      "confidence": 0.374,
+      "expected_return": -25.19
     },
     {
-      "code": "361670",
-      "name": "삼영에스앤씨",
-      "sector": "-",
-      "close": 3430.0,
-      "prob": 0.2764,
-      "dir": "DOWN",
-      "conf": 0.4473
+      "stock_code": "058970",
+      "stock_name": "코스맥스엔비티",
+      "sector": "Unknown",
+      "confidence": 0.3733,
+      "expected_return": -25.33
     },
     {
-      "code": "014100",
-      "name": "메디앙스",
-      "sector": "-",
-      "close": 1881.0,
-      "prob": 0.2786,
-      "dir": "DOWN",
-      "conf": 0.4429
+      "stock_code": "051390",
+      "stock_name": "YW",
+      "sector": "Unknown",
+      "confidence": 0.372,
+      "expected_return": -25.6
     },
     {
-      "code": "120240",
-      "name": "오늘이엔엠",
-      "sector": "-",
-      "close": 14760.0,
-      "prob": 0.2793,
-      "dir": "DOWN",
-      "conf": 0.4413
+      "stock_code": "052420",
+      "stock_name": "젝시믹스",
+      "sector": "Unknown",
+      "confidence": 0.3716,
+      "expected_return": -25.67
     },
     {
-      "code": "093380",
-      "name": "풍강",
-      "sector": "-",
-      "close": 2660.0,
-      "prob": 0.281,
-      "dir": "DOWN",
-      "conf": 0.438
+      "stock_code": "282880",
+      "stock_name": "코윈테크",
+      "sector": "Unknown",
+      "confidence": 0.371,
+      "expected_return": -25.8
     },
     {
-      "code": "339950",
-      "name": "마크로젠",
-      "sector": "-",
-      "close": 2825.0,
-      "prob": 0.2812,
-      "dir": "DOWN",
-      "conf": 0.4376
+      "stock_code": "082920",
+      "stock_name": "성호전자",
+      "sector": "Unknown",
+      "confidence": 0.3708,
+      "expected_return": -25.85
     },
     {
-      "code": "214260",
-      "name": "",
-      "sector": "-",
-      "close": 8840.0,
-      "prob": 0.2818,
-      "dir": "DOWN",
-      "conf": 0.4363
+      "stock_code": "057030",
+      "stock_name": "YBM넷",
+      "sector": "Unknown",
+      "confidence": 0.3705,
+      "expected_return": -25.91
     },
     {
-      "code": "227610",
-      "name": "아우딘퓨쳐스",
-      "sector": "-",
-      "close": 1468.0,
-      "prob": 0.2834,
-      "dir": "DOWN",
-      "conf": 0.4331
+      "stock_code": "263020",
+      "stock_name": "디케이앤디",
+      "sector": "Unknown",
+      "confidence": 0.3699,
+      "expected_return": -26.03
     },
     {
-      "code": "069140",
-      "name": "누리플랜",
-      "sector": "-",
-      "close": 1830.0,
-      "prob": 0.2835,
-      "dir": "DOWN",
-      "conf": 0.4331
+      "stock_code": "073490",
+      "stock_name": "드림시큐리티",
+      "sector": "Unknown",
+      "confidence": 0.3697,
+      "expected_return": -26.05
     },
     {
-      "code": "219750",
-      "name": "한국비티비",
-      "sector": "-",
-      "close": 1960.0,
-      "prob": 0.2838,
-      "dir": "DOWN",
-      "conf": 0.4325
+      "stock_code": "263920",
+      "stock_name": "유니온바이오메트릭스",
+      "sector": "Unknown",
+      "confidence": 0.3695,
+      "expected_return": -26.11
     },
     {
-      "code": "093320",
-      "name": "케이아이엔엑스",
-      "sector": "-",
-      "close": 143200.0,
-      "prob": 0.2838,
-      "dir": "DOWN",
-      "conf": 0.4323
+      "stock_code": "078070",
+      "stock_name": "유비쿼스홀딩스",
+      "sector": "Unknown",
+      "confidence": 0.3677,
+      "expected_return": -26.45
     },
     {
-      "code": "036000",
-      "name": "미투온",
-      "sector": "-",
-      "close": 2860.0,
-      "prob": 0.284,
-      "dir": "DOWN",
-      "conf": 0.4319
+      "stock_code": "063440",
+      "stock_name": "SM Life Design",
+      "sector": "Unknown",
+      "confidence": 0.3675,
+      "expected_return": -26.5
     },
     {
-      "code": "039830",
-      "name": "흥구석유",
-      "sector": "-",
-      "close": 19340.0,
-      "prob": 0.2841,
-      "dir": "DOWN",
-      "conf": 0.4319
+      "stock_code": "053620",
+      "stock_name": "한패스",
+      "sector": "Unknown",
+      "confidence": 0.3672,
+      "expected_return": -26.56
     },
     {
-      "code": "079940",
-      "name": "가비아",
-      "sector": "-",
-      "close": 47550.0,
-      "prob": 0.2848,
-      "dir": "DOWN",
-      "conf": 0.4304
+      "stock_code": "078350",
+      "stock_name": "한양디지텍",
+      "sector": "Unknown",
+      "confidence": 0.3661,
+      "expected_return": -26.78
     },
     {
-      "code": "148930",
-      "name": "에이치와이티씨",
-      "sector": "-",
-      "close": 3435.0,
-      "prob": 0.285,
-      "dir": "DOWN",
-      "conf": 0.4301
+      "stock_code": "065710",
+      "stock_name": "상아프론테크",
+      "sector": "Unknown",
+      "confidence": 0.3659,
+      "expected_return": -26.81
     },
     {
-      "code": "365660",
-      "name": "레몬헬스케어",
-      "sector": "-",
-      "close": 4605.0,
-      "prob": 0.2862,
-      "dir": "DOWN",
-      "conf": 0.4275
+      "stock_code": "127980",
+      "stock_name": "화인써키트",
+      "sector": "Unknown",
+      "confidence": 0.3654,
+      "expected_return": -26.91
+    }
+  ],
+  "top_down": [],
+  "candidates": [
+    {
+      "stock_code": "036800",
+      "stock_name": "나이스정보통신",
+      "sector": "Unknown",
+      "confidence": 0.3805,
+      "expected_return": -23.9
+    },
+    {
+      "stock_code": "319400",
+      "stock_name": "현대무벡스",
+      "sector": "Unknown",
+      "confidence": 0.3785,
+      "expected_return": -24.3
+    },
+    {
+      "stock_code": "042370",
+      "stock_name": "엑시콘",
+      "sector": "Unknown",
+      "confidence": 0.3782,
+      "expected_return": -24.36
+    },
+    {
+      "stock_code": "047770",
+      "stock_name": "티앤알바이오팹",
+      "sector": "Unknown",
+      "confidence": 0.3742,
+      "expected_return": -25.16
+    },
+    {
+      "stock_code": "190510",
+      "stock_name": "나무가",
+      "sector": "Unknown",
+      "confidence": 0.374,
+      "expected_return": -25.19
+    },
+    {
+      "stock_code": "058970",
+      "stock_name": "코스맥스엔비티",
+      "sector": "Unknown",
+      "confidence": 0.3733,
+      "expected_return": -25.33
+    },
+    {
+      "stock_code": "051390",
+      "stock_name": "YW",
+      "sector": "Unknown",
+      "confidence": 0.372,
+      "expected_return": -25.6
+    },
+    {
+      "stock_code": "052420",
+      "stock_name": "젝시믹스",
+      "sector": "Unknown",
+      "confidence": 0.3716,
+      "expected_return": -25.67
+    },
+    {
+      "stock_code": "282880",
+      "stock_name": "코윈테크",
+      "sector": "Unknown",
+      "confidence": 0.371,
+      "expected_return": -25.8
+    },
+    {
+      "stock_code": "082920",
+      "stock_name": "성호전자",
+      "sector": "Unknown",
+      "confidence": 0.3708,
+      "expected_return": -25.85
+    },
+    {
+      "stock_code": "057030",
+      "stock_name": "YBM넷",
+      "sector": "Unknown",
+      "confidence": 0.3705,
+      "expected_return": -25.91
+    },
+    {
+      "stock_code": "263020",
+      "stock_name": "디케이앤디",
+      "sector": "Unknown",
+      "confidence": 0.3699,
+      "expected_return": -26.03
+    },
+    {
+      "stock_code": "073490",
+      "stock_name": "드림시큐리티",
+      "sector": "Unknown",
+      "confidence": 0.3697,
+      "expected_return": -26.05
+    },
+    {
+      "stock_code": "263920",
+      "stock_name": "유니온바이오메트릭스",
+      "sector": "Unknown",
+      "confidence": 0.3695,
+      "expected_return": -26.11
+    },
+    {
+      "stock_code": "078070",
+      "stock_name": "유비쿼스홀딩스",
+      "sector": "Unknown",
+      "confidence": 0.3677,
+      "expected_return": -26.45
+    },
+    {
+      "stock_code": "063440",
+      "stock_name": "SM Life Design",
+      "sector": "Unknown",
+      "confidence": 0.3675,
+      "expected_return": -26.5
+    },
+    {
+      "stock_code": "053620",
+      "stock_name": "한패스",
+      "sector": "Unknown",
+      "confidence": 0.3672,
+      "expected_return": -26.56
+    },
+    {
+      "stock_code": "078350",
+      "stock_name": "한양디지텍",
+      "sector": "Unknown",
+      "confidence": 0.3661,
+      "expected_return": -26.78
+    },
+    {
+      "stock_code": "065710",
+      "stock_name": "상아프론테크",
+      "sector": "Unknown",
+      "confidence": 0.3659,
+      "expected_return": -26.81
+    },
+    {
+      "stock_code": "127980",
+      "stock_name": "화인써키트",
+      "sector": "Unknown",
+      "confidence": 0.3654,
+      "expected_return": -26.91
     }
   ]
 }

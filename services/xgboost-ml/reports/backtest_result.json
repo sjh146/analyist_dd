@@ -1,1 +1,7 @@
-{"auc": 0.599, "accuracy": 0.5737, "samples": 1194}
+{
+  "auc": 0.7129,
+  "acc": 0.6468,
+  "n_stocks": 50,
+  "n_rows": 2936,
+  "n_features": 173
+}

@@ -1,280 +1,76 @@
 {
-  "generated_at": "2026-08-11T04:14:06.935556",
+  "request_type": "factor_report",
+  "generated_at": "2026-08-13T06:41:01.084866Z",
   "strategies": {
-    "value_factor": {
-      "signals": 10,
-      "top": [
-        {
-          "stock_code": "095610",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "001540",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "247540",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "005290",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "035900",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "290650",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "082920",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "319400",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "241710",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "257720",
-          "name": null,
-          "score": 0.0
-        }
-      ]
-    },
-    "quality_factor": {
-      "signals": 10,
-      "top": [
-        {
-          "stock_code": "257720",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "241710",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "290650",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "001540",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "082920",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "035900",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "005290",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "319400",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "095610",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "247540",
-          "name": null,
-          "score": 0.0
-        }
-      ]
+    "lowvol_factor": {
+      "metrics": {
+        "total_return": -0.014365,
+        "sharpe": -0.3158,
+        "max_drawdown": 0.036971,
+        "win_rate": 0.5,
+        "num_trades": 60
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 2
     },
     "momentum_factor": {
-      "signals": 30,
-      "top": [
-        {
-          "stock_code": "058610",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "001540",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "241710",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "290650",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "006730",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "347850",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "127120",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "237690",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "131290",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "071200",
-          "name": null,
-          "score": 0.0
-        }
-      ]
-    },
-    "lowvol_factor": {
-      "signals": 30,
-      "top": [
-        {
-          "stock_code": "136480",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "035760",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "001540",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "035900",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "068760",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "071200",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "293490",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "195940",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "241710",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "041510",
-          "name": null,
-          "score": 0.0
-        }
-      ]
+      "metrics": {
+        "total_return": 0.0,
+        "sharpe": null,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 0
     },
     "multifactor": {
-      "signals": 20,
-      "top": [
-        {
-          "stock_code": "001540",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "136480",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "241710",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "071200",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "096530",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "195940",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "035900",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "068760",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "035760",
-          "name": null,
-          "score": 0.0
-        },
-        {
-          "stock_code": "145020",
-          "name": null,
-          "score": 0.0
-        }
-      ]
+      "metrics": {
+        "total_return": -0.610086,
+        "sharpe": -3.5902,
+        "max_drawdown": 0.291421,
+        "win_rate": 0.0,
+        "num_trades": 120
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 6
+    },
+    "quality_factor": {
+      "metrics": {
+        "total_return": -0.167938,
+        "sharpe": -3.2921,
+        "max_drawdown": 0.124458,
+        "win_rate": 0.0,
+        "num_trades": 20
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 2
+    },
+    "value_factor": {
+      "metrics": {
+        "total_return": -0.167938,
+        "sharpe": -3.2921,
+        "max_drawdown": 0.124458,
+        "win_rate": 0.0,
+        "num_trades": 20
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 2
     }
   }
 }

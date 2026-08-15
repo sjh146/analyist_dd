@@ -1,1 +1,108 @@
-{"auc": 0.5285, "accuracy": 0.5799, "samples": 3087}
+{
+  "request_type": "backtest",
+  "generated_at": "2026-08-13T17:12:15.239490Z",
+  "strategy": "ml-ensemble",
+  "model": {
+    "name": "ml-ensemble champion",
+    "auc": "0.6059588795759008",
+    "buy_threshold": 0.5
+  },
+  "window": {
+    "start": "2026-05-01",
+    "end": "2026-07-31"
+  },
+  "universe_size": 10,
+  "metrics": {
+    "total_return": 47.372288,
+    "sharpe_ratio": 22.4367,
+    "max_drawdown": 0.0,
+    "win_rate": 1.0,
+    "num_trades": 14
+  },
+  "top_trades": [
+    {
+      "date": "2026-05-01",
+      "stock_code": "005930",
+      "confidence": 0.534,
+      "actual_return": 2.839464
+    },
+    {
+      "date": "2026-05-25",
+      "stock_code": "005930",
+      "confidence": 0.5019,
+      "actual_return": 4.137987
+    },
+    {
+      "date": "2026-06-03",
+      "stock_code": "005930",
+      "confidence": 0.5192,
+      "actual_return": 3.393466
+    },
+    {
+      "date": "2026-07-17",
+      "stock_code": "005930",
+      "confidence": 0.5403,
+      "actual_return": 2.537513
+    },
+    {
+      "date": "2026-05-01",
+      "stock_code": "000660",
+      "confidence": 0.5446,
+      "actual_return": 6.084942
+    },
+    {
+      "date": "2026-05-05",
+      "stock_code": "000660",
+      "confidence": 0.5352,
+      "actual_return": 6.403147
+    },
+    {
+      "date": "2026-05-25",
+      "stock_code": "000660",
+      "confidence": 0.5098,
+      "actual_return": 6.21889
+    },
+    {
+      "date": "2026-06-03",
+      "stock_code": "000660",
+      "confidence": 0.5404,
+      "actual_return": 6.316645
+    },
+    {
+      "date": "2026-07-17",
+      "stock_code": "000660",
+      "confidence": 0.5405,
+      "actual_return": 6.222558
+    },
+    {
+      "date": "2026-05-01",
+      "stock_code": "207940",
+      "confidence": 0.5423,
+      "actual_return": 0.588859
+    },
+    {
+      "date": "2026-05-05",
+      "stock_code": "207940",
+      "confidence": 0.5387,
+      "actual_return": 0.665709
+    },
+    {
+      "date": "2026-05-25",
+      "stock_code": "207940",
+      "confidence": 0.5227,
+      "actual_return": 0.670878
+    },
+    {
+      "date": "2026-06-03",
+      "stock_code": "207940",
+      "confidence": 0.5488,
+      "actual_return": 0.623785
+    },
+    {
+      "date": "2026-07-17",
+      "stock_code": "207940",
+      "confidence": 0.5422,
+      "actual_return": 0.668444
+    }
+  ]
+}

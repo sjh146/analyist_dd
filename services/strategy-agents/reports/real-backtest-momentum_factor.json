@@ -1,0 +1,19 @@
+{
+  "strategy": "momentum_factor",
+  "top_n": 5,
+  "mode": "real-db",
+  "window": {
+    "start": "2025-08-01",
+    "end": "2026-07-31"
+  },
+  "rebalance_days": 21,
+  "periods": 0,
+  "metrics": {
+    "total_return": 0.0,
+    "sharpe": null,
+    "max_drawdown": 0.0,
+    "win_rate": 0.0,
+    "num_trades": 0
+  },
+  "periods_detail": []
+}
