@@ -54,6 +54,8 @@ class NewsEventFeatures:
     EVENT_LOOKBACK_DAYS = 5
     # Theme lookback (days) for theme_exposure_5d.
     THEME_LOOKBACK_DAYS = 5
+    # market_impact_score 상한 (폭발/무한 방지, 2026-08: 과거 기준 없을 때 1e-8 나눗셈으로 1억배 폭주)
+    MAX_IMPACT_SCORE = 100.0
 
     def __init__(self) -> None:
         self._event_feature_names = [
@@ -178,7 +180,12 @@ class NewsEventFeatures:
 
         # Per-day baseline over the past window.
         past_avg = past_count / self.PAST_DAYS
-        surge = recent_count / (past_avg + 1e-8)
+        if past_avg > 0:
+            surge = recent_count / past_avg
+        else:
+            # 과거 기준(베이스라인)이 없으면 1e-8 나눗셈으로 폭발하지 않도록
+            # 최근 건수 자체를 서지로 취급한다 (2026-08 실측: recent/1e-8 = 1억배).
+            surge = float(recent_count)
 
         # Cluster importance weight: recent importance relative to a floor.
         importance_weight = 1.0 + stats["recent_importance"]
@@ -188,7 +195,8 @@ class NewsEventFeatures:
         novelty_importance = 1.0 + ni["avg_novelty"] + ni["avg_importance"]
 
         score = surge * importance_weight * novelty_importance
-        return {"market_impact_score": float(max(score, 0.0))}
+        # 무한/폭발 방지 상한 — 시장충격도는 유한한 범위를 가져야 한다.
+        return {"market_impact_score": float(min(max(score, 0.0), self.MAX_IMPACT_SCORE))}
 
     # ------------------------------------------------------------------
     # event_<type>_5d

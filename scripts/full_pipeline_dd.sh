@@ -342,24 +342,30 @@ from app.training.universe import select_backtest_universe
 stocks_list = select_backtest_universe(pg, n_kospi=30, n_kosdaq=20, min_days=30, seed=42)
 print('Backtest universe:', len(stocks_list), 'stocks')
 pipeline = FeaturePipeline(pg_conn=pg); trainer = Trainer(storage=None, feature_pipeline=pipeline)
-result = trainer.prepare_training_data(stock_codes=stocks_list, days=90)
-if result[0] is None: print('Backtest FAILED - no training data'); exit()
-X_train, X_val, X_test, y_train, y_val, y_test, fnames = result
-all_X = np.concatenate([X_train, X_val, X_test], axis=0)
-all_y = np.concatenate([y_train, y_val, y_test], axis=0)
+from datetime import datetime, timedelta
+_end = datetime.now(); _start = _end - timedelta(days=90)
+df = pipeline.build_training_features(stocks_list, _start.strftime('%Y-%m-%d'), _end.strftime('%Y-%m-%d'))
+if df is None or len(df) < 100: print('Backtest FAILED - no data'); exit()
+if 'date' in df.columns: df = df.sort_values('date').reset_index(drop=True)
+y = trainer._create_labels(df)
 ensemble = EnsembleModel(model_dir='app/models/champion')
 ensemble.load('app/models/champion')
+# 챔피언 json 계약 순서 0-fill 행렬 (2026-08: 트레이너 분산 필터가 상수 피처를 제거해
+# 폭 불일치 CatBoostError 발생 → prepare_training_data 경유 대신 직접 구성)
 model_f = ensemble.load_feature_names('app/models/champion')
-core_idx = [fnames.index(f) for f in model_f if f in fnames]
-all_X_core = all_X[:, core_idx]
-probs = ensemble.predict(all_X_core)
-try: auc = roc_auc_score(all_y, probs)
+X = np.zeros((len(df), len(model_f)), dtype=np.float32)
+for _j, _f in enumerate(model_f):
+    if _f in df.columns:
+        X[:, _j] = np.nan_to_num(df[_f].to_numpy(dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+_valid = ~np.isnan(y); X, y = X[_valid], y[_valid]
+probs = ensemble.predict(X)
+try: auc = roc_auc_score(y, probs)
 except: auc = 0.5
-acc = accuracy_score(all_y, (probs>0.5).astype(int))
-print(f'Backtest: AUC={auc:.4f}, ACC={acc:.4f}, Samples={len(all_y)}')
+acc = accuracy_score(y, (probs>0.5).astype(int))
+print(f'Backtest: AUC={auc:.4f}, ACC={acc:.4f}, Samples={len(y)}, Features={len(model_f)}')
 import json as j
 with open('/app/reports/backtest_result.json','w') as f:
-    j.dump({'auc':round(auc,4),'accuracy':round(acc,4),'samples':len(all_y)}, f)
+    j.dump({'auc':round(auc,4),'accuracy':round(acc,4),'samples':len(y),'features':len(model_f)}, f)
 pg.close()
 PYEOF
 run_docker_phase stock_xgboost_ml /tmp/phase_4.py 900

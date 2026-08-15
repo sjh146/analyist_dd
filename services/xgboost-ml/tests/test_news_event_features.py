@@ -27,8 +27,10 @@ def mock_db():
 
 
 class TestMarketImpactScore:
-    def test_peak_high_score(self, nef, mock_db):
-        """A strong recent surge with high importance/novelty yields a high score."""
+    def test_peak_high_score_capped(self, nef, mock_db):
+        """A strong recent surge with high importance/novelty yields a high score,
+        but capped at MAX_IMPACT_SCORE (2026-08: uncapped formula exploded to
+        thousands/hundreds-of-millions)."""
         cur = mock_db.cursor.return_value
         # recent stats: 100 articles, importance 50
         # past stats: 7 articles over 7 days -> past_avg = 1.0
@@ -41,9 +43,25 @@ class TestMarketImpactScore:
         ]
         result = nef.market_impact_score("005930", db_conn=mock_db)
         score = result["market_impact_score"]
-        assert score > 0.0
-        # surge = 100 / 1.0 = 100; weight = 1 + 50 = 51; ni = 1 + 0.9 + 0.8 = 2.7
-        assert score == pytest.approx(100.0 * 51.0 * 2.7)
+        # surge = 100/1.0 = 100; weight = 51; ni = 2.7 → raw 13770 → capped
+        assert score == pytest.approx(nef.MAX_IMPACT_SCORE)
+
+    def test_no_baseline_does_not_explode(self, nef, mock_db):
+        """No past baseline (past_count=0) must NOT produce a 1e-8 division
+        explosion — surge falls back to recent_count (2026-08 실측 버그: 5건/1e-8 = 5억)."""
+        cur = mock_db.cursor.return_value
+        cur.fetchone.side_effect = [
+            (5.0, 2.0),   # recent window: 5 articles, importance 2
+            (0.0, 0.0),   # past window: no baseline
+        ]
+        cur.fetchall.side_effect = [
+            [(0.5, 0.6)],  # avg novelty 0.5, avg importance 0.6
+        ]
+        result = nef.market_impact_score("005930", db_conn=mock_db)
+        score = result["market_impact_score"]
+        # surge = 5 (not 5/1e-8); weight = 1+2 = 3; ni = 1+0.5+0.6 = 2.1 → 31.5
+        assert score == pytest.approx(5.0 * 3.0 * 2.1)
+        assert score < nef.MAX_IMPACT_SCORE
 
     def test_calm_returns_zero(self, nef, mock_db):
         """No recent activity yields a score of 0.0."""

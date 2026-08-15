@@ -48,8 +48,28 @@ class MarketFeatures:
         return features
 
     def get_technical_features(self, df: pd.DataFrame) -> Dict:
-        """Extract technical indicator features from pre-calculated columns (8 features)."""
+        """Extract technical indicator features from pre-calculated columns (8 features).
+
+        2026-08: batch 경로(build_training_features)는 market_df에 지표 컬럼을
+        안 주므로 rsi/macd/atr가 상수(50/0)로 고정 → 트레이너 분산 필터가 제거 →
+        백테스트 챔피언 폭 불일치(CatBoostError). OHLCV가 있으면 직접 계산한다.
+        """
         features = {}
+
+        # 사전계산 지표 컬럼이 없으면 OHLCV에서 계산
+        if not any(c in df.columns for c in ("rsi", "macd", "atr")):
+            try:
+                from app.processors.technical_indicators import TechnicalIndicatorCalculator
+
+                close_col = "close" if "close" in df.columns else ("close_price" if "close_price" in df.columns else None)
+                high_col = "high" if "high" in df.columns else ("high_price" if "high_price" in df.columns else None)
+                low_col = "low" if "low" in df.columns else ("low_price" if "low_price" in df.columns else None)
+                if close_col and high_col and low_col:
+                    df = TechnicalIndicatorCalculator().calculate_all(
+                        df, close_col=close_col, high_col=high_col, low_col=low_col
+                    )
+            except Exception:
+                pass
 
         col_map = {
             "rsi": 50.0,
