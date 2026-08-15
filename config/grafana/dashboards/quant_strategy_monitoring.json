@@ -1,0 +1,170 @@
+{
+  "uid": "quant-strategy-monitoring",
+  "title": "Quant Strategy Monitoring",
+  "tags": ["quant", "strategy", "backtest", "factor", "ml"],
+  "timezone": "Asia/Seoul",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-30d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "스윙스크리너 — 최근 실행",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT run_at AS time, stocks, errors, metric_value FROM strategy_runs WHERE tool = 'swing_screener' ORDER BY run_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "스윙스크리너 — Top-1 기대수익 (%)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT metric_value AS value FROM strategy_runs WHERE tool = 'swing_screener' ORDER BY run_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 0 } ] } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "백테스트 — AUC / ACC (최근)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT auc, accuracy FROM strategy_runs WHERE tool = 'backtest' ORDER BY run_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "thresholds": { "mode": "absolute", "steps": [ { "color": "yellow", "value": null }, { "color": "green", "value": 0.6 } ] } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "백테스트 AUC 이력",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT run_at AS time, auc FROM strategy_runs WHERE tool = 'backtest' ORDER BY run_at",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "강환국 팩터 — 최근 수익률 (%)",
+      "type": "barchart",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT DISTINCT ON (tool) tool AS metric, round(metric_value * 100, 2) AS value FROM strategy_runs WHERE tool LIKE 'factor_%' ORDER BY tool, run_at DESC",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "custom": { "fillOpacity": 60 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "value" }, "properties": [ { "id": "color", "value": { "fixedColor": "dark-blue", "mode": "fixed" } } ] }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "title": "ML 모델별 AUC (최근 재학습)",
+      "type": "barchart",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT m.key AS metric, round(m.value::numeric, 4) AS value FROM strategy_runs r, jsonb_each_text(r.meta->'model_aucs') m WHERE r.tool = 'model_retrain' ORDER BY r.run_at DESC LIMIT 3",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "custom": { "fillOpacity": 60 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "ML 앙상블 AUC + 피처 수",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 12 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT auc AS ensemble_auc, meta->>'n_features' AS n_features FROM strategy_runs WHERE tool = 'model_retrain' ORDER BY run_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "실행 이력 (최근 10건)",
+      "type": "table",
+      "gridPos": { "h": 7, "w": 18, "x": 0, "y": 19 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT to_char(run_at, 'MM-DD HH24:MI') AS 실행시각, tool AS 도구, status AS 상태, stocks AS 종목수, errors AS 오류, round(auc::numeric, 4) AS AUC, round(metric_value::numeric, 4) AS 지표 FROM strategy_runs ORDER BY run_at DESC LIMIT 10",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "ML 서비스 상태",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "feature_count_gauge", "legendFormat": "피처 수" },
+        { "expr": "sum(features_computed_total)", "legendFormat": "누적 피처 계산" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    }
+  ]
+}

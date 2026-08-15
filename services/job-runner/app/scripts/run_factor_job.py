@@ -31,6 +31,24 @@ def main():
             "window": r.get("window", {}),
             "periods": r.get("periods", 0),
         }
+        # 2026-08: 실행 결과 이력 기록 (Grafana Quant Strategy Monitoring 대시보드용)
+        try:
+            from scripts.record_strategy_run import record_run
+
+            m = r.get("metrics", {})
+            record_run(
+                tool=f"factor_{name}",
+                metric_value=round(float(m.get("total_return", 0) or 0), 5),
+                meta={
+                    "sharpe": m.get("sharpe"),
+                    "max_drawdown": m.get("max_drawdown"),
+                    "win_rate": m.get("win_rate"),
+                    "num_trades": m.get("num_trades"),
+                    "window": r.get("window", {}),
+                },
+            )
+        except Exception as _e:
+            print(f"[record_run] factor_{name} 기록 실패(무시): {_e}")
 
     result = {
         "request_type": "factor_report",

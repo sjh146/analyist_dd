@@ -405,6 +405,28 @@ def main():
 
     print(f"\nTotal screened: {len(stocks)}, Candidates: {len(candidates)}, Errors: {errors}")
 
+    # 2026-08: 실행 결과 이력 기록 (Grafana Quant Strategy Monitoring 대시보드용)
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from record_strategy_run import record_run
+
+        record_run(
+            tool="swing_screener",
+            status="ok" if errors == 0 else "partial",
+            stocks=len(stocks),
+            errors=errors,
+            metric_value=top20[0]["expected_return"] if top20 else None,
+            meta={
+                "top20": [
+                    {"code": c["stock_code"], "conf": round(float(c["confidence"]), 4),
+                     "exp_ret": round(float(c["expected_return"]), 2)}
+                    for c in top20
+                ][:20],
+            },
+        )
+    except Exception as _e:
+        logger.warning(f"strategy_runs 기록 실패(무시): {_e}")
+
 
 if __name__ == "__main__":
     main()

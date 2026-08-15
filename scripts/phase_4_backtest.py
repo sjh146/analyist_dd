@@ -76,3 +76,19 @@ os.makedirs('/app/reports', exist_ok=True)
 with open('/app/reports/backtest_result.json', 'w') as f:
     json.dump(result_dict, f, indent=2)
 print('saved: /app/reports/backtest_result.json')
+
+# 2026-08: 실행 결과 이력 기록 (Grafana Quant Strategy Monitoring 대시보드용)
+try:
+    sys.path.insert(0, '/app/scripts')
+    from record_strategy_run import record_run
+    record_run(
+        tool="backtest",
+        stocks=len(stocks_list),
+        auc=round(auc, 4),
+        accuracy=round(acc, 4),
+        metric_value=round(auc, 4),
+        meta={"n_rows": int(len(y)), "n_features": int(len(model_f)),
+              "up_rate": round(float(y.mean()), 3), "universe": "kospi30+kosdaq20 seed42"},
+    )
+except Exception as e:
+    print(f'[record_run] backtest 기록 실패(무시): {e}')

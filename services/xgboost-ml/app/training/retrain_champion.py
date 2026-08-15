@@ -23,6 +23,7 @@ import argparse
 import json
 import logging
 import os
+import sys
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -231,6 +232,26 @@ def main() -> None:
                                 val_frac=args.val_frac, n_estimators=args.n_estimators)
         print(json.dumps(meta, ensure_ascii=False, indent=2))
         print(f"CHAMPION -> {os.path.abspath(args.out_dir)}")
+
+        # 2026-08: 재학습 결과 이력 기록 (Grafana Quant Strategy Monitoring — ML AUC 패널용)
+        try:
+            sys.path.insert(0, "/app/scripts")
+            from record_strategy_run import record_run
+
+            record_run(
+                tool="model_retrain",
+                stocks=len(stocks),
+                auc=float(meta.get("ensemble_auc", 0) or 0),
+                metric_value=float(meta.get("ensemble_auc", 0) or 0),
+                meta={
+                    "model_aucs": meta.get("model_aucs", {}),
+                    "n_rows": meta.get("n_rows"),
+                    "n_features": meta.get("n_features"),
+                    "up_rate": meta.get("up_rate"),
+                },
+            )
+        except Exception as _e:
+            print(f"[record_run] model_retrain 기록 실패(무시): {_e}")
     finally:
         pg.close()
 
