@@ -21,7 +21,9 @@ class RssCollector:
         {
             "name": "한국경제신문",
             "type": "rss",
-            "url": "https://www.hankyung.com/feed",
+            # 2026-08: hankyung.com/feed 가 JS 렌더링 HTML로 변경됨 → Google News
+            # 사이트검색 RSS로 대체 (entries=0/bozo=1 실측 확인)
+            "url": "https://news.google.com/rss/search?q=site:www.hankyung.com&hl=ko&gl=KR&ceid=KR:ko",
         },
         {
             "name": "매일경제",
@@ -31,17 +33,20 @@ class RssCollector:
         {
             "name": "서울경제",
             "type": "rss",
-            "url": "https://www.sedaily.com/Feed/SEH",
+            # 2026-08: sedaily.com/Feed/SEH 가 404 → Google News 사이트검색 RSS로 대체
+            "url": "https://news.google.com/rss/search?q=site:www.sedaily.com&hl=ko&gl=KR&ceid=KR:ko",
         },
         {
             "name": "이데일리",
             "type": "rss",
-            "url": "https://www.edaily.co.kr/feed/edaily.xml",
+            # 2026-08: edaily.co.kr/feed/edaily.xml 가 HTML 페이지로 변경 → Google News RSS 대체
+            "url": "https://news.google.com/rss/search?q=site:www.edaily.co.kr&hl=ko&gl=KR&ceid=KR:ko",
         },
         {
             "name": "머니투데이",
             "type": "rss",
-            "url": "https://news.mt.co.kr/rss/mt_recent.xml",
+            # 2026-08: news.mt.co.kr/rss/mt_recent.xml 가 410 Gone → Google News RSS 대체
+            "url": "https://news.google.com/rss/search?q=site:news.mt.co.kr&hl=ko&gl=KR&ceid=KR:ko",
         },
     ]
 
@@ -76,8 +81,22 @@ class RssCollector:
         return unique
 
     async def _fetch_feed(self, source: dict) -> List[Article]:
-        """Fetch and parse a single RSS feed."""
-        feed = feedparser.parse(source["url"])
+        """Fetch and parse a single RSS feed.
+
+        2026-08: User-Agent 헤더 필수 (기본 UA는 일부 사이트/Google News 에서 차단될 수
+        있음 — 실측: urllib 기본 UA로 hankyung 200-html, Google News 는 UA 필수).
+        """
+        import urllib.request
+
+        req = urllib.request.Request(
+            source["url"],
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            feed = feedparser.parse(resp.read())
         articles = []
 
         for entry in feed.entries[:20]:  # Max 20 per source per cycle
