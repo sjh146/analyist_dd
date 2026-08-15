@@ -84,6 +84,10 @@ class PostgresStorage:
         """Save prediction result."""
         conn = self._get_conn()
         if not conn: return
+        import time as _time
+        from app.metrics_integration import on_db_query
+
+        _t0 = _time.monotonic()
         try:
             cur = conn.cursor()
             cur.execute(
@@ -106,6 +110,7 @@ class PostgresStorage:
             )
             conn.commit()
             cur.close()
+            on_db_query(_time.monotonic() - _t0)
         except Exception as e:
             logger.error(f"Failed to save prediction: {e}")
             conn.rollback()

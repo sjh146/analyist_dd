@@ -152,6 +152,10 @@ class Predictor:
                 signal_data = _sign_signal(signal_data)
 
                 self._streams.xadd(stream_name, signal_data, maxlen=10000)
+                from app.metrics_integration import on_redis_publish, on_signal_generated
+
+                on_redis_publish(stream_name)
+                on_signal_generated()
                 logger.info(
                     f"Signal streamed: {pred['stock_code']} "
                     f"{direction} ({pred['confidence']:.2f})"

@@ -33,11 +33,35 @@ def init_metrics(port: int = 9102):
 
 
 def on_features_computed(count: int):
-    """Record number of features computed."""
+    """Record features computed."""
     try:
         features_computed_total.labels(service="xgboost-ml").inc(count)
     except Exception as e:
         logger.debug(f"Metrics error (features_computed): {e}")
+
+
+def on_db_query(duration_seconds: float):
+    """Record DB query latency (2026-08: save_prediction 등 핵심 경로에서 호출)."""
+    try:
+        db_query_latency_seconds.observe(float(duration_seconds))
+    except Exception as e:
+        logger.debug(f"Metrics error (db_query): {e}")
+
+
+def on_redis_publish(stream: str):
+    """Record Redis Stream publish (2026-08: publish_signals_to_redis 에서 호출)."""
+    try:
+        redis_publish_total.labels(stream=stream).inc()
+    except Exception as e:
+        logger.debug(f"Metrics error (redis_publish): {e}")
+
+
+def on_signal_generated():
+    """Record a trading signal generated."""
+    try:
+        signal_generated_total.inc()
+    except Exception as e:
+        logger.debug(f"Metrics error (signal_generated): {e}")
 
 
 def on_feature_count(stock: str, count: int):
