@@ -155,6 +155,60 @@
       }
     },
     {
+      "id": 10,
+      "title": "P&L 백테스트 — 총수익률 (%)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 5 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT round(metric_value * 100, 2) AS value FROM strategy_runs WHERE tool = 'backtest_pnl' ORDER BY run_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 0 } ] } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "P&L 백테스트 — MDD / 샤프 / 승률",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 10 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT round((meta->>'max_drawdown')::numeric * 100, 2) AS MDD, meta->>'sharpe' AS 샤프, round((meta->>'win_rate')::numeric * 100, 1) AS 승률, meta->>'n_trades' AS 거래수 FROM strategy_runs WHERE tool = 'backtest_pnl' ORDER BY run_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "P&L 백테스트 수익률 이력",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 18, "x": 0, "y": 26 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT run_at AS time, metric_value AS value FROM strategy_runs WHERE tool = 'backtest_pnl' ORDER BY run_at",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      }
+    },
+    {
       "id": 9,
       "title": "ML 서비스 상태",
       "type": "stat",
