@@ -48,6 +48,7 @@ class NewsAnalyzerService:
         self._validated_at_ready = self.pg_storage._ensure_validated_at_column()
         init_metrics(9101)
         self._backfill_sentiment_metrics()
+        self._backfill_news_metrics()
         self._running = False
 
     def _backfill_sentiment_metrics(self):
@@ -74,6 +75,45 @@ class NewsAnalyzerService:
         finally:
             if conn:
                 self.pg_storage._put_conn(conn)
+
+    def _backfill_news_metrics(self):
+        """뉴스 인텔리전스 카운터를 DB 누적량으로 백필.
+
+        Prometheus Counter는 관측 0건이면 시리즈가 없어 Grafana에 "No data"로
+        보인다 (2026-08 실측: 중복 기사만 있는 배치 후 news_extractions_total
+        미노출). 시작 시 DB 집계로 카운터를 맞춰 누적 현황이 항상 보이게 한다.
+        """
+        try:
+            conn = self.pg_storage._get_conn()
+            if not conn:
+                return
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT COALESCE(event_type, '기타'), COUNT(*) "
+                    "FROM news_event_extraction GROUP BY event_type"
+                )
+                for et, cnt in cur.fetchall():
+                    for _ in range(int(cnt)):
+                        on_extraction_saved(event_type=et or "기타")
+                cur.execute("SELECT COUNT(*) FROM news_events")
+                for _ in range(int(cur.fetchone()[0] or 0)):
+                    on_cluster_saved()
+                cur.execute(
+                    "SELECT COUNT(*) FROM news_events WHERE embedding IS NOT NULL"
+                )
+                for _ in range(int(cur.fetchone()[0] or 0)):
+                    on_embedding_saved()
+                cur.execute("SELECT COUNT(*) FROM news_analysis")
+                on_articles_collected(int(cur.fetchone()[0] or 0), source="rss")
+                cur.close()
+            except Exception as e:
+                logger.warning(f"Could not backfill news metrics: {e}")
+            finally:
+                if conn:
+                    self.pg_storage._put_conn(conn)
+        except Exception as e:
+            logger.warning(f"News metric backfill conn failed: {e}")
 
     async def analyze_recent_articles(self):
         """Collect and analyze recent articles from all sources."""

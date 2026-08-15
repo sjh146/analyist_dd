@@ -18,7 +18,7 @@ from app.models.model_manager import ModelManager
 from app.training.trainer import Trainer
 from app.inference.predictor import Predictor
 from app.storage.postgres_storage import PostgresStorage
-from app.metrics_integration import init_metrics, on_features_computed, on_prediction
+from app.metrics_integration import init_metrics, on_features_computed, on_prediction, on_feature_count
 
 logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -47,6 +47,18 @@ class XGBoostMLService:
         else:
             logger.info("No existing model found. Training new model...")
             self.train_model()
+
+        # feature_count_gauge 백필 — 챔피언 피처 수 노출 (Grafana Feature Count 패널,
+        # 2026-08: 게이지 시리즈가 없어 No data 표시되던 문제 수정)
+        try:
+            fn_path = os.path.join(self.config.MODEL_PATH, "feature_names.json")
+            if os.path.exists(fn_path):
+                import json as _json
+
+                with open(fn_path) as _f:
+                    on_feature_count("champion", len(_json.load(_f)))
+        except Exception as e:
+            logger.debug(f"feature count gauge failed: {e}")
 
     def train_model(self):
         """Train or retrain the XGBoost model."""
