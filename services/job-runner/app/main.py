@@ -21,11 +21,12 @@ from pydantic import BaseModel
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 INTERNAL_CONFIGURED = bool(INTERNAL_API_KEY)
 
-ALLOWED_TYPES = {"backtest", "swing_screener", "factor_report"}
+ALLOWED_TYPES = {"backtest", "swing_screener", "factor_report", "close_screener"}
 JOB_SCRIPTS = {
     "backtest": ["python", "/app/app/scripts/run_backtest_job.py"],
     "swing_screener": ["python", "/app/app/scripts/run_swing_job.py"],
     "factor_report": ["python", "/app/app/scripts/run_factor_job.py"],
+    "close_screener": ["python", "/app/app/scripts/run_close_job.py"],
 }
 RUN_CWD = "/opt/xgboost-ml"
 JOB_TIMEOUT = 3600

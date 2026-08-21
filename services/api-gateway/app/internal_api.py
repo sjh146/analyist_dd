@@ -49,7 +49,7 @@ class JobRunRequest(BaseModel):
 
 
 # cmall Go가 허용하는 분석 요청 타입 (백엔드 allowlist와 동일)
-ALLOWED_ANALYSIS_TYPES = {"stock_report", "swing_screener", "backtest", "factor_report"}
+ALLOWED_ANALYSIS_TYPES = {"stock_report", "swing_screener", "backtest", "factor_report", "close_screener"}
 
 
 def _job_runner_request(method: str, path: str, payload=None, timeout: int = 10):
@@ -252,6 +252,7 @@ _REPORT_FILES = {
     "swing_screener": os.path.join(REPORTS_DIR, "swing_latest.json"),
     "backtest": os.path.join(REPORTS_DIR, "backtest_result.json"),
     "factor_report": os.path.join(FACTOR_REPORTS_DIR, "factor_strategies_result.json"),
+    "close_screener": os.path.join(REPORTS_DIR, "close_latest.json"),
 }
 
 
