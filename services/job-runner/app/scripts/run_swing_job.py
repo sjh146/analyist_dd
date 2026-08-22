@@ -75,6 +75,9 @@ def main():
     up = [c for c in candidates if _direction(c) == "up"]
     down = [c for c in candidates if _direction(c) == "down"]
 
+    # 배치 타입 (swing_screener가 CSV에 기록 — signal=0.55 이상 실시그널 존재)
+    batch_type = (candidates[0].get("batch_type") if candidates else None) or "unknown"
+
     result = {
         "request_type": "swing_screener",
         "date": date.today().isoformat(),
@@ -83,6 +86,7 @@ def main():
         "up": len(up),
         "down": len(down),
         "high_confidence": sum(1 for c in candidates if c.get("confidence", 0) >= 0.65),
+        "batch_type": batch_type,
         "auc": auc,
         "top_up": up[:20],
         "top_down": down[:20],
