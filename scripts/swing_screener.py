@@ -373,6 +373,11 @@ def main():
     else:
         candidates.sort(key=lambda x: x["confidence"], reverse=True)
     top20 = candidates[:20]
+    # 배치 타입 마킹: 0.55 이상 실시그널이 하나라도 있으면 signal, 없으면 raw_fallback
+    # (승률 검증에서 두 배치를 분리 평가 — 폴백 픽은 거래 대상이 아님)
+    batch_type = "signal" if len(above_threshold) > 0 else "raw_fallback"
+    for c in top20:
+        c["batch_type"] = batch_type
 
     # Print table
     print(f"\nTop KOSDAQ Swing Candidates ({today})")
