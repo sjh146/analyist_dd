@@ -7,6 +7,7 @@ Trade Executor Service (Windows VM)
 
 import time
 import json
+import os
 import threading
 from datetime import datetime, time as dtime
 from typing import Dict, Optional
@@ -16,6 +17,7 @@ from config import Config
 from utils.redis_client import RedisClient
 from services.shared.redis_streams import RedisStreams
 from executors.creon_executor import CreonExecutor
+from executors.mock_creon_executor import MockCreonExecutor
 from executors.order_manager import OrderManager
 from risk_management.position_checker import PositionChecker
 from risk_management.balance_checker import BalanceChecker
@@ -35,7 +37,12 @@ class TradeExecutor:
         )
         redis_url = f"redis://:{self.config.REDIS_PASSWORD}@{self.config.REDIS_HOST}:{self.config.REDIS_PORT}"
         self.streams = RedisStreams(redis_url)
-        self.creon = CreonExecutor()
+        # USE_MOCK_CREON=true → MockCreonExecutor (paper trading — Creon API 없이 실행 루프 검증)
+        use_mock = os.getenv("USE_MOCK_CREON", "").lower() == "true"
+        self.creon = MockCreonExecutor() if use_mock else CreonExecutor()
+        if use_mock:
+            self.creon.connect()
+            logger.info("USE_MOCK_CREON=true — mock 실행 루프 (paper trading)")
         self.order_manager = OrderManager(self.creon)
         self.position_checker = PositionChecker()
         self.balance_checker = BalanceChecker()

@@ -1,24 +1,12 @@
 """Mock CreonExecutor for Ubuntu/CI environments where Creon API is unavailable."""
 
+from datetime import datetime
 from typing import Dict, Optional
-from dataclasses import dataclass
 from loguru import logger
+from executors.creon_executor import CreonExecutor, OrderResult
 
 
-@dataclass
-class OrderResult:
-    """Mock order result matching the real OrderResult interface."""
-    success: bool
-    order_id: Optional[str] = None
-    order_number: Optional[str] = None
-    error_code: Optional[int] = None
-    error_message: Optional[str] = None
-    stock_code: Optional[str] = None
-    quantity: int = 0
-    price: int = 0
-
-
-class MockCreonExecutor:
+class MockCreonExecutor(CreonExecutor):
     """Mock executor that simulates Creon API responses without actual brokerage connection.
 
     Activated via environment variable: USE_MOCK_CREON=true
@@ -88,3 +76,14 @@ class MockCreonExecutor:
     def get_account_balance(self) -> Dict:
         """Return mock account balance."""
         return dict(self._balance)
+
+    def get_order_status(self, order_id: str) -> Optional[Dict]:
+        """Simulate order status — mock 주문은 즉시 체결된 것으로 응답."""
+        return {
+            "order_id": order_id,
+            "status": "filled",
+            "filled_quantity": 0,
+            "filled_price": 0,
+            "remaining_quantity": 0,
+            "timestamp": datetime.now().isoformat(),
+        }

@@ -6,6 +6,7 @@ dist/
 build/
 .venv/
 venv/
+.venv-te/
 models/saved_models/*.pkl
 models/saved_models/*.joblib
 data/market/*.csv

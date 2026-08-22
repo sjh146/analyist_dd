@@ -4,6 +4,7 @@ Validates account balance before trade execution.
 """
 
 from typing import Dict, Optional
+import os
 from loguru import logger
 from config import Config
 
@@ -58,9 +59,15 @@ class BalanceChecker:
             return self._balance_cache
 
         try:
-            from executors.creon_executor import CreonExecutor
+            # USE_MOCK_CREON=true → mock 잔고 (Creon API 없이 paper trading)
+            if os.getenv("USE_MOCK_CREON", "").lower() == "true":
+                from executors.mock_creon_executor import MockCreonExecutor
 
-            creon = CreonExecutor()
+                creon = MockCreonExecutor()
+            else:
+                from executors.creon_executor import CreonExecutor
+
+                creon = CreonExecutor()
             if not creon.connect():
                 return None
 
