@@ -82,7 +82,7 @@
     },
     {
       "id": 5,
-      "title": "강환국 팩터 — 최근 수익률 (%)",
+      "title": "퀀트 팩터 — 최근 수익률 (%)",
       "type": "barchart",
       "gridPos": { "h": 7, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
