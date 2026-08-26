@@ -18,3 +18,5 @@ data/market/*.csv
 data/disclosures/*.json
 data/macro/*.csv
 data/financials/*.csv
+# KIS 토큰 캐시 (24h JWT — 커밋 금지)
+data/kis/

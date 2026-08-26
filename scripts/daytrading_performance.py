@@ -157,6 +157,9 @@ def main():
                     help="이 값보다 오래된 발굴만 채점 (기본 1)")
     ap.add_argument("--minute-offset", type=int, default=30,
                     help="D+1 개장 후 분 시점 가격 (기본 30, 분봉 도착 시 사용)")
+    ap.add_argument("--provider", choices=["gap", "kis"], default="gap",
+                    help="30분 창 가격 제공자: gap(D+1 시가 갭 프록시, 기본) | "
+                         "kis(KIS minute_bars 실측 30분 가격)")
     ap.add_argument("--output", default=None, help="출력 디렉토리 (기본: report-dir)")
     args = ap.parse_args()
 
@@ -198,8 +201,14 @@ def main():
     logger.info(f"발굴 기록 {len(files)}개 로드 | 30분 창={args.minute_offset}분 (갭 프록시)")
     pg = get_pg_conn()
 
-    from day_trading_engine import DailyGapProvider
-    provider = DailyGapProvider(pg)
+    from day_trading_engine import DailyGapProvider, KisMinuteProvider
+    if args.provider == "kis":
+        provider = KisMinuteProvider(pg, open_time="090000")
+        mode = "kis_30min"
+        logger.info("30분 창 제공자: KisMinuteProvider (minute_bars 실측)")
+    else:
+        provider = DailyGapProvider(pg)
+        mode = "gap_proxy"
 
     all_results = []
     per_pickup = []
@@ -265,7 +274,7 @@ def main():
     summary = {
         "generated_at": pd.Timestamp.now().isoformat(),
         "window_minutes": args.minute_offset,
-        "mode": "gap_proxy",
+        "mode": mode,
         "files_evaluated": len(per_pickup),
         "total_evaluated": overall["count"],
         "overall": {"gap": overall["gap"]},
