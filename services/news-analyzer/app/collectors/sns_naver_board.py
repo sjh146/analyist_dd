@@ -118,25 +118,37 @@ class NaverBoardCollector:
     def parse_board_html(self, html: str, stock_code: str) -> List[SnsPost]:
         """종목토론방 HTML 을 파싱해 ``SnsPost`` 목록을 반환한다.
 
-        게시글은 ``<tr>`` 행 단위로 존재하며, 각 행에는 제목 링크
-        (``<a title="...">``), 작성자, 날짜, 본문 등이 포함된다. 필드가
-        누락되면 None/기본값을 사용하고 크래시하지 않는다.
-
-        Args:
-            html: 종목토론방 페이지 HTML 문자열.
-            stock_code: 해당 종목 코드.
-
-        Returns:
-            파싱된 ``SnsPost`` 목록.
+        현행(2026-08) 네이버 종목토론방 행 구조:
+        ``<tr>`` → 날짜 span(``tah p10 gray03``) → 제목 링크
+        (``board_read.naver?code=..&nid=..``) → 작성자 td(``p11 align_right``)
+        → 조회/공감/비공감. 정규식 기반으로 추출한다.
         """
         posts: List[SnsPost] = []
         try:
-            parser = _BoardParser()
-            parser.feed(html)
-            for row in parser.rows[: self.MAX_POSTS_PER_STOCK]:
-                post = self._row_to_post(row, stock_code)
-                if post is not None:
-                    posts.append(post)
+            rows = re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S)
+            for row in rows[: self.MAX_POSTS_PER_STOCK * 4]:
+                m = re.search(r"board_read\.naver\?code=\d+&nid=(\d+)", row)
+                if not m:
+                    continue
+                post_id = m.group(1)
+                tm = re.search(r"<a[^>]*board_read[^>]*>(.*?)</a>", row, re.S)
+                title = re.sub(r"<[^>]+>", "", tm.group(1)).strip() if tm else ""
+                dm = re.search(r'class="tah p10 gray03">([\d.]+ [\d:]+)<', row)
+                raw_date = dm.group(1) if dm else None
+                am = re.search(r'class="p11 align_right"[^>]*>(.*?)</td>', row, re.S)
+                author = re.sub(r"<[^>]+>", "", am.group(1)).strip() if am else None
+                post = SnsPost(
+                    source="naver_board",
+                    post_id=post_id,
+                    stock_code=stock_code,
+                    author_name=author or None,
+                    posted_at=self._parse_date(raw_date) if raw_date else None,
+                    text=title or None,
+                    raw_json={"title": title, "date": raw_date, "author": author},
+                )
+                posts.append(post)
+                if len(posts) >= self.MAX_POSTS_PER_STOCK:
+                    break
         except Exception as e:
             logger.debug(f"Naver board HTML parsing error: {e}")
 

@@ -18,3 +18,4 @@ prometheus_client>=0.14.1
 torch==2.5.1+cpu
 sentence-transformers==3.4.1
 numpy==2.2.4
+aiohttp>=3.9
