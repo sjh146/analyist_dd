@@ -19,8 +19,8 @@
   python3 scripts/thesis_onboarding.py --list
   python3 scripts/thesis_onboarding.py --approve <approval_id>
 
-이 모듈은 todo 2 산출물(골격+상수+CSV 로딩/필터+초안 생성기)까지 포함하며,
-승인 패키지·Discord·INSERT·CLI는 후속 todo에서 추가된다.
+이 모듈은 todo 3 산출물(골격+상수+CSV 로딩/필터+초안 생성기+승인 패키지)까지 포함하며,
+Discord·INSERT·CLI는 후속 todo에서 추가된다.
 """
 import csv
 import json
@@ -31,6 +31,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -454,3 +455,86 @@ def build_thesis_row(candidate, draft):
             "approval_id": None,
         }],
     }
+
+
+# ── 승인 패키지 파일 관리 (todo 3, 가정 A4 — 파일 기반, 스키마 변경 0) ─────
+# 상태는 단방향: pending → approved/rejected 전이만 허용. APPROVALS_DIR 전역을
+# 함수가 호출 시점에 읽으므로 테스트에서 monkeypatch.setattr로 교체 가능.
+
+_ALLOWED_TRANSITIONS = {"pending": {"approved", "rejected"}}
+
+
+def approval_path(approval_id):
+    """승인 패키지 파일 경로 — APPROVALS_DIR / f"{approval_id}.json"."""
+    return Path(APPROVALS_DIR) / f"{approval_id}.json"
+
+
+def save_approval(pkg):
+    """승인 패키지 저장 → approval_id 반환.
+
+    approval_id = f"{YYYYMMDD}_{HHMMSS}_{stock_code}" (close_screener 타임스탬프
+    파일명 관례). APPROVALS_DIR 자동 생성, JSON은 ensure_ascii=False + indent=2.
+    pkg에 stock_code 없으면 ValueError (approval_id 생성 불가).
+    """
+    stock_code = pkg.get("stock_code")
+    if not stock_code:
+        raise ValueError("승인 패키지에 stock_code 없음 — approval_id 생성 불가")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    approval_id = f"{ts}_{stock_code}"
+    record = dict(pkg)
+    record["approval_id"] = approval_id
+    record.setdefault("status", "pending")
+    record.setdefault("created_at", datetime.now().isoformat())
+    os.makedirs(APPROVALS_DIR, exist_ok=True)
+    path = approval_path(approval_id)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False, indent=2)
+    logger.info(f"승인 패키지 저장: {path}")
+    return approval_id
+
+
+def load_approval(approval_id):
+    """승인 패키지 로드 → dict | None.
+
+    파일 없음/JSON 파싱 실패/객체 아님 → None + logger.warning (예외 미전파).
+    """
+    path = approval_path(approval_id)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError("JSON 객체가 아님")
+        return data
+    except FileNotFoundError:
+        logger.warning(f"승인 패키지 없음: {path}")
+        return None
+    except (json.JSONDecodeError, ValueError, OSError) as e:
+        logger.warning(f"승인 패키지 로드 실패 {path}: {e}")
+        return None
+
+
+def set_approval_status(approval_id, status, **extra):
+    """승인 패키지 상태 전이 (단방향) → 갱신된 패키지 dict | None.
+
+    pending→approved/rejected만 허용 (_ALLOWED_TRANSITIONS). 현재 상태가
+    approved/rejected인데 다른 상태로 바꾸는 요청 → ValueError ("재전이 거부",
+    메시지에 현재 상태 포함). **extra는 저장 전 패키지에 병합 (예: thesis_id,
+    reason). 반환은 저장 후 재로드한 패키지. 로드 실패 → None.
+    """
+    pkg = load_approval(approval_id)
+    if pkg is None:
+        return None
+    current = pkg.get("status", "pending")
+    if status not in _ALLOWED_TRANSITIONS.get(current, set()):
+        raise ValueError(f"상태 재전이 거부: {current} → {status}")
+    pkg["status"] = status
+    pkg.update(extra)
+    path = approval_path(approval_id)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(pkg, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        logger.warning(f"승인 패키지 저장 실패 {path}: {e}")
+        return None
+    logger.info(f"승인 패키지 상태 전이: {approval_id} → {status}")
+    return load_approval(approval_id)
