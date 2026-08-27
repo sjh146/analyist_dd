@@ -18,6 +18,7 @@ for _p in Path(__file__).resolve().parents:
         break
 YAML_PATH = REPO_ROOT / "config" / "strategies" / "strategies.yaml"
 FACTOR_NAMES = ["value_factor", "quality_factor", "momentum_factor", "lowvol_factor", "multifactor"]
+ACKMAN_NAME = "ackman_fundamental"
 
 
 def _load_yaml():
@@ -29,6 +30,7 @@ def _make_service(monkeypatch):
     monkeypatch.setattr("app.main.init_metrics", lambda *a, **k: None)
     pg = Mock()
     pg.get_strategy_config.return_value = None
+    pg.get_active_theses.return_value = []
     pg.upsert_strategy_config.return_value = True
     redis_mock = Mock()
     redis_mock.publish_paper_signal.return_value = True
@@ -55,10 +57,13 @@ def test_yaml_factor_params_have_no_thresholds():
 
 def test_registration_upserts_all_factor_strategies(monkeypatch):
     svc, pg, _ = _make_service(monkeypatch)
-    assert pg.upsert_strategy_config.call_count == 5
     names = [c.kwargs["strategy_name"] for c in pg.upsert_strategy_config.call_args_list]
-    assert set(names) == set(FACTOR_NAMES)
-    for c in pg.upsert_strategy_config.call_args_list:
+    assert set(names) == set(FACTOR_NAMES) | {ACKMAN_NAME}
+    factor_calls = [c for c in pg.upsert_strategy_config.call_args_list if c.kwargs["strategy_name"] in FACTOR_NAMES]
+    assert len(factor_calls) == len(FACTOR_NAMES)  # factor 5종 각 1회
+    factor_names = [c.kwargs["strategy_name"] for c in factor_calls]
+    assert set(factor_names) == set(FACTOR_NAMES)
+    for c in factor_calls:
         assert c.kwargs["strategy_type"] == "factor"
         assert c.kwargs["parameters"] == {"paper_only": True}
         assert c.kwargs["is_active"] is True
@@ -90,13 +95,15 @@ def test_publish_paper_signal_uses_paper_stream():
     assert storage._streams.xadd.call_args[0][1]["action"] == "buy"
 
 
-def _install_mocks(svc, legacy_signals=None, factor_signals=None):
+def _install_mocks(svc, legacy_signals=None, factor_signals=None, ackman_signals=None):
     legacy_signals = legacy_signals or []
     factor_signals = factor_signals or {name: [] for name in FACTOR_NAMES}
+    ackman_signals = ackman_signals or []
     svc.theme_strategy = Mock(analyze=Mock(return_value=legacy_signals))
     svc.cycle_strategy = Mock(analyze=Mock(return_value=legacy_signals))
     svc.twin_strategy = Mock(analyze=Mock(return_value=legacy_signals))
     svc.stop_loss.evaluate_positions = Mock(return_value=[])
+    svc.ackman_strategy = Mock(analyze=Mock(return_value=ackman_signals))
     attr_names = {
         "value_factor": "value_strategy",
         "quality_factor": "quality_strategy",
@@ -155,3 +162,102 @@ def test_one_factor_strategy_error_does_not_stop_others(monkeypatch):
     svc.momentum_strategy = Mock(analyze=Mock(side_effect=RuntimeError("momentum broken")))
     svc.run_all_strategies()
     assert redis_mock.publish_paper_signal.call_count == 2
+
+
+def test_yaml_contains_ackman_strategy():
+    strategies = _load_yaml()["strategies"]
+    assert ACKMAN_NAME in strategies, f"{ACKMAN_NAME} missing from strategies.yaml"
+    assert strategies[ACKMAN_NAME]["is_active"] is True
+    assert strategies[ACKMAN_NAME]["parameters"]["paper_only"] is True
+
+
+def test_registration_upserts_ackman(monkeypatch):
+    svc, pg, _ = _make_service(monkeypatch)
+    ackman_calls = [c for c in pg.upsert_strategy_config.call_args_list if c.kwargs["strategy_name"] == ACKMAN_NAME]
+    assert len(ackman_calls) == 1
+    c = ackman_calls[0]
+    assert c.kwargs["strategy_type"] == "thesis"
+    assert c.kwargs["parameters"] == {"paper_only": True}
+    assert c.kwargs["is_active"] is True
+
+
+def test_run_all_strategies_publishes_ackman_signals_paper_only(monkeypatch):
+    svc, _, redis_mock = _make_service(monkeypatch)
+    svc._process_and_publish = Mock()
+    _install_mocks(svc, ackman_signals=[{"action": "buy", "stock_code": "STK9999", "strategy_name": "ackman_fundamental", "confidence": 0.75}])
+    redis_mock.publish_ackman_signal.return_value = True
+    svc.run_all_strategies()
+    assert redis_mock.publish_ackman_signal.call_count == 1
+    assert redis_mock.publish_signal.call_count == 0
+    assert redis_mock.publish_paper_signal.call_count == 0
+
+
+def test_publish_ackman_signal_uses_ackman_stream():
+    storage = RedisStorage.__new__(RedisStorage)
+    storage._client = Mock()
+    storage._streams = Mock()
+    storage.PAPER_ACKMAN_STREAM_NAME = "paper:ackman_signals"
+    ok = storage.publish_ackman_signal({
+        "action": "buy", "stock_code": "STK9999", "strategy_name": "ackman_fundamental", "confidence": 0.75,
+    })
+    assert ok is True
+    assert storage._streams.xadd.call_args[0][0] == "paper:ackman_signals"
+    assert storage._streams.xadd.call_args[0][1]["action"] == "buy"
+
+
+def test_stop_loss_excludes_ackman_codes(monkeypatch):
+    svc, pg, redis_mock = _make_service(monkeypatch)
+    svc._process_and_publish = Mock()
+    _install_mocks(svc)
+    svc.stop_loss.evaluate_positions = Mock(return_value=[
+        {"stock_code": "STKACK1", "action": "sell", "strategy_name": "risk_management"},
+        {"stock_code": "STK2000", "action": "sell", "strategy_name": "risk_management"},
+    ])
+    pg.get_active_theses.return_value = [{"stock_code": "STKACK1"}]
+    redis_mock.publish_signal.return_value = True
+    svc.run_all_strategies()
+    assert redis_mock.publish_signal.call_count == 1
+    published_codes = [c.args[0]["stock_code"] for c in redis_mock.publish_signal.call_args_list]
+    assert published_codes == ["STK2000"]
+
+
+def test_storage_get_active_theses_sql():
+    storage = PostgresStorage.__new__(PostgresStorage)
+    conn = Mock()
+    cursor = Mock()
+    cursor.fetchall.return_value = [{"stock_code": "STKACK1"}, {"stock_code": "STKACK2"}]
+    conn.cursor.return_value = cursor
+    storage._pool = Mock()
+    storage._pool.getconn.return_value = conn
+    storage._get_conn = lambda: conn
+    storage._put_conn = lambda c: None
+    result = storage.get_active_theses("ackman_fundamental")
+    assert isinstance(result, list)
+    assert all(isinstance(r, dict) for r in result)
+    assert len(result) == 2
+    sql = conn.cursor.return_value.execute.call_args[0][0]
+    assert "FROM position_theses WHERE status = 'active' AND strategy_name = %s" in sql
+    assert "ORDER BY id" in sql
+    params = conn.cursor.return_value.execute.call_args[0][1]
+    assert params == ("ackman_fundamental",)
+
+
+def test_storage_get_thesis_verdicts_sql():
+    storage = PostgresStorage.__new__(PostgresStorage)
+    conn = Mock()
+    cursor = Mock()
+    cursor.fetchall.return_value = [{"verdict": "hold"}, {"verdict": "broken"}]
+    conn.cursor.return_value = cursor
+    storage._pool = Mock()
+    storage._pool.getconn.return_value = conn
+    storage._get_conn = lambda: conn
+    storage._put_conn = lambda c: None
+    result = storage.get_thesis_verdicts(3)
+    assert isinstance(result, list)
+    assert all(isinstance(r, dict) for r in result)
+    assert len(result) == 2
+    sql = conn.cursor.return_value.execute.call_args[0][0]
+    assert "FROM thesis_verdicts WHERE thesis_id = %s" in sql
+    assert "ORDER BY verdict_date DESC LIMIT %s" in sql
+    params = conn.cursor.return_value.execute.call_args[0][1]
+    assert params == (3, 2)
