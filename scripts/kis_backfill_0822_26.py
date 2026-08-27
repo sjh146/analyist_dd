@@ -51,7 +51,7 @@ def main():
         WHERE s.market IN ('KOSPI', 'KOSDAQ')
         GROUP BY s.stock_code, s.market
     """)
-    universe = [(r[0], "K" if str(r[1]).upper() == "KOSDAQ" else "J") for r in cur.fetchall()]
+    universe = [(r[0], "J") for r in cur.fetchall()]  # KOSDAQ도 "J" — "K"는 OPSQ2001 거부(실측), API가 종목코드로 시장 인식
     cur.close()
 
     done = load_done()

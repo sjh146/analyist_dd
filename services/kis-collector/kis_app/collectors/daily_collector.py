@@ -46,8 +46,14 @@ def parse_daily_bars(resp, target_date=None):
 
 
 def market_to_excd(market: str) -> str:
-    """stocks.market 값 → KIS FID_COND_MRKT_DIV_CODE (KOSPI→J, KOSDAQ→K, 기타→J)."""
-    return "K" if str(market or "").upper() == "KOSDAQ" else "J"
+    """stocks.market 값 → KIS FID_COND_MRKT_DIV_CODE.
+
+    2026-08-27 실측: 이 AppKey/TR(FHKST03010100/30200)에서 "K"(코스닥)는
+    OPSQ2001 INVALID로 거부됨. "J"는 코스피·코스닥 모두 정상 반환
+    (API가 종목코드로 시장 자동 인식 — 위더스제약 330350+J 검증 완료).
+    → 모든 시장 "J" 고정.
+    """
+    return "J"
 
 
 class DailyCollector:
