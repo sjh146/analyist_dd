@@ -312,6 +312,25 @@ def test_verify_thesis_no_events_skip():
     assert storage.saved == [], "스킵 테제는 저장되면 안 된다"
 
 
+def test_run_cycle_skips_already_verified():
+    storage = FakeStorage()
+    storage.theses = [_make_thesis(thesis_id=1, stock_code="005930")]
+    storage.events = {
+        "005930": [
+            {"id": 1, "event_type": "공시", "sentiment_score": 0.0, "importance": 0.5, "core_event_text": "x"}
+        ]
+    }
+    storage._verdict_keys.add((1, date(2026, 8, 27)))  # 이미 오늘 판정됨
+    judge = FakeJudge()
+    verifier = ThesisVerifier(storage=storage, judge=judge, notifier=FakeNotifier())
+
+    results = asyncio.run(verifier.run_verification_cycle(verdict_date=date(2026, 8, 27)))
+
+    assert results == []
+    assert judge.calls == 0, "이미 판정된 테제는 judge를 호출하면 안 된다 (일 1회)"
+    assert storage.saved == []
+
+
 def test_run_cycle_discard_publishes_break():
     storage = FakeStorage()
     storage.theses = [
