@@ -26,10 +26,11 @@ CB 남발·거래정지)을 먼저 걸러내고, 살아남은 종목에
 """
 import argparse
 import logging
+import math
 import os
 import re
 import sys
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 import numpy as np
 import pandas as pd
@@ -615,3 +616,74 @@ def score_valuation(fundamentals, peers, market_cap):
                  + VALUATION_W[1] * pct_score
                  + VALUATION_W[2] * mos_score)
     return _clamp(valuation, 0.0, 1.0)
+
+
+# ── Catalyst 축 순수 함수 (todo 5, §결정본 Catalyst) ──────────────────
+# 전부 DB 접근 없는 순수 함수 — dict 픽스처로 직접 테스트 가능.
+# 결측(None)은 중립 처리(감정·중요도), 미지 이벤트 타입은 가중 0.0, 마법 숫자 없음.
+
+
+def _as_date(v):
+    """created_at 정규화 → date (date/datetime/ISO str 입력).
+
+    datetime → v.date(); date → 그대로; str → date.fromisoformat(str(v)[:10])
+    (ISO 'YYYY-MM-DD' 접두사만 사용 — 시각·타임존이 붙은 문자열도 허용).
+    그 외 타입 → ValueError.
+    """
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    if isinstance(v, str):
+        return date.fromisoformat(str(v)[:10])
+    raise ValueError("created_at 정규화 불가 타입: %r" % type(v))
+
+
+def _catalyst_raw(events, as_of):
+    """촉매 이벤트 원점수 (결정본 §Catalyst 가중 합, 정규화 전).
+
+    결정본: event_weight_i = W(event_type) × (0.5 + 0.5×importance)
+             × exp(−days_ago / CATALYST_HALF_LIFE);
+    catalyst_raw = Σ event_weight_i (윈도우·감정 필터 통과 이벤트만).
+
+    - W = CATALYST_EVENT_WEIGHTS.get(event_type, 0.0) — 미지 타입 → 0.0.
+      0.00 가중 10종은 크레딧 0 기여 (베토 판정은 Todo 6 몫).
+    - 윈도우: as_of − CATALYST_DAYS일 ≤ created_at ≤ as_of. 계획 §결정본은
+      "created_at >= as_of − 182일"만 명시하나, as_of 이후 이벤트는 미래 정보
+      (룩어헤드)라 상한도 적용 — §결정본 편차, 여기 명시.
+    - 감정 필터: sentiment_score < 0 → 제외, None → 포함 (결정본).
+    - importance None → 0.5 중립 (DB 컬럼 DECIMAL(5,4) [0,1] — 스케일 범위 [0.5, 1.0]).
+    - days_ago = (as_of − created_at일).days — 윈도우 필터로 ≥ 0 보장.
+
+    필터 통과 이벤트 0건 → 0.0 (촉매 필수 원칙 — PLAN §5.1).
+    """
+    cutoff = as_of - timedelta(days=CATALYST_DAYS)
+    total = 0.0
+    for ev in events:
+        created = _as_date(ev.get("created_at"))
+        if created < cutoff or created > as_of:
+            continue
+        sentiment = ev.get("sentiment_score")
+        if sentiment is not None and sentiment < 0:
+            continue
+        weight = CATALYST_EVENT_WEIGHTS.get(ev.get("event_type"), 0.0)
+        if weight == 0.0:
+            continue
+        importance = ev.get("importance")
+        importance_scale = 0.5 + 0.5 * (importance if importance is not None else 0.5)
+        days_ago = (as_of - created).days
+        decay = math.exp(-days_ago / CATALYST_HALF_LIFE)
+        total += weight * importance_scale * decay
+    return total
+
+
+def score_catalyst(events, as_of):
+    """Catalyst 축 → [0,1] (결정본 §Catalyst 정규화).
+
+    결정본: catalyst_score = clamp(catalyst_raw / CATALYST_NORM, 0, 1).
+    이벤트 0건 → catalyst_raw 0.0 → 점수 0.0 (촉매 필수 원칙 — PLAN §5.1).
+    CATALYST_EVENT_WEIGHTS 0.00 타입(유상증자·감자/CB·BW/규제/소송/부도·상폐·거래정지/
+    리콜/거시경제/시장지수·유동성/자연재해/기타)은 촉매 크레딧 0 기여
+    (베토 판정은 Todo 6 몫).
+    """
+    return _clamp(_catalyst_raw(events, as_of) / CATALYST_NORM, 0.0, 1.0)
