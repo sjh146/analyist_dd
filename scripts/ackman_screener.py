@@ -80,6 +80,7 @@ CATALYST_NORM = 5.0                   # 촉매 원점수 정규화 분모
 CB_VETO_COUNT = 2                     # 6개월 내 CB·BW 이벤트 베토 임계 (2건)
 TRADE_GAP_DAYS = 10                   # 거래 공백 베토 임계 (signal_date − 최근거래일 > 10일)
 AUDIT_OPINION_VETO = ("비적정", "한정")  # 감사의견 베토 키워드 (값 없음 → fail-open, PLAN §8)
+VETO_REASONS = ("부채비율_한도", "감사의견_비적정한정", "횡령_분식", "CB_남발", "거래정지")  # apply_vetoes 사유 5종 (집계·로그 순서)
 
 # ── 촉매 이벤트 타입 가중치 (결정본 §Catalyst, DB CHECK 20종과 1:1) ──────
 # 계층: 자사주 > 밸류업(→'배당' 근사) > 배당 > M&A/지분변동 > … , 부정·중립 타입 0.00.
@@ -835,3 +836,159 @@ def write_csv(rows, path):
         os.makedirs(parent, exist_ok=True)
     pd.DataFrame(rows, columns=OUTPUT_COLUMNS).to_csv(path, index=False, encoding="utf-8")
     return path
+
+
+# ── 오케스트레이션 + CLI (todo 8, §결정본 진입 흐름) ────────────────────
+# run_screener는 main과 분리된 오케스트레이션 — 로더·3축·베토·랭킹을 조합만 하며
+# 로더를 그대로 호출하므로 SQL 프래그먼트 디스패치 FakeConn으로 테스트 가능.
+
+
+def run_screener(pg_conn, trade_date, top_n=15,
+                 min_trading_value=MIN_TRADING_VALUE, min_price=MIN_PRICE):
+    """유니버스 → 거래대금/가격 필터 → 베토 → 3축 → 랭킹 → 출력 행 (결정본 §진입 흐름).
+
+    반환: build_output_rows 규격의 상위 N dict 리스트 (빈 리스트 = 후보 없음).
+
+    흐름:
+    1. 유니버스 4-튜플 (code, name, sector, latest_date) — 빈 리스트 → [] + 경고.
+    2. 종목 메타(시가총액)·가격 이력 — 가격 이력 빈 DataFrame → [] + 경고.
+    3. 종목별 스킵 규칙: 가격 이력 행 없음 / 최근 20행 평균 거래대금 <
+       min_trading_value / 최근 종가 < min_price / 재무 < MIN_FUND_YEARS
+       (결정본 "재무 3개년 이상 없는 종목 스코어 산출 불가로 스킵").
+    4. 베토 5종 (apply_vetoes, audit_opinion=None — 스키마 컬럼 없음, fail-open
+       PLAN §8). 트리거 시 VETO_REASONS 순서 집계 + skip (CSV 미포함).
+    5. 통과 종목: score_quality/score_valuation/score_catalyst 3축 + 승법
+       compute_ackman_score. 3축 자체의 fail-low(0.0)는 그대로 반영 (스킵 아님).
+    6. rank_candidates(top_n) → build_output_rows → 반환.
+
+    로깅: apply_vetoes는 순수 함수(로깅 없음) — 호출자인 이 함수가 베토 요약
+    "베토 제외 N건 (부채비율 a, 감사의견 b, 횡령/분식 c, CB d, 거래정지 e)"을
+    logger.info로 남긴다 (Metis n3).
+    """
+    signal = _as_date(trade_date)
+    universe = load_universe(pg_conn, trade_date)
+    if not universe:
+        logger.warning("유니버스 0건 — run_screener 종료")
+        return []
+    meta = load_stock_meta(pg_conn)
+    mh = load_market_history(pg_conn, trade_date, lookback=20)
+    if len(mh) == 0:
+        logger.warning("가격 이력 0행 — run_screener 종료")
+        return []
+    veto_counts = {name: 0 for name in VETO_REASONS}
+    candidates = []
+    for code, name, sector, latest_date in universe:
+        sub = mh[mh["stock_code"] == code]
+        if len(sub) == 0:
+            continue
+        avg_tv = float(sub["trading_value"].mean())
+        latest_close = float(sub["close_price"].iloc[-1])
+        if avg_tv < min_trading_value or latest_close < min_price:
+            continue
+        fundamentals = load_fundamentals(pg_conn, code, years=5)
+        if len(fundamentals) < MIN_FUND_YEARS:
+            continue
+        m = meta.get(normalize_code(code), {})
+        sector = m.get("sector") or sector
+        market_cap = m.get("market_cap")
+        stock_name = m.get("stock_name") or name
+        peers = load_sector_peers(pg_conn, sector)
+        since = signal - timedelta(days=CATALYST_DAYS)
+        events = load_events(pg_conn, code, since)
+        vetoes = apply_vetoes({
+            "debt_ratio": fundamentals[0].get("debt_ratio"),
+            "audit_opinion": None,  # 스키마 컬럼 없음 — fail-open (PLAN §8)
+            "events": events,
+            "latest_trade_date": latest_date,
+            "signal_date": signal,
+        })
+        if vetoes:
+            for name_v in vetoes:
+                veto_counts[name_v] += 1
+            continue
+        q = score_quality(fundamentals)
+        v = score_valuation(fundamentals, peers, market_cap)
+        c = score_catalyst(events, signal)
+        ackman = compute_ackman_score(q, v, c)
+        candidates.append({
+            "stock_code": code,
+            "stock_name": stock_name,
+            "sector": sector,
+            "signal_date": trade_date,
+            "close_price": latest_close,
+            "quality_score": q,
+            "valuation_score": v,
+            "catalyst_score": c,
+            "ackman_score": ackman,
+        })
+    logger.info("베토 제외 %d건 (부채비율 %d, 감사의견 %d, 횡령/분식 %d, CB %d, 거래정지 %d)",
+                sum(veto_counts.values()),
+                veto_counts["부채비율_한도"], veto_counts["감사의견_비적정한정"],
+                veto_counts["횡령_분식"], veto_counts["CB_남발"], veto_counts["거래정지"])
+    if not candidates:
+        logger.warning("후보 0건 — 빈 결과 반환")
+    df = pd.DataFrame(candidates, columns=[
+        "stock_code", "stock_name", "sector", "signal_date", "close_price",
+        "quality_score", "valuation_score", "catalyst_score", "ackman_score",
+    ])
+    ranked = rank_candidates(df, top_n)
+    return build_output_rows(ranked)
+
+
+def main():
+    """CLI 진입점 (close_screener:427-509 구조 계승).
+
+    argparse → get_pg_conn(try/finally close) → resolve_trade_date →
+    run_screener → CSV 저장 → 콘솔 테이블. 후보 없음 → 경고 + 안내 후 종료.
+    기본 경로: data/reports/ackman_candidates_{YYYYMMDD}_{HHMMSS}.csv
+    (screener_score 파일명 규약 _(\d{8})_\d{6}\.csv$ 호환).
+    """
+    ap = argparse.ArgumentParser(description="애크먼 스크리너 — 장기 보유 매수 후보 선별")
+    ap.add_argument("--top-n", type=int, default=15, help="상위 N개 후보 (기본 15)")
+    ap.add_argument("--date", type=str, default=None, help="시그널 기준일 YYYY-MM-DD (기본: 최근 거래일)")
+    ap.add_argument("--output", type=str, default=None, help="출력 CSV 경로")
+    ap.add_argument("--min-trading-value", type=float, default=MIN_TRADING_VALUE,
+                    help="최소 거래대금 (기본 3억)")
+    ap.add_argument("--min-price", type=float, default=MIN_PRICE, help="최소 종가 (기본 1000원)")
+    args = ap.parse_args()
+
+    pg = get_pg_conn()
+    try:
+        trade_date = resolve_trade_date(pg, args.date)
+        logger.info(f"시그널 기준일: {trade_date}")
+
+        rows = run_screener(pg, trade_date, args.top_n,
+                            args.min_trading_value, args.min_price)
+        if not rows:
+            logger.warning("후보 없음 — CSV 생성 생략")
+            print("\n후보 없음 (베토/필터/데이터 부족으로 선별된 종목이 없습니다).")
+            return
+
+        if args.output:
+            out_path = args.output
+        else:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "..", "data", "reports"
+            )
+            out_path = os.path.join(out_dir, f"ackman_candidates_{ts}.csv")
+        write_csv(rows, out_path)
+        logger.info(f"CSV 저장: {out_path}")
+
+        # 콘솔 테이블
+        print(f"\nTop {len(rows)} Ackman Candidates ({trade_date})")
+        print(f"{'Rank':<5} {'Code':<8} {'Name':<20} {'Score':<7} Reason")
+        print("-" * 80)
+        for r in rows:
+            reason = r["reason"]
+            if len(reason) > 50:
+                reason = reason[:50] + "..."
+            print(f"  {r['rank']:<4} {r['stock_code']:<8} {r['stock_name']:<20} "
+                  f"{r['ackman_score']:<7.2f} {reason}")
+        print(f"\n총 후보: {len(rows)}")
+    finally:
+        pg.close()
+
+
+if __name__ == "__main__":
+    main()
