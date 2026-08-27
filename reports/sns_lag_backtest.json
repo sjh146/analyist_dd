@@ -1,0 +1,68 @@
+{
+  "n_folds": 3,
+  "n_rows": 2400,
+  "n_features": 16,
+  "folds": [
+    {
+      "fold": 1,
+      "train_start": "2026-01-01",
+      "train_end": "2026-01-01",
+      "test_start": "2026-01-02",
+      "test_end": "2026-03-01",
+      "n_train": 20,
+      "n_test": 1180,
+      "win_rate": 0.5008,
+      "mean_return": -0.00018,
+      "sharpe": -0.1429,
+      "lag_direction": {
+        "sns_leads": 708,
+        "price_leads": 472,
+        "no_lead": 0
+      }
+    },
+    {
+      "fold": 2,
+      "train_start": "2026-01-01",
+      "train_end": "2026-03-01",
+      "test_start": "2026-03-02",
+      "test_end": "2026-04-29",
+      "n_train": 1200,
+      "n_test": 1180,
+      "win_rate": 0.5042,
+      "mean_return": 1.8e-05,
+      "sharpe": 0.0148,
+      "lag_direction": {
+        "sns_leads": 708,
+        "price_leads": 472,
+        "no_lead": 0
+      }
+    },
+    {
+      "fold": 3,
+      "train_start": "2026-01-01",
+      "train_end": "2026-04-29",
+      "test_start": "2026-04-30",
+      "test_end": "2026-04-30",
+      "n_train": 2380,
+      "n_test": 20,
+      "win_rate": 0.55,
+      "mean_return": 0.001328,
+      "sharpe": 1.0773,
+      "lag_direction": {
+        "sns_leads": 12,
+        "price_leads": 8,
+        "no_lead": 0
+      }
+    }
+  ],
+  "aggregate": {
+    "win_rate": 0.5029,
+    "mean_return": -6.9e-05,
+    "sharpe": -0.0545
+  },
+  "lag_direction_distribution": {
+    "sns_leads": 1428,
+    "price_leads": 952,
+    "no_lead": 0
+  }
+}

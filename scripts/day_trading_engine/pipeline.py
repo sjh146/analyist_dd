@@ -49,7 +49,7 @@ class ChampionPredictor:
 
     @staticmethod
     def _default_model_dir() -> str:
-        return os.path.join(
+        return os.environ.get("MODEL_DIR") or os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "services", "xgboost-ml", "app", "models", "champion",
         )

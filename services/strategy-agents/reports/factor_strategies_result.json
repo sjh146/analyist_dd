@@ -1,11 +1,11 @@
 {
   "request_type": "factor_report",
-  "generated_at": "2026-08-13T06:41:01.084866Z",
+  "generated_at": "2026-08-21T07:23:25.573522Z",
   "strategies": {
     "lowvol_factor": {
       "metrics": {
-        "total_return": -0.014365,
-        "sharpe": -0.3158,
+        "total_return": -0.008084,
+        "sharpe": -0.1473,
         "max_drawdown": 0.036971,
         "win_rate": 0.5,
         "num_trades": 60
@@ -32,8 +32,8 @@
     },
     "multifactor": {
       "metrics": {
-        "total_return": -0.610086,
-        "sharpe": -3.5902,
+        "total_return": -0.608763,
+        "sharpe": -3.5605,
         "max_drawdown": 0.291421,
         "win_rate": 0.0,
         "num_trades": 120
