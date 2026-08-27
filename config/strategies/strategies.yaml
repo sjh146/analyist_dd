@@ -74,3 +74,11 @@ strategies:
     is_active: true
     parameters:
       paper_only: true
+
+  # ── 테제원장 전략 (AckmanStrategy) ─────────────────────────────────
+  ackman_fundamental:
+    name: "애크먼 펀더멘탈 (테제원장)"
+    description: "테제 냉동 + 매일 판정, '파기' 시에만 매도 — paper_only"
+    is_active: true
+    parameters:
+      paper_only: true
