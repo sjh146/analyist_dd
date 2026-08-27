@@ -761,3 +761,77 @@ def apply_vetoes(ctx):
         if gap:
             vetoes.append("거래정지")
     return vetoes
+
+
+# ── 복합 점수·랭킹·출력 (todo 7, §결정본 복합/랭킹/출력) ────────────────
+# 전부 DB 접근 없는 순수 함수. close_screener.py:367-415 패턴 계승
+# (rank_candidates/build_output_rows/write_csv), 정렬·reason 컬럼만 ackman 규격.
+
+
+def compute_ackman_score(q, v, c):
+    """AckmanScore 승법 합산 → [0,1] (PLAN §5.1).
+
+    결정본: ackman_score = quality × valuation × catalyst — 승법이므로
+    축 하나가 0이면 전체 0. 입력 3축은 각각 [0,1] 가정. [0,1] 클램프.
+    """
+    return _clamp(q * v * c, 0.0, 1.0)
+
+
+def rank_candidates(df, top_n=15):
+    """ackman_score 내림차순 정렬 + rank 1..n + top_n 절단 (close_screener:367-376 패턴).
+
+    top_n 기본 15 (플랜 기본값). 빈 df → rank 빈 컬럼 추가한 복사본 반환 (크래시 없음).
+    """
+    if len(df) == 0:
+        out = df.copy()
+        out["rank"] = []
+        return out
+    out = df.sort_values("ackman_score", ascending=False).reset_index(drop=True)
+    out = out.head(top_n).copy()
+    out["rank"] = range(1, len(out) + 1)
+    return out
+
+
+def build_output_rows(df):
+    """출력용 dict 리스트 (OUTPUT_COLUMNS 순서 고정 = CSV 컬럼 순서).
+
+    결정본 컬럼 순서: rank, stock_code, stock_name, sector, signal_date,
+    close_price, ackman_score, quality_score, valuation_score, catalyst_score,
+    reason. reason = "Q={:.2f} V={:.2f} C={:.2f}" (q/v/c는 반올림 전 원본 float).
+    반올림: 점수 4종·close_price 2자리. stock_name/sector 결측 → ""
+    (메타에서 합쳐질 수 있음).
+    """
+    rows = []
+    for _, r in df.iterrows():
+        rows.append({
+            "rank": int(r["rank"]),
+            "stock_code": r.get("stock_code", ""),
+            "stock_name": r.get("stock_name", ""),
+            "sector": r.get("sector", ""),
+            "signal_date": str(r["signal_date"]),
+            "close_price": round(float(r["close_price"]), 2),
+            "ackman_score": round(float(r["ackman_score"]), 2),
+            "quality_score": round(float(r["quality_score"]), 2),
+            "valuation_score": round(float(r["valuation_score"]), 2),
+            "catalyst_score": round(float(r["catalyst_score"]), 2),
+            "reason": "Q=%.2f V=%.2f C=%.2f" % (
+                float(r["quality_score"]), float(r["valuation_score"]),
+                float(r["catalyst_score"])),
+        })
+    return rows
+
+
+def write_csv(rows, path):
+    """CSV 저장 (부모 디렉토리 생성, utf-8, OUTPUT_COLUMNS 순서 고정).
+
+    close_screener:407-415 패턴. 기본 파일명
+    (data/reports/ackman_candidates_{YYYYMMDD}_{HHMMSS}.csv, screener_score
+    규약 _(\d{8})_\d{6}\.csv$ 호환) 생성은 main(Todo 8) 몫 — 여기서는 받은
+    path 그대로 저장하고 저장된 절대경로를 반환.
+    """
+    path = os.path.abspath(path)
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    pd.DataFrame(rows, columns=OUTPUT_COLUMNS).to_csv(path, index=False, encoding="utf-8")
+    return path
