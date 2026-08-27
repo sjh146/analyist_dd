@@ -48,8 +48,7 @@ def main():
     cur = conn.cursor()
     cur.execute("""
         SELECT s.stock_code, s.market FROM stocks s
-        JOIN market_data m ON m.stock_code = s.stock_code
-        WHERE m.trade_date = (SELECT MAX(trade_date) FROM market_data)
+        WHERE s.market IN ('KOSPI', 'KOSDAQ')
         GROUP BY s.stock_code, s.market
     """)
     universe = [(r[0], "K" if str(r[1]).upper() == "KOSDAQ" else "J") for r in cur.fetchall()]
@@ -59,7 +58,7 @@ def main():
     todo = [u for u in universe if u[0] not in done]
     print(f"전체 {len(universe)} / 완료 {len(done)} / 남은 {len(todo)}", flush=True)
 
-    ok = fail = bars = 0
+    ok = fail = no_data = bars = 0
     for code, excd in todo:
         try:
             resp = c.get_daily_chart(code, excd, DATE_FROM, DATE_TO)
@@ -86,8 +85,11 @@ def main():
                 conn.commit()
                 cur.close()
                 bars += len(rows)
-            ok += 1
-            save_done(code)
+                ok += 1
+                save_done(code)
+            else:
+                no_data += 1
+                print(f"  [{code}] 봉 데이터 없음 (스킵, 재시도 가능)", flush=True)
         except Exception as e:
             fail += 1
             msg = str(e)[:100]
@@ -97,7 +99,7 @@ def main():
                 break
             time.sleep(10)
 
-    print(f"완료: ok={ok} fail={fail} 바={bars} (누적 완료 {len(done) + ok})", flush=True)
+    print(f"완료: ok={ok} fail={fail} no_data={no_data} 바={bars} (누적 완료 {len(done) + ok})", flush=True)
 
 
 if __name__ == "__main__":
