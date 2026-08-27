@@ -17,6 +17,7 @@ from app.collectors.rss_collector import RssCollector
 from app.analyzers.deepseek_analyzer import DeepSeekAnalyzer
 from app.storage.postgres_storage import PostgresStorage
 from app.storage.neo4j_storage import Neo4jStorage
+from app.thesis.thesis_verifier import ThesisVerifier, ThesisJudge, ThesisBreakNotifier
 from app.models.schemas import Article, AnalysisResult, StructuredNews
 from app.events.clusterer import cluster, EventCluster
 from app.graph.news_graph_writer import NewsGraphWriter
@@ -50,6 +51,7 @@ class NewsAnalyzerService:
         self._backfill_sentiment_metrics()
         self._backfill_news_metrics()
         self._running = False
+        self._thesis_verifier = None  # lazy — 첫 판정 사이클에서 생성 (fail-open)
 
     def _backfill_sentiment_metrics(self):
         """One-time backfill of sentiment metrics from existing DB records."""
@@ -211,6 +213,9 @@ class NewsAnalyzerService:
         # Phase 3: 이벤트 클러스터 후처리 (스케줄/배치, LLM 없음, fail-open)
         self._cluster_recent_events()
 
+        # Thesis Ledger (M2): 활성 테제 일 1회 판정 — 파이프라인 무중단 (fail-open)
+        await self._run_thesis_verification()
+
     def _cluster_recent_events(self):
         """최근 news_event_extraction 을 클러스터링하여 news_events 에 upsert.
 
@@ -234,6 +239,23 @@ class NewsAnalyzerService:
             self._write_news_graph(clusters)
         except Exception as e:
             logger.error(f"Event clustering failed (fail-open): {e}")
+
+    async def _run_thesis_verification(self):
+        """활성 테제 판정 사이클 (M2) — 테이블 부재·LLM·Redis 실패 시에도 무중단(fail-open).
+
+        lazy 생성: 첫 호출에서 ThesisVerifier를 조립한다. 파이프라인의 다른
+        스텝(수집/분석/클러스터링)과 완전히 독립 — 어떤 예외도 삼키고 로그만 남긴다.
+        """
+        try:
+            if self._thesis_verifier is None:
+                self._thesis_verifier = ThesisVerifier(
+                    storage=self.pg_storage,
+                    judge=ThesisJudge(api_key=self.config.DEEPSEEK_API_KEY),
+                    notifier=ThesisBreakNotifier(),
+                )
+            await self._thesis_verifier.run_verification_cycle()
+        except Exception as e:
+            logger.error(f"Thesis verification failed (fail-open): {e}")
 
     def _write_news_graph(self, clusters: List[EventCluster]):
         """클러스터 기반 Neo4j 관계 upsert (Phase 7).
