@@ -19,8 +19,8 @@
   python3 scripts/thesis_onboarding.py --list
   python3 scripts/thesis_onboarding.py --approve <approval_id>
 
-이 모듈은 todo 3 산출물(골격+상수+CSV 로딩/필터+초안 생성기+승인 패키지)까지 포함하며,
-Discord·INSERT·CLI는 후속 todo에서 추가된다.
+이 모듈은 todo 4 산출물(골격+상수+CSV 로딩/필터+초안 생성기+승인 패키지+Discord 웹훅)까지
+포함하며, INSERT·CLI는 후속 todo에서 추가된다.
 """
 import csv
 import json
@@ -72,6 +72,7 @@ DRAFT_SYSTEM_PROMPT = (
 
 # ── Discord 웹훅 / 전략명 ─────────────────────────────────────────────────
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")  # 미설정 → 콘솔/로그 폴백
+WEBHOOK_TIMEOUT = 10  # Discord 웹훅 타임아웃 (초) — 초안 생성(DRAFT_TIMEOUT=30)과 별도
 THESIS_STRATEGY_NAME = "ackman_fundamental"
 
 # ── 출력 CSV 컬럼 (스크리너 실CSV 헤더 그대로) ────────────────────────────
@@ -538,3 +539,75 @@ def set_approval_status(approval_id, status, **extra):
         return None
     logger.info(f"승인 패키지 상태 전이: {approval_id} → {status}")
     return load_approval(approval_id)
+
+
+# ── Discord 웹훅 발신 (todo 4, 가정 A3 — 발신 전용, fail-open) ─────────────
+
+
+def send_discord_webhook(payload):
+    """Discord 웹훅 POST → bool (urllib 전용, fail-open).
+
+    payload는 {"content": str} 형식 (Discord 웹훅 표준). URL 미설정 → logger.info
+    콘솔 폴백(페이로드 출력) + False. HTTP 오류/URLError/기타 예외 → logger.warning
+    + False. 성공(2xx) → True. 예외는 절대 밖으로 전파하지 않는다.
+    """
+    if not DISCORD_WEBHOOK_URL:
+        logger.info(
+            "DISCORD_WEBHOOK_URL 미설정 — 콘솔 폴백: "
+            + json.dumps(payload, ensure_ascii=False)
+        )
+        return False
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    try:
+        req = urllib.request.Request(
+            DISCORD_WEBHOOK_URL,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=WEBHOOK_TIMEOUT) as resp:
+            if 200 <= resp.status < 300:
+                logger.info("Discord 웹훅 발신 성공")
+                return True
+            logger.warning(f"Discord 웹훅 발신 실패 — HTTP {resp.status}")
+            return False
+    except Exception as e:
+        logger.warning(f"Discord 웹훅 발신 실패: {e}")
+        return False
+
+
+def format_approval_message(pkg):
+    """승인 요청 메시지 (한글, 순수 함수) — 종목/스코어/테제 4+1문장 요약/촉매 수.
+
+    마지막 줄에 승인 명령 안내("승인: python3 scripts/thesis_onboarding.py
+    --approve {approval_id}") 포함.
+    """
+    thesis = pkg.get("thesis") or {}
+    catalysts = thesis.get("catalysts") or []
+    intrinsic = thesis.get("intrinsic_value_krw")
+    value_txt = f"{intrinsic:,.0f}원" if intrinsic is not None else "추정 불가"
+    lines = [
+        f"[테제 승인 요청] {pkg.get('stock_name', '')} ({pkg.get('stock_code', '')})",
+        f"섹터: {pkg.get('sector', '')} | 종가: {pkg.get('close_price', '')} "
+        f"| AckmanScore: {pkg.get('ackman_score', '')}",
+        f"사업: {thesis.get('business', '')}",
+        f"왜 좋은가: {thesis.get('why_good', '')}",
+        f"본질가치: {value_txt}",
+        f"반박증거(파기 조건): {thesis.get('disproof', '')}",
+        f"촉매: {len(catalysts)}건",
+        f"승인: python3 scripts/thesis_onboarding.py --approve {pkg.get('approval_id', '')}",
+    ]
+    return "\n".join(lines)
+
+
+def format_approval_result_message(approval_id, thesis_id, status):
+    """승인 결과 피드백 메시지 (한글, 순수 함수) — status(approved/rejected)별 문구.
+
+    approved → "테제 등록 완료 — thesis_id: {thesis_id}", rejected → "승인 거부"
+    + approval_id. 그 외 status는 상태 불명 문구.
+    """
+    if status == "approved":
+        return f"테제 등록 완료 — thesis_id: {thesis_id} (approval_id: {approval_id})"
+    if status == "rejected":
+        return f"승인 거부 — approval_id: {approval_id}"
+    return f"승인 결과 상태 불명: {status} (approval_id: {approval_id})"
