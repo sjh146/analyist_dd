@@ -572,3 +572,49 @@ class PostgresStorage:
             return []
         finally:
             self._put_conn(conn)
+
+    # ------------------------------------------------------------------
+    # M4 thesis-ledger read methods (additive)
+    # ------------------------------------------------------------------
+
+    def get_active_theses(self, strategy_name: str = "ackman_fundamental") -> List[Dict]:
+        """활성 테제(active) 목록 조회 — 빌 애크먼식 테제 원장 읽기."""
+        conn = self._get_conn()
+        if not conn: return []
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(
+                "SELECT id, stock_code, thesis_text, disproof_criteria, "
+                "intrinsic_value, entry_price, catalyst_events, created_at "
+                "FROM position_theses "
+                "WHERE status = 'active' AND strategy_name = %s ORDER BY id",
+                (strategy_name,),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in rows]
+        except Exception as e:
+            logger.warning(f"get_active_theses failed: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
+
+    def get_thesis_verdicts(self, thesis_id: int, limit: int = 2) -> List[Dict]:
+        """테제 판정 원장 조회 (최신 verdict_date DESC)."""
+        conn = self._get_conn()
+        if not conn: return []
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(
+                "SELECT verdict, verdict_date FROM thesis_verdicts "
+                "WHERE thesis_id = %s ORDER BY verdict_date DESC LIMIT %s",
+                (thesis_id, limit),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in rows]
+        except Exception as e:
+            logger.warning(f"get_thesis_verdicts failed: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
