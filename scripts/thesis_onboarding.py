@@ -18,15 +18,19 @@
   python3 scripts/thesis_onboarding.py --draft
   python3 scripts/thesis_onboarding.py --list
   python3 scripts/thesis_onboarding.py --approve <approval_id>
+  python3 scripts/thesis_onboarding.py --reject <approval_id> --reason "사유"
 
-이 모듈은 todo 5 산출물(골격+상수+CSV 로딩/필터+초안 생성기+승인 패키지+Discord 웹훅+
-position_theses INSERT)까지 포함하며, CLI는 후속 todo에서 추가된다.
+이 모듈은 todo 6 산출물(골격+상수+CSV 로딩/필터+초안 생성기+승인 패키지+Discord 웹훅+
+position_theses INSERT+CLI)까지 포함한다. 후속 todo는 이 CLI를 테스트/실가동한다.
 """
+import argparse
 import csv
+import glob
 import json
 import logging
 import os
 import secrets
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -681,3 +685,233 @@ def insert_thesis(pg, row):
     finally:
         if cur is not None:
             cur.close()
+
+
+# ── CLI (todo 6, ackman_screener main 구조 계승) ───────────────────────────
+# 하위 명령 오류 → logger.error + sys.exit(1) (비제로 exit), 예상 밖 예외는
+# 스택트레이스와 함께 전파. 초안 루프 내 실패만 후보 단위 fail-open.
+
+
+def _latest_candidate_csv():
+    """DEFAULT_CSV_GLOB 최신 후보 CSV 경로 | None.
+
+    파일명 규칙이 {YYYYMMDD}_{HHMMSS}라 사전순 정렬 = 시간순 (타임스탬프
+    내림차순 = 마지막 원소).
+    """
+    files = sorted(glob.glob(DEFAULT_CSV_GLOB))
+    return files[-1] if files else None
+
+
+def _draft_candidate(candidate, pg):
+    """후보 1건 → 초안 응답 dict(5필드) | None — draft_thesis 파이프라인 미러.
+
+    draft_thesis는 build_thesis_row까지 합쳐 행 dict를 반환하지만, 승인 패키지의
+    thesis 필드에는 원본 초안(business/why_good/intrinsic_value_krw/catalysts/
+    disproof)이 저장되어야 한다 (format_approval_message 입력 규약). INSERT 행은
+    approve 시점에 build_thesis_row(pkg, draft)로 재구성하므로 여기서는 draft까지만
+    반환한다. 어느 단계든 실패 → None (후보 단위 fail-open).
+    """
+    code = candidate.get("stock_code")
+    try:
+        fundamentals = _load_fundamentals(pg, code)
+        if not fundamentals:
+            logger.warning(f"{code}: 재무 0행 — 초안 생성 생략")
+            return None
+        since = date.today() - timedelta(days=CATALYST_DAYS)
+        events = _load_events(pg, code, since)
+        prompt = _build_draft_prompt(candidate, fundamentals, events)
+        raw = call_deepseek_draft(prompt)
+        if raw is None:
+            logger.warning(f"{code}: DeepSeek 초안 응답 없음")
+            return None
+        draft = _parse_draft_response(raw)
+        if draft is None:
+            logger.warning(f"{code}: 초안 응답 파싱 실패")
+            return None
+        return draft
+    except Exception as e:
+        logger.warning(f"{code}: 초안 생성 실패: {e}")
+        return None
+
+
+def _cmd_draft(args):
+    """--draft: 후보 로드 → 초안 루프 → 승인 패키지 저장 → Discord 승인 요청.
+
+    CSV 검증(없음/빈 파일/필터 0건)은 PG 연결 전 — 파일 기반 빠른 실패.
+    PG는 후보 존재 시에만 연결 (get_pg_conn → try/finally close).
+    """
+    csv_path = args.csv or _latest_candidate_csv()
+    if not csv_path or not os.path.isfile(csv_path):
+        logger.error(f"후보 CSV 없음: {csv_path or DEFAULT_CSV_GLOB}")
+        sys.exit(1)
+    rows = parse_candidates_csv(csv_path)
+    if not rows:
+        logger.error(f"후보 CSV 비어 있음: {csv_path}")
+        sys.exit(1)
+    candidates = filter_candidates(rows, args.top_n, args.min_score)
+    if not candidates:
+        print("\n후보 없음 (ackman_score > min_score 통과 종목 없음).")
+        return
+
+    pg = get_pg_conn()
+    approval_ids = []
+    try:
+        print(f"\n후보 {len(candidates)}건 — 테제 초안 생성 시작 ({csv_path})")
+        for cand in candidates:
+            code = cand.get("stock_code")
+            draft = _draft_candidate(cand, pg)
+            if draft is None:
+                logger.warning(f"{code}: 초안 생성 실패 — 후보 skip")
+                continue
+            pkg = {
+                "stock_code": code,
+                "stock_name": cand.get("stock_name"),
+                "sector": cand.get("sector"),
+                "signal_date": cand.get("signal_date"),
+                "close_price": cand.get("close_price"),
+                "ackman_score": cand.get("ackman_score"),
+                "thesis": draft,
+            }
+            approval_id = save_approval(pkg)
+            approval_ids.append(approval_id)
+            saved = load_approval(approval_id)
+            send_discord_webhook({"content": format_approval_message(saved)})
+            print(f"  승인 요청 생성: {approval_id} — {cand.get('stock_name')} ({code})")
+    finally:
+        pg.close()
+
+    print(f"\n승인 패키지 {len(approval_ids)}건 저장 (APPROVALS_DIR={APPROVALS_DIR})")
+    if approval_ids:
+        print("목록: python3 scripts/thesis_onboarding.py --list")
+        print("승인: python3 scripts/thesis_onboarding.py --approve <approval_id>")
+
+
+def _cmd_approve(args):
+    """--approve: pending 확인 → 중복 검사 → INSERT → approved 전이 → thesis_id 출력.
+
+    패키지 검증(없음/비pending)은 PG 연결 전 — 파일 기반 빠른 실패. PG는 검증
+    통과 후에만 연결 (get_pg_conn → try/finally close). INSERT 실패 → pending 유지.
+    """
+    pkg = load_approval(args.approve)
+    if pkg is None:
+        logger.error(f"승인 패키지 없음: {args.approve}")
+        sys.exit(1)
+    if pkg.get("status") != "pending":
+        logger.error(
+            f"승인 불가 — 상태가 pending이 아님: {args.approve} (status={pkg.get('status')})"
+        )
+        sys.exit(1)
+    stock_code = pkg.get("stock_code")
+
+    pg = get_pg_conn()
+    thesis_id = None
+    try:
+        if has_active_thesis(pg, stock_code):
+            logger.error(f"중복 등록 거부 — 활성 테제 존재: {stock_code}")
+            sys.exit(1)
+
+        # 등록 전 최종 확인 재표시 (가정 A1)
+        print("\n" + format_approval_message(pkg) + "\n")
+
+        row = build_thesis_row(pkg, pkg["thesis"])
+        thesis_id = insert_thesis(pg, row)
+    finally:
+        pg.close()
+
+    if thesis_id is None:
+        logger.error(f"테제 INSERT 실패 — 승인 상태 유지(pending): {args.approve}")
+        sys.exit(1)
+    set_approval_status(args.approve, "approved", thesis_id=thesis_id)
+    send_discord_webhook({
+        "content": format_approval_result_message(args.approve, thesis_id, "approved"),
+    })
+    print(f"thesis_id: {thesis_id}")
+
+
+def _cmd_reject(args):
+    """--reject: 승인 패키지 → rejected 전이 (사유 병합)."""
+    if load_approval(args.reject) is None:
+        logger.error(f"승인 패키지 없음: {args.reject}")
+        sys.exit(1)
+    try:
+        updated = set_approval_status(args.reject, "rejected", reason=args.reason or "")
+    except ValueError as e:
+        logger.error(f"거부 실패: {e}")
+        sys.exit(1)
+    print(f"승인 거부: {args.reject} (reason: {updated.get('reason', '')})")
+
+
+def _cmd_list(args):
+    """--list: 승인 패키지 목록 표시 (파일 기반 — PG 불필요, 기본 pending)."""
+    status_filter = args.status or "pending"
+    entries = []
+    if os.path.isdir(APPROVALS_DIR):
+        for name in sorted(os.listdir(APPROVALS_DIR)):
+            if not name.endswith(".json"):
+                continue
+            approval_id = name[: -len(".json")]
+            pkg = load_approval(approval_id)
+            if pkg is None:
+                continue
+            if status_filter != "all" and pkg.get("status") != status_filter:
+                continue
+            entries.append((approval_id, pkg))
+    if not entries:
+        print(f"(승인 패키지 없음 — status={status_filter})")
+        return
+    print(f"\n승인 패키지 목록 (status={status_filter}, APPROVALS_DIR={APPROVALS_DIR})")
+    print(f"{'approval_id':<28} {'stock':<12} {'status':<12} 이름")
+    print("-" * 70)
+    for approval_id, pkg in entries:
+        print(f"{approval_id:<28} {pkg.get('stock_code', ''):<12} "
+              f"{pkg.get('status', ''):<12} {pkg.get('stock_name', '')}")
+
+
+def main():
+    """CLI 진입점 (ackman_screener main 구조 계승).
+
+    --draft: 후보 CSV → 초안 생성 → 승인 패키지 저장 → Discord 요청 (PG 필요).
+    --approve: pending 확인 → 중복 검사 → INSERT → approved 전이 → thesis_id (PG 필요).
+    --reject: rejected 전이. --list: 목록 표시 (파일 기반, PG 불필요).
+    하위 명령 오류 → 비제로 exit. --draft/--approve는 try/finally로 pg.close().
+    """
+    ap = argparse.ArgumentParser(description="테제 온보딩 — 매수 후보 → 테제 등록 승인 플로우")
+    ap.add_argument("--draft", action="store_true", help="후보 CSV로 테제 초안 생성 + 승인 요청")
+    ap.add_argument("--csv", type=str, default=None,
+                    help=f"후보 CSV 경로 (기본: {DEFAULT_CSV_GLOB} 최신 파일)")
+    ap.add_argument("--top-n", type=int, default=DEFAULT_TOP_N,
+                    help=f"상위 N개 후보 (기본 {DEFAULT_TOP_N})")
+    ap.add_argument("--min-score", type=float, default=DEFAULT_MIN_SCORE,
+                    help=f"최소 ackman_score (기본 {DEFAULT_MIN_SCORE})")
+    ap.add_argument("--approve", type=str, default=None, metavar="APPROVAL_ID",
+                    help="승인 패키지 승인 → position_theses 등록")
+    ap.add_argument("--reject", type=str, default=None, metavar="APPROVAL_ID",
+                    help="승인 패키지 거부")
+    ap.add_argument("--reason", type=str, default=None, help="거부 사유 (--reject와 함께)")
+    ap.add_argument("--list", action="store_true", help="승인 패키지 목록 표시")
+    ap.add_argument("--status", type=str, default=None,
+                    choices=("all", "pending", "approved", "rejected"),
+                    help="--list 상태 필터 (기본 pending)")
+    args = ap.parse_args()
+
+    if args.list:
+        _cmd_list(args)
+        return
+
+    if args.approve:
+        _cmd_approve(args)
+        return
+
+    if args.reject:
+        _cmd_reject(args)
+        return
+
+    if args.draft:
+        _cmd_draft(args)
+        return
+
+    ap.print_help()
+
+
+if __name__ == "__main__":
+    main()
