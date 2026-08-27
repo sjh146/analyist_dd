@@ -479,3 +479,139 @@ def score_quality(fundamentals):
                + QUALITY_W[2] * vol_score
                + QUALITY_W[3] * debt_score)
     return _clamp(quality, 0.0, 1.0)
+
+
+# ── Valuation 축 순수 함수 (todo 4, §결정본 Valuation) ─────────────────
+# 전부 DB 접근 없는 순수 함수 — dict 픽스처로 직접 테스트 가능.
+# 결측(None)은 fail-low/중립 처리, 마법 숫자 없음(상수 참조만).
+# 프록시 한계(§결정본 문서화): FCF yield 분모는 현재 market_cap(자기 과거 대비
+# z-score의 문서화된 proxy), MoS의 norm_fcf는 capex 컬럼 부재(01_schema.sql)로
+# operating_cash_flow 그대로 사용.
+
+
+def _fcf_yield_z(yields):
+    """FCF yield 시계열 z-score → [0,1] (최신 yield가 클수록 좋음).
+
+    결정본: z = (yield_latest − mean) / (std + 1e-9), z = clamp(z, −2, 2),
+    z_score = (z + 2) / 4 — 최고 yield → 1.0, 최저 → 0.0, ±2 클램프.
+    입력은 오래된 연도 → 최신 연도 순서(최신 = 마지막 요소), None 결측 제외.
+    mean/std는 np.mean/np.std(ddof=0, close_screener 관례) — 자기 과거 대비
+    z-score이므로 모집단 std 그대로.
+    유효 yield < 2개 → 0.0 (z-score 불가, fail-low).
+    std == 0 (전부 동일) → z = 0 → 0.5 (자기 과거 대비 차이 없음 — 중립).
+    1e-9: z-score 분모 안정화 상수 (결정본 허용 — std 0 방지).
+    """
+    valid = [y for y in yields if y is not None]
+    if len(valid) < 2:
+        return 0.0
+    mean = float(np.mean(valid))
+    std = float(np.std(valid))  # ddof=0 (모집단, close_screener 관례)
+    if std == 0.0:
+        return 0.5
+    z = (valid[-1] - mean) / (std + 1e-9)  # 1e-9: 분모 안정화
+    z = _clamp(z, -2.0, 2.0)
+    return (z + 2.0) / 4.0
+
+
+def _percentile(own, others):
+    """own이 others 교차단면에서 차지하는 백분위 [0,100] (낮을수록 좋음).
+
+    company_features.py:122-127 패턴: rank = sum(1 for v in others if v <= own);
+    백분위 = rank / len(others) × 100. others 빈 리스트는 호출자가 0.5 중립으로
+    처리 (여기서는 호출자 보장).
+    """
+    rank = sum(1 for v in others if v <= own)
+    return rank / len(others) * 100.0
+
+
+def _pct_score(per_pct, pbr_pct):
+    """업종 PER/PBR 백분위 점수 → [0,1] (백분위 낮을수록 좋음).
+
+    결정본: pct_score = 1 − (per_pct/100 + pbr_pct/100) / 2, [0,1] 클램프.
+    백분위 0 → 1.0 (업종 내 최저 PER/PBR), 백분위 100 → 0.0.
+    """
+    return _clamp(1.0 - (per_pct / 100.0 + pbr_pct / 100.0) / 2.0, 0.0, 1.0)
+
+
+def _mos_score(norm_fcf, market_cap):
+    """단순 DCF 안전마진(MoS) 점수 → [0,1].
+
+    결정본: intrinsic = norm_fcf × (1 + MOF_G) / (MOF_WACC − MOF_G)
+    (MOF_WACC > MOF_G — 분모 0 아님); MoS = intrinsic / market_cap − 1;
+    mos_score = clamp(MoS / MOF_FULL, 0, 1) — MoS ≤ 0 → 0.0, MoS ≥ 50% → 1.0.
+    프록시 한계: norm_fcf는 capex 컬럼 부재(01_schema.sql)로 operating_cash_flow
+    그대로 사용 (FCF 대신 OCF — §결정본 문서화된 proxy).
+    norm_fcf None/≤ 0 또는 market_cap None/≤ 0 → 0.0 (fail-low).
+    """
+    if norm_fcf is None or norm_fcf <= 0.0:
+        return 0.0
+    if market_cap is None or market_cap <= 0.0:
+        return 0.0
+    intrinsic = norm_fcf * (1.0 + MOF_G) / (MOF_WACC - MOF_G)
+    mos = intrinsic / market_cap - 1.0
+    return _clamp(mos / MOF_FULL, 0.0, 1.0)
+
+
+def score_valuation(fundamentals, peers, market_cap):
+    """Valuation 축 → [0,1] (결정본 §Valuation 가중 합).
+
+    valuation = 0.40×z_score + 0.30×pct_score + 0.30×mos_score (VALUATION_W 순서)
+    fundamentals는 report_date DESC(최신 우선, load_fundamentals) — PER/PBR·OCF는
+    최신 행(첫 행) 기준. market_cap은 load_stock_meta 출력(float|None),
+    peers는 load_sector_peers 출력([{stock_code, per, pbr}], None 가능).
+
+    - z 항: FCF yield = operating_cash_flow / market_cap (현재 market_cap 분모 —
+      자기 과거 대비 z-score의 문서화된 proxy) 시계열을 오래된→최신 순서로
+      _fcf_yield_z에 전달 (유효 yield < 2 → 0.0, fail-low).
+    - pct 항: 최신 행 per/pbr의 업종 내 백분위(낮을수록 좋음, company_features
+      패턴). 피어 부재(None/빈 리스트)·per/pbr 값 부재(빈 리스트)·
+      own per/pbr None/≤ 0 → 0.5 중립 (결정본 "섹터/피어 부재 → 0.5 중립").
+    - mos 항: 최근 3년(fundamentals[:3]) OCF 중앙값 = norm_fcf로 단순 DCF MoS.
+      최근 3년 OCF 0건 → mos 항 0.0.
+
+    fail-low 규칙 (정확히): 아래 중 하나라도 해당하면 0.0을 반환한다.
+    (1) fundamentals 행 수 < MIN_FUND_YEARS (데이터 부족)
+    (2) market_cap None 또는 ≤ 0 (yield·MoS 분모 불가)
+    (3) 전 연도 operating_cash_flow가 전부 None (z·mos 항 불가)
+    """
+    if len(fundamentals) < MIN_FUND_YEARS:
+        return 0.0
+    if market_cap is None or market_cap <= 0.0:
+        return 0.0
+    if not any(r.get("operating_cash_flow") is not None for r in fundamentals):
+        return 0.0
+    # z 항 — 오래된→최신 순서 FCF yield 시계열 (최신 = 마지막 요소)
+    yields_chrono = [
+        ocf / market_cap
+        for row in reversed(fundamentals)
+        if (ocf := row.get("operating_cash_flow")) is not None
+    ]
+    z_score = _fcf_yield_z(yields_chrono)
+    # pct 항 — 최신 행 per/pbr의 업종 백분위 (낮을수록 좋음)
+    own_per = fundamentals[0].get("per")
+    own_pbr = fundamentals[0].get("pbr")
+    if (not peers
+            or own_per is None or own_per <= 0.0
+            or own_pbr is None or own_pbr <= 0.0):
+        pct_score = 0.5
+    else:
+        per_vals = [p["per"] for p in peers if p.get("per") is not None]
+        pbr_vals = [p["pbr"] for p in peers if p.get("pbr") is not None]
+        if not per_vals or not pbr_vals:
+            pct_score = 0.5
+        else:
+            per_pct = _percentile(own_per, per_vals)
+            pbr_pct = _percentile(own_pbr, pbr_vals)
+            pct_score = _pct_score(per_pct, pbr_pct)
+    # mos 항 — 최근 3년 OCF 중앙값 → 단순 DCF MoS
+    ocfs = [r.get("operating_cash_flow") for r in fundamentals[:3]
+            if r.get("operating_cash_flow") is not None]
+    if not ocfs:
+        mos_score = 0.0
+    else:
+        norm_fcf = float(np.median(ocfs))
+        mos_score = _mos_score(norm_fcf, market_cap)
+    valuation = (VALUATION_W[0] * z_score
+                 + VALUATION_W[1] * pct_score
+                 + VALUATION_W[2] * mos_score)
+    return _clamp(valuation, 0.0, 1.0)
