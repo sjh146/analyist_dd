@@ -59,7 +59,13 @@ def main():
     print(f"전체 {len(universe)} / 완료 {len(done)} / 남은 {len(todo)}", flush=True)
 
     ok = fail = no_data = bars = 0
+    call_count = 0
+    max_calls = int(os.environ.get("KIS_MAX_CALLS", "2500"))  # 일일 안전 상한 (한도 초과 차단 방지)
     for code, excd in todo:
+        if call_count >= max_calls:
+            print(f"  → 일일 상한({max_calls}) 도달 — 중단, 다음 실행에서 이어서", flush=True)
+            break
+        call_count += 1
         try:
             resp = c.get_daily_chart(code, excd, DATE_FROM, DATE_TO)
             rows = parse_daily_bars(resp)

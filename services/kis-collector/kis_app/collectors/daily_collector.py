@@ -93,5 +93,14 @@ class DailyCollector:
                 summary["fail"] += 1
                 logger.warning("[%d/%d] %s(%s) 일봉 수집 실패: %s",
                                idx, len(universe), code, excd, e)
+                # 한도/빈도 제한 오류(EGW00123 일일·EGW00124 분당 등) → 즉시 중단
+                # (계속 호출하면 차단 위험 — KRX 7일 차단 교훈)
+                from kis_app.client.kis_client import KisApiError, RATE_LIMIT_CODES
+                if isinstance(e, KisApiError) and e.msg_cd in RATE_LIMIT_CODES:
+                    logger.error("KIS 호출 한도 도달(%s) — 수집 중단 (다음 크론에서 이어서)",
+                                 e.msg_cd)
+                    summary["quota_hit"] = True
+                    break
+        summary.setdefault("quota_hit", False)
         logger.info("일봉 수집 완료: %s", summary)
         return summary

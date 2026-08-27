@@ -291,7 +291,7 @@ class TestMarketDataStorage:
 class TestDailyCollector:
     def test_market_to_excd(self):
         assert market_to_excd("KOSPI") == "J"
-        assert market_to_excd("KOSDAQ") == "K"
+        assert market_to_excd("KOSDAQ") == "J"   # 2026-08-27 실측: "K"는 OPSQ2001 거부 — J 통일
         assert market_to_excd("UNKNOWN") == "J"
         assert market_to_excd(None) == "J"
 
@@ -324,10 +324,10 @@ class TestDailyCollector:
         summary = DailyCollector(client, storage).collect("20260825")
         assert client.daily_calls == [
             ("005930", "J", "20260825", "20260825", 5),
-            ("000660", "K", "20260825", "20260825", 5),
+            ("000660", "J", "20260825", "20260825", 5),
         ]
         assert storage.saved == [("005930", 1), ("000660", 1)]
-        assert summary == {"ok": 2, "no_data": 0, "fail": 0, "total": 2}
+        assert summary == {"ok": 2, "no_data": 0, "fail": 0, "total": 2, "quota_hit": False}
 
     def test_limit_truncates_universe(self):
         class FakeClient:
