@@ -19,8 +19,8 @@
   python3 scripts/thesis_onboarding.py --list
   python3 scripts/thesis_onboarding.py --approve <approval_id>
 
-이 모듈은 todo 4 산출물(골격+상수+CSV 로딩/필터+초안 생성기+승인 패키지+Discord 웹훅)까지
-포함하며, INSERT·CLI는 후속 todo에서 추가된다.
+이 모듈은 todo 5 산출물(골격+상수+CSV 로딩/필터+초안 생성기+승인 패키지+Discord 웹훅+
+position_theses INSERT)까지 포함하며, CLI는 후속 todo에서 추가된다.
 """
 import csv
 import json
@@ -611,3 +611,73 @@ def format_approval_result_message(approval_id, thesis_id, status):
     if status == "rejected":
         return f"승인 거부 — approval_id: {approval_id}"
     return f"승인 결과 상태 불명: {status} (approval_id: {approval_id})"
+
+
+# ── position_theses INSERT (todo 5 — 냉동 등록, append-only 원칙) ──────────
+# thesis_verdicts는 조회만 허용 (INSERT/UPDATE/DELETE 금지 — DB 트리거 차단).
+# 커넥션 close는 하지 않음 — 호출자(main)가 수명 관리 (ackman_screener 관례).
+
+
+def has_active_thesis(pg, stock_code):
+    """활성 테제 존재 여부 → bool (중복 등록 방지).
+
+    SELECT 1 FROM position_theses WHERE stock_code = %s AND status = 'active'
+    → fetchone()이 None이 아니면 True. 예외 → logger.warning + False (fail-open).
+    """
+    cur = None
+    try:
+        cur = pg.cursor()
+        cur.execute(
+            "SELECT 1 FROM position_theses WHERE stock_code = %s AND status = 'active'",
+            (stock_code,),
+        )
+        return cur.fetchone() is not None
+    except Exception as e:
+        logger.warning(f"{stock_code}: 활성 테제 조회 실패: {e}")
+        return False
+    finally:
+        if cur is not None:
+            cur.close()
+
+
+def insert_thesis(pg, row):
+    """position_theses INSERT → id (int) | None (fail-open).
+
+    catalyst_events/decision_log는 json.dumps(ensure_ascii=False) 후 전달
+    (psycopg2 JSONB 적응). RETURNING id → fetchone → int 반환. 예외 시
+    pg.rollback() 후 None + 로그 (커넥션 close는 호출자 책임).
+    """
+    cur = None
+    try:
+        cur = pg.cursor()
+        cur.execute("""
+            INSERT INTO position_theses
+                (stock_code, strategy_name, thesis_text, disproof_criteria,
+                 intrinsic_value, entry_price, catalyst_events, status, decision_log)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'active', %s)
+            RETURNING id
+        """, (
+            row.get("stock_code"),
+            row.get("strategy_name"),
+            row.get("thesis_text"),
+            row.get("disproof_criteria"),
+            row.get("intrinsic_value"),
+            row.get("entry_price"),
+            json.dumps(row.get("catalyst_events") or [], ensure_ascii=False),
+            json.dumps(row.get("decision_log") or [], ensure_ascii=False),
+        ))
+        result = cur.fetchone()
+        pg.commit()
+        thesis_id = int(result[0])
+        logger.info(f"테제 등록 완료 — thesis_id: {thesis_id} ({row.get('stock_code')})")
+        return thesis_id
+    except Exception as e:
+        logger.warning(f"{row.get('stock_code')}: 테제 INSERT 실패: {e}")
+        try:
+            pg.rollback()
+        except Exception:
+            pass
+        return None
+    finally:
+        if cur is not None:
+            cur.close()
