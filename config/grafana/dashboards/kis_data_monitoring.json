@@ -1,0 +1,89 @@
+{
+  "uid": "kis-data-monitoring",
+  "title": "KIS 데이터 수집 모니터링",
+  "tags": ["kis", "market_data", "collection"],
+  "timezone": "Asia/Seoul",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10m",
+  "time": { "from": "now-30d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "일자별 시장별 종목 수 (갭 시각화)",
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 60 }, "unit": "short" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT m.trade_date::timestamp AS time,\n       count(DISTINCT m.stock_code) AS \"종목수\",\n       COALESCE(s.market, '기타') AS metric\nFROM market_data m\nLEFT JOIN stocks s USING (stock_code)\nWHERE $__timeFilter(m.trade_date::timestamp)\nGROUP BY m.trade_date, s.market\nORDER BY m.trade_date"
+        }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "KOSDAQ 최신 거래일",
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null } ] } } },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT max(m.trade_date)::text AS \"KOSDAQ 최신 거래일\"\nFROM market_data m JOIN stocks s USING (stock_code)\nWHERE s.market = 'KOSDAQ'"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "KOSPI 최신 거래일",
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null } ] } } },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT max(m.trade_date)::text AS \"KOSPI 최신 거래일\"\nFROM market_data m JOIN stocks s USING (stock_code)\nWHERE s.market = 'KOSPI'"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "분봉 최신 수집 시각",
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "blue", "value": null } ] } } },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(max(created_at)::text, '수집 이력 없음') AS \"분봉 최신 수집\"\nFROM minute_bars"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "최근 7일 수집 현황",
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT m.trade_date::text AS \"날짜\",\n       COALESCE(s.market, '기타') AS \"시장\",\n       count(DISTINCT m.stock_code) AS \"종목수\"\nFROM market_data m\nLEFT JOIN stocks s USING (stock_code)\nWHERE m.trade_date >= (SELECT max(trade_date) FROM market_data) - 7\nGROUP BY m.trade_date, s.market\nORDER BY m.trade_date DESC, s.market"
+        }
+      ]
+    }
+  ]
+}
