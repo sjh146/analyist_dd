@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
 """M6 테제원장 분기 리뷰 CLI — position_theses 조회/exit (thesis_verdicts 무접촉).
 
-빌 애크먼식 테제원장(M6)의 분기 리뷰 도구. 조회 명령 3종(--list/--status/--report)과
-테제 해지 명령(--exit)을 제공한다. 테제 재작성 --rewrite는 다음 todo(9)에서 추가한다.
+빌 애크먼식 테제원장(M6)의 분기 리뷰 도구. 조회 명령 3종(--list/--status/--report),
+테제 해지(--exit), 테제 재작성(--rewrite)을 제공한다.
 
 원칙 (docs/테제원장_PLAN.md §1.2·§3, .omo/plans/thesis-ledger-m6-live.md §결정본):
 - append-only 존중: thesis_verdicts는 조회(SELECT)만 — INSERT/UPDATE/DELETE 경로 0
   (DB 트리거가 UPDATE/DELETE 차단 — 07_thesis_ledger.sql:55-67, 코드 경로도 만들지 않음).
-- 테제 마스터의 status/decision_log UPDATE는 분기 리뷰 경로(exit)로만 허용.
+- 테제 마스터의 status/decision_log UPDATE는 분기 리뷰 경로(exit/rewrite)로만 허용.
 - decision_log는 JSONB 배열 append(덮어쓰기 금지): decision_log = decision_log || %s::jsonb.
+- 재작성은 '새 결정' (PLAN §1.2-2): 기존 테제 exited + rewrite 기록 → 새 테제 INSERT(active)
+  → 기존 행에 new_id 링크 append. 전 과정 한 트랜잭션 (초안 실패 시 ROLLBACK, 기존 행 유지).
 
 사용법:
   python3 scripts/thesis_review.py --list
   python3 scripts/thesis_review.py --status <thesis_id>
   python3 scripts/thesis_review.py --report
   python3 scripts/thesis_review.py --exit <thesis_id> --reason "사유"
+  python3 scripts/thesis_review.py --rewrite <thesis_id> --reason "사유" [--dry-run]
 
-이 모듈은 todo 8 산출물(조회+exit)까지 포함한다. 후속: todo 9(--rewrite 추가),
-todo 10(tests/test_thesis_review.py 작성·통과).
+이 모듈은 todo 8(조회+exit) + todo 9(--rewrite, 트랜잭션 원자화) 산출물을 포함한다.
+후속: todo 10(tests/test_thesis_review.py 작성·통과).
 """
-# allow: SIZE_OK — onboarding.py 관례 계승(전 함수 한국어 docstring 필수 + 독립 CLI 단일 파일),
-# todo 9가 같은 파일에 --rewrite를 추가 예정이라 분리 불가 (task: "신규 파일 1개만").
+# allow: SIZE_OK — onboarding.py 관례 계승(전 함수 한국어 docstring 필수 + 독립 CLI 단일 파일,
+# 플랜 §결정본이 조회/exit/rewrite를 단일 파일 scripts/thesis_review.py로 고정).
 import argparse
 import json
 import logging
@@ -30,6 +33,11 @@ from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("thesis_review")
+
+# ── onboarding 모듈 재사용 (todo 9 — 초안 생성만, IO뿐 트랜잭션 무관) ─────────
+# scripts 디렉토리가 sys.path에 없어도 import되도록 명시 삽입 (외부 실행 대비).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from thesis_onboarding import draft_thesis  # noqa: E402
 
 # ── PostgreSQL 접속 (thesis_onboarding/ackman_screener 관례: env-driven) ─────
 PG_HOST = os.environ.get("POSTGRES_HOST", "postgres")
@@ -270,6 +278,204 @@ def exit_thesis(pg, thesis_id, reason):
             cur.close()
 
 
+# ── 테제 재작성 (todo 9 — '새 결정': 기존 exited + 새 테제 + 링크) ────────────
+# 트랜잭션 원자성: onboarding의 insert_thesis는 내부 commit 수행 → rewrite에서는
+# commit 없는 자체 INSERT(_insert_thesis_no_commit)로 3단계를 한 트랜잭션에 묶는다.
+# thesis_verdicts는 여전히 무접촉 (SELECT만 — 쓰기 경로 0).
+
+
+def _exit_append(pg, thesis_id, entry):
+    """기존 테제 status='exited' + decision_log append UPDATE (commit 없음) → rowcount.
+
+    append-only: decision_log = decision_log || %s::jsonb. WHERE id = %s AND
+    status != 'exited' (이미 exited → 0행 방지). 예외는 호출자(rewrite_thesis)가
+    rollback 처리.
+    """
+    cur = None
+    try:
+        cur = pg.cursor()
+        cur.execute(
+            f"UPDATE {POSITION_THESES_TABLE} SET status = 'exited', "
+            f"decision_log = decision_log || %s::jsonb, updated_at = now() "
+            f"WHERE id = %s AND status != 'exited'",
+            (json.dumps(entry, ensure_ascii=False), thesis_id),
+        )
+        return cur.rowcount
+    finally:
+        if cur is not None:
+            cur.close()
+
+
+def _link_append(pg, thesis_id, entry):
+    """기존 테제 decision_log에 new_id 링크 append UPDATE (commit 없음) → rowcount.
+
+    SET에 status 없음 — 1단계에서 exited로 전이된 행에 그대로 적용되므로
+    status 가드 없음 (WHERE id만). append-only: decision_log || %s::jsonb.
+    """
+    cur = None
+    try:
+        cur = pg.cursor()
+        cur.execute(
+            f"UPDATE {POSITION_THESES_TABLE} "
+            f"SET decision_log = decision_log || %s::jsonb, updated_at = now() "
+            f"WHERE id = %s",
+            (json.dumps(entry, ensure_ascii=False), thesis_id),
+        )
+        return cur.rowcount
+    finally:
+        if cur is not None:
+            cur.close()
+
+
+def _load_stock_meta(pg, stock_code):
+    """stocks 테이블에서 종목명/섹터 조회 → dict (fail-open — 실패 시 빈 dict).
+
+    position_theses에는 종목명/섹터가 없어 초안 프롬프트 입력용으로 조회한다.
+    """
+    cur = None
+    try:
+        cur = pg.cursor()
+        cur.execute(
+            "SELECT stock_name, sector FROM stocks WHERE stock_code = %s", (stock_code,)
+        )
+        row = cur.fetchone()
+        if row is None:
+            return {}
+        return {"stock_name": row[0], "sector": row[1]}
+    except Exception as e:
+        logger.warning(f"{stock_code}: 종목 메타 조회 실패: {e}")
+        return {}
+    finally:
+        if cur is not None:
+            cur.close()
+
+
+def _build_rewrite_candidate(pg, thesis):
+    """기존 테제 행 → draft_thesis 입력용 candidate dict.
+
+    draft_thesis 계약 (thesis_onboarding.build_thesis_row): candidate의
+    close_price가 새 행의 entry_price가 된다 — 기존 행 entry_price 유지
+    (onboarding의 entry_price = close_price 규약 일관). signal_date는
+    created_at 날짜부, ackman_score는 없음 (None — 프롬프트 표시용).
+    """
+    meta = _load_stock_meta(pg, thesis["stock_code"])
+    return {
+        "stock_code": thesis["stock_code"],
+        "stock_name": meta.get("stock_name"),
+        "sector": meta.get("sector"),
+        "signal_date": _fmt_ts(thesis["created_at"]),
+        "close_price": thesis["entry_price"],
+        "ackman_score": None,
+    }
+
+
+def _insert_thesis_no_commit(pg, row):
+    """position_theses INSERT → id (int) | None (commit 없음 — 호출자 트랜잭션 소유).
+
+    thesis_onboarding.insert_thesis SQL 그대로, commit 호출만 제거 — rewrite의
+    3단계가 한 트랜잭션으로 묶여야 하므로. status는 'active' 고정, RETURNING id.
+    예외 → logger.error + None (rollback은 호출자 rewrite_thesis 책임).
+    """
+    cur = None
+    try:
+        cur = pg.cursor()
+        cur.execute(
+            f"INSERT INTO {POSITION_THESES_TABLE} "
+            f"(stock_code, strategy_name, thesis_text, disproof_criteria, "
+            f"intrinsic_value, entry_price, catalyst_events, status, decision_log) "
+            f"VALUES (%s, %s, %s, %s, %s, %s, %s, 'active', %s) RETURNING id",
+            (
+                row.get("stock_code"),
+                row.get("strategy_name"),
+                row.get("thesis_text"),
+                row.get("disproof_criteria"),
+                row.get("intrinsic_value"),
+                row.get("entry_price"),
+                json.dumps(row.get("catalyst_events") or [], ensure_ascii=False),
+                json.dumps(row.get("decision_log") or [], ensure_ascii=False),
+            ),
+        )
+        result = cur.fetchone()
+        return int(result[0])
+    except Exception as e:
+        logger.error(f"{row.get('stock_code')}: 새 테제 INSERT 실패: {e}")
+        return None
+    finally:
+        if cur is not None:
+            cur.close()
+
+
+def rewrite_thesis(pg, thesis, reason):
+    """테제 재작성 — exit UPDATE → 새 초안 INSERT → link UPDATE, 트랜잭션 원자화.
+
+    3단계가 한 트랜잭션: 중간 commit 없음, 마지막에 commit. 초안 생성 실패 또는
+    어느 단계 예외/0행 → rollback + None (기존 행 원상태). 성공 → 새 thesis_id.
+
+    1. 기존 행: status='exited' + decision_log append
+       [{ts, type:"rewrite", old_id, new_id: null, reason}]
+    2. draft_thesis(onboarding 재사용) → 새 INSERT 행 (decision_log는
+       [{ts, type:"onboarding", source:"quarterly_review", old_id}]로 교체)
+    3. _insert_thesis_no_commit → 새 id
+    4. 기존 행 decision_log에 new_id 링크 append
+       [{ts, type:"rewrite_link", old_id, new_id, reason}]
+    """
+    old_id = thesis["id"]
+    code = thesis["stock_code"]
+    try:
+        updated = _exit_append(pg, old_id, [{
+            "ts": datetime.now().isoformat(),
+            "type": "rewrite",
+            "old_id": old_id,
+            "new_id": None,
+            "reason": reason,
+        }])
+        if updated == 0:
+            logger.error(f"rewrite exit UPDATE 0행 — 이미 exited 또는 대상 없음: id={old_id}")
+            pg.rollback()
+            return None
+
+        new_row = draft_thesis(_build_rewrite_candidate(pg, thesis), pg)
+        if new_row is None:
+            logger.error(f"{code}: 재작성 초안 생성 실패 — 롤백 (기존 행 유지): id={old_id}")
+            pg.rollback()
+            return None
+
+        new_row["decision_log"] = [{
+            "ts": datetime.now().isoformat(),
+            "type": "onboarding",
+            "source": "quarterly_review",
+            "old_id": old_id,
+        }]
+        new_id = _insert_thesis_no_commit(pg, new_row)
+        if new_id is None:
+            logger.error(f"{code}: 새 테제 INSERT 실패 — 롤백 (기존 행 유지): id={old_id}")
+            pg.rollback()
+            return None
+
+        linked = _link_append(pg, old_id, [{
+            "ts": datetime.now().isoformat(),
+            "type": "rewrite_link",
+            "old_id": old_id,
+            "new_id": new_id,
+            "reason": reason,
+        }])
+        if linked == 0:
+            logger.error(f"rewrite_link UPDATE 0행 — 기존 행 소실: id={old_id}")
+            pg.rollback()
+            return None
+
+        pg.commit()
+        logger.info(f"테제 재작성 완료 — old_id={old_id} → new_id={new_id} ({code})")
+        return new_id
+    except Exception as e:
+        logger.error(f"테제 재작성 실패 (id={old_id}): {e}")
+        try:
+            pg.rollback()
+        except Exception:
+            pass
+        return None
+
+
 # ── CLI (todo 8 — thesis_onboarding main 구조 계승) ─────────────────────────
 # 하위 명령 오류 → logger.error + sys.exit(1) (비제로 exit).
 
@@ -374,6 +580,47 @@ def _cmd_exit(args, pg):
     print(f"테제 exit 완료 — thesis_id: {args.exit_id} (reason: {reason})")
 
 
+def _cmd_rewrite(args, pg):
+    """--rewrite <thesis_id> --reason [--dry-run]: 기존 테제 재작성.
+
+    사유(--reason) 필수. 테제 없음/이미 exited → 오류 + sys.exit(1).
+    --dry-run: 새 초안만 생성해 콘솔 출력 (UPDATE/INSERT 0건, DB 변경 없음).
+    실형행: rewrite_thesis(트랜잭션) → 새 thesis_id. 실패(롤백) → sys.exit(1).
+    """
+    reason = (args.reason or "").strip()
+    if not reason:
+        logger.error('--reason 사유 필수 — 예: --rewrite 3 --reason "실적 구조 변화"')
+        sys.exit(1)
+    thesis = get_thesis(pg, args.rewrite_id)
+    if thesis is None:
+        logger.error(f"테제 없음 — 재작성 불가: id={args.rewrite_id}")
+        sys.exit(1)
+    if thesis["status"] == "exited":
+        logger.error(f"이미 exited 상태 — 재작성 불가: id={args.rewrite_id}")
+        sys.exit(1)
+
+    if args.dry_run:
+        new_row = draft_thesis(_build_rewrite_candidate(pg, thesis), pg)
+        if new_row is None:
+            logger.error(f"재작성 초안 생성 실패 — dry-run 종료: id={args.rewrite_id}")
+            sys.exit(1)
+        print(f"\n[--dry-run] 테제 재작성 초안 — id: {thesis['id']} ({thesis['stock_code']})")
+        print(f"  thesis_text: {new_row['thesis_text']}")
+        print(f"  disproof_criteria: {new_row['disproof_criteria']}")
+        print(f"  intrinsic_value: {new_row['intrinsic_value']}")
+        print(f"  entry_price: {new_row['entry_price']}")
+        print(f"  catalyst_events: "
+              f"{json.dumps(new_row['catalyst_events'], ensure_ascii=False, default=str)}")
+        print("  (INSERT/UPDATE 없음 — DB 변경 0건)")
+        return
+
+    new_id = rewrite_thesis(pg, thesis, reason)
+    if new_id is None:
+        logger.error(f"테제 재작성 실패 (롤백 — 기존 행 유지): id={args.rewrite_id}")
+        sys.exit(1)
+    print(f"테제 재작성 완료 — old_id: {args.rewrite_id} → new_id: {new_id} (reason: {reason})")
+
+
 def main():
     """CLI 진입점 (thesis_onboarding main 구조 계승).
 
@@ -388,10 +635,15 @@ def main():
     ap.add_argument("--report", action="store_true", help="원장 요약 (테제/판정 집계)")
     ap.add_argument("--exit", dest="exit_id", type=int, default=None, metavar="THESIS_ID",
                     help="테제 해지 (status='exited' + decision_log append)")
-    ap.add_argument("--reason", type=str, default=None, help="해지 사유 (--exit와 함께)")
+    ap.add_argument("--rewrite", dest="rewrite_id", type=int, default=None, metavar="THESIS_ID",
+                    help="테제 재작성 (exit + 새 초안 INSERT + new_id 링크, 트랜잭션)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="--rewrite 초안 미리보기만 (INSERT/UPDATE 없음)")
+    ap.add_argument("--reason", type=str, default=None, help="사유 (--exit/--rewrite와 함께)")
     args = ap.parse_args()
 
-    if not any((args.list, args.status is not None, args.report, args.exit_id is not None)):
+    if not any((args.list, args.status is not None, args.report,
+                args.exit_id is not None, args.rewrite_id is not None)):
         ap.print_help()
         return
 
@@ -403,6 +655,8 @@ def main():
             _cmd_status(args, pg)
         elif args.report:
             _cmd_report(args, pg)
+        elif args.rewrite_id is not None:
+            _cmd_rewrite(args, pg)
         else:
             _cmd_exit(args, pg)
     finally:
