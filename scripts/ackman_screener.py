@@ -79,6 +79,7 @@ CATALYST_NORM = 5.0                   # 촉매 원점수 정규화 분모
 # ── 하드 베토 상수 (결정본 §하드 베토 5종) ──────────────────────────────
 CB_VETO_COUNT = 2                     # 6개월 내 CB·BW 이벤트 베토 임계 (2건)
 TRADE_GAP_DAYS = 10                   # 거래 공백 베토 임계 (signal_date − 최근거래일 > 10일)
+AUDIT_OPINION_VETO = ("비적정", "한정")  # 감사의견 베토 키워드 (값 없음 → fail-open, PLAN §8)
 
 # ── 촉매 이벤트 타입 가중치 (결정본 §Catalyst, DB CHECK 20종과 1:1) ──────
 # 계층: 자사주 > 밸류업(→'배당' 근사) > 배당 > M&A/지분변동 > … , 부정·중립 타입 0.00.
@@ -687,3 +688,76 @@ def score_catalyst(events, as_of):
     (베토 판정은 Todo 6 몫).
     """
     return _clamp(_catalyst_raw(events, as_of) / CATALYST_NORM, 0.0, 1.0)
+
+
+# ── 하드 베토 5종 순수 함수 (todo 6, §결정본 하드 베토) ────────────────
+# DB 접근·로깅 없는 순수 함수 — ctx dict만 받아 트리거된 사유 리스트 반환
+# (빈 리스트 = 통과). 로그는 호출자(run_screener, Todo 8) 몫 — Metis n3.
+
+
+def apply_vetoes(ctx):
+    """하드 베토 5종 판정 → 트리거된 사유 문자열 리스트 (결정본 §하드 베토 5종).
+
+    ctx dict만 받는 순수 함수 — 내부 로깅 없음 (로그는 호출자 run_screener 몫).
+    빈 리스트 = 통과. 반환 순서는 아래 판정 순서 고정.
+    ctx 키: debt_ratio(float|None), audit_opinion(str|None), events(load_events
+    출력 shape: event_type/sentiment_score/importance/core_event_text/created_at),
+    latest_trade_date(date|str|None), signal_date(date|str) — date류는 _as_date 정규화.
+
+    1. 부채비율_한도: debt_ratio > DEBT_VETO. None → 통과 (fail-open).
+    2. 감사의견_비적정한정: opinion에 AUDIT_OPINION_VETO 키워드 부분 포함.
+       None/빈 문자열 → 통과 (fail-open) — 스키마에 감사의견 컬럼 없음
+       (PLAN §8 데이터 갭), M5 DART 확장 전 한계.
+    3. 횡령_분식: 윈도우 내 event_type in ('규제','소송') 이벤트의 core_event_text가
+       FRAUD_KEYWORDS 중 하나라도 부분 포함. core_event_text None → 해당 이벤트 스킵.
+    4. CB_남발: 윈도우 내 event_type == 'CB·BW' 건수 >= CB_VETO_COUNT.
+    5. 거래정지: (a) 윈도우 내 event_type == '부도·상폐·거래정지' 존재, 또는
+       (b) (signal_date − latest_trade_date).days > TRADE_GAP_DAYS
+       (거래 공백 proxy — 휴장 무시 단순화, 가정 5). latest_trade_date None →
+       (b) 스킵 (fail-open).
+
+    이벤트 판정(3~5)은 6개월 윈도우 [signal_date − CATALYST_DAYS일, signal_date]
+    내 이벤트만 사용 (결정본 "6개월 내" — CATALYST_DAYS 재사용으로 이벤트 윈도우
+    통일). signal_date 없음 → 5번 판정 스킵, 나머지 판정은 윈도우 없이 수행
+    (.get 사용 — KeyError 없음).
+    """
+    vetoes = []
+    debt_ratio = ctx.get("debt_ratio")
+    if debt_ratio is not None and debt_ratio > DEBT_VETO:
+        vetoes.append("부채비율_한도")
+    opinion = ctx.get("audit_opinion")
+    if opinion and any(k in str(opinion) for k in AUDIT_OPINION_VETO):
+        vetoes.append("감사의견_비적정한정")
+    signal_date = ctx.get("signal_date")
+    signal = _as_date(signal_date) if signal_date is not None else None
+    events = ctx.get("events") or []
+    fraud = False
+    cb_count = 0
+    halt = False
+    for ev in events:
+        created = _as_date(ev.get("created_at"))
+        if signal is not None and (
+                created < signal - timedelta(days=CATALYST_DAYS) or created > signal):
+            continue  # 6개월 윈도우 밖(룩어헤드 포함) 이벤트 스킵
+        etype = ev.get("event_type")
+        if etype in ("규제", "소송"):
+            text = ev.get("core_event_text")
+            if text and any(k in str(text) for k in FRAUD_KEYWORDS):
+                fraud = True
+        if etype == "CB·BW":
+            cb_count += 1
+        if etype == "부도·상폐·거래정지":
+            halt = True
+    if fraud:
+        vetoes.append("횡령_분식")
+    if cb_count >= CB_VETO_COUNT:
+        vetoes.append("CB_남발")
+    if signal is not None:  # 5. 거래정지 — signal_date 없으면 판정 스킵 (fail-open)
+        gap = halt
+        if not gap:
+            latest = ctx.get("latest_trade_date")
+            if latest is not None:
+                gap = (signal - _as_date(latest)).days > TRADE_GAP_DAYS
+        if gap:
+            vetoes.append("거래정지")
+    return vetoes
