@@ -7,14 +7,14 @@
 - 응답 파서 (_parse_verdict_response) — 화이트리스트/클램프 검증
 - ThesisJudge / ThesisBreakNotifier — LLM 판정 호출·Redis 알림 (simulate/fail-open)
 
-오케스트레이션(verify_thesis, run_verification_cycle)은 후속 태스크에서 추가된다.
+- ThesisVerifier — 판정 사이클 오케스트레이션 (run_verification_cycle, verify_thesis)
 """
 from __future__ import annotations
 
 import json
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time
 from typing import Dict, List, Optional
 
 from openai import OpenAI
@@ -76,13 +76,65 @@ class ThesisVerdict:
 
 
 class ThesisVerifier:
-    """매수 테제 판정 파이프라인 코어 (M2).
+    """매수 테제 판정 파이프라인 코어 (M2): 프롬프트 구성·파싱·판정 사이클 오케스트레이션."""
 
-    현재는 '순수 코어'만 포함한다: 프롬프트 구성(_build_prompt)과 응답
-    파싱(_parse_verdict_response). 둘 다 IO/네트워크 없는 순수 함수이며,
-    오케스트레이션(__init__, run_verification_cycle, verify_thesis)은
-    후속 태스크에서 추가된다.
-    """
+    def __init__(self, storage, judge: ThesisJudge, notifier: ThesisBreakNotifier):
+        self.storage = storage
+        self.judge = judge
+        self.notifier = notifier
+
+    async def run_verification_cycle(self, verdict_date: Optional[date] = None) -> List[ThesisVerdict]:
+        """하루 1회 판정 사이클 — 테제별 실패는 fail-open, 사이클 전체는 중단 없음."""
+        verdict_date = verdict_date or date.today()
+        results: List[ThesisVerdict] = []
+        since = datetime.combine(verdict_date, time.min)
+        for item in self.storage.get_active_theses():
+            tid = item.id if isinstance(item, ActiveThesis) else item.get("id")
+            try:
+                thesis = item if isinstance(item, ActiveThesis) else ActiveThesis(**item)
+                if self.storage.has_thesis_verdict(thesis.id, verdict_date):
+                    continue
+                events = self.storage.get_stock_events(thesis.stock_code, since)
+                extra = self.storage.get_extra_context(thesis.stock_code, verdict_date)
+                if not events and not extra:
+                    continue
+                v = await self.verify_thesis(thesis, verdict_date, events, extra)
+                if v is None:
+                    continue
+                self.storage.save_thesis_verdict(v)
+                if v.verdict == "파기":
+                    self.notifier.publish_break(
+                        thesis.stock_code,
+                        {
+                            "thesis_id": thesis.id,
+                            "stock_code": thesis.stock_code,
+                            "verdict": v.verdict,
+                            "verdict_score": v.verdict_score,
+                            "evidence_summary": v.evidence_summary,
+                            "verdict_date": v.verdict_date.isoformat(),
+                        },
+                    )
+                results.append(v)
+            except Exception as e:
+                logger.error(f"Thesis verification failed for thesis {tid} (fail-open): {e}")
+        return results
+
+    async def verify_thesis(
+        self,
+        thesis: ActiveThesis,
+        verdict_date: date,
+        events: List[Dict],
+        extra_context: Optional[Dict] = None,
+    ) -> Optional[ThesisVerdict]:
+        """테제 1건 판정 — judge 실패/파싱 실패 시 None (기록 없음, fail-open)."""
+        prompt = self._build_prompt(thesis, events, extra_context)
+        raw = await self.judge.judge(prompt)
+        if raw is None:
+            return None
+        parsed = self._parse_verdict_response(raw)
+        if parsed is None:
+            return None
+        return ThesisVerdict(thesis_id=thesis.id, verdict_date=verdict_date, **parsed)
 
     def _build_prompt(
         self,

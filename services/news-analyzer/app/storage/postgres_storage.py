@@ -7,12 +7,13 @@ import psycopg2
 import psycopg2.pool
 import json
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, Dict, List
 
 from app.config import Config
 from app.models.schemas import Article, AnalysisResult, StockSentiment, StructuredNews
 from app.events.clusterer import EventCluster
+from app.thesis.thesis_verifier import ThesisVerdict
 
 logger = logging.getLogger(__name__)
 
@@ -442,6 +443,189 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to search stock: {e}")
             return None
+        finally:
+            self._put_conn(conn)
+
+    def get_active_theses(self) -> List[Dict]:
+        """Read active position_theses rows (thesis ledger)."""
+        conn = self._get_conn()
+        if not conn:
+            return []
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT id, stock_code, thesis_text, disproof_criteria, catalyst_events
+                FROM position_theses
+                WHERE status = 'active'
+                """
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [
+                {
+                    "id": r[0],
+                    "stock_code": r[1],
+                    "thesis_text": r[2],
+                    "disproof_criteria": r[3],
+                    "catalyst_events": r[4],
+                }
+                for r in rows
+            ]
+        except Exception as e:
+            logger.error(f"Failed to read active theses: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
+
+    def get_stock_events(self, stock_code: str, since: datetime) -> List[Dict]:
+        """Read news_event_extraction rows since midnight (verdict evidence)."""
+        conn = self._get_conn()
+        if not conn:
+            return []
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT id, event_type, sentiment_score, importance, core_event_text
+                FROM news_event_extraction
+                WHERE stock_code = %s AND created_at >= %s
+                """,
+                (stock_code, since),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [
+                {
+                    "id": r[0],
+                    "event_type": r[1],
+                    "sentiment_score": r[2],
+                    "importance": r[3],
+                    "core_event_text": r[4],
+                }
+                for r in rows
+            ]
+        except Exception as e:
+            logger.error(f"Failed to read stock events for {stock_code}: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
+
+    def get_extra_context(self, stock_code: str, verdict_date: date) -> Optional[Dict]:
+        """Sentiment row + recent closes for the judge prompt — None when both absent."""
+        conn = self._get_conn()
+        if not conn:
+            return None
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT analysis_date, avg_sentiment, sentiment_count,
+                       positive_count, negative_count
+                FROM stock_sentiment
+                WHERE stock_code = %s AND analysis_date <= %s
+                ORDER BY analysis_date DESC
+                LIMIT 1
+                """,
+                (stock_code, verdict_date),
+            )
+            sent = cur.fetchone()
+            cur.execute(
+                """
+                SELECT trade_date, close_price
+                FROM market_data
+                WHERE stock_code = %s AND trade_date <= %s
+                ORDER BY trade_date DESC
+                LIMIT 5
+                """,
+                (stock_code, verdict_date),
+            )
+            closes = cur.fetchall()
+            cur.close()
+
+            def _pct(a, b) -> Optional[float]:
+                if a is None or b is None:
+                    return None
+                fa, fb = float(a), float(b)
+                return (fa - fb) / fb if fb else None
+
+            if sent is None and not closes:
+                return None
+            sentiment = None
+            if sent:
+                sentiment = {
+                    "analysis_date": sent[0],
+                    "avg_sentiment": float(sent[1]) if sent[1] is not None else None,
+                    "sentiment_count": sent[2],
+                }
+            return {
+                "sentiment": sentiment,
+                "price_change_1d": _pct(closes[0][1], closes[1][1]) if len(closes) >= 2 else None,
+                "price_change_5d": _pct(closes[0][1], closes[-1][1]) if len(closes) >= 5 else None,
+            }
+        except Exception as e:
+            logger.error(f"Failed to read extra context for {stock_code}: {e}")
+            return None
+        finally:
+            self._put_conn(conn)
+
+    def has_thesis_verdict(self, thesis_id: int, verdict_date: date) -> bool:
+        """True if a verdict already exists for (thesis_id, verdict_date)."""
+        conn = self._get_conn()
+        if not conn:
+            return False
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT 1 FROM thesis_verdicts WHERE thesis_id = %s AND verdict_date = %s",
+                (thesis_id, verdict_date),
+            )
+            row = cur.fetchone()
+            cur.close()
+            return row is not None
+        except Exception as e:
+            logger.error(f"Failed to check thesis verdict: {e}")
+            return False
+        finally:
+            self._put_conn(conn)
+
+    def save_thesis_verdict(self, verdict: ThesisVerdict) -> bool:
+        """Append a verdict to the append-only ledger (idempotent per day)."""
+        conn = self._get_conn()
+        if not conn:
+            logger.error("No DB connection available")
+            return False
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO thesis_verdicts (thesis_id, verdict_date, verdict, verdict_score,
+                    evidence_event_ids, evidence_summary, model_version)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (thesis_id, verdict_date) DO NOTHING
+                """,
+                (
+                    verdict.thesis_id,
+                    verdict.verdict_date,
+                    verdict.verdict,
+                    verdict.verdict_score,
+                    verdict.evidence_event_ids,
+                    verdict.evidence_summary,
+                    verdict.model_version,
+                ),
+            )
+            conn.commit()
+            cur.close()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save thesis verdict: {e}")
+            conn.rollback()
+            return False
         finally:
             self._put_conn(conn)
 
