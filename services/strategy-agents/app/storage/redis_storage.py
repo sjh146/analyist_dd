@@ -58,6 +58,7 @@ def verify_signal_signature(data: dict) -> bool:
 class RedisStorage:
     STREAM_NAME = "strategy:signals"
     PAPER_STREAM_NAME = "paper:factor_signals"
+    PAPER_ACKMAN_STREAM_NAME = "paper:ackman_signals"
 
     def __init__(self):
         self.config = Config()
@@ -86,6 +87,7 @@ class RedisStorage:
                 self._streams = RedisStreams(redis_url=redis_url)
                 self._streams.create_group(self.STREAM_NAME, "trade-executor", mkstream=True)
                 self._streams.create_group(self.PAPER_STREAM_NAME, "paper-monitor", mkstream=True)
+                self._streams.create_group(self.PAPER_ACKMAN_STREAM_NAME, "paper-monitor", mkstream=True)
             except Exception as e:
                 logger.warning("RedisStreams init failed: %s", e)
                 self._streams = None
@@ -150,6 +152,39 @@ class RedisStorage:
             return True
         except Exception as e:
             logger.error(f"Failed to publish paper signal to stream: {e}")
+            return False
+
+    def publish_ackman_signal(self, signal: Dict) -> bool:
+        """Publish ackman (thesis) strategy signal to the paper-only stream (never trade:signals)."""
+        if not self._client:
+            return False
+
+        signal_data = {
+            "strategy_name": signal.get("strategy_name", "unknown"),
+            "stock_code": signal.get("stock_code", signal.get("ticker", "unknown")),
+            "action": signal.get("action", signal.get("signal", "")),
+            "confidence": str(signal.get("confidence", 0.0)),
+            "timestamp": signal.get("timestamp", ""),
+            "thesis_id": signal.get("thesis_id", ""),
+            "position_size_pct": signal.get("position_size_pct", ""),
+        }
+        signal_data = _sign_signal(signal_data)
+
+        if self._streams is None:
+            logger.error("Redis Streams not available; cannot publish ackman signal")
+            return False
+
+        try:
+            self._streams.xadd(self.PAPER_ACKMAN_STREAM_NAME, signal_data, maxlen=10000)
+            logger.info(
+                "Published ackman signal to stream %s for %s/%s",
+                self.PAPER_ACKMAN_STREAM_NAME,
+                signal_data["strategy_name"],
+                signal_data["stock_code"],
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to publish ackman signal to stream: {e}")
             return False
 
     def get_pending_orders(self) -> list:
