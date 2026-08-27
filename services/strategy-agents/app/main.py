@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
+from typing import Dict
 
 from app.config import Config
 from app.strategies.theme_strategy import ThemeStrategy
@@ -24,6 +25,7 @@ from app.strategies.quality_strategy import QualityStrategy
 from app.strategies.momentum_strategy import MomentumStrategy
 from app.strategies.lowvol_strategy import LowVolatilityStrategy
 from app.strategies.multifactor_strategy import MultiFactorStrategy
+from app.strategies.ackman_strategy import AckmanStrategy
 from app.signals.signal_generator import SignalGenerator
 from app.signals.signal_validator import SignalValidator
 from app.risk_management.position_sizer import PositionSizer
@@ -36,6 +38,26 @@ logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 _FACTOR_STRATEGY_NAMES = {"value_factor", "quality_factor", "momentum_factor", "lowvol_factor", "multifactor"}
+_ACKMAN_STRATEGY_NAME = "ackman_fundamental"
+
+
+def _load_strategies_yaml() -> Dict:
+    """strategies.yaml 경로 탐색 후 파싱 (컨테이너 마운트 우선, repo-relative 폴백)."""
+    base = Path(__file__).resolve()
+    candidates = [
+        # 컨테이너 마운트 (docker compose: ./config/strategies:/app/config/strategies)
+        Path("/app/config/strategies/strategies.yaml"),
+        base.parents[2] / "config" / "strategies" / "strategies.yaml",
+    ]
+    # parents[3] 은 경로 깊이에 따라 IndexError 가능(컨테이너 /app 마운트) — 존재 시에만 추가
+    if len(base.parents) > 3:
+        candidates.append(base.parents[3] / "config" / "strategies" / "strategies.yaml")
+    yaml_path = next((p for p in candidates if p.exists()), None)
+    if yaml_path is None:
+        raise FileNotFoundError("strategies.yaml not found")
+    with open(yaml_path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data
 
 
 class StrategyAgentService:
@@ -61,6 +83,10 @@ class StrategyAgentService:
         self.lowvol_strategy = LowVolatilityStrategy(self.pg_storage)
         self.multifactor_strategy = MultiFactorStrategy(self.pg_storage)
         self._register_factor_strategies()
+
+        # Ackman strategy (thesis ledger; signals go to paper:ackman_signals, never trade:signals)
+        self.ackman_strategy = AckmanStrategy(self.pg_storage)
+        self._register_ackman_strategy()
 
         init_metrics(9103)
 
@@ -129,9 +155,28 @@ class StrategyAgentService:
         if paper_signals:
             self._publish_paper_signals(paper_signals)
 
+        # 5. Ackman Strategy (thesis ledger; signals go to paper:ackman_signals, never trade:signals)
+        ackman_signals = []
+        try:
+            logger.info(">> Ackman Strategy (thesis ledger) running...")
+            ackman_signals = self.ackman_strategy.analyze()
+            logger.info(f"   Generated {len(ackman_signals)} ackman signals")
+        except Exception as e:
+            logger.error(f"Ackman strategy failed: {e}")
+        if ackman_signals:
+            self._publish_ackman_signals(ackman_signals)
+
         try:
             logger.info(">> Stop-Loss Evaluation running...")
             sl_signals = self.stop_loss.evaluate_positions()
+            try:
+                ackman_codes = {t.get("stock_code") for t in self.pg_storage.get_active_theses(_ACKMAN_STRATEGY_NAME) or []}
+            except Exception:
+                ackman_codes = set()
+            excluded = [s for s in sl_signals if s.get("stock_code") in ackman_codes]
+            sl_signals = [s for s in sl_signals if s.get("stock_code") not in ackman_codes]
+            if excluded:
+                logger.info("Excluded %d stop-loss signals for ackman theses (가격 스톱 없음)", len(excluded))
             if sl_signals:
                 logger.info(f"   Generated {len(sl_signals)} stop-loss/take-profit signals")
                 for signal in sl_signals:
@@ -194,23 +239,25 @@ class StrategyAgentService:
                 continue
         logger.info(f"Published {published_count}/{len(signals)} paper signals to Redis.")
 
+    def _publish_ackman_signals(self, signals: list):
+        """Publish ackman thesis signals to the paper-only ackman stream (no real-trade path)."""
+        published_count = 0
+        for signal in signals:
+            try:
+                signal["signal_id"] = f"ackman_{datetime.now().strftime('%Y%m%d%H%M%S')}_{published_count}"
+                signal["timestamp"] = datetime.now().isoformat()
+                if self.redis.publish_ackman_signal(signal):
+                    logger.info(f"Published ackman signal: {json.dumps(signal, ensure_ascii=False)}")
+                    published_count += 1
+            except Exception as e:
+                logger.error(f"Failed to publish ackman signal: {e}")
+                continue
+        logger.info(f"Published {published_count}/{len(signals)} ackman signals to Redis.")
+
     def _register_factor_strategies(self):
         """Upsert factor strategy configs from strategies.yaml (paper-only, thresholds stay in code)."""
         try:
-            base = Path(__file__).resolve()
-            candidates = [
-                # 컨테이너 마운트 (docker compose: ./config/strategies:/app/config/strategies)
-                Path("/app/config/strategies/strategies.yaml"),
-                base.parents[2] / "config" / "strategies" / "strategies.yaml",
-            ]
-            # parents[3] 은 경로 깊이에 따라 IndexError 가능(컨테이너 /app 마운트) — 존재 시에만 추가
-            if len(base.parents) > 3:
-                candidates.append(base.parents[3] / "config" / "strategies" / "strategies.yaml")
-            yaml_path = next((p for p in candidates if p.exists()), None)
-            if yaml_path is None:
-                raise FileNotFoundError("strategies.yaml not found")
-            with open(yaml_path, encoding="utf-8") as f:
-                data = yaml.safe_load(f)
+            data = _load_strategies_yaml()
             strategies = data.get("strategies", {})
             for name, spec in strategies.items():
                 if name not in _FACTOR_STRATEGY_NAMES:
@@ -224,6 +271,23 @@ class StrategyAgentService:
             logger.info("Registered %d factor strategies in strategy_config", len(_FACTOR_STRATEGY_NAMES))
         except Exception as e:
             logger.warning(f"Factor strategy registration skipped: {e}")
+
+    def _register_ackman_strategy(self):
+        """Upsert ackman_fundamental config from strategies.yaml (strategy_type='thesis')."""
+        try:
+            strategies = _load_strategies_yaml().get("strategies", {})
+            spec = strategies.get(_ACKMAN_STRATEGY_NAME)
+            if spec is None:
+                raise KeyError(_ACKMAN_STRATEGY_NAME)
+            self.pg_storage.upsert_strategy_config(
+                strategy_name=_ACKMAN_STRATEGY_NAME,
+                strategy_type="thesis",
+                parameters=spec.get("parameters", {}),
+                is_active=bool(spec.get("is_active", True)),
+            )
+            logger.info("Registered ackman_fundamental in strategy_config (type=thesis)")
+        except Exception as e:
+            logger.warning(f"Ackman strategy registration skipped: {e}")
 
     def run_scheduled(self):
         """Run strategies on schedule."""
