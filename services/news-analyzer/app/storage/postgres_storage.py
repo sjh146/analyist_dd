@@ -593,6 +593,38 @@ class PostgresStorage:
         finally:
             self._put_conn(conn)
 
+    def get_recent_thesis_verdicts(self, thesis_id: int, limit: int = 5) -> List[Dict]:
+        """최근 판정 이력 (verdict_date 내림차순) — 연속 손상 감지 등 편향 모니터링용.
+
+        append-only 원장 읽기 전용 (INSERT/UPDATE/DELETE 경로 0). 실패 시 [] (fail-open).
+        """
+        conn = self._get_conn()
+        if not conn:
+            return []
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT thesis_id, verdict_date, verdict, verdict_score,
+                       evidence_summary, model_version
+                FROM thesis_verdicts
+                WHERE thesis_id = %s
+                ORDER BY verdict_date DESC
+                LIMIT %s
+                """,
+                (thesis_id, limit),
+            )
+            rows = cur.fetchall()
+            cols = [d[0] for d in (cur.description or [])]
+            rows = [dict(zip(cols, r)) for r in rows]
+            cur.close()
+            return rows
+        except Exception as e:
+            logger.error(f"Failed to fetch recent thesis verdicts: {e}")
+            return []
+        finally:
+            self._put_conn(conn)
+
     def save_thesis_verdict(self, verdict: ThesisVerdict) -> bool:
         """Append a verdict to the append-only ledger (idempotent per day)."""
         conn = self._get_conn()
