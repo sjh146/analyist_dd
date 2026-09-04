@@ -8,6 +8,9 @@ load_dotenv()
 class Config:
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
     DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+    # LLM 엔드포인트 전환용 — 로컬 llama-server(http://host.docker.internal:8080/v1)로
+    # 바꾸면 DeepSeek API 대신 로컬 모델로 뉴스 분석. 기본값은 DeepSeek 유지.
+    LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))

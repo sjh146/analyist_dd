@@ -250,20 +250,46 @@ def append_registry(scoring_dir, records):
 def _stats(values):
     if not values:
         return {"win_rate": 0.0, "avg_return_pct": 0.0, "median_return_pct": 0.0,
-                "max_return_pct": 0.0, "min_return_pct": 0.0}
+                "max_return_pct": 0.0, "min_return_pct": 0.0,
+                "avg_win_pct": 0.0, "avg_loss_pct": 0.0}
     arr = np.array(values, dtype=float)
     wins = int(np.sum(arr > 0))
+    win_vals = arr[arr > 0]
+    loss_vals = arr[arr < 0]
     return {
         "win_rate": round(wins / len(arr) * 100.0, 1),
         "avg_return_pct": round(float(np.mean(arr)), 2),
         "median_return_pct": round(float(np.median(arr)), 2),
         "max_return_pct": round(float(np.max(arr)), 2),
         "min_return_pct": round(float(np.min(arr)), 2),
+        # Kelly prior 입력 (b = avg_win/avg_loss 비율; 손실은 절대값)
+        "avg_win_pct": round(float(np.mean(win_vals)), 2) if len(win_vals) else 0.0,
+        "avg_loss_pct": round(abs(float(np.mean(loss_vals))), 2) if len(loss_vals) else 0.0,
     }
 
 
+# 승률 통계 기준: 최근 채점 이력 (일). trader-core Kelly prior로 소비됨.
+HISTORY_WINDOW_DAYS = 180
+
+
+def registry_records(registry):
+    """레지스트리에서 완결 채점(return_pct 존재) 기록만, 최근 HISTORY_WINDOW_DAYS 추출."""
+    if not registry:
+        return []
+    cutoff = (pd.Timestamp.now() - pd.Timedelta(days=HISTORY_WINDOW_DAYS)).strftime("%Y-%m-%d")
+    out = []
+    for rec in registry.values():
+        if not isinstance(rec, dict) or rec.get("return_pct") is None:
+            continue
+        sd = str(rec.get("signal_date") or "")
+        if sd and sd < cutoff:
+            continue
+        out.append(rec)
+    return out
+
+
 def summarize_per_screener(results):
-    """results: 스크리너별 결과 dict 리스트 → 스크리너별 통계."""
+    """results: 스크리너별 결과 dict 리스트 → 스크리너별 통계 (승률·평균손익)."""
     stats = {}
     by = {}
     for r in results:
@@ -276,6 +302,8 @@ def summarize_per_screener(results):
             "median_return_pct": s["median_return_pct"],
             "max_return_pct": s["max_return_pct"],
             "min_return_pct": s["min_return_pct"],
+            "avg_win_pct": s["avg_win_pct"],
+            "avg_loss_pct": s["avg_loss_pct"],
             "sample_count": len(vals),
             "window": WINDOW_LABEL[scr],
         }
@@ -351,15 +379,26 @@ def score_candidates(pg, candidates, registry, scoring_dir):
     return results, scored, skipped
 
 
-def write_outputs(scoring_dir, report_dir, results, scored, skipped):
-    """상세 CSV + 요약 JSON 저장 → (csv_path, summary_path)."""
+def write_outputs(scoring_dir, report_dir, results, scored, skipped, registry=None, per=None):
+    """상세 CSV + 요약 JSON 저장 → (csv_path, summary_path).
+
+    ``per``(스크리너별 통계) 미지정 시: 레지스트리 완결 채점 이력이 있으면
+    그것으로(누적 승률 — trader-core Kelly prior), 없으면 이번 run 결과로.
+    """
     os.makedirs(scoring_dir, exist_ok=True)
     ts = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
     csv_path = None
     if results:
         csv_path = os.path.join(scoring_dir, f"results_{ts}.csv")
         pd.DataFrame(results).to_csv(csv_path, index=False)
-    per = summarize_per_screener(results)
+    if per is None:
+        history = registry_records(registry)
+        if history:
+            per = summarize_per_screener(history)
+        elif results:
+            per = summarize_per_screener(results)
+        else:
+            per = {}
     summary = {
         "generated_at": pd.Timestamp.now().isoformat(),
         "total_scored": scored,
@@ -434,19 +473,22 @@ def main():
             pass
 
     csv_path, summary_path = write_outputs(
-        scoring_dir, report_dir, results, scored, skipped)
+        scoring_dir, report_dir, results, scored, skipped, registry=registry)
     logger.info(f"채점 완료: 신규 {scored}, 중복스킵 {skipped}")
 
     print("\n" + "=" * 60)
     print("스크리너 승률 채점 요약")
     print("=" * 60)
-    if results:
-        per = summarize_per_screener(results)
+    history = registry_records(registry)
+    per = summarize_per_screener(history) if history else summarize_per_screener(results)
+    if per:
+        src = "누적 채점 이력" if history else "이번 run 신규 채점"
         for scr, s in per.items():
-            print(f"  {scr:12s} {WINDOW_LABEL[scr]:22s} 채점 {s['sample_count']:>3} | "
-                  f"승률 {s['win_rate']}% 평균 {s['avg_return_pct']}%")
+            print(f"  {scr:12s} {WINDOW_LABEL[scr]:22s} {src} n={s['sample_count']:>3} | "
+                  f"승률 {s['win_rate']}% 평균 {s['avg_return_pct']}% "
+                  f"(win {s['avg_win_pct']}% / loss {s['avg_loss_pct']}%)")
     else:
-        print("  (신규 채점 건 없음 — 모두 레지스트리에 존재하거나 창 미경과)")
+        print("  (채점 이력 없음 — 레지스트리에 완결 채점이 쌓이면 통계가 표시됩니다)")
     print("-" * 60)
     print(f"신규 채점 {scored} | 중복 스킵 {skipped}")
     if csv_path:

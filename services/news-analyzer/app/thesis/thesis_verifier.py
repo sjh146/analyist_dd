@@ -394,7 +394,7 @@ class ThesisJudge:
         self._simulate = not api_key
         self.client = None
         if api_key:
-            self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+            self.client = OpenAI(api_key=api_key, base_url=Config.LLM_BASE_URL)
         else:
             logger.warning("No DeepSeek API key provided. Verdict will be simulated.")
 

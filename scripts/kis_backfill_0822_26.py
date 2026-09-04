@@ -9,6 +9,7 @@
 import os
 import time
 import random
+import sys
 
 import psycopg2
 from kis_app.client.kis_client import KisClient
@@ -33,6 +34,7 @@ def load_done():
 
 
 def save_done(code):
+    os.makedirs(os.path.dirname(PROGRESS), exist_ok=True)
     with open(PROGRESS, "a") as f:
         f.write(code + "\n")
 

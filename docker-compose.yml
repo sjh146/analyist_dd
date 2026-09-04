@@ -67,6 +67,8 @@ services:
       dockerfile: Dockerfile
     container_name: stock_news_analyzer
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./services/news-analyzer:/app
       - ./data/disclosures:/app/data

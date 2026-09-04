@@ -758,18 +758,19 @@ def _cmd_draft(args):
         print("\n후보 없음 (ackman_score > min_score 통과 종목 없음).")
         return
 
-    # 중복 방지: 이미 pending 승인 패키지가 있는 종목은 초안 재생성 스킵 (08/28 실측: 10:12/13:00 중복 생성)
+    # 중복 방지: 이미 pending(승인 대기) 또는 approved(등록 완료) 패키지가 있는
+    # 종목은 초안 재생성 스킵 (08/28 실측: 10:12/13:00 중복 생성 → pending+approved 모두 차단)
     pending_codes = set()
     for f in glob.glob(os.path.join(APPROVALS_DIR, "*.json")):
         pkg = load_approval(os.path.splitext(os.path.basename(f))[0])
-        if pkg and pkg.get("status") == "pending" and pkg.get("stock_code"):
+        if pkg and pkg.get("stock_code") and pkg.get("status") in ("pending", "approved"):
             pending_codes.add(str(pkg["stock_code"]))
     if pending_codes:
         before = len(candidates)
         candidates = [c for c in candidates if str(c.get("stock_code")) not in pending_codes]
         skipped = before - len(candidates)
         if skipped:
-            print(f"  ⏭️  이미 pending 승인 패키지 존재 — {skipped}건 스킵: {sorted(pending_codes)}")
+            print(f"  ⏭️  이미 승인 패키지 존재(pending/approved) — {skipped}건 스킵: {sorted(pending_codes)}")
 
     pg = get_pg_conn()
     approval_ids = []

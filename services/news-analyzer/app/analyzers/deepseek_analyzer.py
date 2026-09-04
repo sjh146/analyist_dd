@@ -28,7 +28,7 @@ class DeepSeekAnalyzer:
             logger.warning("No DeepSeek API key provided. Analysis will be simulated.")
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://api.deepseek.com",
+            base_url=Config.LLM_BASE_URL,
         ) if api_key else None
         self._simulate = not bool(api_key)
 

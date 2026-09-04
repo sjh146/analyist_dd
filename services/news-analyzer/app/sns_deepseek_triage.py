@@ -57,8 +57,8 @@ AUTHOR_Q_WEIGHT = 0.3
 # 규칙 점수 → confidence 변환 스케일
 CONF_SCALE = 1.2
 
-# DeepSeek 모델명 (기본값)
-DEEPSEEK_MODEL = "deepseek-chat"
+# DeepSeek 모델명 (기본값) — .env DEEPSEEK_MODEL로 오버라이드 가능
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 # 라벨 화이트리스트
 SENTIMENT_LABELS = {"positive", "negative", "neutral"}
@@ -372,7 +372,7 @@ class SnsDeepSeekTriage:
 
         prompt = self._build_prompt(text, stock_code)
         try:
-            client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+            client = OpenAI(api_key=api_key, base_url=os.getenv("LLM_BASE_URL", "https://api.deepseek.com"))
             response = client.chat.completions.create(
                 model=DEEPSEEK_MODEL,
                 messages=[
