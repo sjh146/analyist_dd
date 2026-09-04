@@ -58,7 +58,12 @@ DEFAULT_MIN_SCORE = 0.01  # ackman_score = Q×V×C 승법 — 0이면 테제 성
 DRAFT_MODEL = os.environ.get("THESIS_DRAFT_MODEL", "deepseek-v4-pro")
 DRAFT_TEMPERATURE = 0.3
 DRAFT_MAX_TOKENS = 8192  # colony-llm-gateway §4-1 high_stakes 행과 동일
-DRAFT_API_URL = "https://api.deepseek.com/chat/completions"
+# 수동 CLI 전용(자동화 등록 없음). DeepSeek API가 기본이나 THESIS_DRAFT_API_URL로
+# 오버라이드 가능. 로컬 qwen(LLM_BASE_URL) 상속은 하지 않음 — 8192토큰 초안은
+# 로컬 14B(컨텍스트 4096)로 생성 불가. 클라우드 호출이 필요하면 수동·19시 이후.
+DRAFT_API_URL = os.environ.get(
+    "THESIS_DRAFT_API_URL", "https://api.deepseek.com/chat/completions"
+)
 DRAFT_TIMEOUT = 180           # urllib 타임아웃 (초) — v4-pro 8192토큰 생성 실측 111s (08/28), 30s로는 항상 실패
 DRAFT_RETRY_DELAY = 1.0       # 실패 시 재시도 백오프 (초) — 1회 재시도
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")  # 미설정 → 초안 생성 생략 (fail-open)
