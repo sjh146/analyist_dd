@@ -137,9 +137,52 @@ def find_gaps(probe=True):
     return gaps, holidays
 
 
+def db_state():
+    """(전체 행수, 최신 거래일) — 빈 DB/장기 공백 조기 감지용."""
+    import psycopg2
+
+    conn = psycopg2.connect(**DB, connect_timeout=5)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT count(*), max(trade_date) FROM market_data")
+        n, mx = cur.fetchone()
+        cur.close()
+        return int(n or 0), mx
+    finally:
+        conn.close()
+
+
+def stale_warning():
+    """빈 DB 또는 점검 창(LOOKBACK_DAYS) 밖의 공백 → (bool, 메시지).
+
+    LOOKBACK_DAYS=10 만 보므로, 마지막 적재가 그보다 오래되면 '공실 없음'으로
+    잘못 보고한다(실측 2026-09-22: 빈 DB에서 '데이터 정상' 출력). 구간 백필
+    러너(scripts/kis_backfill_range.py)로 넘기기 위한 선행 점검.
+    """
+    try:
+        n, mx = db_state()
+    except Exception as e:  # noqa: BLE001
+        return False, "DB 조회 실패: {0}".format(e)
+    if n == 0:
+        return True, ("market_data 가 비어 있음 — 일봉 전체 백필 필요 "
+                      "(scripts/kis_backfill_range.py 로 구간 수집)")
+    cutoff = date.today() - timedelta(days=LOOKBACK_DAYS)
+    if mx is not None and mx < cutoff:
+        days = (date.today() - mx).days
+        return True, ("최신 적재 {0} (달력 {1}일 전) — 점검 창 {2}일 밖: "
+                      "구간 백필 필요 (scripts/kis_backfill_range.py)"
+                      .format(mx, days, LOOKBACK_DAYS))
+    return False, "최신 적재 {0} / {1:,}행".format(mx, n)
+
+
 def cmd_report():
-    gaps, _holidays = find_gaps(probe=True)
+    stale, note = stale_warning()
     print("=== market_data 일봉 공실 점검 ({0}) ===".format(datetime.now().strftime("%Y-%m-%d %H:%M")))
+    print("상태: {0}".format(note))
+    if stale:
+        print("→ 최근 {0}일 점검만으로는 판단 불가 — 구간 백필을 먼저 실행하세요.".format(LOOKBACK_DAYS))
+        return 2
+    gaps, _holidays = find_gaps(probe=True)
     print("점검 기간: 최근 {0} 평일 (정상 ≈ {1}종목/일, 임계 {2})".format(
         LOOKBACK_DAYS, EXPECTED_FULL, GAP_THRESHOLD))
     if not gaps:
@@ -154,6 +197,12 @@ def cmd_report():
 def cmd_backfill():
     if os.path.exists(LOCK_PATH):
         print("백필 잠금 존재 — 다른 백필 진행 중, 종료")
+        return 0
+    stale, note = stale_warning()
+    if stale:
+        print("상태: {0}".format(note))
+        print("→ 1일/야간 백필로는 부족합니다. 구간 백필을 사용하세요:")
+        print("   cd {0}/services/kis-collector && python3 ../../scripts/kis_backfill_range.py".format(PROJ))
         return 0
     gaps, _holidays = find_gaps(probe=False)  # 보고 크론이 이미 probe함
     if not gaps:

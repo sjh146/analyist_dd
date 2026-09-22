@@ -223,7 +223,7 @@ services:
       # 실행 코드/모델 (읽기 전용) — 전략 스크립트는 cwd=/opt/xgboost-ml 기준 상대 경로 사용
       - ./services/xgboost-ml:/opt/xgboost-ml:ro
       - ./services/backtester:/opt/backtester:ro
-      - ./services/strategy-agents:/opt/strategy-agents:ro
+      - ./services/strategy-agents:/opt/strategy-agents  # rw: 아래 config/strategies 오버레이 마운트포인트 생성용 (Docker 29는 ro 부모에 mkdir 불가)
       - ./scripts:/opt/scripts:ro
       - ./config/strategies:/opt/strategy-agents/config/strategies:ro
       # 리포트 (기록) — api-gateway가 읽는 경로와 동일

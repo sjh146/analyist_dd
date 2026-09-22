@@ -45,7 +45,58 @@ def pg_connect():
 # ─── 네이버 스크래핑 ───────────────────────────────────────────────────
 
 def scrape_naver_market(market_name: str, sosok: str):
-    """네이버 금융 시가총액순위에서 특정 시장 전체 종목 수집"""
+    """특정 시장 전체 종목 수집 — 모바일 API 우선, HTML 폴백.
+
+    2026-09 기준 finance.naver.com/sise_market_sum 은 302 리다이렉트(SPA 전환)로
+    `page=` 링크가 사라져 기존 HTML 파서가 0종목을 반환한다 → m.stock.naver.com
+    JSON API(시가총액순위)로 교체. ETF/ETN(stockEndType != 'stock')은 제외한다.
+    """
+    api_stocks = _scrape_naver_api(market_name, market_name.upper())
+    if api_stocks:
+        return api_stocks
+    log.warning(f"{market_name}: 모바일 API 실패 — 레거시 HTML 파서로 폴백")
+    return _scrape_naver_html(market_name, sosok)
+
+
+def _scrape_naver_api(market_name: str, market: str) -> list:
+    """m.stock.naver.com 시가총액순위 API 페이지네이션 (주식만)."""
+    import httpx
+
+    stocks, page, total = [], 1, None
+    with httpx.Client(headers=HEADERS, follow_redirects=True, timeout=30) as c:
+        while True:
+            url = (f"https://m.stock.naver.com/api/stocks/marketValue/{market}"
+                   f"?page={page}&pageSize=100")
+            try:
+                r = c.get(url)
+                r.raise_for_status()
+                data = r.json()
+            except Exception as e:  # noqa: BLE001 — 네트워크/스키마 변경 시 폴백
+                log.warning(f"{market_name}: API {page}페이지 실패({e})")
+                break
+            rows = data.get("stocks") or []
+            if total is None:
+                total = int(data.get("totalCount") or 0)
+                log.info(f"{market_name}: 시가총액순위 {total}건 수집 시작 (API)")
+            for s in rows:
+                if s.get("stockEndType") not in (None, "stock"):
+                    continue  # ETF/ETN/파생 제외
+                code = str(s.get("itemCode") or "").strip()
+                if not re.fullmatch(r"\d{6}", code):
+                    continue
+                stocks.append({"code": code, "name": s.get("stockName") or "",
+                               "market": market_name})
+            if not rows or (total and len(stocks) >= total) or page >= 60:
+                break
+            page += 1
+            time.sleep(0.15)
+    if stocks:
+        log.info(f"{market_name}: API 수집 {len(stocks)}개 (페이지 {page})")
+    return stocks
+
+
+def _scrape_naver_html(market_name: str, sosok: str):
+    """레거시 HTML 파서 (finance.naver.com/sise/sise_market_sum) — 폴백용."""
     import httpx
 
     stocks = []
