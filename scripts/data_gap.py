@@ -220,24 +220,36 @@ def cmd_backfill():
     open(LOCK_PATH, "w").write(target)
     try:
         print("백필 시작: {0} ({1} 공실 대기)".format(target, len(gaps)))
-        cmd = [
-            "/usr/bin/python3", "-m", "kis_app.main",
-            "--job", "daily", "--date", target,
-        ]
         env = dict(os.environ)
         env.update(
             POSTGRES_HOST="127.0.0.1", POSTGRES_PORT="5434",
             POSTGRES_USER=DB["user"], POSTGRES_PASSWORD=DB["password"],
             POSTGRES_DB=DB["dbname"],
         )
+        # 수집 경로 선택: KIS 자격증명이 있으면 KIS, 없으면 KRX OpenAPI (BC250 수리 전 대체)
+        has_kis = bool(env.get("KIS_APP_KEY") and env.get("KIS_APP_SECRET"))
+        if has_kis:
+            print("경로: KIS 일봉")
+            cmd = [
+                "/usr/bin/python3", "-m", "kis_app.main",
+                "--job", "daily", "--date", target,
+            ]
+            cwd = os.path.join(PROJ, "services/kis-collector")
+        else:
+            print("경로: KRX OpenAPI (KIS 키 없음)")
+            cmd = [
+                "/usr/bin/python3", os.path.join(PROJ, "scripts", "krx_daily.py"),
+                "--from", target, "--to", target, "--ignore-run-gap",
+            ]
+            cwd = PROJ
         r = subprocess.run(
-            cmd, cwd=os.path.join(PROJ, "services/kis-collector"),
+            cmd, cwd=cwd,
             env=env, capture_output=True, text=True, timeout=60 * 60 * 8,
         )
         tail = (r.stdout + r.stderr).strip().splitlines()[-6:]
         print("\n".join(tail))
-        n = pg_count(target.replace("-", ""))
-        print("백필 완료 {0}: 적재 {1}종목".format(target, n))
+        n = pg_count(target)
+        print("백필 완료 {0}: 적재 {1}종목 (exit={2})".format(target, n, r.returncode))
     finally:
         os.remove(LOCK_PATH)
     return 0
