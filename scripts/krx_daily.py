@@ -181,9 +181,14 @@ def fetch_day(base, key, market_path, basdd):
         data = json.loads(raw)
     except ValueError:
         raise KrxBlocked(f"비JSON 응답(HTTP {code}) {raw.strip()[:120]}")
-    if str(data.get("respCode", "")) not in ("200", "0"):
+    # 정상 응답에는 respCode 가 아예 없다(OutBlock_1 만 온다) — 있으면 오류 코드만 검사한다.
+    resp_code = str(data.get("respCode", "") or "")
+    if resp_code and resp_code not in ("200", "0"):
         raise KrxBlocked(f"respCode={data.get('respCode')} {data.get('respMsg')}")
-    return data.get("OutBlock_1") or []
+    rows = data.get("OutBlock_1")
+    if rows is None:
+        raise KrxBlocked(f"OutBlock_1 없음(HTTP {code}) {raw.strip()[:120]}")
+    return rows
 
 
 def trading_dates(start, end, holidays):
