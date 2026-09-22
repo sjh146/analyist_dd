@@ -236,15 +236,21 @@ def main():
 
     conn = db_conn(env)
 
-    # 스코프: corp_mapping + market_data 존재 종목 (활발 거래 유니버스)
+    # 스코프: corp_mapping + 시세 유니버스 (market_data 우선, 미수집이면 stocks)
     with conn.cursor() as cur:
         cur.execute("SELECT DISTINCT stock_code FROM market_data")
         active = {r[0] for r in cur.fetchall()}
+        source = "market_data"
+        if not active:
+            # 신규 배포/백필 전에는 market_data 가 비어 있다 → 종목 마스터로 대체
+            cur.execute("SELECT stock_code FROM stocks")
+            active = {r[0] for r in cur.fetchall()}
+            source = "stocks(market_data 미수집)"
     scope = [c for c in mapping if c in active and c not in state["done"] and c not in state["failed"]]
     if args.codes:
         scope = [c.strip() for c in args.codes.split(",") if c.strip() in mapping]
         log.info("--codes 지정: %s", scope)
-    log.info(f"스코프: 전체 매핑 {len(mapping)} / 활발거래 {len(active)} / 대상 {len(scope)} "
+    log.info(f"스코프: 전체 매핑 {len(mapping)} / 유니버스 {len(active)} ({source}) / 대상 {len(scope)} "
              f"(완료 {len(state['done'])}, 실패 {len(state['failed'])})")
 
     if args.dry_run:
