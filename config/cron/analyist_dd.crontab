@@ -16,3 +16,10 @@ CRON_TZ=Asia/Seoul
 30 8 * * 1-5 root /home/jhshi/cron/swing_pipeline.sh >> /home/dduckbeagy/analyist_dd/.omo/evidence/cron-swing-pipeline.log 2>&1
 # 뉴스/감성 데이터 2일 초과분 정리
 30 3 * * * root /home/jhshi/cron/news_cleanup.sh >> /home/dduckbeagy/analyist_dd/reports/cron_news_cleanup.log 2>&1
+
+# 평일 08:40 — 스윙 피드 발행 (08:30 스윙 파이프라인 산출물 기준)
+40 8 * * 1-5 root /home/jhshi/cron/feed_publish.sh >> /home/dduckbeagy/analyist_dd/reports/cron_feed_publish.log 2>&1
+# 평일 14:40 — 종가 스크리너 잡 + 피드 발행 (진입창 14:50~15:25 전)
+40 14 * * 1-5 root /home/jhshi/cron/close_job.sh >> /home/dduckbeagy/analyist_dd/reports/cron_close_job.log 2>&1
+# 평일 20:30 — 저녁 파이프라인(20:00) 후 스윙 피드 재발행 (다음날 아침용)
+30 20 * * 1-5 root /home/jhshi/cron/feed_publish.sh >> /home/dduckbeagy/analyist_dd/reports/cron_feed_publish.log 2>&1

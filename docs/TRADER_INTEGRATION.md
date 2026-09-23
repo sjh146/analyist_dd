@@ -65,7 +65,28 @@ API 수집(KRX/KIS/DART/뉴스) → 정제·피처 → ML 학습 → 종목 추�
 4. **검증**: `run_trader_core.py scan --feed <url|파일> --dry-run` 으로 게이트 통과/차단 사유 확인 → 실거래 전 필수.
 5. 뉴스 게이트(부정 이벤트 차단)를 피드 단계에 결합 — `scripts/news_gate_server.py` 가 이미 그 역할을 한다.
 
-## 5. 안전 규칙
+## 4. 진행 상태 (2026-09-23 구현분)
+
+| 항목 | 상태 | 근거 |
+|---|---|---|
+| 피드 발행기 `scripts/feed_export.py` | **완료** | `reports/close_latest.json` + `swing_latest.json` → `data/feed/screener_latest.json` (원자적 교체, 계약 검증/점수분포 로그) |
+| 피드 서버 `scripts/feed_server.py` + `analyist-feed.service` | **완료** | systemd 상시 구동(0.0.0.0:8090), `/screener_latest.json` + `/health`. Windows에서 `http://localhost:8090` 200(13.9KB, 0.22s), tailnet IP는 소형 응답만 통과(MTU 이슈 — §5) |
+| 크론 | **완료** | 08:40 스윙 발행 / 14:40 종가 잡+발행 / 20:30 재발행 (`/etc/cron.d/analyist_dd`) |
+| trader-agent 위치 | **완료** | `C:\Users\jhshi\analyist_dd\trader-agent`로 이동, .bat·예약작업·문서 경로 수정, 테스트 468개 통과 |
+| trader-agent 피드 소비 | **완료** | `config.feed_url` = `http://127.0.0.1:8090/screener_latest.json`, `loop_start_bg.bat`도 `--feed <URL>` 로 교체 |
+| 소비자 파서 검증 | **완료** | `tools/check_feed.py` → 파싱·신선도·가격누락·점수분포 확인(exit 0) |
+| 매매 계획 검증(scan --dry-run) | **대기** | 브리지(크레온 로그인) 필요 — 사용자가 브리지 띄운 뒤 실행 |
+| 켈리 사전확률 | **미포함** | 채점 이력이 쌓이면 `data/reports/screener_stats.json` 생산 → 자동 포함 |
+| 당일 데이터 신선도 | **개선 필요** | KRX 공식 경로는 D-1까지만 채우므로 14:40 종가 피드의 가격은 전일 종가다. R3(±3% 이탈 스킵)가 방어하지만, KIS 당일 수집(유동성 상위 300종목, 18:55)을 추가하면 저녁 스윙 피드는 당일 종가를 쓸 수 있다 |
+
+## 5. 남은 작업
+
+1. **매매 계획 검증**: 크레온 로그인 → `bridge_start_bg.bat` → `run_trader_core.py scan --dry-run` 으로 게이트 통과/차단 확인.
+2. **당일 종가 확보**(선택): KIS로 유동성 상위 300종목 당일 봉 수집(18:55, 약 16분) 크론 추가 → 저녁 스윙 피드가 당일 종가 사용.
+3. **켈리 통계 연결**: `screener_score.py` 채점 이력이 쌓이면 `data/reports/screener_stats.json` 를 발행기가 자동 포함.
+4. **tailnet 경로 MTU**: 원격 트레이더로 확장할 때 `100.93.220.52:8090` 대용량 응답이 멈춘다(소형 `/health`는 통과). SSH 터널 또는 MTU/MSS 조정 필요 — 같은 노트북에서는 `localhost:8090` 로 우회한다.
+
+## 6. 안전 규칙
 
 - 실거래 전 반드시 dry-run 스캔으로 후보가 의도대로 통과하는지 확인한다(모의투자 계좌 → 실계좌 순서).
 - `generated_at` 을 재사용하거나 과거 값을 보내면 전 후보가 조용히 차단된다 — 발행 시각을 매번 갱신한다.

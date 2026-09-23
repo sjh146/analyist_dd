@@ -1,0 +1,18 @@
+[Unit]
+Description=analyist_dd feed server (trader-agent screener_latest.json)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jhshi
+WorkingDirectory=/home/jhshi/analyist_dd
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/jhshi/analyist_dd/scripts/feed_server.py --host 0.0.0.0 --port 8090 --dir /home/jhshi/analyist_dd/data/feed
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/jhshi/analyist_dd/reports/feed_server.log
+StandardError=append:/home/jhshi/analyist_dd/reports/feed_server.log
+
+[Install]
+WantedBy=multi-user.target

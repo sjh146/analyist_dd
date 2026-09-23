@@ -29,3 +29,6 @@ data/krx/rate_state.json
 # 중첩 워크스페이스 — trader-agent 는 자기 git 저장소를 가진 별도 프로젝트다.
 # 부모(analyist_dd)는 이 디렉터리를 추적·수정·정리하지 않는다(중첩 저장소 충돌 방지).
 /trader-agent/
+
+# trader-agent 피드로 내보내는 발행물 (스크리너 산출물에서 매번 생성)
+data/feed/
