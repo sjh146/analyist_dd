@@ -190,6 +190,8 @@ def main(argv=None):
     ap.add_argument("--no-stats", action="store_true", help="scoring_summary 생략")
     ap.add_argument("--max-source-age-days", type=float, default=3.0,
                     help="스크리너 산출물이 이보다 오래되면 해당 전략을 비워 발행(기본 3일)")
+    ap.add_argument("--allow-degenerate-scores", action="store_true",
+                    help="점수 퇴화(대부분 동일값) 목록도 그대로 발행 — 기본은 안전하게 비운다")
     args = ap.parse_args(argv)
 
     sources = {"close": args.close, "swing": args.swing}
@@ -235,6 +237,18 @@ def main(argv=None):
     candidates = {}
     for key in ("close", "swing"):
         items = build_items(key, payloads.get(key, {}), prev_closes) if key in payloads else []
+        # 점수 퇴화 가드: 후보 대부분이 같은 점수면 선별이 무작위가 된다(계약 §5 안티패턴).
+        # trader-agent 는 min_score 만 보고 상위 N 을 집행하므로, 그런 목록은 발행하지 않는다.
+        if items and not args.allow_degenerate_scores:
+            scores = [i["score"] for i in items]
+            modal = max(set(scores), key=scores.count)
+            same = sum(1 for s in scores if s == modal)
+            if len(items) >= 5 and same / len(items) >= 0.8:
+                logger.warning(
+                    "[%s] 점수 퇴화 — %d/%d건이 동일값 %.2f → 이 전략은 빈 리스트로 발행 "
+                    "(모델 배치 미연결 등 대체 경로 의심. --allow-degenerate-scores 로 강제 발행)",
+                    key, same, len(items), modal)
+                items = []
         candidates[key] = {"items": items}
 
     feed = {
