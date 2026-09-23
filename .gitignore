@@ -25,3 +25,7 @@ services/kis-collector/data/kis/
 # KRX 진행/상태 파일 (실행 중 임시 상태 — 커밋 금지, 수동 백필이 재개용으로만 사용)
 data/krx/progress_*.txt
 data/krx/rate_state.json
+
+# 중첩 워크스페이스 — trader-agent 는 자기 git 저장소를 가진 별도 프로젝트다.
+# 부모(analyist_dd)는 이 디렉터리를 추적·수정·정리하지 않는다(중첩 저장소 충돌 방지).
+/trader-agent/

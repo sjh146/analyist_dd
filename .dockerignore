@@ -1,0 +1,13 @@
+# Docker 빌드 컨텍스트에서 제외 (compose 는 서비스별 컨텍스트를 쓰지만,
+# 루트 컨텍스트로 빌드할 때 거대한 디렉터리가 딸려가지 않도록 방어한다)
+.git/
+trader-agent/
+data/
+reports/
+log/
+models/
+.omo/
+**/__pycache__/
+*.pyc
+*.log
+.pytest_cache/
