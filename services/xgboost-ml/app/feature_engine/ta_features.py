@@ -6,6 +6,8 @@ import talib
 import logging
 from typing import Dict, Optional
 
+from app.feature_engine.market_data_filter import MARKET_DATA_VALID
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,10 +22,11 @@ class TAFeatures:
             if pg_conn is not None:
                 try:
                     cur = pg_conn.cursor()
-                    cur.execute("""
+                    cur.execute(f"""
                         SELECT trade_date, open_price, high_price, low_price, close_price, volume
                         FROM market_data
                         WHERE stock_code = %s AND trade_date <= %s
+                          AND {MARKET_DATA_VALID}
                         ORDER BY trade_date
                     """, (stock_code, date))
                     rows = cur.fetchall()

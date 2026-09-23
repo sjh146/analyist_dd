@@ -16,6 +16,7 @@ from app.feature_engine.macro_features import MacroFeatures
 from app.feature_engine.graph_features import GraphFeatures
 from app.feature_engine.vector_features import VectorFeatures
 from app.feature_engine.feature_store import FeatureStore
+from app.feature_engine.market_data_filter import MARKET_DATA_VALID
 from app.feature_engine.factor_features import FactorFeatures
 from app.feature_engine.scorer import QualityScorer
 from app.feature_engine.kalman_filter import KalmanFeatureFilter
@@ -78,10 +79,11 @@ class FeaturePipeline:
             if self.pg_conn is not None:
                 try:
                     cur = self.pg_conn.cursor()
-                    cur.execute("""
+                    cur.execute(f"""
                         SELECT trade_date, open_price, high_price, low_price, close_price, volume
                         FROM market_data
                         WHERE stock_code = %s AND trade_date <= %s
+                          AND {MARKET_DATA_VALID}
                         ORDER BY trade_date DESC
                         LIMIT 250
                     """, (stock_code, date))
@@ -297,11 +299,12 @@ class FeaturePipeline:
         if self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
-                cur.execute("""
+                cur.execute(f"""
                     SELECT stock_code, trade_date::text
                     FROM market_data
                     WHERE stock_code = ANY(%s)
                       AND trade_date >= %s AND trade_date <= %s
+                      AND {MARKET_DATA_VALID}
                     ORDER BY stock_code, trade_date
                 """, (stock_codes, start_date, end_date))
                 available = cur.fetchall()
@@ -324,11 +327,12 @@ class FeaturePipeline:
                 cur = self.pg_conn.cursor()
                 # Load up to 365 days of data per stock for lookback indicators (RSI, MA, etc.)
                 lookback_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=365)).strftime("%Y-%m-%d")
-                cur.execute("""
+                cur.execute(f"""
                     SELECT stock_code, trade_date, open_price, high_price, low_price, close_price, volume
                     FROM market_data
                     WHERE stock_code = ANY(%s)
                       AND trade_date >= %s AND trade_date <= %s
+                      AND {MARKET_DATA_VALID}
                     ORDER BY stock_code, trade_date
                 """, (stock_codes, lookback_start, end_date))
                 all_rows = cur.fetchall()

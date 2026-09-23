@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from typing import Dict, Optional
 
+from app.feature_engine.market_data_filter import MARKET_DATA_VALID
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,10 +69,11 @@ class AlternativeFeatures:
             cur = db_conn.cursor()
 
             cur.execute(
-                """
+                f"""
                 SELECT trade_date, close_price
                 FROM market_data
                 WHERE stock_code = %s AND trade_date <= %s
+                  AND {MARKET_DATA_VALID}
                 ORDER BY trade_date DESC
                 LIMIT %s
                 """,
@@ -236,10 +239,11 @@ class AlternativeFeatures:
             ratio_drop = (prev_ratio - current_ratio) / prev_ratio
 
             cur.execute(
-                """
+                f"""
                 SELECT trade_date, close_price
                 FROM market_data
                 WHERE stock_code = %s AND trade_date <= %s
+                  AND {MARKET_DATA_VALID}
                 ORDER BY trade_date DESC
                 LIMIT 5
                 """,

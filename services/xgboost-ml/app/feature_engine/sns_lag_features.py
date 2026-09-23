@@ -41,6 +41,8 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from app.feature_engine.market_data_filter import MARKET_DATA_VALID
+
 logger = logging.getLogger(__name__)
 
 _EPS = 1e-8
@@ -238,10 +240,11 @@ class SnsLagFeatures:
             )
             sns_rows = cur.fetchall()
             cur.execute(
-                """
+                f"""
                 SELECT trade_date, close_price
                 FROM market_data
                 WHERE stock_code = %s
+                  AND {MARKET_DATA_VALID}
                 ORDER BY trade_date
                 """,
                 (stock_code,),

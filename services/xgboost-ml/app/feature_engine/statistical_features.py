@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 
 from sklearn.decomposition import PCA
 from app.storage.postgres_storage import PostgresStorage
+from app.feature_engine.market_data_filter import MARKET_DATA_VALID
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,11 @@ class StatisticalFeatures:
         if not conn:
             return pd.DataFrame()
         try:
-            query = """
+            query = f"""
                 SELECT trade_date, close_price
                 FROM market_data
                 WHERE stock_code = %s AND trade_date <= %s
+                  AND {MARKET_DATA_VALID}
                 ORDER BY trade_date DESC
                 LIMIT %s
             """
@@ -62,10 +64,11 @@ class StatisticalFeatures:
             start = (
                 pd.Timestamp(date) - pd.Timedelta(days=window * 2 + 10)
             ).strftime("%Y-%m-%d")
-            query = """
+            query = f"""
                 SELECT stock_code, trade_date, close_price
                 FROM market_data
                 WHERE trade_date <= %s AND trade_date >= %s
+                  AND {MARKET_DATA_VALID}
                 ORDER BY stock_code, trade_date
             """
             df = pd.read_sql(query, conn, params=(date, start))

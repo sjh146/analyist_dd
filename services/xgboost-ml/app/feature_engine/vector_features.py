@@ -7,6 +7,8 @@ import logging
 import numpy as np
 from typing import Dict, List, Optional
 
+from app.feature_engine.market_data_filter import MARKET_DATA_VALID
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,10 +100,11 @@ class VectorFeatures:
         """Get 5-day return for a stock from market_data."""
         try:
             cur = db_conn.cursor()
-            cur.execute("""
+            cur.execute(f"""
                 SELECT close_price
                 FROM market_data
                 WHERE stock_code = %s
+                  AND {MARKET_DATA_VALID}
                 ORDER BY trade_date DESC
                 LIMIT 6
             """, (stock_code,))

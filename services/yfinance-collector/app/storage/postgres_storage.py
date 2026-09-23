@@ -7,12 +7,34 @@ import psycopg2
 import psycopg2.pool
 import pandas as pd
 import logging
-from datetime import datetime
+import os
+from datetime import date as ddate, datetime
 from typing import Dict
 
-from app.config import Config
+from app.config import Config, kst_now
 
 logger = logging.getLogger(__name__)
+
+
+def _row_date(value):
+    """trade_date 후보(pandas Timestamp/datetime/date/str) → date. 실패/결측 시 None."""
+    if value is None:
+        return None
+    try:
+        na = pd.isna(value)          # NaN/NaT (스칼라가 아니면 배열이 올 수 있음)
+        if isinstance(na, bool) and na:
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, ddate):
+        return value
+    try:
+        ts = pd.Timestamp(value)
+        return None if pd.isna(ts) else ts.date()
+    except Exception:
+        return None
 
 
 class PostgresStorage:
@@ -77,7 +99,15 @@ class PostgresStorage:
             self._put_conn(conn)
 
     def save_market_data(self, stock_code: str, df: pd.DataFrame):
-        """Bulk insert market data."""
+        """Bulk insert market data.
+
+        기본은 '빈 자리만 채우기'(ON CONFLICT DO NOTHING) — 이 수집기(pykrx 레거시 경로)는
+        보조 소스이고, 공식 수집 경로는 KRX OpenAPI(일별매매정보)/KIS 다. 덮어쓰기를 허용하면
+        6시간마다 도는 이 잡이 1년치를 비공식 값으로 되돌려 놓는다(실측 2026-09-23: 공식
+        재수집 직후에도 18:00 잡이 과거 1년을 pykrx 값으로 덮어쓸 예정이었다).
+        덮어쓰기가 필요하면 YF_MARKET_DATA_OVERWRITE=1 로 되돌린다.
+        """
+        overwrite = os.getenv("YF_MARKET_DATA_OVERWRITE", "0").strip().lower() in ("1", "true", "yes", "on")
         conn = self._get_conn()
         if not conn:
             return
@@ -86,6 +116,19 @@ class PostgresStorage:
 
         cur = conn.cursor()
         saved_count = 0
+        kept_count = 0
+        skipped_unfinished = 0
+
+        conflict_clause = """
+                    ON CONFLICT (stock_code, trade_date) DO UPDATE SET
+                        open_price = EXCLUDED.open_price,
+                        high_price = EXCLUDED.high_price,
+                        low_price = EXCLUDED.low_price,
+                        close_price = EXCLUDED.close_price,
+                        volume = EXCLUDED.volume
+        """ if overwrite else """
+                    ON CONFLICT (stock_code, trade_date) DO NOTHING
+        """
 
         for _, row in df.iterrows():
             try:
@@ -98,19 +141,20 @@ class PostgresStorage:
                     logger.warning(f"Skip row for {stock_code}: null trade_date")
                     continue
 
+                # 당일(KST) 이후 봉은 미완성(장중 스냅샷)이거나 미래 날짜 → 저장하지 않는다.
+                # 확정 봉은 다음 날 공식 경로(KRX OpenAPI/KIS)가 넣는다.
+                rdate = _row_date(trade_date)
+                if rdate is not None and rdate >= kst_now().date():
+                    skipped_unfinished += 1
+                    continue
+
                 cur.execute(
                     """
                     INSERT INTO market_data
                         (stock_code, trade_date, open_price, high_price,
                          low_price, close_price, volume)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (stock_code, trade_date) DO UPDATE SET
-                        open_price = EXCLUDED.open_price,
-                        high_price = EXCLUDED.high_price,
-                        low_price = EXCLUDED.low_price,
-                        close_price = EXCLUDED.close_price,
-                        volume = EXCLUDED.volume
-                    """,
+                    """ + conflict_clause,
                     (
                         stock_code,
                         trade_date,
@@ -121,7 +165,10 @@ class PostgresStorage:
                         int(row.get("volume") or row.get("거래량") or 0),
                     ),
                 )
-                saved_count += 1
+                if cur.rowcount:
+                    saved_count += 1
+                else:
+                    kept_count += 1
             except Exception as e:
                 logger.error(f"Failed to insert row for {stock_code}: {e}")
                 conn.rollback()
@@ -132,7 +179,18 @@ class PostgresStorage:
         try:
             conn.commit()
             cur.close()
-            logger.info(f"Saved market data for {stock_code} ({saved_count} rows)")
+            if overwrite:
+                logger.info(f"Saved market data for {stock_code} ({saved_count} rows/upsert)")
+            else:
+                logger.info(
+                    f"Saved market data for {stock_code} "
+                    f"(신규 {saved_count}행, 기존 {kept_count}행 유지)"
+                )
+            if skipped_unfinished:
+                logger.info(
+                    f"Skipped {skipped_unfinished} unfinished/future rows for {stock_code} "
+                    f"(trade_date >= 오늘 KST — 확정 봉은 다음 날 KRX/KIS 경로가 적재)"
+                )
         except Exception as e:
             logger.error(f"Failed to commit market data for {stock_code}: {e}")
             conn.rollback()

@@ -1,7 +1,30 @@
 import os
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# 장 마감(15:30) 여유 시각. 이 시각 이전 수집분은 당일 봉이 미완성이므로 저장/요청에서 제외한다.
+MARKET_CLOSE_BUFFER_HOUR = int(os.getenv("MARKET_CLOSE_BUFFER_HOUR", "15"))
+MARKET_CLOSE_BUFFER_MINUTE = int(os.getenv("MARKET_CLOSE_BUFFER_MINUTE", "40"))
+
+try:  # tzdata 없는 slim 이미지 대비
+    from zoneinfo import ZoneInfo
+
+    KST = ZoneInfo("Asia/Seoul")
+except Exception:  # pragma: no cover
+    KST = timezone(timedelta(hours=9))
+
+
+def kst_now() -> datetime:
+    """컨테이너 TZ(주로 UTC)와 무관한 한국 시각."""
+    return datetime.now(KST)
+
+
+def kst_market_closed() -> bool:
+    """한국 장 마감(+여유) 이후인가."""
+    now = kst_now()
+    return (now.hour, now.minute) >= (MARKET_CLOSE_BUFFER_HOUR, MARKET_CLOSE_BUFFER_MINUTE)
 
 
 class Config:

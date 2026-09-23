@@ -9,12 +9,17 @@ import time
 import queue
 import threading
 from typing import List, Dict, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dtime
 from pykrx import stock as krx_stock
+
+from app.config import kst_market_closed, kst_now
 
 logger = logging.getLogger(__name__)
 
-
+# 장 마감 전에는 당일 봉이 '미완성'이므로 요청 구간에서 제외한다(D-1까지).
+# 당일 확정 봉은 다음 날 공식 경로(KRX OpenAPI/KIS)가 적재한다.
+# 실측(2026-09-23 11:07): 컨테이너 부팅 직후 전 종목 수집이 장중 스냅샷을 market_data에
+# 써서 20:00 파이프라인이 부분 봉을 읽고, DB 최신일이 당일로 올라가 증분 수집을 막았다.
 def _call_with_timeout(func, args, timeout_seconds):
     result_queue = queue.Queue()
 
@@ -43,8 +48,20 @@ class PriceCollector:
 
     def __init__(self, period: str = "1y"):
         self.period = period
-        self.end_date = datetime.now()
+        now = kst_now()
+        end = now.date()
+        if not kst_market_closed():
+            # 장 마감 전 = 당일 봉이 미완성 → 요청 구간에서 제외
+            end = end - timedelta(days=1)
+        self.end_date = datetime.combine(end, dtime(0, 0))
         self.start_date = self.end_date - timedelta(days=365)
+        logger.info(
+            "수집 구간(한국시각 %s): %s ~ %s%s",
+            now.strftime("%Y-%m-%d %H:%M"),
+            self.start_date.strftime("%Y-%m-%d"),
+            self.end_date.strftime("%Y-%m-%d"),
+            "" if end == now.date() else " (장 마감 전 — 당일 봉 제외)",
+        )
 
     def collect(self, stock: Dict, timeout_seconds: int = 20) -> Optional[pd.DataFrame]:
         code = stock["code"]
