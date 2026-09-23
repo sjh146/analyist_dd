@@ -1,295 +1,336 @@
 {
   "request_type": "swing_screener",
-  "date": "2026-08-21",
-  "generated_at": "2026-08-21T08:07:10.174297Z",
+  "date": "2026-09-23",
+  "generated_at": "2026-09-23T06:25:18.125381Z",
   "total": 20,
   "up": 20,
   "down": 0,
   "high_confidence": 0,
-  "auc": "0.578992",
+  "batch_type": "raw_fallback",
+  "auc": "0.613053",
   "top_up": [
     {
-      "stock_code": "419530",
-      "stock_name": "SAMG엔터",
+      "stock_code": "464680",
+      "stock_name": "KB제27호스팩",
       "sector": "Unknown",
-      "confidence": 0.6452,
-      "expected_return": 29.04
+      "confidence": 0.5391,
+      "expected_return": 7.82,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "042520",
-      "stock_name": "한스바이오메드",
+      "stock_code": "465320",
+      "stock_name": "교보15호스팩",
       "sector": "Unknown",
-      "confidence": 0.6327,
-      "expected_return": 26.54
+      "confidence": 0.5189,
+      "expected_return": 3.78,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "475960",
-      "stock_name": "토모큐브",
+      "stock_code": "227100",
+      "stock_name": "프로브잇",
       "sector": "Unknown",
-      "confidence": 0.6289,
-      "expected_return": 25.78
+      "confidence": 0.5131,
+      "expected_return": 2.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "214370",
-      "stock_name": "케어젠",
+      "stock_code": "001840",
+      "stock_name": "이화공영",
       "sector": "Unknown",
-      "confidence": 0.6288,
-      "expected_return": 25.76
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "214150",
-      "stock_name": "클래시스",
-      "sector": "의료기기",
-      "confidence": 0.626,
-      "expected_return": 25.2
-    },
-    {
-      "stock_code": "389650",
-      "stock_name": "넥스트바이오메디컬",
+      "stock_code": "016790",
+      "stock_name": "현대사료",
       "sector": "Unknown",
-      "confidence": 0.6259,
-      "expected_return": 25.18
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "950140",
-      "stock_name": "잉글우드랩",
+      "stock_code": "030350",
+      "stock_name": "드래곤플라이",
       "sector": "Unknown",
-      "confidence": 0.6228,
-      "expected_return": 24.56
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "376900",
-      "stock_name": "샘씨엔에스",
+      "stock_code": "036690",
+      "stock_name": "코맥스",
       "sector": "Unknown",
-      "confidence": 0.6211,
-      "expected_return": 24.22
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "476040",
-      "stock_name": "오가노이드사이언스",
+      "stock_code": "041590",
+      "stock_name": "플래스크",
       "sector": "Unknown",
-      "confidence": 0.6203,
-      "expected_return": 24.06
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "494120",
-      "stock_name": "나노",
+      "stock_code": "043220",
+      "stock_name": "티에스넥스젠",
       "sector": "Unknown",
-      "confidence": 0.62,
-      "expected_return": 24.0
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "263750",
-      "stock_name": "펄어비스",
-      "sector": "게임",
-      "confidence": 0.6196,
-      "expected_return": 23.92
-    },
-    {
-      "stock_code": "331920",
-      "stock_name": "플리토",
+      "stock_code": "054180",
+      "stock_name": "메디콕스",
       "sector": "Unknown",
-      "confidence": 0.6196,
-      "expected_return": 23.92
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "493280",
-      "stock_name": "아이엠바이오로직스",
+      "stock_code": "065570",
+      "stock_name": "삼영이엔씨",
       "sector": "Unknown",
-      "confidence": 0.6193,
-      "expected_return": 23.86
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "331740",
-      "stock_name": "샌즈랩",
+      "stock_code": "066410",
+      "stock_name": "버킷스튜디오",
       "sector": "Unknown",
-      "confidence": 0.6177,
-      "expected_return": 23.54
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "289930",
-      "stock_name": "웨이비스",
+      "stock_code": "066790",
+      "stock_name": "씨씨에스",
       "sector": "Unknown",
-      "confidence": 0.6164,
-      "expected_return": 23.28
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "220100",
-      "stock_name": "이크레더블",
+      "stock_code": "068940",
+      "stock_name": "셀피글로벌",
       "sector": "Unknown",
-      "confidence": 0.6163,
-      "expected_return": 23.26
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "259630",
-      "stock_name": "엠플러스",
+      "stock_code": "073640",
+      "stock_name": "테라사이언스",
       "sector": "Unknown",
-      "confidence": 0.616,
-      "expected_return": 23.2
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "251370",
-      "stock_name": "와이엠티",
+      "stock_code": "079970",
+      "stock_name": "투비소프트",
       "sector": "Unknown",
-      "confidence": 0.6147,
-      "expected_return": 22.94
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "490470",
-      "stock_name": "세미파이브",
+      "stock_code": "080720",
+      "stock_name": "한국유니온제약",
       "sector": "Unknown",
-      "confidence": 0.6146,
-      "expected_return": 22.92
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "036890",
-      "stock_name": "진성티이씨",
+      "stock_code": "099520",
+      "stock_name": "DGI",
       "sector": "Unknown",
-      "confidence": 0.6142,
-      "expected_return": 22.84
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
+    },
+    {
+      "stock_code": "121800",
+      "stock_name": "비덴트",
+      "sector": "Unknown",
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
+    },
+    {
+      "stock_code": "182400",
+      "stock_name": "엔케이젠바이오텍코리아",
+      "sector": "Unknown",
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     }
   ],
   "top_down": [],
   "candidates": [
     {
-      "stock_code": "419530",
-      "stock_name": "SAMG엔터",
+      "stock_code": "464680",
+      "stock_name": "KB제27호스팩",
       "sector": "Unknown",
-      "confidence": 0.6452,
-      "expected_return": 29.04
+      "confidence": 0.5391,
+      "expected_return": 7.82,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "042520",
-      "stock_name": "한스바이오메드",
+      "stock_code": "465320",
+      "stock_name": "교보15호스팩",
       "sector": "Unknown",
-      "confidence": 0.6327,
-      "expected_return": 26.54
+      "confidence": 0.5189,
+      "expected_return": 3.78,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "475960",
-      "stock_name": "토모큐브",
+      "stock_code": "227100",
+      "stock_name": "프로브잇",
       "sector": "Unknown",
-      "confidence": 0.6289,
-      "expected_return": 25.78
+      "confidence": 0.5131,
+      "expected_return": 2.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "214370",
-      "stock_name": "케어젠",
+      "stock_code": "001840",
+      "stock_name": "이화공영",
       "sector": "Unknown",
-      "confidence": 0.6288,
-      "expected_return": 25.76
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "214150",
-      "stock_name": "클래시스",
-      "sector": "의료기기",
-      "confidence": 0.626,
-      "expected_return": 25.2
-    },
-    {
-      "stock_code": "389650",
-      "stock_name": "넥스트바이오메디컬",
+      "stock_code": "016790",
+      "stock_name": "현대사료",
       "sector": "Unknown",
-      "confidence": 0.6259,
-      "expected_return": 25.18
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "950140",
-      "stock_name": "잉글우드랩",
+      "stock_code": "030350",
+      "stock_name": "드래곤플라이",
       "sector": "Unknown",
-      "confidence": 0.6228,
-      "expected_return": 24.56
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "376900",
-      "stock_name": "샘씨엔에스",
+      "stock_code": "036690",
+      "stock_name": "코맥스",
       "sector": "Unknown",
-      "confidence": 0.6211,
-      "expected_return": 24.22
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "476040",
-      "stock_name": "오가노이드사이언스",
+      "stock_code": "041590",
+      "stock_name": "플래스크",
       "sector": "Unknown",
-      "confidence": 0.6203,
-      "expected_return": 24.06
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "494120",
-      "stock_name": "나노",
+      "stock_code": "043220",
+      "stock_name": "티에스넥스젠",
       "sector": "Unknown",
-      "confidence": 0.62,
-      "expected_return": 24.0
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "263750",
-      "stock_name": "펄어비스",
-      "sector": "게임",
-      "confidence": 0.6196,
-      "expected_return": 23.92
-    },
-    {
-      "stock_code": "331920",
-      "stock_name": "플리토",
+      "stock_code": "054180",
+      "stock_name": "메디콕스",
       "sector": "Unknown",
-      "confidence": 0.6196,
-      "expected_return": 23.92
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "493280",
-      "stock_name": "아이엠바이오로직스",
+      "stock_code": "065570",
+      "stock_name": "삼영이엔씨",
       "sector": "Unknown",
-      "confidence": 0.6193,
-      "expected_return": 23.86
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "331740",
-      "stock_name": "샌즈랩",
+      "stock_code": "066410",
+      "stock_name": "버킷스튜디오",
       "sector": "Unknown",
-      "confidence": 0.6177,
-      "expected_return": 23.54
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "289930",
-      "stock_name": "웨이비스",
+      "stock_code": "066790",
+      "stock_name": "씨씨에스",
       "sector": "Unknown",
-      "confidence": 0.6164,
-      "expected_return": 23.28
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "220100",
-      "stock_name": "이크레더블",
+      "stock_code": "068940",
+      "stock_name": "셀피글로벌",
       "sector": "Unknown",
-      "confidence": 0.6163,
-      "expected_return": 23.26
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "259630",
-      "stock_name": "엠플러스",
+      "stock_code": "073640",
+      "stock_name": "테라사이언스",
       "sector": "Unknown",
-      "confidence": 0.616,
-      "expected_return": 23.2
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "251370",
-      "stock_name": "와이엠티",
+      "stock_code": "079970",
+      "stock_name": "투비소프트",
       "sector": "Unknown",
-      "confidence": 0.6147,
-      "expected_return": 22.94
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "490470",
-      "stock_name": "세미파이브",
+      "stock_code": "080720",
+      "stock_name": "한국유니온제약",
       "sector": "Unknown",
-      "confidence": 0.6146,
-      "expected_return": 22.92
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     },
     {
-      "stock_code": "036890",
-      "stock_name": "진성티이씨",
+      "stock_code": "099520",
+      "stock_name": "DGI",
       "sector": "Unknown",
-      "confidence": 0.6142,
-      "expected_return": 22.84
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
+    },
+    {
+      "stock_code": "121800",
+      "stock_name": "비덴트",
+      "sector": "Unknown",
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
+    },
+    {
+      "stock_code": "182400",
+      "stock_name": "엔케이젠바이오텍코리아",
+      "sector": "Unknown",
+      "confidence": 0.5081,
+      "expected_return": 1.62,
+      "batch_type": "raw_fallback"
     }
   ]
 }

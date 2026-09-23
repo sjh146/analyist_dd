@@ -188,6 +188,8 @@ def main(argv=None):
     ap.add_argument("--output", default=FEED_PATH)
     ap.add_argument("--dry-run", action="store_true", help="쓰지 않고 검증/분포만 출력")
     ap.add_argument("--no-stats", action="store_true", help="scoring_summary 생략")
+    ap.add_argument("--max-source-age-days", type=float, default=3.0,
+                    help="스크리너 산출물이 이보다 오래되면 해당 전략을 비워 발행(기본 3일)")
     args = ap.parse_args(argv)
 
     sources = {"close": args.close, "swing": args.swing}
@@ -197,9 +199,29 @@ def main(argv=None):
             logger.warning("[%s] 산출물 없음: %s (이 전략은 빈 리스트로 발행)", key, path)
             continue
         try:
-            payloads[key] = json.load(open(path, encoding="utf-8"))
+            payload = json.load(open(path, encoding="utf-8"))
         except Exception as e:
             logger.error("[%s] 읽기 실패: %s", key, e)
+            continue
+        # 신선도 가드: 계약은 generated_at(발행 시각)만 보므로, 산출물 자체가 오래되면
+        # 낡은 종목이 신선한 것처럼 나간다 → 오래된 전략은 비워서 보낸다.
+        stamp = payload.get("date") or payload.get("generated_at")
+        age_days = None
+        if stamp:
+            try:
+                dt = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=KST)
+                age_days = (datetime.now(KST) - dt).total_seconds() / 86400.0
+            except ValueError:
+                age_days = None
+        if age_days is not None and age_days > args.max_source_age_days:
+            logger.warning("[%s] 산출물이 %.1f일 지났다(> %.1f일) — 이 전략은 빈 리스트로 발행: %s",
+                           key, age_days, args.max_source_age_days, path)
+            continue
+        if age_days is not None:
+            logger.info("[%s] 산출물 기준일 %s (%.2f일 전)", key, stamp, age_days)
+        payloads[key] = payload
 
     codes = set()
     for p in payloads.values():
