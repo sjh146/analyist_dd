@@ -20,3 +20,8 @@ data/macro/*.csv
 data/financials/*.csv
 # KIS 토큰 캐시 (24h JWT — 커밋 금지)
 data/kis/
+services/kis-collector/data/kis/
+
+# KRX 진행/상태 파일 (실행 중 임시 상태 — 커밋 금지, 수동 백필이 재개용으로만 사용)
+data/krx/progress_*.txt
+data/krx/rate_state.json

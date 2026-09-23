@@ -1,0 +1,18 @@
+# analyist_dd 운영 크론 (프로덕션 재현본) — 시각 조정 필요 시 이 파일만 수정
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Seoul
+
+# 평일 저녁: 일봉 수집 (KIS 있으면 KIS, 없으면 KRX OpenAPI)
+55 18 * * 1-5 root /home/jhshi/cron/daily_bars.sh >> /home/dduckbeagy/analyist_dd/reports/cron_kis_daily.log 2>&1
+# 평일 저녁: 종합 파이프라인 (수집→ML→스윙→백테스트→전략)
+0 20 * * 1-5 root /home/jhshi/cron/evening_pipeline.sh >> /home/dduckbeagy/analyist_dd/reports/cron_evening_pipeline.log 2>&1
+# 평일 밤: 당일 분봉 수집
+0 23 * * 1-5 root /home/jhshi/cron/kis_minute.sh >> /home/dduckbeagy/analyist_dd/reports/cron_kis_minute.log 2>&1
+# 평일 새벽: 일봉 공실 백필 1일/회 — KIS 키 없으면 KRX 경로로 자동 전환
+15 4 * * 2-6 root /home/jhshi/cron/data_gap_backfill.sh >> /home/dduckbeagy/analyist_dd/reports/cron_data_gap_backfill.log 2>&1
+50 7 * * 1-5 root /home/jhshi/cron/data_gap_report.sh >> /home/dduckbeagy/analyist_dd/reports/cron_data_gap_report.log 2>&1
+# 평일 아침: 스윙 파이프라인 (레포 config/cron 원본과 동일)
+30 8 * * 1-5 root /home/jhshi/cron/swing_pipeline.sh >> /home/dduckbeagy/analyist_dd/.omo/evidence/cron-swing-pipeline.log 2>&1
+# 뉴스/감성 데이터 2일 초과분 정리
+30 3 * * * root /home/jhshi/cron/news_cleanup.sh >> /home/dduckbeagy/analyist_dd/reports/cron_news_cleanup.log 2>&1

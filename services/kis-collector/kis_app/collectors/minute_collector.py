@@ -100,13 +100,16 @@ class MinuteCollector:
                                  b["time"]))
         return bars
 
-    def collect(self, target_date, limit=None):
+    def collect(self, target_date, limit=None, universe=None):
         """대상일(YYYYMMDD) 전 종목 분봉 수집. limit=N이면 첫 N 종목만.
+
+        universe(=[(code, market)]) 를 주면 DB 유니버스 대신 그것을 쓴다
+        (전 종목 분봉은 1일 3~4만 콜이라 비현실적 → 우선순위 유니버스 파일 사용).
 
         반환: {"ok": 저장 성공 종목수, "no_data": 봉 없음, "fail": 오류,
                "total": 처리 종목수, "bars": 저장 봉 수}
         """
-        universe = self._storage.get_universe()
+        universe = list(universe) if universe is not None else self._storage.get_universe()
         if limit is not None:
             universe = universe[: int(limit)]
 
