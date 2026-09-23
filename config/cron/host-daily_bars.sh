@@ -20,9 +20,15 @@ if [ -n "${KRX_API_KEY:-}" ]; then
 fi
 
 if [ -n "${KIS_APP_KEY:-}" ] && [ -n "${KIS_APP_SECRET:-}" ]; then
-    echo "[$(date '+%F %T')] 경로: KIS 일봉"
+    echo "[$(date '+%F %T')] 경로: KIS 일봉 (토큰 점검 후)"
     cd services/kis-collector || exit 1
-    exec /usr/bin/python3 -m kis_app.main --job daily --date "$(date +%Y%m%d)"
+    # 키가 '설정만' 되어 있고 인증이 실패하는 상태면 2,770콜을 전부 실패로 날린다.
+    # 토큰 1콜로 먼저 확인하고, 실패 시 원인(EGW####)을 로그에 남긴다.
+    if /usr/bin/python3 -m kis_app.main --probe-token; then
+        exec /usr/bin/python3 -m kis_app.main --job daily --date "$(date +%Y%m%d)"
+    fi
+    echo "[$(date '+%F %T')] KIS 토큰 발급 실패 — 수집 중단 (앱키/시크릿·실전/모의 도메인 확인)"
+    exit 3
 fi
 
 echo "[$(date '+%F %T')] KRX·KIS 모두 사용 불가 (키 없음)"

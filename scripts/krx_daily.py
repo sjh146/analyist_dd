@@ -230,6 +230,9 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="점검용 날짜 수 제한")
     ap.add_argument("--dry-run", action="store_true", help="네트워크 호출 없이 계획만 출력")
     ap.add_argument("--ignore-run-gap", action="store_true", help="실행 간 최소 간격 무시(수동 백필)")
+    ap.add_argument("--ignore-progress", action="store_true",
+                    help="진행파일 무시하고 해당 구간을 다시 조회 (공실/휴장 판별 프로브용 — "
+                         "이미 처리한 날짜도 실제 응답을 보게 한다)")
     args = ap.parse_args()
 
     key = os.environ.get("KRX_API_KEY", "").strip()
@@ -268,6 +271,8 @@ def main():
         if os.path.exists(prog):
             with open(prog) as f:
                 done = {l.strip() for l in f if l.strip()}
+        if args.ignore_progress:
+            done = set()   # 프로브: 진행파일 때문에 응답을 못 보는 상황 방지
         os.makedirs(PROGRESS_DIR, exist_ok=True)
 
         if not args.ignore_run_gap:

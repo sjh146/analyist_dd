@@ -12,9 +12,10 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 
-from kis_app.client.kis_client import KisClient
+from kis_app.client.kis_client import KisApiError, KisClient
 from kis_app.collectors.daily_collector import DailyCollector
 from kis_app.collectors.minute_collector import MinuteCollector
 from kis_app.config import Config
@@ -23,6 +24,9 @@ from kis_app.storage.postgres_storage import NullStorage, PostgresStorage
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("kis_collector.main")
+
+# 자격증명 점검(--probe-token)에 쓰는 대표 종목 (KOSPI 삼성전자)
+PROBE_SYMBOL = "005930"
 
 
 def build_client(config: Config) -> KisClient:
@@ -56,6 +60,8 @@ def main(argv=None):
                     help="수집 대상 종목 파일 (JSON 배열 또는 {코드: 시장} 객체). "
                          "전 종목 분봉은 하루 3~4만 콜이라 비현실적 — 우선순위 "
                          "유니버스로 좁힐 때 쓴다 (예: data/minute_universe.json)")
+    ap.add_argument("--probe-token", action="store_true",
+                    help="KIS 자격증명 점검: 토큰 발급(캐시 허용) + 시세 1콜 확인 후 종료")
     args = ap.parse_args(argv)
 
     config = Config()
@@ -63,6 +69,25 @@ def main(argv=None):
         sys.exit("오류: KIS_APP_KEY / KIS_APP_SECRET 환경변수가 필요합니다")
     if config.KIS_DRY_RUN:
         logger.info("KIS_DRY_RUN=1 — 실제 HTTP/DB 호출 없이 흐름만 점검합니다")
+
+    if args.probe_token:
+        # 캐시된 토큰만 확인하면 앱키/시크릿이 틀려도 '정상'으로 보인다(실측).
+        # 시세 1콜까지 해야 자격증명·도메인이 실제로 검증된다 — 앱키가 어긋나면
+        # KIS가 401 → 토큰 재발급 시도 → EGW00103으로 드러난다.
+        client = build_client(config)
+        probe_day = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+        try:
+            client.get_daily_chart(PROBE_SYMBOL, "J", probe_day, probe_day, count=1)
+        except KisApiError as e:
+            print(f"실패: KIS 자격증명/도메인 확인 불가 [{e.msg_cd}] {e.msg1} "
+                  f"(http={e.http_status})")
+            print(f"  도메인={config.KIS_BASE_URL} 앱키길이={len(config.KIS_APP_KEY)} "
+                  f"시크릿길이={len(config.KIS_APP_SECRET)}")
+            return 3
+        expire = time.strftime("%Y-%m-%d %H:%M:%S",
+                               time.localtime(client.tokens.token_expire_at))
+        print(f"정상: 토큰 + 시세 1콜 확인 OK (만료 {expire}, 도메인 {config.KIS_BASE_URL})")
+        return 0
 
     target = args.date or datetime.now().strftime("%Y%m%d")
     client = build_client(config)

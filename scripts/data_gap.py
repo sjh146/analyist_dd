@@ -97,6 +97,39 @@ def probe_kis(trade_date):
     return ok > 0, nd > 0 and ok == 0
 
 
+def probe_krx(trade_date):
+    """KRX 2콜 프로브: (존재: bool, no_data: bool).
+
+    KIS 자격증명이 없거나 토큰 발급이 실패하면 공실/휴장 판별이 무력해진다(KIS 프로브
+    전용이던 시절 '공실 없음'으로 조용히 흘렸다). 그때는 KRX OpenAPI로 같은 판별을 한다 —
+    날짜 1개에 2콜이면 되고, 휴장이면 krx_daily가 출력한 '휴장 기록' 문구로 판정한다.
+    """
+    cmd = [
+        "/usr/bin/python3", os.path.join(PROJ, "scripts", "krx_daily.py"),
+        "--from", trade_date, "--to", trade_date,
+        "--ignore-run-gap", "--ignore-progress",
+    ]
+    env = dict(os.environ)
+    env.update(
+        POSTGRES_HOST="127.0.0.1", POSTGRES_PORT="5434",
+        POSTGRES_USER=DB["user"], POSTGRES_PASSWORD=DB["password"],
+        POSTGRES_DB=DB["dbname"],
+    )
+    try:
+        out = subprocess.run(
+            cmd, cwd=PROJ, env=env, capture_output=True, text=True, timeout=600,
+        )
+    except subprocess.TimeoutExpired:
+        return False, False
+    text = out.stdout + out.stderr
+    if "휴장 기록" in text:
+        return False, True
+    m = re.search(r":\s*(\d+)종목 적재", text)
+    if m and int(m.group(1)) > 0:
+        return True, False
+    return False, False
+
+
 def expected_dates():
     """최근 LOOKBACK_DAYS 달력일 중 평일(월~금) 목록 (문자열 YYYY-MM-DD)."""
     out = []
@@ -124,6 +157,10 @@ def find_gaps(probe=True):
             continue
         if probe:
             exists, no_data = probe_kis(d.replace("-", ""))
+            if not exists and not no_data:
+                # KIS 키 없음/미인증/게이트웨이 오류 등 판별 불가 → KRX 2콜 프로브로 대체
+                print("KIS 프로브 판별 불가 → KRX 프로브로 대체: {0}".format(d))
+                exists, no_data = probe_krx(d)
             if no_data:
                 holidays.add(d)
                 save_holidays(holidays)

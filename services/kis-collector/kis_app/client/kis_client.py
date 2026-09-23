@@ -32,8 +32,29 @@ RATE_LIMIT_CODES = {"EGW00133", "EGW00123", "EGW00124", "EGW00225",
                     "OPSQ0029", "OPSQ0015", "OPSQ0011"}
 # 토큰 관련 오류 (401 포함) → 무효화 후 재발급 → 1회 재시도
 TOKEN_ERROR_CODES = {"EGW00115", "EGW00116", "EGW00117"}
+# 자격증명 자체가 거부된 오류 — 재시도 무의미, 운영자 확인 필요
+CREDENTIAL_ERROR_CODES = {"EGW00102", "EGW00103"}
 # 입력 필드 스키마 오류 → 설정 버그, 재시도 없이 raise
 SCHEMA_ERROR_CODES = {"OPSQ2001"}
+
+
+def extract_kis_error(data):
+    """KIS 오류 응답 → (code, message, rt_cd).
+
+    응답 형태가 두 가지다:
+      - 시세/주문 API: ``msg_cd`` · ``msg1`` · ``rt_cd``
+      - 토큰 발급(oauth2/tokenP)·게이트웨이: ``error_code`` · ``error_description``
+
+    후자를 못 읽으면 토큰 발급 실패가 전부 ``EGW-UNKNOWN``으로 뭉개져
+    EGW00103(앱키 거부)·EGW00133(분당 1회 제한)을 구분할 수 없고, 재시도도 걸리지
+    않는다(실측 2026-09-23: 이 때문에 앱키 오타를 진단하는 데 시간이 걸렸다).
+    """
+    if not isinstance(data, dict):
+        return "EGW-UNKNOWN", "unknown", "1"
+    code = data.get("msg_cd") or data.get("error_code") or "EGW-UNKNOWN"
+    message = (data.get("msg1") or data.get("error_description")
+               or data.get("message") or "unknown")
+    return str(code), str(message), str(data.get("rt_cd", "1"))
 
 _DRY_RUN_TOKEN = "dry-run-token"
 _DRY_RUN_BODY = '{"rt_cd":"0","msg_cd":"0","msg1":"dry-run"}'
@@ -57,6 +78,11 @@ class KisApiError(Exception):
     @property
     def token_error(self):
         return self.msg_cd in TOKEN_ERROR_CODES or self.http_status == 401
+
+    @property
+    def credential_error(self):
+        """앱키/앱시크릿 자체가 거부된 경우(재시도 무의미)."""
+        return self.msg_cd in CREDENTIAL_ERROR_CODES
 
     @property
     def schema_error(self):
@@ -208,10 +234,13 @@ class TokenManager:
                 self._save_file()
                 return token
 
-            err = KisApiError(data.get("msg_cd") or "EGW-UNKNOWN",
-                              data.get("msg1") or data.get("message") or "unknown",
-                              rt_cd=data.get("rt_cd", "1"), http_status=status)
+            code, message, rt_cd = extract_kis_error(data)
+            err = KisApiError(code, message, rt_cd=rt_cd, http_status=status)
             last_err = err
+            if err.credential_error:
+                logger.error(
+                    "KIS 자격증명 거부(%s): %s — 개발자센터의 앱키/앱시크릿과 도메인(%s)을 확인하세요",
+                    err.msg_cd, err.msg1, self._base_url)
             if err.msg_cd in RATE_LIMIT_CODES and attempt < self._max_retries:
                 # EGW00133 (1분 1회) — 대기 후 재시도 (테스트에선 sleep 주입으로 단축)
                 logger.warning("토큰 발급 제한(%s) — %.0fs 대기 후 재시도 (%d/%d)",
@@ -318,8 +347,8 @@ class KisClient:
                               http_status=status) from e
 
         # 토큰 무효 → 재발급 후 1회 재시도
-        err_hint = KisApiError(data.get("msg_cd") or "",
-                               data.get("msg1") or "", rt_cd=data.get("rt_cd", "0"),
+        hint_code, hint_msg, hint_rt_cd = extract_kis_error(data)
+        err_hint = KisApiError(hint_code, hint_msg, rt_cd=hint_rt_cd,
                                http_status=status)
         if status == 401 or err_hint.token_error:
             logger.warning("토큰 만료 감지(%s) — 재발급 후 1회 재시도",
@@ -331,9 +360,8 @@ class KisClient:
         if data.get("rt_cd") == "0" or data.get("msg_cd") == "0":
             return data
 
-        raise KisApiError(data.get("msg_cd") or "EGW-UNKNOWN",
-                          data.get("msg1") or "unknown",
-                          rt_cd=data.get("rt_cd", "1"), http_status=status)
+        raise KisApiError(hint_code, hint_msg, rt_cd=hint_rt_cd,
+                          http_status=status)
 
     def _call_with_retry(self, fn):
         last_err = None
@@ -350,6 +378,12 @@ class KisClient:
                 if e.schema_error:
                     logger.error("스키마/필드 오류(%s) — 설정 버그, 재시도 중단: %s",
                                  e.msg_cd, e)
+                    raise
+                if e.credential_error:
+                    # 앱키/시크릿 거부 — 재시도해도 같은 결과다(실측: 500으로 와서
+                    # 6회 백오프를 다 태우고 실패했다)
+                    logger.error("KIS 자격증명 거부(%s): %s — 재시도 중단 "
+                                 "(개발자센터 앱키/시크릿·도메인 확인)", e.msg_cd, e.msg1)
                     raise
                 if not (e.rate_limited or e.token_error):
                     logger.error("비일시적 오류(%s) — 재시도 중단: %s", e.msg_cd, e)
