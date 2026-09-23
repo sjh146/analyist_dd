@@ -155,15 +155,21 @@ else:
         if any(x != x for x in (o, h, l, c)):
             continue
         rows.append((r.stock_code, td, o, h, l, c, v))
-    execute_values(cur, """
-        INSERT INTO market_data (stock_code, trade_date, open_price, high_price, low_price, close_price, volume)
-        VALUES %s
-        ON CONFLICT (stock_code, trade_date) DO UPDATE SET
+    # 시세 적재 위생: 이 보조 수집기(pykrx 레거시 경로)는 공식 경로(KRX OpenAPI / KIS)가
+    # 넣은 행을 덮어쓰지 않는다(저장소 계층 postgres_storage.py 와 동일 정책 — 같은 플래그).
+    # 기본 = 빈 자리만 채우기(DO NOTHING). 되돌리려면 컨테이너에 YF_MARKET_DATA_OVERWRITE=1.
+    yf_overwrite = os.getenv('YF_MARKET_DATA_OVERWRITE', '0').strip().lower() in ('1', 'true', 'yes', 'on')
+    conflict = """ON CONFLICT (stock_code, trade_date) DO UPDATE SET
             open_price = EXCLUDED.open_price,
             high_price = EXCLUDED.high_price,
             low_price = EXCLUDED.low_price,
             close_price = EXCLUDED.close_price,
-            volume = EXCLUDED.volume
+            volume = EXCLUDED.volume""" if yf_overwrite else "ON CONFLICT (stock_code, trade_date) DO NOTHING"
+    logger.info('market_data 적재 모드: %s', '덮어쓰기(OVERWRITE=1)' if yf_overwrite else '빈 자리만 채우기(DO NOTHING)')
+    execute_values(cur, f"""
+        INSERT INTO market_data (stock_code, trade_date, open_price, high_price, low_price, close_price, volume)
+        VALUES %s
+        {conflict}
     """, rows, page_size=1000)
     pg.commit()
     cur.close()
