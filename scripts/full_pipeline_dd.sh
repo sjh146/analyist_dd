@@ -182,8 +182,12 @@ echo "1" > "$PROGRESS_FILE"
 sleep 10
 
 # 1-2. KRX: Trading/Short/Derivatives
-echo "--- 1-2. KRX: Trading/Short/Derivatives ---"
-docker exec -i stock_krx_collector sh -c 'cat > /tmp/phase_1_2.py' << 'PYEOF'
+#   이 단계의 수집기들은 pykrx(레거시 경로)라 KRX_ID/KRX_PW 로그인이 필수다. 자격증명이
+#   없으면 **종목마다** 로그인 실패를 뱉으며 로그를 수천 줄로 채우고 시간을 버린다
+#   (실측 2026-09-24: 9,000여 줄 / "KRX 로그인 실패" 반복). 미설정이면 사전에 건너뛴다.
+if [ -n "${KRX_ID:-}" ] && [ -n "${KRX_PW:-}" ]; then
+    echo "--- 1-2. KRX: Trading/Short/Derivatives ---"
+    docker exec -i stock_krx_collector sh -c 'cat > /tmp/phase_1_2.py' << 'PYEOF'
 import sys; sys.path.insert(0, '/app')
 from app.main import KrxCollectorService
 import logging; logging.basicConfig(level=logging.INFO)
@@ -191,7 +195,10 @@ logging.raiseExceptions = False
 KrxCollectorService().run_daily_collection()
 print('KRX DONE')
 PYEOF
-run_docker_phase stock_krx_collector /tmp/phase_1_2.py 600
+    run_docker_phase stock_krx_collector /tmp/phase_1_2.py 600
+else
+    echo "--- 1-2. KRX: 건너뜀 (KRX_ID/KRX_PW 미설정 — 공매도·수급·파생 수집 불가) ---"
+fi
 echo "2" > "$PROGRESS_FILE"
 sleep 30
 
@@ -276,13 +283,19 @@ CAND_DIR="app/models/champion_cand"
 CHAMP_DIR="app/models/champion"
 # 낡은 후보가 남아 있으면 재학습 실패 시 그대로 승격되어 버린다 → 먼저 비운다
 docker exec stock_xgboost_ml sh -c "rm -rf /app/$CAND_DIR" >> "$LOG_FILE" 2>&1
-# 학습 규모: 최근 데이터 우선 200종목 × 120일(≈1.6만 패널행) ≈ 20~25분
-#   (피처 빌드는 종목-일 쌍당 약 0.085초 — 늘릴 때는 timeout 도 함께 올린다)
-docker exec stock_xgboost_ml timeout 1800 sh -c \
-    "cd /app && python -m app.training.retrain_champion --days 120 --stock-limit 200 --out-dir $CAND_DIR" \
+# 학습 규모: 최근 데이터 우선 200종목 × 90일(≈1.2만 패널행).
+#   실측 피처 빌드 속도 = 종목-일 쌍당 약 0.45초(199피처 + Neo4j + SNS/매크로 as-of).
+#   → 200종목×120일(16,080쌍)은 약 2시간이 걸려 **30분 타임아웃(구 1800s)에서는 후보가
+#   완성되지 않아 승격 심사가 아예 열리지 않았다**(실측 2026-09-24: exit=124, 30분에 4,000쌍).
+#   그래서 기간을 90일로 줄이고 예산을 2시간으로 올린다. 늘릴 때는 둘을 함께 조정할 것.
+docker exec stock_xgboost_ml timeout 7200 sh -c \
+    "cd /app && python -m app.training.retrain_champion --days 90 --stock-limit 200 --out-dir $CAND_DIR" \
     >> "$LOG_FILE" 2>&1 < /dev/null
 RC=$?
 if [ "$RC" -ne 0 ]; then
+    if [ "$RC" -eq 124 ]; then
+        echo "  챌린저 학습 타임아웃(2시간) — 피처 빌드가 예산을 초과. --days/--stock-limit 또는 timeout 조정 필요"
+    fi
     echo "  챌린저 학습 실패(exit=$RC) — 챔피언 유지, 승격 생략"
 else
     # 승격 게이트: 후보 지표(auc_mean 있으면 그것, 없으면 ensemble_auc) ≥ 0.55 이고
