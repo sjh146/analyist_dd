@@ -26,7 +26,11 @@ class SentimentVectorizer:
         if not sentiment_data:
             return np.zeros(self.vector_dim)
 
-        scores = [s.get("avg_sentiment", 0) for s in sentiment_data]
+        # 실측 수정(2026-09-24): psycopg2 는 numeric 컬럼을 Decimal 로 돌려준다.
+        # 그대로 np.concatenate/np.linalg.norm 에 넣으면
+        # "unsupported operand type(s) for +: 'decimal.Decimal' and 'float'" 로 죽어
+        # **임베딩이 저장되지 않았다**(실측: 재생성 20종목 중 14종목 실패).
+        scores = [float(s.get("avg_sentiment") or 0.0) for s in sentiment_data]
         if not scores:
             return np.zeros(self.vector_dim)
 

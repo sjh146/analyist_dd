@@ -63,8 +63,15 @@ def _cluster_key(stock_code: str, event_type: str, event_date: date,
     return base if seq == 0 else f"{base}:{seq}"
 
 
-def _new_cluster(ev: Dict) -> EventCluster:
-    """Create a single-event cluster from an extraction row."""
+def _new_cluster(ev: Dict, seq: int = 0) -> EventCluster:
+    """Create a single-event cluster from an extraction row.
+
+    ``seq`` disambiguates multiple distinct clusters that share the same
+    ``(stock, event_type, date, 2h bucket)`` base key. Previously every new
+    cluster used ``seq=0``, so such clusters collided on ``cluster_key`` and the
+    second one OVERWROTE the first on the ``ON CONFLICT (cluster_key)`` upsert
+    (measured 2026-09: 4,680 clusters collapsed into 563 rows).
+    """
     dt = ev["created_at"]
     bucket = _time_bucket(dt)
     return EventCluster(
@@ -73,7 +80,7 @@ def _new_cluster(ev: Dict) -> EventCluster:
         event_date=dt.date(),
         time_bucket=bucket,
         cluster_key=_cluster_key(
-            ev["stock_code"], ev["event_type"], dt.date(), bucket, 0
+            ev["stock_code"], ev["event_type"], dt.date(), bucket, seq
         ),
         article_count=1,
         first_article_at=dt,
@@ -130,6 +137,7 @@ def cluster(events: List[Dict]) -> List[EventCluster]:
     ``core_event_text``.
     """
     clusters: List[EventCluster] = []
+    base_counts: Dict[str, int] = {}
     for ev in sorted(events, key=lambda e: e["created_at"]):
         merged = False
         for cl in clusters:
@@ -138,5 +146,12 @@ def cluster(events: List[Dict]) -> List[EventCluster]:
                 merged = True
                 break
         if not merged:
-            clusters.append(_new_cluster(ev))
+            dt = ev["created_at"]
+            base = _cluster_key(
+                ev["stock_code"], ev["event_type"], dt.date(),
+                _time_bucket(dt), 0,
+            )
+            seq = base_counts.get(base, 0)
+            base_counts[base] = seq + 1
+            clusters.append(_new_cluster(ev, seq))
     return clusters

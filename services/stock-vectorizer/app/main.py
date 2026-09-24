@@ -9,6 +9,7 @@ import logging
 import schedule
 import time
 import numpy as np
+import pandas as pd
 from datetime import datetime
 
 from app.config import Config
@@ -64,8 +65,42 @@ class StockVectorizerService:
                 }
 
                 # Generate embeddings for each type
-                price_vector = self.vectorizer.vectorize_price_pattern(stock_code)
-                sentiment_vector = self.vectorizer.vectorize_sentiment(stock_code)
+                # ── 실측 수정(2026-09-24) ────────────────────────────────────
+                # 종전: vectorize_price_pattern(stock_code) 는 내부에서
+                #   PriceVectorizer.vectorize(close_prices=None) → **항상 영벡터**,
+                # vectorize_sentiment(stock_code) 는 vectorize([]) → **항상 영벡터**
+                # 였다. 그래서 combined 1024d 의 앞 512차원이 항상 0 이고,
+                # stock_vectors 2773행 중 서로 다른 임베딩이 **3개**뿐이었다
+                # (실측: count(DISTINCT embedding)=3). 그 결과 유사도 계열 피처
+                # (avg_similarity_top10=1.0, max_similarity=1.0, similarity_std=0.0)
+                # 가 상수로 죽었다. 이제 실제 시세/감성 데이터를 넘긴다.
+                close_prices = None
+                volumes = None
+                if market_data is not None and not market_data.empty:
+                    md = market_data.sort_values("trade_date")
+                    valid = md
+                    # 거래정지/무거래 행(시가·고가·저가 전부 0) 제거 — 기준가만 있는
+                    # 행이면 수익률/변동성이 왜곡된다(0 나눗셈 포함).
+                    if {"open_price", "high_price", "low_price"} <= set(md.columns):
+                        valid = md[~(
+                            (md["open_price"] == 0)
+                            & (md["high_price"] == 0)
+                            & (md["low_price"] == 0)
+                        )]
+                    close_prices = pd.to_numeric(
+                        valid["close_price"], errors="coerce"
+                    ).dropna()
+                    if "volume" in valid.columns:
+                        volumes = pd.to_numeric(
+                            valid["volume"], errors="coerce"
+                        ).fillna(0.0)
+
+                price_vector = self.vectorizer.price_vectorizer.vectorize(
+                    close_prices, volumes
+                )
+                sentiment_vector = self.vectorizer.sentiment_vectorizer.vectorize(
+                    sentiment
+                )
                 fundamental_vector = self.vectorizer.vectorize_fundamentals(stock_data)
                 combined_vector = self.vectorizer.create_combined_embedding(
                     price_vector, sentiment_vector, fundamental_vector

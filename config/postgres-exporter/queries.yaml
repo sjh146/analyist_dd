@@ -1,0 +1,172 @@
+# postgres-exporter 커스텀 쿼리 — DB 신호 특이점 감시 (data quality signals)
+# 메트릭명 = <쿼리키>_<metric키> (extend.query-path 방식, pg prefix 없음)
+# 스크랩 15초 부담이 없도록 각 쿼리를 최근 20거래일/최신 스냅샷으로 제한한다.
+# 주의: DISTINCT trade_date 는 window 함수보다 먼저 적용되어야 함(서브쿼리로 분리).
+
+market_data_freshness:
+  query: |
+    SELECT (CURRENT_DATE - MAX(trade_date))::float AS days
+    FROM market_data
+  metrics:
+    - days:
+        usage: "GAUGE"
+        description: "마지막 market_data trade_date 로부터 경과 일수"
+
+market_data_rows:
+  query: |
+    WITH d AS (
+      SELECT trade_date, row_number() OVER (ORDER BY trade_date DESC) AS rn
+      FROM (SELECT DISTINCT trade_date FROM market_data) t
+    )
+    SELECT v."window" AS "window", COUNT(*)::float AS recent
+    FROM (VALUES ('1d', 1), ('5d', 5), ('20d', 20)) AS v("window", n)
+    JOIN d ON d.rn <= v.n
+    JOIN market_data m ON m.trade_date = d.trade_date
+    GROUP BY v."window", v.n
+    ORDER BY v.n
+  metrics:
+    - window:
+        usage: "LABEL"
+        description: "최근 거래일 창 (1d/5d/20d, 누적)"
+    - recent:
+        usage: "GAUGE"
+        description: "최근 창의 market_data 행수"
+
+market_data_zero_volume:
+  query: |
+    WITH d AS (
+      SELECT trade_date, row_number() OVER (ORDER BY trade_date DESC) AS rn
+      FROM (SELECT DISTINCT trade_date FROM market_data) t
+    )
+    SELECT (COUNT(*) FILTER (WHERE m.volume = 0)::float
+            / NULLIF(COUNT(*), 0)) AS ratio_20d
+    FROM market_data m
+    JOIN d ON m.trade_date = d.trade_date
+    WHERE d.rn <= 20
+  metrics:
+    - ratio_20d:
+        usage: "GAUGE"
+        description: "최근 20거래일 거래량 0 비율"
+
+market_data_frozen:
+  query: |
+    WITH d AS (
+      SELECT trade_date, row_number() OVER (ORDER BY trade_date DESC) AS rn
+      FROM (SELECT DISTINCT trade_date FROM market_data) t
+    ),
+    win AS (
+      SELECT m.stock_code, m.trade_date, m.open_price, m.high_price,
+             m.low_price, m.close_price, m.volume, d.rn
+      FROM market_data m
+      JOIN d ON m.trade_date = d.trade_date
+      WHERE d.rn <= 21
+    ),
+    pairs AS (
+      SELECT stock_code, trade_date, rn,
+             open_price, high_price, low_price, close_price, volume,
+             lag(open_price)  OVER w AS po,
+             lag(high_price)  OVER w AS ph,
+             lag(low_price)   OVER w AS pl,
+             lag(close_price) OVER w AS pc,
+             lag(volume)      OVER w AS pv
+      FROM win
+      WINDOW w AS (PARTITION BY stock_code ORDER BY trade_date)
+    )
+    SELECT (COUNT(*) FILTER (
+              WHERE rn <= 20 AND po IS NOT NULL
+                AND po = open_price AND ph = high_price AND pl = low_price
+                AND pc = close_price AND pv = volume
+            )::float / NULLIF(COUNT(*) FILTER (WHERE rn <= 20 AND po IS NOT NULL), 0)) AS ratio_20d
+    FROM pairs
+  metrics:
+    - ratio_20d:
+        usage: "GAUGE"
+        description: "직전 거래일 대비 OHLC+거래량 완전 동일(동결) 비율 (최근 20거래일)"
+
+pipeline_table:
+  query: |
+    SELECT 'news_analysis' AS "table", COUNT(*)::float AS rows FROM news_analysis
+    UNION ALL SELECT 'news_events', COUNT(*)::float FROM news_events
+    UNION ALL SELECT 'sns_posts', COUNT(*)::float FROM sns_posts
+    UNION ALL SELECT 'sns_post_features', COUNT(*)::float FROM sns_post_features
+    UNION ALL SELECT 'foreign_institutional', COUNT(*)::float FROM foreign_institutional
+    UNION ALL SELECT 'krx_trading', COUNT(*)::float FROM krx_trading
+    UNION ALL SELECT 'krx_short_selling', COUNT(*)::float FROM krx_short_selling
+    UNION ALL SELECT 'minute_bars', COUNT(*)::float FROM minute_bars
+    UNION ALL SELECT 'stock_vectors', COUNT(*)::float FROM stock_vectors
+    UNION ALL SELECT 'financial_statements', COUNT(*)::float FROM financial_statements
+    UNION ALL SELECT 'stock_sentiment', COUNT(*)::float FROM stock_sentiment
+  metrics:
+    - table:
+        usage: "LABEL"
+        description: "파이프라인 테이블명"
+    - rows:
+        usage: "GAUGE"
+        description: "파이프라인 테이블 행수"
+
+strategy_run:
+  query: |
+    SELECT DISTINCT ON (tool) tool, auc
+    FROM strategy_runs
+    WHERE auc IS NOT NULL
+    ORDER BY tool, run_at DESC
+  metrics:
+    - tool:
+        usage: "LABEL"
+        description: "전략 도구명"
+    - auc:
+        usage: "GAUGE"
+        description: "tool별 최근 AUC"
+
+feature:
+  query: |
+    SELECT COUNT(*) FILTER (WHERE nonzero_ratio = 0)::float AS dead_count,
+           COUNT(*) FILTER (WHERE nonzero_ratio > 0)::float AS alive_count
+    FROM feature_coverage
+    WHERE computed_at = (SELECT MAX(computed_at) FROM feature_coverage)
+  metrics:
+    - dead_count:
+        usage: "GAUGE"
+        description: "죽은 피처(=nonzero_ratio 0) 수"
+    - alive_count:
+        usage: "GAUGE"
+        description: "살아있는 피처(nonzero_ratio > 0) 수"
+
+pg_idle_in_transaction:
+  query: |
+    SELECT COALESCE(EXTRACT(EPOCH FROM (now() - max(state_change))), 0)::float AS max_seconds,
+           count(*)::float AS count
+    FROM pg_stat_activity
+    WHERE datname = 'stock_trading' AND state = 'idle in transaction'
+  metrics:
+    - max_seconds:
+        usage: "GAUGE"
+        description: "최장 idle-in-transaction 경과 시간(초)"
+    - count:
+        usage: "GAUGE"
+        description: "idle-in-transaction 커넥션 개수"
+
+pg_longest_transaction:
+  query: |
+    SELECT COALESCE(EXTRACT(EPOCH FROM (now() - max(xact_start))), 0)::float AS seconds
+    FROM pg_stat_activity
+    WHERE datname = 'stock_trading' AND xact_start IS NOT NULL
+  metrics:
+    - seconds:
+        usage: "GAUGE"
+        description: "최장 진행 중 트랜잭션 경과 시간(초)"
+
+pg_idle_in_transaction_by_client:
+  query: |
+    SELECT COALESCE(client_addr::text, 'local') AS client,
+           count(*)::float AS count
+    FROM pg_stat_activity
+    WHERE datname = 'stock_trading' AND state = 'idle in transaction'
+    GROUP BY client_addr
+  metrics:
+    - client:
+        usage: "LABEL"
+        description: "클라이언트 IP (local = unix socket)"
+    - count:
+        usage: "GAUGE"
+        description: "클라이언트별 idle-in-transaction 커넥션 개수"

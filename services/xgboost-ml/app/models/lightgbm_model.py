@@ -15,11 +15,12 @@ logger = logging.getLogger(__name__)
 class LightGBMModel:
     """LightGBM model for stock direction prediction."""
 
-    def __init__(self, model_dir: str = "models"):
+    def __init__(self, model_dir: str = "models", n_estimators: int = 800,
+                 random_state: int = 42):
         self.model = None
         self.feature_names = []
         self.params = {
-            "n_estimators": 800,
+            "n_estimators": n_estimators,
             "max_depth": 8,
             "learning_rate": 0.05,
             "num_leaves": 64,
@@ -35,7 +36,7 @@ class LightGBMModel:
             "metric": "auc",
             "boosting_type": "gbdt",
             "early_stopping_rounds": 20,
-            "random_state": 42,
+            "random_state": random_state,
             "verbosity": -1,
         }
         self.is_trained = False

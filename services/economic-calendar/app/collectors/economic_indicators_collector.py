@@ -7,6 +7,14 @@ logger = logging.getLogger(__name__)
 US_GDP_MONTHS = [1, 4, 7, 10]  # Advance release quarters
 KR_GDP_MONTHS = [1, 4, 7, 10]
 
+# 과거 일정도 생성한다 (2026-09-24).
+# WHY: 기존 구현은 ``d < now.date()`` 를 전부 건너뛰어 **미래 일정만** 저장했다.
+# 그러면 피처 파이프라인의 economic_event_count_7d / economic_event_impact 는
+# (기준일 −7일 ~ 기준일) 구간을 보므로 학습 패널의 거의 모든 날짜에서 0 이 된다
+# (일정 자체가 휴장일/미래에만 존재). 150일치 과거 일정을 함께 생성해 살린다.
+# (여전히 'static_schedule' 근사 일정이다 — 실제 발표일과 수일 차이날 수 있음)
+LOOKBACK_DAYS = 150
+
 
 class EconomicIndicatorsCollector:
     def collect(self) -> list[dict]:
@@ -24,7 +32,7 @@ class EconomicIndicatorsCollector:
             for y in [now.year, now.year + 1]:
                 try:
                     d = date(y, m, 30)
-                    if d < now.date():
+                    if d < now.date() - timedelta(days=LOOKBACK_DAYS):
                         continue
                     events.append({
                         "event_date": d.isoformat(),
@@ -51,7 +59,7 @@ class EconomicIndicatorsCollector:
             for y in [now.year, now.year + 1]:
                 try:
                     d = date(y, m, min(28, 15 + (m % 3) * 5))
-                    if d < now.date():
+                    if d < now.date() - timedelta(days=LOOKBACK_DAYS):
                         continue
                     for cat, title, importance in indicators:
                         events.append({
@@ -97,7 +105,7 @@ class EconomicIndicatorsCollector:
             for y in [now.year, now.year + 1]:
                 try:
                     d = date(y, m, min(28, 25))
-                    if d < now.date():
+                    if d < now.date() - timedelta(days=LOOKBACK_DAYS):
                         continue
                     events.append({
                         "event_date": d.isoformat(),

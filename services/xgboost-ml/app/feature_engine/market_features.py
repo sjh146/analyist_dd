@@ -88,19 +88,39 @@ class MarketFeatures:
                 val = df[col].values[-1] if len(df) > 0 else default
                 features[col] = float(val) if not pd.isna(val) else default
 
-        if "bb_middle" in df.columns and "close" in df.columns:
-            bb_mid = df["bb_middle"].values[-1]
-            close_val = df["close"].values[-1] if "close" in df.columns else df.get("close_price", pd.Series([0])).values[-1]
-            features["bb_position"] = float((close_val - bb_mid) / bb_mid * 100) if bb_mid else 0.0
+        # ── 파생 피처 (실측 수정 2026-09-24) ────────────────────────────────
+        # 종전에는 아래 두 피처가 **항상 0.0** 이었다 (feature_coverage 실측:
+        # atr_pct nonzero_ratio=0, bb_position nonzero_ratio=0).
+        #  · atr_pct: `features.get("price")` 로 나눗셈을 했는데 'price' 키는
+        #    get_all_features() 에서 **다른 dict 로 병합**되므로 이 메서드의 지역
+        #    dict 에는 존재하지 않는다 → `if features.get("price", 0)` 가 항상 거짓.
+        #  · bb_position: df 에 'bb_middle' 컬럼이 있어야 계산되는데
+        #    TechnicalIndicatorCalculator 는 sma_20/rsi/macd/atr 만 생성한다.
+        # 이제 OHLCV 에서 직접 계산한다.
+        close_arr = None
+        for _c in ("close", "close_price"):
+            if _c in df.columns:
+                close_arr = df[_c].astype(float).values
+                break
 
-        if "macd" in features and "atr" in features:
-            atr = features.get("atr", 0.0)
-            features["atr_pct"] = float(features["price"] and atr / features["price"] * 100) if features.get("price", 0) else 0.0
+        if close_arr is not None and len(close_arr) > 0:
+            last_close = float(close_arr[-1])
 
-        if not features.get("bb_position", None):
-            features["bb_position"] = 0.0
-        if not features.get("atr_pct", None):
-            features["atr_pct"] = 0.0
+            # Bollinger %B(20, 2σ): (close - lower) / (upper - lower), 통상 [0, 1]
+            if len(close_arr) >= 20:
+                _w = close_arr[-20:]
+                _mid = float(np.mean(_w))
+                _sd = float(np.std(_w))
+                _upper, _lower = _mid + 2 * _sd, _mid - 2 * _sd
+                if _upper > _lower:
+                    features["bb_position"] = float((last_close - _lower) / (_upper - _lower))
+
+            # ATR% = ATR / 종가 × 100
+            if last_close > 0:
+                features["atr_pct"] = float(features.get("atr", 0.0) / last_close * 100.0)
+
+        features.setdefault("bb_position", 0.0)
+        features.setdefault("atr_pct", 0.0)
 
         return features
 

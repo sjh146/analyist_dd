@@ -36,6 +36,7 @@ Output keys (flat, snake_case)
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -60,6 +61,8 @@ class SnsLagFeatures:
     ]
     LAG_RANGE = 5          # -5..+5 일 교차상관.
     MIN_PAIRS = 8          # 유효 관측 짝 최소 수 (미달 시 corr 0.0 / lag 0).
+    # date 인자 사용 시 되돌아볼 최대 거래일 수 (트레일링 윈도우).
+    LOOKBACK_ROWS = 120
 
     # ── 파생 피처 키 템플릿 ─────────────────────────────────────────────
     @property
@@ -218,8 +221,22 @@ class SnsLagFeatures:
         return results
 
     # ── DB 편의 메서드 (fail-open) ─────────────────────────────────────
-    def get_all_features(self, stock_code: str, db_conn=None) -> Dict:
-        """DB 기반 종목 피처 조회 편의. db_conn None/실패 시 기본 0.0 dict."""
+    def get_all_features(
+        self, stock_code: str, db_conn=None, date=None,
+        lookback_rows: Optional[int] = None,
+    ) -> Dict:
+        """DB 기반 종목 피처 조회 편의. db_conn None/실패 시 기본 0.0 dict.
+
+        Parameters
+        ----------
+        date : str | datetime | date, optional
+            ``None``(기본)이면 현행과 동일하게 **전체 기간**으로 교차상관을
+            계산한다. 값이 주어지면 SNS/가격 양쪽을 ``trade_date <= date`` 로
+            자르고(룩어헤드 차단) 최근 ``lookback_rows`` 거래일만 사용한다
+            → 그 시점까지의 정보만 반영한 시차 피처가 된다.
+        lookback_rows : int, optional
+            ``date`` 사용 시 트레일링 거래일 수. 기본 ``LOOKBACK_ROWS``(120).
+        """
         if db_conn is None:
             result = dict.fromkeys(self.feature_keys, 0.0)
             for f in self.FEATURES:
@@ -227,32 +244,76 @@ class SnsLagFeatures:
                 result[f"sns_{f}_lag_sign"] = 0
             return result
         try:
+            target = None
+            if date is not None:
+                # 주의: 파라미터 이름이 ``date`` 라서 datetime.date 클래스가
+                # 가려진다 → isinstance(x, date) 를 쓸 수 없다. 문자열 파싱으로
+                # 통일한다(datetime/date/Timestamp 모두 str() 이 ISO 앞 10자를 준다).
+                if isinstance(date, datetime):
+                    target = date.date()
+                else:
+                    target = datetime.strptime(str(date)[:10], "%Y-%m-%d").date()
+            limit_clause = ""
+            rows_n = int(lookback_rows or self.LOOKBACK_ROWS)
+            sns_where = "WHERE stock_code = %s"
+            price_where = f"WHERE stock_code = %s AND {MARKET_DATA_VALID}"
+            if target is not None:
+                sns_where += " AND trade_date <= %s"
+                price_where += " AND trade_date <= %s"
+                limit_clause = "DESC LIMIT %s"
+
             cur = db_conn.cursor()
-            cur.execute(
-                """
-                SELECT trade_date, sentiment_score, attention_score,
-                       momentum_score, author_quality_score
-                FROM sns_post_features
-                WHERE stock_code = %s
-                ORDER BY trade_date
-                """,
-                (stock_code,),
-            )
+            if target is not None:
+                cur.execute(
+                    f"""
+                    SELECT trade_date, sentiment_score, attention_score,
+                           momentum_score, author_quality_score
+                    FROM sns_post_features
+                    {sns_where}
+                    ORDER BY trade_date {limit_clause}
+                    """,
+                    (stock_code, target, rows_n),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT trade_date, sentiment_score, attention_score,
+                           momentum_score, author_quality_score
+                    FROM sns_post_features
+                    {sns_where}
+                    ORDER BY trade_date
+                    """,
+                    (stock_code,),
+                )
             sns_rows = cur.fetchall()
-            cur.execute(
-                f"""
-                SELECT trade_date, close_price
-                FROM market_data
-                WHERE stock_code = %s
-                  AND {MARKET_DATA_VALID}
-                ORDER BY trade_date
-                """,
-                (stock_code,),
-            )
+            if target is not None:
+                cur.execute(
+                    f"""
+                    SELECT trade_date, close_price
+                    FROM market_data
+                    {price_where}
+                    ORDER BY trade_date {limit_clause}
+                    """,
+                    (stock_code, target, rows_n),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT trade_date, close_price
+                    FROM market_data
+                    {price_where}
+                    ORDER BY trade_date
+                    """,
+                    (stock_code,),
+                )
             price_rows = cur.fetchall()
             cur.close()
             if not sns_rows or not price_rows:
                 raise ValueError("insufficient rows")
+            # DESC LIMIT 로 읽었으면 계산 전에 오름차순으로 되돌린다.
+            if target is not None:
+                sns_rows = list(reversed(sns_rows))
+                price_rows = list(reversed(price_rows))
             sns_df = pd.DataFrame(
                 sns_rows,
                 columns=["trade_date", *self.FEATURES],

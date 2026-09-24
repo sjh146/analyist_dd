@@ -11,6 +11,22 @@ class Config:
     # LLM 엔드포인트 전환용 — 로컬 llama-server(http://host.docker.internal:8080/v1)로
     # 바꾸면 DeepSeek API 대신 로컬 모델로 뉴스 분석. 기본값은 DeepSeek 유지.
     LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
+    # 로컬 LLM 서버(LLM_BASE_URL 전환 시)에서 사용할 모델명.
+    # 비어 있으면 DEEPSEEK_MODEL 을 그대로 사용한다(기본 동작 = DeepSeek API 유지).
+    # GPU 생긴 뒤 llama.cpp 등 로컬 추론으로 전환할 때만 지정하면 된다.
+    LLM_MODEL = os.getenv("LLM_MODEL", "")
+
+    # 임베딩 실행 디바이스 (GPU 준비용, 기본값 auto = 현행 CPU 동작)
+    # - auto: torch.cuda.is_available() 이면 cuda, 아니면 cpu (mps 지원 시 mps)
+    # - cuda/cpu/mps: 명시 지정. cuda 를 명시했는데 사용 불가면 경고 후 cpu 폴백.
+    EMBEDDING_DEVICE = os.getenv("EMBEDDING_DEVICE", "auto")
+    # 임베딩 인코딩 배치 크기
+    EMBEDDING_BATCH_SIZE = os.getenv("EMBEDDING_BATCH_SIZE", "32")
+    # CPU 임베딩 스레드 수 튜닝용 (기본 미설정 = torch 기본 동작 유지)
+    # 양의 정수만 유효하며, 모델 로드 직전 torch.set_num_threads(n) 로 적용된다.
+    # 주의: 다른 컨테이너가 CPU 를 점유(경합) 중이면 스레드를 늘려도 오히려 느려질
+    # 수 있다. 유휴 상태에서 scripts/embed_bench.py 로 재측정 후 결정할 것.
+    EMBEDDING_TORCH_THREADS = os.getenv("EMBEDDING_TORCH_THREADS", "")
 
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))

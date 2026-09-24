@@ -1,76 +1,25 @@
 {
-  "request_type": "factor_report",
-  "generated_at": "2026-08-21T07:23:25.573522Z",
+  "generated_at": "2026-09-23T11:33:11.843885",
   "strategies": {
-    "lowvol_factor": {
-      "metrics": {
-        "total_return": -0.008084,
-        "sharpe": -0.1473,
-        "max_drawdown": 0.036971,
-        "win_rate": 0.5,
-        "num_trades": 60
-      },
-      "window": {
-        "start": "2025-08-01",
-        "end": "2026-07-31"
-      },
-      "periods": 2
-    },
-    "momentum_factor": {
-      "metrics": {
-        "total_return": 0.0,
-        "sharpe": null,
-        "max_drawdown": 0.0,
-        "win_rate": 0.0,
-        "num_trades": 0
-      },
-      "window": {
-        "start": "2025-08-01",
-        "end": "2026-07-31"
-      },
-      "periods": 0
-    },
-    "multifactor": {
-      "metrics": {
-        "total_return": -0.608763,
-        "sharpe": -3.5605,
-        "max_drawdown": 0.291421,
-        "win_rate": 0.0,
-        "num_trades": 120
-      },
-      "window": {
-        "start": "2025-08-01",
-        "end": "2026-07-31"
-      },
-      "periods": 6
+    "value_factor": {
+      "signals": 0,
+      "top": []
     },
     "quality_factor": {
-      "metrics": {
-        "total_return": -0.167938,
-        "sharpe": -3.2921,
-        "max_drawdown": 0.124458,
-        "win_rate": 0.0,
-        "num_trades": 20
-      },
-      "window": {
-        "start": "2025-08-01",
-        "end": "2026-07-31"
-      },
-      "periods": 2
+      "signals": 0,
+      "top": []
     },
-    "value_factor": {
-      "metrics": {
-        "total_return": -0.167938,
-        "sharpe": -3.2921,
-        "max_drawdown": 0.124458,
-        "win_rate": 0.0,
-        "num_trades": 20
-      },
-      "window": {
-        "start": "2025-08-01",
-        "end": "2026-07-31"
-      },
-      "periods": 2
+    "momentum_factor": {
+      "signals": 0,
+      "top": []
+    },
+    "lowvol_factor": {
+      "signals": 0,
+      "top": []
+    },
+    "multifactor": {
+      "signals": 0,
+      "top": []
     }
   }
 }

@@ -55,11 +55,20 @@ class TestBayesFactorFeaturesCompute:
         assert out["bayes_gain_uncertainty"] > 0.0
 
     @pytest.mark.skipif(not NUMPYRO_AVAILABLE, reason="numpyro not installed")
-    def test_compute_without_fit_returns_defaults(self):
-        """compute() must NOT run MCMC; without a cached posterior it returns 0.0."""
+    def test_compute_without_fit_uses_analytic_fallback(self):
+        """compute() must NOT run MCMC.
+
+        2026-09-24 계약 변경: fit() 없이 호출되면 0.0 기본값을 돌려주던 종전 동작
+        때문에 베이즈 4피처가 학습 패널에서 전부 죽어 있었다(feature_coverage 실측:
+        bayes_* 4개 nonzero_ratio=0). 이제 선형-가우시안 상태공간 모형의
+        **해석적(Kalman) 사후**를 폴백으로 계산한다 — MCMC 는 여전히 돌지 않는다.
+        """
         bf = BayesFactorFeatures(num_warmup=50, num_samples=50)
         out = bf.compute(_synthetic_close())
-        assert out == {name: 0.0 for name in BayesFactorFeatures.FEATURE_NAMES}
+        assert bf._posterior is None  # no fit() / no MCMC
+        assert out["bayes_gain_uncertainty"] > 0.0
+        assert out["bayes_volatility"] > 0.0
+        assert out["bayes_momentum_1d"] != 0.0
 
     @pytest.mark.skipif(not NUMPYRO_AVAILABLE, reason="numpyro not installed")
     def test_compute_uses_cached_posterior(self):

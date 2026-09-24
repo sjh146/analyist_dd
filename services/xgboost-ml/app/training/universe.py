@@ -46,6 +46,7 @@ def _fetch_eligible(pg, date_from: str, min_days: int) -> List[dict]:
         FROM stocks s
         JOIN market_data md ON s.stock_code = md.stock_code AND md.trade_date >= %s
         WHERE s.market IN ('KOSPI', 'KOSDAQ')
+          AND s.instrument_type = 'STOCK'
         GROUP BY s.stock_code, s.stock_name, s.market
         HAVING COUNT(md.trade_date) >= %s
         """,

@@ -1,0 +1,198 @@
+{
+  "codes": [
+    "419050",
+    "321370",
+    "005930",
+    "201490",
+    "356680",
+    "203650",
+    "393210",
+    "303810"
+  ],
+  "dates": [
+    "2026-09-23",
+    "2026-09-18",
+    "2026-08-26",
+    "2026-07-28",
+    "2026-06-29",
+    "2026-05-14"
+  ],
+  "rows": [
+    {
+      "feature": "theme_count",
+      "nonzero_ratio": 0.375,
+      "std": 1.615356,
+      "min": 0.0,
+      "max": 5.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "theme_max_relevance",
+      "nonzero_ratio": 0.375,
+      "std": 0.423527,
+      "min": 0.0,
+      "max": 1.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "theme_momentum",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "twin_count",
+      "nonzero_ratio": 0.875,
+      "std": 2.446298,
+      "min": 0.0,
+      "max": 7.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "twin_avg_correlation",
+      "nonzero_ratio": 0.875,
+      "std": 0.230658,
+      "min": 0.0,
+      "max": 0.799771,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "sector_count",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "sector_momentum",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "cycle_up",
+      "nonzero_ratio": 0.1667,
+      "std": 0.372678,
+      "min": 0.0,
+      "max": 1.0,
+      "stocks_with_date_change": 8
+    },
+    {
+      "feature": "cycle_down",
+      "nonzero_ratio": 0.8333,
+      "std": 0.372678,
+      "min": 0.0,
+      "max": 1.0,
+      "stocks_with_date_change": 8
+    },
+    {
+      "feature": "market_breadth",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "krx_advance_decline_ratio",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "krx_total_trading_value",
+      "nonzero_ratio": 1.0,
+      "std": 10969675175162.473,
+      "min": 20880822587742.0,
+      "max": 51643893906756.0,
+      "stocks_with_date_change": 8
+    },
+    {
+      "feature": "retail_ownership_pct",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "etf_flow_5d",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "disclosure_count_5d",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "economic_event_count_7d",
+      "nonzero_ratio": 1.0,
+      "std": 2.114763,
+      "min": 1.0,
+      "max": 7.0,
+      "stocks_with_date_change": 8
+    },
+    {
+      "feature": "economic_event_impact",
+      "nonzero_ratio": 1.0,
+      "std": 4.946941,
+      "min": 3.0,
+      "max": 16.0,
+      "stocks_with_date_change": 8
+    },
+    {
+      "feature": "value_pcr",
+      "nonzero_ratio": 0.375,
+      "std": 6.219117,
+      "min": 0.0,
+      "max": 18.947351,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "value_ncav",
+      "nonzero_ratio": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "value_pfcr",
+      "nonzero_ratio": 0.375,
+      "std": 15.8916,
+      "min": 0.0,
+      "max": 49.126173,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "quality_cp_to_assets",
+      "nonzero_ratio": 0.375,
+      "std": 0.041151,
+      "min": 0.0,
+      "max": 0.112334,
+      "stocks_with_date_change": 0
+    },
+    {
+      "feature": "quality_beta",
+      "nonzero_ratio": 1.0,
+      "std": 0.332351,
+      "min": 0.646404,
+      "max": 2.288763,
+      "stocks_with_date_change": 8
+    }
+  ]
+}

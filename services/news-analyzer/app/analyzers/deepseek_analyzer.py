@@ -84,7 +84,7 @@ class DeepSeekAnalyzer:
             return StructuredNews()
 
         prompt = self._build_structured_prompt(article)
-        model_name = Config.DEEPSEEK_MODEL
+        model_name = Config.LLM_MODEL or Config.DEEPSEEK_MODEL
         response = self.client.chat.completions.create(
             model=model_name,
             messages=[
@@ -266,7 +266,7 @@ class DeepSeekAnalyzer:
         """
         prompt = self._build_prompt(article)
 
-        model_name = Config.DEEPSEEK_MODEL  # 사용 Config에서 모델명 읽기
+        model_name = Config.LLM_MODEL or Config.DEEPSEEK_MODEL  # LLM_MODEL 지정 시 로컬 서버 모델명 사용
         response = self.client.chat.completions.create(
             model=model_name,
             messages=[

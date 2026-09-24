@@ -1,0 +1,18 @@
+{
+  "auc": 0.5058,
+  "promoted": false,
+  "status": "kept_incumbent",
+  "reason": "candidate AUC 0.5058 < floor 0.55",
+  "champion_auc_before": 0.6131,
+  "champion_auc_after": null,
+  "model_aucs": {
+    "xgboost": 0.504809,
+    "lightgbm": 0.506843,
+    "catboost": 0.509471
+  },
+  "n_rows": 1177,
+  "n_features": 43,
+  "up_rate": 0.4427,
+  "retrained_at": "2026-09-23T13:45:14",
+  "decided_at": "2026-09-23T14:19:45"
+}

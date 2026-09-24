@@ -30,7 +30,7 @@ like_count, retweet_count, source``
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -83,6 +83,9 @@ class SnsFeatures:
     LAG7_CORR_THRESHOLD = 0.7 # lag-7 자기상관 > 임계값 → 주기적 봇 패턴.
     KALMAN_WINDOW_DAYS = 30   # 활동 시계열 윈도우.
     BOT_REMOVAL_FRACTION = 0.8  # 플래그된 날 제거 비율 (bot_filtered_count 계산용).
+    # 날짜 기반 조회(date 인자) 시 되돌아볼 기본 트레일링 윈도우(일).
+    # momentum(RECENT+PREV=10) / attention baseline(7) / Kalman(30) 을 모두 덮는다.
+    DEFAULT_WINDOW_DAYS = 30
 
     def __init__(self) -> None:
         self._smoother = KalmanSmoother()
@@ -352,6 +355,19 @@ class SnsFeatures:
     # ════════════════════════════════════════════════════════════════════
     # 6. get_daily_features
     # ════════════════════════════════════════════════════════════════════
+    @staticmethod
+    def _as_date(value) -> Optional[date]:
+        """str / datetime / Timestamp / date 를 ``datetime.date`` 로 정규화."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, pd.Timestamp):
+            return value.date()
+        return date.fromisoformat(str(value)[:10])
+
     def _posts_to_daily(self, posts_df: pd.DataFrame) -> Dict[date, List[Dict]]:
         """DataFrame을 (trade_date -> 게시글 dict 목록)으로 그룹화."""
         daily: Dict[date, List[Dict]] = {}
@@ -367,13 +383,25 @@ class SnsFeatures:
         return daily
 
     def get_daily_features(
-        self, stock_code: str, posts_df: pd.DataFrame, db_conn=None
+        self, stock_code: str, posts_df: pd.DataFrame, db_conn=None,
+        date=None, window_days: Optional[int] = None,
     ) -> List[Dict]:
         """종목별 일별 SNS 피처 행 목록을 반환한다.
 
         ``posts_df`` 는 (stock_code, trade_date, text, author_id,
         author_followers, comment_count, like_count, retweet_count, source)
         컬럼을 가진 DataFrame. DB는 사용하지 않는다 (db_conn은 호환용).
+
+        Parameters
+        ----------
+        date : str | datetime | date, optional
+            ``None``(기본)이면 현행과 동일하게 **전체 기간**의 일별 행을 모두
+            반환한다. 값이 주어지면 그 날짜를 기준으로 ① ``trade_date <= date``
+            (룩어헤드 차단) ② ``date - (window_days-1)`` 이후의 트레일링 윈도우
+            로 입력을 자른 뒤, **그 날짜의 행 1개만** 반환한다. 게시글이 없으면
+            ``[]`` (0.0 행을 지어내지 않는다).
+        window_days : int, optional
+            ``date`` 사용 시 되돌아볼 캘린더 일수. 기본 ``DEFAULT_WINDOW_DAYS``(30).
 
         Returns
         -------
@@ -387,7 +415,19 @@ class SnsFeatures:
         if posts_df is None or posts_df.empty:
             return []
 
-        daily = self._posts_to_daily(posts_df)
+        target = self._as_date(date)
+        df = posts_df
+        if target is not None:
+            df = posts_df.copy()
+            df["trade_date"] = [self._as_date(v) for v in df["trade_date"]]
+            df = df[df["trade_date"].notna()]
+            w = int(window_days or self.DEFAULT_WINDOW_DAYS)
+            start = target - timedelta(days=max(w, 1) - 1)
+            df = df[(df["trade_date"] <= target) & (df["trade_date"] >= start)]
+            if df.empty:
+                return []
+
+        daily = self._posts_to_daily(df)
         if not daily:
             return []
 
@@ -425,9 +465,18 @@ class SnsFeatures:
             momentum = self.momentum_score(recent, prev)
 
             # Kalman 스무딩된 값 (log1p 공간 → 역변환해 원래 스케일 근사).
+            #
+            # KalmanSmoother.smooth 는 로그수익률(np.diff)에 대해 계산하므로
+            # smoothed 길이가 원 시계열보다 1 작다 → 마지막 날(idx == n-1)에는
+            # 대응 관측이 없다. 종전에는 그 경우 0.0 으로 남겨서 **마지막 날의
+            # kalman_activity 가 항상 0** 이었다(날짜 기준 조회에서는 조회일이
+            # 항상 윈도우의 마지막 날이므로 항상 0 → 학습에 무의미한 상수).
+            # 마지막으로 가용한 스무딩 값(1-step-ahead 상태 추정)을 그대로
+            # 사용한다.
             kalman_activity = 0.0
-            if idx < len(kalman_smoothed):
-                kalman_activity = float(np.expm1(kalman_smoothed[idx]))
+            k_idx = idx if idx < len(kalman_smoothed) else len(kalman_smoothed) - 1
+            if 0 <= k_idx < len(kalman_smoothed):
+                kalman_activity = float(np.expm1(kalman_smoothed[k_idx]))
             kalman_sentiment = sentiment
             kalman_attention = attention
             kalman_momentum = momentum
@@ -458,31 +507,62 @@ class SnsFeatures:
                     "kalman_activity": float(kalman_activity),
                 }
             )
+        if target is not None:
+            # date 기준 조회: 그 날짜의 행만 (없으면 []).
+            rows = [r for r in rows if r["trade_date"] == target]
         return rows
 
     # ════════════════════════════════════════════════════════════════════
     # DB-backed convenience
     # ════════════════════════════════════════════════════════════════════
-    def compute_for_stock(self, stock_code: str, db_conn=None) -> List[Dict]:
+    def compute_for_stock(
+        self, stock_code: str, db_conn=None, date=None,
+        window_days: Optional[int] = None,
+    ) -> List[Dict]:
         """``sns_posts`` 를 일별 집계해 종목의 일별 피처 행을 반환한다.
 
         ``db_conn`` 이 None이거나 쿼리가 실패하면 빈 리스트를 반환한다
         (fail-open). 실제 집계는 ``get_daily_features`` 로 위임한다.
+
+        Parameters
+        ----------
+        date : str | datetime | date, optional
+            ``None``(기본)이면 전 종목 전체 기간의 일별 행을 반환한다.
+            값이 주어지면 ``posted_at::date <= date`` + 트레일링 윈도우
+            (``window_days``, 기본 30일)로 조회해 **그 날짜의 행 1개**만
+            반환한다(게시글 없으면 ``[]``).
+
+        Notes
+        -----
+        ``sns_posts`` 에는 ``trade_date`` 컬럼이 없다. 실제 컬럼은
+        ``posted_at``(timestamp)이므로 ``posted_at::date AS trade_date``
+        별칭으로 읽어야 한다(수정 전에는 ``UndefinedColumn`` → 항상 []).
         """
         if db_conn is None:
             return []
 
+        target = self._as_date(date)
         try:
+            where = ["stock_code = %s", "posted_at IS NOT NULL"]
+            params: List = [stock_code]
+            if target is not None:
+                w = int(window_days or self.DEFAULT_WINDOW_DAYS)
+                where.append("posted_at::date <= %s")
+                params.append(target)
+                where.append("posted_at >= %s")
+                params.append(target - timedelta(days=max(w, 1) - 1))
+
             cur = db_conn.cursor()
             cur.execute(
-                """
-                SELECT trade_date, text, author_id, author_followers,
-                       comment_count, like_count, retweet_count, source
+                f"""
+                SELECT posted_at::date AS trade_date, text, author_id,
+                       author_followers, comment_count, like_count,
+                       retweet_count, source
                 FROM sns_posts
-                WHERE stock_code = %s
-                ORDER BY trade_date
+                WHERE {' AND '.join(where)}
+                ORDER BY posted_at
                 """,
-                (stock_code,),
+                tuple(params),
             )
             rows = cur.fetchall()
             cols = [
@@ -494,7 +574,9 @@ class SnsFeatures:
                 return []
             df = pd.DataFrame(rows, columns=cols)
             df["stock_code"] = stock_code
-            return self.get_daily_features(stock_code, df)
+            return self.get_daily_features(
+                stock_code, df, date=target, window_days=window_days
+            )
         except Exception as e:
             logger.debug("sns features query failed for %s: %s", stock_code, e)
             if db_conn:

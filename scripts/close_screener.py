@@ -57,6 +57,7 @@ def get_kosdaq_stocks(pg_conn):
         FROM stocks s
         JOIN market_data md ON s.stock_code = md.stock_code
         WHERE s.market = 'KOSDAQ'
+          AND s.instrument_type = 'STOCK'
         GROUP BY s.stock_code, s.stock_name, s.sector
         HAVING COUNT(*) >= 20
         ORDER BY s.stock_code

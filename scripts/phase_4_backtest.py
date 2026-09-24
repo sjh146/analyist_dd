@@ -5,7 +5,7 @@
 발생. 여기서는 챔피언 feature_names.json 순서 그대로 0-fill 행렬을 구성한다
 (retrain_champion과 동일한 계약) — 트레이너 필터와 무관하게 항상 폭 일치.
 """
-import sys, json, os
+import sys, json, os, argparse
 from datetime import datetime, timedelta
 import numpy as np
 import psycopg2
@@ -17,6 +17,13 @@ from app.training.trainer import Trainer
 from app.training.universe import select_backtest_universe
 from sklearn.metrics import roc_auc_score, accuracy_score
 
+# --model-dir 로 후보(champion_cand)와 현 챔피언을 같은 패널에서 비교할 수 있다.
+ap = argparse.ArgumentParser(description='Phase 4 backtest (챔피언/후보 아웃오브샘플 AUC)')
+ap.add_argument('--model-dir', default='app/models/champion')
+ap.add_argument('--days', type=int, default=90)
+ap.add_argument('--out', default='/app/reports/backtest_result.json')
+args = ap.parse_args()
+
 pg = psycopg2.connect(host='postgres', port=5432, dbname='stock_trading',
                       user='stock_user', password=os.environ.get('POSTGRES_PASSWORD', ''))
 stocks_list = select_backtest_universe(pg, n_kospi=30, n_kosdaq=20, min_days=30, seed=42)
@@ -25,7 +32,7 @@ print(f'Backtest universe: {len(stocks_list)} stocks')
 pipeline = FeaturePipeline(pg_conn=pg)
 trainer = Trainer(storage=None, feature_pipeline=pipeline)
 end = datetime.now()
-start = end - timedelta(days=90)
+start = end - timedelta(days=args.days)
 df = pipeline.build_training_features(
     stocks_list, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d')
 )
@@ -43,9 +50,9 @@ elif 'trade_date' in df.columns:
 y = trainer._create_labels(df)
 
 # 챔피언 계약 행렬: json 순서 그대로 0-fill (분산 필터 없음)
-ensemble = EnsembleModel(model_dir='app/models/champion')
-ensemble.load('app/models/champion')
-model_f = ensemble.load_feature_names('app/models/champion')
+ensemble = EnsembleModel(model_dir=args.model_dir)
+ensemble.load(args.model_dir)
+model_f = ensemble.load_feature_names(args.model_dir)
 X = np.zeros((len(df), len(model_f)), dtype=np.float32)
 for j, f in enumerate(model_f):
     if f in df.columns:
@@ -73,9 +80,9 @@ result_dict = {"auc": round(auc, 4), "acc": round(acc, 4),
                "n_stocks": len(stocks_list), "n_rows": int(len(y)),
                "n_features": int(len(model_f))}
 os.makedirs('/app/reports', exist_ok=True)
-with open('/app/reports/backtest_result.json', 'w') as f:
+with open(args.out, 'w') as f:
     json.dump(result_dict, f, indent=2)
-print('saved: /app/reports/backtest_result.json')
+print(f'saved: {args.out}')
 
 # 2026-08: 실행 결과 이력 기록 (Grafana Quant Strategy Monitoring 대시보드용)
 try:

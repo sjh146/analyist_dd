@@ -129,9 +129,9 @@ def retrain_champion(
     up_rate = float(y.mean())
 
     models = [
-        ("xgboost", XGBoostModel()),
-        ("lightgbm", LightGBMModel()),
-        ("catboost", CatBoostModel()),
+        ("xgboost", XGBoostModel(n_estimators=n_estimators, random_state=seed)),
+        ("lightgbm", LightGBMModel(n_estimators=n_estimators, random_state=seed)),
+        ("catboost", CatBoostModel(iterations=n_estimators, random_state=seed)),
     ]
     weights: dict = {}
     aucs: dict = {}

@@ -32,3 +32,29 @@ data/krx/rate_state.json
 
 # trader-agent 피드로 내보내는 발행물 (스크리너 산출물에서 매번 생성)
 data/feed/
+
+# 야간·실험 모델 산출물 (재생성 가능 — 커밋 금지)
+services/xgboost-ml/app/models/overnight/
+services/xgboost-ml/app/models/overnight_h/
+services/xgboost-ml/app/models/news_wave/
+services/xgboost-ml/app/models/label_wave*/
+services/xgboost-ml/app/models/selected/
+services/xgboost-ml/app/models/exp_panel/
+services/xgboost-ml/app/models/champion_cand*/
+services/xgboost-ml/app/models/curated_cand*/
+services/xgboost-ml/app/models/champion_backup_*/
+services/xgboost-ml/data/
+services/xgboost-ml/reports/overnight/exp_*.log
+services/xgboost-ml/reports/overnight/heartbeat*.txt
+services/xgboost-ml/reports/overnight/*.flag
+
+# 백필 진행/상태 파일과 로그 (재개용 임시 상태 — 커밋 금지)
+data/dart/backfill_state*.json
+data/dart/logs/
+data/dart/*.orig_*
+data/krx/
+data/financials/*.json
+reports/feature_revival/*.csv
+reports/feature_revival/*.txt
+reports/sns/
+reports/embed_bench_*.json

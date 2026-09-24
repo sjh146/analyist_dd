@@ -1,0 +1,193 @@
+{
+  "uid": "data-quality-signals",
+  "title": "Data Quality Signals",
+  "tags": ["data-quality", "pipeline", "features", "monitoring"],
+  "timezone": "Asia/Seoul",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-30d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "데이터 신선도 (일)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "market_data_freshness_days", "legendFormat": "신선도(일)" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 3 } ] } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "거래량 0 비율 (최근 20거래일)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 5, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "market_data_zero_volume_ratio_20d", "legendFormat": "거래량0 비율" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.10 } ] } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "동결 비율 (최근 20거래일)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 5, "x": 9, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "market_data_frozen_ratio_20d", "legendFormat": "동결 비율" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.05 } ] } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "죽은 피처 수",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 5, "x": 14, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "feature_dead_count", "legendFormat": "죽은 피처" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 120 } ] } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "살아있는 피처 수",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 5, "x": 19, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "feature_alive_count", "legendFormat": "살아있는 피처" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "최근 20거래일 일자별 행수 (market_data)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT trade_date AS time, COUNT(*) AS value FROM market_data WHERE trade_date IN (SELECT trade_date FROM market_data GROUP BY trade_date ORDER BY trade_date DESC LIMIT 20) GROUP BY trade_date ORDER BY trade_date",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 60 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "죽은 피처 수 추이",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "feature_dead_count", "legendFormat": "죽은 피처" },
+        { "expr": "feature_alive_count", "legendFormat": "살아있는 피처" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "파이프라인 테이블 행수",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "pipeline_table_rows", "legendFormat": "{{table}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "fillOpacity": 60 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "strategy_runs AUC 추이 (tool별)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT run_at AS time, auc AS value, tool AS metric FROM strategy_runs WHERE auc IS NOT NULL ORDER BY run_at",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "죽은 피처 목록 (nonzero_ratio = 0)",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 22 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT feature_name AS \"피처\", nonzero_ratio AS \"nonzero 비율\", round(std::numeric, 6) AS \"표준편차\", window_days AS \"윈도우일\", computed_at AS \"계산시각\" FROM feature_coverage WHERE nonzero_ratio = 0 ORDER BY feature_name",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "최장 idle-in-transaction (초)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "pg_idle_in_transaction_max_seconds", "legendFormat": "최장 idle(초)" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1800 }, { "color": "red", "value": 3600 } ] } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "클라이언트별 idle-in-transaction 개수",
+      "type": "table",
+      "gridPos": { "h": 6, "w": 20, "x": 4, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        { "expr": "pg_idle_in_transaction_by_client_count", "legendFormat": "{{client}}", "format": "table", "instant": true }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": []
+      }
+    }
+  ]
+}

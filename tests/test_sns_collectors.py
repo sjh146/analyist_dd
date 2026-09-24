@@ -99,6 +99,107 @@ def test_naver_parse_empty_and_malformed():
     assert collector.parse_board_html(None, "005930") == []
 
 
+# ── 1b. Naver 종토방 API 파싱 (2026-09 SPA 전환 대응) ────────────────────
+def _api_payload_json():
+    """실제 응답 구조 축약본. 본문에 잘못된 이스케이프(\\d)와 원시 개행을 넣어
+    관대한 파서가 필요한 이유를 그대로 재현한다."""
+    import json as _json
+    payload = {
+        "offset": "-9223372036854775807",
+        "pageSize": 2,
+        "lastOffset": "-429804153",
+        "posts": [
+            {
+                "id": "429804991",
+                "itemCode": "005930",
+                "itemName": "삼성전자",
+                "postType": "normal",
+                "writer": {"profileId": "28660109605862322",
+                           "nickname": "침착한투자자"},
+                "writtenAt": "2026-09-24T01:50:56",
+                "title": "매수 추천",
+                "contentSwReplacedButImg": "정규식 \\d+ 매칭\n두 번째 줄",
+                "commentCount": 0,
+                "recommendCount": 0,
+                "viewCount": 0,
+                "isCleanbotPassed": True,
+            },
+            {
+                "id": "429804928",
+                "itemCode": "005930",
+                "itemName": "삼성전자",
+                "writer": {"profileId": "999", "nickname": "반민특위"},
+                "writtenAt": "2026-09-24T01:45:24",
+                "title": "손절",
+                "contentSwReplacedButImg": "",
+                "commentCount": 0,
+                "recommendCount": 0,
+            },
+        ],
+    }
+    # 잘못된 이스케이프를 '원본 그대로' 갖는 텍스트를 만든다.
+    raw = _json.dumps(payload, ensure_ascii=False)
+    raw = raw.replace("\\\\d", "\\d")
+    return raw
+
+
+def test_naver_api_url_contains_item_code_and_paging():
+    url = NaverBoardCollector().api_posts_url("005930", offset="-429804153",
+                                              page_size=50)
+    assert "stock.naver.com/api/community/discussion/posts/by-item" in url
+    assert "itemCode=005930" in url
+    assert "pageSize=50" in url
+    assert "offset=-429804153" in url
+    # 뉴스만 오는 모드를 켜면 토론글이 비므로 false 여야 한다.
+    assert "isItemNewsOnly=false" in url
+
+
+def test_naver_api_parse_posts_with_bad_escapes():
+    collector = NaverBoardCollector()
+    posts = collector.parse_api_posts(_api_payload_json(), "005930")
+    assert len(posts) == 2
+    p0 = posts[0]
+    assert p0.post_id == "429804991"
+    assert p0.stock_code == "005930"
+    assert p0.source == "naver_board"
+    assert p0.author_id == "28660109605862322"
+    assert p0.author_name == "침착한투자자"
+    assert isinstance(p0.posted_at, datetime)
+    assert p0.posted_at.year == 2026
+    # 제목 + 본문이 텍스트로 남는다.
+    assert "매수 추천" in p0.text
+    # raw_json 이 직렬화 가능해야 한다 (jsonb 저장 경로).
+    import json as _json
+    _json.dumps(p0.raw_json, ensure_ascii=False)
+
+
+def test_naver_api_parse_empty_and_malformed():
+    collector = NaverBoardCollector()
+    assert collector.parse_api_posts(None, "005930") == []
+    assert collector.parse_api_posts("not json", "005930") == []
+    assert collector.parse_api_posts([], "005930") == []
+    assert collector.parse_api_posts({"posts": []}, "005930") == []
+    # id 없는 항목은 건너뛴다.
+    assert collector.parse_api_posts({"posts": [{"title": "x"}]}, "005930") == []
+
+
+def test_naver_api_apply_enrichment_merges_reactions_and_comments():
+    collector = NaverBoardCollector()
+    posts = collector.parse_api_posts(_api_payload_json(), "005930")
+    reactions = [{"postId": "429804991", "recommendCount": 7,
+                  "notRecommendCount": 2, "viewCount": 41}]
+    counts = {"commentCounts": [{"postId": "429804991", "commentCount": 3},
+                                {"postId": "429804928", "commentCount": 0}]}
+    n = collector.apply_enrichment(posts, reactions, counts)
+    assert n == 2
+    assert posts[0].like_count == 7
+    assert posts[0].comment_count == 3
+    assert posts[0].raw_json["viewCount"] == 41
+    # 비공감은 retweet_count 로 쓰지 않는다.
+    assert posts[0].retweet_count == 0
+    assert posts[1].comment_count == 0
+
+
 # ── 2. 요청 딜레이 (네이버 자동화 차단 대응) ─────────────────────────────
 def test_naver_request_delay_at_least_070s():
     assert NaverBoardCollector.REQUEST_DELAY >= 0.7

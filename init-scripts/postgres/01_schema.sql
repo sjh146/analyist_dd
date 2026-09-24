@@ -11,12 +11,16 @@ CREATE TABLE stocks (
     stock_code VARCHAR(10) UNIQUE NOT NULL,
     stock_name VARCHAR(100) NOT NULL,
     market VARCHAR(10) NOT NULL,
+    instrument_type VARCHAR(10) NOT NULL DEFAULT 'STOCK',
     sector VARCHAR(100),
     industry VARCHAR(100),
     market_cap BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 종목 유형: STOCK / ETF / ETN / DR 등. 기존 구축분 대응 멱등 마이그레이션.
+ALTER TABLE stocks ADD COLUMN IF NOT EXISTS instrument_type VARCHAR(10) NOT NULL DEFAULT 'STOCK';
 
 -- === 시장 데이터 ===
 CREATE TABLE market_data (

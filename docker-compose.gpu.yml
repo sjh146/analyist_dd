@@ -1,0 +1,51 @@
+# =============================================================================
+# GPU 오버레이 (기본 비활성)
+#
+# 용도: GPU 가 생겼을 때 news-analyzer / stock-vectorizer 에 NVIDIA GPU 를
+#       연결하기 위한 오버레이. docker-compose.yml 본체는 수정하지 않는다.
+#
+# 사용법:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# 되돌리기(현행 CPU 복귀):
+#   docker compose -f docker-compose.yml up -d
+#
+# WSL 사전조건:
+#   1) Windows 호스트에 WSL GPU 드라이버 + NVIDIA CUDA 드라이버 설치
+#   2) Docker Desktop(WSL2 백엔드) 에서 GPU 지원 활성화
+#   3) WSL 배포판 내 nvidia-container-toolkit 설치
+#      (Docker Desktop 은 자체 툴킷을 내장하는 경우가 많아 3 은 Docker Engine
+#       직접 설치 시에만 필요)
+#   검증:  docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+# =============================================================================
+
+services:
+  news-analyzer:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  stock-vectorizer:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # 참고: xgboost-ml(GBDT)은 GPU 이득이 크지 않다. 필요 시 아래 주석을 풀어
+  # 동일하게 연결할 수 있다 (lightgbm/xgboost/catboost gpu 히스토그램 빌더 사용 시).
+  #
+  # xgboost-ml:
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]

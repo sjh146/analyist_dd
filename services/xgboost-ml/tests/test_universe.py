@@ -83,3 +83,30 @@ def test_select_backtest_universe_falls_back_when_pool_small():
     pg = _FakePg(rows)
     picked = select_backtest_universe(pg, n_kospi=5, n_kosdaq=4, seed=1)
     assert picked == ["000001"]
+
+
+def test_fetch_eligible_filters_by_instrument_type():
+    """ETF/ETN 이 stocks 에 들어가도 instrument_type='STOCK' 로 DB 단계에서 제외.
+
+    2026-09 ETF 시딩: 이름 패턴(is_etf_etn)만으로는 알파코드 ETF 등이 남을 수 있어
+    SQL 레벨 필터를 함께 검증한다.
+    """
+    captured = []
+
+    class _RecCur:
+        def execute(self, sql, params):
+            captured.append(sql)
+
+        def fetchall(self):
+            return []
+
+        def close(self):
+            pass
+
+    class _RecPg:
+        def cursor(self):
+            return _RecCur()
+
+    select_backtest_universe(_RecPg(), n_kospi=1, n_kosdaq=1, seed=1)
+    assert captured, "유니버스 SQL 이 실행돼야 함"
+    assert any("instrument_type = 'STOCK'" in sql for sql in captured)

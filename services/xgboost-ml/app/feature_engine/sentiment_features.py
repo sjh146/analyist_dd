@@ -4,6 +4,8 @@ Extracts features from sentiment analysis data stored in PostgreSQL.
 """
 
 import logging
+from datetime import datetime
+
 import numpy as np
 from typing import Dict, List, Optional
 
@@ -64,25 +66,50 @@ class SentimentFeatures:
 
         return features
 
-    def get_disclosure_count(self, stock_code: str, db_conn=None) -> Dict:
-        """Count recent disclosures for a stock."""
+    def get_disclosure_count(
+        self, stock_code: str, db_conn=None, date: Optional[str] = None
+    ) -> Dict:
+        """Count recent disclosures for a stock (최근 5일).
+
+        2026-09-24 수정: 기존 구현은 ``news_analysis`` 에서 ``source='DART'`` 를 셌는데
+        (1) stock_code 컬럼이 없어 **전 종목 동일값**이 되고 (2) ``CURRENT_DATE`` 기준이라
+        과거 기준일을 못 쓴다. 실제 DART 공시 테이블(``disclosures``)이 생기면 그걸 쓰고,
+        없으면 0 을 반환한다(전 종목 상수를 넣지 않는다).
+
+        필요 계약: ``disclosures(stock_code, rcept_dt DATE, report_nm)``
+        (DART_API_KEY 는 .env 에 있으므로 scripts/dart_financial_backfill.py 방식으로 수집 가능)
+        """
         features = {"disclosure_count_5d": 0}
 
         if db_conn is None:
             return features
+        if date is None:
+            date = datetime.now().strftime("%Y-%m-%d")
 
         try:
             cur = db_conn.cursor()
             cur.execute("""
-                SELECT COUNT(*) FROM news_analysis
-                WHERE source = 'DART'
-                AND analyzed_at >= CURRENT_DATE - INTERVAL '5 days'
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'disclosures'
+                )
             """)
+            if not cur.fetchone()[0]:
+                cur.close()
+                return features
+            cur.execute("""
+                SELECT COUNT(*) FROM disclosures
+                WHERE stock_code = %s
+                  AND rcept_dt <= %s
+                  AND rcept_dt >= %s::date - INTERVAL '5 days'
+            """, (stock_code, date, date))
             row = cur.fetchone()
             cur.close()
             features["disclosure_count_5d"] = int(row[0]) if row else 0
         except Exception as e:
             logger.debug(f"Disclosure count failed: {e}")
+            if db_conn:
+                db_conn.rollback()
 
         return features
 
@@ -120,10 +147,13 @@ class SentimentFeatures:
             logger.debug(f"Sentiment DB fetch failed for {stock_code}: {e}")
             return []
 
-    def get_all_features(self, stock_code: str, db_conn=None) -> Dict:
-        """Get all sentiment-based features."""
+    def get_all_features(self, stock_code: str, db_conn=None, date: Optional[str] = None) -> Dict:
+        """Get all sentiment-based features.
+
+        ``date`` (선택, YYYY-MM-DD): 공시 카운트의 기준일. None 이면 오늘(기존 동작).
+        """
         features = {}
         sentiment_data = self.get_sentiment_from_db(stock_code, db_conn)
         features.update(self.get_aggregate_sentiment(sentiment_data))
-        features.update(self.get_disclosure_count(stock_code, db_conn))
+        features.update(self.get_disclosure_count(stock_code, db_conn, date))
         return features

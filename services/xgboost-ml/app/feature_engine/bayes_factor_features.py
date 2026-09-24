@@ -117,14 +117,70 @@ class BayesFactorFeatures:
             return dict(defaults)
 
         if self._posterior is None:
-            logger.warning(
-                "BayesFactorFeatures.compute called before fit(); no cached "
-                "posterior available — returning default bayes features (0.0). "
-                "Call fit(close_prices) once offline to enable real features."
+            # 실측 문제(2026-09-24): feature_pipeline 은 BayesFactorFeatures() 를
+            # 만들고 곧바로 compute() 를 부른다 — fit() 을 부르는 코드는 오프라인
+            # fit_effective_score.py 뿐이고 그 산출물(bayes_factors.pkl)은 학습
+            # 피처 빌드 경로에서 로드되지 않는다. 그래서 4개 베이즈 피처가 전부
+            # 0.0 이었다(로그: "compute called before fit() ... returning default").
+            # MCMC 를 핫 루프에 넣을 수 없으므로, 선형-가우시안 상태공간 모형의
+            # **해석적 사후분포(Kalman filter = 해당 모형의 정확한 베이즈 사후)**
+            # 를 폴백으로 제공한다. fit() 으로 posterior 가 캐시되면 그쪽이 우선한다.
+            logger.debug(
+                "BayesFactorFeatures.compute called before fit(); using the "
+                "analytic Kalman posterior fallback (no MCMC)."
             )
-            return dict(defaults)
+            return self._analytic_features(log_rets)
 
         return self._posterior_features(self._posterior, log_rets)
+
+    def _analytic_features(self, log_rets: np.ndarray) -> Dict:
+        """선형-가우시안 상태공간 모형의 해석적(칼만) 사후 피처.
+
+        모형( ``_fit`` 과 동일 구조, 단순화 ):
+            momentum[t] = momentum[t-1] + N(0, Q)
+            obs[t]      = momentum[t] + N(0, R)
+        Q/R 을 데이터에서 적률추정(모멘트) 으로 잡고 칼만 필터를 돌려
+        가우시안 사후 평균/분산을 얻는다. MCMC(fit) 없이도 유한한 값이 나오며,
+        표본이 달라지면(=날짜가 달라지면) 값도 달라진다.
+
+        Returns:
+            ``compute`` 와 동일한 4개 키. 입력이 퇴화하면 0.0 기본값.
+        """
+        defaults = {name: 0.0 for name in self.FEATURE_NAMES}
+        y = np.asarray(log_rets, dtype=float)
+        if y.size < 3:
+            return dict(defaults)
+
+        # 관측분산 R, 상태분산 Q 적률추정
+        # E[(y_t - y_{t-1})^2] = 2R + Q  →  Q = var(diff) - 2R
+        r = float(np.var(y))
+        if not np.isfinite(r) or r <= 0:
+            return dict(defaults)
+        d = np.diff(y)
+        q = float(np.var(d)) - 2.0 * r if d.size >= 2 else r
+        q = max(q, 1e-12)  # 상태분산은 양수 제약
+        q = min(q, 1e3 * r)
+
+        # 칼만 필터 (초기: 첫 관측, 사전분산 R)
+        m = float(y[0])
+        p = r
+        states = [m]
+        for obs in y[1:]:
+            m_pred = m
+            p_pred = p + q
+            k = p_pred / (p_pred + r)
+            m = m_pred + k * (float(obs) - m_pred)
+            p = (1.0 - k) * p_pred
+            states.append(m)
+
+        states_arr = np.asarray(states)
+        window = min(5, states_arr.size)
+        return {
+            "bayes_momentum_1d": float(states_arr[-1]),
+            "bayes_momentum_5d": float(np.mean(states_arr[-window:])),
+            "bayes_volatility": float(np.sqrt(r) * np.sqrt(252.0)),
+            "bayes_gain_uncertainty": float(np.sqrt(p)),
+        }
 
     def fit(self, close_prices) -> "BayesFactorFeatures":
         """Fit the state-space model offline and cache the posterior.

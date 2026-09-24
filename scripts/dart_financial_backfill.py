@@ -14,6 +14,9 @@ DART 재무 이력 백필 — 안전 우선 설계 (KRX 7일 차단 교훈 반�
 
 사용법:
   python3 scripts/dart_financial_backfill.py [--limit N] [--dry-run] [--year 2025] [--max-calls N]
+  # 2026 반기(최신 공시) 확대 — 당기(thstrm)만 저장 + 재무상태표 전기말(2025-12-31) 동시 기록
+  python3 scripts/dart_financial_backfill.py --reprt-code 11012 --year 2026 \
+      --state-file data/dart/backfill_state_11012.json --max-calls 3000
 """
 import argparse
 import json
@@ -53,16 +56,33 @@ def _norm(nm):
 
 ACCOUNT_MAP = [
     ("매출액", ("IS", "CIS"), "revenue"),
+    # 실측 확장 (2026-09-24): 매출액 미매칭 사유 = 업종별 표기 차이
+    #   NAVER='영업수익'(CIS), 한국전력='수익(매출액)'(정규화 시 '수익'), 일부='총매출액'/'매출'
+    ("영업수익", ("IS", "CIS"), "revenue"),
+    ("수익", ("IS", "CIS"), "revenue"),
+    ("총매출액", ("IS", "CIS"), "revenue"),
+    ("매출", ("IS", "CIS"), "revenue"),
     ("영업이익", ("IS", "CIS"), "operating_profit"),
     ("당기순이익", ("IS", "CIS"), "net_income"),
+    # 분기/반기 보고서는 손익 최종 라인 명칭이 다르다 (실측: 11012 = '반기순이익',
+    # 11013/11014 = '분기순이익'). 정규화로는 잡히지 않아 별도 등록.
+    ("반기순이익", ("IS", "CIS"), "net_income"),
+    ("분기순이익", ("IS", "CIS"), "net_income"),
     ("자산총계", ("BS",), "total_assets"),
     ("자본총계", ("BS",), "total_equity"),
     ("부채총계", ("BS",), "total_debt"),
     ("영업활동현금흐름", ("CF",), "operating_cash_flow"),
     ("영업으로부터창출된현금흐름", ("CF",), "operating_cash_flow"),  # 대체 명칭
     ("매출원가", ("IS", "CIS"), "_cost_of_sales"),
+    ("매출총이익", ("IS", "CIS"), "_gross_profit"),
 ]
 ACCOUNT_MAP_NORM = [(_norm(n), divs, col) for n, divs, col in ACCOUNT_MAP]
+
+# 재무상태표(BS) 항목 — 분기 보고서에서 전기말(frmtrm_amount) 값이 직전 회계연도말이다.
+BS_COLS = {"total_assets", "total_equity", "total_debt"}
+
+# 보고서 코드 → 결산 기준월-일 (report_date 접미사)
+REPORT_SUFFIX = {"11011": "12-31", "11012": "06-30", "11013": "03-31", "11014": "09-30"}
 
 # ── 로깅 ──────────────────────────────────────────────────────────────
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -93,19 +113,21 @@ def load_mapping():
         return json.load(f)
 
 
-def load_checkpoint():
-    if os.path.exists(CHECKPOINT):
-        with open(CHECKPOINT) as f:
+def load_checkpoint(path=None):
+    path = path or CHECKPOINT
+    if os.path.exists(path):
+        with open(path) as f:
             return json.load(f)
     return {"done": [], "failed": [], "last_run": None}
 
 
-def save_checkpoint(state):
+def save_checkpoint(state, path=None):
+    path = path or CHECKPOINT
     state["last_run"] = datetime.now().isoformat()
-    tmp = CHECKPOINT + ".tmp"
+    tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(state, f, ensure_ascii=False)
-    os.replace(tmp, CHECKPOINT)
+    os.replace(tmp, path)
 
 
 def db_conn(env):
@@ -130,52 +152,76 @@ def db_conn(env):
     raise last_err
 
 
-def get_existing_years(conn, code):
-    """이미 보유한 연간(report_date 12-31) 수."""
+def get_existing_periods(conn, code, suffix):
+    """이미 보유한 해당 결산기(예: 12-31 = 연간) 행 수."""
     with conn.cursor() as cur:
         cur.execute(
             "SELECT COUNT(*) FROM financial_statements "
-            "WHERE stock_code=%s AND EXTRACT(MONTH FROM report_date)=12 "
-            "AND EXTRACT(DAY FROM report_date)=31",
-            (code,),
+            "WHERE stock_code=%s AND to_char(report_date,'MM-DD')=%s",
+            (code, suffix),
         )
         return cur.fetchone()[0]
 
 
-def extract_periods(items, year):
-    """fnlttSinglAcntAll 응답에서 3개 기간(당기/전기/전전기)별 컬럼 값 추출.
-    returns {year: {col: value}, year-1: {...}, year-2: {...}}
+def extract_periods(items, year, suffix="12-31", quarterly=False):
+    """fnlttSinglAcntAll 응답 → {report_date(str): {col: value}}
+
+    annual(11011): 3개 기간(당기/전기/전전기) 모두 → y, y-1, y-2 의 12-31
+    quarterly(11012/11013/11014): 당기(thstrm)만 + 재무상태표 항목의 전기말(frmtrm)을
+    (year-1)-12-31 로 기록 (실측: 11012 응답의 BS frmtrm_amount = 직전 회계연도말 값,
+    IS/CF frmtrm_amount 는 None 이라 잘못된 분기 날짜가 생기지 않는다).
     """
-    periods = {year: {}, year - 1: {}, year - 2: {}}
+    periods = {f"{year}-{suffix}": {}}
+    if not quarterly:
+        for y in (year - 1, year - 2):
+            periods[f"{y}-12-31"] = {}
+    prev_yearend = f"{year - 1}-12-31"
+
+    def _f(item, key):
+        raw = item.get(key) or "0"
+        try:
+            return float(str(raw).replace(",", ""))
+        except ValueError:
+            return None
+
     for item in items:
         nm = _norm(item.get("account_nm", ""))
         sj = item.get("sj_div", "")
         col = next((c for n, divs, c in ACCOUNT_MAP_NORM if n == nm and sj in divs), None)
         if col is None:
             continue
-        for py, key in [(year, "thstrm_amount"), (year - 1, "frmtrm_amount"), (year - 2, "bfefrmtrm_amount")]:
-            raw = item.get(key) or "0"
-            try:
-                periods[py][col] = float(str(raw).replace(",", ""))
-            except ValueError:
-                pass
-    return periods
+        if quarterly:
+            v = _f(item, "thstrm_amount")
+            if v is not None:
+                periods[f"{year}-{suffix}"][col] = v
+            if col in BS_COLS:
+                v = _f(item, "frmtrm_amount")
+                if v is not None:
+                    periods.setdefault(prev_yearend, {})[col] = v
+        else:
+            for py, key in [(year, "thstrm_amount"), (year - 1, "frmtrm_amount"),
+                            (year - 2, "bfefrmtrm_amount")]:
+                v = _f(item, key)
+                if v is not None:
+                    periods[f"{py}-12-31"][col] = v
+    return {d: v for d, v in periods.items() if v}
 
 
 def build_rows(stock_code, periods):
-    """periods → financial_statements 행 리스트 (gross_profit 계산 포함)."""
+    """{report_date: {col: value}} → financial_statements 행 리스트 (gross_profit/debt_ratio 계산)."""
     rows = []
-    for y in sorted(periods.keys()):
-        vals = periods[y]
+    for rd in sorted(periods.keys()):
+        vals = periods[rd]
         if not vals:
             continue  # 해당 기간 데이터 없음
-        row = {"stock_code": stock_code, "report_date": f"{y}-12-31"}
+        row = {"stock_code": stock_code, "report_date": rd}
         for col in ("revenue", "operating_profit", "net_income", "total_assets",
                     "total_equity", "total_debt", "operating_cash_flow"):
             row[col] = vals.get(col)
         rev, cost = vals.get("revenue"), vals.get("_cost_of_sales")
-        if rev is not None and cost is not None:
-            row["gross_profit"] = rev - cost
+        gross = (rev - cost) if (rev is not None and cost is not None) else vals.get("_gross_profit")
+        if gross is not None:
+            row["gross_profit"] = gross
         debt, equity = vals.get("total_debt"), vals.get("total_equity")
         if debt is not None and equity and equity > 0:
             row["debt_ratio"] = round(debt / equity * 100.0, 2)  # 스크리너 debt_score용
@@ -215,14 +261,51 @@ def save_rows(conn, rows):
     conn.commit()
 
 
+def fetch_report(fc, code, corp_code, year, reprt_code):
+    """CFS(연결) 우선 → 연결재무제표가 없으면(status 013) OFS(별도)로 폴백.
+
+    실측: 연결 대상이 아닌 소형/외국계 종목은 CFS=013 → OFS 로만 데이터가 온다.
+    returns (data, calls)
+    """
+    used, last = 0, None
+    for fs_div in ("CFS", "OFS"):
+        data = fc._request("fnlttSinglAcntAll.json", {
+            "corp_code": corp_code,
+            "bsns_year": str(year),
+            "reprt_code": reprt_code,
+            "fs_div": fs_div,
+        })
+        used += 1
+        last = data
+        if data and data.get("status") == "000" and data.get("list"):
+            if fs_div == "OFS":
+                log.info("%s: CFS 없음 → OFS(별도) 사용", code)
+            return data, used
+        if not data or data.get("status") != "013":
+            break  # 013(데이터 없음)이 아니면 OFS 재시도는 무의미
+    return last, used
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0, help="처리할 종목 수 제한 (0=전체)")
     ap.add_argument("--dry-run", action="store_true", help="실제 호출 없이 범위/점검만")
-    ap.add_argument("--year", type=int, default=2025, help="기준 연도 (연간보고서 bsns_year)")
+    ap.add_argument("--year", type=int, default=2025, help="기준 연도 (보고서 bsns_year)")
     ap.add_argument("--max-calls", type=int, default=MAX_CALLS_DEFAULT, help="일일 예산")
     ap.add_argument("--codes", default="", help="특정 종목만 처리 (콤마 구분, 테스트용)")
+    ap.add_argument("--reprt-code", default="11011", choices=sorted(REPORT_SUFFIX),
+                    help="11011 사업보고서(연간) / 11012 반기 / 11013 1분기 / 11014 3분기")
+    ap.add_argument("--state-file", default="", help="체크포인트 경로 (기본 data/dart/backfill_state.json)")
+    ap.add_argument("--force", action="store_true",
+                    help="완료/실패 목록과 기존 보유 스킵을 무시하고 재조회 (매출액 누락 보정 등)")
+    ap.add_argument("--skip-after", type=int, default=0,
+                    help="이 보유 행 수 이상이면 스킵 (0=연간 3 / 분기 1)")
     args = ap.parse_args()
+
+    suffix = REPORT_SUFFIX[args.reprt_code]
+    quarterly = args.reprt_code != "11011"
+    state_path = args.state_file or CHECKPOINT
+    skip_threshold = args.skip_after or (1 if quarterly else MIN_ANNUAL_ROWS)
 
     env = load_env()
     key = env.get("DART_API_KEY", "")
@@ -231,7 +314,7 @@ def main():
         sys.exit(1)
 
     mapping = load_mapping()
-    state = load_checkpoint()
+    state = load_checkpoint(state_path)
     fc = FinancialCollector(api_key=key)
 
     conn = db_conn(env)
@@ -246,12 +329,16 @@ def main():
             cur.execute("SELECT stock_code FROM stocks")
             active = {r[0] for r in cur.fetchall()}
             source = "stocks(market_data 미수집)"
-    scope = [c for c in mapping if c in active and c not in state["done"] and c not in state["failed"]]
+    done, failed = set(), set()
+    if not args.force:
+        done, failed = set(state["done"]), set(state["failed"])
+    scope = [c for c in mapping if c in active and c not in done and c not in failed]
     if args.codes:
         scope = [c.strip() for c in args.codes.split(",") if c.strip() in mapping]
         log.info("--codes 지정: %s", scope)
-    log.info(f"스코프: 전체 매핑 {len(mapping)} / 유니버스 {len(active)} ({source}) / 대상 {len(scope)} "
-             f"(완료 {len(state['done'])}, 실패 {len(state['failed'])})")
+    log.info(f"스코프: 매핑 {len(mapping)} / 유니버스 {len(active)} ({source}) / 대상 {len(scope)} "
+             f"(완료 {len(done)}, 실패 {len(failed)}) / reprt={args.reprt_code}({suffix}) year={args.year} "
+             f"force={args.force} state={state_path}")
 
     if args.dry_run:
         log.info("[dry-run] 실행 안 함 — 대상 종목 수: %d, 예상 호출: ~%d, 예상 소요: ~%d분",
@@ -279,13 +366,13 @@ def main():
             time.sleep(CIRCUIT_BREAK_PAUSE)
             consec_fail = 0
 
-        # 이미 3개년 보유한 종목 스킵
+        # 이미 해당 결산기 보유분이 충분한 종목 스킵 (--force 는 무시)
         try:
-            if get_existing_years(conn, code) >= MIN_ANNUAL_ROWS:
+            if not args.force and get_existing_periods(conn, code, suffix) >= skip_threshold:
                 state["done"].append(code)
                 continue
         except Exception as e:
-            log.debug("years 확인 실패 %s: %s", code, e)
+            log.debug("보유 행 확인 실패 %s: %s", code, e)
 
         corp_code = mapping[code]["corp_code"]
 
@@ -294,19 +381,14 @@ def main():
         if wait > 0:
             time.sleep(wait)
 
-        # 호출 + 재시도 (지수 백오프)
+        # 호출 + 재시도 (지수 백오프) — CFS 실패 시 OFS 폴백
         data = None
         for attempt, backoff in enumerate([0] + BACKOFF_STEPS):
             try:
-                data = fc._request("fnlttSinglAcntAll.json", {
-                    "corp_code": corp_code,
-                    "bsns_year": str(args.year),
-                    "reprt_code": "11011",
-                    "fs_div": "CFS",
-                })
-                calls += 1
+                data, used = fetch_report(fc, code, corp_code, args.year, args.reprt_code)
+                calls += used
                 last_request = time.time()
-                if data and data.get("status") == "000":
+                if data and data.get("status") == "000" and data.get("list"):
                     break
                 # status != 000 — 재시도 없이 실패 처리 (API 응답 오류)
                 log.warning("%s: status=%s", code, data.get("status") if data else None)
@@ -326,7 +408,7 @@ def main():
             log.warning("%s: 데이터 없음 (연속실패 %d)", code, consec_fail)
         else:
             consec_fail = 0
-            periods = extract_periods(data["list"], args.year)
+            periods = extract_periods(data["list"], args.year, suffix=suffix, quarterly=quarterly)
             rows = build_rows(code, periods)
             if rows:
                 try:
@@ -347,10 +429,10 @@ def main():
 
         # 100건마다 체크포인트 저장
         if (ok + fail) % 100 == 0:
-            save_checkpoint(state)
+            save_checkpoint(state, state_path)
             log.info("중간 체크포인트: 성공 %d / 실패 %d / 호출 %d", ok, fail, calls)
 
-    save_checkpoint(state)
+    save_checkpoint(state, state_path)
     conn.close()
     log.info("완료: 성공 %d / 실패 %d / 호출 %d / 로그 %s", ok, fail, calls, log_path)
 

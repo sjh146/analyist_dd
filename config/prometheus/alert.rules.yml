@@ -1,0 +1,64 @@
+# DB 신호 특이점 알림 규칙 (data quality signals)
+# Alertmanager 미배포 — 알림은 Prometheus UI(/alerts)·Grafana 에서만 보임.
+# 발송 채널(이메일/슬랙 등)이 필요하면 별도 작업 필요.
+
+groups:
+  - name: db_data_quality
+    rules:
+      - alert: MarketDataStale
+        expr: market_data_freshness_days > 3
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "시장 데이터 신선도 저하: 최신 trade_date 기준 {{ $value }}일 경과"
+
+      - alert: MarketDataDailyRowsDropped
+        expr: |
+          market_data_rows_recent{window="1d"}
+            < 0.7 * avg_over_time(market_data_rows_recent{window="1d"}[7d])
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "시장 데이터 일자별 행수가 7일 평균 대비 30% 이상 급감"
+
+      - alert: MarketDataZeroVolumeRatioHigh
+        expr: market_data_zero_volume_ratio_20d > 0.10
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "거래량 0 비율 과다: 최근 20거래일 {{ $value | humanizePercentage }}"
+
+      - alert: MarketDataFrozenRatioHigh
+        expr: market_data_frozen_ratio_20d > 0.05
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "동결(OHLC+거래량 직전일과 완전 동일) 비율 과다: {{ $value | humanizePercentage }}"
+
+      - alert: TooManyDeadFeatures
+        expr: feature_dead_count > 120
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "죽은 피처(상수 0) 수 과다: {{ $value }}개"
+
+      - alert: StrategyAucTooLow
+        expr: strategy_run_auc < 0.52
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "전략 AUC 저하: tool={{ $labels.tool }}, auc={{ $value }}"
+
+      - alert: PgIdleInTransactionTooLong
+        expr: pg_idle_in_transaction_max_seconds > 1800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "idle-in-transaction 커넥션이 {{ $value }}초 지속 (30분 초과, DDL 락 위험)"

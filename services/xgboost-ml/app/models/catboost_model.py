@@ -23,15 +23,15 @@ except ImportError:
 class CatBoostModel:
     """CatBoost model for stock direction prediction."""
 
-    def __init__(self):
+    def __init__(self, iterations: int = 300, random_state: int = 42):
         self.model = None
         self.feature_names = []
         self.params = {
-            "iterations": 300,
+            "iterations": iterations,
             "depth": 7,
             "learning_rate": 0.05,
             "l2_leaf_reg": 3,
-            "random_seed": 42,
+            "random_seed": random_state,
             "verbose": False,
         }
         self.is_trained = False

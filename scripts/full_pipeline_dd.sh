@@ -263,25 +263,39 @@ run_docker_phase stock_vectorizer /tmp/phase_1_6.py 600
 echo "6" > "$PROGRESS_FILE"
 
 # ==============================================================
-# PHASE 2: ML Training
+# PHASE 2: ML Training — 챔피언 재학습(최신 데이터) + 보호된 승격
 # ==============================================================
+# 왜 바뀌었나: 예전 Phase 2 는 /app/scripts/train_quick.py 를 돌렸는데
+#   ① Trainer 반환값이 7개로 늘어 unpack 크래시(2026-09-23), ② AUC 는 제거된
+#   saved_models/training-result-v15.json 을 읽어 항상 N/A, ③ 학습 결과를
+#   app/models/champion 에 바로 덮어써 10종목 스모크 모델이 라이브 챔피언을
+#   대체할 수 있었다. 이제 후보 디렉터리 학습 → AUC 게이트 승격으로 바꾼다.
 echo ""
-echo "=== Phase 2: ML Training ==="
-run_docker_script stock_xgboost_ml /app/scripts/train_quick.py 1800
-echo "7" > "$PROGRESS_FILE"
-
-# Get AUC from the latest run (v15 is the best known model)
-docker exec -i stock_xgboost_ml sh -c 'cat > /tmp/phase_2_auc.py' << 'PYEOF'
-import sys; sys.path.insert(0, '/app')
-import json
-with open('/app/app/models/saved_models/training-result-v15.json') as f:
-    d = json.load(f)
-print(f'{d["auc"]:.4f}')
-PYEOF
-AUC=$(docker exec stock_xgboost_ml timeout 600 python3 /tmp/phase_2_auc.py 2>/dev/null)
-echo "Best AUC: $AUC"
-docker cp stock_xgboost_ml:/app/app/models/saved_models/training-result-v15.json ./reports/ml_result.json 2>/dev/null
+echo "=== Phase 2: ML Training (champion retrain on latest data) ==="
+CAND_DIR="app/models/champion_cand"
+CHAMP_DIR="app/models/champion"
+# 낡은 후보가 남아 있으면 재학습 실패 시 그대로 승격되어 버린다 → 먼저 비운다
+docker exec stock_xgboost_ml sh -c "rm -rf /app/$CAND_DIR" >> "$LOG_FILE" 2>&1
+# 학습 규모: 최근 데이터 우선 200종목 × 120일(≈1.6만 패널행) ≈ 20~25분
+#   (피처 빌드는 종목-일 쌍당 약 0.085초 — 늘릴 때는 timeout 도 함께 올린다)
+docker exec stock_xgboost_ml timeout 1800 sh -c \
+    "cd /app && python -m app.training.retrain_champion --days 120 --stock-limit 200 --out-dir $CAND_DIR" \
+    >> "$LOG_FILE" 2>&1 < /dev/null
+RC=$?
+if [ "$RC" -ne 0 ]; then
+    echo "  챌린저 학습 실패(exit=$RC) — 챔피언 유지, 승격 생략"
+else
+    # 승격 게이트: 후보 val AUC ≥ 0.55 이고 현 챔피언 이상일 때만 교체 (직전 챔피언은 champion_prev_* 로 백업)
+    docker exec stock_xgboost_ml python -m app.training.champion_promote \
+        --candidate "$CAND_DIR" --champion "$CHAMP_DIR" \
+        --min-auc 0.55 --min-improvement 0.0 \
+        --summary-out app/reports/ml_result.json >> "$LOG_FILE" 2>&1 < /dev/null
+fi
+AUC=$(docker exec stock_xgboost_ml sh -c "cat /app/$CHAMP_DIR/auc.txt" 2>/dev/null | tr -d '\n ')
+echo "Best AUC: ${AUC:-N/A} (live champion)"
+docker cp stock_xgboost_ml:/app/app/reports/ml_result.json ./reports/ml_result.json 2>/dev/null
 echo "  -> reports/ml_result.json"
+echo "7" > "$PROGRESS_FILE"
 
 # ==============================================================
 # PHASE 3: Swing Analysis (All KOSDAQ)

@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Quick validation: train on 10 KOSDAQ stocks x 90 days to verify AUC > 0.5."""
+"""Quick validation: train on 10 KOSDAQ stocks x 180 days to verify AUC > 0.5.
+
+NOTE (2026-09-23): the pipeline's Phase 2 now retrains the real champion via
+``app.training.retrain_champion`` + ``app.training.champion_promote``. This
+script is a smoke test only, so it writes to ``app/models/quick_validation`` and
+must NEVER touch ``app/models/champion`` (an earlier version saved here and
+could silently replace the live champion with a 10-stock model).
+"""
 
 import sys
 import os
@@ -19,6 +26,8 @@ from app.training.trainer import Trainer
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
+
+OUT_DIR = "app/models/quick_validation"
 
 PG_HOST = os.environ.get("POSTGRES_HOST", "127.0.0.1")
 PG_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
@@ -54,12 +63,14 @@ def main():
     logger.info(f"Validation on {len(stock_codes)} KOSDAQ stocks: {stock_codes}")
 
     pipeline = FeaturePipeline(pg_conn=pg)
-    ensemble = EnsembleModel(model_dir="app/models/champion")
+    ensemble = EnsembleModel(model_dir=OUT_DIR)
     trainer = Trainer(storage=None, feature_pipeline=pipeline)
 
     logger.info("Preparing training data (180 days)...")
     result = trainer.prepare_training_data(stock_codes=stock_codes, days=180)
-    X_train, X_val, X_test, y_train, y_val, y_test = result
+    # Trainer returns 7 values — the 7th (available_features) is the exact column
+    # order of X, so the saved contract must come from it, not from a rebuild.
+    X_train, X_val, X_test, y_train, y_val, y_test, available_features = result
 
     if X_train is None:
         logger.error("Training data preparation failed!")
@@ -67,29 +78,15 @@ def main():
 
     n_features = X_train.shape[1]
     logger.info(f"Data ready: {len(X_train)} train, {len(X_val)} val, {len(X_test)} test, {n_features} features")
-
-    feature_names_path = "app/models/champion"
-    feature_names = pipeline.get_feature_names()
-    df = pipeline.build_training_features(
-        stock_codes,
-        (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d"),
-        datetime.now().strftime("%Y-%m-%d"),
-    )
-    if df is not None and not df.empty:
-        available_features = [c for c in feature_names if c in df.columns]
-        X_check = df[available_features].values.astype(np.float32)
-        X_check = np.nan_to_num(X_check, nan=0.0)
-        col_stds = np.std(X_check, axis=0)
-        varying_mask = col_stds > 0
-        varying_features = [f for f, m in zip(available_features, varying_mask) if m]
-        ensemble.save_feature_names(varying_features, feature_names_path)
-        logger.info(f"Saved {len(varying_features)} feature names to {feature_names_path}")
+    logger.info(f"Contract: {len(available_features)} feature names from trainer")
 
     logger.info("Training ensemble...")
     metrics = ensemble.train(X_train, y_train, X_val, y_val)
     logger.info(f"Training metrics: {json.dumps(metrics, indent=2, default=str)}")
 
-    ensemble.save(feature_names_path)
+    ensemble.save_feature_names(available_features, OUT_DIR)
+    ensemble.save(OUT_DIR)
+    logger.info(f"Smoke-test model saved to {OUT_DIR} (champion untouched)")
 
     test_probs = ensemble.predict(X_test)
     test_preds = (test_probs > 0.5).astype(int)

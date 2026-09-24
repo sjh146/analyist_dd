@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 class XGBoostModel:
     """XGBoost model for stock direction prediction."""
 
-    def __init__(self):
+    def __init__(self, n_estimators: int = 800, random_state: int = 42):
         self.model = None
         self.feature_names = []
-        self.n_estimators = 800
+        self.n_estimators = n_estimators
         self.params = {
             "max_depth": 8,
             "learning_rate": 0.05,
@@ -31,7 +31,7 @@ class XGBoostModel:
             "scale_pos_weight": 1.4,
             "objective": "binary:logistic",
             "eval_metric": "auc",
-            "random_state": 42,
+            "random_state": random_state,
         }
         self.is_trained = False
 

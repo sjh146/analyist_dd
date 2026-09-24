@@ -22,6 +22,8 @@ from app.feature_engine.scorer import QualityScorer
 from app.feature_engine.kalman_filter import KalmanFeatureFilter
 from app.feature_engine.bayes_factor_features import BayesFactorFeatures
 from app.feature_engine.news_event_features import NewsEventFeatures
+from app.feature_engine.sns_feature_bundle import SnsFeatureBundle
+from app.feature_engine.sns_feature_bundle import feature_names as sns_feature_names
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,10 @@ class FeaturePipeline:
         self.news_events = NewsEventFeatures()
         self.pg_conn = pg_conn
         self.neo4j_conn = neo4j_conn
+        if self.neo4j_conn is None:
+            # 학습 경로는 neo4j_conn 을 넘기지 않아 그래프 피처(theme/twin/cycle)가
+            # 구조적으로 항상 0 이었다 → env 설정이 있으면 자동 연결한다.
+            self.neo4j_conn = self._connect_neo4j()
         self._cache = {}
         self._cache_ttl = 3600
         self.use_feature_store = use_feature_store
@@ -126,12 +132,25 @@ class FeaturePipeline:
 
         features.update(self.factors.get_all_factors(stock_code, market_df, self.pg_conn))
 
-        features.update(self.company.get_all_features(stock_code, self.pg_conn))
+        features.update(self.company.get_all_features(stock_code, self.pg_conn, str(date)))
 
-        features.update(self.sentiment.get_all_features(stock_code, self.pg_conn))
+        features.update(self.sentiment.get_all_features(stock_code, self.pg_conn, str(date)))
 
         # News event features (market impact, event taxonomy, theme exposure)
-        features.update(self.news_events.get_all_features(stock_code, self.pg_conn))
+        # as-of 시간 정합: date 를 넘겨 그 날짜 기준 윈도우로 계산 (미래 정보 누수 차단).
+        # NewsEventFeatures 는 date 객체를 받는다(_anchor → datetime.combine).
+        _ev_date = datetime.strptime(str(date)[:10], "%Y-%m-%d").date()
+        features.update(self.news_events.get_all_features(stock_code, self.pg_conn, _ev_date))
+
+        # SNS(네이버 종목토론방) 피처 — sns_posts × sns_post_features × market_data.
+        # date 를 넘겨 룩어헤드를 차단한다. 데이터가 없으면 빈 dict(0.0 결측).
+        try:
+            bundle = getattr(self, "_sns_bundle", None)
+            if bundle is None or getattr(bundle, "pg_conn", None) is not self.pg_conn:
+                bundle = self._sns_bundle = SnsFeatureBundle(pg_conn=self.pg_conn)
+            features.update(bundle.load(stock_code, date=str(date)))
+        except Exception as e:
+            logger.debug(f"SNS features failed for {stock_code}: {e}")
 
         # Real sentiment from stock_sentiment table
         sentiment = self._get_stock_sentiment(stock_code, date)
@@ -140,15 +159,15 @@ class FeaturePipeline:
         # Quality score (F-Score from financial data, 0~1)
         features["quality_score"] = self.scorer.get_f_score(stock_code, self.pg_conn)
 
-        features.update(self.macro.get_all_features(self.pg_conn))
+        features.update(self.macro.get_all_features(self.pg_conn, str(date)))
 
         # Economic event features
         economic = self._get_economic_events(date)
         features.update(economic)
 
-        features.update(self.graph.get_graph_features(stock_code, self.neo4j_conn))
+        features.update(self.graph.get_graph_features(stock_code, self.neo4j_conn, str(date)))
 
-        features.update(self.vector.get_vector_features_from_db(stock_code, self.pg_conn))
+        features.update(self.vector.get_vector_features_from_db(stock_code, self.pg_conn, str(date)))
 
         try:
             features.update(self._build_advanced_features(stock_code, date, market_df))
@@ -432,13 +451,16 @@ class FeaturePipeline:
                 logger.debug("sector_momentum unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 2. relative_strength: stock_return / market_return
+        # 2. relative_strength: 초과수익률(종목 − 시장 동일가중)
         features["relative_strength"] = 0.0
         if valid_close and len(close) >= 2:
             stock_ret = close[-1] / close[-2] - 1 if close[-2] != 0 else 0.0
-            # TODO: fetch KOSPI index return from market_index table for accurate market_return
-            market_return = 0.0
-            features["relative_strength"] = float(stock_ret / market_return) if market_return != 0 else 0.0
+            # 지수 테이블이 없으므로 전종목 동일가중 평균 1일 수익률을 시장수익률 프록시로 쓴다.
+            market_return = self._get_market_return(date)
+            if market_return is not None:
+                # 비율(stock/market) 대신 초과수익률(차) — 시장수익률이 0 근처일 때
+                # 분모 폭발을 막고 부호 해석도 그대로 유지된다.
+                features["relative_strength"] = float(stock_ret - market_return)
 
         # 3. market_breadth: fraction of advancing stocks on the same date
         # (advancers / total). Requires the stock_prices table; fallback 0.0.
@@ -450,14 +472,15 @@ class FeaturePipeline:
                     SELECT COUNT(*) FILTER (WHERE close_price > prev_close),
                            COUNT(*)
                     FROM (
-                        SELECT close_price,
+                        SELECT trade_date, close_price,
                                LAG(close_price) OVER (
                                    PARTITION BY stock_code ORDER BY trade_date
                                ) AS prev_close
                         FROM stock_prices
-                        WHERE trade_date = %s
+                        WHERE trade_date <= %s AND trade_date >= %s::date - 14
                     ) t
-                """, (date,))
+                    WHERE trade_date = %s AND prev_close IS NOT NULL
+                """, (date, date, date))
                 row = cur.fetchone()
                 if row and row[1] and row[1] > 0:
                     features["market_breadth"] = float(row[0] / row[1])
@@ -708,16 +731,26 @@ class FeaturePipeline:
                 logger.debug("krx_total_trading_value unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # krx_advance_decline_ratio: net foreign buy / total trading value as proxy
+        # krx_advance_decline_ratio: 실제 ADR (상승종목 / 하락종목)
         features["krx_advance_decline_ratio"] = 0.0
         if self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
                 cur.execute("""
-                    SELECT net_buy, trading_value FROM krx_trading
-                    WHERE trade_date = %s AND market = 'KOSPI' AND investor_type = 'Foreign'
-                    LIMIT 1
-                """, (date,))
+                    WITH r AS (
+                        SELECT stock_code, trade_date, close_price,
+                               LAG(close_price) OVER (
+                                   PARTITION BY stock_code ORDER BY trade_date
+                               ) AS prev_close
+                        FROM stock_prices
+                        WHERE trade_date <= %s AND trade_date >= %s::date - 14
+                    ), d AS (
+                        SELECT * FROM r WHERE trade_date = %s AND prev_close IS NOT NULL
+                    )
+                    SELECT COUNT(*) FILTER (WHERE close_price > prev_close),
+                           COUNT(*) FILTER (WHERE close_price < prev_close)
+                    FROM d
+                """, (date, date, date))
                 row = cur.fetchone()
                 if row and row[1] and row[1] > 0:
                     features["krx_advance_decline_ratio"] = float(row[0] / row[1])
@@ -873,6 +906,65 @@ class FeaturePipeline:
             self.pg_conn.rollback()
         return result
 
+    @staticmethod
+    def _connect_neo4j():
+        """env(NEO4J_URI/USER/PASSWORD)로 Neo4j 드라이버를 만든다. 실패 시 None."""
+        try:
+            from neo4j import GraphDatabase
+
+            from app.config import Config
+
+            uri = getattr(Config, "NEO4J_URI", None)
+            user = getattr(Config, "NEO4J_USER", None)
+            pwd = getattr(Config, "NEO4J_PASSWORD", None)
+            if not uri or not pwd:
+                return None
+            drv = GraphDatabase.driver(uri, auth=(user, pwd))
+            drv.verify_connectivity()
+            logger.info("Neo4j 연결 성공: %s (그래프 피처 활성)", uri)
+            return drv
+        except Exception as e:
+            logger.debug(f"Neo4j 연결 실패, 그래프 피처는 0.0 유지: {e}")
+            return None
+
+    def _get_market_return(self, date: str):
+        """해당 날짜의 전종목 동일가중 평균 1일 수익률 (날짜별 1회 캐시).
+
+        지수 테이블이 없으므로 market_data 기반 프록시를 쓴다. 10일 창 안에서만
+        LAG 를 계산한 뒤 마지막 행(당일)들의 평균을 낸다.
+        """
+        key = ("market_return", str(date))
+        if key in self._cache:
+            return self._cache[key]
+        if self.pg_conn is None:
+            return None
+        val = None
+        try:
+            cur = self.pg_conn.cursor()
+            cur.execute(f"""
+                SELECT AVG(r) FROM (
+                    SELECT (close_price / NULLIF(LAG(close_price) OVER (
+                                PARTITION BY stock_code ORDER BY trade_date), 0)) - 1 AS r,
+                           trade_date
+                    FROM market_data
+                    WHERE trade_date BETWEEN %s::date - INTERVAL '10 days' AND %s::date
+                      AND {MARKET_DATA_VALID}
+                ) t
+                WHERE trade_date = %s::date AND r IS NOT NULL
+            """, (date, date, date))
+            row = cur.fetchone()
+            cur.close()
+            if row and row[0] is not None:
+                val = float(row[0])
+        except Exception:
+            logger.debug("market_return unavailable; relative_strength stays 0.0")
+            try:
+                self.pg_conn.rollback()
+            except Exception:
+                pass
+        self._cache[key] = val
+        return val
+
     def get_feature_names(self) -> List[str]:
         """Return the list of all expected feature names (for model training consistency)."""
         return sorted([
@@ -959,6 +1051,9 @@ class FeaturePipeline:
 
             # Quality score (F-Score, 0~1)
             "quality_score",
+
+            # SNS features (sns_posts × sns_post_features × market_data)
+            *sns_feature_names(),
 
             # News event features (market impact, event taxonomy, theme exposure)
             "market_impact_score",

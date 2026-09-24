@@ -3,6 +3,8 @@ Fundamental Vectorizer
 Creates embeddings from fundamental stock data.
 """
 
+import hashlib
+
 import numpy as np
 from typing import Dict
 
@@ -30,8 +32,11 @@ class FundamentalVectorizer:
         features.append(np.log1p(market_cap) / 30.0)  # Normalize
 
         # 2. Sector one-hot-like encoding via hashing
-        sector = stock_data.get("sector", "Unknown")
-        sector_hash = hash(sector) % 50
+        # 실측 수정(2026-09-24): 파이썬 내장 hash() 는 프로세스마다 솔트가 달라져
+        # (PYTHONHASHSEED 무작위) 재실행할 때마다 같은 섹터가 다른 버킷에 들어갔다.
+        # 임베딩이 실행마다 달라지면 유사도 피처가 임의 노이즈가 되므로 안정 해시를 쓴다.
+        sector = stock_data.get("sector") or "Unknown"
+        sector_hash = int(hashlib.md5(str(sector).encode("utf-8")).hexdigest(), 16) % 50
         sector_encoding = np.zeros(50)
         sector_encoding[sector_hash] = 1.0
         features.extend(sector_encoding.tolist())

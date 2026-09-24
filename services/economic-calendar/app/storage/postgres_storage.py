@@ -38,6 +38,20 @@ class PostgresStorage:
                         UNIQUE(event_date, country, title)
                     )
                 """)
+                # 기존 배포 DB 는 source 컬럼/유니크 제약 없이 만들어져 있었다(실측 2026-09-24:
+                # 컬럼 부재 → save_events 가 전부 실패해 economic_events 가 0행이었다).
+                # CREATE TABLE IF NOT EXISTS 는 기존 테이블을 고치지 않으므로 자가 복구한다.
+                cur.execute("ALTER TABLE economic_events ADD COLUMN IF NOT EXISTS source VARCHAR(50)")
+                cur.execute("""
+                    DO $$ BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                                       WHERE conname = 'economic_events_event_date_country_title_key') THEN
+                            ALTER TABLE economic_events
+                              ADD CONSTRAINT economic_events_event_date_country_title_key
+                              UNIQUE (event_date, country, title);
+                        END IF;
+                    END $$;
+                """)
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_economic_events_date
                     ON economic_events(event_date)
