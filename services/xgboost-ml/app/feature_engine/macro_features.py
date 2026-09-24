@@ -52,6 +52,7 @@ READER_INDICATORS = (BASE_RATE, USD_KRW, WTI, CPI, PPI, GOV_3Y, CORP_3Y)
 # Lookback windows (calendar days) for the change-rate features.
 _ONE_MONTH = 30
 _THREE_MONTHS = 90
+_TWELVE_MONTHS = 365  # YoY(전년동월비) 계산용
 
 # Default series-cache lifetime in seconds; 0 disables expiry (manual only).
 DEFAULT_CACHE_TTL = 300.0
@@ -262,12 +263,18 @@ class MacroFeatures:
         put("oil_change_1m", self._pct_change(series, WTI, asof, _ONE_MONTH))
         put("oil_change_3m", self._pct_change(series, WTI, asof, _THREE_MONTHS))
 
-        put("cpi_yoy", self._anchor(series, CPI, asof, 0))
-        put("ppi_yoy", self._anchor(series, PPI, asof, 0))
+        # YoY 는 **증감률**이어야 한다. 종전엔 지수 레벨을 그대로 넣어(실측 2026-09-24:
+        # cpi_yoy=120.05, ppi_yoy=129.64) 이름과 값이 불일치하고, 비정상(non-stationary)
+        # 시계열이라 모델에는 시간 추세로만 작동한다.
+        put("cpi_yoy", self._pct_change(series, CPI, asof, _TWELVE_MONTHS))
+        put("ppi_yoy", self._pct_change(series, PPI, asof, _TWELVE_MONTHS))
 
         gov = self._anchor(series, GOV_3Y, asof, 0)
-        if gov is not None:
-            put("yield_spread", gov - 3.5)
+        base = self._anchor(series, BASE_RATE, asof, 0)
+        if gov is not None and base is not None:
+            # 장단기/정책금리 스프레드(국고채3년 − 기준금리). 종전엔 하드코딩 상수 3.5 를
+            # 기준선으로 써서 실질적으로 레벨을 그대로 넣는 것과 같았다.
+            put("yield_spread", gov - base)
         corp = self._anchor(series, CORP_3Y, asof, 0)
         if corp is not None and gov is not None:
             put("credit_spread", corp - gov)

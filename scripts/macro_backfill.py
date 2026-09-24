@@ -93,13 +93,16 @@ FRED_CROSS: Dict[str, Tuple[str, float]] = {
 }
 FRED_BASE_FX_SERIES = "DEXKOUS"
 
-# ECOS (Bank of Korea) codes — same table the yfinance-collector macro_collector.py uses.
+# ECOS (Bank of Korea) codes — 실측 확인(2026-09-24, 실제 응답으로 검증).
+#   주의: 시장금리(일별)는 817Y002 이고 국고채/회사채가 **같은 표의 다른 ITEM** 이다.
+#   종전 값(721Y001/0102000 등)은 존재하지 않는 조합 → "INFO-200 데이터 없음" 으로
+#   조용히 실패했다. PPI 는 404Y014 의 총지수(*AA)다.
 ECOS_INDICATORS: Dict[str, Tuple[str, str, str]] = {
     "기준금리": ("722Y001", "D", "0101000"),
-    "국고채3년": ("721Y001", "D", "0102000"),
-    "회사채3년": ("721Y001", "D", "0103000"),
+    "국고채3년": ("817Y002", "D", "010200000"),
+    "회사채3년": ("817Y002", "D", "010300000"),
     "CPI": ("901Y009", "M", "0"),
-    "PPI": ("901Y010", "M", "0"),
+    "PPI": ("404Y014", "M", "*AA"),
 }
 
 LOG_PREFIX = "[macro_backfill]"
@@ -215,7 +218,10 @@ def ecos_api_key() -> str:
 def fetch_ecos_series(start: date, end: date, api_key: str, stat_code: str, cycle: str, item: str):
     """One ECOS StatisticSearch call. Raises RuntimeError with the ECOS RESULT code on failure."""
     fmt = "%Y%m%d" if cycle == "D" else "%Y%m"
-    url = (f"{ECOS_BASE_URL}/{urllib.parse.quote(api_key)}/json/kr/1/1000/"
+    # ECOS 경로에는 `StatisticSearch` 세그먼트가 **반드시** 있어야 한다. 빠지면
+    # 게이트웨이가 HTTP 404(빈 본문)를 돌려주고, 코드는 그걸 "키 무효"로 오인한다
+    # (실측 2026-09-24: 정상 키로도 5개 시리즈 전부 HTTP 404 → 세그먼트 추가로 해결).
+    url = (f"{ECOS_BASE_URL}/StatisticSearch/{urllib.parse.quote(api_key)}/json/kr/1/1000/"
            f"{stat_code}/{cycle}/{start.strftime(fmt)}/{end.strftime(fmt)}/{item}")
     payload = json.loads(http_get(url).decode("utf-8", "replace"))
     if "StatisticSearch" not in payload:
@@ -249,10 +255,22 @@ def build_ecos_series(start: date, end: date, wanted: Optional[Iterable[str]]):
         if wanted is not None and name not in wanted:
             continue
         try:
-            series = fetch_ecos_series(start, end, key, stat_code, cycle, item)
+            # 한 번에 1000행까지만 온다(요청 상한). 일별 시리즈는 3년치가 1000영업일을
+            # 넘어 **최근 구간이 잘린다**(실측: 2023-09~2026-06 에서 끊김 — 가장 중요한
+            # 최신 값이 사라진다). 연 단위로 나눠 호출해 병합한다.
+            series: Dict[date, float] = {}
+            if cycle == "D":
+                chunk_start = date(start.year, 1, 1)
+                while chunk_start <= end:
+                    chunk_end = min(date(chunk_start.year, 12, 31), end)
+                    series.update(fetch_ecos_series(chunk_start, chunk_end, key, stat_code, cycle, item))
+                    chunk_start = date(chunk_start.year + 1, 1, 1)
+            else:
+                series = fetch_ecos_series(start, end, key, stat_code, cycle, item)
             if series:
                 results[name] = series
-                log(f"ECOS {name}: {len(series)} obs")
+                log(f"ECOS {name}: {len(series)} obs "
+                    f"({min(series):%Y-%m-%d} .. {max(series):%Y-%m-%d})")
             else:
                 failures.append(f"ECOS {name}: empty StatisticSearch rows")
         except urllib.error.HTTPError as exc:
