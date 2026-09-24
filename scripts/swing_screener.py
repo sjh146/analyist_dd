@@ -57,20 +57,47 @@ def get_pg_conn():
     )
 
 
-def get_kosdaq_stocks(pg_conn):
-    """Get all KOSDAQ stocks with sufficient market data."""
+def get_kosdaq_stocks(pg_conn, top_liquidity=300, liq_days=20):
+    """KOSDAQ 종목 — 품질·신선도·유동성 필터를 모두 통과한 것만.
+
+    필터 이유(모두 실측 2026-09-24):
+      * **유동성 상위 N**: 저유동·저데이터 종목은 피처가 대부분 0 이라 모델 출력이
+        상수(실측 0.5122)로 붕괴하고, 그 상수값이 confidence 정렬 상위를 독차지해
+        후보 20건이 전부 같은 값이 된다 → 선별이 무의미해진다.
+      * **신선도**: 거래정지·상폐대기 종목(예: 마지막 시세가 수개월 전)이 섞이면
+        같은 붕괴가 생긴다(SPAC 실측).
+      * **SPAC 제외**: 방향성 신호가 없는 껍데기 상장사.
+    """
     cur = pg_conn.cursor()
     cur.execute("""
-        SELECT s.stock_code, s.stock_name, COALESCE(s.sector, 'Unknown') as sector,
-               MAX(md.trade_date) as latest_date
+        WITH recent AS (
+            SELECT stock_code, AVG(trading_value) AS avg_tv, COUNT(*) AS n
+            FROM (
+                SELECT stock_code, trade_date, trading_value,
+                       ROW_NUMBER() OVER (PARTITION BY stock_code
+                                          ORDER BY trade_date DESC) AS rn
+                FROM market_data
+                WHERE trading_value IS NOT NULL
+            ) t
+            WHERE rn <= %s
+            GROUP BY stock_code
+        )
+        SELECT s.stock_code, s.stock_name, COALESCE(s.sector, 'Unknown') AS sector,
+               MAX(md.trade_date) AS latest_date
         FROM stocks s
         JOIN market_data md ON s.stock_code = md.stock_code
+        JOIN recent r ON r.stock_code = s.stock_code
         WHERE s.market = 'KOSDAQ'
           AND s.instrument_type = 'STOCK'
-        GROUP BY s.stock_code, s.stock_name, s.sector
+          AND s.stock_name NOT LIKE '%%스팩%%'
+          AND s.stock_name NOT LIKE '%%기업인수목적%%'
+          AND r.n >= 10
+        GROUP BY s.stock_code, s.stock_name, s.sector, r.avg_tv
         HAVING COUNT(*) >= 20
-        ORDER BY s.stock_code
-    """)
+           AND MAX(md.trade_date) >= (SELECT max(trade_date) - 7 FROM market_data)
+        ORDER BY r.avg_tv DESC
+        LIMIT %s
+    """, (liq_days, top_liquidity))
     rows = cur.fetchall()
     cur.close()
     return rows  # [(code, name, sector, latest_date), ...]

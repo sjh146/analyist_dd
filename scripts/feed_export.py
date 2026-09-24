@@ -191,7 +191,17 @@ def main(argv=None):
     ap.add_argument("--max-source-age-days", type=float, default=3.0,
                     help="스크리너 산출물이 이보다 오래되면 해당 전략을 비워 발행(기본 3일)")
     ap.add_argument("--allow-degenerate-scores", action="store_true",
-                    help="점수 퇴화(대부분 동일값) 목록도 그대로 발행 — 기본은 안전하게 비운다")
+                    help="점수 퇴화(대부분 동일값) 항목도 그대로 발행")
+    ap.add_argument("--max-items", type=int, default=20,
+                    help="전략별 발행 상위 N (점수 내림차순, 기본 20)")
+    ap.add_argument("--min-items", type=int, default=3,
+                    help="퇴화 항목 제거 후 이보다 적으면 그 전략을 비운다(기본 3)")
+    ap.add_argument("--degenerate-ratio", type=float, default=0.8,
+                    help="한 점수가 이 비율 이상을 차지하면 퇴화로 보고 그 항목만 제외(기본 0.8)")
+    ap.add_argument("--min-swing-confidence", type=float, default=0.5,
+                    help="swing 후보의 최소 confidence (기본 0.5). 모델이 하락 우위로 평가한"
+                         " 종목(확률<0.5)을 매수하지 않도록 기본값에서 잘라낸다."
+                         " 0 으로 두면 필터 없음.")
     args = ap.parse_args(argv)
 
     sources = {"close": args.close, "swing": args.swing}
@@ -237,18 +247,42 @@ def main(argv=None):
     candidates = {}
     for key in ("close", "swing"):
         items = build_items(key, payloads.get(key, {}), prev_closes) if key in payloads else []
-        # 점수 퇴화 가드: 후보 대부분이 같은 점수면 선별이 무작위가 된다(계약 §5 안티패턴).
-        # trader-agent 는 min_score 만 보고 상위 N 을 집행하므로, 그런 목록은 발행하지 않는다.
+        # 순위 기반 선별 (모델 확률이 0.5 근처에 몰려 절대 임계값이 무의미한 구간 대응):
+        # 점수 내림차순 정렬 후 상위 N 만 발행한다. 스크리너가 이미 정렬해 주지만 여기서
+        # 다시 보장한다(계약: trader-agent 는 순서를 신뢰하고 상위 N 을 집행).
+        if items:
+            items.sort(key=lambda i: i["score"], reverse=True)
+            items = items[: args.max_items]
+        # 점수 퇴화 가드: 한 점수가 대부분을 차지하면 '그 항목만' 제외한다.
+        # (예전에는 전략 전체를 비웠는데, 그러면 살아있는 소수 후보까지 사라진다.
+        #  실측 2026-09-24: swing 20건 중 17건이 동일값 → 전략이 통째로 비어 거래 기회 0.)
         if items and not args.allow_degenerate_scores:
             scores = [i["score"] for i in items]
             modal = max(set(scores), key=scores.count)
             same = sum(1 for s in scores if s == modal)
-            if len(items) >= 5 and same / len(items) >= 0.8:
+            if len(items) >= 5 and same / len(items) >= args.degenerate_ratio:
+                kept = [i for i in items if i["score"] != modal]
                 logger.warning(
-                    "[%s] 점수 퇴화 — %d/%d건이 동일값 %.2f → 이 전략은 빈 리스트로 발행 "
-                    "(모델 배치 미연결 등 대체 경로 의심. --allow-degenerate-scores 로 강제 발행)",
-                    key, same, len(items), modal)
-                items = []
+                    "[%s] 점수 퇴화 — %d/%d건이 동일값 %.2f → 그 항목만 제외하고 %d건 발행",
+                    key, same, len(items), modal, len(kept))
+                items = kept
+        # swing 품질 게이트: 모델이 하락 우위로 평가한 후보(confidence < 문턱)는
+        # 매수 대상이 아니다. (실측 2026-09-24: swing 20건 전부 0.40~0.43 —
+        #  순위만으로는 '가장 덜 약세'인 종목이 뽑혀 매수 신호로 오해된다.)
+        if key == "swing" and items and args.min_swing_confidence > 0:
+            thr = args.min_swing_confidence
+            kept = [i for i in items
+                    if i.get("confidence") is None or float(i["confidence"]) >= thr]
+            dropped = len(items) - len(kept)
+            if dropped:
+                logger.info("[swing] confidence < %.2f 후보 %d건 제외 (매수 대상 아님)",
+                            thr, dropped)
+            items = kept
+        if items and not args.allow_degenerate_scores and len(items) < args.min_items:
+            logger.warning(
+                "[%s] 유효 후보 %d건(< 최소 %d건) → 이 전략은 빈 리스트로 발행",
+                key, len(items), args.min_items)
+            items = []
         candidates[key] = {"items": items}
 
     feed = {

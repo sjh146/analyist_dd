@@ -4,13 +4,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$PROJECT_DIR/.omo/evidence"
+# 로그 디렉터리를 **먼저** 만든다. (없으면 아래 find -delete 가 exit 1 → set -e 로
+# 스크립트가 즉시 종료해 08:30 스윙 크론이 아무 일도 안 하고 끝난다. 실측 2026-09-24)
+mkdir -p "$LOG_DIR" "$PROJECT_DIR/data/reports"
 # 로그 로테이션: 14일 이상 스윙 로그 삭제 + 최근 10개만 유지
-find "$LOG_DIR" -maxdepth 1 -type f -name "swing-pipeline-*.log" -mtime +14 -delete 2>/dev/null
-ls -1t "$LOG_DIR"/swing-pipeline-*.log 2>/dev/null | tail -n +11 | xargs -r rm -f 2>/dev/null
+if [ -d "$LOG_DIR" ]; then
+    find "$LOG_DIR" -maxdepth 1 -type f -name "swing-pipeline-*.log" -mtime +14 -delete 2>/dev/null || true
+    ls -1t "$LOG_DIR"/swing-pipeline-*.log 2>/dev/null | tail -n +11 | xargs -r rm -f 2>/dev/null || true
+fi
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="$LOG_DIR/swing-pipeline-$TIMESTAMP.log"
 REPORT_DIR="$PROJECT_DIR/data/reports"
-mkdir -p "$LOG_DIR" "$REPORT_DIR"
 
 echo "=== Swing Pipeline Start: $(date) ===" | tee -a "$LOG_FILE"
 PIPELINE_STATUS=0
@@ -64,19 +68,18 @@ else
     echo "  ⚠ ML inference issue (model may not be trained)" | tee -a "$LOG_FILE"
 fi
 
-# Step 6: Swing screener
-echo "[6/6] Running swing screener..." | tee -a "$LOG_FILE"
+# Step 6: Swing screener — job-runner 컨테이너에서 실행한다.
+# (이전 구현은 `docker-compose exec` 로 스크리너를 돌리고 CSV 만 복사했는데,
+#  ① compose 호출이 실패하면 set -e 로 스크립트가 그 자리에서 죽고(실측 exit 1)
+#  ② 정작 피드가 읽는 reports/swing_latest.json 이 갱신되지 않았다.
+#  job-runner 의 run_swing_job.py 는 스크리너 실행 + swing_latest.json 기록을 모두 한다.)
+echo "[6/6] Running swing screener (job-runner)..." | tee -a "$LOG_FILE"
 OUTPUT_FILE="$REPORT_DIR/swing_candidates_$TIMESTAMP.csv"
-# 호스트 python3에는 pandas 등 의존성이 없어 xgboost-ml 컨테이너에서 실행
-docker cp "$SCRIPT_DIR/swing_screener.py" stock_xgboost_ml:/app/scripts/swing_screener.py 2>/dev/null
-docker-compose exec -T xgboost-ml sh -c '
-  mkdir -p /app/scripts /app/services
-  ln -sfn /app /app/services/xgboost-ml
-' 2>/dev/null
-if docker-compose exec -T xgboost-ml python /app/scripts/swing_screener.py \
-    --include-krx-data --include-economic-events --output /tmp/swing_out.csv 2>/dev/null; then
-    docker cp stock_xgboost_ml:/tmp/swing_out.csv "$OUTPUT_FILE" 2>/dev/null
-    echo "  ✓ Screener complete: $(wc -l < "$OUTPUT_FILE" 2>/dev/null || echo 0) candidates" | tee -a "$LOG_FILE"
+if docker exec stock_job_runner sh -c \
+     'cd /app && REPORTS_DIR=/app/reports python /app/app/scripts/run_swing_job.py' \
+     >> "$LOG_FILE" 2>&1; then
+    cp -f "$PROJECT_DIR/reports/swing_latest.json" "$OUTPUT_FILE" 2>/dev/null || true
+    echo "  ✓ Screener complete: reports/swing_latest.json 갱신" | tee -a "$LOG_FILE"
 else
     echo "  ⚠ Screener issue" | tee -a "$LOG_FILE"
     PIPELINE_STATUS=1

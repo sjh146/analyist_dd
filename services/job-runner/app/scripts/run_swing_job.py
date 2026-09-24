@@ -37,7 +37,9 @@ def _direction(c: dict) -> str:
     d = str(c.get("dir", "")).lower()
     if d in ("up", "down"):
         return d
-    return "up" if c.get("prob", 0.5) >= 0.5 else "down"
+    # CSV 는 confidence(0~1) 를 쓴다 — 없는 키 'prob' 를 보면 항상 'up' 이 된다.
+    conf = c.get("confidence", c.get("prob"))
+    return "up" if (conf if conf is not None else 0.5) >= 0.5 else "down"
 
 
 def main():
