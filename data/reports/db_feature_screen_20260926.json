@@ -1,0 +1,459 @@
+{
+ "panel": {
+  "file": "panel_420_asofpatch.npz",
+  "rows": 13609,
+  "codes": 49,
+  "from": "2025-07-31",
+  "to": "2026-09-23"
+ },
+ "features": {
+  "supply_market_features.institution_net_buy": {
+   "coverage": 0.9472,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4932,
+   "xs_ic_mean": -0.0061,
+   "xs_ic_t": -0.72,
+   "n_ic_dates": 270
+  },
+  "supply_market_features.institution_net_buy_5d": {
+   "coverage": 0.9472,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4951,
+   "xs_ic_mean": 0.0001,
+   "xs_ic_t": 0.01,
+   "n_ic_dates": 270
+  },
+  "supply_market_features.foreign_net_buy": {
+   "coverage": 0.9472,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4967,
+   "xs_ic_mean": -0.0027,
+   "xs_ic_t": -0.31,
+   "n_ic_dates": 270
+  },
+  "supply_market_features.foreign_net_buy_5d": {
+   "coverage": 0.9472,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4983,
+   "xs_ic_mean": 0.0034,
+   "xs_ic_t": 0.38,
+   "n_ic_dates": 270
+  },
+  "supply_market_features.foreign_ownership_pct": {
+   "coverage": 0.0012,
+   "stock_const_ratio": 1.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": null,
+   "xs_ic_mean": 0.1495,
+   "xs_ic_t": null,
+   "n_ic_dates": 1
+  },
+  "supply_market_features.institution_ownership_pct": {
+   "coverage": 0.0,
+   "stock_const_ratio": 1.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": null,
+   "xs_ic_mean": null,
+   "xs_ic_t": null,
+   "n_ic_dates": 0
+  },
+  "supply_market_features.retail_ownership_pct": {
+   "coverage": 0.0012,
+   "stock_const_ratio": 1.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": null,
+   "xs_ic_mean": -0.1495,
+   "xs_ic_t": null,
+   "n_ic_dates": 1
+  },
+  "supply_market_features.short_interest_ratio": {
+   "coverage": 0.0,
+   "stock_const_ratio": 1.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": null,
+   "xs_ic_mean": null,
+   "xs_ic_t": null,
+   "n_ic_dates": 0
+  },
+  "supply_market_features.short_selling_ratio": {
+   "coverage": 0.0062,
+   "stock_const_ratio": 0.9796,
+   "market_level_rate": 0.0,
+   "single_feature_auc": null,
+   "xs_ic_mean": null,
+   "xs_ic_t": null,
+   "n_ic_dates": 0
+  },
+  "supply_market_features.days_to_cover": {
+   "coverage": 0.0,
+   "stock_const_ratio": 1.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": null,
+   "xs_ic_mean": null,
+   "xs_ic_t": null,
+   "n_ic_dates": 0
+  },
+  "supply_market_features.momentum_3_12m": {
+   "coverage": 0.2115,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4893,
+   "xs_ic_mean": -0.018,
+   "xs_ic_t": -0.85,
+   "n_ic_dates": 62
+  },
+  "supply_market_features.momentum_ni": {
+   "coverage": 0.7322,
+   "stock_const_ratio": 0.3061,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.5039,
+   "xs_ic_mean": 0.0078,
+   "xs_ic_t": 0.77,
+   "n_ic_dates": 281
+  },
+  "supply_market_features.momentum_op": {
+   "coverage": 0.825,
+   "stock_const_ratio": 0.1633,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.501,
+   "xs_ic_mean": 0.0004,
+   "xs_ic_t": 0.04,
+   "n_ic_dates": 281
+  },
+  "supply_market_features.krx_advance_decline_ratio": {
+   "coverage": 1.0,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 1.0,
+   "single_feature_auc": 0.5009,
+   "xs_ic_mean": null,
+   "xs_ic_t": null,
+   "n_ic_dates": 0
+  },
+  "supply_market_features.krx_total_trading_value": {
+   "coverage": 0.8812,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 1.0,
+   "single_feature_auc": 0.4898,
+   "xs_ic_mean": null,
+   "xs_ic_t": null,
+   "n_ic_dates": 0
+  },
+  "supply_market_features.market_breadth": {
+   "coverage": 1.0,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 1.0,
+   "single_feature_auc": 0.501,
+   "xs_ic_mean": null,
+   "xs_ic_t": null,
+   "n_ic_dates": 0
+  },
+  "supply_market_features.market_impact_score": {
+   "coverage": 0.073,
+   "stock_const_ratio": 0.1224,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4882,
+   "xs_ic_mean": -0.0072,
+   "xs_ic_t": -0.13,
+   "n_ic_dates": 27
+  },
+  "supply_market_features.relative_strength": {
+   "coverage": 1.0,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4986,
+   "xs_ic_mean": 0.0014,
+   "xs_ic_t": 0.17,
+   "n_ic_dates": 281
+  },
+  "supply_market_features.bb_position": {
+   "coverage": 1.0,
+   "stock_const_ratio": 0.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.5003,
+   "xs_ic_mean": 0.0116,
+   "xs_ic_t": 1.26,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.value_per": {
+   "coverage": 0.7678,
+   "stock_const_ratio": 0.102,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.5015,
+   "xs_ic_mean": -0.0059,
+   "xs_ic_t": -0.56,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.value_pbr": {
+   "coverage": 0.96,
+   "stock_const_ratio": 0.0408,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4897,
+   "xs_ic_mean": -0.0202,
+   "xs_ic_t": -2.23,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.value_psr": {
+   "coverage": 0.9431,
+   "stock_const_ratio": 0.0612,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4954,
+   "xs_ic_mean": -0.009,
+   "xs_ic_t": -0.93,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.value_pcr": {
+   "coverage": 0.7039,
+   "stock_const_ratio": 0.1633,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4937,
+   "xs_ic_mean": -0.0074,
+   "xs_ic_t": -0.63,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.value_ncav": {
+   "coverage": 0.0,
+   "stock_const_ratio": 1.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": null,
+   "xs_ic_mean": null,
+   "xs_ic_t": null,
+   "n_ic_dates": 0
+  },
+  "financial_ratio_features.value_ev_ebit": {
+   "coverage": 0.8601,
+   "stock_const_ratio": 0.0612,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4981,
+   "xs_ic_mean": -0.0126,
+   "xs_ic_t": -1.23,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.value_pfcr": {
+   "coverage": 0.4875,
+   "stock_const_ratio": 0.2245,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4947,
+   "xs_ic_mean": -0.0052,
+   "xs_ic_t": -0.38,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.quality_cp_to_assets": {
+   "coverage": 0.8855,
+   "stock_const_ratio": 0.1224,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4954,
+   "xs_ic_mean": -0.0072,
+   "xs_ic_t": -0.78,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.quality_op_to_equity": {
+   "coverage": 0.958,
+   "stock_const_ratio": 0.0408,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4993,
+   "xs_ic_mean": -0.0035,
+   "xs_ic_t": -0.38,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.quality_roe": {
+   "coverage": 0.958,
+   "stock_const_ratio": 0.0408,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4996,
+   "xs_ic_mean": -0.0031,
+   "xs_ic_t": -0.34,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.quality_roa": {
+   "coverage": 0.9786,
+   "stock_const_ratio": 0.0204,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.5003,
+   "xs_ic_mean": -0.0032,
+   "xs_ic_t": -0.36,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.quality_f_score": {
+   "coverage": 1.0,
+   "stock_const_ratio": 0.102,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4931,
+   "xs_ic_mean": -0.0165,
+   "xs_ic_t": -1.99,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.quality_asset_growth": {
+   "coverage": 0.9011,
+   "stock_const_ratio": 0.0408,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4986,
+   "xs_ic_mean": -0.0033,
+   "xs_ic_t": -0.32,
+   "n_ic_dates": 253
+  },
+  "financial_ratio_features.quality_debt_ratio_change": {
+   "coverage": 0.8825,
+   "stock_const_ratio": 0.0612,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.5072,
+   "xs_ic_mean": 0.0152,
+   "xs_ic_t": 1.49,
+   "n_ic_dates": 253
+  },
+  "financial_ratio_features.quality_op_growth": {
+   "coverage": 0.7243,
+   "stock_const_ratio": 0.2653,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.5017,
+   "xs_ic_mean": -0.0018,
+   "xs_ic_t": -0.17,
+   "n_ic_dates": 253
+  },
+  "financial_ratio_features.quality_earnings_volatility": {
+   "coverage": 0.3371,
+   "stock_const_ratio": 1.0,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4976,
+   "xs_ic_mean": -0.0059,
+   "xs_ic_t": -0.39,
+   "n_ic_dates": 104
+  },
+  "financial_ratio_features.roe": {
+   "coverage": 0.958,
+   "stock_const_ratio": 0.0408,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4996,
+   "xs_ic_mean": -0.0031,
+   "xs_ic_t": -0.34,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.per_current": {
+   "coverage": 0.7678,
+   "stock_const_ratio": 0.102,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.5015,
+   "xs_ic_mean": -0.0059,
+   "xs_ic_t": -0.56,
+   "n_ic_dates": 281
+  },
+  "financial_ratio_features.pbr_current": {
+   "coverage": 0.96,
+   "stock_const_ratio": 0.0408,
+   "market_level_rate": 0.0,
+   "single_feature_auc": 0.4897,
+   "xs_ic_mean": -0.0202,
+   "xs_ic_t": -2.23,
+   "n_ic_dates": 281
+  }
+ },
+ "asof": {
+  "financial_ratio_features": {
+   "matched_rows": 13154,
+   "rcept_dt_gt_trade_date": 0,
+   "verdict": "위반 0 — as-of 준수"
+  }
+ },
+ "summary": {
+  "n_features": 38,
+  "n_scored": 31,
+  "auc_min": 0.4882,
+  "auc_max": 0.5072,
+  "auc_mean": 0.4972,
+  "auc_ge_0_55": [],
+  "ic_top10": [
+   {
+    "feature": "supply_market_features.foreign_ownership_pct",
+    "xs_ic_mean": 0.1495,
+    "xs_ic_t": null,
+    "n_dates": 1
+   },
+   {
+    "feature": "supply_market_features.retail_ownership_pct",
+    "xs_ic_mean": -0.1495,
+    "xs_ic_t": null,
+    "n_dates": 1
+   },
+   {
+    "feature": "financial_ratio_features.value_pbr",
+    "xs_ic_mean": -0.0202,
+    "xs_ic_t": -2.23,
+    "n_dates": 281
+   },
+   {
+    "feature": "financial_ratio_features.pbr_current",
+    "xs_ic_mean": -0.0202,
+    "xs_ic_t": -2.23,
+    "n_dates": 281
+   },
+   {
+    "feature": "supply_market_features.momentum_3_12m",
+    "xs_ic_mean": -0.018,
+    "xs_ic_t": -0.85,
+    "n_dates": 62
+   },
+   {
+    "feature": "financial_ratio_features.quality_f_score",
+    "xs_ic_mean": -0.0165,
+    "xs_ic_t": -1.99,
+    "n_dates": 281
+   },
+   {
+    "feature": "financial_ratio_features.quality_debt_ratio_change",
+    "xs_ic_mean": 0.0152,
+    "xs_ic_t": 1.49,
+    "n_dates": 253
+   },
+   {
+    "feature": "financial_ratio_features.value_ev_ebit",
+    "xs_ic_mean": -0.0126,
+    "xs_ic_t": -1.23,
+    "n_dates": 281
+   },
+   {
+    "feature": "supply_market_features.bb_position",
+    "xs_ic_mean": 0.0116,
+    "xs_ic_t": 1.26,
+    "n_dates": 281
+   },
+   {
+    "feature": "financial_ratio_features.value_psr",
+    "xs_ic_mean": -0.009,
+    "xs_ic_t": -0.93,
+    "n_dates": 281
+   }
+  ],
+  "ic_abs_t_ge_2": [
+   "financial_ratio_features.value_pbr",
+   "financial_ratio_features.pbr_current"
+  ],
+  "leak_auc_gt_075": [],
+  "market_level_ge_090": [
+   "supply_market_features.krx_advance_decline_ratio",
+   "supply_market_features.krx_total_trading_value",
+   "supply_market_features.market_breadth"
+  ],
+  "stock_const_gt_050": [
+   "financial_ratio_features.quality_earnings_volatility",
+   "financial_ratio_features.value_ncav",
+   "supply_market_features.days_to_cover",
+   "supply_market_features.foreign_ownership_pct",
+   "supply_market_features.institution_ownership_pct",
+   "supply_market_features.retail_ownership_pct",
+   "supply_market_features.short_interest_ratio",
+   "supply_market_features.short_selling_ratio"
+  ],
+  "dead_coverage_lt_005": [
+   "financial_ratio_features.value_ncav",
+   "supply_market_features.days_to_cover",
+   "supply_market_features.foreign_ownership_pct",
+   "supply_market_features.institution_ownership_pct",
+   "supply_market_features.retail_ownership_pct",
+   "supply_market_features.short_interest_ratio",
+   "supply_market_features.short_selling_ratio"
+  ]
+ }
+}

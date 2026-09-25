@@ -131,6 +131,29 @@ CONFIGS = [
     {"id": "CO_core30_h8", "kind": "quantile", "horizon": 8, "q": 0.30, "select": "top30",
      "core_only": True,
      "desc": "core30 + h8 — 게이트×호라이즌 상호작용 확인"},
+    # ── 데이터 축 A/B: 부활 이벤트 피처 가산효과 (2026-09-26, L3 준비) ────────────
+    # panel_420_asofpatch_ev.npz 는 기준선 패널과 **행이 비트 동일**하고(13,609행·날짜·종목·
+    # 가격 동일, 공유 210컬럼 최대 절대차 0.0) 뒤에 event_* 17개만 덧붙은 패널이다 →
+    # 같은 런에서 '17개 포함(EV_all) vs 제외(EV_none)' 를 재면 추가 피처의 가산효과가
+    # 패널·행·폴드·시드 모두 통제된 상태로 분리된다.
+    # 사전 스크린(scripts/_ev_feature_screen.py, data/reports/ev_feature_screen_20260926.json):
+    # 17개 전부 단일피처 AUC 0.4972~0.5007(평균 0.4995) · 종목상수 비율 13/17 이 50% 초과
+    # → 누수 게이트는 통과(>0.75 없음)하지만 단변량 edge 는 사실상 0. 기대 Δ ≈ 0.
+    {"id": "EV_all_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "desc": "부활 이벤트 피처 포함(227컬럼) — 데이터 축 A/B 실험군"},
+    {"id": "EV_none_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "exclude_names": ["event_*", "disclosure_count_5d"],
+     "desc": "같은 패널에서 이벤트 피처 17개만 제외(210컬럼) — 동일 런 대조군"},
+    # ── 유니버스 축 in-run A/B (2026-09-26 신설) ────────────────────────────────
+    # 배경: 기준선 패널은 49종목인데 select=top30 이면 유니버스의 61%를 사는 셈이라
+    # '선별'이 거의 없다. U1 은 150종목을 교차패널로 비교해 Δ-0.0266(악화)이었지만
+    # 스냅샷이 달라 확증이 아니었다. panel_150u.npz(150종목·41,893행·210컬럼) 안에서
+    # 기준선 49종목 부분집합과 전체 150종목을 같은 폴드·같은 피처로 직접 대조한다.
+    {"id": "UN_150_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "desc": "150종목 전체 — 유니버스 A/B 실험군(선별 = 상위 20%)"},
+    {"id": "UN_49_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_limit": 49,
+     "desc": "같은 150종목 패널에서 49종목(패널 순서=유동성 상위)만 — 동일 런 대조군(선별 = 상위 61%)"},
     # ── 하이퍼파라미터 축 (이 스택에서 한 번도 스윕된 적 없음) ──────────────────
     # 근거: 학습 표본이 폴드당 1,230행(49종목×약25일)뿐인데 depth=4·1500트리·lr=0.03 이
     # 고정값이었다(wf_wave.BASE.recipe). 소표본에서는 얕은 트리/큰 학습률이 더 나을 수 있고,
@@ -388,6 +411,30 @@ def main():
                 ml.log(f"  {exp_id}: 라벨 참조일 계산 실패({type(e).__name__}: {e}) — 달력 purge 유지")
                 d["_ref"] = None
             d = d[~pd.isna(d["_y"])]
+            # ── 종목 필터(유니버스 in-run 대조, 2026-09-26 신설) ─────────────────
+            # 왜: 유니버스 효과(49 vs 150종목)를 재려면 같은 패널·같은 피처·같은 폴드에서
+            # **행 집합만** 바꿔야 한다. U1(교차패널 비교)은 스냅샷이 달라 Δ-0.0266 이
+            # 확증이 못 됐다. codes_from_panel 로 기준선 패널의 종목 목록을 그대로 가져와
+            # 부분집합을 만들면 두 arm 이 같은 날짜·같은 폴드·같은 피처가 된다.
+            _cfp = cfg.get("codes_from_panel")
+            _clim = int(cfg.get("codes_limit") or 0)
+            if _cfp or _clim:
+                if _clim:
+                    _seen: list = []
+                    for _c in d["stock_code"].astype(str):
+                        if _c not in _seen:
+                            _seen.append(_c)
+                            if len(_seen) >= _clim:
+                                break
+                    keep, _src = set(_seen), f"패널 순서 첫 {_clim}종목"
+                else:
+                    _zp = np.load(_cfp, allow_pickle=True)
+                    keep, _src = {str(c) for c in _zp["codes"]}, os.path.basename(str(_cfp))
+                before = len(d)
+                d = d[d["stock_code"].astype(str).isin(keep)]
+                ml.log(f"  {exp_id}: 종목 필터 {before} → {len(d)} 행 ({len(keep)}종목: {_src})")
+                if len(d) < 200:
+                    raise RuntimeError(f"codes_from_panel 필터 후 행이 {len(d)} — 측정 불가")
             dd = sorted(d["date"].astype(str).unique())
             n = len(dd)
             step = n // (args.folds + 1)
@@ -490,6 +537,25 @@ def main():
                     if not core_set:
                         raise RuntimeError("core_only 요청인데 CORE_FEATURES 를 읽지 못했다")
                     cols = cols & np.array([f in core_set for f in base_names], dtype=bool)
+                # ── 특정 피처군 제외(A/B 가산효과 측정, 2026-09-26 신설) ──────────
+                # 왜: 같은 패널·같은 행에서 "이 피처군을 넣었을 때 vs 뺐을 때"를 재려면
+                # 컬럼 단위 제외가 필요하다. 패널 단위 비교는 스냅샷(구간·피처코드)이 달라
+                # 통제가 약하다 — U1(150종목)이 그래서 확증이 못 됐다(교차패널 Δ-0.0266).
+                # exclude_names 는 정확한 이름 또는 접두어("event_*") 목록. 위치 기반(numpy)으로만
+                # 계산한다(중복 라벨 pandas 정렬 사고 — 아래 시장레벨 제외 주석 참고).
+                xnames = [str(x) for x in (cfg.get("exclude_names") or [])]
+                if xnames:
+                    hit = np.array(
+                        [any(n == b or (n.endswith("*") and b.startswith(n[:-1]))
+                             for n in xnames) for b in base_names], dtype=bool)
+                    n_ex = int((cols & hit).sum())
+                    ex_kept = [f for f, m in zip(base_names, cols & hit) if m]
+                    cols = cols & np.logical_not(hit)
+                    ml.log(f"  {exp_id}: 피처군 제외 {n_ex}개 {ex_kept[:6]}")
+                    if n_ex == 0:
+                        raise RuntimeError(
+                            f"exclude_names={xnames} 가 아무 컬럼도 제외하지 않았다 — "
+                            "이름 표기가 틀렸다(측정 전에 실패시킨다)")
                 fn = [f for f, m in zip(base_names, cols) if m]
                 Xtr, Xte = Xtr[:, cols], Xte[:, cols]
                 idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr)

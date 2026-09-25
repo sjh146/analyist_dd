@@ -1,0 +1,152 @@
+{
+ "base_shape": [
+  13609,
+  210
+ ],
+ "ev_shape": [
+  13609,
+  227
+ ],
+ "rows_aligned": true,
+ "n_new": 17,
+ "new_features": {
+  "event_capital_increase_5d": {
+   "col": 210,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.8367,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.5004
+  },
+  "event_cb_bw_5d": {
+   "col": 211,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.8163,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.5003
+  },
+  "event_contract_5d": {
+   "col": 212,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.7755,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.4977
+  },
+  "event_delisting_5d": {
+   "col": 213,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.7755,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.5005
+  },
+  "event_disaster_5d": {
+   "col": 214,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.9388,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.4999
+  },
+  "event_exec_change_5d": {
+   "col": 215,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.3061,
+   "uniq_median": 2.0,
+   "single_feature_auc": 0.4978
+  },
+  "event_litigation_5d": {
+   "col": 216,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.8571,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.5007
+  },
+  "event_mna_5d": {
+   "col": 217,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.8571,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.4991
+  },
+  "event_new_product_5d": {
+   "col": 218,
+   "coverage": 1.0,
+   "stock_const_ratio": 1.0,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.5
+  },
+  "event_partnership_5d": {
+   "col": 219,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.9592,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.4999
+  },
+  "event_patent_5d": {
+   "col": 220,
+   "coverage": 1.0,
+   "stock_const_ratio": 1.0,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.5
+  },
+  "event_realized_5d": {
+   "col": 221,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.2245,
+   "uniq_median": 2.0,
+   "single_feature_auc": 0.5003
+  },
+  "event_recall_5d": {
+   "col": 222,
+   "coverage": 1.0,
+   "stock_const_ratio": 1.0,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.5
+  },
+  "event_regulation_5d": {
+   "col": 223,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.9592,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.4997
+  },
+  "event_stake_change_5d": {
+   "col": 224,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.3061,
+   "uniq_median": 2.0,
+   "single_feature_auc": 0.4997
+  },
+  "event_treasury_5d": {
+   "col": 225,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.6531,
+   "uniq_median": 1.0,
+   "single_feature_auc": 0.4991
+  },
+  "disclosure_count_5d": {
+   "col": 226,
+   "coverage": 1.0,
+   "stock_const_ratio": 0.0,
+   "uniq_median": 4.0,
+   "single_feature_auc": 0.4972
+  }
+ },
+ "gate": {
+  "leak_auc_gt_075": [],
+  "dead_coverage_lt_005": [],
+  "stock_constant_gt_050": [
+   "event_capital_increase_5d",
+   "event_cb_bw_5d",
+   "event_contract_5d",
+   "event_delisting_5d",
+   "event_disaster_5d",
+   "event_litigation_5d",
+   "event_mna_5d",
+   "event_new_product_5d",
+   "event_partnership_5d",
+   "event_patent_5d",
+   "event_recall_5d",
+   "event_regulation_5d",
+   "event_treasury_5d"
+  ]
+ }
+}
