@@ -70,7 +70,11 @@ SPECS = [
     #    (실측 오탐: claimed=시도 22,278 / persisted=신규 15,895 → gap 6,383).
     ("dq_claim_gap", "sum", 500.0, 5000.0, "자기신고 갭"),
     ("dq_claim_source", "sum", None, None, "소스 수신 행수"),
-    ("dq_feature_stock_constant_ratio", "max", 0.35, 0.45, "종목상수 피처 비율"),
+    # ⚠ 임계값은 **기준선 위**에 둔다. 살아있는(nonzero_ratio>0) 피처만 분모로 세므로
+    #    상수 피처는 정의상 여기 포함되고, 실측 기준선이 0.38(29/76)이다.
+    #    warn 을 0.35 로 두면 0.38 >= 0.35 가 매 틱 성립해 **상시 경고**가 뜬다(실측 2026-09-25:
+    #    값이 0.3816 으로 15스냅샷 내내 불변인데 warn). 문턱은 Prometheus 알림(>0.50)과 맞춘다.
+    ("dq_feature_stock_constant_ratio", "max", 0.45, 0.50, "종목상수 피처 비율"),
     ("dq_feature_coverage_illusion_max", "max", 0.005, 0.02, "커버리지 착시"),
     ("dq_feature_null_ratio_max", "max", 0.30, 0.60, "피처 결측 최대"),
     ("dq_feature_market_level_count", "max", None, None, "시장레벨 피처 수"),
