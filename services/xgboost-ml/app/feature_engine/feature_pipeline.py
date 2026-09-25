@@ -514,6 +514,11 @@ class FeaturePipeline:
 
         # 8. program_trading_ratio: program trading value / total value
         # Uses krx_program_trading table (foreign_buy_value + foreign_sell_value) / total_value
+        # 값 출처: scripts/kis_program_trading_collect.py (KIS FHPPG04600001 프로그램매매 종합조회(일별))
+        #   → 컬럼명은 foreign_* 이지만 적재값은 시장 전체 프로그램 매수/매도 대금(원)이다.
+        #   → 즉 이 피처 = (프로그램 매수 + 프로그램 매도) / 시장 전체 거래대금 = 프로그램 매매 비중.
+        # trade_date 는 as-of(`<=`)로 조회한다: 휴장일/주말 날짜로 호출해도 0 이 되지 않고
+        #   직전 거래일 값을 쓰게 한다(시세 로딩도 같은 as-of 규칙 — 아래 market_df 필터 참고).
         features["program_trading_ratio"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -521,7 +526,7 @@ class FeaturePipeline:
                 cur.execute("""
                     SELECT foreign_buy_value + foreign_sell_value, total_value
                     FROM krx_program_trading
-                    WHERE trade_date = %s AND market = 'KOSPI'
+                    WHERE trade_date <= %s AND market = 'KOSPI'
                     ORDER BY trade_date DESC LIMIT 1
                 """, (date,))
                 row = cur.fetchone()
@@ -762,14 +767,17 @@ class FeaturePipeline:
         # ----- KRX Derivatives features -----
 
         # futures_premium: KOSPI200 futures close as proxy for market level
+        # 값 출처: scripts/krx_derivatives_collect.py (KRX drv/fut_bydd_trd → krx_derivatives.close_price,
+        #          index_name='KOSPI200' 은 코스피200 선물 프론트월 — 하루 1행만 세팅된다)
+        # as-of 조회(`<=`): 휴장일/주말에도 직전 거래일 선물 종가를 쓰게 한다.
         features["futures_premium"] = 0.0
         if self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
                 cur.execute("""
                     SELECT close_price FROM krx_derivatives
-                    WHERE trade_date = %s AND index_name = 'KOSPI200'
-                    LIMIT 1
+                    WHERE trade_date <= %s AND index_name = 'KOSPI200'
+                    ORDER BY trade_date DESC LIMIT 1
                 """, (date,))
                 row = cur.fetchone()
                 if row and row[0]:
@@ -780,13 +788,17 @@ class FeaturePipeline:
                 self.pg_conn.rollback()
 
         # derivatives_volume: total derivatives volume (KOSPI200 + KOSDAQ)
+        # 값 출처: scripts/krx_derivatives_collect.py → krx_derivatives.volume(상품별 정규장 거래량 합)
+        # as-of 조회: 최신 거래일(<= date)의 합계를 반환한다.
         features["derivatives_volume"] = 0.0
         if self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
                 cur.execute("""
                     SELECT SUM(volume) FROM krx_derivatives
-                    WHERE trade_date = %s
+                    WHERE trade_date = (
+                        SELECT MAX(trade_date) FROM krx_derivatives WHERE trade_date <= %s
+                    )
                 """, (date,))
                 row = cur.fetchone()
                 if row and row[0]:
@@ -794,6 +806,33 @@ class FeaturePipeline:
                 cur.close()
             except Exception:
                 logger.debug("derivatives_volume unavailable; using 0.0")
+                self.pg_conn.rollback()
+
+        # basis / basis_change_5d: 코스피200 선물 − 코스피200 현물 (지수 포인트 괴리)
+        # 값 출처: scripts/krx_derivatives_collect.py 가 KRX drv/fut_bydd_trd 의
+        #          TDD_CLSPRC(선물 종가) − SPOT_PRC(현물지수) 를 futures_options.basis 로 적재.
+        # 같은 정의를 쓰는 기존 리더: market_features.MarketFeatureCalculator.get_derivatives_features
+        #   (futures_options 를 trade_date DESC LIMIT 6 으로 읽어 basis_change_5d = rows[0] - rows[5]).
+        # 여기서는 date 기준 as-of 로 같은 의미(최근값, 5거래일 전 값과의 차)를 계산한다.
+        features["basis"] = 0.0
+        features["basis_change_5d"] = 0.0
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                cur.execute("""
+                    SELECT basis FROM futures_options
+                    WHERE trade_date <= %s AND basis IS NOT NULL
+                    ORDER BY trade_date DESC LIMIT 6
+                """, (date,))
+                rows = cur.fetchall()
+                cur.close()
+                if rows:
+                    latest = float(rows[0][0])
+                    features["basis"] = latest
+                    if len(rows) >= 6:
+                        features["basis_change_5d"] = latest - float(rows[5][0])
+            except Exception:
+                logger.debug("basis unavailable; using 0.0")
                 self.pg_conn.rollback()
 
         # ----- Additional technical features -----

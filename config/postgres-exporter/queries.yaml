@@ -170,3 +170,173 @@ pg_idle_in_transaction_by_client:
     - count:
         usage: "GAUGE"
         description: "클라이언트별 idle-in-transaction 커넥션 개수"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 정확성 메트릭 (2026-09-25 추가) — "행도 값도 있는데 틀린" 실패 유형 전용.
+# 기존 신선도/0비율/동결 지표로는 아래 5가지를 잡지 못해 실측으로 발견하기까지
+# 오래 걸렸다: 커버리지 착시(NaN≠0), as-of 위반, 종목 상수 피처, 시장레벨 피처,
+# 상장 전 패딩, 러너 자기신고 불일치.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ① 컬럼 단위 결측/커버리지 — 수집이 통째로 비었는데 0 으로 보이는 경우를 잡는다.
+#    (SQL 은 `col <> 0` 에서 NULL 을 자동 제외하므로 pandas/numpy 착시는 여기 없다.
+#     그 착시는 feature_coverage 쪽 _naive/_honest 쌍으로 잡는다.)
+dq_col_quality:
+  query: |
+    SELECT 'foreign_institutional' AS "table", 'foreign_net_buy' AS "column",
+           (COUNT(*) FILTER (WHERE foreign_net_buy IS NULL))::float / NULLIF(COUNT(*),0) AS null_ratio,
+           (COUNT(*) FILTER (WHERE foreign_net_buy IS NOT NULL AND foreign_net_buy <> 0))::float / NULLIF(COUNT(*),0) AS nonzero_ratio
+    FROM foreign_institutional
+    UNION ALL
+    SELECT 'foreign_institutional', 'institution_net_buy',
+           (COUNT(*) FILTER (WHERE institution_net_buy IS NULL))::float / NULLIF(COUNT(*),0),
+           (COUNT(*) FILTER (WHERE institution_net_buy IS NOT NULL AND institution_net_buy <> 0))::float / NULLIF(COUNT(*),0)
+    FROM foreign_institutional
+    UNION ALL
+    SELECT 'ownership', 'foreign_ownership_pct',
+           (COUNT(*) FILTER (WHERE foreign_ownership_pct IS NULL))::float / NULLIF(COUNT(*),0),
+           (COUNT(*) FILTER (WHERE foreign_ownership_pct IS NOT NULL AND foreign_ownership_pct <> 0))::float / NULLIF(COUNT(*),0)
+    FROM ownership
+    UNION ALL
+    SELECT 'ownership', 'institution_ownership_pct',
+           (COUNT(*) FILTER (WHERE institution_ownership_pct IS NULL))::float / NULLIF(COUNT(*),0),
+           (COUNT(*) FILTER (WHERE institution_ownership_pct IS NOT NULL AND institution_ownership_pct <> 0))::float / NULLIF(COUNT(*),0)
+    FROM ownership
+    UNION ALL
+    SELECT 'financial_statements', 'net_income',
+           (COUNT(*) FILTER (WHERE net_income IS NULL))::float / NULLIF(COUNT(*),0),
+           (COUNT(*) FILTER (WHERE net_income IS NOT NULL AND net_income <> 0))::float / NULLIF(COUNT(*),0)
+    FROM financial_statements
+  metrics:
+    - table:
+        usage: "LABEL"
+        description: "감시 테이블"
+    - column:
+        usage: "LABEL"
+        description: "감시 컬럼"
+    - null_ratio:
+        usage: "GAUGE"
+        description: "결측 비율 (0으로 채우면 사라지는 신호)"
+    - nonzero_ratio:
+        usage: "GAUGE"
+        description: "정직한 비영 비율 (NULL 제외)"
+
+# ② 상장 전 all-zero 패딩 — 종목의 첫 시세일보다 이른 수급 행.
+dq_padding:
+  query: |
+    WITH m AS (
+      SELECT stock_code, MIN(trade_date) AS first_mkt FROM market_data GROUP BY stock_code
+    )
+    SELECT COUNT(*) FILTER (WHERE fi.trade_date < m.first_mkt)::float AS rows_before_listing,
+           COUNT(*)::float AS total_rows,
+           (COUNT(*) FILTER (WHERE fi.trade_date < m.first_mkt))::float / NULLIF(COUNT(*),0) AS ratio
+    FROM foreign_institutional fi
+    JOIN m ON m.stock_code = fi.stock_code
+  metrics:
+    - rows_before_listing:
+        usage: "GAUGE"
+        description: "상장 전 구간에 적재된 수급 행수(패딩)"
+    - total_rows:
+        usage: "GAUGE"
+        description: "수급 총 행수(분모)"
+    - ratio:
+        usage: "GAUGE"
+        description: "패딩 비율"
+
+# ③ as-of 위반 — 미래 날짜 / 존재하지 않는 거래일 / 미래 보고서.
+dq_asof_violation:
+  query: |
+    WITH mx AS (SELECT MAX(trade_date) AS maxd FROM market_data)
+    SELECT 'supply_future_dated' AS scope, COUNT(*)::float AS rows
+    FROM foreign_institutional fi, mx WHERE fi.trade_date > mx.maxd
+    UNION ALL
+    SELECT 'supply_phantom_day', COUNT(*)::float
+    FROM foreign_institutional fi
+    WHERE NOT EXISTS (
+      SELECT 1 FROM market_data m
+      WHERE m.stock_code = fi.stock_code AND m.trade_date = fi.trade_date
+    )
+    UNION ALL
+    SELECT 'ownership_future_dated', COUNT(*)::float
+    FROM ownership o, mx WHERE o.trade_date > mx.maxd
+    UNION ALL
+    SELECT 'financial_report_future', COUNT(*)::float
+    FROM financial_statements WHERE report_date > CURRENT_DATE
+  metrics:
+    - scope:
+        usage: "LABEL"
+        description: "위반 종류"
+    - rows:
+        usage: "GAUGE"
+        description: "위반 행수 (0 이어야 정상)"
+
+# ④ 러너 자기신고 vs 실제 적재량 — 확장 러너가 +0행으로 성공 종료한 유형.
+dq_claim:
+  query: |
+    SELECT DISTINCT ON (runner, table_name)
+           runner,
+           table_name AS "table",
+           COALESCE(source_rows, 0)::float AS source,
+           claimed_rows::float AS stored,
+           COALESCE(persisted_rows, 0)::float AS new_rows,
+           (claimed_rows - COALESCE(persisted_rows, claimed_rows))::float AS gap,
+           CASE WHEN claimed_rows = 0 AND COALESCE(source_rows, 0) > 0
+                THEN 1.0 ELSE 0.0 END AS parse_failure,
+           CASE WHEN claimed_rows = 0 THEN 1.0 ELSE 0.0 END AS zero_stored
+    FROM dq_runner_claim
+    ORDER BY runner, table_name, run_at DESC
+  metrics:
+    - runner:
+        usage: "LABEL"
+        description: "자기신고한 러너 이름"
+    - table:
+        usage: "LABEL"
+        description: "신고 대상 테이블"
+    - source:
+        usage: "GAUGE"
+        description: "소스 API 가 준 행수"
+    - stored:
+        usage: "GAUGE"
+        description: "로더가 저장했다고 보고한 행수(upsert 중복 포함)"
+    - new_rows:
+        usage: "GAUGE"
+        description: "실제 신규 적재 행수(테이블 델타)"
+    - gap:
+        usage: "GAUGE"
+        description: "stored - new_rows (같은 구간 재수집이면 >0 이 정상 — 알림 대상 아님)"
+    - parse_failure:
+        usage: "GAUGE"
+        description: "1 = 소스는 행을 줬는데 저장이 0 (진짜 실패 — 2026-09-24 파서 키 불일치 유형)"
+    - zero_stored:
+        usage: "GAUGE"
+        description: "1 = 저장 0 신고(이력 소진일 수 있어 단독으로는 알림하지 않음)"
+
+# ⑤ 피처 정확성 — 커버리지 착시/결측/종목상수/시장레벨.
+#    주의: dead 피처(전부 0/결측)는 정의상 "종목 상수"이자 "시장레벨"이므로 분모에서 제외한다.
+#    죽은 피처는 feature_dead_count 가 따로 세고, 여기서는 **살아있는데 무변별인** 피처만
+#    문제 삼는다(2026-09-24 실측: net_income/roe/quality_roa 등이 살아있는데 종목 상수였다).
+dq_feature:
+  query: |
+    SELECT
+      (COUNT(*) FILTER (WHERE stock_unique_median <= 1 AND nonzero_ratio > 0))::float
+        / NULLIF(COUNT(*) FILTER (WHERE nonzero_ratio > 0), 0) AS stock_constant_ratio,
+      COUNT(*) FILTER (WHERE cross_section_constant_ratio >= 0.99 AND nonzero_ratio > 0)::float
+        AS market_level_count,
+      COALESCE(MAX(nonzero_ratio_naive - nonzero_ratio_honest), 0)::float
+        AS coverage_illusion_max,
+      COALESCE(MAX(null_ratio), 0)::float AS null_ratio_max
+    FROM feature_coverage
+    WHERE computed_at = (SELECT MAX(computed_at) FROM feature_coverage)
+  metrics:
+    - stock_constant_ratio:
+        usage: "GAUGE"
+        description: "종목 상수 피처 비율(종목별 유니크값 중앙값<=1) — 룩어헤드 의심"
+    - market_level_count:
+        usage: "GAUGE"
+        description: "날짜 내 분산 0(시장레벨) 피처 수 — 횡단면 무변별"
+    - coverage_illusion_max:
+        usage: "GAUGE"
+        description: "커버리지 착시 최대값 (naive - honest, NaN을 값으로 세는 정도)"
+    - null_ratio_max:
+        usage: "GAUGE"
+        description: "피처 최대 결측 비율"

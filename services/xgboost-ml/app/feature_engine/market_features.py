@@ -147,8 +147,35 @@ class MarketFeatures:
 
         return features
 
-    def get_supply_features(self, stock_code: str, db_conn=None) -> Dict:
-        """Get foreign/institutional supply features from DB (4 features)."""
+    @staticmethod
+    def _asof_date(df: pd.DataFrame = None, date=None) -> Optional[str]:
+        """수급/지분 피처의 as-of 기준일 (YYYY-MM-DD) — 없으면 None.
+
+        실측 2026-09-24: ``get_supply_features`` 가 ``date`` 를 받지 않아
+        ``ORDER BY trade_date DESC LIMIT 6`` 로 **테이블의 최신 행**을 항상 집어왔다.
+        결과적으로 ① 조회일을 바꿔도 값이 동일(상수) ② 과거 조회일에 미래 수급이 섞이는
+        룩어헤드가 발생한다. 파이프라인 호출부(feature_pipeline)는 ``market_df`` 를
+        ``trade_date <= date`` 로 이미 잘라 넘기므로, 그 최대 거래일이 곧 기준일이다
+        (호출부 수정 없이 리더 안에서 정합을 맞춘다).
+        """
+        if date is not None:
+            return str(date)[:10]
+        if df is not None and not getattr(df, "empty", True) and "trade_date" in df.columns:
+            try:
+                d = pd.to_datetime(df["trade_date"]).max()
+                if pd.notna(d):
+                    return d.strftime("%Y-%m-%d")
+            except Exception:  # noqa: BLE001
+                return None
+        return None
+
+    def get_supply_features(self, stock_code: str, db_conn=None,
+                            date: Optional[str] = None) -> Dict:
+        """Get foreign/institutional supply features from DB (4 features).
+
+        ``date`` (as-of) 가 주어지면 그 날짜까지의 수급만 사용한다. None 이면
+        종전과 동일하게 테이블의 최신 행을 쓴다(하위 호환).
+        """
         features = {
             "foreign_net_buy": 0.0,
             "foreign_net_buy_5d": 0.0,
@@ -164,11 +191,14 @@ class MarketFeatures:
                 SELECT trade_date, foreign_net_buy, institution_net_buy
                 FROM foreign_institutional
                 WHERE stock_code = %s
-                ORDER BY trade_date DESC
-                LIMIT 6
             """
+            params = [stock_code]
+            if date:
+                query += " AND trade_date <= %s"
+                params.append(date)
+            query += " ORDER BY trade_date DESC LIMIT 6"
             cur = db_conn.cursor()
-            cur.execute(query, (stock_code,))
+            cur.execute(query, tuple(params))
             rows = cur.fetchall()
             cur.close()
 
@@ -226,13 +256,20 @@ class MarketFeatures:
 
     def get_all_features(
         self, df: pd.DataFrame, stock_code: str, db_conn=None,
+        date: Optional[str] = None,
     ) -> Dict:
-        """Build all 22+ market features from price data, DB-connected supply and derivatives."""
+        """Build all 22+ market features from price data, DB-connected supply and derivatives.
+
+        ``date`` 를 안 넘겨도 ``df``(파이프라인은 ``trade_date <= date`` 로 자른 프레임을 준다)의
+        최대 거래일을 as-of 로 삼아 수급 피처를 그 시점 기준으로 계산한다 — 날짜별 값이
+        달라지고 룩어헤드가 사라진다(``_asof_date`` 참조).
+        """
+        asof = self._asof_date(df, date)
         features = {}
         features.update(self.get_price_features(df))
         features.update(self.get_technical_features(df))
         features.update(self.get_volume_features(df))
-        features.update(self.get_supply_features(stock_code, db_conn))
+        features.update(self.get_supply_features(stock_code, db_conn, date=asof))
         features.update(self.get_derivatives_features(db_conn))
         return features
 

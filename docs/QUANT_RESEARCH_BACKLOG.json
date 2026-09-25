@@ -1,0 +1,174 @@
+{
+  "schema": 1,
+  "updated_at": "2026-09-25T14:05:00+09:00",
+  "owner": "quant-researcher",
+  "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
+  "rules": [
+    "수집 러너는 반드시 scripts/run_with_claim.py 로 감싼다 — 자기신고(소스/저장/신규)가 남지 않는 수집은 실패를 감지할 수 없다.",
+    "KIS 실전 호출 제한 준수: 1.5~3.0초 + 지터, 토큰 발급 분당 1회.",
+    "운영 DB **스키마 변경**(컬럼 추가·테이블 변경)은 승인 필요. 새 테이블도 포함.",
+    "check 는 DQ 메트릭 또는 SQL 한 줄로 **수치**를 낸다 — '잘 됐다'는 자기평가를 쓰지 않는다.",
+    "모델에 영향이 있는 발견은 affects_model=true 로 표시 → 사이클이 모델엔지니어 백로그로 넘긴다(협업)."
+  ],
+  "items": [
+    {
+      "id": "R1",
+      "title": "DART 공시일(rcept_dt) 수집 → 재무 피처 기간유형 복구의 선행 조건",
+      "status": "needs_approval",
+      "priority": 1,
+      "affects_model": true,
+      "hypothesis": "재무 피처가 연간/반기 혼재이고 공시일이 없어 as-of 정확도가 낮다. rcept_dt 를 확보하면 기간유형을 구분할 수 있고 성장률 피처가 살아난다.",
+      "evidence": "① financial_statements 10,370행 적재됨(=DART 수집이 과거에 실제로 돌았다). ② DART 실호출 정상: status 000 / message 정상 / 54건, 응답에 rcept_dt(20260923 형식)와 stock_code 가 **둘 다 포함** → corp_code 매핑 없이 종목 조인 가능. ③ financial_statements 스키마에 rcept_dt 없음(\\d 확인). ④ sentiment_features.py:79 가 이미 disclosures(stock_code, rcept_dt DATE, report_nm) 계약을 요구하는데 테이블이 없다 → 그 기능이 죽어 있는 원인.",
+      "method": "승인 후 ① DDL 적용 ② dart_financial_backfill.py 또는 financial_collector 로 공시 인덱스 백필(rcept_dt·rcept_no·report_nm) ③ company_features 의 공시 지연 가정(90/45일)을 실제 rcept_dt 로 교체 ④ as-of 재측정",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/dart_financial_backfill.py --help'",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM financial_statements WHERE rcept_dt IS NOT NULL\" 2>/dev/null || echo 0",
+      "check_target": {
+        "op": ">=",
+        "value": 100
+      },
+      "setup_needed": [
+        "운영 DB 스키마 변경: disclosures 테이블 신설(**승인 필요**) — DDL 은 proposed_sql 참조",
+        "참고: DART_API_KEY 는 .env 에 이미 있고 실호출 정상(2026-09-25 실측 status=000, 54건). 제 이전 보고의 '키 발급 필요'는 R2 프로브 따옴표 버그 때문에 잘못 나온 것이었다."
+      ],
+      "success": "rcept_dt 보유 종목 100개 이상",
+      "cost": "수집 1~2시간 + 스키마 승인",
+      "blocked_by": "disclosures 테이블 신설 승인 (스키마 변경)",
+      "proposed_sql": "CREATE TABLE IF NOT EXISTS disclosures (\n    stock_code VARCHAR(10) NOT NULL,\n    rcept_dt   DATE        NOT NULL,\n    rcept_no   VARCHAR(20) NOT NULL,\n    report_nm  TEXT,\n    corp_code  VARCHAR(10),\n    PRIMARY KEY (stock_code, rcept_no)\n);\nCREATE INDEX IF NOT EXISTS idx_disclosures_stock_dt ON disclosures(stock_code, rcept_dt DESC);"
+    },
+    {
+      "id": "R2",
+      "title": "institution_ownership_pct 소스 발굴 (현재 100% 결측)",
+      "status": "done",
+      "priority": 2,
+      "affects_model": true,
+      "hypothesis": "KIS 현재가 74필드 전수 확인 결과 기관 지분율이 없다. DART/KRX/공시 중 대체 소스가 있으면 죽은 피처 1개가 부활한다.",
+      "evidence": "dbg: dq_col_quality_null_ratio{column=institution_ownership_pct} 가 사실상 1.0 (전량 NULL).",
+      "method": "① KRX OpenAPI 승인 상태 재확인 ② DART 지분공시(대량보유) 항목 확인 ③ Naver 금융 스크래핑 가능성 점검. 셋 다 실패면 '소스 없음'으로 종결하고 피처 제거를 제안.",
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FILTER (WHERE institution_ownership_pct IS NOT NULL) AS nonzero, COUNT(*) AS total FROM ownership\" && docker exec stock_xgboost_ml sh -c 'ls /app/data/disclosures | head -3; python -c \"import os;print('DART_KEY', bool(os.environ.get('DART_API_KEY')))\";grep -l dart /app/scripts/*.py | head -3'",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FILTER (WHERE institution_ownership_pct IS NOT NULL) FROM ownership\"",
+      "check_target": {
+        "op": ">=",
+        "value": 10
+      },
+      "success": "비결측 행 10개 이상 또는 '소스 없음' 결론 + 피처 제거 제안",
+      "cost": "조사 1~3시간",
+      "kind": "investigate",
+      "attempts": [
+        {
+          "ts": "2026-09-25T14:04:03+09:00",
+          "rc": 0,
+          "detail": "[조사]R2: 0 >= 10 → 미달"
+        }
+      ],
+      "result": {
+        "detail": "[조사] 소스 없음 확인: ownership 225행 중 institution_ownership_pct 비결측 0행(100% 결측). KIS 현재가 74필드에도 없음(기존 확인). DART 수집기(/app/scripts/dart_financial_backfill.py)는 존재. ⚠ DART_API_KEY 확인은 명령 따옴표 버그(NameError)로 실패 → R2b 로 분리.",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R2_20260925-140403.log"
+      },
+      "finding": "institution_ownership_pct 는 KIS 에 소스가 없다. DART 대량보유 공시 또는 KRX 가 후보."
+    },
+    {
+      "id": "R3",
+      "title": "수급 이력 확장: foreign_institutional 343 → 800종목",
+      "status": "pending",
+      "priority": 3,
+      "affects_model": true,
+      "hypothesis": "모델 유니버스를 500종목으로 늘리려면 수급 피처 커버리지가 따라와야 한다(현재 343종목). 커버리지가 유니버스의 상한을 결정한다.",
+      "evidence": "DB 실측: foreign_institutional 343종목/87,895행. 유니버스 풀은 2,428종목(250일 이상 + 유동성 1억 이상). 150종목 실험군 0.5727 vs 49종목군 0.5400.",
+      "method": "기존 러너 재사용(자기신고 필수): set -a && . ./.env && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 후 kis_supply_extend_history.py. 1.5~3초 간격이므로 300종목 ≈ 8~12시간 → 여러 사이클로 분할.",
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/run_with_claim.py kis_supply_extend_history -- /usr/bin/python3 scripts/kis_supply_extend_history.py --target-days 250 --delay 2.0 --max-pages 12 --max-calls 400",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM foreign_institutional\"",
+      "check_target": {
+        "op": ">=",
+        "value": 500
+      },
+      "success": "수급 보유 종목 500개 이상 (자기신고 원장에 source/stored/new_rows 기록 동반)",
+      "cost": "사이클당 최대 400콜(약 15분~1시간), 총 8~12시간 분할",
+      "kind": "collect",
+      "incremental": true
+    },
+    {
+      "id": "R4",
+      "title": "공매도 잔고 커버리지 확대",
+      "status": "backlog",
+      "priority": 4,
+      "affects_model": false,
+      "hypothesis": "공매도 잔고는 수급과 독립적인 정보원이다. 커버리지가 좁으면 피처로 쓰기 어렵다.",
+      "evidence": "krx_short_selling 2,393행(커버리지 미측정).",
+      "command": null,
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM krx_short_selling\"",
+      "check_target": {
+        "op": ">=",
+        "value": 300
+      },
+      "success": "공매도 보유 종목 300개 이상",
+      "cost": "미측정"
+    },
+    {
+      "id": "R5",
+      "title": "뉴스/공시 피처 품질 점검 (살아있는지 확인)",
+      "status": "backlog",
+      "priority": 5,
+      "affects_model": false,
+      "hypothesis": "news_count_5d/20d 가 실제로 채워지는지, 죽은 피처 97개에 포함되는지 확인한다.",
+      "evidence": "feature_dead_count = 97 (실측). news 계열이 여기 포함됐는지 미확인.",
+      "command": null,
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM news_data\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "success": "뉴스 데이터 존재 + 피처 결측률 < 0.5",
+      "cost": "30분"
+    },
+    {
+      "id": "R6",
+      "title": "U2(500종목 패널) 사전 커버리지 점검",
+      "status": "backlog",
+      "priority": 6,
+      "affects_model": true,
+      "hypothesis": "500종목 패널을 빌드하기 전에 피처별 커버리지를 점검하면, 어떤 피처가 유니버스를 붕괴시키는지 알 수 있다(현재 210피처 전량 요구가 49종목 교집합을 만든 원인).",
+      "evidence": "현행 패널은 49종목에서 교집합이 끊겼다. U1(150종목) 결과가 선행 조건.",
+      "command": null,
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM market_data WHERE trade_date >= '2025-07-01'\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1500
+      },
+      "success": "피처별 커버리지 리포트 작성 + 결측 허용 전략 제안",
+      "cost": "1시간"
+    },
+    {
+      "id": "R2b",
+      "title": "DART 키/수집기 실동작 확인 (R2 따옴표 버그 재실행)",
+      "status": "done",
+      "priority": 2,
+      "kind": "investigate",
+      "affects_model": true,
+      "hypothesis": "R2 의 DART 키 확인이 명령 따옴표 오류(NameError)로 실패했다. 키 존재 여부만 확실히 확인한다.",
+      "evidence": "R2 로그: `NameError: name 'DART_KEY' is not defined` — 셸 이스케이프 버그(발견이 아니라 측정 실패).",
+      "command": "docker exec stock_xgboost_ml sh -c 'echo KEY_LINES:; grep -c DART /app/.env 2>/dev/null || echo 0; ls -la /app/scripts/dart_financial_backfill.py; python /app/scripts/dart_financial_backfill.py --help 2>&1 | head -12'",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM financial_statements\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "success": "DART 키 유무와 수집기 인자 확인 (키 값은 절대 출력하지 않는다)",
+      "cost": "5분",
+      "result": {
+        "detail": "직접 검증 완료 — DART 키 실호출 정상(status 000, 54건), 응답 필드에 rcept_dt·stock_code 포함. 수집기 파일 존재 확인. 남은 것은 스키마(disclosures) 승인뿐 → R1 으로 통합.",
+        "check_value": 54,
+        "rc": 0,
+        "log": "-"
+      },
+      "attempts": [
+        {
+          "ts": "2026-09-25T14:10:00+09:00",
+          "rc": 0,
+          "detail": "DART 실호출 검증(에이전트 직접)"
+        }
+      ]
+    }
+  ]
+}

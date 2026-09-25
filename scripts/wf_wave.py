@@ -90,7 +90,14 @@ def subset(names, select, X_train, y_train):
     return sorted(int(i) for i in order), f"top{k}"
 
 
-def build_panel(cache, limit, days, log=print):
+def build_panel(cache, limit, days, log=print, **universe):
+    """패널 캐시를 만들거나 재사용한다.
+
+    universe: `tc._select_universe` 로 전달되는 확장 옵션(market/since/min_days/min_value/order).
+    비우면 현행 기본값(KOSDAQ·코드순·최소 50일)이 그대로 쓰인다.
+    ⚠ 캐시는 **파일명으로만** 구분된다 → 유니버스를 바꾸면 반드시 새 파일명을 써라
+      (예: --panel /app/app/models/wf/panel_500.npz). 기존 패널을 덮으면 대조군이 사라진다.
+    """
     if os.path.exists(cache):
         z = np.load(cache, allow_pickle=True)
         names = [str(n) for n in z["feature_names"]]
@@ -103,7 +110,7 @@ def build_panel(cache, limit, days, log=print):
 
     pg = ml.connect_pg()
     try:
-        codes = tc._select_universe(pg, limit)
+        codes = tc._select_universe(pg, limit, **universe)
         log(f"universe: {len(codes)} 종목 (limit={limit})")
         pipeline = ml.FeaturePipeline(pg_conn=pg)
         end = datetime.now()

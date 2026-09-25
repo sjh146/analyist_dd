@@ -58,3 +58,18 @@ reports/feature_revival/*.csv
 reports/feature_revival/*.txt
 reports/sns/
 reports/embed_bench_*.json
+
+# ── 비밀/백업 (실수로 올리면 즉시 유출) ──────────────────────────
+.env.bak.*
+*.env.bak*
+*_key.txt
+secrets*
+
+# ── 런타임 상태 (사이클 구동기: pidfile·state·로그) ──────────────
+data/reports/me_cycle/
+data/reports/res_cycle/
+
+# ── 파생 산출물 (재생성 가능 — 저장소 비대 방지) ────────────────
+data/reports/dq_snapshots/
+*.stderr
+*.npz.stale-*

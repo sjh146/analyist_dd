@@ -4,6 +4,7 @@ global:
 
 rule_files:
   - "alert.rules.yml"
+  - "alert.dq.rules.yml"
 
 scrape_configs:
   - job_name: 'api-gateway'

@@ -298,14 +298,17 @@ if [ "$RC" -ne 0 ]; then
     fi
     echo "  챌린저 학습 실패(exit=$RC) — 챔피언 유지, 승격 생략"
 else
-    # 승격 게이트: 후보 지표(auc_mean 있으면 그것, 없으면 ensemble_auc) ≥ 0.55 이고
+    # 승격 게이트: 후보 지표(auc_mean 있으면 그것, 없으면 ensemble_auc) ≥ 0.53 이고
     # **챔피언 기준선** 이상일 때만 교체. 기준선은 champion/robust_auc.json(다중 시드
-    # 기록)이 있으면 그 값, 없으면 min(auc.txt, --legacy-baseline-cap 0.55) — 단일 시드
+    # 기록)이 있으면 그 값, 없으면 min(auc.txt, --legacy-baseline-cap 0.53) — 단일 시드
     # 운값(현 챔피언 0.6131)이 승격을 잠그지 못하게 한다. 직전 챔피언은 champion_prev_* 로 백업.
+    # 2026-09-25 하향(0.55→0.53): 5폴드×5시드 실측 상한이 ≈0.54 라 0.55 는 **어떤 정직한
+    # 후보도 통과 못 하는 잠금**이었고 챔피언이 8/14 이후 동결되어 train/serve skew 만 컸다.
+    # 근거: docs/asof_measurement_20260925.md
     docker exec stock_xgboost_ml python -m app.training.champion_promote \
         --candidate "$CAND_DIR" --champion "$CHAMP_DIR" \
-        --min-auc 0.55 --min-improvement 0.0 \
-        --legacy-baseline-cap 0.55 --max-std 0.05 \
+        --min-auc 0.53 --min-improvement 0.0 \
+        --legacy-baseline-cap 0.53 --max-std 0.05 \
         --summary-out app/reports/ml_result.json >> "$LOG_FILE" 2>&1 < /dev/null
 fi
 AUC=$(docker exec stock_xgboost_ml sh -c "cat /app/$CHAMP_DIR/auc.txt" 2>/dev/null | tr -d '\n ')

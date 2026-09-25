@@ -68,15 +68,31 @@ DEFAULT_LR = 0.03
 DEFAULT_DEPTH = 4
 DEFAULT_N_ESTIMATORS = 1500
 
+# 유니버스 선택 기본값 — **현행 동작을 그대로 보존**한다(비교가능성).
+# 확장은 명시적으로 넘긴다. 실측 근거: 기본값은 코드 알파벳 앞 50개(KOSDAQ)만 골라
+# 패널이 13,609행/49종목에 묶여 있었다. DB 에는 2,428종목(250일 이상 + 일평균 거래대금 1억 이상)
+# 이 있다 — 150종목 실험군 0.5727 vs 49종목군 0.5400.
+UNIVERSE_DEFAULTS = {
+    "market": "KOSDAQ",     # None 이면 KOSPI+KOSDAQ 전체
+    "since": "2026-04-01",
+    "min_days": 50,
+    "min_value": 0.0,       # 일평균 거래대금 하한(원). 유동성 필터
+    "order": "code",        # code(알파벳순, 현행) | value(거래대금 상위)
+}
+
 UNIVERSE_SQL = """
 SELECT md.stock_code
 FROM market_data md
 JOIN stocks s ON md.stock_code = s.stock_code
-WHERE s.market = 'KOSDAQ' AND md.trade_date >= '2026-04-01'
+WHERE (%(market)s IS NULL OR s.market = %(market)s)
+  AND md.trade_date >= %(since)s
 GROUP BY md.stock_code
-HAVING COUNT(*) >= 50
-ORDER BY md.stock_code
-LIMIT %s
+HAVING COUNT(*) >= %(min_days)s
+   AND AVG(COALESCE(NULLIF(md.trading_value, 0), 0)) >= %(min_value)s
+ORDER BY CASE WHEN %(order)s = 'value'
+              THEN AVG(COALESCE(NULLIF(md.trading_value, 0), 0)) END DESC NULLS LAST,
+         md.stock_code
+LIMIT %(limit)s
 """
 
 
@@ -222,9 +238,22 @@ def _connect_pg():
     )
 
 
-def _select_universe(pg, limit):
+def _select_universe(pg, limit, market=UNIVERSE_DEFAULTS["market"],
+                     since=UNIVERSE_DEFAULTS["since"], min_days=UNIVERSE_DEFAULTS["min_days"],
+                     min_value=UNIVERSE_DEFAULTS["min_value"], order=UNIVERSE_DEFAULTS["order"]):
+    """유니버스 선택. **기본값은 현행 동작 그대로**(KOSDAQ·코드순·최소 50일)다.
+
+    확장 예 (500종목, KOSPI 포함, 유동성 상위, 250일 이상 이력):
+      _select_universe(pg, 500, market=None, since="2025-07-01",
+                       min_days=250, min_value=1e8, order="value")
+
+    WHY 기본값 보존: 기존 학습·측정 결과와 비교가능성이 깨지면 "개선"인지 "표본 교체"인지
+    구분할 수 없다. 유니버스를 바꿀 때는 **새 패널 파일명**을 함께 바꿔 캐시 충돌도 피한다.
+    """
     cur = pg.cursor()
-    cur.execute(UNIVERSE_SQL, (limit,))
+    cur.execute(UNIVERSE_SQL, {"limit": limit, "market": market, "since": since,
+                               "min_days": min_days, "min_value": min_value,
+                               "order": order})
     codes = [r[0] for r in cur.fetchall()]
     cur.close()
     return codes

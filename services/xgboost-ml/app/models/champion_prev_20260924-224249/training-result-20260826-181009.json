@@ -1,0 +1,16 @@
+{
+  "retrained_at": "2026-08-26T18:10:09",
+  "n_rows": 15689,
+  "n_train": 12551,
+  "n_val": 3138,
+  "up_rate": 0.4582,
+  "n_features": 173,
+  "model_aucs": {
+    "xgboost": 0.4283,
+    "lightgbm": 0.4933,
+    "catboost": 0.4813
+  },
+  "ensemble_auc": 0.4365,
+  "val_frac": 0.2,
+  "seed": 0
+}

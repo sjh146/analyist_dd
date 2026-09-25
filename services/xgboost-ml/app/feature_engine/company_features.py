@@ -14,9 +14,23 @@ class CompanyFeatures:
     """Features derived from financial statements: PER, PBR, ROE, growth rates."""
 
     def get_financial_features(
-        self, stock_code: str, db_conn=None
+        self, stock_code: str, db_conn=None, date: Optional[str] = None
     ) -> Dict:
-        """Build 10+ fundamental features from financial_statements table."""
+        """Build 10+ fundamental features from financial_statements table.
+
+        ``date`` (as-of, YYYY-MM-DD) 를 주면 **그 시점에 이미 공시된** 재무제표만 쓴다.
+
+        실측 수정(2026-09-25): 종전에는 ``date`` 를 받지도, 쓰지도 않고
+        ``ORDER BY report_date DESC LIMIT 2`` 로 **항상 최신 2건**을 읽었다 →
+        2025-08 행에 2026-06-30 보고서를 쓰는 **최대 10개월 룩어헤드**가 발생했고,
+        그 결과 패널에서 재무 피처가 **종목당 값 1개(전 구간 상수)** 로 굳어
+        단변량 edge 상위(top30)를 차지하며 측정 AUC 를 부풀렸다.
+
+        공시 지연(보수적): 사업보고서(12-31 결산)는 결산 후 90일, 그 외 분기·반기 보고서는
+        45일로 가정한다. **정확한 정합은 공시 접수일(rcept_dt, DART 제공)이 필요하다** —
+        현재 스키마에는 없어서 보수적 지연으로 근사한다(과거 정보를 쓰면 안 되므로
+        늦게 잡는 쪽이 안전하다).
+        """
         features = {
             "revenue": 0.0, "operating_profit": 0.0, "net_income": 0.0,
             "op_margin": 0.0, "net_margin": 0.0,
@@ -30,14 +44,27 @@ class CompanyFeatures:
 
         try:
             cur = db_conn.cursor()
-            cur.execute("""
-                SELECT report_date, revenue, operating_profit, net_income,
-                       per, pbr, roe, debt_ratio, total_assets, total_equity
-                FROM financial_statements
-                WHERE stock_code = %s
-                ORDER BY report_date DESC
-                LIMIT 2
-            """, (stock_code,))
+            if date:
+                cur.execute("""
+                    SELECT report_date, revenue, operating_profit, net_income,
+                           per, pbr, roe, debt_ratio, total_assets, total_equity
+                    FROM financial_statements
+                    WHERE stock_code = %s
+                      AND report_date + (CASE
+                            WHEN report_date = date_trunc('year', report_date)::date
+                            THEN INTERVAL '90 days' ELSE INTERVAL '45 days' END) <= %s::date
+                    ORDER BY report_date DESC
+                    LIMIT 2
+                """, (stock_code, date))
+            else:
+                cur.execute("""
+                    SELECT report_date, revenue, operating_profit, net_income,
+                           per, pbr, roe, debt_ratio, total_assets, total_equity
+                    FROM financial_statements
+                    WHERE stock_code = %s
+                    ORDER BY report_date DESC
+                    LIMIT 2
+                """, (stock_code,))
             rows = cur.fetchall()
             cur.close()
 
@@ -207,6 +234,6 @@ class CompanyFeatures:
     def get_all_features(self, stock_code: str, db_conn=None, date: Optional[str] = None) -> Dict:
         """Get all company fundamental features."""
         features = {}
-        features.update(self.get_financial_features(stock_code, db_conn))
+        features.update(self.get_financial_features(stock_code, db_conn, date=date))
         features.update(self.get_percentile_features(stock_code, db_conn, date=date))
         return features

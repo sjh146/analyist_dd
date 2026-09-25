@@ -1,0 +1,90 @@
+# 데이터 정확성 알림 (2026-09-25 신설)
+#
+# WHY: 기존 db_data_quality 규칙은 "행이 없다"(신선도/행수 급감/0거래량/동결/dead feature)
+# 유형만 잡았다. 2026-09-24 실측에서 실제로 모델을 망친 것은 **행도 값도 있는데 틀린**
+# 유형 6가지였고, 이들은 조용히 지나갔다. 이 그룹이 그 6가지를 실행 가능한 알림으로 만든다.
+#  ① 커버리지 착시(pandas `col != 0` 이 NaN 을 True 로 셈) → CoverageIllusion
+#  ② as-of 위반(미래 날짜·유령 거래일·미래 보고서) → AsofViolationFound
+#  ③ 종목 상수 피처 과다(룩어헤드 의심) → FeatureStockConstantHigh
+#  ④ 시장레벨(날짜 내 분산 0) 피처 과다 → FeatureMarketLevelMany
+#  ⑤ 상장 전 all-zero 패딩 행 → SupplyPaddingFound
+#  ⑥ 러너 자기신고 ≠ 실제 적재량 → RunnerClaimGap
+groups:
+  - name: dq_accuracy
+    rules:
+      - alert: CoverageIllusion
+        # naive(nonzero_ratio_naive) - honest(nonzero_ratio_honest) 최대값.
+        # 이 값이 크면 "커버리지 99%" 라는 보고를 믿으면 안 된다.
+        expr: dq_feature_coverage_illusion_max > 0.10
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "커버리지 착시: NaN 을 값으로 세고 있다 (naive-honest 최대 {{ $value }})"
+
+      - alert: FeatureNullRatioHigh
+        expr: dq_feature_null_ratio_max > 0.90
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "피처 대부분이 결측: 최대 결측비율 {{ $value }} (0으로 채워 세면 숨는다)"
+
+      - alert: FeatureStockConstantHigh
+        # 살아있는데 종목별 값이 1개뿐인 피처 비율. 2026-09-25 기준선 0.38(29/76)이라
+        # 0.50 은 "기존보다 더 나빠졌다"는 뜻이다(상시 오탐 방지).
+        expr: dq_feature_stock_constant_ratio > 0.50
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "살아있는 피처 중 종목 상수 비율 {{ $value }} — 룩어헤드 의심(과거 행에 최신 스냅샷)"
+
+      - alert: FeatureMarketLevelMany
+        # 날짜 내 분산 0(시장레벨) 피처 수. 2026-09-25 기준선 34개 수준.
+        expr: dq_feature_market_level_count > 45
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "날짜 내 분산 0(시장레벨) 피처 {{ $value }}개 — 횡단면 무변별"
+
+      - alert: SupplyPaddingFound
+        expr: dq_padding_rows_before_listing > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "상장 전 패딩 행 {{ $value }}개 — 종목 첫 시세일 이전 수급 행"
+
+      - alert: AsofViolationFound
+        expr: dq_asof_violation_rows > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "as-of 위반 {{ $labels.scope }}: {{ $value }}행 (미래/유령 날짜 데이터)"
+
+      - alert: RunnerParseFailure
+        # 소스 API 가 행을 줬는데(source>0) 로더가 저장을 0 으로 신고했다 — 진짜 실패.
+        # (2026-09-24 실측: output2 를 output 으로 읽어 항상 +0행이었는데 exit 0 이었다.)
+        expr: dq_claim_parse_failure == 1
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "러너 {{ $labels.runner }}: 소스는 행을 줬는데 저장 0 ({{ $labels.table }})"
+
+      # NOTE 1: dq_claim_gap(stored - 신규)은 **알림하지 않는다**. 같은 구간을 재수집하면
+      # upsert 로 중복이 걸려 stored>0 / 신규 0 이 정상 발생한다(실측: 저장 44 / 신규 0).
+      # 대시보드에서 "중복 재수집" 지표로 사람이 본다.
+      # NOTE 2: dq_claim_zero_stored(저장 0 신고)도 알림하지 않는다 — 상장 초기 이력 소진
+      # 종목만 남은 실행에서 정상적으로 0이 된다(실측 386380/950260).
+
+      - alert: ColumnAllNull
+        expr: dq_col_quality_null_ratio > 0.99
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "컬럼 전량 결측: {{ $labels.table }}.{{ $labels.column }} (수집 실패 의심)"

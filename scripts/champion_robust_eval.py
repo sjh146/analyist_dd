@@ -135,7 +135,9 @@ def main() -> int:
     ap.add_argument("--model-dir", default="app/models/champion")
     ap.add_argument("--out", default="app/reports/champion_robust_eval.json")
     ap.add_argument("--write", action="store_true",
-                    help="champion/robust_auc.json 도 기록(승격 기준선 갱신)")
+                    help="robust_walkforward.json 도 기록(정보용 견고성 지표). "
+                         "승격 기준선 robust_auc.json 은 champion_promote 가 지표 동형으로 "
+                         "기록한다 — 여기서 덮어쓰면 단일 분할/워크포워드가 섞여 판정이 느슨해진다")
     args = ap.parse_args()
 
     conn = psycopg2.connect(
@@ -286,7 +288,12 @@ def main() -> int:
                 payload["robust_auc"], fold_means, args.out)
 
     if args.write:
-        target = os.path.join(args.model_dir, "robust_auc.json")
+        # 2026-09-25: 승격 기준선(robust_auc.json)과 **분리**한다. 이 평가의 프로토콜은
+        # 워크포워드 다중 폴드(auc_mean 아님)인데, 생산 챌린저 지표는 단일 분할
+        # ensemble_auc 다. 두 값을 섞으면 비교가 한쪽으로 기울어(워크포워드 값이 보통 더
+        # 낮아 단일 분할 후보가 쉽게 통과) 승격 판정이 느슨해진다. robust_auc.json 은
+        # **동일 지표**를 기록하는 champion_promote 만 쓴다.
+        target = os.path.join(args.model_dir, "robust_walkforward.json")
         with open(target, "w") as f:
             json.dump({
                 "robust_auc": payload["robust_auc"],
@@ -296,6 +303,7 @@ def main() -> int:
                 "rows_scored": payload["rows_scored"],
                 "folds": [f["auc_mean"] for f in fold_stats],
                 "measured_at": payload["measured_at"],
+                "note": "정보용 워크포워드 견고성 기록 — 승격 기준선은 robust_auc.json",
             }, f, ensure_ascii=False, indent=2)
         logger.info("기준선 기록: %s", target)
 

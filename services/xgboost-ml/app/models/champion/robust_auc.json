@@ -1,0 +1,14 @@
+{
+  "robust_auc": 0.5513,
+  "metric": "ensemble_auc",
+  "auc_std": null,
+  "protocol": "ensemble_auc on candidate val split (n_rows=12629)",
+  "model_aucs": {
+    "xgboost": 0.5492,
+    "lightgbm": 0.5448,
+    "catboost": 0.5185
+  },
+  "recorded_at": "2026-09-24T22:42:49",
+  "replaced_baseline": 0.53,
+  "replaced_source": "auc.txt(legacy, capped)"
+}

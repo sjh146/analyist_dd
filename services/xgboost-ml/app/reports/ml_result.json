@@ -1,18 +1,21 @@
 {
-  "auc": 0.5058,
-  "promoted": false,
-  "status": "kept_incumbent",
-  "reason": "candidate AUC 0.5058 < floor 0.55",
+  "auc": 0.5513,
+  "candidate_metric": "ensemble_auc",
+  "promoted": true,
+  "status": "promoted",
+  "reason": "candidate ensemble_auc 0.5513 >= baseline 0.5300 (auc.txt(legacy, capped)) and >= floor 0.53",
   "champion_auc_before": 0.6131,
-  "champion_auc_after": null,
+  "champion_baseline": 0.53,
+  "champion_baseline_source": "auc.txt(legacy, capped)",
+  "champion_auc_after": 0.5513,
   "model_aucs": {
-    "xgboost": 0.504809,
-    "lightgbm": 0.506843,
-    "catboost": 0.509471
+    "xgboost": 0.5492,
+    "lightgbm": 0.5448,
+    "catboost": 0.5185
   },
-  "n_rows": 1177,
-  "n_features": 43,
-  "up_rate": 0.4427,
-  "retrained_at": "2026-09-23T13:45:14",
-  "decided_at": "2026-09-23T14:19:45"
+  "n_rows": 12629,
+  "n_features": 173,
+  "up_rate": 0.4296,
+  "retrained_at": "2026-09-23T15:18:54",
+  "decided_at": "2026-09-24T22:42:49"
 }

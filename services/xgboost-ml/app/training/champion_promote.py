@@ -64,18 +64,23 @@ def _read_champion_auc(champion_dir: str) -> float:
 
 
 def _champion_baseline(champion_dir: str, legacy_cap: float) -> Dict:
-    """비교 기준선 — 다중 시드 기록이 있으면 그것, 없으면 운값을 상한까지만 인정."""
+    """비교 기준선 — 다중 시드 기록이 있으면 그것, 없으면 운값을 상한까지만 인정.
+
+    ``metric`` 도 함께 돌려준다: 기준선이 ``auc_mean``(다중 시드)인데 후보가 단일 분할만
+    있으면 비교 자체가 성립하지 않으므로(지표 동형성) 호출부가 그것을 검사한다.
+    """
     path = os.path.join(champion_dir, "robust_auc.json")
     try:
         data = _read_json(path)
         val = float(data.get("robust_auc"))
         return {"value": val, "source": "robust_auc.json",
+                "metric": data.get("metric"),
                 "protocol": data.get("protocol"), "recorded_at": data.get("recorded_at")}
     except (OSError, ValueError, TypeError, KeyError):
         pass
     raw = _read_champion_auc(champion_dir)
     return {"value": min(raw, legacy_cap), "source": "auc.txt(legacy, capped)",
-            "raw_auc_txt": raw, "cap": legacy_cap}
+            "metric": "ensemble_auc", "raw_auc_txt": raw, "cap": legacy_cap}
 
 
 def _missing(paths: List[str]) -> List[str]:
@@ -102,10 +107,10 @@ def _backup_champion(champion_dir: str) -> Optional[str]:
 def promote(
     candidate_dir: str,
     champion_dir: str,
-    min_auc: float = 0.55,
+    min_auc: float = 0.53,
     min_improvement: float = 0.0,
     dry_run: bool = False,
-    legacy_baseline_cap: float = 0.55,
+    legacy_baseline_cap: float = 0.53,
     max_std: Optional[float] = 0.05,
 ) -> Dict:
     """Compare a trained candidate against the incumbent and promote if better.
@@ -113,6 +118,13 @@ def promote(
     Returns a summary dict; ``promoted`` tells whether the champion was replaced.
     Never raises for a merely-worse candidate — that is a normal outcome.
 
+    ``min_auc`` / ``legacy_baseline_cap`` = **0.53** (2026-09-25 실측 근거로 하향)
+        0.55 는 달성 불가능한 문턱이었다. 5폴드×5시드 실측에서:
+          · 챔피언 로버스트 AUC ≈ 0.523, 최고 실험 0.5405, as-of 패치 후 4구성 0.5326~0.5400
+          · 즉 실질 상한이 ≈0.54 이므로 0.55 는 **어떤 정직한 후보도 통과 못 하는 잠금**이었고,
+            그 결과 챔피언이 2026-08-14 이후 동결되어 train/serve skew 만 커졌다.
+        0.53 은 실측 하한(0.5326) 바로 아래로, "동결 해제"와 "잡음 승격 방지"의 균형점이다.
+        근거: docs/asof_measurement_20260925.md
     ``legacy_baseline_cap``: 챔피언에 다중 시드 기록이 없을 때 ``auc.txt`` 를 이 값까지만
     인정한다(단일 시드 운값이 승격을 잠그는 것을 막는다).
     ``max_std``: 다중 시드 std 가 이 값을 넘는 후보는 거부(None/0 이하면 비활성).
@@ -145,6 +157,23 @@ def promote(
     cand_metric = "auc_mean" if meta.get("auc_mean") is not None else "ensemble_auc"
     baseline = _champion_baseline(champion_dir, legacy_baseline_cap)
     champ_auc = float(baseline["value"])
+
+    # 지표 동형성 가드 (2026-09-25): 기준선이 **다중 시드(auc_mean)** 인데 후보가
+    # 단일 분할만 있으면 비교가 성립하지 않는다. 실측 예: champion_cand_fair 의 0.5513 은
+    # 단일 분할(ensemble_auc, std 없음)이고 다중 시드 후보는 0.5058/0.5209 로 더 낮다.
+    # 기준선 metric 이 ensemble_auc(생산 학습 경로)면 단일 분할끼리 비교이므로 통과시킨다 —
+    # 여기서 무조건 막으면 생산 경로가 영원히 승격 못 하는 새 잠금이 생긴다.
+    base_metric = baseline.get("metric")
+    if (baseline["source"] == "robust_auc.json" and base_metric == "auc_mean"
+            and meta.get("auc_mean") is None):
+        result["status"] = "kept_incumbent"
+        result["reason"] = (
+            f"후보에 다중 시드 auc_mean 이 없다(단일 분할 ensemble_auc="
+            f"{meta.get('ensemble_auc')}) — 기준선이 다중 시드({champ_auc:.4f}, "
+            f"{base_metric})라 비교 불가. 다중 시드로 다시 학습하라"
+        )
+        logger.warning("promote skipped: %s", result["reason"])
+        return result
     result.update({
         "candidate_auc": round(cand_auc, 4),
         "candidate_metric": cand_metric,
@@ -237,11 +266,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Guarded champion promotion")
     ap.add_argument("--candidate", default="app/models/champion_cand")
     ap.add_argument("--champion", default="app/models/champion")
-    ap.add_argument("--min-auc", type=float, default=0.55,
-                    help="거부선: 이 값 미만 후보는 절대 승격하지 않는다")
+    ap.add_argument("--min-auc", type=float, default=0.53,
+                    help="거부선: 이 값 미만 후보는 절대 승격하지 않는다 "
+                         "(2026-09-25 실측 상한 ≈0.54 에 맞춰 0.55→0.53 하향)")
     ap.add_argument("--min-improvement", type=float, default=0.0,
                     help="현 챔피언 대비 최소 개선폭 (0.0 = 동률까지 허용)")
-    ap.add_argument("--legacy-baseline-cap", type=float, default=0.55,
+    ap.add_argument("--legacy-baseline-cap", type=float, default=0.53,
                     help="챔피언에 다중 시드 기록이 없을 때 auc.txt 를 인정하는 상한 "
                          "(단일 시드 운값이 승격을 잠그지 못하게 한다)")
     ap.add_argument("--max-std", type=float, default=0.05,

@@ -48,11 +48,18 @@ def split_windows(dates, n_windows: int):
 
 
 def compute_metrics(equity_curve: np.ndarray, trade_returns: list) -> dict:
-    """equity_curve(일별 자산)와 종목별 수익률로 MDD/샤프/승률 계산."""
+    """equity_curve(일별 자산)와 종목별 수익률로 MDD/샤프/승률/평균손익 계산.
+
+    2026-09-25 추가: ``avg_win_pct`` / ``avg_loss_pct``.
+    WHY: trader-agent 의 켈리 게이트는 ``f* = p - (1-p)/b`` 로 사이징하는데
+    ``b = avg_win/avg_loss`` 가 필요하다. 승률만 보내면 b 를 알 수 없어
+    사전확률이 config 가정값(b=1)으로 되돌아간다 — 즉 "측정 기반 사이징"이 불가능했다.
+    """
     eq = np.asarray(equity_curve, dtype=float)
     if len(eq) < 2:
         return {"total_return": 0.0, "cagr": 0.0, "max_drawdown": 0.0,
-                "sharpe": 0.0, "win_rate": 0.0, "n_trades": 0}
+                "sharpe": 0.0, "win_rate": 0.0, "n_trades": 0,
+                "avg_win_pct": 0.0, "avg_loss_pct": 0.0}
     total_return = eq[-1] / eq[0] - 1.0
     days = len(eq)
     cagr = (eq[-1] / eq[0]) ** (252.0 / max(days, 1)) - 1.0 if eq[0] > 0 else 0.0
@@ -62,7 +69,10 @@ def compute_metrics(equity_curve: np.ndarray, trade_returns: list) -> dict:
     daily_ret = np.diff(eq) / eq[:-1]
     sharpe = float(np.mean(daily_ret) / np.std(daily_ret) * np.sqrt(252)) if np.std(daily_ret) > 0 else 0.0
     wins = [r for r in trade_returns if r > 0]
+    losses = [r for r in trade_returns if r <= 0]
     win_rate = len(wins) / len(trade_returns) if trade_returns else 0.0
+    avg_win = float(np.mean(wins)) * 100.0 if wins else 0.0
+    avg_loss = abs(float(np.mean(losses))) * 100.0 if losses else 0.0
     return {
         "total_return": round(float(total_return), 4),
         "cagr": round(float(cagr), 4),
@@ -70,6 +80,8 @@ def compute_metrics(equity_curve: np.ndarray, trade_returns: list) -> dict:
         "sharpe": round(sharpe, 3),
         "win_rate": round(float(win_rate), 3),
         "n_trades": len(trade_returns),
+        "avg_win_pct": round(avg_win, 3),
+        "avg_loss_pct": round(avg_loss, 3),
     }
 
 
@@ -259,6 +271,8 @@ def main():
                           "threshold": args.threshold, "cagr": m['cagr'],
                           "sharpe": m['sharpe'], "max_drawdown": m['max_drawdown'],
                           "win_rate": m['win_rate'], "n_trades": m['n_trades'],
+                          # 켈리 사전확률용 — 없으면 trader-agent 가 b=1 가정으로 되돌아간다.
+                          "avg_win_pct": m.get('avg_win_pct'), "avg_loss_pct": m.get('avg_loss_pct'),
                           "walkforward": True, "window": wi, "window_range": f"{ws}~{we}"},
                 )
             except Exception as e:
