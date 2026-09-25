@@ -95,22 +95,55 @@ def append_ledger(rec):
 
 
 # ── 가드 ────────────────────────────────────────────────────────────────────
+def _pid_of(path, json_key=None):
+    """pidfile 또는 state.json 에서 pid 를 읽는다. 없거나 깨졌으면 None."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = f.read().strip()
+        if json_key:
+            raw = str(json.loads(raw).get(json_key) or "")
+        return int(raw)
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _pid_alive(pid):
+    """pid 가 살아 있는지 + **우리 사이클 스크립트**인지(pid 재사용 오탐 방지).
+
+    /proc/<pid>/cmdline 을 못 읽으면 보수적으로 '살아있음'으로 본다(차단이 안전한 쪽).
+    """
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            cmd = f.read()
+    except OSError:
+        return True
+    return b"_cycle.py" in cmd      # 두 역할 모두 *_cycle.py 로 실행된다
+
+
 def running_pid(exclude_self=True):
-    """pidfile 의 pid 가 살아 있으면 반환.
+    """실행 중인 사이클의 pid 를 반환(없으면 None).
 
     exclude_self: 백그라운드로 뜬 **자식 프로세스 자신**은 부모가 써 둔 자기 pid 를 보고
     스스로를 '다른 사이클'로 오판해 즉시 종료한다(실측 2026-09-25: bg_L1.log =
     "시작 보류: 이미 사이클 실행 중"). 그래서 자기 pid 는 '없음'으로 취급한다.
+
+    ⚠ state.json fallback: pidfile 이 사라져도 '실행 중' 신호를 잃지 않는다.
+    실측(2026-09-25 16:00~17:00): U1 4~6시간 빌드가 도는 중 running.pid 만 없어져
+    ① 교차 락(PEER_PIDFILES)이 풀려 리서처가 동시에 시작할 수 있게 되고
+    ② 틱이 "사이클 실행 중" 대신 "부하 과다 — 다른 학습이 도는 중"으로 **잘못 보고**했다.
+    pidfile 은 지워질 수 있는 캐시, state.json 은 사이클이 직접 쓰는 기록이라 둘 다 본다.
     """
-    try:
-        with open(PIDFILE, encoding="utf-8") as f:
-            pid = int(f.read().strip())
-        if exclude_self and pid == os.getpid():
-            return None
-        os.kill(pid, 0)
-        return pid
-    except (OSError, ValueError, FileNotFoundError):
-        return None
+    for path, key in ((PIDFILE, None), (STATE, "pid")):
+        pid = _pid_of(path, key)
+        if not pid or (exclude_self and pid == os.getpid()):
+            continue
+        if _pid_alive(pid):
+            return pid
+    return None
 
 
 def market_hours(dt=None) -> bool:
@@ -199,7 +232,10 @@ def guards(force=False) -> tuple:
         return False, f"{market_note()} — 시작하지 않음 (--force 로 무시)"
     l = load1()
     if l > LOAD_MAX:
-        return False, f"부하 과다 load1={l:.2f} > {LOAD_MAX} — 다른 학습이 도는 중"
+        # 표현 주의: 예전 문구는 "다른 학습이 도는 중"이라고 단정했다. 실측(2026-09-25 17:00)
+        # 정작 CPU 를 쓰는 것은 **우리 U1 패널 빌드**였고(진행 중 사이클), 그 문구 때문에
+        # "남의 작업이 돌아 대기 중"으로 잘못 보고됐다.
+        return False, f"부하 과다 load1={l:.2f} > {LOAD_MAX} — CPU 사용 중(우리 실험 포함)이라 시작 안 함"
     return True, "ok"
 
 
@@ -381,6 +417,51 @@ def north_star(role):
         return ""
 
 
+def _elapsed_note(started):
+    """시작 시각 → '경과 2h16m'. 파싱 실패하면 빈 문자열(틱은 절대 죽지 않는다)."""
+    try:
+        mins = int((now_kst() - datetime.fromisoformat(started)).total_seconds() // 60)
+        return f"경과 {mins // 60}h{mins % 60:02d}m"
+    except (TypeError, ValueError):
+        return ""
+
+
+def _progress_note(item_id):
+    """장시간 빌드의 진행률 한 줄 — 틱이 4~6시간 동안 눈이 멀지 않게.
+
+    실측(2026-09-25): U1 패널 빌드(41,893 페어)는 4~5시간 걸리는데, 그 동안 틱은
+    "부하 과다"만 반복해 진행 중인지·소실됐는지 사람이 알 수 없었다. 로그의
+    `Build progress: N/M` 을 읽어 진행률로 바꾼다(진행 로그가 없으면 로그 줄 수만).
+    """
+    if not item_id:
+        return ""
+    try:
+        cands = [os.path.join(LOGDIR, n) for n in os.listdir(LOGDIR)
+                 if n.startswith(f"me_cycle_{item_id}_") and n.endswith(".log")]
+    except OSError:
+        return ""
+    if not cands:
+        return ""
+    newest = max(cands, key=os.path.getmtime)
+    last, lines = "", 0
+    try:
+        with open(newest, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                lines += 1
+                if "Build progress" in line:
+                    last = line.strip()
+    except OSError:
+        return ""
+    if not last:
+        return f" · 로그 {lines:,}줄 (진행 로그 없음)"
+    pair = last.rsplit("Build progress:", 1)[-1].strip().split()[0]     # "15600/41893"
+    done, _, total = pair.partition("/")
+    if not done.isdigit() or not total.isdigit() or int(total) == 0:
+        return f" · {pair}"
+    d, t = int(done), int(total)
+    return f" · 빌드 진행 {d:,}/{t:,} ({d / t * 100:.1f}%)"
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
@@ -394,6 +475,7 @@ def tick(force=False):
         except (OSError, json.JSONDecodeError):
             pass
         log(f"사이클 실행 중: {st.get('id', '?')} pid={pid} 시작 {st.get('started', '?')}")
+        print(f"  {_elapsed_note(st.get('started'))}{_progress_note(st.get('id', ''))}")
         tail = ""
         try:
             with open(os.path.join(RUNTIME, f"bg_{st.get('id', '')}.log"), encoding="utf-8") as f:
@@ -522,9 +604,12 @@ def main():
             log(f"백로그에 {a.run} 없음")
             return 2
         rc = execute(it, a.force)
-        # 백그라운드 실행이 끝나면 pidfile 정리
+        # 백그라운드 실행이 끝나면 pidfile 정리 — 단, **그 pidfile 이 내 것일 때만**.
+        # 실측(2026-09-25): 소유권 검사 없이 지우면 뒤늦게 끝난 옛 자식이 지금 도는
+        # 사이클의 pidfile 을 지워 교차 락까지 무력화한다(16:00엔 있었고 17:00엔 없었다).
         try:
-            os.remove(PIDFILE)
+            if _pid_of(PIDFILE) == os.getpid():
+                os.remove(PIDFILE)
         except OSError:
             pass
         return rc
