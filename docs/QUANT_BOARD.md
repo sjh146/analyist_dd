@@ -121,26 +121,57 @@ cd /home/jhshi/analyist_dd
 
 ---
 
-## 현재 상태 (역할들이 갱신)
+## 현재 상태 (역할들이 갱신 · 리뷰보드 2026-09-25 22:50 검증)
 
 ### 리서처
-- 러너 자기신고 배선: `kis_supply_backfill`·`kis_supply_extend_history` 인라인 + 범용 래퍼
-  `scripts/run_with_claim.py` (나머지 러너는 래퍼로 코드 수정 없이 감쌀 수 있음)
-- 정확성 메트릭 6종 가동(`dq_*`), 알림 `dq_accuracy` 9개
-- 미배선: 크론 래퍼(`/home/jhshi/cron/*.sh`)에 래퍼 적용
+- **R9 판정 실명 수리**(`build_event_features` 가 자기 커버리지를 안 갱신) → 이벤트 17/17 nonzero,
+  alive/dead **147/52 → 164/35**. 커밋 `0c8335b` 푸시 완료. 검증: `dq_feature_feature_count` 199 실측.
+- DQ 실측(내 재확인): `dq_claim_parse_failure` 9시리즈 전부 0 · `dq_asof_violation_rows` 4스코프 0 ·
+  `dq_padding_ratio` 0 · `market_data` 최신일 **2026-09-23**(`krx_trading` 도 동일, KIS 일봉 로그
+  "구간 9/18~9/24 = 4영업일") → freshness 2.0일은 **9/24·9/25 연휴 감안 정상**(warn 3).
+- 남은 결함: feature_coverage **혼합 배치 128행**(09-24 값) · R7(휴장 캘린더 당일) · R11·R12·R13 미착수 ·
+  R15(Alertmanager) 승인 대기 · R14 감시 유지.
 
 ### 모델엔지니어
-- **2026-09-25 챔피언 승격**: `20260814` → `20260923` (auc.txt 0.6131 → 0.5513),
-  백업 `champion_prev_20260924-224249`, 기준선 `robust_auc.json` 기록(metric=ensemble_auc)
-- 게이트: `min_auc`/`legacy_baseline_cap` 0.55 → **0.53** (3곳) + 지표 동형성 가드
-- 실질 로버스트 상한 ≈0.54 확정 (as-of 누수 제거 후에도 불변) — `docs/asof_measurement_20260925.md`
+- **정렬 버그(중복 라벨 14개)** — 독립 재확인: `panel_420_asofpatch.npz` feature_names **210개 중 14개 중복**
+  (`cross_trend`·`price_volume`·`target_ma_5/10/20` 등, X shape 13609×210). 수정 코드(dedupe_names +
+  폴드 하드 가드)는 컨테이너에 존재(L93·L269). **단 실행 중 U1 은 구코드**(스크립트 mtime 22:26 > 시작 21:32).
+- 누수 게이트(수정 후 재측정): 단일피처 최대 분리도 **0.5637** (<0.75) 통과 · as-of 0 · 상장 전 패딩 0 ·
+  시장레벨 27개가 폴드 top30 에 **0개** → 통과.
+- **미해결 — 종목상수 비율의 정의가 두 개다(새 발견)**: 엔지니어는 패널 기준 **38/210**(=0.181),
+  리서처 메트릭 `dq_feature_stock_constant_ratio` **0.3293 = 54/164**(살아있는 피처 기준, 54 = 패널
+  null-dominated 수와 동일). 엔지니어의 "모집단 0.3293 대비 1.2~1.6배"는 **분모·정의가 섞인 비교**다.
+  강한 정의(38/210)로는 과대표집이 2.0~2.9배로 커진다 → 다음 사이클에 정의 통일 후 재판정.
+- **신규 실측 — 저녁 파이프라인 챔피언 재학습은 구조적으로 실패한다**: 20:29 KST 시작, 피처 빌드
+  11,813쌍을 1.26쌍/s 로 9,400쌍(79.6%)까지 진행 후 **2시간 캡에 exit=124**. 소요 156분 > 캡 120분
+  → 매일 같은 실패. `champion/auc.txt` **0.551318 동결**(9/23 15:18 이후), `champion_cand` 미생성.
+- U1(150종목): 1차는 19:59:15 마지막 로그 기록 후 사망(20:00 틱이 기록, 저녁 파이프라인 Phase 0
+  compose up 창과 일치) → 2차 21:29:40 재기동(load1=2.64, force 아님). 22:48 실측 **6,000/41,893
+  @1.29쌍/s ETA 06:31**, 체크포인트 동작(`panel_150u.npz.meta.json` processed 6,000, 22:47 갱신)
+  → 죽어도 재개로 대부분 보존된다.
+- 미커밋: `scripts/wf_wave.py`·`scripts/wf_label_sweep.py`(수정) · `478ba3d` 미푸시.
 
 ### 트레이더
-- 피드 경로 검증: WSL `feed_server`(8090) → Windows `127.0.0.1:8090` 도달 200 ✓
-- 켈리 사전확률 생성기 `scripts/build_screener_stats.py` (실측 백테스트 기반, 보수적 축소)
-- 미해결: `scoring_summary` 미포함(측정 데이터 대기), 브리지 `connected:false`(사람 단계)
+- **어제의 브리지 `connected:false` 는 해소됨** — Windows `127.0.0.1:8100/health` =
+  `{"ok":true,"connected":true}` (pid 18996, 13:04:42 기동). 리뷰보드가 직접 확인.
+- 그러나 **매매 루프 프로세스가 없다**(Windows python 프로세스 1개 = 브리지뿐) → 오늘 78사이클 전부
+  `halted`, 체결·청산 0건. 9/24 밤 브리지 미연결 3회로 걸린 자기차단 래치가 13:07 에 풀렸지만
+  루프를 다시 띄우지 않아 13:07~15:30 무감시.
+- 저널 실측(리뷰보드 재계산, scoreboard 와 일치): 청산 **31건 · 승률 12/31 = 38.7% · 실현 -7,839원**
+  (**fees 전부 0 = 수수료·세금 미반영**) · 보유 10종목 · 마지막 진입 9/21 14:52 (4.2일 전).
+- 피드: 20:30 발행(close 20건 85.5~90.0 spread 4.5 경고 / swing 20건 51.4~66.1), `close_price` 누락 0,
+  `feed_server` 8090 → 200.
+- **불일치(확인 필요)**: swing 후보 `signal_date=2026-09-24` 는 **휴장일**인데, 같은 날 저녁 파이프라인
+  Phase 3 은 "0 stocks" 를 저장했다 → swing 산출물 출처 확인 필요.
+- 켈리: `screener_stats_measured.json` `usable=false`(close f*=-0.0267 ≤ 0) → 페이로드 미기록 유지(올바름).
 
-### 열린 사람 단계
-1. **브리지 재시작** — 관리자 콘솔에서
-   `Get-NetTCPConnection -LocalPort 8100 -State Listen | % { Stop-Process -Id $_.OwningProcess -Force }`
-   후 `C:\Users\jhshi\analyist_dd\trader-agent\bridge_run_admin.bat` (UAC). WSL 기동은 중간 무결성이라 붙지 않음(실측).
+### 열린 사람 단계 (리뷰보드 집계 — 중복 제거)
+1. **⏰ 월(9/28) 08:35~08:40 — HTS(Creon) 로그인 + 브리지 재기동 (사람 직접, 대행 불가)**
+   지금 브리지(pid 18996)는 금요일 세션을 물고 있어 주말을 못 버틸 가능성이 크다. 08:45 예약작업이
+   새 브리지를 띄우면 8100 포트 점유로 죽고 낡은 세션 브리지가 `not_connected` 로 응답 → 오늘과
+   같은 자기차단 재발. 순서: HTS 로그인 → 기존 브리지 종료 → `bridge_run_admin.bat`(관리자 콘솔).
+   검증: `curl http://127.0.0.1:8100/health` 가 `connected:true` + `runner.log` 에 `halted` 아닌 사이클.
+   ※ 예약작업(bridge 08:45·loop 08:50)은 **대화형 모드**라 로그온 상태가 필요하다.
+   (기존 "브리지 재시작" 항목은 13:04 재기동으로 **해소** → 위 월요일 항목으로 대체)
+2. **승인 필요 — Alertmanager 컨테이너 + Discord 웹훅(R15)**: 규칙 20개가 평가만 되고 통보 경로가 없다.
+   웹훅 URL 만 사용자가 주면 리서처가 컨테이너를 세운다. 없으면 DQ 위반이 이 크론 보고에만 실린다.
