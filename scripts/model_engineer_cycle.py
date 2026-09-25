@@ -24,6 +24,11 @@
   7. **컨테이너 재생성 창 회피**: 평일 20:00 크론(evening_pipeline.sh → full_pipeline_dd.sh L78
      `docker compose up -d --no-build`)이 컨테이너를 갈아끼워 그 시각에 도는 `docker exec` 를
      SIGKILL(137) 한다. 항목의 `est_minutes` 로 ETA 를 계산해 이 창을 넘으면 시작하지 않는다.
+  8. **--force 의 의미**: 장중 가드·ETA 가드는 force 로 무시되지만, **부하 가드는 장외에서만**
+     무시된다. 실측(2026-09-25 21:00): 저녁 파이프라인 재학습 + yfinance 수집이 postgres 를
+     291% CPU 로 태워 load1=7 인 동안 대기형 런처의 강제 시작이 rc=3 으로 죽었고, 그대로면
+     11시간짜리 U1 패널 빌드가 밤새 시작되지 못한다. 크론 틱은 force 없이 돌므로
+     평소 직렬화(우리 학습 두 개 동시 실행 금지)는 그대로 유지된다.
 
 사용
   python3 scripts/model_engineer_cycle.py --tick          # 크론이 호출(짧게 끝남)
@@ -281,7 +286,17 @@ def guards(force=False, item=None) -> tuple:
         # 표현 주의: 예전 문구는 "다른 학습이 도는 중"이라고 단정했다. 실측(2026-09-25 17:00)
         # 정작 CPU 를 쓰는 것은 **우리 U1 패널 빌드**였고(진행 중 사이클), 그 문구 때문에
         # "남의 작업이 돌아 대기 중"으로 잘못 보고됐다.
-        return False, f"부하 과다 load1={l:.2f} > {LOAD_MAX} — CPU 사용 중(우리 실험 포함)이라 시작 안 함"
+        #
+        # --force 는 **장외에서만** 부하 가드를 무시한다. 실측(2026-09-25 21:00): 저녁
+        # 파이프라인의 챔피언 재학습 + yfinance 수집이 postgres 를 291% CPU 로 태워 load1=7 인
+        # 동안, 대기형 런처(u1_launcher.sh)의 90분 강제 시작이 이 가드를 뚫지 못하고 rc=3 으로
+        # 끝났다 → 아무도 다시 띄우지 않으면 밤이 통째로 날아간다(패널 빌드 11시간).
+        # 진짜 직렬화 대상은 '우리 학습 두 개'이고 그건 위에서 이미 확인했다(사이클·타 역할 없음).
+        # 장중(트레이더/피드 우선)은 force 로도 뚫지 않는다 — 위 장중 가드가 먼저 막는다.
+        if force and not market_hours():
+            log(f"주의: load1={l:.2f} > {LOAD_MAX} 이지만 --force·장외·경쟁 사이클 없음 → 강행")
+        else:
+            return False, f"부하 과다 load1={l:.2f} > {LOAD_MAX} — CPU 사용 중(우리 실험 포함)이라 시작 안 함"
     return True, "ok"
 
 
