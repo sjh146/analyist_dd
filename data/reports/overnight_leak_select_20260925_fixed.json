@@ -1,0 +1,1364 @@
+{
+  "panel": "services/xgboost-ml/app/models/wf/panel_420_asofpatch.npz",
+  "panel_shape": [
+    13609,
+    210
+  ],
+  "dates": [
+    "2025-07-31",
+    "2026-09-23"
+  ],
+  "n_stocks": 49,
+  "horizon": 5,
+  "q": 0.3,
+  "top": 30,
+  "folds": 5,
+  "n_features": 210,
+  "n_market_level_in_panel": 27,
+  "n_stock_constant_in_panel": 38,
+  "n_null_dominated_in_panel": 54,
+  "null_dominated_names": [
+    "credit_balance_change",
+    "days_to_cover",
+    "disclosure_count_5d",
+    "etf_flow_5d",
+    "event_capital_increase_5d",
+    "event_cb_bw_5d",
+    "event_contract_5d",
+    "event_delisting_5d",
+    "event_disaster_5d",
+    "event_exec_change_5d",
+    "event_litigation_5d",
+    "event_macro_5d",
+    "event_mna_5d",
+    "event_partnership_5d",
+    "event_patent_5d",
+    "event_recall_5d",
+    "event_regulation_5d",
+    "event_stake_change_5d",
+    "event_treasury_5d",
+    "foreign_ownership_pct",
+    "institution_ownership_pct",
+    "kalman_activity",
+    "kalman_attention",
+    "kalman_momentum",
+    "kalman_sentiment",
+    "margin_balance_change",
+    "retail_ownership_pct",
+    "sector_count",
+    "sector_momentum",
+    "short_interest_ratio",
+    "short_selling_ratio",
+    "sns_attention_score",
+    "sns_attention_score_best_lag",
+    "sns_attention_score_corr0",
+    "sns_attention_score_lag_sign",
+    "sns_attention_score_max_corr",
+    "sns_author_quality_score",
+    "sns_author_quality_score_best_lag",
+    "sns_author_quality_score_corr0",
+    "sns_author_quality_score_lag_sign",
+    "sns_author_quality_score_max_corr",
+    "sns_bot_filtered_count",
+    "sns_momentum_score",
+    "sns_momentum_score_best_lag",
+    "sns_momentum_score_corr0",
+    "sns_momentum_score_lag_sign",
+    "sns_momentum_score_max_corr",
+    "sns_post_count",
+    "sns_sentiment_score",
+    "sns_sentiment_score_best_lag",
+    "sns_sentiment_score_corr0",
+    "sns_sentiment_score_lag_sign",
+    "sns_sentiment_score_max_corr",
+    "value_ncav"
+  ],
+  "market_level_names": [
+    "basis",
+    "basis_change_5d",
+    "cpi_yoy",
+    "credit_spread",
+    "cycle_down",
+    "cycle_up",
+    "derivatives_volume",
+    "economic_event_count_7d",
+    "economic_event_impact",
+    "futures_premium",
+    "fx_change_1m",
+    "fx_change_3m",
+    "fx_usd_krw",
+    "interest_rate",
+    "interest_rate_change_1m",
+    "interest_rate_change_3m",
+    "krx_advance_decline_ratio",
+    "krx_total_trading_value",
+    "oil_change_1m",
+    "oil_change_3m",
+    "oil_wti",
+    "pbr_current",
+    "per_current",
+    "ppi_yoy",
+    "program_trading_ratio",
+    "roe",
+    "yield_spread"
+  ],
+  "folds_detail": {
+    "fold1": {
+      "train_rows": 1230,
+      "test_rows": 1378,
+      "test_from": "2025-10-13",
+      "test_to": "2025-12-15",
+      "test_up_rate": 0.49927431059506533,
+      "n_candidates": 132,
+      "n_selected": 30,
+      "selected_market_level": [],
+      "selected_stock_constant": [
+        "avg_similarity_top10",
+        "max_similarity",
+        "momentum_ni",
+        "news_count_5d",
+        "positive_ratio",
+        "quality_debt_ratio_change",
+        "quality_roa",
+        "quality_roe",
+        "similar_count",
+        "theme_count",
+        "value_ev_ebit",
+        "value_pbr"
+      ],
+      "selected_stats": {
+        "avg_similarity_top10": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_gain_uncertainty": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_momentum_5d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "debt_ratio": {
+          "coverage_nonzero": 0.9793518994782864,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "institution_net_buy_5d": {
+          "coverage_nonzero": 0.5924020868542876,
+          "xsec_const_rate": 0.03914590747330961,
+          "stock_uniq_median": 91.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "kalman_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "kalman_momentum_5d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "macd": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "max_similarity": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "momentum_1m_reverse": {
+          "coverage_nonzero": 0.9939745756484679,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 277.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "momentum_divergence": {
+          "coverage_nonzero": 0.9916231905356749,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 279.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "momentum_ni": {
+          "coverage_nonzero": 0.7161437284150195,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "news_count_5d": {
+          "coverage_nonzero": 0.9793518994782864,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "op_margin_change_yoy": {
+          "coverage_nonzero": 0.962377838195312,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "positive_ratio": {
+          "coverage_nonzero": 0.8967594973914321,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_debt_ratio_change": {
+          "coverage_nonzero": 0.9793518994782864,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roa": {
+          "coverage_nonzero": 0.9601734146520685,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roe": {
+          "coverage_nonzero": 0.9201998677345874,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "rsi": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 266.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "similar_count": {
+          "coverage_nonzero": 0.10324050260856786,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "theme_count": {
+          "coverage_nonzero": 0.9793518994782864,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_ev_ebit": {
+          "coverage_nonzero": 0.7182746711734881,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_pbr": {
+          "coverage_nonzero": 0.9600264530825189,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volatility_skew": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volume_ratio_20": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volume_ratio_vs_avg": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "short_medium_term_momentum__dup1": {
+          "coverage_nonzero": 0.9359247556763907,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 260.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "rank_return_20d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 96.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "rank_volume_ratio_20": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 108.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        }
+      },
+      "selected_zero_edge": [],
+      "selected_market_level_share": 0.0,
+      "selected_stock_constant_share": 0.4,
+      "top_edge": 0.0629,
+      "single_feature_auc_gt_075": {},
+      "n_single_feature_auc_gt_075": 0,
+      "top5_single_feature_auc": {
+        "quality_debt_ratio_change": 0.5629,
+        "institution_net_buy_5d": 0.5538,
+        "news_count_5d": 0.5514,
+        "bayes_momentum_5d": 0.5439,
+        "volatility_skew": 0.5386
+      },
+      "cut_edge_selected": 0.0253
+    },
+    "fold2": {
+      "train_rows": 2610,
+      "test_rows": 1380,
+      "test_from": "2025-12-16",
+      "test_to": "2026-02-25",
+      "test_up_rate": 0.5,
+      "n_candidates": 133,
+      "n_selected": 30,
+      "selected_market_level": [],
+      "selected_stock_constant": [
+        "momentum_ni",
+        "quality_asset_growth",
+        "quality_cp_to_assets",
+        "quality_f_score",
+        "quality_op_to_equity",
+        "quality_roa",
+        "quality_roe",
+        "quality_score",
+        "sentiment_volatility",
+        "value_ev_ebit",
+        "value_per",
+        "value_psr"
+      ],
+      "selected_stats": {
+        "atr": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_momentum_5d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "kalman_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "kalman_momentum_5d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "ma_position_5": {
+          "coverage_nonzero": 0.993607171724594,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 278.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "momentum_ni": {
+          "coverage_nonzero": 0.7161437284150195,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "net_income": {
+          "coverage_nonzero": 0.9787640532000882,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "net_margin": {
+          "coverage_nonzero": 0.960320376221618,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "op_margin": {
+          "coverage_nonzero": 0.960320376221618,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "operating_profit": {
+          "coverage_nonzero": 0.9787640532000882,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 183.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price_volume": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_asset_growth": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_cp_to_assets": {
+          "coverage_nonzero": 0.8811815710191785,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_f_score": {
+          "coverage_nonzero": 0.9004335366301712,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_op_to_equity": {
+          "coverage_nonzero": 0.9395253141303549,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roa": {
+          "coverage_nonzero": 0.9601734146520685,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roe": {
+          "coverage_nonzero": 0.9201998677345874,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_score": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "revenue_growth_yoy": {
+          "coverage_nonzero": 0.962377838195312,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "sentiment_volatility": {
+          "coverage_nonzero": 0.9587037989565729,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_ev_ebit": {
+          "coverage_nonzero": 0.7182746711734881,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_per": {
+          "coverage_nonzero": 0.6976265706517746,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_psr": {
+          "coverage_nonzero": 0.9430523917995444,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volatility_20d_rank": {
+          "coverage_nonzero": 0.9027849217429642,
+          "xsec_const_rate": 0.09608540925266904,
+          "stock_uniq_median": 232.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volatility_skew": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price_volume__dup1": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "rank_volatility_20d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 63.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "rank_ma_position_5": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 107.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        }
+      },
+      "selected_zero_edge": [],
+      "selected_market_level_share": 0.0,
+      "selected_stock_constant_share": 0.4,
+      "top_edge": 0.05,
+      "single_feature_auc_gt_075": {},
+      "n_single_feature_auc_gt_075": 0,
+      "top5_single_feature_auc": {
+        "quality_roa": 0.55,
+        "bayes_momentum_5d": 0.5489,
+        "net_income": 0.5487,
+        "bayes_momentum_1d": 0.5486,
+        "quality_score": 0.5476
+      },
+      "cut_edge_selected": 0.0288
+    },
+    "fold3": {
+      "train_rows": 3988,
+      "test_rows": 1355,
+      "test_from": "2026-02-26",
+      "test_to": "2026-05-04",
+      "test_up_rate": 0.4996309963099631,
+      "n_candidates": 135,
+      "n_selected": 30,
+      "selected_market_level": [],
+      "selected_stock_constant": [
+        "authenticity_avg",
+        "momentum_ni",
+        "quality_asset_growth",
+        "quality_cp_to_assets",
+        "quality_f_score",
+        "quality_op_to_equity",
+        "quality_roa",
+        "quality_roe",
+        "quality_score",
+        "theme_count",
+        "twin_avg_correlation",
+        "twin_count",
+        "value_ev_ebit",
+        "value_pbr",
+        "value_per",
+        "value_psr"
+      ],
+      "selected_stats": {
+        "atr": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "authenticity_avg": {
+          "coverage_nonzero": 0.9793518994782864,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "kalman_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "ma_position_120": {
+          "coverage_nonzero": 0.6903519729590712,
+          "xsec_const_rate": 0.30604982206405695,
+          "stock_uniq_median": 196.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "ma_position_5": {
+          "coverage_nonzero": 0.993607171724594,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 278.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "momentum_ni": {
+          "coverage_nonzero": 0.7161437284150195,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "net_income": {
+          "coverage_nonzero": 0.9787640532000882,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "net_margin": {
+          "coverage_nonzero": 0.960320376221618,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "op_margin": {
+          "coverage_nonzero": 0.960320376221618,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "operating_profit": {
+          "coverage_nonzero": 0.9787640532000882,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 183.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price_volume": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_asset_growth": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_cp_to_assets": {
+          "coverage_nonzero": 0.8811815710191785,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_f_score": {
+          "coverage_nonzero": 0.9004335366301712,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_op_to_equity": {
+          "coverage_nonzero": 0.9395253141303549,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roa": {
+          "coverage_nonzero": 0.9601734146520685,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roe": {
+          "coverage_nonzero": 0.9201998677345874,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_score": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "revenue_growth_yoy": {
+          "coverage_nonzero": 0.962377838195312,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "theme_count": {
+          "coverage_nonzero": 0.9793518994782864,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "twin_avg_correlation": {
+          "coverage_nonzero": 0.7973399955911529,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "twin_count": {
+          "coverage_nonzero": 0.7973399955911529,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_ev_ebit": {
+          "coverage_nonzero": 0.7182746711734881,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_pbr": {
+          "coverage_nonzero": 0.9600264530825189,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_per": {
+          "coverage_nonzero": 0.6976265706517746,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_psr": {
+          "coverage_nonzero": 0.9430523917995444,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price_volume__dup1": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "rank_ma_position_5": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 107.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        }
+      },
+      "selected_zero_edge": [],
+      "selected_market_level_share": 0.0,
+      "selected_stock_constant_share": 0.5333,
+      "top_edge": 0.0595,
+      "single_feature_auc_gt_075": {},
+      "n_single_feature_auc_gt_075": 0,
+      "top5_single_feature_auc": {
+        "value_ev_ebit": 0.5595,
+        "quality_score": 0.5587,
+        "quality_roa": 0.5548,
+        "atr": 0.5541,
+        "value_per": 0.5524
+      },
+      "cut_edge_selected": 0.0278
+    },
+    "fold4": {
+      "train_rows": 5349,
+      "test_rows": 1347,
+      "test_from": "2026-05-06",
+      "test_to": "2026-07-10",
+      "test_up_rate": 0.5003711952487008,
+      "n_candidates": 155,
+      "n_selected": 30,
+      "selected_market_level": [],
+      "selected_stock_constant": [
+        "quality_asset_growth",
+        "quality_cp_to_assets",
+        "quality_f_score",
+        "quality_op_to_equity",
+        "quality_roa",
+        "quality_roe",
+        "quality_score",
+        "sentiment_volatility",
+        "similarity_std",
+        "value_ev_ebit",
+        "value_per",
+        "value_psr"
+      ],
+      "selected_stats": {
+        "atr": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "atr_pct": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_volatility": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "beta_60d": {
+          "coverage_nonzero": 0.9027849217429642,
+          "xsec_const_rate": 0.09608540925266904,
+          "stock_uniq_median": 254.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "kalman_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "ma_position_5": {
+          "coverage_nonzero": 0.993607171724594,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 278.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "net_income": {
+          "coverage_nonzero": 0.9787640532000882,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "net_margin": {
+          "coverage_nonzero": 0.960320376221618,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "op_margin": {
+          "coverage_nonzero": 0.960320376221618,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "operating_profit": {
+          "coverage_nonzero": 0.9787640532000882,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 183.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price_volume": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_asset_growth": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_beta": {
+          "coverage_nonzero": 0.9207877140127857,
+          "xsec_const_rate": 0.07829181494661921,
+          "stock_uniq_median": 260.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_cp_to_assets": {
+          "coverage_nonzero": 0.8811815710191785,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_f_score": {
+          "coverage_nonzero": 0.9004335366301712,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_op_to_equity": {
+          "coverage_nonzero": 0.9395253141303549,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roa": {
+          "coverage_nonzero": 0.9601734146520685,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roe": {
+          "coverage_nonzero": 0.9201998677345874,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_score": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "relative_strength": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "revenue_growth_yoy": {
+          "coverage_nonzero": 0.962377838195312,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "sentiment_volatility": {
+          "coverage_nonzero": 0.9587037989565729,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "similarity_std": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_ev_ebit": {
+          "coverage_nonzero": 0.7182746711734881,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_per": {
+          "coverage_nonzero": 0.6976265706517746,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_psr": {
+          "coverage_nonzero": 0.9430523917995444,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price_volume__dup1": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "rank_ma_position_5": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 107.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        }
+      },
+      "selected_zero_edge": [],
+      "selected_market_level_share": 0.0,
+      "selected_stock_constant_share": 0.4,
+      "top_edge": 0.0604,
+      "single_feature_auc_gt_075": {},
+      "n_single_feature_auc_gt_075": 0,
+      "top5_single_feature_auc": {
+        "value_ev_ebit": 0.5604,
+        "value_per": 0.556,
+        "quality_score": 0.5528,
+        "quality_roa": 0.5527,
+        "quality_f_score": 0.5441
+      },
+      "cut_edge_selected": 0.0229
+    },
+    "fold5": {
+      "train_rows": 6700,
+      "test_rows": 1344,
+      "test_from": "2026-07-13",
+      "test_to": "2026-09-16",
+      "test_up_rate": 0.5,
+      "n_candidates": 192,
+      "n_selected": 30,
+      "selected_market_level": [],
+      "selected_stock_constant": [
+        "negative_ratio",
+        "quality_asset_growth",
+        "quality_cp_to_assets",
+        "quality_f_score",
+        "quality_op_to_equity",
+        "quality_roa",
+        "quality_roe",
+        "quality_score",
+        "sentiment_volatility",
+        "value_ev_ebit",
+        "value_per"
+      ],
+      "selected_stats": {
+        "atr_pct": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_momentum_1d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "bayes_volatility": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "beta_60d": {
+          "coverage_nonzero": 0.9027849217429642,
+          "xsec_const_rate": 0.09608540925266904,
+          "stock_uniq_median": 254.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "kalman_volatility": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "negative_ratio": {
+          "coverage_nonzero": 0.6283341906091557,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "net_income": {
+          "coverage_nonzero": 0.9787640532000882,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "net_margin": {
+          "coverage_nonzero": 0.960320376221618,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "op_margin": {
+          "coverage_nonzero": 0.960320376221618,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "operating_profit": {
+          "coverage_nonzero": 0.9787640532000882,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 3.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 183.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price_volume": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_asset_growth": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_cp_to_assets": {
+          "coverage_nonzero": 0.8811815710191785,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_f_score": {
+          "coverage_nonzero": 0.9004335366301712,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_op_to_equity": {
+          "coverage_nonzero": 0.9395253141303549,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_price_volatility_60d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 280.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roa": {
+          "coverage_nonzero": 0.9601734146520685,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_roe": {
+          "coverage_nonzero": 0.9201998677345874,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "quality_score": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "sentiment_volatility": {
+          "coverage_nonzero": 0.9587037989565729,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_ev_ebit": {
+          "coverage_nonzero": 0.7182746711734881,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "value_per": {
+          "coverage_nonzero": 0.6976265706517746,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 1.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "vix_proxy": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volatility_20d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volatility_20d_mean_10d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volatility_60d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 280.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "price_volume__dup1": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "volatility_20d_mean_10d__dup1": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 281.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        },
+        "rank_volatility_20d": {
+          "coverage_nonzero": 1.0,
+          "xsec_const_rate": 0.0,
+          "stock_uniq_median": 63.0,
+          "n_dates_judged": 281,
+          "n_stocks_judged": 49
+        }
+      },
+      "selected_zero_edge": [],
+      "selected_market_level_share": 0.0,
+      "selected_stock_constant_share": 0.3667,
+      "top_edge": 0.0637,
+      "single_feature_auc_gt_075": {},
+      "n_single_feature_auc_gt_075": 0,
+      "top5_single_feature_auc": {
+        "atr_pct": 0.5637,
+        "bayes_volatility": 0.5618,
+        "quality_roa": 0.5604,
+        "sentiment_volatility": 0.558,
+        "quality_score": 0.5563
+      },
+      "cut_edge_selected": 0.0342
+    }
+  },
+  "verdict": "주의: 종목상수 피처가 선별에 포함됨(종목 식별 증폭 위험)",
+  "selected_market_level_total": 0,
+  "selected_stock_constant_total": 63,
+  "_note": "선별 로직은 wf_wave.subset(select='topN') 과 동일 재현. 측정 전용(수정 금지)."
+}

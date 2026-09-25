@@ -1,5 +1,5 @@
 {
-  "ts": "2026-09-25T22:40:53+09:00",
+  "ts": "2026-09-26T08:17:23+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
@@ -12,10 +12,10 @@
     "expectancy_krw": -253,
     "avg_return_pct": 0.32,
     "open_positions": 10,
-    "days_since_entry": 4.3,
+    "days_since_entry": 4.7,
     "alerts": [
       "순손익 마이너스 -7,839원 — 기대값 -253원/건",
-      "신규 진입 4.3일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤"
+      "신규 진입 4.7일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤"
     ],
     "error": null
   },
@@ -23,36 +23,39 @@
     "role": "engineer",
     "north": "로버스트 AUC (다중폴드 평균)",
     "champion_single": 0.551318,
-    "best_robust": 0.5406,
-    "best_robust_std": 0.0316,
-    "best_exp": "LS_quant_q30_h5",
+    "best_robust": 0.5519,
+    "best_robust_std": 0.0333,
+    "best_exp": "TR_rank_h5",
     "baseline": 0.5406,
     "baseline_name": "LS_quant_q30_h5 (h5·분위0.3·top30)",
-    "delta": 0.0,
-    "last_verdict": "실행실패",
-    "no_improve_cycles": 2,
+    "delta": 0.0113,
+    "last_verdict": "노이즈",
+    "no_improve_cycles": 15,
     "source": "/home/jhshi/analyist_dd/data/reports/model_engineer_ledger.jsonl + /app/app/models/champion/auc.txt",
-    "alerts": [],
-    "measured_cycles": 2,
+    "alerts": [
+      "로버스트 AUC 가 15사이클(측정 15회) 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
+    ],
+    "measured_cycles": 15,
     "invalid_cycles": 1
   },
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20260925-220013.json",
+    "sample": "dq_20260926-060055.json",
     "status": "ok",
     "warns": [],
     "breaches": [],
     "alive_features": 164.0,
     "dead_features": 35.0,
     "stock_constant_ratio": 0.32926829268292684,
-    "news_freshness_hours": 0.4160478586111111,
+    "news_freshness_hours": 0.2400841863888889,
     "rows_delivered": 2435963.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
     "alerts": []
   },
   "needs_human": [
     "[trader] 순손익 마이너스 -7,839원 — 기대값 -253원/건",
-    "[trader] 신규 진입 4.3일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤"
+    "[trader] 신규 진입 4.7일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤",
+    "[engineer] 로버스트 AUC 가 15사이클(측정 15회) 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
   ]
 }
