@@ -194,6 +194,24 @@
           "detail": "DART 실호출 검증(에이전트 직접)"
         }
       ]
+    },
+    {
+      "id": "R7",
+      "title": "휴장 캘린더의 당일 누락 자동 보완 (가드가 휴장일을 놓치는 문제)",
+      "status": "pending",
+      "priority": 2,
+      "kind": "investigate",
+      "affects_model": true,
+      "hypothesis": "data/krx_holidays.json 이 data_gap.py 의 probe 로 유지되는데, probe 가 다음 실행 시점에야 그 날을 채운다 → 당일 휴장은 캘린더에 없다.",
+      "evidence": "실측 2026-09-25(추석 연휴): 캘린더에 2026-09-24 만 있고 당일 09-25 가 없어, 자율 루프의 휴장 인식 가드가 하루 종일 '장중'으로 오판 → 휴장일 CPU 를 놀렸다. market_data 도 09-24·09-25 모두 0행(거래 없음)이라 휴장이 확실한 날이었다.",
+      "command": "cd /home/jhshi/analyist_dd && sed -n '140,175p' scripts/data_gap.py && grep -n 'date.today|days=1|lookback' scripts/data_gap.py | head -10",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM market_data WHERE trade_date = CURRENT_DATE\"",
+      "check_target": {
+        "op": ">=",
+        "value": 0
+      },
+      "success": "data_gap probe 가 당일도 검사하도록 수정 + 휴장일이면 즉시 캘린더에 기록. 검증: 다음 휴장일에 market_hours() 가 False 를 반환",
+      "cost": "30분"
     }
   ]
 }

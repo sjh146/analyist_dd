@@ -47,6 +47,8 @@ KST = timezone(timedelta(hours=9))
 CONTAINER = "stock_xgboost_ml"
 LOAD_MAX = float(os.environ.get("ME_LOAD_MAX", "3.5"))
 MARKET_OPEN, MARKET_CLOSE = (9, 0), (15, 30)
+# KRX 휴장일 파일 — scripts/data_gap.py 가 데이터 공백을 probe 하며 자동 유지한다.
+HOLIDAY_PATH = os.path.join(PROJ, "data/krx_holidays.json")
 
 
 def now_kst():
@@ -111,12 +113,36 @@ def running_pid(exclude_self=True):
         return None
 
 
-def market_hours(dt=None):
+def market_hours(dt=None) -> bool:
+    """평일 09:00~15:30 이면서 **휴장일이 아닐 때만** True.
+
+    ⚠ 이전 구현은 시각만 봐서 **휴장일에도 실험을 전면 차단**했다. 실측(2026-09-25 추석 연휴):
+    장중 가드가 하루 종일 걸려 자율 루프가 놀았다 — 휴장일은 거래가 없어 CPU 가 완전히 비는데도.
+    휴장 판단은 data/krx_holidays.json 을 쓴다(scripts/data_gap.py 가 자동 유지하는 동일 소스).
+    파일이 없거나 깨졌으면 **차단하지 않는다** — '모름'을 휴장으로 단정하면 장중에 무거운 작업이
+    돌 수 있고, 반대로 차단하면 휴장일을 버린다. 이 경우 load 가드(load1)가 여전히 보호한다.
+    """
     dt = dt or now_kst()
     if dt.weekday() >= 5:
         return False
+    try:
+        with open(HOLIDAY_PATH, encoding="utf-8") as f:
+            if dt.strftime("%Y-%m-%d") in {str(d) for d in json.load(f)}:
+                return False
+    except (OSError, json.JSONDecodeError):
+        pass
     t = (dt.hour, dt.minute)
     return MARKET_OPEN <= t < MARKET_CLOSE
+
+
+def market_note(dt=None) -> str:
+    """가드가 왜 막았는지 사람이 읽을 수 있게."""
+    dt = dt or now_kst()
+    if dt.weekday() >= 5:
+        return "주말"
+    if not market_hours(dt):
+        return "휴장일(거래 없음) — 실험 가능"
+    return "장중(09:00~15:30) — 트레이더/피드가 CPU 우선"
 
 
 def load1():
@@ -170,7 +196,7 @@ def guards(force=False) -> tuple:
     if not container_up():
         return False, f"{CONTAINER} 컨테이너가 떠 있지 않음"
     if market_hours() and not force:
-        return False, "장중(09:00~15:30 KST) — 트레이더/피드가 CPU 우선이므로 시작하지 않음 (--force 로 무시)"
+        return False, f"{market_note()} — 시작하지 않음 (--force 로 무시)"
     l = load1()
     if l > LOAD_MAX:
         return False, f"부하 과다 load1={l:.2f} > {LOAD_MAX} — 다른 학습이 도는 중"
