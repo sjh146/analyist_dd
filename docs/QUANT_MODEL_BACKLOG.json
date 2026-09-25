@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-25T21:15:00+09:00",
+  "updated_at": "2026-09-25T21:40:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -395,6 +395,48 @@
       "cost": "2~4시간 (부하 풀린 뒤)",
       "success": "팩터 vs ML 비교 산출물(IC·분위 스프레드) 생성 + 어느 쪽을 피드로 쓸지 결론",
       "source_branch": "feat/quant-book-strategies (이미 병합됨)"
+    },
+    {
+      "id": "XR9",
+      "title": "[리서처 R9] 이벤트 공시 피처 17종 연결 (원천·피처 적재 완료, 커버리지는 격자분모 실측 제공)",
+      "status": "backlog",
+      "priority": 4,
+      "from_research": "R9",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": {
+        "value": 0.5406,
+        "source": "L1 실측 49종목 동일 프로토콜 (이벤트 피처 미포함)"
+      },
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "공시 이벤트(지분변동·임원변경·실적·공급계약)는 단기 방향성의 가격-독립 신호다. disclosure_count_5d 는 커버리지 0.1179 로 선별 문턱(0.044)의 2.7배이므로, 가격·수급 피처와 상관이 낮다면 폴드 평균을 올릴 수 있다.",
+      "evidence": "리서처 실측 2026-09-25 21:17 (feature_coverage, 격자 분모 1,113,634행 = market_data >= 2025-06-16, window_days=464, 착시 0 = NULL 없이 격자 채움):\n  - disclosure_count_5d 0.1179 (uniq_med 5, xsec 0.003) — 문턱 2.7배\n  - event_stake_change_5d 0.0519 (1.2배) / event_exec_change_5d 0.0422 (0.96배, 경계)\n  - event_realized_5d 0.0339 / event_contract_5d 0.0169 / event_treasury_5d 0.0114 / event_cb_bw_5d 0.0095 / event_capital_increase_5d 0.0092 / event_mna_5d 0.0082 / event_delisting_5d 0.0073 / event_litigation_5d 0.0040\n  - 나머지 6종(disaster/regulation/partnership/patent/recall/new_product) ≤0.0009 = 문턱의 1/50 → 무효\n  테이블: event_features 214,851행 / 2,703종목 / 2025-06-17~2026-09-23 (PIT 규율: 창은 D-5..D-1, 당일 공시 제외).\n  원천: disclosures 212,861행 / 3,052종목 / 422 접수일(2025-01-03~2026-09-23), 정기공시 제외 분류 완료.\n  ※ 주의: 행 분모(214,851)로 세면 0.6111 로 5배 과대평가된다(전부 0 인 행을 저장하지 않음). 위 수치는 격자 분모다.",
+      "success": "① 이벤트 피처를 학습 패널에 연결 ② 확장창 다중 폴드 평균이 0.5406 대비 −0.02 이내(악화 없음) 또는 개선 ③ 단변량 edge 를 top30 선별 문턱(≈0.044)과 비교한 표 제출(문턱의 1/4 이하면 채택 금지)",
+      "expected": "미지 — 커버리지가 문턱을 넘는 것은 2개뿐이고, 이벤트는 희소·불규칙이라 폴드에 고르게 깔리지 않을 수 있다. ‘커버리지 2.7배’가 ‘AUC 기여’를 뜻하지 않는다.",
+      "cost": "패널 연결 30분 + 폴드 재측정 1시간",
+      "note": "리서처가 command 를 비워 둔 이유: 어떤 피처 조합·유니버스로 돌릴지는 엔지니어가 대조군과 함께 확정해야 한다(데이터 준비 전 잘못된 실험 방지). 참고 스크립트: scripts/build_event_features.py (--coverage-only 로 커버리지만 재계산 가능)."
+    },
+    {
+      "id": "XR16",
+      "title": "[리서처 R16] 창(250d) 기준 커버리지를 통과한 3개 피처 단변량 판정 (momentum_3_12m·relative_strength·bb_position)",
+      "status": "backlog",
+      "priority": 3,
+      "from_research": "R16",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": {
+        "value": 0.5406,
+        "source": "L1 실측 49종목 동일 프로토콜"
+      },
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "R10 19개 중 3개는 250일 창에서도 커버리지가 충분하다(문턱 0.044 대비 5~22배). 횡단면 변별력도 있다(uniq_med 62/169/169). 이 3개만 넣으면 기존 피처와 중복되지 않는 한 폴드 평균이 오른다.",
+      "evidence": "리서처 실측 2026-09-25 21:30 (격자 = market_data, NULL 은 0 으로 세지 않음, 464d vs 250d 두 창):\n  채택 후보 3개(250d): momentum_3_12m nz 0.2353 uniq_med 62 xsec 0.633 / relative_strength 0.9679 uniq 169 xsec 0.000 / bb_position 0.9632 uniq 169 xsec 0.000\n  제외 — 시장레벨(xsec_const 1.000, 계약 #6로 횡단면 사용 금지): krx_advance_decline_ratio 0.9682 / market_breadth 0.9682 / krx_total_trading_value 0.9682\n  제외 — 원천 유니버스 부족: foreign_net_buy(_5d) 0.0784/0.0806, institution_net_buy(_5d) 0.0509/0.0609 (null 0.9163 = 격자 3,970종목 중 값 보유 338종목). 단 그 338종목 안에서는 nonzero 0.9370(문턱의 21배) → 무효가 아니라 분모 문제(R3 로 확장 시 시장 커버리지 ≈0.118)\n  제외 — 원천 없음: ownership_pct 3종(null 0.9997~1.0, ownership 테이블 225종목), short_interest_ratio·days_to_cover(null 1.0), market_impact_score 0.0015, momentum_ni·momentum_op(null 0.58~0.61 · uniq_med 0 = 재무 원천 부족)\n  창을 좁혀도 순위는 불변(464d→250d 에서 momentum_3_12m 0.1356→0.2353, bb_position 0.9020→0.9632) — 즉 464d 판정이 오분모는 아니었다.",
+      "success": "① 위 3개 피처의 단변량 AUC 를 top30 선별 문턱(≈0.044)과 비교한 표 ② 확장창 다중 폴드 평균이 0.5406 대비 −0.02 이내 또는 개선 ③ 수급 4종을 쓸 경우 유니버스 조건(338종목 제한 여부)을 명시",
+      "expected": "미지 — momentum_3_12m 은 기존 모멘텀 계열과 중복될 가능성이 높다(중복이면 기여 0).",
+      "cost": "단변량 측정 30분 + 폴드 1시간",
+      "note": "리서처는 커버리지·변별력까지만 판정했다(AUC 는 엔지니어 몫). command 는 비워 둔다 — 대조군(기존 모멘텀 계열 포함/제외)을 엔지니어가 확정해야 한다."
     }
   ]
 }

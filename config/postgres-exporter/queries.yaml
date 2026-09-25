@@ -360,8 +360,9 @@ dq_feature:
         AS coverage_illusion_max,
       COALESCE(MAX(null_ratio) FILTER (WHERE nonzero_ratio > 0), 0)::float AS null_ratio_max,
       -- 개수 형태는 **알림 대상**이다: 하나의 최악값이 아니라 "몇 개가 결함인가"를 세므로
-      -- 기준선이 안정적이다(실측 2026-09-25: 전체 199개 중 종목상수 여부와 무관하게
-      -- 착시>0.10 = 15개 / 결측>0.90 = 8개, 전부 R10 19개 배치 소속).
+      -- MAX 보다 안정적이지만 **측정 인구에 비례**한다 — 인구가 180 → 199개로 늘자
+      -- 착시>0.10 이 15 → 36개로 늘었다(2026-09-25 21:17, 배치별 R10 15 / R11 2 / R12 19).
+      -- 이벤트 배치(17개)는 갱신 후 착시 0 이다(naive=honest, NULL 없이 격자 채움).
       COUNT(*) FILTER (WHERE nonzero_ratio_naive - nonzero_ratio_honest > 0.10)::float
         AS coverage_illusion_count,
       COUNT(*) FILTER (WHERE null_ratio > 0.90 AND nonzero_ratio > 0)::float
@@ -386,7 +387,7 @@ dq_feature:
         description: "피처 최대 결측 비율 — 정보용"
     - coverage_illusion_count:
         usage: "GAUGE"
-        description: "커버리지 착시 >0.10 인 피처 개수 — 알림 대상(기준선 15)"
+        description: "커버리지 착시 >0.10 인 피처 개수 — 알림 대상(기준선 36, 측정 인구에 비례)"
     - null_ratio_high_count:
         usage: "GAUGE"
         description: "결측 >0.90 이면서 살아있는 피처 개수 — 알림 대상(기준선 8)"

@@ -194,7 +194,10 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit-stocks", type=int, default=0, help="디버그용 종목 수 제한")
     ap.add_argument("--coverage-only", action="store_true",
-                    help="이벤트 피처를 다시 만들지 않고 feature_coverage 17행만 재계산") 
+                    help="이벤트 피처를 다시 만들지 않고 feature_coverage 17행만 재계산")
+    ap.add_argument("--cov-since", default="2025-06-16",
+                    help="커버리지 격자 하한. --since 와 분리한다 — 빌드를 좁은 구간으로 재실행할 때 "
+                         "커버리지가 짧은 창으로 덮여 기준선이 뒤집히는 것을 막는다(실측 함정)")
     a = ap.parse_args()
     t0 = time.time()
 
@@ -203,7 +206,7 @@ def main():
 
     # ── coverage-only: 피처 테이블은 건드리지 않고 feature_coverage 17행만 재계산 ──
     if a.coverage_only:
-        report_coverage(conn, cur, a.since, runner_note="mode=coverage-only")
+        report_coverage(conn, cur, a.cov_since, runner_note="mode=coverage-only")
         log(f"완료 ({time.time() - t0:.1f}s)")
         cur.close(); conn.close()
         return 0
@@ -311,7 +314,7 @@ def main():
 
     # feature_coverage 동반 갱신 — 미갱신이 R9 를 '죽은 피처'로 오판시켰다(2026-09-25 실측).
     try:
-        report_coverage(conn, cur, a.since, runner_note="mode=build")
+        report_coverage(conn, cur, a.cov_since, runner_note=f"mode=build since={a.since}")
     except Exception as exc:  # noqa: BLE001
         log(f"coverage 갱신 실패(빌드는 성공): {exc}")
 

@@ -1,400 +1,405 @@
 {
- "schema": 1,
- "updated_at": "2026-09-25T20:19:20+09:00",
- "owner": "quant-researcher",
- "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
- "rules": [
-  "수집 러너는 반드시 scripts/run_with_claim.py 로 감싼다 — 자기신고(소스/저장/신규)가 남지 않는 수집은 실패를 감지할 수 없다.",
-  "KIS 실전 호출 제한 준수: 1.5~3.0초 + 지터, 토큰 발급 분당 1회.",
-  "운영 DB **스키마 변경**(컬럼 추가·테이블 변경)은 승인 필요. 새 테이블도 포함.",
-  "check 는 DQ 메트릭 또는 SQL 한 줄로 **수치**를 낸다 — '잘 됐다'는 자기평가를 쓰지 않는다.",
-  "모델에 영향이 있는 발견은 affects_model=true 로 표시 → 사이클이 모델엔지니어 백로그로 넘긴다(협업)."
- ],
- "items": [
-  {
-   "id": "R1",
-   "title": "DART 공시일(rcept_dt) 수집 → 재무 피처 기간유형 복구의 선행 조건",
-   "status": "done",
-   "priority": 1,
-   "affects_model": true,
-   "hypothesis": "재무 피처가 연간/반기 혼재이고 공시일이 없어 as-of 정확도가 낮다. rcept_dt 를 확보하면 기간유형을 구분할 수 있고 성장률 피처가 살아난다.",
-   "evidence": "① financial_statements 10,370행 적재됨(=DART 수집이 과거에 실제로 돌았다). ② DART 실호출 정상: status 000 / message 정상 / 54건, 응답에 rcept_dt(20260923 형식)와 stock_code 가 **둘 다 포함** → corp_code 매핑 없이 종목 조인 가능. ③ financial_statements 스키마에 rcept_dt 없음(\\d 확인). ④ sentiment_features.py:79 가 이미 disclosures(stock_code, rcept_dt DATE, report_nm) 계약을 요구하는데 테이블이 없다 → 그 기능이 죽어 있는 원인.",
-   "method": "승인 후 ① DDL 적용 ② dart_financial_backfill.py 또는 financial_collector 로 공시 인덱스 백필(rcept_dt·rcept_no·report_nm) ③ company_features 의 공시 지연 가정(90/45일)을 실제 rcept_dt 로 교체 ④ as-of 재측정",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/dart_financial_backfill.py --help'",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM financial_statements WHERE rcept_dt IS NOT NULL\" 2>/dev/null || echo 0",
-   "check_target": {
-    "op": ">=",
-    "value": 100
-   },
-   "setup_needed": [],
-   "success": "rcept_dt 보유 종목 100개 이상",
-   "cost": "수집 1~2시간 + 스키마 승인",
-   "proposed_sql": "CREATE TABLE IF NOT EXISTS disclosures (\n    stock_code VARCHAR(10) NOT NULL,\n    rcept_dt   DATE        NOT NULL,\n    rcept_no   VARCHAR(20) NOT NULL,\n    report_nm  TEXT,\n    corp_code  VARCHAR(10),\n    PRIMARY KEY (stock_code, rcept_no)\n);\nCREATE INDEX IF NOT EXISTS idx_disclosures_stock_dt ON disclosures(stock_code, rcept_dt DESC);",
-   "result": {
-    "detail": "승인·실행 완료 — init-scripts/postgres/15_disclosures.sql 적용(테이블+인덱스 2개), scripts/dart_disclosure_backfill.py 로 DART 정기공시 백필. 최종 22,278행 / 3,025종목 / 371 접수일 / 2025-01-03~2026-09-23. 월별 커버리지가 한국 공시 달력과 일치(3월 3,211 / 5월 2,872 / 8월 3,142 / 11월 2,830). 지연 실측: 사업보고서 중간값 78일(n=6,559) / 반기 45일(n=2,708) / 분기 44.5일(n=24). → 반기·분기 가정은 정확, 사업보고서 90일 가정만 과도하게 보수적(12일 정보 손실). 엔지니어에게 XR1 로 인계 완료.",
-    "check_value": 22278,
-    "rc": 0,
-    "log": "/tmp/dart_disc2.log"
-   },
-   "attempts": [
+  "schema": 1,
+  "updated_at": "2026-09-25T21:35:00+09:00",
+  "owner": "quant-researcher",
+  "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
+  "rules": [
+    "수집 러너는 반드시 scripts/run_with_claim.py 로 감싼다 — 자기신고(소스/저장/신규)가 남지 않는 수집은 실패를 감지할 수 없다.",
+    "KIS 실전 호출 제한 준수: 1.5~3.0초 + 지터, 토큰 발급 분당 1회.",
+    "운영 DB **스키마 변경**(컬럼 추가·테이블 변경)은 승인 필요. 새 테이블도 포함.",
+    "check 는 DQ 메트릭 또는 SQL 한 줄로 **수치**를 낸다 — '잘 됐다'는 자기평가를 쓰지 않는다.",
+    "모델에 영향이 있는 발견은 affects_model=true 로 표시 → 사이클이 모델엔지니어 백로그로 넘긴다(협업)."
+  ],
+  "items": [
     {
-     "ts": "2026-09-25T14:45:00+09:00",
-     "rc": 0,
-     "detail": "승인 후 실행: DDL 적용 + 백필 완주(신규 15,895행)"
-    }
-   ],
-   "incident": "1차 백필이 214페이지를 돌고 신규 945행뿐이었다(95% 중복). 원인: DART 는 total_count 를 넘는 page_no 에 마지막 페이지를 반복 반환. 수정: total_count 기반 종료 + 반복 감지(커밋 c509aa2)."
-  },
-  {
-   "id": "R2",
-   "title": "institution_ownership_pct 소스 발굴 (현재 100% 결측)",
-   "status": "done",
-   "priority": 2,
-   "affects_model": true,
-   "hypothesis": "KIS 현재가 74필드 전수 확인 결과 기관 지분율이 없다. DART/KRX/공시 중 대체 소스가 있으면 죽은 피처 1개가 부활한다.",
-   "evidence": "dbg: dq_col_quality_null_ratio{column=institution_ownership_pct} 가 사실상 1.0 (전량 NULL).",
-   "method": "① KRX OpenAPI 승인 상태 재확인 ② DART 지분공시(대량보유) 항목 확인 ③ Naver 금융 스크래핑 가능성 점검. 셋 다 실패면 '소스 없음'으로 종결하고 피처 제거를 제안.",
-   "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FILTER (WHERE institution_ownership_pct IS NOT NULL) AS nonzero, COUNT(*) AS total FROM ownership\" && docker exec stock_xgboost_ml sh -c 'ls /app/data/disclosures | head -3; python -c \"import os;print('DART_KEY', bool(os.environ.get('DART_API_KEY')))\";grep -l dart /app/scripts/*.py | head -3'",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FILTER (WHERE institution_ownership_pct IS NOT NULL) FROM ownership\"",
-   "check_target": {
-    "op": ">=",
-    "value": 10
-   },
-   "success": "비결측 행 10개 이상 또는 '소스 없음' 결론 + 피처 제거 제안",
-   "cost": "조사 1~3시간",
-   "kind": "investigate",
-   "attempts": [
+      "id": "R1",
+      "title": "DART 공시일(rcept_dt) 수집 → 재무 피처 기간유형 복구의 선행 조건",
+      "status": "done",
+      "priority": 1,
+      "affects_model": true,
+      "hypothesis": "재무 피처가 연간/반기 혼재이고 공시일이 없어 as-of 정확도가 낮다. rcept_dt 를 확보하면 기간유형을 구분할 수 있고 성장률 피처가 살아난다.",
+      "evidence": "① financial_statements 10,370행 적재됨(=DART 수집이 과거에 실제로 돌았다). ② DART 실호출 정상: status 000 / message 정상 / 54건, 응답에 rcept_dt(20260923 형식)와 stock_code 가 **둘 다 포함** → corp_code 매핑 없이 종목 조인 가능. ③ financial_statements 스키마에 rcept_dt 없음(\\d 확인). ④ sentiment_features.py:79 가 이미 disclosures(stock_code, rcept_dt DATE, report_nm) 계약을 요구하는데 테이블이 없다 → 그 기능이 죽어 있는 원인.",
+      "method": "승인 후 ① DDL 적용 ② dart_financial_backfill.py 또는 financial_collector 로 공시 인덱스 백필(rcept_dt·rcept_no·report_nm) ③ company_features 의 공시 지연 가정(90/45일)을 실제 rcept_dt 로 교체 ④ as-of 재측정",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/dart_financial_backfill.py --help'",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM financial_statements WHERE rcept_dt IS NOT NULL\" 2>/dev/null || echo 0",
+      "check_target": {
+        "op": ">=",
+        "value": 100
+      },
+      "setup_needed": [],
+      "success": "rcept_dt 보유 종목 100개 이상",
+      "cost": "수집 1~2시간 + 스키마 승인",
+      "proposed_sql": "CREATE TABLE IF NOT EXISTS disclosures (\n    stock_code VARCHAR(10) NOT NULL,\n    rcept_dt   DATE        NOT NULL,\n    rcept_no   VARCHAR(20) NOT NULL,\n    report_nm  TEXT,\n    corp_code  VARCHAR(10),\n    PRIMARY KEY (stock_code, rcept_no)\n);\nCREATE INDEX IF NOT EXISTS idx_disclosures_stock_dt ON disclosures(stock_code, rcept_dt DESC);",
+      "result": {
+        "detail": "승인·실행 완료 — init-scripts/postgres/15_disclosures.sql 적용(테이블+인덱스 2개), scripts/dart_disclosure_backfill.py 로 DART 정기공시 백필. 최종 22,278행 / 3,025종목 / 371 접수일 / 2025-01-03~2026-09-23. 월별 커버리지가 한국 공시 달력과 일치(3월 3,211 / 5월 2,872 / 8월 3,142 / 11월 2,830). 지연 실측: 사업보고서 중간값 78일(n=6,559) / 반기 45일(n=2,708) / 분기 44.5일(n=24). → 반기·분기 가정은 정확, 사업보고서 90일 가정만 과도하게 보수적(12일 정보 손실). 엔지니어에게 XR1 로 인계 완료.",
+        "check_value": 22278,
+        "rc": 0,
+        "log": "/tmp/dart_disc2.log"
+      },
+      "attempts": [
+        {
+          "ts": "2026-09-25T14:45:00+09:00",
+          "rc": 0,
+          "detail": "승인 후 실행: DDL 적용 + 백필 완주(신규 15,895행)"
+        }
+      ],
+      "incident": "1차 백필이 214페이지를 돌고 신규 945행뿐이었다(95% 중복). 원인: DART 는 total_count 를 넘는 page_no 에 마지막 페이지를 반복 반환. 수정: total_count 기반 종료 + 반복 감지(커밋 c509aa2)."
+    },
     {
-     "ts": "2026-09-25T14:04:03+09:00",
-     "rc": 0,
-     "detail": "[조사]R2: 0 >= 10 → 미달"
-    }
-   ],
-   "result": {
-    "detail": "[조사] 소스 없음 확인: ownership 225행 중 institution_ownership_pct 비결측 0행(100% 결측). KIS 현재가 74필드에도 없음(기존 확인). DART 수집기(/app/scripts/dart_financial_backfill.py)는 존재. ⚠ DART_API_KEY 확인은 명령 따옴표 버그(NameError)로 실패 → R2b 로 분리.",
-    "check_value": 0.0,
-    "rc": 0,
-    "log": "data/reports/res_cycle/logs/res_R2_20260925-140403.log"
-   },
-   "finding": "institution_ownership_pct 는 KIS 에 소스가 없다. DART 대량보유 공시 또는 KRX 가 후보."
-  },
-  {
-   "id": "R3",
-   "title": "수급 이력 확장: foreign_institutional 343 → 800종목",
-   "status": "pending",
-   "priority": 3,
-   "affects_model": true,
-   "hypothesis": "모델 유니버스를 500종목으로 늘리려면 수급 피처 커버리지가 따라와야 한다(현재 343종목). 커버리지가 유니버스의 상한을 결정한다.",
-   "evidence": "DB 실측: foreign_institutional 343종목/87,895행. 유니버스 풀은 2,428종목(250일 이상 + 유동성 1억 이상). 150종목 실험군 0.5727 vs 49종목군 0.5400.",
-   "method": "기존 러너 재사용(자기신고 필수): set -a && . ./.env && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 후 kis_supply_extend_history.py. 1.5~3초 간격이므로 300종목 ≈ 8~12시간 → 여러 사이클로 분할.",
-   "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/run_with_claim.py kis_supply_extend_history -- /usr/bin/python3 scripts/kis_supply_extend_history.py --target-days 250 --delay 2.0 --max-pages 12 --max-calls 400",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM foreign_institutional\"",
-   "check_target": {
-    "op": ">=",
-    "value": 500
-   },
-   "success": "수급 보유 종목 500개 이상 (자기신고 원장에 source/stored/new_rows 기록 동반)",
-   "cost": "사이클당 최대 400콜(약 15분~1시간), 총 8~12시간 분할",
-   "kind": "collect",
-   "incremental": true
-  },
-  {
-   "id": "R4",
-   "title": "공매도 잔고 커버리지 확대",
-   "status": "backlog",
-   "priority": 4,
-   "affects_model": false,
-   "hypothesis": "공매도 잔고는 수급과 독립적인 정보원이다. 커버리지가 좁으면 피처로 쓰기 어렵다.",
-   "evidence": "krx_short_selling 2,393행(커버리지 미측정).",
-   "command": null,
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM krx_short_selling\"",
-   "check_target": {
-    "op": ">=",
-    "value": 300
-   },
-   "success": "공매도 보유 종목 300개 이상",
-   "cost": "미측정"
-  },
-  {
-   "id": "R5",
-   "title": "뉴스 피처 품질 점검 → 뉴스 저장 전면 실패 발견·수정",
-   "status": "done",
-   "priority": 5,
-   "affects_model": false,
-   "hypothesis": "news_count_5d/20d 가 실제로 채워지는지, 죽은 피처 97개에 포함되는지 확인한다.",
-   "evidence": "feature_dead_count = 97 (실측). news 계열이 여기 포함됐는지 미확인.",
-   "command": null,
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM news_data\"",
-   "check_target": {
-    "op": ">=",
-    "value": 1
-   },
-   "success": "뉴스 데이터 존재 + 피처 결측률 < 0.5",
-   "cost": "30분",
-   "finding": "뉴스 분석 결과가 DB에 저장되지 않고 있었다. 원인: news_analysis 에 url 유니크 제약이 없는데 앱이 ON CONFLICT (url) DO NOTHING(postgres_storage.py:74)으로 저장 → PostgreSQL 이 매번 거부. 마지막 저장 성공 2026-09-23 16:08 / 24시간 저장 실패 3,657건. 앱은 30분 주기로 계속 분석(DeepSeek 호출 결제)하면서 결과를 전부 폐기 → 뉴스 피처 데이터 2일 공백. 수정: uq_news_analysis_url 유니크 인덱스(중복 0 확인 + 트랜잭션 사전검증 후 적용, init-scripts/postgres/16). 오류 즉시 중단 확인(최근 5분 0건).",
-   "result": "검증 완료(2026-09-25 15:39): 뉴스 파이프라인이 **다시 살아있음을 수치로 확인**. news_analysis 7,728 → **7,813행(+85)** 인데 직전 사이클 처리량이 정확히 85건 → 저장 누락 0. 20분 내 'Failed to save' 로그 0건. latest=2026-09-25 06:36:33Z(당일). 이전엔 2026-09-23 16:08 에 멈춰 있었다.",
-   "followup": "뉴스 피처(news_count_5d/20d, 감성)는 2026-09-23~09-25 구간이 비어 있다. 폐기된 분석은 복구 불가(RSS 재수집도 2일 지난 기사는 대부분 소실). 모델엔지니어는 이 구간의 뉴스 피처를 결측으로 취급해야 한다.",
-   "attempts": [
+      "id": "R2",
+      "title": "institution_ownership_pct 소스 발굴 (현재 100% 결측)",
+      "status": "done",
+      "priority": 2,
+      "affects_model": true,
+      "hypothesis": "KIS 현재가 74필드 전수 확인 결과 기관 지분율이 없다. DART/KRX/공시 중 대체 소스가 있으면 죽은 피처 1개가 부활한다.",
+      "evidence": "dbg: dq_col_quality_null_ratio{column=institution_ownership_pct} 가 사실상 1.0 (전량 NULL).",
+      "method": "① KRX OpenAPI 승인 상태 재확인 ② DART 지분공시(대량보유) 항목 확인 ③ Naver 금융 스크래핑 가능성 점검. 셋 다 실패면 '소스 없음'으로 종결하고 피처 제거를 제안.",
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FILTER (WHERE institution_ownership_pct IS NOT NULL) AS nonzero, COUNT(*) AS total FROM ownership\" && docker exec stock_xgboost_ml sh -c 'ls /app/data/disclosures | head -3; python -c \"import os;print('DART_KEY', bool(os.environ.get('DART_API_KEY')))\";grep -l dart /app/scripts/*.py | head -3'",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FILTER (WHERE institution_ownership_pct IS NOT NULL) FROM ownership\"",
+      "check_target": {
+        "op": ">=",
+        "value": 10
+      },
+      "success": "비결측 행 10개 이상 또는 '소스 없음' 결론 + 피처 제거 제안",
+      "cost": "조사 1~3시간",
+      "kind": "investigate",
+      "attempts": [
+        {
+          "ts": "2026-09-25T14:04:03+09:00",
+          "rc": 0,
+          "detail": "[조사]R2: 0 >= 10 → 미달"
+        }
+      ],
+      "result": {
+        "detail": "[조사] 소스 없음 확인: ownership 225행 중 institution_ownership_pct 비결측 0행(100% 결측). KIS 현재가 74필드에도 없음(기존 확인). DART 수집기(/app/scripts/dart_financial_backfill.py)는 존재. ⚠ DART_API_KEY 확인은 명령 따옴표 버그(NameError)로 실패 → R2b 로 분리.",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R2_20260925-140403.log"
+      },
+      "finding": "institution_ownership_pct 는 KIS 에 소스가 없다. DART 대량보유 공시 또는 KRX 가 후보."
+    },
     {
-     "ts": "2026-09-25T15:15:00+09:00",
-     "rc": 0,
-     "detail": "진단 + 인덱스 적용(승인)"
-    }
-   ],
-   "verified": true
-  },
-  {
-   "id": "R6",
-   "title": "U2(500종목 패널) 사전 커버리지 점검",
-   "status": "backlog",
-   "priority": 6,
-   "affects_model": true,
-   "hypothesis": "500종목 패널을 빌드하기 전에 피처별 커버리지를 점검하면, 어떤 피처가 유니버스를 붕괴시키는지 알 수 있다(현재 210피처 전량 요구가 49종목 교집합을 만든 원인).",
-   "evidence": "현행 패널은 49종목에서 교집합이 끊겼다. U1(150종목) 결과가 선행 조건.",
-   "command": null,
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM market_data WHERE trade_date >= '2025-07-01'\"",
-   "check_target": {
-    "op": ">=",
-    "value": 1500
-   },
-   "success": "피처별 커버리지 리포트 작성 + 결측 허용 전략 제안",
-   "cost": "1시간"
-  },
-  {
-   "id": "R2b",
-   "title": "DART 키/수집기 실동작 확인 (R2 따옴표 버그 재실행)",
-   "status": "done",
-   "priority": 2,
-   "kind": "investigate",
-   "affects_model": true,
-   "hypothesis": "R2 의 DART 키 확인이 명령 따옴표 오류(NameError)로 실패했다. 키 존재 여부만 확실히 확인한다.",
-   "evidence": "R2 로그: `NameError: name 'DART_KEY' is not defined` — 셸 이스케이프 버그(발견이 아니라 측정 실패).",
-   "command": "docker exec stock_xgboost_ml sh -c 'echo KEY_LINES:; grep -c DART /app/.env 2>/dev/null || echo 0; ls -la /app/scripts/dart_financial_backfill.py; python /app/scripts/dart_financial_backfill.py --help 2>&1 | head -12'",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM financial_statements\"",
-   "check_target": {
-    "op": ">=",
-    "value": 1
-   },
-   "success": "DART 키 유무와 수집기 인자 확인 (키 값은 절대 출력하지 않는다)",
-   "cost": "5분",
-   "result": {
-    "detail": "직접 검증 완료 — DART 키 실호출 정상(status 000, 54건), 응답 필드에 rcept_dt·stock_code 포함. 수집기 파일 존재 확인. 남은 것은 스키마(disclosures) 승인뿐 → R1 으로 통합.",
-    "check_value": 54,
-    "rc": 0,
-    "log": "-"
-   },
-   "attempts": [
+      "id": "R3",
+      "title": "수급 이력 확장: foreign_institutional 343 → 800종목",
+      "status": "pending",
+      "priority": 3,
+      "affects_model": true,
+      "hypothesis": "모델 유니버스를 500종목으로 늘리려면 수급 피처 커버리지가 따라와야 한다(현재 343종목). 커버리지가 유니버스의 상한을 결정한다.",
+      "evidence": "DB 실측: foreign_institutional 343종목/87,895행. 유니버스 풀은 2,428종목(250일 이상 + 유동성 1억 이상). 150종목 실험군 0.5727 vs 49종목군 0.5400.",
+      "method": "기존 러너 재사용(자기신고 필수): set -a && . ./.env && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 후 kis_supply_extend_history.py. 1.5~3초 간격이므로 300종목 ≈ 8~12시간 → 여러 사이클로 분할.",
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/run_with_claim.py kis_supply_extend_history -- /usr/bin/python3 scripts/kis_supply_extend_history.py --target-days 250 --delay 2.0 --max-pages 12 --max-calls 400",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM foreign_institutional\"",
+      "check_target": {
+        "op": ">=",
+        "value": 500
+      },
+      "success": "수급 보유 종목 500개 이상 (자기신고 원장에 source/stored/new_rows 기록 동반)",
+      "cost": "사이클당 최대 400콜(약 15분~1시간), 총 8~12시간 분할",
+      "kind": "collect",
+      "incremental": true
+    },
     {
-     "ts": "2026-09-25T14:10:00+09:00",
-     "rc": 0,
-     "detail": "DART 실호출 검증(에이전트 직접)"
+      "id": "R4",
+      "title": "공매도 잔고 커버리지 확대",
+      "status": "backlog",
+      "priority": 4,
+      "affects_model": false,
+      "hypothesis": "공매도 잔고는 수급과 독립적인 정보원이다. 커버리지가 좁으면 피처로 쓰기 어렵다.",
+      "evidence": "krx_short_selling 2,393행(커버리지 미측정).",
+      "command": null,
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM krx_short_selling\"",
+      "check_target": {
+        "op": ">=",
+        "value": 300
+      },
+      "success": "공매도 보유 종목 300개 이상",
+      "cost": "미측정"
+    },
+    {
+      "id": "R5",
+      "title": "뉴스 피처 품질 점검 → 뉴스 저장 전면 실패 발견·수정",
+      "status": "done",
+      "priority": 5,
+      "affects_model": false,
+      "hypothesis": "news_count_5d/20d 가 실제로 채워지는지, 죽은 피처 97개에 포함되는지 확인한다.",
+      "evidence": "feature_dead_count = 97 (실측). news 계열이 여기 포함됐는지 미확인.",
+      "command": null,
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM news_data\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "success": "뉴스 데이터 존재 + 피처 결측률 < 0.5",
+      "cost": "30분",
+      "finding": "뉴스 분석 결과가 DB에 저장되지 않고 있었다. 원인: news_analysis 에 url 유니크 제약이 없는데 앱이 ON CONFLICT (url) DO NOTHING(postgres_storage.py:74)으로 저장 → PostgreSQL 이 매번 거부. 마지막 저장 성공 2026-09-23 16:08 / 24시간 저장 실패 3,657건. 앱은 30분 주기로 계속 분석(DeepSeek 호출 결제)하면서 결과를 전부 폐기 → 뉴스 피처 데이터 2일 공백. 수정: uq_news_analysis_url 유니크 인덱스(중복 0 확인 + 트랜잭션 사전검증 후 적용, init-scripts/postgres/16). 오류 즉시 중단 확인(최근 5분 0건).",
+      "result": "검증 완료(2026-09-25 15:39): 뉴스 파이프라인이 **다시 살아있음을 수치로 확인**. news_analysis 7,728 → **7,813행(+85)** 인데 직전 사이클 처리량이 정확히 85건 → 저장 누락 0. 20분 내 'Failed to save' 로그 0건. latest=2026-09-25 06:36:33Z(당일). 이전엔 2026-09-23 16:08 에 멈춰 있었다.",
+      "followup": "뉴스 피처(news_count_5d/20d, 감성)는 2026-09-23~09-25 구간이 비어 있다. 폐기된 분석은 복구 불가(RSS 재수집도 2일 지난 기사는 대부분 소실). 모델엔지니어는 이 구간의 뉴스 피처를 결측으로 취급해야 한다.",
+      "attempts": [
+        {
+          "ts": "2026-09-25T15:15:00+09:00",
+          "rc": 0,
+          "detail": "진단 + 인덱스 적용(승인)"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "id": "R6",
+      "title": "U2(500종목 패널) 사전 커버리지 점검",
+      "status": "backlog",
+      "priority": 6,
+      "affects_model": true,
+      "hypothesis": "500종목 패널을 빌드하기 전에 피처별 커버리지를 점검하면, 어떤 피처가 유니버스를 붕괴시키는지 알 수 있다(현재 210피처 전량 요구가 49종목 교집합을 만든 원인).",
+      "evidence": "현행 패널은 49종목에서 교집합이 끊겼다. U1(150종목) 결과가 선행 조건.",
+      "command": null,
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM market_data WHERE trade_date >= '2025-07-01'\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1500
+      },
+      "success": "피처별 커버리지 리포트 작성 + 결측 허용 전략 제안",
+      "cost": "1시간"
+    },
+    {
+      "id": "R2b",
+      "title": "DART 키/수집기 실동작 확인 (R2 따옴표 버그 재실행)",
+      "status": "done",
+      "priority": 2,
+      "kind": "investigate",
+      "affects_model": true,
+      "hypothesis": "R2 의 DART 키 확인이 명령 따옴표 오류(NameError)로 실패했다. 키 존재 여부만 확실히 확인한다.",
+      "evidence": "R2 로그: `NameError: name 'DART_KEY' is not defined` — 셸 이스케이프 버그(발견이 아니라 측정 실패).",
+      "command": "docker exec stock_xgboost_ml sh -c 'echo KEY_LINES:; grep -c DART /app/.env 2>/dev/null || echo 0; ls -la /app/scripts/dart_financial_backfill.py; python /app/scripts/dart_financial_backfill.py --help 2>&1 | head -12'",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM financial_statements\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "success": "DART 키 유무와 수집기 인자 확인 (키 값은 절대 출력하지 않는다)",
+      "cost": "5분",
+      "result": {
+        "detail": "직접 검증 완료 — DART 키 실호출 정상(status 000, 54건), 응답 필드에 rcept_dt·stock_code 포함. 수집기 파일 존재 확인. 남은 것은 스키마(disclosures) 승인뿐 → R1 으로 통합.",
+        "check_value": 54,
+        "rc": 0,
+        "log": "-"
+      },
+      "attempts": [
+        {
+          "ts": "2026-09-25T14:10:00+09:00",
+          "rc": 0,
+          "detail": "DART 실호출 검증(에이전트 직접)"
+        }
+      ]
+    },
+    {
+      "id": "R7",
+      "title": "휴장 캘린더의 당일 누락 자동 보완 (가드가 휴장일을 놓치는 문제)",
+      "status": "pending",
+      "priority": 2,
+      "kind": "investigate",
+      "affects_model": true,
+      "hypothesis": "data/krx_holidays.json 이 data_gap.py 의 probe 로 유지되는데, probe 가 다음 실행 시점에야 그 날을 채운다 → 당일 휴장은 캘린더에 없다.",
+      "evidence": "실측 2026-09-25(추석 연휴): 캘린더에 2026-09-24 만 있고 당일 09-25 가 없어, 자율 루프의 휴장 인식 가드가 하루 종일 '장중'으로 오판 → 휴장일 CPU 를 놀렸다. market_data 도 09-24·09-25 모두 0행(거래 없음)이라 휴장이 확실한 날이었다.",
+      "command": "cd /home/jhshi/analyist_dd && sed -n '140,175p' scripts/data_gap.py && grep -n 'date.today|days=1|lookback' scripts/data_gap.py | head -10",
+      "check": "/usr/bin/python3 -c \"import sys, datetime; sys.path.insert(0,'/home/jhshi/analyist_dd/scripts'); import data_gap; print(1 if datetime.date.today().isoformat() in data_gap.expected_dates() else 0)\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "fix": "2026-09-25 적용: data_gap.py 의 expected_dates() 가 range(1, ..) 라 **당일이 점검 창에서 빠져 있었다** → range(0, ..) 로 당일 포함. find_gaps() 는 당일을 '휴장 판정'에만 쓰고 공실로 세지 않는다(d == today_s → continue, 장중이면 일봉이 아직 없어 count=0 이라 공실로 오판하면 매일 백필이 돈다). 검증(probe 모사, 캘린더에서 오늘 제거 후): ① no_data 응답 → 오늘 즉시 캘린더 기록·gaps 미포함 ② exists 응답 → 휴장 아님·gaps 미포함. 실측: /usr/bin/python3 scripts/data_gap.py report → rc=0 '공실 없음 — 데이터 정상'. 종전 check(CURRENT_DATE 행수 >= 0)는 0>=0 이 항상 참이라 픽스 없이도 완료로 오판됐다.",
+      "success": "data_gap probe 가 당일도 검사하도록 수정 + 휴장일이면 즉시 캘린더에 기록. 검증: 다음 휴장일에 market_hours() 가 False 를 반환",
+      "cost": "30분"
+    },
+    {
+      "id": "R9",
+      "title": "이벤트 공시 피처 19개 부활 (DART B/D/E/I 백필 → 키워드 분류)",
+      "status": "done",
+      "priority": 1,
+      "affects_model": true,
+      "hypothesis": "이벤트 공시가 없어 event_*_5d 18개 + disclosure_count_5d 가 전부 0 이다. 공시 이벤트(유상증자·공급계약·소송·자기주식 등)는 단기 방향성의 실질 신호다.",
+      "evidence": "실측 2026-09-25: feature_coverage 최신 스냅샷에서 nonzero_ratio=0 인 97개 중 event 계열 18개 + disclosure_count_5d. disclosures 22,278건이 **전부 정기공시**(report_nm 이 사업/분기/반기보고서 계열뿐)였고 '유상증자' 매치 0건 — 원인은 수집 스크립트의 pblntf_ty='A' 하드코딩. B 유형 dry-run 실측: 2026-08 월 300건 수신 (적재대상 77~82건/페이지)로 이벤트 공시는 실재 확인.",
+      "method": "① --types B,D,E,I 백필(오늘 진행 중) ② report_nm 키워드 → 16종 이벤트 유형 분류 ③ 종목×일자 롤링 5일 카운트 테이블 생성 ④ 모델 피처로 연결(as-of 준수)",
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('event_capital_increase_5d','event_contract_5d','event_mna_5d','event_treasury_5d','disclosure_count_5d') AND nonzero_ratio > 0\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('event_capital_increase_5d','event_contract_5d','event_mna_5d','event_treasury_5d','disclosure_count_5d') AND nonzero_ratio > 0\"",
+      "check_target": {
+        "op": ">=",
+        "value": 3
+      },
+      "setup_needed": [],
+      "cost": "백필 30분 + 분류 스크립트·검증 1~2시간",
+      "success": "report_nm 유형 100개 이상 적재 후 event_features 생성, 부활 피처 nonzero 확인",
+      "doc": "docs/DEAD_FEATURE_REVIVAL.md",
+      "result": "**완료(2026-09-25 21:17)** — 이벤트 피처 부활은 이미 데이터로 끝나 있었고, 판정이 낡은 커버리지 스냅샷에 묶여 있었을 뿐이다. 수리 2건: ① `build_event_features.py` 에 feature_coverage 격자분모 재계산(`--coverage-only`, 빌드 후 자동 갱신) 추가 — 이 빌더만 coverage 를 갱신하지 않아 적재 후에도 '죽은 피처'로 보였다. ② 스냅샷 갱신: 17개 전부 nonzero (직전 스냅샷은 09-24 18:11 값으로 전부 0). 실측(격자 1,113,634행 = market_data >= 2025-06-16, window_days=464): disclosure_count_5d 0.1179 / event_stake_change_5d 0.0519 / event_exec_change_5d 0.0422 / event_realized_5d 0.0339 / event_contract_5d 0.0169 / event_treasury_5d 0.0114 / event_cb_bw_5d 0.0095 / event_capital_increase_5d 0.0092 / event_mna_5d 0.0082 / event_delisting_5d 0.0073 / event_litigation_5d 0.0040 / 나머지(disaster·regulation·partnership·patent·recall·new_product) ≤0.0009. 선별 문턱(0.044) 대비: 통과 2개(disclosure_count_5d 2.7배, stake_change 1.2배), 경계 1개(exec_change 0.96배), 나머지 14개는 문턱의 1/4~1/2 → **무효**. 종목별 값 중앙 유니크값은 1~5로 낮다(이벤트는 희소 사건이라 정상). 엔지니어 인계: XR9 (피처 연결 + 최근 창(≤250d) 기준 재측정). 주의 — 행 분모(event_features 214,851행)로 세면 0.6111 로 **5배 과대평가**된다(이 테이블은 전부 0 인 행을 저장하지 않는다). 반드시 격자 분모로 볼 것.",
+      "note": "| [2026-09-25 21:35 리서처] 착시(naive-honest) 0 — 격자를 NULL 없이 채워 측정했다. check 에서 배치 필터(`computed_at = MAX`)를 제거했다(현재상태 테이블 = 전체를 센다). XR9 로 엔지니어에 넘김: 넘길 값은 '적재 완료'가 아니라 위 커버리지 실측치다."
+    },
+    {
+      "id": "R10",
+      "title": "수급·시장·모멘텀 피처 19개 부활 (보유 테이블만으로 계산)",
+      "status": "partial",
+      "priority": 2,
+      "affects_model": true,
+      "hypothesis": "foreign_institutional 87,895행·krx_short_selling 2,393행·market_data 111만 행을 이미 보유하고도 누적/비율 피처가 없다. 수급·모멘텀은 가격 피처와 독립 신호다.",
+      "evidence": "feature_coverage: institution_*·foreign_*·short_*·momentum_*·krx_*·market_* 계열 19개가 nonzero_ratio=0. 원천 테이블은 각각 수천~수십만 행 적재 완료(실측).",
+      "method": "SQL/pandas 로 ① 기관·외국인 5일 누적 순매수 ② 공매도 비율·days_to_cover ③ 3/6/12개월 모멘텀·상대강도·breadth·등락비율·볼린저 위치를 종목×일자로 계산 후 피처 테이블 적재 → feature_coverage 재계산",
+      "command": "/usr/bin/python3 scripts/build_supply_market_features.py",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('institution_net_buy_5d','foreign_net_buy_5d','short_selling_ratio','momentum_3_12m','market_breadth') AND nonzero_ratio > 0\"",
+      "check_target": {
+        "op": ">=",
+        "value": 3
+      },
+      "setup_needed": [],
+      "cost": "계산·검증 1~2시간",
+      "success": "19개 중 5개 이상 nonzero 확인 (한 계열씩 투입 후 로버스트 AUC 판정)",
+      "doc": "docs/DEAD_FEATURE_REVIVAL.md",
+      "authoring": {
+        "target": "scripts/build_supply_market_features.py",
+        "instructions": "수급·시장·모멘텀 피처 생성기. 입력 테이블: foreign_institutional(87,895행, 종목·일자·순매수), krx_short_selling(2,393행), market_data(1,113,634행 일봉), ownership. 출력 테이블은 init-scripts/postgres/ 에 DDL 을 함께 작성(18_*.sql)하고 피처 테이블에 적재하라. as-of 규율: 값은 당일 종가까지의 정보만 사용(미래 누수 금지). 결측은 0 이 아니라 '정보 없음'을 구분해 채워라(가능하면 NULL 유지, 불가하면 0 + 주석). 종목×거래일 격자는 market_data 의 (stock_code, trade_date) 를 기준으로 만들어라. 계산 대상: institution_net_buy(_5d), foreign_net_buy(_5d), ownership_pct 계열, short_interest_ratio, short_selling_ratio, days_to_cover, momentum_3_12m, momentum_ni, momentum_op, krx_advance_decline_ratio, krx_total_trading_value, market_breadth, market_impact_score, relative_strength, bb_position.",
+        "timeout_s": 2400,
+        "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
+      },
+      "note": "| 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당. [2026-09-25 20:22 리서처 실측] 원천 적재는 성공했으나 feature_coverage 실측에서 19개 중 착시 15개·결측>0.90 8개가 전부 이 배치 소속(기존 180개는 0). 단 그 값은 464일 격자 기준이라 오분모일 수 있다 → R16(창 기준 재측정)이 선행 조건. 엔지니어에 넘길 때 '적재 완료'가 아니라 '창 기준 커버리지 실측치'를 동봉할 것.| [2026-09-25 21:35 리서처·R16 결과 반영] 창(250d) 기준으로도 쓸 수 있는 것은 3개뿐이다: momentum_3_12m·relative_strength·bb_position (각각 nz 0.235/0.968/0.963, uniq_med 62/169/169, xsec 0.633/0.000/0.000). adr·breadth·total_trading_value 는 xsec_const=1.000 이라 **횡단면 피처 금지**(시장 타이밍 전용). 수급 4종은 null 0.9163 = 격자 3,970종목 중 338종목만 값 보유이지만, 그 338종목 안에서는 nonzero 0.9370 이다 — 무효 판정이 아니라 **분모 문제**(R3 로 확장). 엔지니어에 넘길 목록은 이 3개(+수급은 유니버스 조건 명시)다."
+    },
+    {
+      "id": "R11",
+      "title": "거시 피처 16개 부활 (macro_indicators as-of 조인)",
+      "status": "pending",
+      "priority": 3,
+      "affects_model": true,
+      "hypothesis": "macro_indicators 6,261행(환율·금리·유가·CPI/PPI)을 보유하고도 조인 코드가 없어 거시 국면이 모델에 전혀 들어가지 않는다.",
+      "evidence": "feature_coverage: fx/oil/interest/cpi/ppi/yield/economic/cycle 계열 16개가 nonzero_ratio=0.",
+      "method": "발표일 기준 as-of 조인(룩어헤드 금지: 발표 지연 반영) + 변화율·스프레드 계산 후 적재. 주기: 일별 관측치와 월별 지표를 구분해 각각 전진 채움.",
+      "command": "/usr/bin/python3 scripts/build_macro_features.py",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('fx_usd_krw','oil_wti','interest_rate','cpi_yoy','yield_spread') AND nonzero_ratio > 0\"",
+      "check_target": {
+        "op": ">=",
+        "value": 3
+      },
+      "setup_needed": [],
+      "cost": "1~2시간",
+      "success": "16개 중 3개 이상 nonzero + as-of 위반 0 유지",
+      "authoring": {
+        "target": "scripts/build_macro_features.py",
+        "instructions": "거시 피처 생성기. 입력: macro_indicators(6,261행 — 지표명·일자·값 구조를 먼저 확인하라). 발표 지연을 반영한 **as-of 조인**이 핵심: 월별 지표는 발표일(또는 관측일+지연) 이후 행에만 값이 보이도록 하고, 일별 지표(환율·금리·유가)는 당일까지 사용하라. 계산 대상: fx_usd_krw, fx_change_1m/3m, oil_wti, oil_change_1m/3m, interest_rate, interest_rate_change_1m/3m, cpi_yoy, ppi_yoy, yield_spread, economic_event_count_7d, economic_event_impact, cycle_up, cycle_down. 출력 테이블 DDL 포함(19_*.sql).",
+        "timeout_s": 2400,
+        "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
+      },
+      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
+    },
+    {
+      "id": "R12",
+      "title": "재무 비율 피처 19개 부활 (기간유형 구분 선행)",
+      "status": "pending",
+      "priority": 4,
+      "affects_model": true,
+      "hypothesis": "financial_statements 10,370행이 연간/반기 혼재로 growth 피처가 깨져 있고 ROA/ROE/부채비율/PER/PBR 등 기본 비율이 아예 없다. rcept_dt 확보로 구분 가능해졌다.",
+      "evidence": "feature_coverage: quality_* 9개·value_* 7개 + roe/per_current/pbr_current 가 nonzero_ratio=0. disclosures 백필로 rcept_dt 22,278행 확보(기간유형 구분 근거).",
+      "method": "① rcept_dt 로 보고서 기간유형(사업/반기/분기) 구분 ② 비율 계산(ROA/ROE/부채비율/영업이익률/PER/PBR/PSR/EV-EBIT 등, 시가총액은 market_data 사용) ③ as-of 규율: 접수일 이후에만 값이 보이도록 조인",
+      "command": "/usr/bin/python3 scripts/build_financial_ratio_features.py",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio > 0\"",
+      "check_target": {
+        "op": ">=",
+        "value": 3
+      },
+      "setup_needed": [],
+      "cost": "2~3시간(기간유형 구분 포함)",
+      "success": "19개 중 3개 이상 nonzero + dq_asof_violation_rows 0 유지",
+      "authoring": {
+        "target": "scripts/build_financial_ratio_features.py",
+        "instructions": "재무 비율 피처 생성기. 입력: financial_statements(10,370행) + disclosures(rcept_dt 로 기간유형 구분) + market_data(시가총액용 종가). 반드시 **rcept_dt 이후에만 값이 보이도록** as-of 조인하라(백필로 접수일 212,861행 확보됨). 연간/반기/분기 혼재를 기간유형으로 구분하고, 비율 계산: ROA, ROE, 부채비율 변화, 영업이익성장, 자산성장, PER, PBR, PSR, PCR, EV/EBIT, NCAV, PFCR. 출력 테이블 DDL 포함(20_*.sql). 클래스당 행이 1개 이상이면 성공.",
+        "timeout_s": 2400,
+        "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
+      },
+      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
+    },
+    {
+      "id": "R13",
+      "title": "원천 부재 피처 35개 조사 (신용잔고·파생·테마·베이지안)",
+      "status": "pending",
+      "priority": 5,
+      "affects_model": true,
+      "kind": "investigate",
+      "hypothesis": "나머지 35개(파생·신용 basis/futures/derivatives/program/credit/margin/etf 9개, 테마·섹터·유사종목·authenticity·bayes 14개, 지분율 3개 등)는 원천 또는 방법론이 없다. 수집 가능성과 비용을 판정해야 한다.",
+      "evidence": "feature_coverage nonzero_ratio=0 중 위 계열 35개. KRX OpenAPI·KIS 파생·뉴스 NLP 후보.",
+      "method": "① KRX OpenAPI 승인 항목 중 신용잔고·프로그램매매 제공 여부 확인 ② KIS 파생 시세 제공 여부 ③ 테마/섹터는 뉴스·SNS NLP 로 가능한지 비용 추정 ④ 불가 항목은 '소스 없음'으로 종결하고 피처 제거를 제안(죽은 피처 방치 금지)",
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE nonzero_ratio = 0\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE nonzero_ratio = 0\"",
+      "check_target": {
+        "op": "<=",
+        "value": 35
+      },
+      "setup_needed": [],
+      "cost": "조사 2~4시간(수집 제외)",
+      "success": "각 계열에 대해 '수집 가능(비용)' 또는 '소스 없음' 결론 + 후속 항목 등록",
+      "check_note": "| [2026-09-25 21:35 리서처·check 무결성 경고] 이 check(`dead <= 78`)는 R9~R12 부활로 dead 가 97 → 35 로 줄어 **조사 없이도 통과**한다. target 을 35 로 조여 회귀는 잡되, 이 값은 R13 의 산출물(원천 판정)이 아니다 → 이 신호만으로 done 으로 닫지 말 것. 다음 사이클에 '소스 판정표(피처별 수집가능/소스없음) + 개별 피처 검사'로 check 를 교체한다."
+    },
+    {
+      "id": "R14",
+      "title": "feature_coverage 스냅샷 신선도 확보 (R9·R13 판정이 낡은 스냅샷에 묶여 있다)",
+      "status": "in_progress",
+      "priority": 3,
+      "affects_model": true,
+      "kind": "investigate",
+      "hypothesis": "R9·R13 의 완료 판정은 feature_coverage 의 **최신 스냅샷**을 읽는데, 그 스냅샷을 만드는 scripts/feature_coverage_report.py 가 자동 실행되지 않아 값이 멈춰 있다. 데이터가 실제로 부활해도 판정은 0 으로 남아 항목이 영원히 미달이 된다(조용한 공전).",
+      "evidence": "실측 2026-09-25 18:03 — feature_coverage 최신 computed_at = 2026-09-24 18:11 UTC (= 09-25 03:11 KST, 약 15시간 정체), 그 스냅샷의 event_* 는 nonzero_ratio 전부 0.0. 반면 라이브 event_features 테이블은 133,513행 / 2,702종목 / 2025-06-17~2026-09-23 이고 17개 컬럼 중 16개 nonzero (disclosure_count_5d 51.5%, event_stake_change_5d 43.3%, event_exec_change_5d 34.3%). 즉 R9 check 는 '데이터는 준비됐는데 낡은 스냅샷을 읽어 0' 을 반환한다. 또 패널 연결도 끝나 있다: app/models/wf/panel_420_asofpatch_ev.npz (2026-09-25 17:42 생성, event 컬럼 17개 추가).",
+      "method": "① feature_coverage_report.py 를 크론/러너 후처리로 자동 실행 ② 스냅샷 소스가 event 피처를 포함하는지 확인 — 현재 exp_panel 캐시만 읽으면 별도 테이블인 event_features(0 아닌 행만 저장)는 영원히 0 으로 나온다 ③ 신선도 메트릭(feature_coverage_age_hours) + 알림 추가(없으면 다음에도 같은 방식으로 멈춘다)",
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN (SELECT COUNT(*) FROM feature_coverage WHERE computed_at < (SELECT MAX(computed_at) FROM feature_coverage) - interval '6 hours') = 0 THEN 1 ELSE 0 END\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN (SELECT COUNT(*) FROM feature_coverage WHERE computed_at < (SELECT MAX(computed_at) FROM feature_coverage) - interval '6 hours') = 0 THEN 1 ELSE 0 END\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "check_note": "check 를 '최신 배치가 26h 이내인가'에서 **'혼합 배치가 없는가'(최고령 행이 최신 배치의 6시간 이내)로 교체**했다 — 이전 criteria 는 새 배치 하나만 들어와도 통과해 128행 정체를 못 본다(실측 확인: 현재 값 0).",
+      "setup_needed": [],
+      "cost": "1~2시간",
+      "success": "feature_coverage 스냅샷이 26시간 이내로 갱신되고 event 피처가 반영되어 R9 check 가 >0 반환",
+      "result": "**부분 수리(2026-09-25 21:17)** — 근본원인 2개 중 하나를 없앴다. ① (수리) 이벤트 계열은 이제 빌더가 자기 coverage 를 갱신한다(`build_event_features.py --coverage-only` / 빌드 후 자동) → R9 가 낡은 값에 묶이지 않는다. ② (남음) 패널 경유 스냅샷 128행은 여전히 09-24 13:48~18:11 값이다. 실측 21:17: feature_coverage 199행 중 71행만 09-25 배치, 128행은 09-24 → **혼합 배치**(최신-최고령 26h). 원인: `feature_coverage_report.py` 는 exp_panel 캐시(2026-09-23 13:02 빌드, s200_d120)를 읽는데, 캐시가 낡으면 결과도 낡고, `--ignore-cache` 는 30종목/30일 축소 패널이라 **분모가 달라져** 덮어쓰면 판정이 뒤집힌다(그래서 자동 실행을 임의로 붙이지 않았다). 해소 경로: (a) 엔지니어가 exp_panel 캐시를 현재 DB 로 재빌드 → 내가 `feature_coverage_report.py` 1회 실행(동일 분모), 또는 (b) 각 빌더가 R10 방식으로 자기 피처 coverage 를 격자분모로 upsert(이벤트 계열은 완료, 나머지 계열 확대). ③ 감시: `dq_feature_oldest_age_days`(정보용)가 MIN(computed_at) 기준이라 최고령 피처를 본다."
+    },
+    {
+      "id": "R15",
+      "title": "알림 발송 경로 확보 (Alertmanager 부재 — 규칙 20개가 평가만 되고 아무 데도 안 간다)",
+      "status": "needs_approval",
+      "priority": 2,
+      "affects_model": false,
+      "kind": "investigate",
+      "hypothesis": "Prometheus 에 alerting 섹션·Alertmanager 가 없어 규칙이 평가만 되고 발송되지 않는다. 2026-09-25 15:50~20:03 모니터링 실명 4시간을 아무도 통보받지 못한 직접 원인이다.",
+      "evidence": "실측 2026-09-25 20:10 — prometheus.yml 에 alerting 블록 없음, alertmanager 컨테이너 없음, 규칙 17개(현재 20개) 전부 state=inactive/pending 으로 평가만 됨. 발송 경로는 현재 크론 틱(quant-researcher-monitor)이 유일하다. 같은 시각 postgres 타겟이 down 이었는데도 아무 알림이 나가지 않았다.",
+      "method": "① (즉시 대체) 크론 틱이 유일한 통보 경로임을 문서화하고, dq_snapshot 의 사각지대 위반을 보고 최상단에 올린다 — 완료 ② (승인 필요) Alertmanager 컨테이너 추가 + Discord/Slack receiver 1개, grafana 컨테이너와 같은 방식으로 compose 에 편입",
+      "command": "",
+      "check": "docker ps --format '{{.Names}}' | grep -c alertmanager",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "check_note": "check 는 '컨테이너 존재'만 본다 — 실패할 수 없는 check 를 피하기 위해, 발송 검증은 별도로 /api/v1/alerts 에서 firing 알림이 receiver 로 간 흔적을 확인해야 한다.",
+      "setup_needed": [
+        "Alertmanager 컨테이너 신설 여부 결정 — 새 상시 컨테이너 + compose 변경이므로 사용자 승인 필요",
+        "알림 수신처(Discord 웹훅 주소) 제공 필요 — 주소는 제가 만들 수 없습니다"
+      ],
+      "cost": "1~2시간",
+      "success": "모니터링 실명/타겟 다운이 사람에게 자동 통보된다(크론 틱 외 경로 확보)"
+    },
+    {
+      "id": "R16",
+      "title": "R10 19개 피처를 모델 창(최근 90~250일) 기준으로 재측정 (464일 격자 판정은 오분모)",
+      "status": "pending",
+      "priority": 2,
+      "affects_model": true,
+      "kind": "investigate",
+      "hypothesis": "R10 이 feature_coverage 에 쓴 커버리지는 464일 전체 격자를 분모로 쓴 값이라, 모델이 실제로 쓰는 최근 창에서는 커버리지가 더 높다. 격자 기준으로 '커버리지 0.9%' 로 보이는 피처가 창 기준에서는 쓸 수 있는 피처일 수 있다. 반대로 stock_unique_median<=1(종목별 값 1개)은 창과 무관하게 횡단면 무변별이므로 그대로 실격이다.",
+      "evidence": "실측 2026-09-25 20:22 — R10 19개 중 착시 15개 / 결측>0.90 8개가 전부 이 배치 소속이고, 180개 기존 피처는 착시 0. 단 이 수치는 window_days=464 격자 기준이다. 공시 기반 피처(short_interest_ratio 등)는 데이터가 존재하는 기간이 최근으로 한정되므로 격자 분모가 커버리지를 구조적으로 낮게 만든다.",
+      "method": "① build_supply_market_features.py 의 compute_coverage 를 창 파라미터화(예: --since 250d) ② 같은 19개를 90/250/464일 세 창으로 측정해 표로 비교 ③ 창 기준 nonzero_ratio>=0.044(선별 문턱) 이면서 stock_unique_median>=2 인 피처만 '엔지니어 제안 가능'으로 표시",
+      "command": "",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('bb_position','krx_advance_decline_ratio','krx_total_trading_value','market_breadth','relative_strength','momentum_3_12m','momentum_ni','momentum_op','foreign_net_buy','institution_net_buy','market_impact_score','short_selling_ratio','retail_ownership_pct','foreign_ownership_pct','short_interest_ratio','days_to_cover','institution_ownership_pct','foreign_net_buy_5d','institution_net_buy_5d') AND window_days <= 250 AND nonzero_ratio >= 0.044 AND stock_unique_median >= 2 AND cross_section_constant_ratio < 0.99\"",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "check_note": "결함 자체를 검사한다: '창 기준으로도 쓸 수 있는 피처가 0개'면 0 이 나와 미달로 남고, 재측정해서 쓸 수 있는 피처가 확인되어야 통과한다. 격자(464) 값으로는 절대 통과하지 않는다.",
+      "setup_needed": [],
+      "cost": "2~3시간",
+      "success": "19개 각각에 대해 창별 커버리지·횡단면 변별력이 표로 나오고, 엔지니어에 넘길 수 있는 피처 목록이 확정된다",
+      "result": "**측정 완료(2026-09-25 21:30), 쓰기는 다음 사이클** — 19개를 464일 격자와 최근 250일 창으로 각각 실측(supply_market_features ⋈ market_data 격자, NULL 은 0 으로 세지 않음). 창을 좁혀도 결론은 대체로 불변: 464d→250d 에서 momentum_3_12m 0.1356→0.2353, bb_position 0.9020→0.9632, relative_strength 0.9649→0.9679, foreign_net_buy 0.0705→0.0784, short_selling_ratio 0.0021→0.0037, krx_advance_decline_ratio 0.9661→0.9682. **엔지니어 제안 가능(250d 창): 3개** — momentum_3_12m(uniq_med 62, xsec 0.633), relative_strength(uniq_med 169, xsec 0.000), bb_position(uniq_med 169, xsec 0.000). **시장레벨이라 횡단면 피처 금지(계약 #6): 3개** — krx_advance_decline_ratio·market_breadth·krx_total_trading_value (xsec_const=1.000). **원천 유니버스 부족: 4개** — 수급 4종(fi 2 + inst 2). 이것이 R16 의 핵심 발견이다: 격자 3,970종목 중 수급 값 보유는 **338종목**뿐(null 0.9163)이라 시장 분모에서는 0.08 로 보이지만, **그 338종목 행 안에서는 nonzero 0.9370**(문턱 0.044 의 21배)이다 → 피처가 무효가 아니라 **분모가 시장 전체**다. 유니버스를 좁히면 쓸 수 있고, 넓히려면 R3(수급 이력 확장)이 선행. **무효(원천 없음): 9개** — ownership_pct 3종(ownership 225종목뿐, null 0.9997~1.0), short_interest_ratio·days_to_cover(null 1.0), market_impact_score 0.0015, momentum_ni·momentum_op(null 0.58~0.61 · uniq_med 0 = 재무 원천 부족). 주의: 이것도 '피처 못 쓴다'가 아니라 '원천을 못 채웠다'로 읽어야 한다.",
+      "note": "| [2026-09-25 21:35 리서처] 창별 표를 result 에 붙였다. 남은 일: 이 값으로 feature_coverage 를 **덮어쓰지 않았다** — window_days 를 250 으로 바꿔 쓰면 464d 측정과 섞여 전역 판정 기준선이 또 뒤집힌다(2026-09-25 20:20 실측 사고와 같은 유형). 전체 199개를 같은 창으로 재측정하는 단일 패스로 처리해야 한다 → 다음 사이클."
     }
-   ]
-  },
-  {
-   "id": "R7",
-   "title": "휴장 캘린더의 당일 누락 자동 보완 (가드가 휴장일을 놓치는 문제)",
-   "status": "pending",
-   "priority": 2,
-   "kind": "investigate",
-   "affects_model": true,
-   "hypothesis": "data/krx_holidays.json 이 data_gap.py 의 probe 로 유지되는데, probe 가 다음 실행 시점에야 그 날을 채운다 → 당일 휴장은 캘린더에 없다.",
-   "evidence": "실측 2026-09-25(추석 연휴): 캘린더에 2026-09-24 만 있고 당일 09-25 가 없어, 자율 루프의 휴장 인식 가드가 하루 종일 '장중'으로 오판 → 휴장일 CPU 를 놀렸다. market_data 도 09-24·09-25 모두 0행(거래 없음)이라 휴장이 확실한 날이었다.",
-   "command": "cd /home/jhshi/analyist_dd && sed -n '140,175p' scripts/data_gap.py && grep -n 'date.today|days=1|lookback' scripts/data_gap.py | head -10",
-   "check": "/usr/bin/python3 -c \"import sys, datetime; sys.path.insert(0,'/home/jhshi/analyist_dd/scripts'); import data_gap; print(1 if datetime.date.today().isoformat() in data_gap.expected_dates() else 0)\"",
-   "check_target": {
-    "op": ">=",
-    "value": 1
-   },
-   "fix": "2026-09-25 적용: data_gap.py 의 expected_dates() 가 range(1, ..) 라 **당일이 점검 창에서 빠져 있었다** → range(0, ..) 로 당일 포함. find_gaps() 는 당일을 '휴장 판정'에만 쓰고 공실로 세지 않는다(d == today_s → continue, 장중이면 일봉이 아직 없어 count=0 이라 공실로 오판하면 매일 백필이 돈다). 검증(probe 모사, 캘린더에서 오늘 제거 후): ① no_data 응답 → 오늘 즉시 캘린더 기록·gaps 미포함 ② exists 응답 → 휴장 아님·gaps 미포함. 실측: /usr/bin/python3 scripts/data_gap.py report → rc=0 '공실 없음 — 데이터 정상'. 종전 check(CURRENT_DATE 행수 >= 0)는 0>=0 이 항상 참이라 픽스 없이도 완료로 오판됐다.",
-   "success": "data_gap probe 가 당일도 검사하도록 수정 + 휴장일이면 즉시 캘린더에 기록. 검증: 다음 휴장일에 market_hours() 가 False 를 반환",
-   "cost": "30분"
-  },
-  {
-   "id": "R9",
-   "title": "이벤트 공시 피처 19개 부활 (DART B/D/E/I 백필 → 키워드 분류)",
-   "status": "in_progress",
-   "priority": 1,
-   "affects_model": true,
-   "hypothesis": "이벤트 공시가 없어 event_*_5d 18개 + disclosure_count_5d 가 전부 0 이다. 공시 이벤트(유상증자·공급계약·소송·자기주식 등)는 단기 방향성의 실질 신호다.",
-   "evidence": "실측 2026-09-25: feature_coverage 최신 스냅샷에서 nonzero_ratio=0 인 97개 중 event 계열 18개 + disclosure_count_5d. disclosures 22,278건이 **전부 정기공시**(report_nm 이 사업/분기/반기보고서 계열뿐)였고 '유상증자' 매치 0건 — 원인은 수집 스크립트의 pblntf_ty='A' 하드코딩. B 유형 dry-run 실측: 2026-08 월 300건 수신 (적재대상 77~82건/페이지)로 이벤트 공시는 실재 확인.",
-   "method": "① --types B,D,E,I 백필(오늘 진행 중) ② report_nm 키워드 → 16종 이벤트 유형 분류 ③ 종목×일자 롤링 5일 카운트 테이블 생성 ④ 모델 피처로 연결(as-of 준수)",
-   "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('event_capital_increase_5d','event_contract_5d','event_mna_5d','event_treasury_5d','disclosure_count_5d') AND nonzero_ratio > 0\"",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('event_capital_increase_5d','event_contract_5d','event_mna_5d','event_treasury_5d','disclosure_count_5d') AND nonzero_ratio > 0\"",
-   "check_target": {
-    "op": ">=",
-    "value": 3
-   },
-   "setup_needed": [],
-   "cost": "백필 30분 + 분류 스크립트·검증 1~2시간",
-   "success": "report_nm 유형 100개 이상 적재 후 event_features 생성, 부활 피처 nonzero 확인",
-   "doc": "docs/DEAD_FEATURE_REVIVAL.md",
-   "result": "부분 완료(2026-09-25 16:25): **원천 백필은 성공** — disclosures 22,278 → 36,591행, 보고서 유형 12~20 → 305개(유상증자·계약·소송 등 이벤트 공시 실제 적재 확인). 남은 것: 16종 키워드 분류 → 롤링 5일 카운트 → event_features 생성 후 모델 연결. **체크 기준을 '원천 적재'에서 '피처가 실제 값을 갖는가'로 교정** — 원천 카운트로 두면 사이클이 조기 완료로 오판한다(자가 점검 2026-09-25 16:25)."
-  },
-  {
-   "id": "R10",
-   "title": "수급·시장·모멘텀 피처 19개 부활 (보유 테이블만으로 계산)",
-   "status": "partial",
-   "priority": 2,
-   "affects_model": true,
-   "hypothesis": "foreign_institutional 87,895행·krx_short_selling 2,393행·market_data 111만 행을 이미 보유하고도 누적/비율 피처가 없다. 수급·모멘텀은 가격 피처와 독립 신호다.",
-   "evidence": "feature_coverage: institution_*·foreign_*·short_*·momentum_*·krx_*·market_* 계열 19개가 nonzero_ratio=0. 원천 테이블은 각각 수천~수십만 행 적재 완료(실측).",
-   "method": "SQL/pandas 로 ① 기관·외국인 5일 누적 순매수 ② 공매도 비율·days_to_cover ③ 3/6/12개월 모멘텀·상대강도·breadth·등락비율·볼린저 위치를 종목×일자로 계산 후 피처 테이블 적재 → feature_coverage 재계산",
-   "command": "/usr/bin/python3 scripts/build_supply_market_features.py",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('institution_net_buy_5d','foreign_net_buy_5d','short_selling_ratio','momentum_3_12m','market_breadth') AND nonzero_ratio > 0\"",
-   "check_target": {
-    "op": ">=",
-    "value": 3
-   },
-   "setup_needed": [],
-   "cost": "계산·검증 1~2시간",
-   "success": "19개 중 5개 이상 nonzero 확인 (한 계열씩 투입 후 로버스트 AUC 판정)",
-   "doc": "docs/DEAD_FEATURE_REVIVAL.md",
-   "authoring": {
-    "target": "scripts/build_supply_market_features.py",
-    "instructions": "수급·시장·모멘텀 피처 생성기. 입력 테이블: foreign_institutional(87,895행, 종목·일자·순매수), krx_short_selling(2,393행), market_data(1,113,634행 일봉), ownership. 출력 테이블은 init-scripts/postgres/ 에 DDL 을 함께 작성(18_*.sql)하고 피처 테이블에 적재하라. as-of 규율: 값은 당일 종가까지의 정보만 사용(미래 누수 금지). 결측은 0 이 아니라 '정보 없음'을 구분해 채워라(가능하면 NULL 유지, 불가하면 0 + 주석). 종목×거래일 격자는 market_data 의 (stock_code, trade_date) 를 기준으로 만들어라. 계산 대상: institution_net_buy(_5d), foreign_net_buy(_5d), ownership_pct 계열, short_interest_ratio, short_selling_ratio, days_to_cover, momentum_3_12m, momentum_ni, momentum_op, krx_advance_decline_ratio, krx_total_trading_value, market_breadth, market_impact_score, relative_strength, bb_position.",
-    "timeout_s": 2400,
-    "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
-   },
-   "note": "| 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당. [2026-09-25 20:22 리서처 실측] 원천 적재는 성공했으나 feature_coverage 실측에서 19개 중 착시 15개·결측>0.90 8개가 전부 이 배치 소속(기존 180개는 0). 단 그 값은 464일 격자 기준이라 오분모일 수 있다 → R16(창 기준 재측정)이 선행 조건. 엔지니어에 넘길 때 '적재 완료'가 아니라 '창 기준 커버리지 실측치'를 동봉할 것."
-  },
-  {
-   "id": "R11",
-   "title": "거시 피처 16개 부활 (macro_indicators as-of 조인)",
-   "status": "pending",
-   "priority": 3,
-   "affects_model": true,
-   "hypothesis": "macro_indicators 6,261행(환율·금리·유가·CPI/PPI)을 보유하고도 조인 코드가 없어 거시 국면이 모델에 전혀 들어가지 않는다.",
-   "evidence": "feature_coverage: fx/oil/interest/cpi/ppi/yield/economic/cycle 계열 16개가 nonzero_ratio=0.",
-   "method": "발표일 기준 as-of 조인(룩어헤드 금지: 발표 지연 반영) + 변화율·스프레드 계산 후 적재. 주기: 일별 관측치와 월별 지표를 구분해 각각 전진 채움.",
-   "command": "/usr/bin/python3 scripts/build_macro_features.py",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('fx_usd_krw','oil_wti','interest_rate','cpi_yoy','yield_spread') AND nonzero_ratio > 0\"",
-   "check_target": {
-    "op": ">=",
-    "value": 3
-   },
-   "setup_needed": [],
-   "cost": "1~2시간",
-   "success": "16개 중 3개 이상 nonzero + as-of 위반 0 유지",
-   "authoring": {
-    "target": "scripts/build_macro_features.py",
-    "instructions": "거시 피처 생성기. 입력: macro_indicators(6,261행 — 지표명·일자·값 구조를 먼저 확인하라). 발표 지연을 반영한 **as-of 조인**이 핵심: 월별 지표는 발표일(또는 관측일+지연) 이후 행에만 값이 보이도록 하고, 일별 지표(환율·금리·유가)는 당일까지 사용하라. 계산 대상: fx_usd_krw, fx_change_1m/3m, oil_wti, oil_change_1m/3m, interest_rate, interest_rate_change_1m/3m, cpi_yoy, ppi_yoy, yield_spread, economic_event_count_7d, economic_event_impact, cycle_up, cycle_down. 출력 테이블 DDL 포함(19_*.sql).",
-    "timeout_s": 2400,
-    "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
-   },
-   "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
-  },
-  {
-   "id": "R12",
-   "title": "재무 비율 피처 19개 부활 (기간유형 구분 선행)",
-   "status": "pending",
-   "priority": 4,
-   "affects_model": true,
-   "hypothesis": "financial_statements 10,370행이 연간/반기 혼재로 growth 피처가 깨져 있고 ROA/ROE/부채비율/PER/PBR 등 기본 비율이 아예 없다. rcept_dt 확보로 구분 가능해졌다.",
-   "evidence": "feature_coverage: quality_* 9개·value_* 7개 + roe/per_current/pbr_current 가 nonzero_ratio=0. disclosures 백필로 rcept_dt 22,278행 확보(기간유형 구분 근거).",
-   "method": "① rcept_dt 로 보고서 기간유형(사업/반기/분기) 구분 ② 비율 계산(ROA/ROE/부채비율/영업이익률/PER/PBR/PSR/EV-EBIT 등, 시가총액은 market_data 사용) ③ as-of 규율: 접수일 이후에만 값이 보이도록 조인",
-   "command": "/usr/bin/python3 scripts/build_financial_ratio_features.py",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio > 0\"",
-   "check_target": {
-    "op": ">=",
-    "value": 3
-   },
-   "setup_needed": [],
-   "cost": "2~3시간(기간유형 구분 포함)",
-   "success": "19개 중 3개 이상 nonzero + dq_asof_violation_rows 0 유지",
-   "authoring": {
-    "target": "scripts/build_financial_ratio_features.py",
-    "instructions": "재무 비율 피처 생성기. 입력: financial_statements(10,370행) + disclosures(rcept_dt 로 기간유형 구분) + market_data(시가총액용 종가). 반드시 **rcept_dt 이후에만 값이 보이도록** as-of 조인하라(백필로 접수일 212,861행 확보됨). 연간/반기/분기 혼재를 기간유형으로 구분하고, 비율 계산: ROA, ROE, 부채비율 변화, 영업이익성장, 자산성장, PER, PBR, PSR, PCR, EV/EBIT, NCAV, PFCR. 출력 테이블 DDL 포함(20_*.sql). 클래스당 행이 1개 이상이면 성공.",
-    "timeout_s": 2400,
-    "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
-   },
-   "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
-  },
-  {
-   "id": "R13",
-   "title": "원천 부재 피처 35개 조사 (신용잔고·파생·테마·베이지안)",
-   "status": "pending",
-   "priority": 5,
-   "affects_model": true,
-   "kind": "investigate",
-   "hypothesis": "나머지 35개(파생·신용 basis/futures/derivatives/program/credit/margin/etf 9개, 테마·섹터·유사종목·authenticity·bayes 14개, 지분율 3개 등)는 원천 또는 방법론이 없다. 수집 가능성과 비용을 판정해야 한다.",
-   "evidence": "feature_coverage nonzero_ratio=0 중 위 계열 35개. KRX OpenAPI·KIS 파생·뉴스 NLP 후보.",
-   "method": "① KRX OpenAPI 승인 항목 중 신용잔고·프로그램매매 제공 여부 확인 ② KIS 파생 시세 제공 여부 ③ 테마/섹터는 뉴스·SNS NLP 로 가능한지 비용 추정 ④ 불가 항목은 '소스 없음'으로 종결하고 피처 제거를 제안(죽은 피처 방치 금지)",
-   "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND nonzero_ratio = 0\"",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND nonzero_ratio = 0\"",
-   "check_target": {
-    "op": "<=",
-    "value": 78
-   },
-   "setup_needed": [],
-   "cost": "조사 2~4시간(수집 제외)",
-   "success": "각 계열에 대해 '수집 가능(비용)' 또는 '소스 없음' 결론 + 후속 항목 등록"
-  },
-  {
-   "id": "R14",
-   "title": "feature_coverage 스냅샷 신선도 확보 (R9·R13 판정이 낡은 스냅샷에 묶여 있다)",
-   "status": "pending",
-   "priority": 3,
-   "affects_model": true,
-   "kind": "investigate",
-   "hypothesis": "R9·R13 의 완료 판정은 feature_coverage 의 **최신 스냅샷**을 읽는데, 그 스냅샷을 만드는 scripts/feature_coverage_report.py 가 자동 실행되지 않아 값이 멈춰 있다. 데이터가 실제로 부활해도 판정은 0 으로 남아 항목이 영원히 미달이 된다(조용한 공전).",
-   "evidence": "실측 2026-09-25 18:03 — feature_coverage 최신 computed_at = 2026-09-24 18:11 UTC (= 09-25 03:11 KST, 약 15시간 정체), 그 스냅샷의 event_* 는 nonzero_ratio 전부 0.0. 반면 라이브 event_features 테이블은 133,513행 / 2,702종목 / 2025-06-17~2026-09-23 이고 17개 컬럼 중 16개 nonzero (disclosure_count_5d 51.5%, event_stake_change_5d 43.3%, event_exec_change_5d 34.3%). 즉 R9 check 는 '데이터는 준비됐는데 낡은 스냅샷을 읽어 0' 을 반환한다. 또 패널 연결도 끝나 있다: app/models/wf/panel_420_asofpatch_ev.npz (2026-09-25 17:42 생성, event 컬럼 17개 추가).",
-   "method": "① feature_coverage_report.py 를 크론/러너 후처리로 자동 실행 ② 스냅샷 소스가 event 피처를 포함하는지 확인 — 현재 exp_panel 캐시만 읽으면 별도 테이블인 event_features(0 아닌 행만 저장)는 영원히 0 으로 나온다 ③ 신선도 메트릭(feature_coverage_age_hours) + 알림 추가(없으면 다음에도 같은 방식으로 멈춘다)",
-   "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN (SELECT ROUND(EXTRACT(EPOCH FROM (now()-MAX(computed_at)))/3600) FROM feature_coverage) <= 26 AND (SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('event_capital_increase_5d','event_contract_5d','event_mna_5d','event_treasury_5d','disclosure_count_5d') AND nonzero_ratio > 0) >= 3 THEN 1 ELSE 0 END\"",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN (SELECT ROUND(EXTRACT(EPOCH FROM (now()-MAX(computed_at)))/3600) FROM feature_coverage) <= 26 AND (SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('event_capital_increase_5d','event_contract_5d','event_mna_5d','event_treasury_5d','disclosure_count_5d') AND nonzero_ratio > 0) >= 3 THEN 1 ELSE 0 END\"",
-   "check_target": {
-    "op": ">=",
-    "value": 1
-   },
-   "check_note": "신선도(<=26h) 만 검사하면 지금도 15h 라 **고치지 않고 통과**한다(실측 확인) → 신선도 AND 이벤트 피처가 스냅샷에 반영(>=3개 nonzero) 을 함께 요구한다. 현재 값 0.",
-   "setup_needed": [],
-   "cost": "1~2시간",
-   "success": "feature_coverage 스냅샷이 26시간 이내로 갱신되고 event 피처가 반영되어 R9 check 가 >0 반환"
-  },
-  {
-   "id": "R15",
-   "title": "알림 발송 경로 확보 (Alertmanager 부재 — 규칙 20개가 평가만 되고 아무 데도 안 간다)",
-   "status": "needs_approval",
-   "priority": 2,
-   "affects_model": false,
-   "kind": "investigate",
-   "hypothesis": "Prometheus 에 alerting 섹션·Alertmanager 가 없어 규칙이 평가만 되고 발송되지 않는다. 2026-09-25 15:50~20:03 모니터링 실명 4시간을 아무도 통보받지 못한 직접 원인이다.",
-   "evidence": "실측 2026-09-25 20:10 — prometheus.yml 에 alerting 블록 없음, alertmanager 컨테이너 없음, 규칙 17개(현재 20개) 전부 state=inactive/pending 으로 평가만 됨. 발송 경로는 현재 크론 틱(quant-researcher-monitor)이 유일하다. 같은 시각 postgres 타겟이 down 이었는데도 아무 알림이 나가지 않았다.",
-   "method": "① (즉시 대체) 크론 틱이 유일한 통보 경로임을 문서화하고, dq_snapshot 의 사각지대 위반을 보고 최상단에 올린다 — 완료 ② (승인 필요) Alertmanager 컨테이너 추가 + Discord/Slack receiver 1개, grafana 컨테이너와 같은 방식으로 compose 에 편입",
-   "command": "",
-   "check": "docker ps --format '{{.Names}}' | grep -c alertmanager",
-   "check_target": {
-    "op": ">=",
-    "value": 1
-   },
-   "check_note": "check 는 '컨테이너 존재'만 본다 — 실패할 수 없는 check 를 피하기 위해, 발송 검증은 별도로 /api/v1/alerts 에서 firing 알림이 receiver 로 간 흔적을 확인해야 한다.",
-   "setup_needed": [
-    "Alertmanager 컨테이너 신설 여부 결정 — 새 상시 컨테이너 + compose 변경이므로 사용자 승인 필요",
-    "알림 수신처(Discord 웹훅 주소) 제공 필요 — 주소는 제가 만들 수 없습니다"
-   ],
-   "cost": "1~2시간",
-   "success": "모니터링 실명/타겟 다운이 사람에게 자동 통보된다(크론 틱 외 경로 확보)"
-  },
-  {
-   "id": "R16",
-   "title": "R10 19개 피처를 모델 창(최근 90~250일) 기준으로 재측정 (464일 격자 판정은 오분모)",
-   "status": "pending",
-   "priority": 2,
-   "affects_model": true,
-   "kind": "investigate",
-   "hypothesis": "R10 이 feature_coverage 에 쓴 커버리지는 464일 전체 격자를 분모로 쓴 값이라, 모델이 실제로 쓰는 최근 창에서는 커버리지가 더 높다. 격자 기준으로 '커버리지 0.9%' 로 보이는 피처가 창 기준에서는 쓸 수 있는 피처일 수 있다. 반대로 stock_unique_median<=1(종목별 값 1개)은 창과 무관하게 횡단면 무변별이므로 그대로 실격이다.",
-   "evidence": "실측 2026-09-25 20:22 — R10 19개 중 착시 15개 / 결측>0.90 8개가 전부 이 배치 소속이고, 180개 기존 피처는 착시 0. 단 이 수치는 window_days=464 격자 기준이다. 공시 기반 피처(short_interest_ratio 등)는 데이터가 존재하는 기간이 최근으로 한정되므로 격자 분모가 커버리지를 구조적으로 낮게 만든다.",
-   "method": "① build_supply_market_features.py 의 compute_coverage 를 창 파라미터화(예: --since 250d) ② 같은 19개를 90/250/464일 세 창으로 측정해 표로 비교 ③ 창 기준 nonzero_ratio>=0.044(선별 문턱) 이면서 stock_unique_median>=2 인 피처만 '엔지니어 제안 가능'으로 표시",
-   "command": "",
-   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('bb_position','krx_advance_decline_ratio','krx_total_trading_value','market_breadth','relative_strength','momentum_3_12m','momentum_ni','momentum_op','foreign_net_buy','institution_net_buy','market_impact_score','short_selling_ratio','retail_ownership_pct','foreign_ownership_pct','short_interest_ratio','days_to_cover','institution_ownership_pct','foreign_net_buy_5d','institution_net_buy_5d') AND window_days <= 250 AND nonzero_ratio >= 0.044 AND stock_unique_median >= 2 AND cross_section_constant_ratio < 0.99\"",
-   "check_target": {
-    "op": ">=",
-    "value": 1
-   },
-   "check_note": "결함 자체를 검사한다: '창 기준으로도 쓸 수 있는 피처가 0개'면 0 이 나와 미달로 남고, 재측정해서 쓸 수 있는 피처가 확인되어야 통과한다. 격자(464) 값으로는 절대 통과하지 않는다.",
-   "setup_needed": [],
-   "cost": "2~3시간",
-   "success": "19개 각각에 대해 창별 커버리지·횡단면 변별력이 표로 나오고, 엔지니어에 넘길 수 있는 피처 목록이 확정된다"
-  }
- ]
+  ]
 }
