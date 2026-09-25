@@ -88,7 +88,7 @@ def main():
     rows_before = int(cur.fetchone()[0])
 
     fc = FinancialCollector(api_key=key) if FinancialCollector else None
-    calls = src_rows = kept = 0
+    calls = src_rows = kept = inserted = 0
     hit_limit = False
 
     def fetch(params):
@@ -143,6 +143,10 @@ def main():
                        ON CONFLICT (stock_code, rcept_no) DO NOTHING""",
                     batch)
                 conn.commit()
+                # ⚠ 멱등 upsert 에서는 "시도 행수"가 아니라 **실제 삽입 행수**를 자기신고해야 한다.
+                # 시도(kept)를 claimed 로 보고하면 재실행 시 차이가 갭으로 잡혀 오탐이 된다
+                # (실측 2026-09-25: claimed 22,278 / persisted 15,895 → gap 6,383 오탐).
+                inserted += max(cur.rowcount, 0)
 
             log(f"  {d0:%Y-%m} p{page}: {len(items)}건 (적재대상 {len(batch)}, 비상장 {skipped})")
 
@@ -178,17 +182,26 @@ def main():
         record_claim = None
     if record_claim and not a.dry_run:
         try:
+            # claimed_rows = **파서가 만들어낸 행수(kept)** 이지 실제 삽입 행수가 아니다.
+            # 이 구분이 중요하다: parse_failure 규칙은 `claimed == 0 AND source > 0`(= API 는 줬는데
+            # 파서/필터가 아무것도 못 만듦)을 잡는다. claimed 를 삽입 행수로 바꾸면 **이미 적재된
+            # 창을 재실행할 때 inserted=0** 이 되어 정상 재실행이 파서 실패로 오탐된다(실측 2026-09-25).
+            # 반대로 gap(claimed - persisted)은 멱등 upsert 에서 중복 재수신만큼 정상적으로 존재하므로
+            # 임계값을 관대하게 둔다(dq_snapshot SPECS: warn 500 / breach 5000).
             record_claim(conn, "dart_disclosure_backfill", "disclosures",
                          claimed_rows=kept, persisted_rows=delta, source_rows=src_rows,
-                         note=f"windows={len(windows)} calls={calls} since={since}")
+                         note=(f"windows={len(windows)} calls={calls} since={since} "
+                               f"파서생성={kept}(비상장 제외) 삽입={inserted} 실델타={delta}"))
             conn.commit()
         except Exception as exc:  # noqa: BLE001
             log(f"자기신고 실패: {exc}")
 
-    log(f"완료: 콜 {calls} / 소스 {src_rows}행 / 적재시도 {kept} / 실제 신규 {delta} "
-        f"(테이블 {rows_before}→{after})")
+    log(f"완료: 콜 {calls} / 소스 {src_rows}행 / 적재시도 {kept} / 실제 삽입 {inserted} / "
+        f"테이블 델타 {delta} (테이블 {rows_before}→{after})")
     if src_rows > 0 and kept == 0:
         log("★ 소스는 행을 줬는데 적재 대상이 0 — 파서/필터 점검 필요")
+    if inserted != delta:
+        log(f"! 삽입({inserted})과 델타({delta})가 다르다 — 같은 창을 동시에 도는 프로세스가 있는지 확인")
     if hit_limit:
         log("예산으로 중단 — 다음 실행에서 이어서(멱등 upsert)")
     cur.close()

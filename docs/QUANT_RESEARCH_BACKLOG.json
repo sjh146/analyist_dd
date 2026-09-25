@@ -14,7 +14,7 @@
     {
       "id": "R1",
       "title": "DART 공시일(rcept_dt) 수집 → 재무 피처 기간유형 복구의 선행 조건",
-      "status": "needs_approval",
+      "status": "done",
       "priority": 1,
       "affects_model": true,
       "hypothesis": "재무 피처가 연간/반기 혼재이고 공시일이 없어 as-of 정확도가 낮다. rcept_dt 를 확보하면 기간유형을 구분할 수 있고 성장률 피처가 살아난다.",
@@ -26,14 +26,24 @@
         "op": ">=",
         "value": 100
       },
-      "setup_needed": [
-        "운영 DB 스키마 변경: disclosures 테이블 신설(**승인 필요**) — DDL 은 proposed_sql 참조",
-        "참고: DART_API_KEY 는 .env 에 이미 있고 실호출 정상(2026-09-25 실측 status=000, 54건). 제 이전 보고의 '키 발급 필요'는 R2 프로브 따옴표 버그 때문에 잘못 나온 것이었다."
-      ],
+      "setup_needed": [],
       "success": "rcept_dt 보유 종목 100개 이상",
       "cost": "수집 1~2시간 + 스키마 승인",
-      "blocked_by": "disclosures 테이블 신설 승인 (스키마 변경)",
-      "proposed_sql": "CREATE TABLE IF NOT EXISTS disclosures (\n    stock_code VARCHAR(10) NOT NULL,\n    rcept_dt   DATE        NOT NULL,\n    rcept_no   VARCHAR(20) NOT NULL,\n    report_nm  TEXT,\n    corp_code  VARCHAR(10),\n    PRIMARY KEY (stock_code, rcept_no)\n);\nCREATE INDEX IF NOT EXISTS idx_disclosures_stock_dt ON disclosures(stock_code, rcept_dt DESC);"
+      "proposed_sql": "CREATE TABLE IF NOT EXISTS disclosures (\n    stock_code VARCHAR(10) NOT NULL,\n    rcept_dt   DATE        NOT NULL,\n    rcept_no   VARCHAR(20) NOT NULL,\n    report_nm  TEXT,\n    corp_code  VARCHAR(10),\n    PRIMARY KEY (stock_code, rcept_no)\n);\nCREATE INDEX IF NOT EXISTS idx_disclosures_stock_dt ON disclosures(stock_code, rcept_dt DESC);",
+      "result": {
+        "detail": "승인·실행 완료 — init-scripts/postgres/15_disclosures.sql 적용(테이블+인덱스 2개), scripts/dart_disclosure_backfill.py 로 DART 정기공시 백필. 최종 22,278행 / 3,025종목 / 371 접수일 / 2025-01-03~2026-09-23. 월별 커버리지가 한국 공시 달력과 일치(3월 3,211 / 5월 2,872 / 8월 3,142 / 11월 2,830). 지연 실측: 사업보고서 중간값 78일(n=6,559) / 반기 45일(n=2,708) / 분기 44.5일(n=24). → 반기·분기 가정은 정확, 사업보고서 90일 가정만 과도하게 보수적(12일 정보 손실). 엔지니어에게 XR1 로 인계 완료.",
+        "check_value": 22278,
+        "rc": 0,
+        "log": "/tmp/dart_disc2.log"
+      },
+      "attempts": [
+        {
+          "ts": "2026-09-25T14:45:00+09:00",
+          "rc": 0,
+          "detail": "승인 후 실행: DDL 적용 + 백필 완주(신규 15,895행)"
+        }
+      ],
+      "incident": "1차 백필이 214페이지를 돌고 신규 945행뿐이었다(95% 중복). 원인: DART 는 total_count 를 넘는 page_no 에 마지막 페이지를 반복 반환. 수정: total_count 기반 종료 + 반복 감지(커밋 c509aa2)."
     },
     {
       "id": "R2",
