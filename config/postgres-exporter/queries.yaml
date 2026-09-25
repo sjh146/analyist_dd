@@ -12,6 +12,24 @@ market_data_freshness:
         usage: "GAUGE"
         description: "마지막 market_data trade_date 로부터 경과 일수"
 
+# 뉴스 분석 파이프라인 정지/저장 실패 감지.
+# WHY(실측 2026-09-25): news_analysis 에 url 유니크 제약이 없어 앱의 ON CONFLICT (url) 이 매번
+# 거부됐고, **2일간 분석 결과가 전부 폐기**(24h 3,657건)됐는데도 아무 메트릭이 없어 로그를 grep 하기
+# 전엔 아무도 몰랐다. 신선도와 최근 저장량을 함께 노출해 "돌지만 저장이 안 되는" 상태를 잡는다.
+news_analysis_freshness:
+  query: |
+    SELECT
+      (EXTRACT(EPOCH FROM (now() - MAX(analyzed_at))) / 3600.0)::float AS hours,
+      COUNT(*) FILTER (WHERE analyzed_at > now() - INTERVAL '24 hours')::float AS rows_24h
+    FROM news_analysis
+  metrics:
+    - hours:
+        usage: "GAUGE"
+        description: "마지막 뉴스 분석 저장 이후 경과 시간 (앱은 30분 주기로 돈다)"
+    - rows_24h:
+        usage: "GAUGE"
+        description: "최근 24시간 저장된 뉴스 분석 행수 (0 이면 저장 실패 의심)"
+
 market_data_rows:
   query: |
     WITH d AS (

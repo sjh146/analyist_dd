@@ -75,6 +75,11 @@ SPECS = [
     ("dq_feature_null_ratio_max", "max", 0.30, 0.60, "피처 결측 최대"),
     ("dq_feature_market_level_count", "max", None, None, "시장레벨 피처 수"),
     ("dq_padding_rows_before_listing", "max", None, 0.0, "상장 전 행(padding)"),
+    # 뉴스 분석 파이프라인 (앱은 30분 주기). 실측 2026-09-25: news_analysis 의 url 유니크 제약 누락으로
+    # **2일간 저장이 전멸**(24h 3,657건 폐기)했는데 지표가 없어 로그 grep 전엔 아무도 몰랐다.
+    # 신선도로 "돌지만 저장이 안 되는" 상태를 잡는다(2시간 넘게 새 저장 없으면 warn).
+    ("news_analysis_freshness_hours", "max", 2.0, 6.0, "뉴스 저장 신선도(시간)"),
+    ("news_analysis_freshness_rows_24h", "sum", None, None, "뉴스 24h 저장 행수"),
     ("feature_alive_count", "max", None, None, "살아있는 피처"),
     ("feature_dead_count", "max", None, None, "죽은 피처"),
 ]

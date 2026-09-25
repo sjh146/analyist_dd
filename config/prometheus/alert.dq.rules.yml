@@ -88,3 +88,23 @@ groups:
           severity: critical
         annotations:
           summary: "컬럼 전량 결측: {{ $labels.table }}.{{ $labels.column }} (수집 실패 의심)"
+
+      - alert: NewsAnalysisStalled
+        # 앱은 30분 주기다 → 2시간 넘게 새 저장이 없으면 정지/저장실패를 의심한다.
+        # 실측 2026-09-25: url 유니크 제약 누락으로 **2일간 저장이 전멸**(24h 3,657건 폐기)했는데
+        # 메트릭이 없어 로그 grep 전엔 아무도 몰랐다. 이 알림이 그 사각지대를 막는다.
+        expr: news_analysis_freshness_hours > 2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "뉴스 분석 저장 정지 의심: {{ $value | printf \"%.1f\" }}시간 무저장"
+
+      - alert: NewsAnalysisSaveFailing
+        # 신선도가 오래됐는데 24시간 저장량도 0 → 저장 실패(제약 누락·권한·연결) 확정에 가깝다.
+        expr: news_analysis_freshness_hours > 6 and news_analysis_freshness_rows_24h == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "뉴스 분석 저장 전면 실패 의심 (24시간 저장 0행, 마지막 저장 {{ $value | printf \"%.1f\" }}시간 전)"
