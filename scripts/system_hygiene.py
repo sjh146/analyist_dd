@@ -107,8 +107,20 @@ def check_stale_loops():
     out = sh("ps -eo pid,etime,cmd --no-headers")
     stale = []
     for line in out.splitlines():
-        if "while pgrep" in line or "sleep 60" in line and "pgrep" in line:
-            stale.append(line.strip()[:140])
+        if "while pgrep" not in line:
+            continue
+        # ⚠ 오탐 제외: **이 검사 자체를 수행하는 명령**이 잡힌다 — 점검 커맨드라인에
+        # `pgrep -af "while pgrep"` 같은 문자열이 들어 있으면 그 셸이 매칭된다(실측 2026-09-25).
+        # ⚠ 더 큰 함정: `pgrep -f` 에는 **'grep -' 부분문자열이 들어 있다**. 그래서 'grep -' 로
+        # 거르면 **진짜 루프까지 걸러져 탐지에 실패한다**(실측: 시험 루프를 놓쳤다).
+        # → 제외 조건은 ① pgrep 의 플래그에 a 가 있는 경우(-a = 목록 출력, 점검 명령의 특징)
+        #    ② 실제 grep 호출만 인정한다.
+        if re.search(r"pgrep\s+-[A-Za-z]*a|(^|\s)grep\s+-|(^|\s)grep\s+['\"]", line):
+            continue
+        # ⚠ 오탐 제외 ②: 실제 루프 형태만 인정한다(while pgrep ...; do ... done).
+        if not re.search(r"while pgrep.*(do\s|done)", line):
+            continue
+        stale.append(line.strip()[:140])
     long_running = []
     for line in out.splitlines():
         m = re.match(r"\s*(\d+)\s+(\d+):(\d+):(\d+)\s+(.*)", line)
