@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-25T15:28:47+09:00",
+  "updated_at": "2026-09-25T17:00:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -256,7 +256,7 @@
       "id": "U2",
       "title": "유니버스 확장 2단계: 150 → 500종목",
       "status": "backlog",
-      "priority": 7,
+      "priority": 6,
       "arm": "LS_quant_q30_h5",
       "baseline": {
         "value": null,
@@ -268,7 +268,7 @@
       "success": "U1 기준선 대비 +0.02 이상",
       "expected": "미지",
       "cost": "약 14시간 (0.53초/행)",
-      "note": "U1 통과 후 착수. 장시간 빌드라 재시작 위험을 감수할지 판단 필요."
+      "note": "U1 통과 후 착수. 장시간 빌드라 재시작 위험을 감수할지 판단 필요. | 2026-09-25: 우선순위 6 으로 내림 — U1(150종목)이 신호를 내지 못하면 500종목(14시간)은 같은 축의 반복이라 의미가 약하다. 먼저 데이터·피처 축(L3~)을 소진한다."
     },
     {
       "id": "XR2",
@@ -330,7 +330,7 @@
       "id": "L3",
       "title": "부활 피처 반영 재학습 + 로버스트 평가 (데이터 축 임팩트 측정)",
       "status": "pending",
-      "priority": 2,
+      "priority": 1,
       "affects_model": true,
       "baseline": {
         "robust_auc": 0.5406,
@@ -339,7 +339,7 @@
       "hypothesis": "신호의 우위가 부족한 근본 원인은 데이터다(로버스트 AUC 0.5406 ≈ 동전, 트레이더 기대값 -253원/건). 부활 피처를 **한 계열씩** 투입해 로버스트 AUC 델타를 측정한다.",
       "evidence": "docs/DEAD_FEATURE_REVIVAL.md: 죽은 97개 중 약 43개는 보유 테이블만으로 계산 가능, 19개는 백필 진행 중. 라벨 축·트레일링·스톱 축은 이미 전수 스윕되어 소진.",
       "method": "① 리서처가 피처 테이블 생성 ② 패널 재빌드(계열 1개씩) ③ wf_label_sweep 로 다중폴드 로버스트 측정 ④ 기준선 +0.02 이상만 신호로 채택, 미달이면 다음 계열",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 14400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_<REVIVED>.npz --folds 5 --seeds 3 --only LS_quant_q30_h5'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 14400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch_ev.npz --folds 5 --seeds 3 --only LS_quant_q30_h5'",
       "check": "python3 scripts/model_engineer_cycle.py --status",
       "check_target": {
         "op": ">=",
@@ -352,7 +352,9 @@
         "R10",
         "R11",
         "R12"
-      ]
+      ],
+      "note": "준비 완료(2026-09-25 16:55): event_features 120,958행 적재 + 패널 컬럼 패치 완료 → app/models/wf/panel_420_asofpatch_ev.npz (13,609행 × 227피처, 기존 210 + 이벤트 17). **A/B 통제**: 같은 행·같은 다른 피처에서 이벤트 컬럼만 추가이므로 델타가 곧 임팩트다. 기준선 panel_420_asofpatch = 0.5406. ⚠ 선측정 경고: 이벤트 컬럼이 희소하다 — 8개는 전부 0(거래소공시(I) 미수집), 나머지도 non-zero 0.1~5%(유상증자 0.6%·지분변동 4.9%·disclosure_count 7.3%). 신호가 안 나오면 원인은 데이터 부족이며, 다음 조치는 ① I/E 수집 완주 ② 희소 이벤트를 밀도 높은 묶음(자금조달·지배구조·영업)으로 재구성이다.",
+      "prereq_status": "이벤트 피처 6종 부활(유상증자 7,731행·지분변동 57,825·자기주식 10,488·임원변경 45,626·MNA 2,588·총계 120,958행)"
     }
   ]
 }

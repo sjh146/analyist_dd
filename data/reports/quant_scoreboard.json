@@ -1,5 +1,5 @@
 {
-  "ts": "2026-09-25T15:55:28+09:00",
+  "ts": "2026-09-25T16:25:10+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
@@ -12,10 +12,10 @@
     "expectancy_krw": -253,
     "avg_return_pct": 0.32,
     "open_positions": 10,
-    "days_since_entry": 4.0,
+    "days_since_entry": 4.1,
     "alerts": [
       "순손익 마이너스 -7,839원 — 기대값 -253원/건",
-      "신규 진입 4.0일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤"
+      "신규 진입 4.1일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤"
     ],
     "error": null
   },
@@ -37,27 +37,23 @@
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20260925-155253.json",
-    "status": "warn",
-    "warns": [
-      "종목상수 피처 비율(dq_feature_stock_constant_ratio)=0.381579 ≥ 0.35"
-    ],
+    "sample": "dq_20260925-160209.json",
+    "status": "ok",
+    "warns": [],
     "breaches": [],
     "alive_features": 76.0,
     "dead_features": 97.0,
     "stock_constant_ratio": 0.3815789473684211,
-    "news_freshness_hours": 0.26964189944444444,
+    "news_freshness_hours": 0.4221945038888889,
     "rows_delivered": 54.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
     "alerts": [
-      "DQ 경고: 종목상수 피처 비율(dq_feature_stock_constant_ratio)=0.381579 ≥ 0.35",
       "죽은 피처 97개 > 살아있는 피처 76개 — 모델이 쓸 수 있는 신호가 소수"
     ]
   },
   "needs_human": [
     "[trader] 순손익 마이너스 -7,839원 — 기대값 -253원/건",
-    "[trader] 신규 진입 4.0일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤",
-    "[researcher] DQ 경고: 종목상수 피처 비율(dq_feature_stock_constant_ratio)=0.381579 ≥ 0.35",
+    "[trader] 신규 진입 4.1일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤",
     "[researcher] 죽은 피처 97개 > 살아있는 피처 76개 — 모델이 쓸 수 있는 신호가 소수"
   ]
 }
