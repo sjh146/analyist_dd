@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-25T16:20:00+09:00",
+  "updated_at": "2026-09-25T18:05:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -201,11 +201,12 @@
       "hypothesis": "data/krx_holidays.json 이 data_gap.py 의 probe 로 유지되는데, probe 가 다음 실행 시점에야 그 날을 채운다 → 당일 휴장은 캘린더에 없다.",
       "evidence": "실측 2026-09-25(추석 연휴): 캘린더에 2026-09-24 만 있고 당일 09-25 가 없어, 자율 루프의 휴장 인식 가드가 하루 종일 '장중'으로 오판 → 휴장일 CPU 를 놀렸다. market_data 도 09-24·09-25 모두 0행(거래 없음)이라 휴장이 확실한 날이었다.",
       "command": "cd /home/jhshi/analyist_dd && sed -n '140,175p' scripts/data_gap.py && grep -n 'date.today|days=1|lookback' scripts/data_gap.py | head -10",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM market_data WHERE trade_date = CURRENT_DATE\"",
+      "check": "/usr/bin/python3 -c \"import sys, datetime; sys.path.insert(0,'/home/jhshi/analyist_dd/scripts'); import data_gap; print(1 if datetime.date.today().isoformat() in data_gap.expected_dates() else 0)\"",
       "check_target": {
         "op": ">=",
-        "value": 0
+        "value": 1
       },
+      "fix": "2026-09-25 적용: data_gap.py 의 expected_dates() 가 range(1, ..) 라 **당일이 점검 창에서 빠져 있었다** → range(0, ..) 로 당일 포함. find_gaps() 는 당일을 '휴장 판정'에만 쓰고 공실로 세지 않는다(d == today_s → continue, 장중이면 일봉이 아직 없어 count=0 이라 공실로 오판하면 매일 백필이 돈다). 검증(probe 모사, 캘린더에서 오늘 제거 후): ① no_data 응답 → 오늘 즉시 캘린더 기록·gaps 미포함 ② exists 응답 → 휴장 아님·gaps 미포함. 실측: /usr/bin/python3 scripts/data_gap.py report → rc=0 '공실 없음 — 데이터 정상'. 종전 check(CURRENT_DATE 행수 >= 0)는 0>=0 이 항상 참이라 픽스 없이도 완료로 오판됐다.",
       "success": "data_gap probe 가 당일도 검사하도록 수정 + 휴장일이면 즉시 캘린더에 기록. 검증: 다음 휴장일에 market_hours() 가 False 를 반환",
       "cost": "30분"
     },

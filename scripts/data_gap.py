@@ -131,10 +131,17 @@ def probe_krx(trade_date):
 
 
 def expected_dates():
-    """최근 LOOKBACK_DAYS 달력일 중 평일(월~금) 목록 (문자열 YYYY-MM-DD)."""
+    """최근 LOOKBACK_DAYS+1 달력일 중 평일(월~금) 목록 (문자열 YYYY-MM-DD). **당일 포함.**
+
+    ⚠ 종전에는 ``range(1, ...)`` 이라 **당일이 빠졌다**. 그래서 휴장일 D 의 휴장 사실이
+    D+1 probe 에서야 캘린더에 기록됐고, D 당일 자율 루프 가드(market_hours)는 캘린더에 D 가
+    없으니 '장중'으로 오판해 하루 종일 CPU 를 놀렸다(실측 2026-09-25 추석 연휴: 6시간 유휴,
+    당시 수정은 캘린더에 09-25 를 손으로 넣는 임시방편이었다 — R7).
+    당일을 포함하되 **공실로 세지 않는** 처리는 find_gaps 가 한다(당일은 장중일 수 있다).
+    """
     out = []
     today = date.today()
-    for i in range(1, LOOKBACK_DAYS + 1):
+    for i in range(0, LOOKBACK_DAYS + 1):
         d = today - timedelta(days=i)
         if d.weekday() < 5:
             out.append(d.isoformat())
@@ -142,8 +149,13 @@ def expected_dates():
 
 
 def find_gaps(probe=True):
-    """→ (gaps: [(date, count)], holidays: set) — 공실 후보만 probe."""
+    """→ (gaps: [(date, count)], holidays: set) — 공실 후보만 probe.
+
+    당일은 **휴장 판정만** 하고 gaps 에는 넣지 않는다: 장중이면 일봉이 아직 없어 count=0 이므로
+    공실로 단정하면 매일 백필이 돈다(실측 위험: 장중 실행). 휴장이면 no_data 로 즉시 캘린더에 남는다.
+    """
     holidays = load_holidays()
+    today_s = date.today().isoformat()
     gaps = []
     for d in expected_dates():
         if d in holidays:
@@ -166,7 +178,7 @@ def find_gaps(probe=True):
                 save_holidays(holidays)
                 print("휴장 기록: {0} (KIS no_data)".format(d))
                 continue
-            if not exists:
+            if not exists or d == today_s:
                 # 데이터 자체가 아직 없음(예: 당일 장중) — 공실 아님
                 continue
         gaps.append((d, n))

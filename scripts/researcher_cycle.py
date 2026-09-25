@@ -325,7 +325,12 @@ def status():
         line = f"  [{i['status']:11s}] {i['id']:3s} {i['title']}"
         print(line)
         if i.get("result"):
-            print(f"                 → {i['result']['detail']}")
+            # result 는 dict({"detail": ...}) 또는 **문자열**(러너가 남긴 자유서술) 둘 다 온다.
+            # 2026-09-25 실측: R9/R5 가 문자열이라 i['result']['detail'] 이 TypeError 로 죽어
+            # --status 가 백로그 중간에서 끊겼다(항목들이 안 보여 "무음 실패"처럼 오인된다).
+            r = i["result"]
+            detail = r.get("detail") if isinstance(r, dict) else r
+            print(f"                 → {detail}")
         for s in (i.get("setup_needed") or []):
             print(f"                 ⚠ {s}")
     print(f"실행 중: {base.running_pid() or '없음'}")

@@ -64,11 +64,15 @@ SPECS = [
     ("market_data_frozen_ratio_20d", "max", 0.05, 0.15, "동결(가격 불변) 비율"),
     ("dq_asof_violation_rows", "sum", None, 0.0, "as-of 위반 행수"),
     ("dq_claim_parse_failure", "sum", None, 0.0, "러너 파서 실패"),
-    # gap 은 **0 이 정상**이다. warn=0 으로 두면 0>=0 이 성립해 매번 경고가 뜬다(실측 버그).
-    # ⚠ 멱등 upsert 러너는 "시도 행수"가 아니라 실제 삽입 행수를 보고해야 gap 이 0 이 된다.
-    #    재실행하면 기존 행이 중복 제외되어 시도≠삽입이 되는 게 정상이라, 임계값도 관대하게 둔다
-    #    (실측 오탐: claimed=시도 22,278 / persisted=신규 15,895 → gap 6,383).
-    ("dq_claim_gap", "sum", 500.0, 5000.0, "자기신고 갭"),
+    # gap 은 **정보용(임계값 없음)** — 어떤 수치 문턱도 옳지 않다.
+    # WHY (2026-09-25 실측 위반 오탐): gap = claimed(파서생성) - persisted(테이블 델타) 인데,
+    #   멱등 upsert 러너가 이미 적재된 구간을 재실행하면 기존행이 ON CONFLICT 로 빠져
+    #   gap 이 **적재량 규모로** 커진다(실측: claimed 117,155 / 신규 54,324 → gap 62,831 ≥ 5,000 breach).
+    #   같은 실행이 실제로는 54,324행을 신규 적재한 **성공 실행**이었다.
+    #   gap 을 문턱으로 잡으면 "재수집할수록 위반"이 되어 큰 백필이 항상 breach 로 뜬다.
+    #   Prometheus 알림도 같은 이유로 gap 을 **알림하지 않는다**(config/prometheus/alert.dq.rules.yml NOTE 1).
+    #   진짜 실패는 gap 이 아니라 source>0 AND claimed==0 = dq_claim_parse_failure 로 잡는다(그건 breach 0 유지).
+    ("dq_claim_gap", "sum", None, None, "자기신고 갭(중복재수집 포함·정보용)"),
     ("dq_claim_source", "sum", None, None, "소스 수신 행수"),
     # ⚠ 임계값은 **기준선 위**에 둔다. 살아있는(nonzero_ratio>0) 피처만 분모로 세므로
     #    상수 피처는 정의상 여기 포함되고, 실측 기준선이 0.38(29/76)이다.
