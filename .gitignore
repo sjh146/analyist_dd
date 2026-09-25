@@ -78,3 +78,6 @@ dumps/
 
 # 위생 점검 산출물(30분 주기, 파생)
 data/reports/hygiene/
+
+# 위임(ask_claude.sh) 작성 중 임시 스펙 파일
+docs/spec_*.md.tmp.*
