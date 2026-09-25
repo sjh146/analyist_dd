@@ -413,12 +413,30 @@ def main():
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--tick", action="store_true")
     ap.add_argument("--run")
+    ap.add_argument("--author-only", action="store_true",
+                    help="저작만 수행하고 실행·가드는 건너뛴다(저작은 API 대기 중심 → CPU 직렬화 대상 아님)")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
     if a.status:
         return status()
     if a.tick:
         return tick(a.force)
+    if a.run and a.author_only:
+        # 저작 전용 모드: 교차 락(다른 역할 실행 중)에 막히지 않는다.
+        # WHY(2026-09-25 실측): R10 위임이 U1 실행 중 교차 락에 걸려 "시작 보류(rc=3)"로 죽었다.
+        # 그런데 저작 위임은 대부분 **API 응답 대기**라 CPU 부하가 작고, CPU 를 쓰는 것은 저작된
+        # 스크립트의 **실행**이다. 그래서 저작과 실행을 분리해 밤 사이 대기 시간을 활용한다.
+        b = json.load(open(RES_BACKLOG, encoding="utf-8"))
+        it = next((i for i in b["items"] if i["id"] == a.run), None)
+        if not it:
+            log(f"백로그에 {a.run} 없음")
+            return 2
+        os.makedirs(RES_LOGDIR, exist_ok=True)
+        ok, msg, info = ensure_artifact(it, "")
+        log(f"[저작전용] {a.run}: ok={ok} | {msg}")
+        if info:
+            print(json.dumps(info, ensure_ascii=False, indent=2)[:900])
+        return 0 if ok else 1
     if a.run:
         b = json.load(open(RES_BACKLOG, encoding="utf-8"))
         it = next((i for i in b["items"] if i["id"] == a.run), None)
