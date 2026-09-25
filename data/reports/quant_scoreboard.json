@@ -1,5 +1,5 @@
 {
-  "ts": "2026-09-25T20:55:44+09:00",
+  "ts": "2026-09-25T21:57:19+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
@@ -39,15 +39,15 @@
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20260925-201927.json",
+    "sample": "dq_20260925-212658.json",
     "status": "ok",
     "warns": [],
     "breaches": [],
-    "alive_features": 115.0,
-    "dead_features": 84.0,
-    "stock_constant_ratio": 0.3391304347826087,
-    "news_freshness_hours": 0.30228630222222225,
-    "rows_delivered": 1297935.0,
+    "alive_features": 164.0,
+    "dead_features": 35.0,
+    "stock_constant_ratio": 0.32926829268292684,
+    "news_freshness_hours": 0.39396062,
+    "rows_delivered": 2435963.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
     "alerts": []
   },

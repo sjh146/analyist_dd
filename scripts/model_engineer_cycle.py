@@ -131,9 +131,21 @@ def _pid_alive(pid):
     """pid 가 살아 있는지 + **우리 사이클 스크립트**인지(pid 재사용 오탐 방지).
 
     /proc/<pid>/cmdline 을 못 읽으면 보수적으로 '살아있음'으로 본다(차단이 안전한 쪽).
+
+    ⚠ EPERM 은 '죽음'이 아니라 '존재하지만 내 것이 아님'이다.
+    실측(2026-09-25 22:00): 대기형 런처가 passwordless root 로 띄운 U1(--run) 은
+    jhshi 가 `os.kill(pid, 0)` 하면 **EPERM** 이 온다(프로세스는 살아서 패널 빌드 중).
+    이걸 OSError 전체로 묶어 '죽음'으로 처리하자 state.json fallback 까지 무력화되어
+    ① 틱이 살아있는 사이클을 "기록 없이 죽었다"로 오보고하고
+    ② pidfile 이 없으면 교차 락이 풀려 **두 번째 무거운 실험이 동시에 시작**될 수 있었다
+    (4코어에서 학습 2개 = 과거 SIGKILL 사고의 재료).
     """
     try:
         os.kill(pid, 0)
+    except ProcessLookupError:
+        return False                 # ESRCH — 진짜로 없다
+    except PermissionError:
+        pass                         # EPERM/EACCES — 존재한다. 아래 cmdline 으로 재사용만 거른다
     except OSError:
         return False
     try:
@@ -231,11 +243,10 @@ def peer_running():
             continue
         if pid == os.getpid():
             continue
-        try:
-            os.kill(pid, 0)
+        # 교차 락도 같은 EPERM 함정을 피해야 한다: 상대 역할이 root 로 떠 있으면
+        # os.kill(pid,0) 이 EPERM 을 주므로 '없음'으로 넘기면 락이 조용히 풀린다.
+        if _pid_alive(pid):
             return pid, rel
-        except OSError:
-            continue
     return None, None
 
 
