@@ -1,0 +1,561 @@
+[0m
+> build · deepseek-v4-pro
+[0m
+[0m$ [0mls -la /home/jhshi/analyist_dd && echo "---SCRIPTS---" && ls -la /home/jhshi/analyist_dd/scripts 2>/dev/null
+total 148
+drwxr-xr-x 16 jhshi jhshi  4096 Sep 25 14:29 .
+drwxr-x--- 19 jhshi jhshi  4096 Sep 25 03:17 ..
+-rw-r--r--  1 jhshi jhshi   294 Sep 23 15:11 .dockerignore
+-rw-------  1 jhshi jhshi  2205 Sep 24 22:40 .env
+-rw-------  1 jhshi jhshi  2185 Sep 24 22:40 .env.bak.1790257205
+-rw-r--r--  1 jhshi jhshi  4018 Sep 25 14:27 .env.example
+drwxr-xr-x  8 jhshi jhshi  4096 Sep 25 20:26 .git
+-rw-r--r--  1 jhshi jhshi  2474 Sep 25 19:46 .gitignore
+drwxrwxr-x  3 jhshi jhshi  4096 Sep 24 18:50 .omo
+drwxr-xr-x  3 jhshi jhshi  4096 Sep 22 18:13 .pytest_cache
+-rw-r--r--  1 jhshi jhshi     0 Sep 22 17:47 0"
+-rw-r--r--  1 jhshi jhshi  1581 Sep 22 17:47 Jenkinsfile
+-rw-r--r--  1 jhshi jhshi 32778 Sep 25 14:29 README.md
+drwxr-xr-x  9 jhshi jhshi  4096 Sep 24 00:15 config
+drwxr-xr-x 13 jhshi jhshi  4096 Sep 25 15:26 data
+-rw-r--r--  1 jhshi jhshi  1759 Sep 23 21:35 docker-compose.gpu.yml
+-rw-r--r--  1 jhshi jhshi  9366 Sep 24 00:15 docker-compose.yml
+drwxr-xr-x  3 jhshi jhshi  4096 Sep 25 20:38 docs
+drwxrwxr-x  2 jhshi jhshi  4096 Sep 25 14:28 dumps
+drwxr-xr-x  4 jhshi jhshi  4096 Sep 22 17:47 init-scripts
+drwxr-xr-x  2 jhshi jhshi  4096 Sep 22 17:47 log
+drwxr-xr-x  2 root  root   4096 Sep 22 18:05 models
+-rw-r--r--  1 jhshi jhshi  2807 Sep 22 17:47 oh-my-openagent.json
+-rw-r--r--  1 jhshi jhshi   244 Sep 23 15:11 pytest.ini
+drwxr-xr-x  5 jhshi jhshi  4096 Sep 25 20:29 reports
+drwxr-xr-x  4 jhshi jhshi  4096 Sep 25 20:36 scripts
+drwxr-xr-x 16 jhshi jhshi  4096 Sep 23 12:41 services
+drwxr-xr-x  5 jhshi jhshi  4096 Sep 24 02:03 tests
+---SCRIPTS---
+total 1536
+drwxr-xr-x  4 jhshi jhshi  4096 Sep 25 20:36 .
+drwxr-xr-x 16 jhshi jhshi  4096 Sep 25 14:29 ..
+-rw-r--r--  1 jhshi jhshi 12351 Sep 22 17:47 README.md
+drwxr-xr-x  2 jhshi jhshi  4096 Sep 25 20:37 __pycache__
+-rw-rw-r--  1 jhshi jhshi  2056 Sep 25 20:20 _ck_resume_test.py
+-rw-r--r--  1 jhshi jhshi 44830 Sep 22 17:47 ackman_screener.py
+-rwxr-xr-x  1 jhshi jhshi  2862 Sep 22 17:47 agent_monitor.sh
+-rwxrwxr-x  1 jhshi jhshi  9848 Sep 25 19:44 ask_claude.sh
+-rwxr-xr-x  1 jhshi jhshi  3375 Sep 22 17:47 auto_pipeline_ci.sh
+-rwxr-xr-x  1 jhshi jhshi  3127 Sep 22 17:47 auto_pipeline_loop.sh
+-rwxr-xr-x  1 jhshi jhshi   263 Sep 22 17:47 auto_train_loop.sh
+-rw-r--r--  1 jhshi jhshi  4607 Sep 22 17:47 backtest_model.py
+-rwxrwxr-x  1 jhshi jhshi 10686 Sep 25 14:28 bootstrap_new_machine.sh
+-rw-rw-r--  1 jhshi jhshi  9437 Sep 25 16:51 build_event_features.py
+-rw-rw-r--  1 jhshi jhshi 34660 Sep 25 20:36 build_financial_ratio_features.py
+-rw-rw-r--  1 jhshi jhshi 24121 Sep 25 20:21 build_macro_features.py
+-rw-rw-r--  1 jhshi jhshi  9690 Sep 25 13:07 build_screener_stats.py
+-rw-rw-r--  1 jhshi jhshi 29023 Sep 25 20:11 build_supply_market_features.py
+-rw-rw-r--  1 jhshi jhshi 13969 Sep 25 07:42 champion_robust_eval.py
+-rwxr-xr-x  1 jhshi jhshi  2563 Sep 22 17:47 cleanup_news_data.sh
+-rwxr-xr-x  1 jhshi jhshi  2307 Sep 22 17:47 cleanup_zombies.sh
+-rw-r--r--  1 jhshi jhshi 20160 Sep 23 23:59 close_screener.py
+-rw-r--r--  1 jhshi jhshi 12482 Sep 22 17:47 close_screener_performance.py
+-rw-rw-r--  1 jhshi jhshi 11554 Sep 25 16:12 dart_disclosure_backfill.py
+-rw-r--r--  1 jhshi jhshi 19539 Sep 24 02:00 dart_financial_backfill.py
+-rw-r--r--  1 jhshi jhshi 12515 Sep 25 18:04 data_gap.py
+drwxr-xr-x  3 jhshi jhshi  4096 Sep 22 18:15 day_trading_engine
+-rw-r--r--  1 jhshi jhshi 12323 Sep 22 17:47 daytrading_performance.py
+-rw-r--r--  1 jhshi jhshi  6368 Sep 22 17:47 daytrading_screener.py
+-rwxrwxr-x  1 jhshi jhshi  2228 Sep 25 14:28 db_dump.sh
+-rwxrwxr-x  1 jhshi jhshi  3687 Sep 25 14:28 db_restore.sh
+-rw-r--r--  1 jhshi jhshi   921 Sep 22 17:47 diag_backtest.py
+-rw-rw-r--  1 jhshi jhshi  4116 Sep 25 12:59 dq_claim.py
+-rwxrwxr-x  1 jhshi jhshi 17907 Sep 25 20:13 dq_snapshot.py
+-rw-r--r--  1 jhshi jhshi  8768 Sep 23 21:48 embed_bench.py
+-rwxr-xr-x  1 jhshi jhshi  2317 Sep 22 17:47 emergency_revert.sh
+-rw-r--r--  1 jhshi jhshi 36448 Sep 23 23:51 extra_experiments.py
+-rw-r--r--  1 jhshi jhshi 10506 Sep 25 03:11 feature_coverage_report.py
+-rw-rw-r--  1 jhshi jhshi  4826 Sep 24 11:23 feature_diagnosis.py
+-rw-rw-r--  1 jhshi jhshi 11679 Sep 24 04:14 feature_revival_graph_backfill.py
+-rw-rw-r--  1 jhshi jhshi  5324 Sep 24 04:20 feature_revival_verify.py
+-rw-r--r--  1 jhshi jhshi 14974 Sep 24 19:28 feed_export.py
+-rw-r--r--  1 jhshi jhshi  4232 Sep 23 15:17 feed_server.py
+-rwxr-xr-x  1 jhshi jhshi  3619 Sep 22 17:47 fix_agent.sh
+-rwxr-xr-x  1 jhshi jhshi 24066 Sep 25 07:41 full_pipeline_dd.sh
+-rwxr-xr-x  1 jhshi jhshi  7022 Sep 22 17:47 generate_tests.sh
+-rwxr-xr-x  1 jhshi jhshi  3273 Sep 22 17:47 git_safety.sh
+-rw-r--r--  1 jhshi jhshi  7150 Sep 23 21:36 gpu_doctor.py
+-rw-r--r--  1 jhshi jhshi 15151 Sep 22 18:11 init_stocks.py
+-rwxr-xr-x  1 jhshi jhshi  8487 Sep 22 17:47 inject_failure.sh
+-rw-r--r--  1 jhshi jhshi  4441 Sep 22 17:47 kis_backfill_0822_26.py
+-rw-r--r--  1 jhshi jhshi  7154 Sep 22 17:54 kis_backfill_range.py
+-rw-rw-r--  1 jhshi jhshi 11403 Sep 24 23:01 kis_program_trading_collect.py
+-rw-rw-r--  1 jhshi jhshi 13894 Sep 24 22:51 kis_short_selling_backfill.py
+-rw-rw-r--  1 jhshi jhshi 14358 Sep 25 12:56 kis_supply_backfill.py
+-rw-rw-r--  1 jhshi jhshi 13514 Sep 25 12:55 kis_supply_extend_history.py
+-rw-r--r--  1 jhshi jhshi 15341 Sep 23 14:23 krx_daily.py
+-rw-rw-r--  1 jhshi jhshi 14677 Sep 24 23:01 krx_derivatives_collect.py
+-rw-rw-r--  1 jhshi jhshi  9042 Sep 24 12:58 label_wave.py
+-rw-rw-r--  1 jhshi jhshi  5501 Sep 24 13:02 label_wave2.py
+-rw-rw-r--  1 jhshi jhshi  7295 Sep 24 13:08 label_wave3.py
+-rw-rw-r--  1 jhshi jhshi  6347 Sep 24 13:13 label_wave4.py
+-rw-rw-r--  1 jhshi jhshi  7689 Sep 24 13:19 label_wave5.py
+-rwxr-xr-x  1 jhshi jhshi  7108 Sep 22 17:47 loop_monitor.sh
+-rw-rw-r--  1 jhshi jhshi 17445 Sep 24 22:41 macro_backfill.py
+-rwxrwxr-x  1 jhshi jhshi   551 Sep 25 13:25 me_cron_tick.sh
+-rw-r--r--  1 jhshi jhshi 11993 Sep 23 23:55 ml_auc_experiment.py
+-rwxr-xr-x  1 jhshi jhshi 10735 Sep 22 17:47 ml_infinite_loop.sh
+-rw-r--r--  1 jhshi jhshi  1395 Sep 23 23:12 ml_sweep.sh
+-rwxrwxr-x  1 jhshi jhshi 33647 Sep 25 20:05 model_engineer_cycle.py
+-rw-rw-r--  1 jhshi jhshi 43410 Sep 24 04:05 news_event_backfill.py
+-rw-r--r--  1 jhshi jhshi  6194 Sep 22 17:47 news_gate_server.py
+-rw-r--r--  1 jhshi jhshi 23542 Sep 24 05:20 news_revive_pipeline.py
+-rw-rw-r--  1 jhshi jhshi 11121 Sep 24 01:21 news_wave.py
+-rwxr-xr-x  1 jhshi jhshi  4656 Sep 22 17:47 notify.sh
+-rw-r--r--  1 jhshi jhshi 30716 Sep 23 22:27 overnight_ml_loop.py
+-rwxr-xr-x  1 jhshi jhshi  6631 Sep 22 17:47 parse_test_results.py
+-rw-rw-r--  1 jhshi jhshi  4142 Sep 25 04:02 patch_panel_asof.py
+-rw-rw-r--  1 jhshi jhshi  5022 Sep 25 16:53 patch_panel_events.py
+-rw-r--r--  1 jhshi jhshi  4368 Sep 23 20:52 phase_4_backtest.py
+-rwxr-xr-x  1 jhshi jhshi  5856 Sep 22 17:47 plan-parser.py
+-rw-r--r--  1 jhshi jhshi 16708 Sep 25 12:37 pnl_backtest.py
+-rwxr-xr-x  1 jhshi jhshi  1298 Sep 22 17:47 pontail_setup.sh
+-rw-rw-r--  1 jhshi jhshi  4588 Sep 24 05:12 post_integration_verify.py
+-rw-r--r--  1 jhshi jhshi  2204 Sep 22 17:47 probe_news_flow.py
+-rwxrwxr-x  1 jhshi jhshi 17436 Sep 25 20:25 quant_scoreboard.py
+-rw-r--r--  1 jhshi jhshi  3678 Sep 24 00:30 record_strategy_run.py
+-rw-rw-r--  1 jhshi jhshi 10987 Sep 24 02:03 refresh_valuation_ratios.py
+-rwxrwxr-x  1 jhshi jhshi 22669 Sep 25 19:45 researcher_cycle.py
+-rwxr-xr-x  1 jhshi jhshi  5541 Sep 22 17:47 run_all_tests.sh
+-rwxr-xr-x  1 jhshi jhshi  1031 Sep 22 17:47 run_mock_executor.sh
+-rwxr-xr-x  1 jhshi jhshi  4014 Sep 22 17:47 run_pipeline_test.sh
+-rwxr-xr-x  1 jhshi jhshi   305 Sep 22 17:47 run_tests_in_docker.sh
+-rw-rw-r--  1 jhshi jhshi  6308 Sep 25 03:31 run_with_claim.py
+-rw-r--r--  1 jhshi jhshi 19696 Sep 22 17:47 screener_score.py
+-rw-r--r--  1 jhshi jhshi  8888 Sep 24 00:01 seed_etf_universe.py
+-rw-r--r--  1 jhshi jhshi  3150 Sep 22 17:47 seed_strategy_runs.py
+-rw-rw-r--  1 jhshi jhshi 11063 Sep 24 11:32 selected_wave.py
+-rw-rw-r--  1 jhshi jhshi 14693 Sep 24 04:10 sns_backfill_depth.py
+-rw-r--r--  1 jhshi jhshi  6070 Sep 24 01:58 sns_collect_runner.py
+-rw-rw-r--  1 jhshi jhshi 11889 Sep 24 04:32 sns_feature_probe.py
+-rw-rw-r--  1 jhshi jhshi  6421 Sep 24 01:59 sns_feature_verify.py
+-rw-rw-r--  1 jhshi jhshi  6293 Sep 24 01:59 sns_features_writer.py
+-rw-r--r--  1 jhshi jhshi 13615 Sep 22 17:47 sns_lag_backtest.py
+-rw-rw-r--  1 jhshi jhshi  3026 Sep 24 04:16 sns_patch_apply_check.py
+-rw-rw-r--  1 jhshi jhshi  4295 Sep 24 04:15 sns_pipeline_integration_check.py
+-rw-rw-r--  1 jhshi jhshi  6903 Sep 24 04:14 sns_pipeline_patch_check.py
+-rwxr-xr-x  1 jhshi jhshi  4203 Sep 24 19:26 swing-pipeline.sh
+-rw-rw-r--  1 jhshi jhshi  4589 Sep 24 17:27 swing_degenerate_probe.py
+-rw-r--r--  1 jhshi jhshi 14195 Sep 22 17:47 swing_performance.py
+-rw-r--r--  1 jhshi jhshi 18683 Sep 24 19:14 swing_screener.py
+-rwxrwxr-x  1 jhshi jhshi 17718 Sep 25 15:48 system_hygiene.py
+-rwxr-xr-x  1 jhshi jhshi  9997 Sep 22 17:47 test_fix_loop.sh
+-rwxr-xr-x  1 jhshi jhshi  4204 Sep 22 17:47 test_fix_pipeline.sh
+-rw-r--r--  1 jhshi jhshi  1622 Sep 22 17:47 test_mock_signal.py
+-rw-r--r--  1 jhshi jhshi 41254 Sep 22 17:47 thesis_onboarding.py
+-rw-r--r--  1 jhshi jhshi 27656 Sep 22 17:47 thesis_review.py
+-rw-r--r--  1 jhshi jhshi 17176 Sep 25 13:38 train_curated.py
+-rw-r--r--  1 jhshi jhshi  4226 Sep 23 20:51 train_quick.py
+-rw-rw-r--  1 jhshi jhshi  5920 Sep 24 04:13 verify_feature_revival.py
+-rw-rw-r--  1 jhshi jhshi  6258 Sep 24 02:34 verify_fundamental_features.py
+-rw-rw-r--  1 jhshi jhshi  5889 Sep 24 04:05 verify_macro_asof_features.py
+-rw-rw-r--  1 jhshi jhshi 15694 Sep 25 13:38 wf_label_sweep.py
+-rw-rw-r--  1 jhshi jhshi 14900 Sep 25 20:20 wf_wave.py
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && git log --oneline -20 2>/dev/null && echo "---STATUS---" && git status --short 2>/dev/null
+b7e9f41 엔지니어: 패널 빌드 체크포인트/재개 + 소실을 '노이즈'로 오기록하던 판정 버그 수정
+26fccc3 리서처: 모니터링 실명 수정 — exporter 스크랩 타임아웃·nodata 판정·배치 스코프 버그
+07c1069 위임 임시 파일 gitignore 처리 (docs/spec_*.md.tmp.*)
+3b09fbc 저작·실행 분리(--author-only): 교차 락에 막히지 않고 밤 시간을 활용
+c43953a 자율 저작 배선: ask_claude.sh build 모드 + 리서처 구동기 위임 훅 (사용자 승인 ①)
+0157857 이벤트 공시 전 유형 수집 완료 + 피처 214,851행 (밀도 대폭 개선)
+228c267 R14 등록: feature_coverage 스냅샷 정체가 R9·R13 완료 판정을 묶고 있다
+667ad7d 구동기 가드 하드닝: pidfile 소실 시 state.json fallback + 틱 진행률 보고
+4fab6c4 DQ 오탐 2건 + R7 당일 휴장 누락 근본 수정
+f7187ec 이벤트 피처 갱신: 원천 152,146행 / 피처 133,513행 (희소성 개선)
+fb257b0 이벤트 피처 부활 파이프라인 구축 (R9 1단계) — 6종 부활 확인, 희소성 실측
+7e7f55a R9 체크 기준 교정: 원천 적재 → 피처 nonzero (조기 완료 오판 방지)
+61a4549 이벤트 공시 백필 확장 + 죽은 피처 97개 부활 지도/백로그 등록
+6927a53 DQ 스냅샷 임계값 정정: 종목상수 피처 비율 warn 0.35→0.45 (기준선 0.38 상시 오탐 제거)
+e2c9ecc 역할 정렬: 최종 목표(돈) → AUC → 데이터 사슬을 측정 가능한 계약으로 배선
+8886c33 뉴스 파이프라인 저장재개 검증 + 사각지대 메트릭 신설
+168c143 위생 크론 알림 중복 억제 + 첫 알림 삼킴 버그 수정
+2f1f124 U1 타임아웃 상향(8h→16h): 8시간으로는 69%에서 잘릴 상황이었다
+9661d6b 위생 점검 자체 버그 2건 수정: 자기매칭 루프 탐지 실패 + 오탐
+2a6eb90 30분 주기 시스템 위생 점검 (좀비·정지컨테이너·댕글링 자원·캐시·디스크)
+---STATUS---
+?? data/reports/model_engineer_ledger.jsonl.bak-20260925
+?? docs/spec_R10.md
+?? docs/spec_R10.md.backend
+?? docs/spec_R10.md.stderr.oc
+?? docs/spec_R11.md
+?? docs/spec_R11.md.backend
+?? docs/spec_R12.md.stderr.oc
+?? init-scripts/postgres/18_supply_market_features.sql
+?? init-scripts/postgres/19_macro_features.sql
+?? init-scripts/postgres/20_financial_ratio_features.sql
+?? scripts/build_financial_ratio_features.py
+?? scripts/build_macro_features.py
+?? scripts/build_supply_market_features.py
+[0m
+[0m→ [0mRead scripts/build_financial_ratio_features.py
+[0m→ [0mRead init-scripts/postgres/20_financial_ratio_features.sql
+[0m→ [0mRead scripts/dq_claim.py
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker ps --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null | head -30
+stock_api_gateway	Up 38 minutes	0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+stock_job_runner	Up 38 minutes	8010/tcp
+stock_xgboost_ml	Up 38 minutes	
+stock_strategy_agents	Up 38 minutes	
+stock_yfinance_collector	Up 38 minutes	
+stock_news_analyzer	Up 38 minutes	
+stock_vectorizer	Up 38 minutes	
+stock_krx_collector	Up 38 minutes	
+stock_economic_calendar	Up 38 minutes	
+stock_postgres	Up 25 hours (healthy)	0.0.0.0:5434->5432/tcp, [::]:5434->5432/tcp
+stock_postgres_exporter	Up 23 minutes	0.0.0.0:9187->9187/tcp, [::]:9187->9187/tcp
+analyist_dd-jenkins-1	Up 2 days	0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp, 0.0.0.0:50000->50000/tcp, [::]:50000->50000/tcp
+stock_redis_exporter	Up 2 days	0.0.0.0:9121->9121/tcp, [::]:9121->9121/tcp
+analyist_dd-prometheus-1	Up 25 minutes	0.0.0.0:9090->9090/tcp, [::]:9090->9090/tcp
+analyist_dd-grafana-1	Up 44 hours	0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+stock_redis	Up 2 days (healthy)	0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+stock_neo4j	Up 2 days (healthy)	0.0.0.0:2004->2004/tcp, [::]:2004->2004/tcp, 0.0.0.0:7474->7474/tcp, [::]:7474->7474/tcp, 0.0.0.0:7687->7687/tcp, [::]:7687->7687/tcp, 7473/tcp
+[0m
+[0m✗ [0mRead docs/spec_R12.md failed
+[91m[1mError: [0mFile not found: /home/jhshi/analyist_dd/docs/spec_R12.md
+
+Did you mean one of these?
+/home/jhshi/analyist_dd/docs/spec_R12.md.stderr
+/home/jhshi/analyist_dd/docs/spec_R12.md.tmp.2366501
+/home/jhshi/analyist_dd/docs/spec_R12.md.stderr.oc
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && ls -la docs/ && echo "---SPEC R12 STDERR---" && cat docs/spec_R12.md.stderr 2>/dev/null | head -50
+total 376
+drwxr-xr-x  3 jhshi jhshi  4096 Sep 25 20:38 .
+drwxr-xr-x 16 jhshi jhshi  4096 Sep 25 14:29 ..
+-rw-rw-r--  1 jhshi jhshi  5321 Sep 25 16:13 DEAD_FEATURE_REVIVAL.md
+-rw-r--r--  1 jhshi jhshi 10386 Sep 23 21:49 GPU_READINESS.md
+-rw-r--r--  1 jhshi jhshi 15476 Sep 22 17:47 KIS_컬렉터_PLAN.md
+-rw-r--r--  1 jhshi jhshi  6654 Sep 22 17:47 PROXMOX_2VM_아키텍처_로드맵.md
+-rw-rw-r--  1 jhshi jhshi  4900 Sep 25 15:55 QUANT_AGENT_OBJECTIVES.md
+-rw-rw-r--  1 jhshi jhshi 15030 Sep 25 03:03 QUANT_AGENT_ROLES_PLAN.md
+-rw-rw-r--  1 jhshi jhshi  9039 Sep 25 12:52 QUANT_BOARD.md
+-rw-rw-r--  1 jhshi jhshi  7372 Sep 25 20:19 QUANT_FINDINGS.md
+-rw-rw-r--  1 jhshi jhshi 23169 Sep 25 20:25 QUANT_MODEL_BACKLOG.json
+-rw-rw-r--  1 jhshi jhshi 35234 Sep 25 20:19 QUANT_RESEARCH_BACKLOG.json
+-rw-rw-r--  1 jhshi jhshi  1702 Sep 25 16:25 QUANT_SCOREBOARD.md
+-rw-rw-r--  1 jhshi jhshi  6794 Sep 25 14:28 SETUP_NEW_MACHINE.md
+-rw-rw-r--  1 jhshi jhshi  9073 Sep 24 04:32 SNS_PIPELINE_PATCH.md
+-rw-r--r--  1 jhshi jhshi 12148 Sep 22 17:47 SNS_인텔리전스_PLAN.md
+-rw-r--r--  1 jhshi jhshi  8381 Sep 23 15:25 TRADER_INTEGRATION.md
+drwxr-xr-x  2 jhshi jhshi  4096 Sep 22 17:47 architecture
+-rw-rw-r--  1 jhshi jhshi  2952 Sep 25 05:09 asof_measurement_20260925.md
+-rw-rw-r--  1 jhshi jhshi  3647 Sep 25 07:43 champion_promotion_20260925.md
+-rw-r--r--  1 jhshi jhshi  9732 Sep 22 17:47 close_screener_PLAN.md
+-rw-rw-r--  1 jhshi jhshi  2129 Sep 25 20:11 spec_R10.md
+-rw-rw-r--  1 jhshi jhshi    54 Sep 25 20:11 spec_R10.md.backend
+-rw-rw-r--  1 jhshi jhshi    86 Sep 25 19:46 spec_R10.md.stderr
+-rw-rw-r--  1 jhshi jhshi 48920 Sep 25 20:11 spec_R10.md.stderr.oc
+-rw-rw-r--  1 jhshi jhshi  3300 Sep 25 20:22 spec_R11.md
+-rw-rw-r--  1 jhshi jhshi    33 Sep 25 20:22 spec_R11.md.backend
+-rw-rw-r--  1 jhshi jhshi    86 Sep 25 20:11 spec_R11.md.stderr
+-rw-rw-r--  1 jhshi jhshi    86 Sep 25 20:22 spec_R12.md.stderr
+-rw-rw-r--  1 jhshi jhshi 14115 Sep 25 20:39 spec_R12.md.stderr.oc
+-rw-rw-r--  1 jhshi jhshi     0 Sep 25 20:38 spec_R12.md.tmp.2366501
+-rw-rw-r--  1 jhshi jhshi 12266 Sep 24 22:59 공매도_데이터_소스_조사.md
+-rw-r--r--  1 jhshi jhshi 12740 Sep 22 17:47 단타스크리너_PLAN.md
+-rw-r--r--  1 jhshi jhshi  9637 Sep 22 17:47 스크리너_채점_PLAN.md
+-rw-r--r--  1 jhshi jhshi 11972 Sep 22 17:47 테제원장_PLAN.md
+---SPEC R12 STDERR---
+[claude-code:unrecognized_model] {"model":"deepseek-v4-pro[1m]","query_source":"sdk"}
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT report_date, COUNT(*) FROM financial_statements GROUP BY 1 ORDER BY 1" 2>&1 | head -20
+2023-12-31|2592
+2024-12-31|2592
+2025-12-31|2598
+2026-06-30|2588
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT MIN(rcept_dt), MAX(rcept_dt), COUNT(*) FROM disclosures" 2>&1
+2025-01-02|2026-09-23|212861
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT feature_name, nonzero_ratio, computed_at FROM feature_coverage WHERE feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') ORDER BY feature_name" 2>&1
+quality_roa|0|2026-09-24 18:11:57.07731+00
+quality_roe|0|2026-09-24 18:11:57.07731+00
+roe|0|2026-09-24 18:11:57.07731+00
+value_pbr|0|2026-09-24 18:11:57.07731+00
+value_per|0|2026-09-24 18:11:57.07731+00
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT COUNT(*) FROM financial_ratio_features" 2>&1; echo "---max computed_at---"; docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT MAX(computed_at) FROM feature_coverage" 2>&1
+0
+---max computed_at---
+2026-09-25 11:22:07.931623+00
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND (table_name LIKE '%ownership%' OR table_name LIKE '%stocks%' OR table_name LIKE '%market_data%' OR table_name LIKE '%financial%') ORDER BY 1" 2>&1
+financial_ratio_features
+financial_statements
+market_data
+ownership
+stocks
+us_market_data
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && grep -E 'POSTGRES_(HOST|PORT|DB|USER|PASSWORD)' .env 2>/dev/null
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=stock_trading
+POSTGRES_USER=stock_user
+POSTGRES_PASSWORD=OGUjp-EKaVYA-2yfocFvKtyw7GskxCMh
+POSTGRES_HOST_PORT=5434
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT runner, table_name, claimed_rows, persisted_rows, source_rows, run_at FROM dq_runner_claim WHERE runner LIKE '%financial_ratio%' OR table_name LIKE '%financial_ratio%' ORDER BY run_at DESC LIMIT 10" 2>&1
+(no output)
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT column_name FROM information_schema.columns WHERE table_name='financial_statements' ORDER BY ordinal_position" 2>&1
+id
+stock_code
+report_date
+revenue
+operating_profit
+net_income
+total_assets
+total_equity
+per
+pbr
+roe
+debt_ratio
+created_at
+gross_profit
+operating_cash_flow
+total_debt
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT COUNT(*) FROM market_data; SELECT COUNT(*) FROM ownership; SELECT COUNT(*) FROM stocks;" 2>&1
+1113634
+225
+4340
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT column_name FROM information_schema.columns WHERE table_name='ownership' ORDER BY ordinal_position" 2>&1; echo "---stocks---"; docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT column_name FROM information_schema.columns WHERE table_name='stocks' ORDER BY ordinal_position" 2>&1
+id
+stock_code
+trade_date
+foreign_ownership_pct
+institution_ownership_pct
+foreign_held_qty
+listed_shares
+source
+created_at
+---stocks---
+id
+stock_code
+stock_name
+market
+sector
+industry
+market_cap
+created_at
+updated_at
+instrument_type
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 POSTGRES_DB=stock_trading POSTGRES_USER=stock_user POSTGRES_PASSWORD='OGUjp-EKaVYA-2yfocFvKtyw7GskxCMh' && /usr/bin/python3 -c "import psycopg2; c=psycopg2.connect(host='127.0.0.1',port=5434,dbname='stock_trading',user='stock_user',password='OGUjp-EKaVYA-2yfocFvKtyw7GskxCMh'); print('conn ok'); c.close()" 2>&1
+conn ok
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 POSTGRES_DB=stock_trading POSTGRES_USER=stock_user POSTGRES_PASSWORD='OGUjp-EKaVYA-2yfocFvKtyw7GskxCMh' && /usr/bin/python3 scripts/build_financial_ratio_features.py --dry-run --limit-stocks 50 2>&1 | tail -50
+[20:40:09] 격자 14272행 (49종목 × 314거래일, 2025-06-16 ~ 2026-09-23)
+[20:40:11] 원천: financial_statements 10370행 (rcept_dt 매칭 7472) / 상장주식수 2678종목 (ownership 225 + 시총 역산 2453)
+[20:40:17] 문장별 계산: 10205행 (기간유형별 종목수 {'annual': 2593, 'semi': 2544} / 제외 165행 = 접수일 미확보 격자 내 보고서)
+[20:40:24] 피처 계산 완료 (15.5s)
+[20:40:24] 커버리지(격자 전체): nonzero 피처 18/19
+[20:40:24]   value_per                    nonzero=0.3956 null=0.6044 std=76.104
+[20:40:24]   value_pbr                    nonzero=0.5906 null=0.4094 std=3.801
+[20:40:24]   value_psr                    nonzero=0.5247 null=0.4753 std=5.754
+[20:40:24]   value_pcr                    nonzero=0.3526 null=0.6474 std=110.639
+[20:40:24]   value_ncav                   nonzero=0.0000 null=1.0000 std=0.000
+[20:40:24]   value_ev_ebit                nonzero=0.4467 null=0.5533 std=423.979
+[20:40:24]   value_pfcr                   nonzero=0.2534 null=0.7466 std=57.272
+[20:40:24]   quality_cp_to_assets         nonzero=0.4100 null=0.5900 std=0.035
+[20:40:24]   quality_op_to_equity         nonzero=0.5267 null=0.4733 std=0.058
+[20:40:24]   quality_roe                  nonzero=0.5467 null=0.4533 std=7.455
+[20:40:24]   quality_roa                  nonzero=0.5467 null=0.4533 std=3.309
+[20:40:24]   quality_f_score              nonzero=0.5906 null=0.4074 std=2.010
+[20:40:24]   quality_asset_growth         nonzero=0.5373 null=0.4627 std=8.555
+[20:40:24]   quality_debt_ratio_change    nonzero=0.5373 null=0.4627 std=3.983
+[20:40:24]   quality_op_growth            nonzero=0.3994 null=0.6006 std=1704.101
+[20:40:24]   quality_earnings_volatility  nonzero=0.1766 null=0.8234 std=81295099197.826
+[20:40:24]   roe                          nonzero=0.5467 null=0.4533 std=7.455
+[20:40:24]   per_current                  nonzero=0.3956 null=0.6044 std=76.104
+[20:40:24]   pbr_current                  nonzero=0.5906 null=0.4094 std=3.801
+[20:40:25] as-of 검증 통과 (SQL 대조 60쌍, 위반 0)
+[20:40:25] 생성 8457행 (전부 NULL 인 5815행 제외) / 기간유형별: {'annual': 7669, 'semi': 788}
+[20:40:25] dry-run: DB 쓰기 생략
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT COUNT(*) FROM ownership o JOIN stocks s ON s.stock_code=o.stock_code JOIN market_data md ON md.stock_code=s.stock_code AND md.trade_date=(SELECT MAX(trade_date) FROM market_data) WHERE o.trade_date=(SELECT MAX(trade_date) FROM ownership) AND o.listed_shares IS NOT NULL AND o.listed_shares>0 AND s.market_cap IS NOT NULL AND md.close_price>0 AND round(s.market_cap::numeric/md.close_price) = round(o.listed_shares)" 2>&1
+225
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT COUNT(*) FROM ownership WHERE listed_shares IS NOT NULL AND listed_shares>0 AND trade_date=(SELECT MAX(trade_date) FROM ownership)" 2>&1
+225
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT report_nm, COUNT(*) FROM disclosures WHERE report_nm ~ '^(사업보고서|반기보고서|분기보고서) \(' GROUP BY 1 ORDER BY 2 DESC LIMIT 10" 2>&1
+사업보고서 (2024.12)|2749
+사업보고서 (2025.12)|2744
+분기보고서 (2026.03)|2743
+분기보고서 (2025.09)|2736
+반기보고서 (2025.06)|2726
+분기보고서 (2025.03)|2720
+반기보고서 (2026.06)|2707
+사업보고서 (2025.06)|22
+사업보고서 (2026.03)|22
+분기보고서 (2025.06)|21
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "WITH d AS (SELECT stock_code, make_date((regexp_match(report_nm,'^(사업보고서|반기보고서|분기보고서) \\(([0-9]{4})\\.([0-9]{2})\\)'))[2]::int,(regexp_match(report_nm,'^(사업보고서|반기보고서|분기보고서) \\(([0-9]{4})\\.([0-9]{2})\\)'))[3]::int,1)+interval '1 month - 1 day' AS period_end, MIN(rcept_dt) rcept_dt FROM disclosures WHERE report_nm ~ '^(사업보고서|반기보고서|분기보고서) \\([0-9]{4}\\.[0-9]{2}\\)' GROUP BY 1,2) SELECT COUNT(*) FROM (SELECT stock_code, period_end FROM d GROUP BY 1,2 HAVING COUNT(*)>1) x" 2>&1
+0
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "WITH d AS (SELECT stock_code, make_date((regexp_match(report_nm,'^(사업보고서|반기보고서|분기보고서) \\(([0-9]{4})\\.([0-9]{2})\\)'))[2]::int,(regexp_match(report_nm,'^(사업보고서|반기보고서|분기보고서) \\(([0-9]{4})\\.([0-9]{2})\\)'))[3]::int,1)+interval '1 month - 1 day' AS period_end, MIN(rcept_dt) rcept_dt FROM disclosures WHERE report_nm ~ '^(사업보고서|반기보고서|분기보고서) \\([0-9]{4}\\.[0-9]{2}\\)' GROUP BY 1,2) SELECT d.period_end, COUNT(*), COUNT(*) FILTER (WHERE f.report_date IS NOT NULL) FROM d LEFT JOIN financial_statements f ON f.stock_code=d.stock_code AND f.report_date=d.period_end GROUP BY 1 ORDER BY 1" 2>&1
+2024-10-31 00:00:00|2|0
+2024-11-30 00:00:00|10|0
+2024-12-31 00:00:00|2788|2451
+2025-01-31 00:00:00|3|0
+2025-02-28 00:00:00|11|0
+2025-03-31 00:00:00|2750|0
+2025-04-30 00:00:00|3|0
+2025-05-31 00:00:00|12|0
+2025-06-30 00:00:00|2769|0
+2025-07-31 00:00:00|3|0
+2025-08-31 00:00:00|12|0
+2025-09-30 00:00:00|2768|0
+2025-10-31 00:00:00|4|0
+2025-11-30 00:00:00|12|0
+2025-12-31 00:00:00|2782|2477
+2026-01-31 00:00:00|4|0
+2026-02-28 00:00:00|12|0
+2026-03-31 00:00:00|2776|0
+2026-04-30 00:00:00|4|0
+2026-05-31 00:00:00|12|0
+2026-06-30 00:00:00|2745|2544
+2026-07-31 00:00:00|2|0
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT feature_name, nonzero_ratio, computed_at FROM feature_coverage ORDER BY computed_at DESC LIMIT 30" 2>&1
+interest_rate|1|2026-09-25 11:22:07.931623+00
+economic_event_count_7d|0.194931|2026-09-25 11:22:07.931623+00
+cpi_yoy|1|2026-09-25 11:22:07.931623+00
+interest_rate_change_1m|0.165727|2026-09-25 11:22:07.931623+00
+oil_change_3m|1|2026-09-25 11:22:07.931623+00
+economic_event_impact|0.194931|2026-09-25 11:22:07.931623+00
+fx_usd_krw|1|2026-09-25 11:22:07.931623+00
+oil_wti|1|2026-09-25 11:22:07.931623+00
+oil_change_1m|1|2026-09-25 11:22:07.931623+00
+fx_change_1m|1|2026-09-25 11:22:07.931623+00
+interest_rate_change_3m|0.289753|2026-09-25 11:22:07.931623+00
+fx_change_3m|1|2026-09-25 11:22:07.931623+00
+cycle_down|0.124358|2026-09-25 11:22:07.931623+00
+cycle_up|0.165395|2026-09-25 11:22:07.931623+00
+ppi_yoy|1|2026-09-25 11:22:07.931623+00
+yield_spread|1|2026-09-25 11:22:07.931623+00
+momentum_op|0.473657|2026-09-25 11:08:29.941973+00
+momentum_ni|0.436659|2026-09-25 11:08:29.941973+00
+foreign_ownership_pct|0.000193|2026-09-25 11:08:29.941973+00
+foreign_net_buy|0.072828|2026-09-25 11:08:29.941973+00
+momentum_3_12m|0.140052|2026-09-25 11:08:29.941973+00
+institution_ownership_pct|0|2026-09-25 11:08:29.941973+00
+market_breadth|0.997556|2026-09-25 11:08:29.941973+00
+market_impact_score|0.000922|2026-09-25 11:08:29.941973+00
+institution_net_buy_5d|0.05584|2026-09-25 11:08:29.941973+00
+institution_net_buy|0.046366|2026-09-25 11:08:29.941973+00
+bb_position|0.931446|2026-09-25 11:08:29.941973+00
+relative_strength|0.996352|2026-09-25 11:08:29.941973+00
+foreign_net_buy_5d|0.075417|2026-09-25 11:08:29.941973+00
+retail_ownership_pct|0.000202|2026-09-25 11:08:29.941973+00
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 POSTGRES_DB=stock_trading POSTGRES_USER=stock_user POSTGRES_PASSWORD='OGUjp-EKaVYA-2yfocFvKtyw7GskxCMh' && /usr/bin/python3 scripts/build_financial_ratio_features.py 2>&1 | tail -60
+[20:41:39] 격자 1078479행 (3934종목 × 314거래일, 2025-06-16 ~ 2026-09-23)
+[20:41:42] 원천: financial_statements 10370행 (rcept_dt 매칭 7472) / 상장주식수 2678종목 (ownership 225 + 시총 역산 2453)
+[20:41:49] 문장별 계산: 10205행 (기간유형별 종목수 {'annual': 2593, 'semi': 2544} / 제외 165행 = 접수일 미확보 격자 내 보고서)
+[20:42:02] 피처 계산 완료 (28.8s)
+[20:42:09] 커버리지(격자 전체): nonzero 피처 18/19
+[20:42:09]   value_per                    nonzero=0.4414 null=0.5586 std=2453.178
+[20:42:09]   value_pbr                    nonzero=0.7107 null=0.2893 std=1872.360
+[20:42:09]   value_psr                    nonzero=0.6818 null=0.3182 std=36219.960
+[20:42:09]   value_pcr                    nonzero=0.3964 null=0.6036 std=4350.058
+[20:42:09]   value_ncav                   nonzero=0.0000 null=1.0000 std=0.000
+[20:42:09]   value_ev_ebit                nonzero=0.4703 null=0.5297 std=2326.360
+[20:42:09]   value_pfcr                   nonzero=0.2502 null=0.7498 std=3473.544
+[20:42:09]   quality_cp_to_assets         nonzero=0.5706 null=0.4294 std=0.086
+[20:42:09]   quality_op_to_equity         nonzero=0.6824 null=0.3176 std=1.403
+[20:42:09]   quality_roe                  nonzero=0.6688 null=0.3306 std=335.978
+[20:42:09]   quality_roa                  nonzero=0.6690 null=0.3305 std=11.951
+[20:42:09]   quality_f_score              nonzero=0.7177 null=0.2814 std=1.997
+[20:42:09]   quality_asset_growth         nonzero=0.6467 null=0.3533 std=38.587
+[20:42:09]   quality_debt_ratio_change    nonzero=0.6456 null=0.3543 std=19.986
+[20:42:09]   quality_op_growth            nonzero=0.4349 null=0.5651 std=1238.410
+[20:42:09]   quality_earnings_volatility  nonzero=0.2082 null=0.7917 std=254517821408.983
+[20:42:09]   roe                          nonzero=0.6688 null=0.3306 std=335.978
+[20:42:09]   per_current                  nonzero=0.4414 null=0.5586 std=2453.178
+[20:42:09]   pbr_current                  nonzero=0.7107 null=0.2893 std=1872.360
+[20:42:11] as-of 검증 통과 (SQL 대조 64쌍, 위반 0)
+[20:42:14] 생성 775010행 (전부 NULL 인 303469행 제외) / 기간유형별: {'annual': 707479, 'semi': 67531}
+[20:43:17] 적재 완료: 삭제 0행 → 삽입 775010행 / 클래스별(period_type): [('annual', 707479, 2555), ('semi', 67531, 2438)] / 불변식 위반: rcept>D 0건, report>D 0건
+[20:43:17] feature_coverage 19행 갱신 (computed_at=2026-09-25T11:42:02.493114+00:00)
+[20:43:17] 완료 (103.7s)
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio > 0"
+5
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND nonzero_ratio > 0" && echo "---dq asof violation---" && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT COUNT(*) FROM financial_ratio_features WHERE rcept_dt IS NOT NULL AND rcept_dt > trade_date" && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT COUNT(*) FROM financial_ratio_features WHERE report_date > trade_date"
+18
+---dq asof violation---
+0
+0
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT runner, table_name, claimed_rows, persisted_rows, source_rows, note FROM dq_runner_claim WHERE runner='build_financial_ratio_features' ORDER BY run_at DESC LIMIT 3" 2>&1
+build_financial_ratio_features|financial_ratio_features|775010|775010|17842|grid=1078479 fin=10370 rcept_matched=7472 excluded_no_rcept=165 shares=2678 alive=18/19 since=2025-06-16 window_days=464 asof_pairs=64 asof_violations=0 classes={'annual': 2593, 'semi': 2544} ncav=null(no_current_assets)
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT period_type, COUNT(*), COUNT(DISTINCT stock_code) FROM financial_ratio_features GROUP BY 1 ORDER BY 1" 2>&1
+annual|707479|2555
+semi|67531|2438
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && grep -rn "asof_violation" scripts/ --include="*.py" | head -20
+scripts/build_macro_features.py:463:                          f"asof_violations={len(viol)} cpi_lag={CPI_LAG_DAYS} "
+scripts/dq_snapshot.py:65:    ("dq_asof_violation_rows", "sum", None, 0.0, "as-of 위반 행수"),
+scripts/dq_snapshot.py:113:    "dq_asof_violation_rows", "dq_claim_parse_failure", "dq_claim_gap",
+scripts/dq_snapshot.py:125:    "dq_asof_violation_rows": "as-of violations (rows)",
+scripts/build_financial_ratio_features.py:78:위반이 있으면 출력에 남기고 exit 5 (R12 성공 기준 "dq_asof_violation_rows 0 유지").
+scripts/build_financial_ratio_features.py:655:                          f"asof_violations={len(viol)} classes={by_type} "
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "SELECT column_name FROM information_schema.columns WHERE table_name='feature_coverage' ORDER BY ordinal_position" 2>&1
+feature_name
+nonzero_ratio
+std
+window_days
+computed_at
+nonzero_ratio_naive
+nonzero_ratio_honest
+null_ratio
+stock_unique_median
+cross_section_constant_ratio
+[0m
+[0m→ [0mRead scripts/dq_snapshot.py
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && grep -rln "dq_asof_violation_rows\|asof_violation\|as-of" config/ services/ 2>/dev/null | head -20
+config/prometheus/alert.dq.rules.yml
+config/postgres-exporter/queries.yaml
+services/xgboost-ml/tests/__pycache__/test_news_event_features_time_align.cpython-311-pytest-9.1.1.pyc
+services/xgboost-ml/tests/test_news_event_features_time_align.py
+services/xgboost-ml/reports/overnight/asof_patch_sweep_20260925.log
+services/xgboost-ml/app/feature_engine/__pycache__/company_features.cpython-311.pyc
+services/xgboost-ml/app/feature_engine/__pycache__/market_features.cpython-311.pyc
+services/xgboost-ml/app/feature_engine/__pycache__/macro_features.cpython-311.pyc
+services/xgboost-ml/app/feature_engine/__pycache__/news_event_features.cpython-311.pyc
+services/xgboost-ml/app/feature_engine/macro_features.py
+services/xgboost-ml/app/feature_engine/feature_pipeline.py
+services/xgboost-ml/app/feature_engine/company_features.py
+services/xgboost-ml/app/feature_engine/market_features.py
+services/xgboost-ml/app/feature_engine/news_event_features.py
+services/xgboost-ml/app/training/__pycache__/champion_promote.cpython-311.pyc
+services/xgboost-ml/app/training/champion_promote.py
+services/kis-collector/kis_app/collectors/__pycache__/supply_collector.cpython-312.pyc
+services/kis-collector/kis_app/collectors/supply_collector.py
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && grep -n "asof_violation" config/postgres-exporter/queries.yaml
+269:dq_asof_violation:
+[0m
+[0m→ [0mRead config/postgres-exporter/queries.yaml[90m [offset=255, limit=40][0m
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc "WITH mx AS (SELECT MAX(trade_date) AS maxd FROM market_data) SELECT 'supply_future_dated', COUNT(*) FROM foreign_institutional fi, mx WHERE fi.trade_date > mx.maxd UNION ALL SELECT 'supply_phantom_day', COUNT(*) FROM foreign_institutional fi WHERE NOT EXISTS (SELECT 1 FROM market_data m WHERE m.stock_code=fi.stock_code AND m.trade_date=fi.trade_date) UNION ALL SELECT 'ownership_future_dated', COUNT(*) FROM ownership o, mx WHERE o.trade_date > mx.maxd UNION ALL SELECT 'financial_report_future', COUNT(*) FROM financial_statements WHERE report_date > CURRENT_DATE" 2>&1
+supply_future_dated|0
+supply_phantom_day|0
+ownership_future_dated|0
+financial_report_future|0
+[0m
