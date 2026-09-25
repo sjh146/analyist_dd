@@ -10,29 +10,76 @@
 #  ⑤ 상장 전 all-zero 패딩 행 → SupplyPaddingFound
 #  ⑥ 러너 자기신고 ≠ 실제 적재량 → RunnerClaimGap
 groups:
+  # ── 모니터링 사각지대 (2026-09-25 신설) ─────────────────────────────────────
+  # WHY: 이 그룹이 없어서 4시간을 눈 먼 채로 지났다(실측 2026-09-25 15:50~20:03).
+  #   postgres-exporter /metrics 가 DB 부하 시 12.7초 걸리는데 Prometheus 기본
+  #   scrape_timeout 이 10초여서 **매 스크랩이 실패** → dq_* 51개가 전부 사라졌다.
+  #   그런데 ① 타겟 다운(up==0)을 잡는 규칙이 없었고 ② Prometheus 에 alerting 섹션이
+  #   없어(Alertmanager 부재) 기존 17개 규칙도 아무 데도 발송되지 않았다.
+  #   → "데이터가 이상하다"가 아니라 "데이터를 보고 있지 않다"를 잡는 규칙을 따로 둔다.
+  - name: dq_monitoring_blindness
+    rules:
+      - alert: PostgresExporterDown
+        # DQ 메트릭 51개의 유일한 공급원. 이게 0 이면 모든 DQ 판정이 무의미하다.
+        expr: up{job="postgres"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "postgres-exporter 다운(up=0) — DQ 메트릭 51개 전부 공급 중단"
+
+      - alert: DQMetricsAbsent
+        # 스크랩은 up 이어도 메트릭이 통째로 없을 수 있다(쿼리 실패). 기준선: 정상 스냅샷
+        # 21개에서 market_data_freshness_days 는 21/21 존재했다. absent 는 "정상 상태값"이
+        # 없으므로 오탐이 원리적으로 불가능하다.
+        expr: absent(market_data_freshness_days)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DQ 핵심 메트릭 소실 — 15분간 market_data_freshness_days 미수집(모니터링 실명)"
+
+      - alert: PostgresExporterScrapeSlow
+        # 스크랩이 타임아웃(45s)에 닿기 **전에** 경고한다 — 사후가 아니라 사전 감지.
+        # 기준선 실측: 부하 시 12.7초 / 현재 8.0초. 25초는 기준선의 2배라 상시 오탐이 아니고,
+        # 타임아웃 45초까지 여유가 있어 "곧 실명한다"를 미리 알린다.
+        expr: pg_exporter_last_scrape_duration_seconds > 25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "postgres-exporter 스크랩 {{ $value }}초 — 타임아웃 45초 접근 중(DQ 실명 위험)"
+
   - name: dq_accuracy
     rules:
       - alert: CoverageIllusion
-        # naive(nonzero_ratio_naive) - honest(nonzero_ratio_honest) 최대값.
-        # 이 값이 크면 "커버리지 99%" 라는 보고를 믿으면 안 된다.
-        expr: dq_feature_coverage_illusion_max > 0.10
+        # 착시 >0.10 인 **피처 개수** — MAX 가 아니라 개수다(실측 2026-09-25 20:20).
+        #   WHY 개수인가: MAX 는 최악 피처 하나가 값을 지배해 전체 테이블 기준 기준선이
+        #   0.9998 이었고, 그러면 문턱을 어디에 둬도 **상시 발화**하거나 **영원히 침묵**한다.
+        #   개수는 기준선이 안정적이다: 199개 중 15개(전부 R10 19개 배치 = 알려진 부채).
+        #   문턱은 기준선 **위**(20)에 둔다 → 기존 부채로는 조용하고, **악화되면** 뜬다.
+        #   임계값 없이 "정보"로만 두면 새 착시 피처가 늘어도 아무도 모른다.
+        expr: dq_feature_coverage_illusion_count > 20
         for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "커버리지 착시: NaN 을 값으로 세고 있다 (naive-honest 최대 {{ $value }})"
+          summary: "커버리지 착시 피처 {{ $value }}개 (기준선 15) — naive 는 값으로 세는데 honest 는 비어 있다"
 
       - alert: FeatureNullRatioHigh
-        expr: dq_feature_null_ratio_max > 0.90
+        # 결측 >0.90 이면서 살아있는 피처 **개수**. 기준선 8(전부 R10 배치) → 문턱 12.
+        #   (MAX 형태는 분모가 최악 피처에 지배돼 0.9998 로 상시 발화했다 — 정보용으로 강등.)
+        expr: dq_feature_null_ratio_high_count > 12
         for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "피처 대부분이 결측: 최대 결측비율 {{ $value }} (0으로 채워 세면 숨는다)"
+          summary: "결측 90% 초과 피처 {{ $value }}개 (기준선 8) — '살아있다'고 세지만 사실상 비어 있다"
 
       - alert: FeatureStockConstantHigh
-        # 살아있는데 종목별 값이 1개뿐인 피처 비율. 2026-09-25 기준선 0.38(29/76)이라
-        # 0.50 은 "기존보다 더 나빠졌다"는 뜻이다(상시 오탐 방지).
+        # 살아있는데 종목별 값이 1개뿐인 피처 비율. 전체 테이블 기준 실측 0.3391(39/115,
+        # 2026-09-25 20:20 — 배치 필터 제거 후)이라 0.50 은 "기존보다 더 나빠졌다"는 뜻이다
+        # (상시 오탐 방지). 참고: 배치 필터가 있던 시절의 0.38 은 154개 배치 기준값이었다.
         expr: dq_feature_stock_constant_ratio > 0.50
         for: 1h
         labels:
@@ -82,7 +129,15 @@ groups:
       # 종목만 남은 실행에서 정상적으로 0이 된다(실측 386380/950260).
 
       - alert: ColumnAllNull
+        # ⚠ 알려진 정상 예외를 뺀다 (실측 2026-09-25 20:10).
+        #   ownership.institution_ownership_pct 는 **결측 100% 가 정상**이다 — KIS 현재가 응답
+        #   74필드에 기관 지분율이 없어 채울 소스가 존재하지 않는다(R2 조사 결과). 그런데
+        #   이 컬럼은 null_ratio=1.0 을 항상 내므로, 문턱 0.99 를 그대로 걸면 **상시 critical**
+        #   이 떠서 **진짜 새 all-null 컬럼이 묻힌다**(알림 피로). "기준선이 있는 메트릭은
+        #   임계값을 기준선 위에 둔다"의 알림판 — 예외는 (table, column) 쌍으로만 정확히 제외해
+        #   다른 테이블/컬럼의 all-null 은 그대로 잡는다.
         expr: dq_col_quality_null_ratio > 0.99
+          unless on (table, column) (dq_col_quality_null_ratio{table="ownership", column="institution_ownership_pct"})
         for: 1h
         labels:
           severity: critical

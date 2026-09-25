@@ -79,8 +79,15 @@ SPECS = [
     #    warn 을 0.35 로 두면 0.38 >= 0.35 가 매 틱 성립해 **상시 경고**가 뜬다(실측 2026-09-25:
     #    값이 0.3816 으로 15스냅샷 내내 불변인데 warn). 문턱은 Prometheus 알림(>0.50)과 맞춘다.
     ("dq_feature_stock_constant_ratio", "max", 0.45, 0.50, "종목상수 피처 비율"),
-    ("dq_feature_coverage_illusion_max", "max", 0.005, 0.02, "커버리지 착시"),
-    ("dq_feature_null_ratio_max", "max", 0.30, 0.60, "피처 결측 최대"),
+    # ⚠ 착시/결측은 **개수(count)** 로 본다 — MAX 는 최악 피처 하나가 값을 지배해
+    #   전체 테이블 기준 기준선이 0.9998 이다(R10 의 near-empty 피처). 실측 2026-09-25 20:20.
+    #   임계값은 실측 기준선 **위**에 둔다: 착시>0.10 = 15개, 결측>0.90 = 8개(전부 R10 배치).
+    #   MAX 메트릭은 아래에 정보용으로 남겨 추세만 본다(임계값 없음).
+    ("dq_feature_coverage_illusion_count", "max", 18.0, 25.0, "커버리지 착시 피처 수(기준선 15)"),
+    ("dq_feature_null_ratio_high_count", "max", 10.0, 15.0, "결측90%↑ 피처 수(기준선 8)"),
+    ("dq_feature_coverage_illusion_max", "max", None, None, "커버리지 착시 최대(정보용)"),
+    ("dq_feature_null_ratio_max", "max", None, None, "피처 결측 최대(정보용)"),
+    ("dq_feature_oldest_age_days", "max", None, None, "가장 오래된 피처 측정 나이(일)"),
     ("dq_feature_market_level_count", "max", None, None, "시장레벨 피처 수"),
     ("dq_padding_rows_before_listing", "max", None, 0.0, "상장 전 행(padding)"),
     # 뉴스 분석 파이프라인 (앱은 30분 주기). 실측 2026-09-25: news_analysis 의 url 유니크 제약 누락으로
@@ -95,6 +102,21 @@ SPECS = [
 # 차트 라벨은 영문으로 쓴다 — 이 WSL 에는 한글 폰트가 없어 글리프가 전부 깨진다
 # (실측 2026-09-25: "Glyph ... missing from current font" 경고가 라벨 수만큼 발생).
 # 콘솔·JSON 은 한글 label 을 그대로 쓴다(사람이 읽는 쪽은 한글이 맞다).
+# ── 모니터링 사각지대 기준선 (실측 2026-09-25) ────────────────────────────────
+# 아래 15개는 **정상 가동 스냅샷 21개에서 21/21 전부 값이 있었다**(history.jsonl 실측).
+# news_analysis_* 2개는 도중에 추가된 지표라 9/21 — 기준선에서 제외한다.
+# 판정에 Prometheus 의 5분 lookback 을 이용한다: 스크랩 1회(60초) 누락으로는 nodata 가
+# 생기지 않고, nodata = "5분 이상 연속 소실" = 진짜 장애다.
+CORE_ALWAYS = {
+    "market_data_freshness_days", "market_data_rows_recent",
+    "market_data_zero_volume_ratio_20d", "market_data_frozen_ratio_20d",
+    "dq_asof_violation_rows", "dq_claim_parse_failure", "dq_claim_gap",
+    "dq_claim_source", "dq_feature_stock_constant_ratio",
+    "dq_feature_coverage_illusion_max", "dq_feature_null_ratio_max",
+    "dq_feature_market_level_count", "dq_padding_rows_before_listing",
+    "feature_alive_count", "feature_dead_count",
+}
+
 EN = {
     "market_data_freshness_days": "data freshness (days)",
     "market_data_rows_recent": "rows ingested (recent)",
@@ -198,12 +220,13 @@ def main():
 
     now = datetime.now(KST)
     snap = {"ts": now.isoformat(timespec="seconds"), "hours": a.hours, "metrics": {}}
-    breaches, warns = [], []
+    breaches, warns, nodata = [], [], []
 
     for name, agg, warn, breach, label in SPECS:
         vals, series = instant(name)
         if not vals:
             snap["metrics"][name] = {"label": label, "value": None, "status": "nodata"}
+            nodata.append(name)
             continue
         val = max(vals) if agg == "max" else sum(vals)
         st = verdict(val, warn, breach)
@@ -215,8 +238,25 @@ def main():
         elif st == "warn":
             warns.append(f"{label}({name})={val:g} ≥ {warn:g}")
 
+    # ── 모니터링 사각지대 판정 ────────────────────────────────────────────────
+    # WHY: nodata 를 그냥 넘기면 완전 실명이 rc=0 으로 "정상" 보고된다 — 실측 2026-09-25 20:01:
+    #   postgres-exporter 스크랩이 12.7초인데 Prometheus scrape_timeout 이 10초여서 매 스크랩이
+    #   실패 → dq_* 51개 전부 소실 → dq_snapshot 은 17개 전부 '없음' 인데 rc=0 을 반환했다.
+    #   "실패할 수 없는 check 는 check 가 아니다"의 같은 함정: 판정에서 nodata 를 빼면
+    #   모니터링이 죽은 것이 모니터링이 잘 도는 것과 구분되지 않는다.
+    core_missing = [n for n in nodata if n in CORE_ALWAYS]
+    n_total = len(SPECS)
+    if core_missing or len(nodata) / n_total >= 0.3:
+        breaches.append(
+            f"모니터링 사각지대: 핵심 {len(core_missing)}/{len(CORE_ALWAYS)}개 미조회 "
+            f"(전체 nodata {len(nodata)}/{n_total}) — Prometheus 타겟/exporter 스크랩 확인")
+    snap["nodata"] = nodata
+    snap["nodata_core"] = core_missing
+
     # ── 출력 ──
     print(f"[dq_snapshot] {now.isoformat(timespec='seconds')} (추세 {a.hours:g}h)")
+    if nodata:
+        print(f"  [!!] 조회 실패(nodata) {len(nodata)}/{n_total}: " + ", ".join(nodata))
     for name, m in snap["metrics"].items():
         v = "없음" if m["value"] is None else f"{m['value']:g}"
         mark = {"ok": "OK  ", "warn": "WARN", "breach": "위반", "info": "·   ", "nodata": "데이터X"}[m["status"]]
@@ -283,6 +323,7 @@ def main():
         json.dump(snap, f, ensure_ascii=False, indent=2)
     with open(HISTORY, "a", encoding="utf-8") as f:
         f.write(json.dumps({"ts": snap["ts"], "breaches": breaches, "warns": warns,
+                            "nodata": len(nodata), "nodata_core": len(snap["nodata_core"]),
                             "values": {k: v["value"] for k, v in snap["metrics"].items()
                                        if v.get("value") is not None},
                             "chart": snap.get("chart")}, ensure_ascii=False) + "\n")

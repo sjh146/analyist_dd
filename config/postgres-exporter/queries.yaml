@@ -137,11 +137,15 @@ strategy_run:
         description: "tool별 최근 AUC"
 
 feature:
+  # ⚠ 배치 필터 제거 (실측 2026-09-25 20:22) — dq_feature 와 **같은 버그**였다.
+  #   computed_at = MAX(computed_at) 는 "마지막 배치"만 세므로, R10 빌더가 19개 피처를
+  #   갱신한 뒤 alive/dead 가 76/97 → **16/3** 으로 바뀌었다(실제 데이터는 그대로).
+  #   이 메트릭은 리서처 북극성("살아있는 피처 ≥ 죽은 피처")의 근거라, 부분집합으로
+  #   낙관적으로 보이는 것이 특히 위험하다. → 전체 테이블(현재상태)을 센다.
   query: |
     SELECT COUNT(*) FILTER (WHERE nonzero_ratio = 0)::float AS dead_count,
            COUNT(*) FILTER (WHERE nonzero_ratio > 0)::float AS alive_count
     FROM feature_coverage
-    WHERE computed_at = (SELECT MAX(computed_at) FROM feature_coverage)
   metrics:
     - dead_count:
         usage: "GAUGE"
@@ -334,17 +338,39 @@ dq_claim:
 #    죽은 피처는 feature_dead_count 가 따로 세고, 여기서는 **살아있는데 무변별인** 피처만
 #    문제 삼는다(2026-09-24 실측: net_income/roe/quality_roa 등이 살아있는데 종목 상수였다).
 dq_feature:
+  # ⚠ 배치 필터(`computed_at = MAX(computed_at)`)를 **제거했다** (실측 2026-09-25 20:20).
+  #   WHY: feature_coverage 는 feature_name 이 PK 인 **현재상태 테이블**이다(피처당 1행,
+  #   computed_at 은 "그 피처를 마지막으로 측정한 시각"). 그래서 MAX(computed_at) 는
+  #   "마지막 배치"가 되고, 부분 재계산이 일어나면 **전역 DQ 판정이 그 부분집합으로 갈아탄다**.
+  #   실측: R10 빌더(build_supply_market_features.py)가 19개 피처 행을 20:08 에 갱신하자
+  #   stock_constant_ratio 0.3816→0.625, coverage_illusion_max 0.00024→1.0, null_ratio_max
+  #   0.00024→1.0 으로 **3분 만에** 뒤집혔다(데이터는 그대로인데 판정만 바뀜).
+  #   더 나쁜 방향도 있다: 부분 배치만 보면 나머지 180개 피처의 결함이 **안 보인다**.
+  #   → 전체 테이블(현재상태)을 본다. 살아있는 피처만 분모/대상으로 삼는다(스킬 규칙:
+  #     dead 피처는 정의상 상수·전량결측이라 넣으면 상시 오탐).
   query: |
     SELECT
       (COUNT(*) FILTER (WHERE stock_unique_median <= 1 AND nonzero_ratio > 0))::float
         / NULLIF(COUNT(*) FILTER (WHERE nonzero_ratio > 0), 0) AS stock_constant_ratio,
       COUNT(*) FILTER (WHERE cross_section_constant_ratio >= 0.99 AND nonzero_ratio > 0)::float
         AS market_level_count,
-      COALESCE(MAX(nonzero_ratio_naive - nonzero_ratio_honest), 0)::float
+      -- MAX 형태는 **정보용**이다(알림 대상 아님): 최악 피처 하나가 분모를 지배해
+      -- 실측 기준선이 0.9998 이다(R10 의 near-empty 피처). 임계값을 둘 수 없다.
+      COALESCE(MAX(nonzero_ratio_naive - nonzero_ratio_honest) FILTER (WHERE nonzero_ratio > 0), 0)::float
         AS coverage_illusion_max,
-      COALESCE(MAX(null_ratio), 0)::float AS null_ratio_max
+      COALESCE(MAX(null_ratio) FILTER (WHERE nonzero_ratio > 0), 0)::float AS null_ratio_max,
+      -- 개수 형태는 **알림 대상**이다: 하나의 최악값이 아니라 "몇 개가 결함인가"를 세므로
+      -- 기준선이 안정적이다(실측 2026-09-25: 전체 199개 중 종목상수 여부와 무관하게
+      -- 착시>0.10 = 15개 / 결측>0.90 = 8개, 전부 R10 19개 배치 소속).
+      COUNT(*) FILTER (WHERE nonzero_ratio_naive - nonzero_ratio_honest > 0.10)::float
+        AS coverage_illusion_count,
+      COUNT(*) FILTER (WHERE null_ratio > 0.90 AND nonzero_ratio > 0)::float
+        AS null_ratio_high_count,
+      -- 신선도/커버리지 규모 — R14(스냅샷 정체) 감시용. computed_at 이 피처별이므로
+      -- "가장 오래된 피처가 언제 측정됐는가"가 진짜 신선도다.
+      COUNT(*)::float AS feature_count,
+      (EXTRACT(EPOCH FROM (now() - MIN(computed_at))) / 86400.0)::float AS oldest_age_days
     FROM feature_coverage
-    WHERE computed_at = (SELECT MAX(computed_at) FROM feature_coverage)
   metrics:
     - stock_constant_ratio:
         usage: "GAUGE"
@@ -354,7 +380,19 @@ dq_feature:
         description: "날짜 내 분산 0(시장레벨) 피처 수 — 횡단면 무변별"
     - coverage_illusion_max:
         usage: "GAUGE"
-        description: "커버리지 착시 최대값 (naive - honest, NaN을 값으로 세는 정도)"
+        description: "커버리지 착시 최대값 (naive - honest) — 정보용, 최악 피처가 분모를 지배"
     - null_ratio_max:
         usage: "GAUGE"
-        description: "피처 최대 결측 비율"
+        description: "피처 최대 결측 비율 — 정보용"
+    - coverage_illusion_count:
+        usage: "GAUGE"
+        description: "커버리지 착시 >0.10 인 피처 개수 — 알림 대상(기준선 15)"
+    - null_ratio_high_count:
+        usage: "GAUGE"
+        description: "결측 >0.90 이면서 살아있는 피처 개수 — 알림 대상(기준선 8)"
+    - feature_count:
+        usage: "GAUGE"
+        description: "feature_coverage 에 등록된 피처 총수(현재상태)"
+    - oldest_age_days:
+        usage: "GAUGE"
+        description: "가장 오래된 피처의 측정 나이(일) — R14 스냅샷 정체 감시"

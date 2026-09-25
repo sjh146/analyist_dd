@@ -23,7 +23,17 @@ scrape_configs:
     static_configs:
       - targets: ['strategy-agents:9103']
 
+  # ⚠ postgres 잡은 **자체 인터벌/타임아웃**을 쓴다 (실측 2026-09-25 20:03).
+  #   WHY: 기본 scrape_timeout 10s 인데 postgres-exporter 의 /metrics 는 DB 부하 시
+  #   **12.7초**(pg_exporter_last_scrape_duration_seconds=12.71, wall 13.4s)가 걸린다.
+  #   → 매 스크랩이 "context deadline exceeded" 로 실패해 dq_* 51개 + market_data_* 전부
+  #     Prometheus 에서 **통째로 사라진다**. 그러면 dq_snapshot 이 전 메트릭을 nodata 로
+  #     기록하고 rc=0 을 반환해 "모니터링 사각지대"가 "정상"으로 보고된다.
+  #   DQ 메트릭은 분 단위로 변하지 않으므로 60s 인터벌로도 충분하고, 타임아웃 여유가 크다.
+  #   부수 효과로 exporter 가 DB 에 쓰는 부하가 4배 줄어든다(스크랩당 ~13초 × 4회/분 → 1회/분).
   - job_name: 'postgres'
+    scrape_interval: 60s
+    scrape_timeout: 45s
     static_configs:
       - targets: ['postgres-exporter:9187']
 
