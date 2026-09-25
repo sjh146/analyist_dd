@@ -1,0 +1,20 @@
+feature_name,nonzero_ratio,window_days,computed_at,null_ratio,stock_unique_median,cross_section_constant_ratio
+disclosure_count_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_capital_increase_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_cb_bw_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_contract_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_delisting_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_disaster_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_exec_change_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_litigation_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_macro_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_market_liquidity_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_mna_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_new_product_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_partnership_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_patent_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_realized_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_recall_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_regulation_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_stake_change_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1
+event_treasury_5d,0,120,2026-09-24 18:11:57.07731+00,0,1,1

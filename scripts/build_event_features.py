@@ -31,7 +31,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import psycopg2  # noqa: E402
@@ -78,16 +78,135 @@ def classify(name: str):
     return idx
 
 
+# ── feature_coverage 재계산 (R9 잔여 결함 수리, 2026-09-25) ──────────────────
+# WHY: 이 빌더만 feature_coverage 를 갱신하지 않아, 이벤트 피처가 **적재 후에도 죽은 것처럼**
+# 보였다(실측: event_features 214,851행·disclosure_count_5d>0 131,285행인데
+# feature_coverage 스냅샷은 2026-09-24 18:11 의 nonzero_ratio=0 을 계속 보고).
+# 그 스냅샷은 **백필 이전** 것이었다 → R9 판정이 낡은 값에 묶여 완료로 못 넘어갔다.
+COV_DDL = """CREATE TABLE IF NOT EXISTS feature_coverage (
+    feature_name TEXT PRIMARY KEY,
+    nonzero_ratio DOUBLE PRECISION NOT NULL,
+    std DOUBLE PRECISION NOT NULL,
+    window_days INTEGER NOT NULL,
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT now())"""
+COV_ALTER = """ALTER TABLE feature_coverage ADD COLUMN IF NOT EXISTS nonzero_ratio_naive DOUBLE PRECISION;
+    ALTER TABLE feature_coverage ADD COLUMN IF NOT EXISTS nonzero_ratio_honest DOUBLE PRECISION;
+    ALTER TABLE feature_coverage ADD COLUMN IF NOT EXISTS null_ratio DOUBLE PRECISION;
+    ALTER TABLE feature_coverage ADD COLUMN IF NOT EXISTS stock_unique_median DOUBLE PRECISION;
+    ALTER TABLE feature_coverage ADD COLUMN IF NOT EXISTS cross_section_constant_ratio DOUBLE PRECISION"""
+COV_UPSERT = """
+    INSERT INTO feature_coverage (feature_name, nonzero_ratio, std, window_days, computed_at,
+        nonzero_ratio_naive, nonzero_ratio_honest, null_ratio, stock_unique_median,
+        cross_section_constant_ratio)
+    VALUES (%(feature_name)s, %(nonzero_ratio)s, %(std)s, %(window_days)s, %(computed_at)s,
+        %(nonzero_ratio_naive)s, %(nonzero_ratio_honest)s, %(null_ratio)s,
+        %(stock_unique_median)s, %(cross_section_constant_ratio)s)
+    ON CONFLICT (feature_name) DO UPDATE SET
+        nonzero_ratio = EXCLUDED.nonzero_ratio, std = EXCLUDED.std,
+        window_days = EXCLUDED.window_days, computed_at = EXCLUDED.computed_at,
+        nonzero_ratio_naive = EXCLUDED.nonzero_ratio_naive,
+        nonzero_ratio_honest = EXCLUDED.nonzero_ratio_honest,
+        null_ratio = EXCLUDED.null_ratio,
+        stock_unique_median = EXCLUDED.stock_unique_median,
+        cross_section_constant_ratio = EXCLUDED.cross_section_constant_ratio
+"""
+
+
+def compute_coverage_rows(cur, since):
+    """이벤트 피처 17개를 **격자(market_data) 분모**로 실측한다.
+
+    분모를 event_features 행수로 잡으면 안 된다 — 그 테이블은 **전부 0 인 행을 저장하지 않아**
+    실제 격자보다 작다(실측 214,851 / 1,113,634 = 0.193). 그 분모로 세면 커버리지가 약 5배
+    과대평가된다(build_supply_market_features 와 동일 정의 = 격자 전체 분모, dense fillna(0)).
+
+    null_ratio 는 0 으로 기록한다: 격자에 행이 없다는 것은 '모른다'가 아니라
+    **이벤트 건수 0** 이라는 빌더의 명시적 의미다(전부 0 인 행 생략 규칙). 행 재료화율은
+    자기신고 note 에 남겨 0 패딩과 구분한다.
+    """
+    cur.execute("DROP TABLE IF EXISTS _ev_cov_grid")
+    cur.execute(f"""
+        CREATE TEMP TABLE _ev_cov_grid AS
+        SELECT g.stock_code, g.trade_date, {", ".join(f"coalesce(e.{c},0) AS {c}" for c in COLS)}
+        FROM (SELECT stock_code, trade_date FROM market_data
+              WHERE trade_date >= %s GROUP BY 1, 2) g
+        LEFT JOIN event_features e USING (stock_code, trade_date)""", (since,))
+    cur.execute("SELECT count(*), min(trade_date), max(trade_date), "
+                "count(*) FILTER (WHERE disclosure_count_5d > 0) FROM _ev_cov_grid")
+    n, dmin, dmax, disc_pos = cur.fetchone()
+    window_days = int((dmax - dmin).days)
+    computed_at = datetime.now(timezone.utc)
+    rows = []
+    for c in COLS:
+        cur.execute(f"SELECT count(*) FILTER (WHERE {c} <> 0), stddev_pop({c}) FROM _ev_cov_grid")
+        nz, std = cur.fetchone()
+        cur.execute(f"""SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY u) FROM
+            (SELECT count(DISTINCT {c}) u FROM _ev_cov_grid GROUP BY stock_code) s""")
+        uniq_med = cur.fetchone()[0]
+        cur.execute(f"""SELECT avg(CASE WHEN k <= 1 THEN 1.0 ELSE 0.0 END) FROM
+            (SELECT count(DISTINCT {c}) k FROM _ev_cov_grid GROUP BY trade_date) d""")
+        xsec = cur.fetchone()[0]
+        ratio = round(float(nz) / n, 6) if n else 0.0
+        rows.append(dict(feature_name=c, nonzero_ratio=ratio, std=round(float(std or 0), 6),
+                         window_days=window_days, computed_at=computed_at,
+                         nonzero_ratio_naive=ratio, nonzero_ratio_honest=ratio, null_ratio=0.0,
+                         stock_unique_median=round(float(uniq_med or 0), 4),
+                         cross_section_constant_ratio=round(float(xsec or 0), 4)))
+    cur.execute("DROP TABLE IF EXISTS _ev_cov_grid")
+    return rows, n, disc_pos, window_days
+
+
+def upsert_coverage(conn, cur, rows):
+    cur.execute(COV_DDL)
+    cur.execute(COV_ALTER)
+    for r in rows:
+        cur.execute(COV_UPSERT, r)
+    conn.commit()
+    return len(rows)
+
+
+def report_coverage(conn, cur, since, runner_note=""):
+    rows, grid_rows, disc_pos, window_days = compute_coverage_rows(cur, since)
+    upsert_coverage(conn, cur, rows)
+    alive = [r["feature_name"] for r in rows if r["nonzero_ratio"] > 0]
+    log(f"feature_coverage {len(rows)}행 갱신 — 살아있는 {len(alive)}/{len(rows)} "
+        f"(window_days={window_days}, 격자 {grid_rows}행)")
+    for r in sorted(rows, key=lambda x: -x["nonzero_ratio"]):
+        log(f"  {r['feature_name']:26} nonzero={r['nonzero_ratio']:.4f} "
+            f"uniq_med={r['stock_unique_median']:.1f} "
+            f"xsec_const={r['cross_section_constant_ratio']:.3f}")
+    try:
+        from dq_claim import record_claim
+        record_claim(conn, "build_event_features", "feature_coverage",
+                     claimed_rows=len(rows), persisted_rows=len(rows), source_rows=grid_rows,
+                     note=f"격자분모={grid_rows} 행재료화={disc_pos} features={len(rows)} "
+                          f"alive={len(alive)} window_days={window_days} "
+                          f"재료화율={disc_pos/grid_rows:.3f} (event_features 는 전부0 행 생략) "
+                          f"{runner_note}".strip())
+        conn.commit()
+    except Exception as exc:  # noqa: BLE001
+        log(f"자기신고 생략(coverage): {exc}")
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser(description="DART 공시 → 이벤트 피처")
     ap.add_argument("--since", default="2024-06-01", help="피처 시작일(거래일 캘린더 기준)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit-stocks", type=int, default=0, help="디버그용 종목 수 제한")
+    ap.add_argument("--coverage-only", action="store_true",
+                    help="이벤트 피처를 다시 만들지 않고 feature_coverage 17행만 재계산") 
     a = ap.parse_args()
     t0 = time.time()
 
     conn = psycopg2.connect(**PG)
     cur = conn.cursor()
+
+    # ── coverage-only: 피처 테이블은 건드리지 않고 feature_coverage 17행만 재계산 ──
+    if a.coverage_only:
+        report_coverage(conn, cur, a.since, runner_note="mode=coverage-only")
+        log(f"완료 ({time.time() - t0:.1f}s)")
+        cur.close(); conn.close()
+        return 0
 
     # ── 거래일 캘린더 ─────────────────────────────────────────────────────
     cur.execute("SELECT DISTINCT trade_date FROM market_data WHERE trade_date >= %s "
@@ -189,6 +308,12 @@ def main():
         conn.commit()
     except Exception as exc:  # noqa: BLE001
         log(f"자기신고 생략: {exc}")
+
+    # feature_coverage 동반 갱신 — 미갱신이 R9 를 '죽은 피처'로 오판시켰다(2026-09-25 실측).
+    try:
+        report_coverage(conn, cur, a.since, runner_note="mode=build")
+    except Exception as exc:  # noqa: BLE001
+        log(f"coverage 갱신 실패(빌드는 성공): {exc}")
 
     log(f"완료 ({time.time() - t0:.1f}s)")
     cur.close(); conn.close()
