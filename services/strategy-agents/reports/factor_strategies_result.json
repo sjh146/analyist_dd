@@ -1,25 +1,76 @@
 {
-  "generated_at": "2026-09-25T13:53:11.800324",
+  "request_type": "factor_report",
+  "generated_at": "2026-09-25T23:23:35.049767Z",
   "strategies": {
-    "value_factor": {
-      "signals": 0,
-      "top": []
-    },
-    "quality_factor": {
-      "signals": 0,
-      "top": []
+    "lowvol_factor": {
+      "metrics": {
+        "total_return": 0.095648,
+        "sharpe": 17.8668,
+        "max_drawdown": 0.0,
+        "win_rate": 1.0,
+        "num_trades": 60
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 2
     },
     "momentum_factor": {
-      "signals": 0,
-      "top": []
-    },
-    "lowvol_factor": {
-      "signals": 0,
-      "top": []
+      "metrics": {
+        "total_return": 0.010787,
+        "sharpe": null,
+        "max_drawdown": 0.0,
+        "win_rate": 1.0,
+        "num_trades": 30
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 1
     },
     "multifactor": {
-      "signals": 0,
-      "top": []
+      "metrics": {
+        "total_return": -0.105319,
+        "sharpe": -0.3524,
+        "max_drawdown": 0.156736,
+        "win_rate": 0.5714,
+        "num_trades": 140
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 7
+    },
+    "quality_factor": {
+      "metrics": {
+        "total_return": -0.027336,
+        "sharpe": -0.213,
+        "max_drawdown": 0.084363,
+        "win_rate": 0.5,
+        "num_trades": 60
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 2
+    },
+    "value_factor": {
+      "metrics": {
+        "total_return": -0.186876,
+        "sharpe": -1.2028,
+        "max_drawdown": 0.199794,
+        "win_rate": 0.5,
+        "num_trades": 60
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 2
     }
   }
 }
