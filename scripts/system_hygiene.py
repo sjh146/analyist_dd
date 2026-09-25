@@ -299,7 +299,34 @@ def main():
     cleaned = clean(dinfo, disk) if a.clean else []
     status = "breach" if breaches else ("warn" if warns else "ok")
 
+    # ── 반복 알림 억제 ────────────────────────────────────────────────────────
+    # 같은 경고가 30분마다 반복되면 소음이 되어 아무도 안 읽는다. 직전 실행과 **동일한** 경고/위반이면
+    # 침묵하되, 6시간마다 한 번은 다시 알린다(지속되는 문제를 잊지 않게).
+    # 실측 계기: 컨테이너 PID 1 이 reap 하지 않아 컨테이너 재시작 전까지 사라지지 않는 좀비 2개.
+    prev = {}
+    try:
+        with open(os.path.join(OUTDIR, "latest.json"), encoding="utf-8") as f:
+            prev = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        pass
+    silent_repeat = False
+    if status != "ok" and prev.get("status") == status and \
+            prev.get("warns") == warns and prev.get("breaches") == breaches:
+        try:
+            last_alert = datetime.fromisoformat(prev.get("alert_ts") or prev.get("ts"))
+        except (TypeError, ValueError):
+            last_alert = datetime.min.replace(tzinfo=KST)
+        if (ts - last_alert) < timedelta(hours=6):
+            silent_repeat = True
+    # alert_ts 는 항상 유효한 시각이어야 한다 — None 이면 6시간 타이머가 시작되지 않아
+    # 같은 경고가 **영원히 침묵**한다(실측 버그). 침묵 중이면 직전 기록의 시각을 이어받는다.
+    if silent_repeat:
+        alert_ts = prev.get("alert_ts") or prev.get("ts") or ts.isoformat(timespec="seconds")
+    else:
+        alert_ts = ts.isoformat(timespec="seconds")
+
     snapshot = {"ts": ts.isoformat(timespec="seconds"), "status": status,
+                "alert_ts": alert_ts, "silent_repeat": silent_repeat,
                 "zombies": zs, "stale_loops": stale, "long_running": longrun,
                 "docker": dinfo, "disk": disk, "warns": warns, "breaches": breaches,
                 "cleaned": cleaned}
@@ -321,6 +348,8 @@ def main():
 
     if a.json:
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
+    elif silent_repeat:
+        pass   # 같은 문제가 반복 → 침묵(6시간마다 재알림)
     elif not a.quiet or status != "ok":
         head = {"ok": "정상", "warn": "경고", "breach": "위반"}[status]
         print(f"[위생] {ts.strftime('%m-%d %H:%M')} {head}")
