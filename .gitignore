@@ -73,3 +73,5 @@ data/reports/res_cycle/
 data/reports/dq_snapshots/
 *.stderr
 *.npz.stale-*
+dumps/
+*.sql.gz

@@ -2,6 +2,10 @@
 
 DeepSeek 감정 분석 -> pgvector 유사도 검색 -> XGBoost 예측 -> 3개 전략 -> Creon API 매매로 이어지는 전자동 파이프라인. Linux Docker 8개 서비스 + Windows VM 1개로 구성된다.
 
+> **다른 PC(Windows+WSL)에 새로 설치하기** → [docs/SETUP_NEW_MACHINE.md](docs/SETUP_NEW_MACHINE.md)
+> `git clone` → `.env` 작성 → `bash scripts/bootstrap_new_machine.sh` (점검은 `--check`).
+> 데이터는 `scripts/db_dump.sh` / `db_restore.sh` 로 이식한다(새 DB 는 스키마만 생성되고 비어 있다).
+
 ---
 
 ## 시스템 구성도
