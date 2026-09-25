@@ -64,6 +64,16 @@ CONFIGS = [
     {"id": "TR_rank_h5",    "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank",
      "desc": "피처 날짜별 횡단면 rank(pct) — 시장레벨 성분 제거"},
+    # ── TR2: 두 양(+) 방향의 결합 (2026-09-26 06:08 실측) ──────────────────────
+    # 같은 날 같은 프로토콜에서 ① 횡단면 rank 변환 Δ+0.0107 (0.5519±0.0333 vs 0.5412)
+    # ② depth1·lr0.05 Δ+0.0065 (0.5478±0.0527 vs 0.5413, seeds=10) 로 **둘 다 양**이었다.
+    # 각각 단독으로는 +0.02 문턱 미달이지만 서로 다른 축이다(전처리 / 모델 용량).
+    # rank 는 최악 폴드를 0.5075→0.5207 로 올렸고 depth1 은 폴드 std 를 키우는 쪽이다 —
+    # 결합이 가산적이면 문턱에 근접하는지, 아니면 서로 상쇄되는지 측정한다.
+    {"id": "TR_rank_d1_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank",
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "횡단면 rank + depth1·lr0.05 — 두 양(+) 방향의 결합"},
     {"id": "TR_zscore_h5",  "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "zscore",
      "desc": "피처 날짜별 횡단면 z-score"},
