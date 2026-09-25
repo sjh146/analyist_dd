@@ -108,6 +108,7 @@ def build_panel(cache, limit, days, log=print, **universe):
         log(f"panel cache 재사용: {df.shape} ({cache})")
         return df, names
 
+    sig_at_start = ml.FeaturePipeline._feature_code_sig()
     pg = ml.connect_pg()
     try:
         codes = tc._select_universe(pg, limit, **universe)
@@ -117,7 +118,11 @@ def build_panel(cache, limit, days, log=print, **universe):
         start = end - timedelta(days=days)
         log(f"빌드 구간: {start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}")
         df = pipeline.build_training_features(
-            codes, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+            codes, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"),
+            # 체크포인트: 부분 진척을 저장/재개한다. 컨테이너 재생성으로 docker exec 가
+            # SIGKILL 되어도(실측 2026-09-25: 30,000/41,893 에서 전량 소실) 다음 실행이 이어받는다.
+            checkpoint_path=cache,
+            checkpoint_every=int(os.environ.get("PANEL_CK_EVERY", "500")))
         if df is None or len(df) < 100:
             raise RuntimeError("panel build failed")
         base = pipeline.get_feature_names()
@@ -129,6 +134,20 @@ def build_panel(cache, limit, days, log=print, **universe):
         except Exception:
             pass
 
+    # ⚠ 빌드 중 피처 코드가 바뀌면 **저장하지 않는다**: 앞부분(옛 코드)과 뒷부분(새 코드) 행이
+    # 섞이면 결측 패턴이 종목/기간과 상관돼 '종목 식별 증폭' 같은 유사누수가 생긴다(이 역할의
+    # 실측 교훈). 리서처가 병행 편집 중일 때 9시간 빌드를 통째로 날리는 대신 명시적으로 실패시킨다.
+    sig1 = ml.FeaturePipeline._feature_code_sig()
+    if sig_at_start is not None and sig1 is not None and sig_at_start != sig1:
+        for suf in (".rows.pkl", ".meta.json"):
+            try:
+                os.remove(cache + suf)      # 오염된 체크포인트는 버린다(깨끗한 재빌드 유도)
+            except OSError:
+                pass
+        raise RuntimeError(
+            f"빌드 중 피처 코드 변경 감지(code_sig {sig_at_start} → {sig1}) — 혼합 패널 방지를 위해 "
+            f"저장하지 않음. 피처 작업이 멈춘 뒤 다시 실행하라.")
+
     os.makedirs(os.path.dirname(cache), exist_ok=True)
     np.savez_compressed(
         cache, X=df[available].values.astype(np.float32),
@@ -137,6 +156,12 @@ def build_panel(cache, limit, days, log=print, **universe):
         codes=df["stock_code"].astype(str).values,
         price=df["price"].values.astype(np.float64))
     log(f"panel cache 저장: {cache}")
+    # 성공했으면 체크포인트는 지운다(다음 유니버스 실행이 옛 진척을 물려받지 않도록).
+    for suf in (".rows.pkl", ".meta.json"):
+        try:
+            os.remove(cache + suf)
+        except OSError:
+            pass
     return df, available
 
 

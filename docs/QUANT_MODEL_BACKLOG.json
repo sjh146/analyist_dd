@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-25T17:00:00+09:00",
+  "updated_at": "2026-09-25T20:00:16+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -195,7 +195,7 @@
       "id": "U1",
       "title": "유니버스 확장: 49 → 150종목 (KOSPI 포함·유동성 상위)",
       "status": "pending",
-      "priority": 3,
+      "priority": 1,
       "hypothesis": "표본을 49종목(13.6k행) → 150종목(약 42k행)으로 늘리면 폴드 평균이 오르는가? 유동성 상위·KOSPI 포함으로 임의 표본 편향도 제거된다.",
       "evidence": "① 150종목 실험군(label_wave5) 0.5727 vs 49종목군(wf sweep) 0.5400. ② 배선 검증 완료: --market all --order value 로 500종목 조회 시 KOSPI 229 + KOSDAQ 271, 앞5 = 000660·005930·009150·005380·402340(유동성 상위). ③ 현행 기본값은 완전 보존(패널 49종목과 교집합 49/49).",
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 57600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --days 420 --limit 150 --market all --since 2025-07-01 --min-days 250 --min-value 100000000 --order value --folds 5 --seeds 3 --only LS_quant_q30_h5'",
@@ -203,15 +203,34 @@
       "success": "폴드 평균이 기록 기준선 0.5406 대비 +0.02 이상",
       "expected": "+0.02 ~ +0.03",
       "cost": "패널 빌드 약 9~11시간(실측 1.1~1.3 페어/초, 41,893 페어) + 측정 30분. 타임아웃 16h (8h 로는 69% 에서 잘림 — 실측 진행률로 확인)",
-      "counterfactual": null,
+      "counterfactual": "LS_quant_q30_h5 (49종목 · panel_420_asofpatch.npz)",
       "arm": "LS_quant_q30_h5",
       "baseline": {
         "value": 0.5406,
         "source": "L1 실측 · 49종목 · 동일 프로토콜(5폴드×3시드)"
       },
-      "risk": "컨테이너 재시작 시 패널 캐시 소실(빌드 끝에 1회 저장). 실측 전례: 9,600/13,609행에서 SIGKILL(137)로 소실. 소실되면 로그로 확인 후 재시작.",
-      "note": "500종목(약 14시간)은 U2로 분리했다. DB 풀은 2,428종목(KOSDAQ 1,577 + KOSPI 851, 250일 이상 + 일평균 거래대금 1억 이상). | 2026-09-25: 1차 실행이 800/41,893(10분)에서 약 1.2 페어/초로 측정돼 8h 타임아웃 내 완료가 불가함을 확인하고 16h 로 상향 후 재시작.",
-      "setup_done": "2026-09-25 완료: train_curated._select_universe 에 market/since/min_days/min_value/order 옵션 추가(기본값 현행 유지), wf_wave.build_panel 전달, wf_label_sweep CLI 노출(--market/--since/--min-days/--min-value/--order), DB 조회로 KOSPI 혼입 검증."
+      "risk": "① 평일 20:00 컨테이너 재생성(실측: 30,000/41,893 에서 전량 소실) → 이제 패널 빌드가 500페어마다 체크포인트를 남기고 재개한다(검증: scripts/_ck_resume_test.py, 2회 실행으로 50/183 재개 확인). ② 예상 종료가 20:00 창을 넘으면 구동기가 시작을 보류한다. ③ 빌드 중 피처 코드가 바뀌면 혼합 패널 방지를 위해 저장하지 않고 실패한다.",
+      "note": "500종목(약 14시간)은 U2로 분리했다. DB 풀은 2,428종목(KOSDAQ 1,577 + KOSPI 851, 250일 이상 + 일평균 거래대금 1억 이상). | 2026-09-25: 1차 실행이 800/41,893(10분)에서 약 1.2 페어/초로 측정돼 8h 타임아웃 내 완료가 불가함을 확인하고 16h 로 상향 후 재시작. | 2026-09-25 정정: 1차 시도는 '노이즈'가 아니라 **소실(측정값 없음)** 이었다(구동기가 옛 요약을 읽은 버그 — 수정 완료). 패널 빌드에 체크포인트/재개를 넣었고(--panel 캐시 옆 .rows.pkl·.meta.json), 500페어마다 저장한다.",
+      "setup_done": "2026-09-25 완료: train_curated._select_universe 에 market/since/min_days/min_value/order 옵션 추가(기본값 현행 유지), wf_wave.build_panel 전달, wf_label_sweep CLI 노출(--market/--since/--min-days/--min-value/--order), DB 조회로 KOSPI 혼입 검증.",
+      "attempts": [
+        {
+          "ts": "2026-09-25T20:00:16+09:00",
+          "rc": 137,
+          "verdict": "실행실패",
+          "detail": "SIGKILL(137) 컨테이너 재생성 — 30,000/41,893 소실. 측정값 없음(정정)",
+          "log": "data/reports/me_cycle/logs/me_cycle_U1_20260925-154544.log",
+          "elapsed_min": 254.5
+        }
+      ],
+      "result": {
+        "verdict": "실행실패",
+        "detail": "rc=137 컨테이너 재생성 — 측정값 없음(정정)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 137
+      },
+      "est_minutes": 700,
+      "resumable": true
     },
     {
       "id": "F1",
@@ -329,7 +348,7 @@
     {
       "id": "L3",
       "title": "부활 피처 반영 재학습 + 로버스트 평가 (데이터 축 임팩트 측정)",
-      "status": "pending",
+      "status": "needs_setup",
       "priority": 1,
       "affects_model": true,
       "baseline": {
@@ -353,8 +372,9 @@
         "R11",
         "R12"
       ],
-      "note": "준비 완료(2026-09-25 18:36): 공시 원천 **212,861행**(A 정기 + B 주요사항 + D 지분 + E 기타 + I 거래소, 전 유형·전 구간 2025-01~2026-09) → event_features **214,851행** 재생성. 밀도: disclosure_count 60.2% · 지분변동 27.5% · 임원변경 22.3% · 실적 17.8% · 공급계약 8.6%(0→18,799행) · 유상증자 4.8% · M&A 4.2%. 패널(49종목) 매칭 10.8% → 19.4%, disclosure_count 11.6%(종목당 유니크 4). 여전히 희소: 신제품 5행 · 특허 75행 · 협약 115행 — DART 표기와 키워드 불일치(후속 과제). 패널: panel_420_asofpatch_ev.npz (227피처, 기준선 panel_420_asofpatch = 0.5406). 실행: U1 종료 후(CPU 직렬화). 판정: 폴드 평균 +0.02 이상.",
-      "prereq_status": "이벤트 피처 6종 부활(유상증자 7,731행·지분변동 57,825·자기주식 10,488·임원변경 45,626·MNA 2,588·총계 120,958행)"
+      "note": "준비 완료(2026-09-25 18:36): 공시 원천 **212,861행**(A 정기 + B 주요사항 + D 지분 + E 기타 + I 거래소, 전 유형·전 구간 2025-01~2026-09) → event_features **214,851행** 재생성. 밀도: disclosure_count 60.2% · 지분변동 27.5% · 임원변경 22.3% · 실적 17.8% · 공급계약 8.6%(0→18,799행) · 유상증자 4.8% · M&A 4.2%. 패널(49종목) 매칭 10.8% → 19.4%, disclosure_count 11.6%(종목당 유니크 4). 여전히 희소: 신제품 5행 · 특허 75행 · 협약 115행 — DART 표기와 키워드 불일치(후속 과제). 패널: panel_420_asofpatch_ev.npz (227피처, 기준선 panel_420_asofpatch = 0.5406). 실행: U1 종료 후(CPU 직렬화). 판정: 폴드 평균 +0.02 이상. | 2026-09-25 20:30: 구동기가 조기에 집지 않도록 needs_setup 으로 내림.",
+      "prereq_status": "이벤트 피처 6종 부활(유상증자 7,731행·지분변동 57,825·자기주식 10,488·임원변경 45,626·MNA 2,588·총계 120,958행)",
+      "setup_needed": "리서처가 R10(수급·시장·모멘텀 피처) 구현 중 — 2026-09-25 20:00 기준 opencode 작업 실행 중. 피처 테이블·배선이 끝난 뒤 재개한다(중간에 돌리면 미완성 피처셋을 측정해 판정이 무의미)."
     }
   ]
 }

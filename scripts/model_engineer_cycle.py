@@ -14,7 +14,16 @@
      --force 로만 무시한다. 오늘처럼 휴장이어도 시각 기준으로 보수적으로 막는다.
   4. **낡은 요약 금지**: 실행 전 요약 JSON 의 mtime 을 찍고, 실행 후 갱신되지 않았으면
      "요약 미갱신"으로 실패 처리한다(옛 결과를 새 결과로 오독하는 사고 방지).
+     ⚠ floor 는 `max(파일 mtime, 실행 시작 시각)` 이고 비교는 `<=` 다. 파일 mtime 만 floor 로
+     쓰고 `<` 로 비교하면 **갱신되지 않은 파일(mtime == floor)이 통과**한다(실측 2026-09-25:
+     소실된 U1 이 L2 요약을 읽어 Δ+0.0000 '노이즈' 로 원장에 기록됨).
   5. **자기신고 신뢰 금지**: 판정은 요약 JSON 의 폴드 값에서 직접 계산한다. 로그의 문구를 믿지 않는다.
+  6. **실패한 실행에는 성능 판정을 붙이지 않는다**: rc!=0 이면 판정은 "실행실패"(측정값 없음)다.
+     옛 요약이 남아 있어도 Δ 를 계산하지 않는다 — 소실을 '노이즈(측정됨)'로 세면 무개선 카운터와
+     '새 레버 필요' 승격 판단이 오염된다.
+  7. **컨테이너 재생성 창 회피**: 평일 20:00 크론(evening_pipeline.sh → full_pipeline_dd.sh L78
+     `docker compose up -d --no-build`)이 컨테이너를 갈아끼워 그 시각에 도는 `docker exec` 를
+     SIGKILL(137) 한다. 항목의 `est_minutes` 로 ETA 를 계산해 이 창을 넘으면 시작하지 않는다.
 
 사용
   python3 scripts/model_engineer_cycle.py --tick          # 크론이 호출(짧게 끝남)
@@ -49,6 +58,12 @@ LOAD_MAX = float(os.environ.get("ME_LOAD_MAX", "3.5"))
 MARKET_OPEN, MARKET_CLOSE = (9, 0), (15, 30)
 # KRX 휴장일 파일 — scripts/data_gap.py 가 데이터 공백을 probe 하며 자동 유지한다.
 HOLIDAY_PATH = os.path.join(PROJ, "data/krx_holidays.json")
+# 평일 20:00 컨테이너 재생성 창(위 설계원칙 7). 실측 2026-09-25: U1 패널 빌드가
+# 30,000/41,893(71.6%)·4h14m 지점에서 docker compose 재생성으로 SIGKILL(137) → 전량 소실.
+RECREATE_WEEKDAYS = (1, 2, 3, 4, 5)     # cron 의 1-5 = 월~금
+RECREATE_HOUR = 20
+RECREATE_SAFETY_MIN = 10                # 재생성 10분 전부터는 새로 시작하지 않는다
+RETRY_MAX = 3                           # 인프라 사고(소실·타임아웃) 재시도 상한
 
 
 def now_kst():
@@ -219,7 +234,35 @@ def peer_running():
     return None, None
 
 
-def guards(force=False) -> tuple:
+def next_recreate(now=None):
+    """다음 컨테이너 재생성 시각(평일 20:00 KST). 오늘 20:00 이 이미 지났으면 다음 평일."""
+    n = now or now_kst()
+    for add in range(0, 8):
+        cand = (n + timedelta(days=add)).replace(
+            hour=RECREATE_HOUR, minute=0, second=0, microsecond=0)
+        if cand.isoweekday() in RECREATE_WEEKDAYS and cand > n:
+            return cand
+    return None
+
+
+def eta_blocks(item) -> tuple:
+    """(막는가, 이유). est_minutes 가 재생성 창을 넘으면 시작하지 않는다.
+
+    est_minutes 가 없으면 판단하지 않는다(보수적으로 막지는 않되, 긴 항목엔 반드시 채워라).
+    """
+    est = (item or {}).get("est_minutes")
+    if not est:
+        return False, ""
+    fin = now_kst() + timedelta(minutes=float(est))
+    rec = next_recreate()
+    if rec and fin > rec - timedelta(minutes=RECREATE_SAFETY_MIN):
+        return True, (f"예상 종료 {fin.strftime('%m-%d %H:%M')} 이 컨테이너 재생성 창"
+                      f"({rec.strftime('%m-%d %H:%M')} 평일 저녁 파이프라인, docker compose up -d)"
+                      f"을 넘음 — est_minutes={est} · 재생성 직후 틱에서 재시도")
+    return False, ""
+
+
+def guards(force=False, item=None) -> tuple:
     """(ok, 이유). 시작해도 되는가."""
     if running_pid():
         return False, "이미 사이클 실행 중"
@@ -228,6 +271,9 @@ def guards(force=False) -> tuple:
         return False, f"다른 역할이 실행 중(pid={pid}, {rel}) — CPU 직렬화를 위해 대기"
     if not container_up():
         return False, f"{CONTAINER} 컨테이너가 떠 있지 않음"
+    blocked, why = eta_blocks(item)
+    if blocked and not force:
+        return False, why
     if market_hours() and not force:
         return False, f"{market_note()} — 시작하지 않음 (--force 로 무시)"
     l = load1()
@@ -259,13 +305,18 @@ def summary_path(kind):
 
 
 def parse_wf_sweep(path, mtime_floor) -> dict:
-    """요약 JSON 에서 설정별 폴드 평균을 뽑아 평균·std·폴드승률을 계산한다."""
+    """요약 JSON 에서 설정별 폴드 평균을 뽑아 평균·std·폴드승률을 계산한다.
+
+    mtime_floor 는 `max(파일 mtime, 실행 시작 시각)` 이다. 비교는 **`<=`** —
+    `mt < mtime_floor` 로 쓰면 '전혀 갱신되지 않은 파일(mt == floor)' 이 통과해
+    소실된 실행이 옛 결과로 판정된다(실측 2026-09-25 U1).
+    """
     if not os.path.exists(path):
         return {"error": "요약 파일 없음"}
     mt = os.path.getmtime(path)
-    if mt < mtime_floor:
-        return {"error": "요약 미갱신(실행 전보다 새롭지 않음) — 옛 결과를 새 결과로 오독 방지",
-                "mtime": mt, "floor": mtime_floor}
+    if mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
     with open(path, encoding="utf-8") as f:
         d = json.load(f)
     per: dict = {}
@@ -288,10 +339,26 @@ def parse_wf_sweep(path, mtime_floor) -> dict:
     return {"finished_at": d.get("finished_at"), "config": d.get("config"), "per_exp": per}
 
 
+def failure_cause(rc):
+    """실패 원인 추정. 137 이면 컨테이너 재생성(SIGKILL) 여부를 실제로 확인해 적는다."""
+    if rc == 137:
+        try:
+            st = subprocess.run(
+                ["docker", "inspect", CONTAINER, "--format", "{{.State.StartedAt}}"],
+                capture_output=True, text=True, timeout=20).stdout.strip()
+        except Exception:
+            st = ""
+        return ("SIGKILL(137) — 추정: 컨테이너 재생성(실행 중 컨테이너 StartedAt="
+                f"{st[:19]}). 평일 20:00 evening_pipeline 의 docker compose up -d 가 원인")
+    if rc == 124:
+        return "timeout(124) — 작업이 타임아웃을 초과(진행률 대비 타임아웃이 짧았는지 확인하라)"
+    return f"종료코드 {rc}"
+
+
 # ── 사이클 실행 ──────────────────────────────────────────────────────────────
 def execute(item, force=False):
     os.makedirs(RUNTIME, exist_ok=True)
-    ok, why = guards(force)
+    ok, why = guards(force, item)
     if not ok:
         log(f"시작 보류: {why}")
         return 3
@@ -302,7 +369,10 @@ def execute(item, force=False):
     started = now_kst()
 
     spath = summary_path(item["metric"])
-    mtime_floor = os.path.getmtime(spath) if os.path.exists(spath) else 0.0
+    pre_mtime = os.path.getmtime(spath) if os.path.exists(spath) else 0.0
+    # floor 에 **실행 시작 시각**을 포함한다: 파일 mtime 만 쓰면 갱신되지 않은 옛 요약이
+    # 통과한다(설계원칙 4 함정, 실측 2026-09-25).
+    mtime_floor = max(pre_mtime, time.time())
 
     log(f"실행: {item['id']} — {item['title']}")
     log(f"로그: {run_log}")
@@ -314,43 +384,52 @@ def execute(item, force=False):
                               stderr=subprocess.STDOUT, cwd=PROJ)
     rc = proc.returncode
 
-    parsed = parse_wf_sweep(spath, mtime_floor) if item["metric"] == "wf_sweep_summary" \
-        else {"error": "parser 없음"}
-
-    # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
-    # ⚠ 함정(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면, 가설군이 **진** 경우
-    # winner == 대조군 이 되어 Δ 0.0000 "노이즈" 로 잘못 기록된다. 실제로는 h8 0.5068 vs
-    # h5 0.5406 = Δ−0.0338 인데 원장에 Δ+0.0000 으로 남았다. 반드시 arm 기준으로 계산하라.
-    verdict, detail, delta = "판정불가", "", None
-    per: dict = parsed.get("per_exp") or {}
-    if per:
-        arm = item.get("arm")
-        cf_name = (item.get("counterfactual") or "").split(" ")[0]
-        best = max(per.items(), key=lambda kv: kv[1]["mean"])
-        if arm and arm in per and cf_name in per:
-            delta = round(per[arm]["mean"] - per[cf_name]["mean"], 4)
-            verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
-            detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 대조군 {cf_name} "
-                      f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f} "
-                      f"(최고: {best[0]} {best[1]['mean']:.4f})")
-        elif cf_name in per:
-            delta = round(best[1]["mean"] - per[cf_name]["mean"], 4)
-            verdict = "신호있음" if delta >= 0.02 else "노이즈"
-            detail = (f"[arm 미지정] 최고 {best[0]} {best[1]['mean']:.4f} vs {cf_name} "
-                      f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f}")
-        elif item.get("baseline") and arm and arm in per:
-            # **다른 실행(다른 유니버스/패널)과의 비교**: 대조군이 같은 요약에 없을 때 쓴다.
-            # baseline 은 백로그에 기록된 기준선 실측값이다(출처를 함께 적어 추적 가능하게).
-            base = float(item["baseline"]["value"])
-            delta = round(per[arm]["mean"] - base, 4)
-            verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
-            detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 기록 기준선 {base:.4f} "
-                      f"({item['baseline'].get('source', '출처미상')}) → Δ{delta:+.4f}")
-        else:
-            verdict, detail = "기준선없음", (f"최고 {best[0]} {best[1]['mean']:.4f} "
-                                        f"(대조군 {cf_name} 미측정)")
-    elif parsed.get("error"):
-        detail = parsed["error"]
+    if rc != 0:
+        # 실패한 실행에 성능 판정을 붙이지 않는다(설계원칙 6). 옛 요약을 읽어 Δ 를 만들면
+        # 소실이 '노이즈(측정됨)'로 세어져 무개선 카운터·승격 판단이 오염된다.
+        cause = failure_cause(rc)
+        parsed = {"error": "실행 실패 — 측정값 없음", "rc": rc, "cause": cause,
+                  "summary_mtime": os.path.getmtime(spath) if os.path.exists(spath) else None}
+        verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
+        per: dict = {}
+    else:
+        parsed = parse_wf_sweep(spath, mtime_floor) if item["metric"] == "wf_sweep_summary" \
+            else {"error": "parser 없음"}
+        # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
+        # ⚠ 함정(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면, 가설군이 **진** 경우
+        # winner == 대조군 이 되어 Δ 0.0000 "노이즈" 로 잘못 기록된다. 실제로는 h8 0.5068 vs
+        # h5 0.5406 = Δ−0.0338 인데 원장에 Δ+0.0000 으로 남았다. 반드시 arm 기준으로 계산하라.
+        verdict, detail, delta = "판정불가", "", None
+        _pe = parsed.get("per_exp")
+        per = _pe if isinstance(_pe, dict) else {}
+        if per:
+            arm = item.get("arm")
+            cf_name = (item.get("counterfactual") or "").split(" ")[0]
+            best = max(per.items(), key=lambda kv: kv[1]["mean"])
+            if arm and arm in per and cf_name in per:
+                delta = round(per[arm]["mean"] - per[cf_name]["mean"], 4)
+                verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
+                detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 대조군 {cf_name} "
+                          f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f} "
+                          f"(최고: {best[0]} {best[1]['mean']:.4f})")
+            elif cf_name in per:
+                delta = round(best[1]["mean"] - per[cf_name]["mean"], 4)
+                verdict = "신호있음" if delta >= 0.02 else "노이즈"
+                detail = (f"[arm 미지정] 최고 {best[0]} {best[1]['mean']:.4f} vs {cf_name} "
+                          f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f}")
+            elif item.get("baseline") and arm and arm in per:
+                # **다른 실행(다른 유니버스/패널)과의 비교**: 대조군이 같은 요약에 없을 때 쓴다.
+                # baseline 은 백로그에 기록된 기준선 실측값이다(출처를 함께 적어 추적 가능하게).
+                base = float(item["baseline"]["value"])
+                delta = round(per[arm]["mean"] - base, 4)
+                verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
+                detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 기록 기준선 {base:.4f} "
+                          f"({item['baseline'].get('source', '출처미상')}) → Δ{delta:+.4f}")
+            else:
+                verdict, detail = "기준선없음", (f"최고 {best[0]} {best[1]['mean']:.4f} "
+                                            f"(대조군 {cf_name} 미측정)")
+        elif parsed.get("error"):
+            detail = parsed["error"]
 
     rec = {
         "ts": now_kst().isoformat(timespec="seconds"),
@@ -370,7 +449,16 @@ def execute(item, force=False):
                 "ts": rec["ts"], "rc": rc, "verdict": verdict, "detail": detail,
                 "log": rec["log"], "elapsed_min": rec["elapsed_min"],
             })
-            it["status"] = "done" if rc == 0 else "failed"
+            if rc == 0:
+                it["status"] = "done"
+            elif rc in (137, 124) and len(it["attempts"]) < RETRY_MAX:
+                # 인프라 사고(컨테이너 재생성·타임아웃)는 가설의 결과가 아니다 →
+                # 체크포인트에서 재개하도록 pending 으로 되돌린다(최대 RETRY_MAX 회).
+                it["status"] = "pending"
+                it["retry_note"] = (f"{rec['ts']} rc={rc} 소실 → 재시도 "
+                                    f"{len(it['attempts'])}/{RETRY_MAX} (체크포인트 재개)")
+            else:
+                it["status"] = "failed"
             it["result"] = {"verdict": verdict, "detail": detail, "delta": delta,
                             "per_exp": per or None, "rc": rc}
     save_backlog(b)

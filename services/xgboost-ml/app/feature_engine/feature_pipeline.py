@@ -5,7 +5,10 @@ Orchestrates feature extraction from all data sources into a single feature dict
 
 import pandas as pd
 import numpy as np
+import json
 import logging
+import os
+import time
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
@@ -300,8 +303,19 @@ class FeaturePipeline:
 
     def build_training_features(
         self, stock_codes: List[str], start_date: str, end_date: str,
+        checkpoint_path: Optional[str] = None, checkpoint_every: int = 500,
+        resume: bool = True,
     ) -> pd.DataFrame:
-        """Build feature matrix for model training across multiple stocks and dates."""
+        """Build feature matrix for model training across multiple stocks and dates.
+
+        checkpoint_path (선택): 주면 **부분 진척을 주기적으로 디스크에 저장**하고, 다음 실행에서
+        이어서 빌드한다. 왜 필요한가 — 실측 2026-09-25: 150종목 패널 빌드가 30,000/41,893
+        (71.6%)·4시간14분 지점에서 평일 20:00 크론(scripts/full_pipeline_dd.sh 의
+        `docker compose up -d`)의 컨테이너 재생성으로 SIGKILL(137) 되어 **전량 소실**됐다.
+        진척은 빌드 끝에 1회만 저장되는 구조라 부분 진척이 남지 않았다.
+        체크포인트는 (유니버스, 구간, feature_engine 코드 mtime)이 모두 같을 때만 재사용한다 —
+        피처 코드가 바뀌면 옛 행과 새 행이 섞이는 것을 막는다.
+        """
         if self.use_feature_store and self.feature_store is not None:
             try:
                 stored = self.feature_store.load_batch(stock_codes, start_date, end_date)
@@ -377,24 +391,106 @@ class FeaturePipeline:
 
         total_pairs = sum(len(d) for d in dates_by_stock.values())
         processed = 0
+        done_keys: set = set()
+        ck_meta = f"{checkpoint_path}.meta.json" if checkpoint_path else None
+        ck_rows = f"{checkpoint_path}.rows.pkl" if checkpoint_path else None
+        code_sig = self._feature_code_sig()
+
+        if (checkpoint_path and ck_meta and ck_rows and resume
+                and os.path.exists(ck_meta) and os.path.exists(ck_rows)):
+            try:
+                with open(ck_meta, encoding="utf-8") as f:
+                    meta = json.load(f)
+                same = (list(meta.get("stock_codes") or []) == list(stock_codes)
+                        and meta.get("start_date") == start_date
+                        and meta.get("end_date") == end_date
+                        and meta.get("code_sig") == code_sig)
+                if same:
+                    # ⚠ `list(df)` 는 **행이 아니라 컬럼 이름**을 준다(실측 2026-09-25 테스트:
+                    # rows=170 = 컬럼 수, 최종적으로 KeyError 'date' 로 빌드 실패) → records 로 읽어라.
+                    _ckdf = pd.read_pickle(ck_rows)
+                    rows = _ckdf.to_dict("records") if isinstance(_ckdf, pd.DataFrame) else list(_ckdf)
+                    done_keys = set(meta.get("done_keys") or [])
+                    processed = int(meta.get("processed") or 0)
+                    logger.info(
+                        f"체크포인트 재개: processed={processed}/{total_pairs} "
+                        f"({100.0 * processed / max(1, total_pairs):.1f}%) rows={len(rows)}"
+                        f" — {ck_meta} (updated {meta.get('updated_at')})")
+                else:
+                    logger.info("체크포인트 무시: 유니버스/구간/피처코드가 달라짐 — 처음부터 빌드")
+                    rows, done_keys, processed = [], set(), 0
+            except Exception as e:
+                logger.warning(f"체크포인트 로드 실패({type(e).__name__}: {e}) — 처음부터 빌드")
+                rows, done_keys, processed = [], set(), 0
+
+        t0 = time.time()
+        processed0 = processed
+        since_ck = 0
         for code in stock_codes:
             stock_dates = dates_by_stock.get(code, [])
             if not stock_dates:
                 continue
             stock_market_df = market_data_by_stock.get(code, pd.DataFrame())
             for i, date_str in enumerate(stock_dates):
+                if done_keys and f"{code}|{date_str}" in done_keys:
+                    continue                      # 이미 처리된 페어(재개)
                 try:
                     features = self.build_features(code, date_str, market_df=stock_market_df)
                     if features.get("feature_count", 0) >= 10:
                         rows.append(features)
                     processed += 1
+                    done_keys.add(f"{code}|{date_str}")
+                    since_ck += 1
                     if processed % 200 == 0:
-                        logger.info(f"Build progress: {processed}/{total_pairs} stock-date pairs")
+                        el = max(1e-9, time.time() - t0)
+                        rate = (processed - processed0) / el
+                        eta_min = (total_pairs - processed) / rate / 60.0 if rate > 0 else float("inf")
+                        logger.info(
+                            f"Build progress: {processed}/{total_pairs} stock-date pairs "
+                            f"({100.0 * processed / max(1, total_pairs):.1f}%) "
+                            f"{rate:.2f} pair/s ETA {eta_min:.0f}min")
+                    # 저장 주기는 **별도 카운터**로 센다: processed 는 실패 페어를 건너뛰어
+                    # 항상 checkpoint_every 의 배수로 떨어지지 않는다(그러면 저장이 영영 안 된다).
+                    if checkpoint_path and since_ck >= checkpoint_every:
+                        since_ck = 0
+                        self._save_checkpoint(ck_rows, ck_meta, rows, done_keys,
+                                              processed, total_pairs, stock_codes,
+                                              start_date, end_date, code_sig)
                 except Exception as e:
                     logger.debug(f"Feature build failed for {code} {date_str}: {e}")
                     continue
 
         return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+    @staticmethod
+    def _feature_code_sig():
+        """feature_engine 패키지 .py 의 최신 mtime — 피처 코드가 바뀌면 체크포인트를 무효화한다."""
+        try:
+            d = os.path.dirname(os.path.abspath(__file__))
+            return round(max(os.path.getmtime(os.path.join(d, f))
+                             for f in os.listdir(d) if f.endswith(".py")), 3)
+        except Exception:
+            return None
+
+    def _save_checkpoint(self, ck_rows, ck_meta, rows, done_keys, processed, total_pairs,
+                         stock_codes, start_date, end_date, code_sig):
+        """부분 진척을 원자적으로 저장한다(rows.pkl + meta.json). 실패해도 빌드는 계속한다.
+
+        atomic: 임시파일 → os.replace. 재개 검증 키는 (유니버스, 구간, 피처코드 mtime)이다.
+        """
+        try:
+            pd.DataFrame(rows).to_pickle(ck_rows + ".tmp")
+            os.replace(ck_rows + ".tmp", ck_rows)
+            meta = {"stock_codes": list(stock_codes), "start_date": start_date,
+                    "end_date": end_date, "code_sig": code_sig, "processed": processed,
+                    "total_pairs": total_pairs, "done_keys": sorted(done_keys),
+                    "updated_at": datetime.now().isoformat(timespec="seconds")}
+            with open(ck_meta + ".tmp", "w", encoding="utf-8") as f:
+                json.dump(meta, f)
+            os.replace(ck_meta + ".tmp", ck_meta)
+            logger.info(f"체크포인트 저장: {processed}/{total_pairs} rows={len(rows)} → {ck_rows}")
+        except Exception as e:
+            logger.warning(f"체크포인트 저장 실패({type(e).__name__}: {e}) — 빌드는 계속")
 
     def _build_advanced_features(
         self, stock_code: str, date: str,

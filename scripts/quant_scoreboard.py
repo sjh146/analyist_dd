@@ -176,17 +176,22 @@ def engineer_stanza() -> dict:
     recs = _jsonl(ME_LEDGER)
     if recs:
         st["last_verdict"] = recs[-1].get("verdict")
-    # 최고값이 기준선을 넘지 못하면 그 실험은 '개선 없음'으로 센다.
-    recs = _jsonl(ME_LEDGER)
-    improved = 0
-    for r in recs:
-        bm = _rec_best_mean(r)
-        if bm is not None and (bm - BASELINE_ROBUST) >= SIGNAL_DELTA:
-            improved += 1
-    st["no_improve_cycles"] = max(0, len(recs) - improved)
+    # 무개선 카운터는 **측정이 성립한 사이클**만 센다. rc!=0(소실·타임아웃)·요약 미갱신은
+    # '측정'이 아니라서, 소실을 노이즈로 세면 '무개선 3사이클 → 새 레버 필요' 경보가 헛돈다
+    # (실측 2026-09-25: U1 이 평일 20:00 컨테이너 재생성으로 소실됐는데 옛 L2 요약을 읽어
+    #  Δ+0.0000 '노이즈'로 기록 → 무효 사이클이 카운터에 포함됐다).
+    measured = [r for r in recs
+                if r.get("rc") == 0
+                and _rec_best_mean(r) is not None
+                and not (isinstance(r.get("parsed"), dict) and r["parsed"].get("error"))]
+    improved = sum(1 for r in measured
+                   if (_rec_best_mean(r) or 0.0) - BASELINE_ROBUST >= SIGNAL_DELTA)
+    st["no_improve_cycles"] = max(0, len(measured) - improved)
+    st["measured_cycles"] = len(measured)
+    st["invalid_cycles"] = len(recs) - len(measured)
     if st["no_improve_cycles"] >= NO_IMPROVE_CYCLES:
-        st["alerts"].append(f"로버스트 AUC 가 {st['no_improve_cycles']}사이클 연속 기준선"
-                            f"({BASELINE_ROBUST}) 대비 +{SIGNAL_DELTA} 미달 — 새 레버 필요 "
+        st["alerts"].append(f"로버스트 AUC 가 {st['no_improve_cycles']}사이클(측정 {len(measured)}회) "
+                            f"연속 기준선 ({BASELINE_ROBUST}) 대비 +{SIGNAL_DELTA} 미달 — 새 레버 필요 "
                             f"(사람 승인 대상)")
     return st
 
@@ -317,7 +322,8 @@ def main() -> int:
     if a.stanza == "engineer":
         s = engineer_stanza()
         print(f"[북극성·엔지니어] 로버스트 {s['best_robust']} vs 기준선 {s['baseline']} "
-              f"(Δ{s['delta']}) | 무개선 {s['no_improve_cycles']}사이클")
+              f"(Δ{s['delta']}) | 무개선 {s['no_improve_cycles']}사이클"
+              f" (측정 {s.get('measured_cycles')}·무효 {s.get('invalid_cycles')})")
         for x in s["alerts"]:
             print(f"  ⚠ {x}")
         return 0
