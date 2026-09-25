@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-26T08:50:00+09:00",
+  "updated_at": "2026-09-26T09:10:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -1665,12 +1665,12 @@
     {
       "id": "L5",
       "title": "팩터 백테스트 유니버스 0 규명·수정 + 전략 실행기록 배선 (L4 재판정 전제)",
-      "status": "pending",
+      "status": "diagnosed",
       "priority": 2,
       "affects_model": true,
       "hypothesis": "팩터 백테스트가 실질 2기간만 돌아 판정 불가다. 원인은 재무 데이터 부족이 **아니다** — 필터/배선 문제다. 고치면 5전략 vs ML 비교가 가능해진다.",
       "evidence": "실측 2026-09-26 (run_factor_job.py in stock_job_runner, 2025-08-01~2026-07-31): ① 리밸런싱 6구간 중 **앞 4구간이 '유니버스 0 — 보유 없음(skip)'**, 2026-04-26 이후만 808~813종목 → 실질 표본 2기간(value/quality)~7기간(multifactor). ② 결과가 아티팩트: lowvol total +9.56% sharpe 17.87 maxDD 0.0% win 100% (비현실적), value -18.69% / quality -2.73% / multifactor -10.53%. ③ **재무 데이터는 이미 충분하다**: financial_statements 가 2023(2,592종목)·2024(2,592)·2025(2,598)·2026(2,588) 보유 — 즉 백필 불필요(사용자 승인 사항을 실측으로 정정). ④ 유니버스 필터 조건(services/strategy-agents/app/factors/universe.py): market_cap>=5e10(단, get_market_caps() 에 asof 인자 없음=현재값), avg_trading_value>=1e9(30d, asof 없음), PIT 재무 >=1분기, 상장 252일. ⑤ 배선 실패: '[record_run] factor_value_factor 기록 실패: No module named scripts.record_strategy_run' → strategy_runs 에 기록이 남지 않는다. ⑥ 컨테이너 마운트 주의: /app/app/scripts 는 호스트 services/job-runner/app/scripts 와 일치하지 않는다(새 파일이 보이지 않음) — 수정 전에 마운트 매핑을 먼저 확인할 것.",
-      "method": "① 컨테이너 마운트 매핑 확인(docker inspect stock_job_runner -f '{{json .Mounts}}') ② filter_universe 를 asof 별로 직접 호출해 **어느 조건에서 탈락하는지** 계수 (market_cap None / 거래대금 미달 / PIT 재무 0 / 상장기간) — 시점별 분포로 원인 확정 ③ get_market_caps/get_avg_trading_value 의 asof 미지원이 원인이면 PIT 버전 추가 ④ record_strategy_run import 경로 수정(sys.path 또는 모듈 위치) ⑤ 재실행 후 5전략 지표를 ML 챔피언(로버스트 0.5519/기준선 0.5406)과 같은 조건으로 비교",
+      "method": "① (즉효) 백테스트 창을 데이터가 있는 구간(2026-04~)으로 제한하거나 필터의 min_listing_days 를 시장데이터 시작 이전으로 못 박고 그 한계를 산출물에 명시 ② (근본) market_data 이력 백필(2024 이전) — 모델 학습 데이터도 함께 늘어난다 ③ 상장일 독립 소스(pykrx get_stock_listing 또는 DART) 확보 ④ record_strategy_run 배선 수정(sys.path 에 /app/app 추가) 후 재실행",
       "command": "docker exec stock_job_runner sh -c 'cd /app/app && python scripts/run_factor_job.py'",
       "check": "docker exec stock_job_runner sh -c 'ls /app/factor_reports/real-backtest-*.json 2>/dev/null | wc -l'",
       "check_target": {
@@ -1693,7 +1693,31 @@
           "title": "(정정) 재무 이력 백필 2024~2025 는 **불필요** — 2023~2026 이미 보유(2,592종목×4년)",
           "detail": "사용자 승인 ① 을 실측으로 정정. 백필 대신 L5(필터·배선) 로 간다."
         }
-      ]
+      ],
+      "root_cause": "**상장기간 조건(min_listing_days=252)이 2026-04 이전 구간의 830종목을 전부 탈락시킨다** — 원인은 필터 로직이 아니라 **market_data 이력 부족**이다. market_data 는 2025-06-16~2026-09-23(314거래일)뿐이라 모든 종목의 최초 거래일이 2025-06-16 이후이고, asof=2025-08-17 의 상장 컷오프는 2024-12-08 → 전 종목 탈락(상장 0). stocks 테이블에는 상장일 컬럼이 없다(market_cap/sector/industry/instrument_type/market 만).",
+      "funnel_measured": "깔때기 실측(probe_universe_funnel.py): 전체 4340 → 시총 1878 → 거래대금 862 → PIT재무 830 → **상장 0** (asof 2025-08/12) / 동일 경로로 asof 2026-04 = 808, 2026-06 = 813 ✓",
+      "note": "L5b(record_run 배선) + R17(가격 이력 백필) 로 분리 진행"
+    },
+    {
+      "id": "R17",
+      "title": "market_data 가격 이력 백필 (2025-06 이전) — 모델·팩터 공통 전제",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "hypothesis": "현재 가격 이력이 314거래일(2025-06-16~)뿐이다. 이력이 늘면 ① 모델 학습 표본이 늘고 ② 팩터 백테스트의 상장기간 필터가 성립한다. 사용자 장기 승인 항목(1안: 중기 데이터 이력 확장)과 같은 방향이다.",
+      "evidence": "실측: market_data 1,113,634행이 2025-06-16 ~ 2026-09-23(314거래일)에만 존재. 그 결과 ① 팩터 유니버스 필터의 min_listing_days=252 가 2026-04 이전 구간에서 전 종목을 탈락시켜 팩터 백테스트가 실질 2기간이 되었다(깔때기 실측: 상장 0) ② ML 패널도 같은 창에 묶여 walk-forward 폴드 수가 제한된다. 증거: financial_statements 는 2023~2026 4년치가 이미 있는데 가격만 1년이다.",
+      "method": "① 사용 가능한 소스 확인(KIS 일봉 API / Naver / pykrx / KRX OpenAPI)과 한계(호출 제한) 실측 ② 2023-01 ~ 2025-06 구간 백필(종목×거래일, 멱등 upsert) ③ feature_coverage·패널 재빌드로 학습 표본 증가 확인 ④ 팩터 백테스트 재실행(상장 필터 성립) ⑤ 로버스트 AUC 재측정",
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT MIN(trade_date) FROM market_data\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT trade_date) FROM market_data\"",
+      "check_target": {
+        "op": ">=",
+        "value": 600
+      },
+      "setup_needed": [
+        "소스 선택(KIS/Naver/pykrx) 확인"
+      ],
+      "cost": "수집 2~6시간(호출 제한 의존)",
+      "success": "거래일 600일 이상(2023~현재) 확보 + 학습 표본·폴드 수 증가 확인"
     }
   ]
 }
