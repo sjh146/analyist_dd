@@ -134,6 +134,66 @@ def handoff(item, detail, verdict):
 
 
 # ── 실행 ────────────────────────────────────────────────────────────────────
+def ensure_artifact(item, run_log):
+    """build형 항목의 산출물이 없으면 Claude Code 로 **저작**한다(ask_claude.sh build 모드).
+
+    WHY(2026-09-25 사용자 승인 ①): 자율 루프는 "등록된 명령을 실행·판정"만 할 수 있어 새 파이프라인을
+    쓰지 못한다(실측 한계 — R10~R12 가 그래서 대기 중이었다). 그래서 항목에 `authoring.target` 이
+    선언돼 있으면 위임으로 저작하고, 저작물은 ① 파일 존재 ② 구문(py_compile) ③ 항목 check —
+    세 단계를 통과해야 완료로 기록한다. **자기신고 금지**: 파일 존재가 증거다.
+
+    위임 자체의 실패(무출력·정지)는 ask_claude.sh 안에서 이미 감시·폴백된다(Claude Code → opencode).
+    """
+    au = item.get("authoring") or {}
+    target = au.get("target")
+    if not target:
+        return True, "", {}
+    tpath = os.path.join(PROJ, target)
+    if os.path.exists(tpath):
+        return True, f"산출물 이미 존재({target}) — 저작 생략", {"target": target, "skipped": True}
+
+    spec_rel = f"docs/spec_{item['id']}.md"
+    prompt = "\n".join(filter(None, [
+        f"[구현 대상] {target}",
+        f"[항목] {item['id']} {item['title']}",
+        f"[가설] {item.get('hypothesis') or ''}",
+        f"[방법] {item.get('method') or ''}",
+        f"[검증 명령] {item.get('check') or ''}",
+        f"[성공 기준] {item.get('success') or ''}",
+        f"[추가 지시] {au.get('instructions') or ''}",
+    ]))
+    log(f"저작 위임: {item['id']} → {target} (ask_claude.sh build)")
+    try:
+        r = subprocess.run(["./scripts/ask_claude.sh", "build", spec_rel, prompt],
+                           cwd=PROJ, capture_output=True, text=True,
+                           timeout=int(au.get("timeout_s") or 2400))
+        rc, err = r.returncode, (r.stderr or "")[-300:]
+    except subprocess.TimeoutExpired:
+        return False, f"저작 위임 시간초과({target})", {"target": target, "timeout": True}
+    except OSError as exc:
+        return False, f"저작 위임 실행 실패({exc})", {"target": target, "oserror": str(exc)[:200]}
+
+    exists = os.path.exists(tpath)
+    info = {"target": target, "delegate_rc": rc, "exists": exists, "stderr_tail": err, "spec": spec_rel}
+    if not exists:
+        return False, f"저작 실패 — 산출물 없음({target})", info
+    if target.endswith(".py"):
+        c = subprocess.run(["/usr/bin/python3", "-m", "py_compile", tpath],
+                           capture_output=True, text=True)
+        info["compile_rc"] = c.returncode
+        if c.returncode != 0:
+            info["compile_err"] = (c.stderr or "")[-200:]
+            return False, f"저작물 구문 오류({target})", info
+    # 자율 저작이 무엇을 건드렸는지 감사 기록을 남긴다(사후 검증 가능해야 한다).
+    try:
+        g = subprocess.run(["git", "status", "--porcelain"], cwd=PROJ,
+                           capture_output=True, text=True, timeout=60)
+        info["git_changed"] = (g.stdout or "").splitlines()[:12]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return True, f"저작 완료({target}) — 구문검사 통과", info
+
+
 def execute(item, force=False):
     os.makedirs(RES_RUNTIME, exist_ok=True)
     ok, why = base.guards(force)
@@ -154,6 +214,10 @@ def execute(item, force=False):
     stamp = now_kst().strftime("%Y%m%d-%H%M%S")
     run_log = os.path.join(RES_LOGDIR, f"res_{item['id']}_{stamp}.log")
     started = now_kst()
+    # build형 항목은 실행 전에 산출물 저작을 먼저 확보한다(없으면 위임 — 자율 저작).
+    ok_art, art_msg, art_info = ensure_artifact(item, run_log)
+    if art_msg:
+        log(art_msg)
     log(f"실행: {item['id']} — {item['title']}")
     with open(run_log, "w", encoding="utf-8") as lf:
         lf.write(f"# {item['id']} {item['title']}\n# started {started.isoformat()}\n"
@@ -163,6 +227,10 @@ def execute(item, force=False):
                             stderr=subprocess.STDOUT, cwd=PROJ).returncode
 
     val, detail, passed = eval_check(item)
+    # 저작 결과를 판정 문구에 합친다 — 저작 실패면 명령도 실패하므로 원인이 한 줄에 남아야 한다.
+    # (⚠ eval_check 뒤에 합쳐야 한다: detail 은 그 호출이 만든다 — 앞에서 참조하면 NameError.)
+    if art_msg and art_info:
+        detail = f"[저작] {art_msg} | {detail}" if art_info.get("exists") else f"[저작실패] {art_msg}"
     # kind="investigate" 는 수치 목표가 아니라 **증거 수집**이 목적이다(DART/KRX 소스 확인 등).
     # 이 경우 check_target 미달을 실패로 보지 않는다 — 조사가 돌았으면 완료다.
     if item.get("kind") == "investigate":

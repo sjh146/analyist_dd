@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-25T18:05:00+09:00",
+  "updated_at": "2026-09-25T19:50:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -240,7 +240,7 @@
       "hypothesis": "foreign_institutional 87,895행·krx_short_selling 2,393행·market_data 111만 행을 이미 보유하고도 누적/비율 피처가 없다. 수급·모멘텀은 가격 피처와 독립 신호다.",
       "evidence": "feature_coverage: institution_*·foreign_*·short_*·momentum_*·krx_*·market_* 계열 19개가 nonzero_ratio=0. 원천 테이블은 각각 수천~수십만 행 적재 완료(실측).",
       "method": "SQL/pandas 로 ① 기관·외국인 5일 누적 순매수 ② 공매도 비율·days_to_cover ③ 3/6/12개월 모멘텀·상대강도·breadth·등락비율·볼린저 위치를 종목×일자로 계산 후 피처 테이블 적재 → feature_coverage 재계산",
-      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('institution_net_buy_5d','foreign_net_buy_5d','short_selling_ratio','momentum_3_12m','market_breadth') AND nonzero_ratio > 0\"",
+      "command": "/usr/bin/python3 scripts/build_supply_market_features.py",
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('institution_net_buy_5d','foreign_net_buy_5d','short_selling_ratio','momentum_3_12m','market_breadth') AND nonzero_ratio > 0\"",
       "check_target": {
         "op": ">=",
@@ -249,7 +249,14 @@
       "setup_needed": [],
       "cost": "계산·검증 1~2시간",
       "success": "19개 중 5개 이상 nonzero 확인 (한 계열씩 투입 후 로버스트 AUC 판정)",
-      "doc": "docs/DEAD_FEATURE_REVIVAL.md"
+      "doc": "docs/DEAD_FEATURE_REVIVAL.md",
+      "authoring": {
+        "target": "scripts/build_supply_market_features.py",
+        "instructions": "수급·시장·모멘텀 피처 생성기. 입력 테이블: foreign_institutional(87,895행, 종목·일자·순매수), krx_short_selling(2,393행), market_data(1,113,634행 일봉), ownership. 출력 테이블은 init-scripts/postgres/ 에 DDL 을 함께 작성(18_*.sql)하고 피처 테이블에 적재하라. as-of 규율: 값은 당일 종가까지의 정보만 사용(미래 누수 금지). 결측은 0 이 아니라 '정보 없음'을 구분해 채워라(가능하면 NULL 유지, 불가하면 0 + 주석). 종목×거래일 격자는 market_data 의 (stock_code, trade_date) 를 기준으로 만들어라. 계산 대상: institution_net_buy(_5d), foreign_net_buy(_5d), ownership_pct 계열, short_interest_ratio, short_selling_ratio, days_to_cover, momentum_3_12m, momentum_ni, momentum_op, krx_advance_decline_ratio, krx_total_trading_value, market_breadth, market_impact_score, relative_strength, bb_position.",
+        "timeout_s": 2400,
+        "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
+      },
+      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
     },
     {
       "id": "R11",
@@ -260,7 +267,7 @@
       "hypothesis": "macro_indicators 6,261행(환율·금리·유가·CPI/PPI)을 보유하고도 조인 코드가 없어 거시 국면이 모델에 전혀 들어가지 않는다.",
       "evidence": "feature_coverage: fx/oil/interest/cpi/ppi/yield/economic/cycle 계열 16개가 nonzero_ratio=0.",
       "method": "발표일 기준 as-of 조인(룩어헤드 금지: 발표 지연 반영) + 변화율·스프레드 계산 후 적재. 주기: 일별 관측치와 월별 지표를 구분해 각각 전진 채움.",
-      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('fx_usd_krw','oil_wti','interest_rate','cpi_yoy','yield_spread') AND nonzero_ratio > 0\"",
+      "command": "/usr/bin/python3 scripts/build_macro_features.py",
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('fx_usd_krw','oil_wti','interest_rate','cpi_yoy','yield_spread') AND nonzero_ratio > 0\"",
       "check_target": {
         "op": ">=",
@@ -268,7 +275,14 @@
       },
       "setup_needed": [],
       "cost": "1~2시간",
-      "success": "16개 중 3개 이상 nonzero + as-of 위반 0 유지"
+      "success": "16개 중 3개 이상 nonzero + as-of 위반 0 유지",
+      "authoring": {
+        "target": "scripts/build_macro_features.py",
+        "instructions": "거시 피처 생성기. 입력: macro_indicators(6,261행 — 지표명·일자·값 구조를 먼저 확인하라). 발표 지연을 반영한 **as-of 조인**이 핵심: 월별 지표는 발표일(또는 관측일+지연) 이후 행에만 값이 보이도록 하고, 일별 지표(환율·금리·유가)는 당일까지 사용하라. 계산 대상: fx_usd_krw, fx_change_1m/3m, oil_wti, oil_change_1m/3m, interest_rate, interest_rate_change_1m/3m, cpi_yoy, ppi_yoy, yield_spread, economic_event_count_7d, economic_event_impact, cycle_up, cycle_down. 출력 테이블 DDL 포함(19_*.sql).",
+        "timeout_s": 2400,
+        "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
+      },
+      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
     },
     {
       "id": "R12",
@@ -279,7 +293,7 @@
       "hypothesis": "financial_statements 10,370행이 연간/반기 혼재로 growth 피처가 깨져 있고 ROA/ROE/부채비율/PER/PBR 등 기본 비율이 아예 없다. rcept_dt 확보로 구분 가능해졌다.",
       "evidence": "feature_coverage: quality_* 9개·value_* 7개 + roe/per_current/pbr_current 가 nonzero_ratio=0. disclosures 백필로 rcept_dt 22,278행 확보(기간유형 구분 근거).",
       "method": "① rcept_dt 로 보고서 기간유형(사업/반기/분기) 구분 ② 비율 계산(ROA/ROE/부채비율/영업이익률/PER/PBR/PSR/EV-EBIT 등, 시가총액은 market_data 사용) ③ as-of 규율: 접수일 이후에만 값이 보이도록 조인",
-      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio > 0\"",
+      "command": "/usr/bin/python3 scripts/build_financial_ratio_features.py",
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio > 0\"",
       "check_target": {
         "op": ">=",
@@ -287,7 +301,14 @@
       },
       "setup_needed": [],
       "cost": "2~3시간(기간유형 구분 포함)",
-      "success": "19개 중 3개 이상 nonzero + dq_asof_violation_rows 0 유지"
+      "success": "19개 중 3개 이상 nonzero + dq_asof_violation_rows 0 유지",
+      "authoring": {
+        "target": "scripts/build_financial_ratio_features.py",
+        "instructions": "재무 비율 피처 생성기. 입력: financial_statements(10,370행) + disclosures(rcept_dt 로 기간유형 구분) + market_data(시가총액용 종가). 반드시 **rcept_dt 이후에만 값이 보이도록** as-of 조인하라(백필로 접수일 212,861행 확보됨). 연간/반기/분기 혼재를 기간유형으로 구분하고, 비율 계산: ROA, ROE, 부채비율 변화, 영업이익성장, 자산성장, PER, PBR, PSR, PCR, EV/EBIT, NCAV, PFCR. 출력 테이블 DDL 포함(20_*.sql). 클래스당 행이 1개 이상이면 성공.",
+        "timeout_s": 2400,
+        "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
+      },
+      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
     },
     {
       "id": "R13",

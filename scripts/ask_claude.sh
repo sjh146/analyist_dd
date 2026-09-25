@@ -56,6 +56,13 @@ case "$MODE" in
     OC_AGENT=""; READONLY=0 ;;
   free)
     PREAMBLE="" ; OC_AGENT=""; READONLY=0 ;;
+  build)
+    # 실제 구현(저작) 모드 — **이 모드만 파일 쓰기가 허용된다**.
+    # WHY(2026-09-25 사용자 승인): 자율 루프는 "등록된 명령을 실행·판정"만 할 수 있어 새 파이프라인을
+    # 쓰지 못한다. 그래서 build형 백로그 항목(R10~R12: 피처 생성기 등)은 이 모드로 위임해 저작하고,
+    # 산출물은 **구문검사 + 항목 check** 로 검증한 뒤에만 완료로 기록한다(검증 없는 자율 저작 금지).
+    PREAMBLE="다음 스펙을 **실제로 구현하라**(파일 쓰기 허용). 규칙: ① 파일 상단 docstring 에 WHY 와 실측 근거를 남긴다 ② 추측 금지 — DB·파일에서 실제 값을 조회해 그 수치를 근거로 쓰고, 조회 명령을 주석에 남긴다 ③ 멱등하게 만든다(재실행 안전: DELETE 후 적재 또는 중복 무시) ④ 자기신고를 남긴다(소스 수신/파서 생성/실제 저장 3분리 — 가능하면 scripts/dq_claim.py 의 record_claim 재사용) ⑤ 기존 파일은 꼭 필요할 때만 최소 수정하고, 무엇을 왜 바꿨는지 보고에 적는다 ⑥ **git 명령은 실행하지 말라**(커밋은 오케스트레이터가 한다) ⑦ 검증 명령을 실제로 실행하고 그 출력을 보고에 포함하라 ⑧ 리포 밖에 파일을 만들지 말라."
+    OC_AGENT=""; READONLY=0; ALLOW_WRITE=1 ;;
   *) echo "ask_claude: 알 수 없는 모드 '$MODE'" >&2; exit 2 ;;
 esac
 
@@ -107,6 +114,9 @@ if [ -x "$CLAUDE_DS" ]; then
   CLAUDE_ARGS=(-p "$FULL_PROMPT")
   # review/investigate 는 읽기 전용으로 제한한다 — 쓰기 시도로 인한 권한 대기/부작용 차단.
   [ "$READONLY" -eq 1 ] && CLAUDE_ARGS=(--allowedTools "Read" "Grep" "Glob" "${CLAUDE_ARGS[@]}")
+  # build 는 저작이 목적이므로 쓰기 도구를 **명시 허용**한다 — 허용하지 않으면 권한 프롬프트에서
+  # 멈춰 무출력 타임아웃이 난다(설계상 사람이 없는 자율 실행이므로 프롬프트에 기댈 수 없다).
+  [ "${ALLOW_WRITE:-0}" -eq 1 ] && CLAUDE_ARGS=(--allowedTools "Read" "Grep" "Glob" "Edit" "Write" "Bash" "${CLAUDE_ARGS[@]}")
   # 리포 밖 계약 코드(trader-agent)도 읽을 수 있게 열어 준다.
   [ -d "$EXTRA_DIR" ] && CLAUDE_ARGS=(--add-dir "$EXTRA_DIR" "${CLAUDE_ARGS[@]}")
   echo "ask_claude: [1차] Claude Code mode=$MODE timeout=${TIMEOUT_S}s stall=${STALL_S}s" >&2
