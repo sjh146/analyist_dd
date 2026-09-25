@@ -89,6 +89,103 @@ CONFIGS = [
     {"id": "PO_timevary_rank_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "pool": "timevary",
      "desc": "시간가변 + 횡단면 rank"},
+    # ── 시장레벨 제외 (횡단면 계약 #6) ──────────────────────────────────────
+    # 근거(실측 2026-09-25, scripts/wf_leak_select_check.py): 현재 기준선 패널
+    # (panel_420_asofpatch, 49종목)의 폴드별 top30 안에 **시장레벨 피처가 1~3개** 들어간다
+    # (program_trading_ratio 4/5폴드, oil_change_1m/3m·yield_spread·krx_advance_decline_ratio·
+    #  derivatives_volume·pbr_current 각 1폴드). 시장레벨 = 같은 날짜에 종목간 값이 하나뿐인 피처
+    # (패널 210개 중 27개; 리서처 메트릭 dq_feature_market_level_count=26 과 독립 교차확인).
+    # 그런데 라벨은 날짜내 분위(횡단면 상대)이므로, 날짜 상수 피처는 날짜별 점수를 통째로
+    # 밀어 pooled AUC 를 부풀릴 수 있다 → 제외하고 같은 프로토콜로 재측정한다.
+    {"id": "MK_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "exclude_market_level": True,
+     "desc": "분위0.3 h5 top30 + 시장레벨(날짜내 종목간 동일값) 피처 제외"},
+    {"id": "MK_timevary_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "pool": "timevary", "exclude_market_level": True,
+     "desc": "시간가변 + 시장레벨 제외 (계약 #3·#6 동시 준수)"},
+    # ── curated 게이트 대조 (2026-09-26 실측 — 처음엔 내 해석이 틀렸다) ──────────
+    # ⚠ 정정: 이 스크립트는 L223~224 에서 **tc.select_curated_features 를 항등함수로
+    # 몽키패치**한다 → 프로덕션 트레이너의 CORE_FEATURES(48) 게이트가 여기서는 꺼져 있다.
+    # 계측 실측: 선별 30개 → 실효피처 [30], core 전체 → [48] (게이트 0개 탈락).
+    # 따라서 ① 스윕 AUC 는 '게이트 없는 210피처 풀' 에서 측정된 값이고 ② 프로덕션
+    # 챔피언 경로(48피처 게이트)와 직접 비교할 수 없다. 이 사실을 모르고 세운 가설
+    # "선별 30개 중 실효는 22개" 는 **틀렸다**(이름집합으로 센 값 12는 게이트를 꺼 둔
+    # 이 런에는 적용되지 않는다 — scripts/_rb3_curated_gate_probe.py 머리말 참고).
+    # 아래 CO_* 는 그래서 "게이트를 켜면 성능이 어떻게 되는가"를 재는 대조군이다.
+    {"id": "CO_core30_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군"},
+    {"id": "CO_core_all_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "all",
+     "core_only": True,
+     "desc": "core48 전체(선별 없음) — 게이트 적용 시 프로덕션 피처셋과 동일 규모"},
+    {"id": "CO_core30_h8", "kind": "quantile", "horizon": 8, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "desc": "core30 + h8 — 게이트×호라이즌 상호작용 확인"},
+    # ── 하이퍼파라미터 축 (이 스택에서 한 번도 스윕된 적 없음) ──────────────────
+    # 근거: 학습 표본이 폴드당 1,230행(49종목×약25일)뿐인데 depth=4·1500트리·lr=0.03 이
+    # 고정값이었다(wf_wave.BASE.recipe). 소표본에서는 얕은 트리/큰 학습률이 더 나을 수 있고,
+    # 반대로 표본이 늘어난 축에서는 깊은 트리가 필요할 수 있다 — 어느 쪽인지 미측정.
+    # 주의: apply_hyperparams 는 n_estimators 키가 있는 모델(lightgbm)만 덮어쓴다
+    # (xgboost 는 기본 800·catboost 는 iterations 300 유지). 따라서 lr·depth 중심 비교다.
+    {"id": "HP_d2_lr05_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.05, "depth": 2, "n_estimators": 2000},
+     "desc": "얕은 트리(depth2)·lr0.05 — 소표본 과적합 억제 가설"},
+    {"id": "HP_d3_lr03_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.03, "depth": 3, "n_estimators": 2000},
+     "desc": "depth3·lr0.03 (WF5 계열 레시피를 h5·동일 프로토콜로)"},
+    {"id": "HP_d6_lr02_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.02, "depth": 6, "n_estimators": 1200},
+     "desc": "깊은 트리(depth6)·lr0.02 — 상호작용 포착 가설"},
+    # ── HP2: depth 단조 실측의 후속 (2026-09-26) ────────────────────────────────
+    # 실측(5폴드×3시드): d2 0.5477 > d3 0.5469 > d4 0.5412(기준) > d6 0.5344 — depth 가 얕을수록
+    # 좋아지는 **단조** 패턴. 폴드 std(±0.03~0.05) 때문에 단일 비교는 노이즈지만, 4수준 단조는
+    # 소표본 과적합 신호다. → depth 를 더 낮추고(d1), 학습률을 올리고(lr0.08), 정규화를 직접
+    # 세게 걸어(recipe_extra) 같은 방향이 재현되는지 본다. arm 은 사전등록 HP_d2_reg_h5.
+    {"id": "HP_d2_reg_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.05, "depth": 2, "n_estimators": 2000},
+     "recipe_extra": {"subsample": 0.6, "colsample_bytree": 0.5, "min_child_weight": 10,
+                      "reg_lambda": 5.0, "lambda_l2": 5.0, "l2_leaf_reg": 5.0},
+     "desc": "depth2·lr0.05 + 강정규화(서브샘플0.6·열샘플0.5·mcw10·L2=5)"},
+    {"id": "HP_d1_lr05_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "depth1(스텀프)·lr0.05 — 과적합 상한 확인"},
+    {"id": "HP_d2_lr08_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.08, "depth": 2, "n_estimators": 2000},
+     "desc": "depth2·lr0.08 — 학습률 상향"},
+    {"id": "HP_d3_reg_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.03, "depth": 3, "n_estimators": 2000},
+     "recipe_extra": {"subsample": 0.6, "colsample_bytree": 0.5, "min_child_weight": 10,
+                      "reg_lambda": 5.0, "lambda_l2": 5.0, "l2_leaf_reg": 5.0},
+     "desc": "depth3·lr0.03 + 강정규화 — depth 축과 정규화 축의 상호작용"},
+    # ── HP3: 앙상블 구성 축 (미검증) ────────────────────────────────────────────
+    # 실측 로그: 3종 소프트보팅에서 catboost val AUC 0.578·가중 0.078 (xgboost 0.79·0.29).
+    # arm 사전등록 = EN_equal_h5: 가중치는 **작은 검증분할**에서 계산된 (val AUC − 0.5) 비례값이라
+    # 그 자체가 노이즈원이다 → 가중을 걷어내는 쪽이 1차 가설. 나머지는 탐색(개선 판정에 쓰지 않음).
+    {"id": "EN_drop_cat_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "ens": {"skip": ["catboost"]},
+     "desc": "catboost 제외(xgb+lgbm, val AUC 가중) — 최약 모델 제거 가설"},
+    {"id": "EN_equal_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "ens": {"equal_weights": True},
+     "desc": "3종 균등가중(val AUC 가중 대신) — 가중이 노이즈인지 확인"},
+    {"id": "EN_d2_equal_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.05, "depth": 2, "n_estimators": 2000},
+     "ens": {"equal_weights": True},
+     "desc": "depth2(최고 HP) + 3종 균등가중 — 두 축 결합"},
+    {"id": "EN_d1_dropcat_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "ens": {"skip": ["catboost"]},
+     "desc": "depth1(현 최고) + catboost 제외 — 두 축 결합"},
+    # ── F3: 프로토콜 민감도(최소 학습창) ────────────────────────────────────────
+    # 5폴드 프로토콜은 fold1 학습행이 1,230행(49종목×약25일)뿐이다. depth 단조 실측은 그 소표본
+    # 과적합의 증상으로 읽힌다 → 폴드 수를 3으로 줄여 최소 학습창을 약 3배로 키운 프로토콜을
+    # **같은 런 안에서** 대조한다. 채택하려면 기준선 재설정(승인 대상)이 필요하다 — 여기서는
+    # '소표본 페널티가 실재하는가'만 측정한다.
+    {"id": "F3_base_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "folds": 3,
+     "desc": "기준 설정을 3폴드(최소 학습창 약 3배)로 측정 — 프로토콜 민감도"},
+    {"id": "F3_d1_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "folds": 3, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "3폴드 + depth1(현 최고 HP) — 표본이 늘면 얕은 트리 이점이 사라지는가"},
 ]
 
 
@@ -132,6 +229,10 @@ def main():
                     help="패널 캐시가 없으면 최대 N분 대기(다른 러너가 빌드 중일 때)")
     ap.add_argument("--only", default=None,
                     help="쉼표 구분 실험 id 만 실행 (예: LS_quant_q30_h5,LS_rel_h3)")
+    ap.add_argument("--out", default="/app/reports/overnight/wf_label_sweep.jsonl",
+                    help="원장(JSONL) 경로 — 스모크/검증 실행은 반드시 다른 파일로 분리하라")
+    ap.add_argument("--summary-out", default="/app/reports/overnight/wf_label_sweep_summary.json",
+                    help="요약 JSON 경로 — ⚠ 기본값을 덮으면 진행 중 사이클의 판정 요약이 오염된다")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -174,8 +275,65 @@ def main():
     import train_curated as tc
     tc.select_curated_features = lambda n, a=False: list(n)
 
-    out_path = "/app/reports/overnight/wf_label_sweep.jsonl"
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    # ── 실험용 추가 정규화 파라미터 주입 (2026-09-26 HP2) ────────────────────────
+    # 공유 트레이너(train_curated.py·overnight_ml_loop.py)는 손대지 않는다. 이 스크립트
+    # 프로세스 안에서만 tc.apply_hyperparams 를 감싸, cfg["recipe_extra"] 의 키를 모델별
+    # params 에 덮어쓴다(키가 없는 모델은 그대로 — xgboost/lightgbm/catboost 의 정규화 키
+    # 이름이 서로 다르므로 각 모델이 아는 것만 적용된다).
+    # 근거: depth 단조 실측(d2 0.5477 > d3 0.5469 > d4 0.5412 > d6 0.5344, 5폴드×3시드) =
+    # 소표본 과적합 신호 → 정규화(서브샘플·열샘플·min_child_weight·L2)를 직접 세게 걸어본다.
+    # 프로덕션 경로에는 전혀 영향이 없다(여기서만 유효).
+    _orig_apply = tc.apply_hyperparams
+    _extra: dict = {}
+
+    def _apply_with_extra(ensemble, lr, depth, n_estimators, seed):
+        _orig_apply(ensemble, lr, depth, n_estimators, seed)
+        if not _extra:
+            return
+        for _m in getattr(ensemble, "models", []):
+            _p = getattr(_m, "params", None)
+            if _p is None:
+                continue
+            for _k, _v in _extra.items():
+                if _k in _p:
+                    _p[_k] = _v
+
+    tc.apply_hyperparams = _apply_with_extra
+
+    # ── 실험용 앙상블 구성 제어 (2026-09-26 HP3 축) ─────────────────────────────
+    # EnsembleModel(내 소유: services/xgboost-ml/app/models/ensemble_model.py)은
+    # xgboost·lightgbm·catboost 3종을 val AUC 가중(weight = max(auc-0.5, 0.01))으로 평균한다.
+    # 이 구성(모델 집합·가중 방식)은 이 스택에서 한 번도 검증된 적이 없다 — 실측 로그에서
+    # catboost 가중이 0.078 로 가장 낮았다(val AUC 0.578 vs xgboost 0.79).
+    # 여기서는 ml(=overnight_ml_loop)의 EnsembleModel 이름만 서브클래스로 바꾼다 →
+    # 공유 모듈·프로덕션 경로는 무변경.
+    _OrigEns = getattr(ml, "EnsembleModel", None)
+    _ens_cfg: dict = {"skip": set(), "equal_weights": False}
+
+    if _OrigEns is not None:
+        class _EnsembledForSweep(_OrigEns):
+            def __init__(self, model_dir="models"):
+                super().__init__(model_dir)
+                _skip = set(_ens_cfg.get("skip") or ())
+                if _skip:
+                    keep = [i for i, n in enumerate(self.model_names) if n not in _skip]
+                    self.models = [self.models[i] for i in keep]
+                    self.model_names = [self.model_names[i] for i in keep]
+
+            def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None):
+                _m = super().train(X_train, y_train, X_val, y_val, feature_names)
+                if _ens_cfg.get("equal_weights"):
+                    self.val_weights = {n: 1.0 for n in self.model_names}
+                return _m
+
+        ml.EnsembleModel = _EnsembledForSweep
+
+    out_path = args.out
+    # dirname 이 빈 문자열(파일명만 준 경우)이면 makedirs("") 가 크래시한다 → 있을 때만 만든다.
+    for _p in (out_path, args.summary_out):
+        _d = os.path.dirname(_p)
+        if _d:
+            os.makedirs(_d, exist_ok=True)
     results = []
 
     cfgs = CONFIGS
@@ -192,23 +350,49 @@ def main():
         rec = {"exp": exp_id, "desc": cfg["desc"], "kind": cfg["kind"],
                "horizon": cfg["horizon"], "q": cfg["q"], "select": cfg["select"],
                "transform": cfg.get("transform"),
+               "pool": cfg.get("pool"),
+               "exclude_market_level": bool(cfg.get("exclude_market_level")),
                "ts": ml.now_iso(), "status": "failed", "folds": {}}
         ml.log(f"=== {exp_id}: {cfg['desc']} ===")
         try:
             y = W.make_labels(df, cfg["kind"], cfg["horizon"], cfg["q"])
             d = df.copy()
             d["_y"] = y
+            # 라벨 참조일(그 종목의 h번째 미래 '행'의 날짜) — purge 를 달력 h일이 아니라
+            # **라벨이 실제로 참조하는 날짜** 기준으로 하기 위해 미리 계산한다.
+            # 근거(실측 2026-09-25): 달력 h일 purge 만으로는 거래 갭이 있는 종목의 학습 행이
+            # 테스트 구간 가격을 라벨로 참조한다(폴드4 8행 · 폴드5 14행 = 학습행의 0.09~0.13%).
+            try:
+                d["_ref"] = df.groupby("stock_code", sort=False)["date"].shift(-cfg["horizon"])
+            except Exception as e:      # 계산 실패 시 기존(달력) purge 로 계속
+                ml.log(f"  {exp_id}: 라벨 참조일 계산 실패({type(e).__name__}: {e}) — 달력 purge 유지")
+                d["_ref"] = None
             d = d[~pd.isna(d["_y"])]
             dd = sorted(d["date"].astype(str).unique())
             n = len(dd)
             step = n // (args.folds + 1)
             fold_means, fold_sizes = [], []
-            for i in range(1, args.folds + 1):
+            n_eff_all = set()
+            # cfg 별 폴드 수 override (2026-09-26 F3): 학습 표본이 폴드당 1,230행뿐이라
+            # depth 를 낮출수록 좋아지는 단조 패턴이 나왔다 → 최소 학습창을 늘린 프로토콜
+            # (3폴드 = fold1 학습 약 3,400행)을 **같은 런 안에서** 5폴드와 대조한다.
+            # ⚠ 프로토콜이 다르면 기록 기준선과 직접 비교하지 말 것(구동기는 arm/cf 쌍으로 판정).
+            n_folds = int(cfg.get("folds") or args.folds)
+            if n_folds != args.folds:
+                step = n // (n_folds + 1)
+            for i in range(1, n_folds + 1):
                 cut = dd[step * i - 1]
                 nxt = dd[min(n - 1, step * (i + 1) - 1)]
                 h = cfg["horizon"]
                 purge = set(dd[max(0, step * i - h):step * i])
                 tr = d[(d["date"] <= cut) & (~d["date"].isin(purge))]
+                n_ref_purged = 0
+                if "_ref" in tr.columns:
+                    _bad = np.greater_equal(np.asarray(tr["_ref"].astype(str).values),
+                                            np.asarray(dd[step * i]))
+                    n_ref_purged = int(_bad.sum())
+                    if n_ref_purged:
+                        tr = tr[np.logical_not(_bad)]
                 te = d[(d["date"] > cut) & (d["date"] <= nxt)]
                 if min(len(tr), len(te)) < 100:
                     ml.log(f"  {exp_id} fold{i}: 표본 부족(tr={len(tr)} te={len(te)}), 건너뜀")
@@ -222,6 +406,14 @@ def main():
                 Xte = np.nan_to_num(
                     transform_matrix(te[base_names], ted, tkind).astype(np.float32), nan=0.0)
                 yte = te["_y"].values.astype(int)
+                # ── 하드 가드: 이름↔열 매핑이 깨지면 **즉시 실패**시킨다.
+                # 왜: 패널 피처명에 중복 라벨이 있으면(=있었다) `df[list]` 가 열을 부풀려
+                # (210→238) 선별 인덱스가 다른 열을 가리키고, 이름 기반 판정이 조용히 무효가 된다
+                # (실측 2026-09-25). 이름 수와 열 수가 다르면 그 실험은 보고할 수 없다.
+                if Xtr.shape[1] != len(base_names) or Xte.shape[1] != len(base_names):
+                    raise RuntimeError(
+                        f"피처 열 수 불일치(Xtr={Xtr.shape[1]}, Xte={Xte.shape[1]}, "
+                        f"names={len(base_names)}) — 패널 중복 라벨로 이름↔열 매핑이 깨졌다")
                 cols = np.std(Xtr, axis=0) > 0
                 # ── 피처 풀 필터 (종목-상수 vs 시간가변) ─────────────────────────
                 # 실측: top30 을 지배하는 피처(net_income, op_margin, roa, debt_ratio…)가
@@ -233,31 +425,131 @@ def main():
                     is_const = (nun.max(axis=0).values <= 1)
                     pool_mask = is_const if pool == "const" else ~is_const
                     cols = cols & pool_mask
+                # ── 시장레벨 제외 (계약 #6): **그 폴드의 학습 구간에서만** 판정한다.
+                # 시장레벨 = 관측 2개 이상인 날짜에서 종목간 유니크값이 1인 비율 ≥ 0.9.
+                # 결측 지배 컬럼을 '시장레벨'로 오분류하지 않도록 그런 날짜만 분모로 센다.
+                n_mkt_excluded = 0
+                mkt_excluded_names = []
+                if cfg.get("exclude_market_level"):
+                    # ⚠ 패널에는 **중복 컬럼명**이 있다(실측: 210개 중 14개 중복 —
+                    # cross_trend·price_volume·target_ma_5 … ). 중복 라벨이 있는 DataFrame 에
+                    # `&` 같은 pandas 연산을 걸면 **라벨 정렬**이 일어나 결과가 라벨 정렬 순서로
+                    # 나오고, 그 `.values` 를 위치 기반 배열(cols/base_names)과 AND 하면
+                    # 엉뚱한 컬럼이 제외된다(실측 2026-09-25: op_margin·price_volume·
+                    # rank_volatility_20d 가 제외되고 정작 시장레벨인 program_trading_ratio 는 남았다)
+                    # → 위치 기반(numpy)으로만 계산하고, 합성 유니크 이름으로 프레임을 만든다.
+                    try:
+                        _mat = tr[base_names].values.astype(float)
+                        _tmp = pd.DataFrame(
+                            _mat, columns=[f"_f{j}" for j in range(_mat.shape[1])])
+                        _tmp["_d"] = trd
+                        _g = _tmp.groupby("_d")
+                        _nun = _g.nunique(dropna=True)
+                        _cnt = _g.count()
+                        _nun = _nun.drop(columns=["_d"], errors="ignore").values
+                        _cnt = _cnt.drop(columns=["_d"], errors="ignore").values
+                        _judged = _cnt >= 2
+                        _den = _judged.sum(axis=0)
+                        _rate = np.divide(
+                            np.logical_and(_nun <= 1, _judged).sum(axis=0).astype(float),
+                            _den.astype(float),
+                            out=np.zeros(_cnt.shape[1], dtype=float),
+                            where=_den > 0)
+                        is_mkt = _rate >= 0.9
+                    except Exception as e:      # 판정 실패 시 제외하지 않는다(측정은 계속)
+                        ml.log(f"  {exp_id} fold{i}: 시장레벨 판정 실패({type(e).__name__}: {e}) — 제외 없음")
+                        is_mkt = np.zeros(len(base_names), dtype=bool)
+                    n_mkt_excluded = int((cols & is_mkt).sum())
+                    mkt_excluded_names = [f for f, m in zip(base_names, cols & is_mkt) if m]
+                    cols = cols & ~is_mkt
+                # ── core48 게이트 정합: 선별을 **실제 모델 입력 후보 안에서** 수행 ──────
+                # train_seed 가 내부에서 CORE_FEATURES ∩ 선별 로 다시 거르므로(실측:
+                # 선별 30개 → 실효 22개), 게이트를 먼저 적용해야 '선별 = 실효' 가 된다.
+                if cfg.get("core_only"):
+                    core_set = {str(f) for f in getattr(W.tc, "CORE_FEATURES", []) or []}
+                    if not core_set:
+                        raise RuntimeError("core_only 요청인데 CORE_FEATURES 를 읽지 못했다")
+                    cols = cols & np.array([f in core_set for f in base_names], dtype=bool)
                 fn = [f for f, m in zip(base_names, cols) if m]
                 Xtr, Xte = Xtr[:, cols], Xte[:, cols]
                 idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr)
                 sel = [fn[j] for j in idx]
+                recipe = cfg.get("recipe") or W.BASE["recipe"]
+                _extra.clear()
+                _extra.update(cfg.get("recipe_extra") or {})
+                _ens_cfg["skip"] = set((cfg.get("ens") or {}).get("skip") or ())
+                _ens_cfg["equal_weights"] = bool((cfg.get("ens") or {}).get("equal_weights"))
                 aucs = []
+                probs = []
+                n_eff_seen = set()
                 for seed in range(args.seeds):
                     a, _m, _c, _e = ml.train_seed(
                         Xtr[:, idx], None, Xte[:, idx], ytr, None, yte, sel,
                         f"/app/app/models/wf/labelsweep_{exp_id}", seed,
-                        W.BASE["recipe"]["lr"], W.BASE["recipe"]["depth"],
-                        W.BASE["recipe"]["n_estimators"], True, None)
+                        recipe["lr"], recipe["depth"],
+                        recipe["n_estimators"], True, None)
                     aucs.append(float(a))
+                    # 실효 피처 수 = train_seed 내부 curated 게이트를 통과한 개수.
+                    # 선별 수와 다르면 그 실험은 '게이트 키홀'을 통해 측정된 것이다.
+                    n_eff_seen.add(len(_c) if _c is not None else -1)
+                    n_eff_all |= n_eff_seen
+                    try:
+                        _p = np.asarray(_e.predict(Xte[:, idx]), dtype=float)
+                        probs.append(_p[:, -1] if _p.ndim > 1 else _p)
+                    except Exception:
+                        pass
+                # ── 정직 지표: pooled AUC(현재 판정값) 옆에 **날짜별 횡단면 AUC 평균**을 함께 남긴다.
+                # 라벨이 날짜내 분위(횡단면 상대)인데 판정은 날짜를 섞은 pooled AUC 라,
+                # 날짜 상수(시장레벨) 피처는 날짜별 점수를 통째로 밀어 pooled 만 부풀릴 수 있다.
+                # 두 값이 크게 벌어지면 "개선"은 종목간 실력이 아니라 날짜 구성의 산물이다.
+                ens_pooled_auc = None
+                daily_auc_mean = None
+                n_dates_scored = 0
+                if probs:
+                    from sklearn.metrics import roc_auc_score
+                    ens_p = np.mean(np.vstack(probs), axis=0)
+                    try:
+                        ens_pooled_auc = float(roc_auc_score(yte, ens_p))
+                    except Exception:
+                        pass
+                    try:
+                        _df = pd.DataFrame({"d": np.asarray(ted), "y": yte, "p": ens_p})
+                        _da = [float(roc_auc_score(g["y"].values, g["p"].values))
+                               for _d, g in _df.groupby("d") if g["y"].nunique() > 1]
+                        if _da:
+                            daily_auc_mean = float(np.mean(_da))
+                            n_dates_scored = len(_da)
+                    except Exception as e:
+                        ml.log(f"  {exp_id} fold{i}: 날짜별 AUC 계산 실패({type(e).__name__}: {e})")
                 fold_means.append(float(np.mean(aucs)))
                 fold_sizes.append((len(tr), len(te)))
                 rec["folds"][f"fold{i}"] = {"train_rows": len(tr), "test_rows": len(te),
                                             "test_from": dd[step * i], "test_to": nxt,
                                             "mean": float(np.mean(aucs)),
-                                            "n_features": len(sel)}
+                                            "n_features": len(sel),
+                                            "n_effective_features": sorted(n_eff_seen),
+                                            "sel_desc": sel_desc,
+                                            "n_market_level_excluded": n_mkt_excluded,
+                            "n_label_ref_purged": n_ref_purged,
+                                            "market_level_excluded_names": mkt_excluded_names,
+                                            "ens_pooled_auc": ens_pooled_auc,
+                                            "daily_auc_mean": daily_auc_mean,
+                                            "n_test_dates_scored": n_dates_scored,
+                                            "selected_features": sel}
             if fold_means:
                 rec["status"] = "ok"
                 rec["auc_mean"] = float(np.mean(fold_means))
                 rec["auc_std"] = float(np.std(fold_means))
                 rec["n_rows_used"] = int(len(d))
+                rec["n_effective_features"] = sorted(n_eff_all)
+                _dm = [v["daily_auc_mean"] for v in rec["folds"].values()
+                       if v.get("daily_auc_mean") is not None]
+                rec["daily_auc_mean"] = float(np.mean(_dm)) if _dm else None
                 ml.log(f"  → {exp_id} AUC mean={rec['auc_mean']:.4f} "
-                       f"std={rec['auc_std']:.4f} folds={len(fold_means)} rows={len(d)}")
+                       f"std={rec['auc_std']:.4f} folds={len(fold_means)} rows={len(d)} "
+                       f"| 실효피처={sorted(n_eff_all) if n_eff_all else '?'} "
+                       f"| pooled AUC 평균={rec['auc_mean']:.4f} · 날짜별 AUC 평균="
+                       f"{rec['daily_auc_mean'] if rec['daily_auc_mean'] is None else round(rec['daily_auc_mean'], 4)}")
         except Exception as e:  # noqa: BLE001
             rec["error"] = f"{type(e).__name__}: {e}"
             ml.log(f"  !! {exp_id} 실패: {rec['error']}")
@@ -272,7 +564,7 @@ def main():
         print(f"  {r['exp']:18s} AUC {r['auc_mean']:.4f} ± {r['auc_std']:.4f} "
               f"| {r['desc']}")
     if ok:
-        with open("/app/reports/overnight/wf_label_sweep_summary.json", "w") as f:
+        with open(args.summary_out, "w") as f:
             json.dump({"finished_at": ml.now_iso(), "config": vars(args),
                        "best": ok[0], "results": results}, f,
                       ensure_ascii=False, indent=2)

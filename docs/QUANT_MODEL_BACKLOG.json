@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-26T03:14:07+09:00",
+  "updated_at": "2026-09-26T05:36:19+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -256,7 +256,13 @@
         "rc": 0
       },
       "est_minutes": 700,
-      "resumable": true
+      "resumable": true,
+      "result_corrected": {
+        "ts": "2026-09-26T04:20:00+09:00",
+        "honest": "150종목 0.5140±0.0201(폴드승률 0.8, min 0.4824 max 0.5402) vs 기록 기준선 0.5406(49종목) → Δ−0.0266",
+        "why": "구동기 판정 버그: counterfactual 문자열 첫 토큰이 arm 과 같아(둘 다 LS_quant_q30_h5) 같은 런 안 자기대조가 되어 Δ+0.0000 '노이즈' 로 기록됐다. judge_per() 로 수정·검증(scripts/_judge_per_test.py ALL PASS).",
+        "note": "타 패널(다른 데이터 스냅샷) 대조라 증거 강도는 약하지만, 방향은 악화이며 150종목은 채택 근거가 없다."
+      }
     },
     {
       "id": "F1",
@@ -313,7 +319,7 @@
       "success": "U1 기준선 대비 +0.02 이상",
       "expected": "미지",
       "cost": "약 14시간 (0.53초/행)",
-      "note": "U1 통과 후 착수. 장시간 빌드라 재시작 위험을 감수할지 판단 필요. | 2026-09-25: 우선순위 6 으로 내림 — U1(150종목)이 신호를 내지 못하면 500종목(14시간)은 같은 축의 반복이라 의미가 약하다. 먼저 데이터·피처 축(L3~)을 소진한다."
+      "note": "U1 통과 후 착수. 장시간 빌드라 재시작 위험을 감수할지 판단 필요. | 2026-09-25: 우선순위 6 으로 내림 — U1(150종목)이 신호를 내지 못하면 500종목(14시간)은 같은 축의 반복이라 의미가 약하다. 먼저 데이터·피처 축(L3~)을 소진한다. | 2026-09-26: U1(150종목, 5h44m)이 Δ−0.0266 로 무개선 → 표본 확대 축 종료. 500종목(약 14h)은 같은 축 반복이라 우선순위 최하 유지."
     },
     {
       "id": "XR2",
@@ -357,7 +363,7 @@
     {
       "id": "U1B",
       "title": "150종목 패널에서 라벨 분위 0.25 vs 0.30 (동일 런 내 대조)",
-      "status": "pending",
+      "status": "backlog",
       "priority": 4,
       "arm": "LS_quant_q25_h5",
       "counterfactual": "LS_quant_q30_h5",
@@ -369,7 +375,7 @@
       "expected": "미지 (49종목에서는 Δ-0.0061)",
       "cost": "패널 캐시 재사용 시 약 5~8분(2 config×5폴드×5시드). panel_150u.npz 가 없으면 150종목 패널 재빌드로 최대 6~10시간",
       "depends_on": "U1(panel_150u.npz 생성) — U1 이 rc!=0 이면 이 항목이 패널을 다시 빌드한다",
-      "note": "U1 이 유니버스 신호를 내면 새 기준선을 이 런의 q30 값으로 갱신해야 한다(기록 기준선 0.5406 은 49종목 값)."
+      "note": "U1 이 유니버스 신호를 내면 새 기준선을 이 런의 q30 값으로 갱신해야 한다(기록 기준선 0.5406 은 49종목 값). | 2026-09-26 보류: U1 실측 150종목 0.5140 vs 49종목 0.5406 = Δ−0.0266(악화). 150종목 패널이 더 낫지 않으므로 그 패널의 분위 재실험은 무의미. 재개 조건: RB1 재기준선(정렬 수정 후)에서 유니버스 신호가 다시 보일 때."
     },
     {
       "id": "L3",
@@ -405,7 +411,7 @@
     {
       "id": "L4",
       "title": "팩터 전략(가치·퀄리티·모멘텀·저변동·멀티팩터) vs ML 챔피언 비교 평가",
-      "status": "pending",
+      "status": "needs_setup",
       "priority": 3,
       "affects_model": true,
       "hypothesis": "고전 팩터 프리미엄은 문서화된 효과다. 로버스트 AUC 0.5406(≈동전)인 ML 모델보다 동일 기간·동일 유니버스에서 팩터 랭킹이 **위험조정 성과가 나을 수 있다** — 그렇다면 최종 목표(순손익)에 더 직접적인 경로다.",
@@ -417,10 +423,17 @@
         "op": ">=",
         "value": 1
       },
-      "setup_needed": [],
+      "setup_needed": [
+        "scripts/factor_vs_ml.py 작성 — 부활 피처(supply_market/financial_ratio/macro)로 가치·퀄리티·모멘텀·저변동·멀티팩터 분위를 만들고, 동일 유니버스·기간에서 forward return IC·분위 스프레드를 ML 챔피언과 비교해 reports/factor_vs_ml_<stamp>.json 으로 저장(rcept_dt as-of 준수).",
+        "command 를 그 스크립트로 교체(현재 command 는 ls 만이라 아무 산출물도 만들지 않는다)."
+      ],
       "cost": "2~4시간 (부하 풀린 뒤)",
       "success": "팩터 vs ML 비교 산출물(IC·분위 스프레드) 생성 + 어느 쪽을 피드로 쓸지 결론",
-      "source_branch": "feat/quant-book-strategies (이미 병합됨)"
+      "source_branch": "feat/quant-book-strategies (이미 병합됨)",
+      "metric": "wf_sweep_summary",
+      "arm": "FACTOR_multi_h5",
+      "counterfactual": "LS_quant_q30_h5",
+      "note": "| 2026-09-26: metric 키 부재 + command 가 ls 뿐이라 그대로 pending 이면 사이클이 '판정불가' 로 끝난다(구동기 KeyError 위험도 함께 수정). needs_setup 으로 내렸다."
     },
     {
       "id": "XR9",
@@ -467,7 +480,7 @@
     {
       "id": "RB1",
       "title": "정렬 버그 수정 후 재기준선 + 피처풀(시간가변/종목상수/시장레벨) 비교",
-      "status": "pending",
+      "status": "done",
       "priority": 0,
       "hypothesis": "패널 중복 피처명 정렬 버그로 이전 기준선(0.5406)의 '피처 귀속'이 무효다. 정렬을 고치면 ① 재기준선이 달라지고 ② 종목상수(top30 의 37~53%)를 뺀 시간가변 풀이 실제로 더 나은가를 정직하게 판정할 수 있다.",
       "evidence": "실측 2026-09-25: df[base_names].shape=(13609,238) vs X=(13609,210), 210개 위치 중 192개가 어긋남(예: pos16 label=cycle_down 인데 값은 X열15 cross_trend). 중복 라벨 14개. 수정 후 스모크(folds=2,seeds=1)에서 이름 price_volume__dup1 생성·가드 통과·제외군이 정답군으로 교체됨. 수정 후 5폴드 판정: top30 중 시장레벨 0개(gate #4 pass), 종목상수 11~16개(gate #2 주의).",
@@ -476,11 +489,96 @@
       "success": "PO_timevary_h5(종목상수 제외) 폴드 평균이 재기준선 LS_quant_q30_h5 대비 +0.02 이상이면 종목상수 제거가 레버. 미달이면 '종목상수 없이는 못 버틴다'를 수치로 확정하고 새 레버 승인 요청으로 올린다.",
       "expected": "재기준선은 0.53~0.55 사이에서 이동(정렬 수정 영향), PO_timevary 는 기존 측정(−0.028)보다 개선될 가능성",
       "cost": "약 10~25분(4개 실험×5폴드×3시드)",
-      "est_minutes": 30,
+      "est_minutes": 75,
       "counterfactual": "LS_quant_q30_h5 (정렬 수정 후 재측정값 — 이전 0.5406 과 직접 비교 금지)",
-      "note": "U1(150종목, 21:29 시작)은 정렬 수정 이전 코드로 돌고 있다 → 유니버스 효과 비교는 유효, 피처 귀속은 무효. RB1 완료 후 필요하면 U1B 의 재측정을 새 기준선으로 다시 판정한다.",
-      "attempts": [],
-      "result": null
+      "note": "U1(150종목, 21:29 시작)은 정렬 수정 이전 코드로 돌고 있다 → 유니버스 효과 비교는 유효, 피처 귀속은 무효. RB1 완료 후 필요하면 U1B 의 재측정을 새 기준선으로 다시 판정한다. | 2026-09-26: arm=PO_timevary_h5 를 명시(미지정이면 '대조군 제외 최고' 로 판정돼 사전등록 가설과 어긋난다). 첫 3분간 모델 8회 학습 = 약 2.7회/분 → 4 config×5폴드×3시드×3알고(180회) ≈ 65~75분이라 est_minutes 를 30→75 로 올렸다.",
+      "attempts": [
+        {
+          "ts": "2026-09-26T04:14:57+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 PO_timevary_h5 0.5298 vs 대조군 LS_quant_q30_h5 0.5412 → Δ-0.0114 (최고: LS_quant_q30_h5 0.5412)",
+          "log": "data/reports/me_cycle/logs/me_cycle_RB1_20260926-040858.log",
+          "elapsed_min": 6.0
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 PO_timevary_h5 0.5298 vs 대조군 LS_quant_q30_h5 0.5412 → Δ-0.0114 (최고: LS_quant_q30_h5 0.5412)",
+        "delta": -0.0114,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5251,
+              0.5189,
+              0.5564,
+              0.5981,
+              0.5075
+            ],
+            "mean": 0.5412,
+            "std": 0.0327,
+            "min": 0.5075,
+            "max": 0.5981,
+            "fold_win_rate": 1.0
+          },
+          "PO_timevary_h5": {
+            "desc": "시간가변 피처만 — 종목-상수(최신 스냅샷) 제외",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4676,
+              0.5135,
+              0.5293,
+              0.6013,
+              0.5372
+            ],
+            "mean": 0.5298,
+            "std": 0.0432,
+            "min": 0.4676,
+            "max": 0.6013,
+            "fold_win_rate": 0.8
+          },
+          "PO_const_h5": {
+            "desc": "종목-상수 피처만 — 룩어헤드 의심군 단독 성능",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5126,
+              0.527,
+              0.5472,
+              0.5762,
+              0.5044
+            ],
+            "mean": 0.5335,
+            "std": 0.0258,
+            "min": 0.5044,
+            "max": 0.5762,
+            "fold_win_rate": 1.0
+          },
+          "MK_nomkt_h5": {
+            "desc": "분위0.3 h5 top30 + 시장레벨(날짜내 종목간 동일값) 피처 제외",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5251,
+              0.5189,
+              0.5564,
+              0.5981,
+              0.5075
+            ],
+            "mean": 0.5412,
+            "std": 0.0327,
+            "min": 0.5075,
+            "max": 0.5981,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      },
+      "arm": "PO_timevary_h5"
     },
     {
       "id": "RB2",
@@ -517,6 +615,503 @@
       "expected": "미지",
       "cost": "30분",
       "note": "리서처 자체 수정으로 종결(엔지니어 작업 없음, 2026-09-26). 수정: scripts/data_gap.py expected_dates() range(1,..) → range(0,..) (당일 포함, 공실로는 세지 않음). 검증: base.market_hours() 가 휴장일 2026-09-24 10:00 / 09-25 14:00 에 False, 정상 거래일 09-23·09-28 10:00 에 True. 핸드오프 근거란의 'R7 결과: 0 >= 1 → 미달' 은 주말 아티팩트였고 check 를 교체했다."
+    },
+    {
+      "id": "HP1",
+      "title": "하이퍼파라미터 축 스윕(depth·lr) + curated 게이트 대조 (6 config 동일 런)",
+      "status": "done",
+      "priority": 1,
+      "arm": "HP_d2_lr05_h5",
+      "counterfactual": "LS_quant_q30_h5",
+      "hypothesis": "모델 레시피(depth=4·lr=0.03·1500트리)는 이 스택에서 한 번도 스윕된 적 없다. 폴드당 학습행이 1,230행뿐인 소표본이므로 얕은 트리·큰 학습률이 과적합을 줄여 AUC 를 올리는가? 부수 질문: 프로덕션 트레이너의 CORE_FEATURES(48) 게이트를 켜면(CO_*) 게이트 없는 풀(기준선)보다 나은가?",
+      "evidence": "스모크(folds=2·seeds=1, 판정 불가): HP_d2_lr05 0.5554 vs 기준 0.5425 (+0.0129) · CO_core30 0.5216 · CO_core_all 0.5119 → 게이트를 켜면 0.02~0.03 악화. 계측 추가: wf_label_sweep 은 tc.select_curated_features 를 항등함수로 몽키패치해 게이트가 꺼져 있고(실효피처=선별 수 [30]·[48]), 실제 탈락 규모는 이름 기준 약 60%다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 3 --only LS_quant_q30_h5,HP_d2_lr05_h5,HP_d3_lr03_h5,HP_d6_lr02_h5,CO_core30_h5,CO_core_all_h5'",
+      "metric": "wf_sweep_summary",
+      "success": "arm(HP_d2_lr05_h5) 폴드 평균이 대조군(LS_quant_q30_h5) 대비 +0.02 이상",
+      "expected": "미지 — 스모크에서 +0.0129 방향, 폴드 std ±0.03 이라 5폴드로 확인 필요",
+      "cost": "약 10~15분 (6 config × 5폴드 × 3시드 = 90 학습. RB1 실측 60학습=6.0분)",
+      "est_minutes": 30,
+      "risk": "하이퍼파라미터를 여러 개 한 런에 넣으면 다중비교 위험이 있다 → arm 을 사전 등록(HP_d2_lr05_h5)했고, 나머지 HP_* 는 탐색으로만 보고하며 '개선' 판정에 쓰지 않는다. n_estimators 는 lightgbm 에만 적용된다(xgboost 800·catboost 300 고정).",
+      "note": "CO_* 는 게이트 대조군이다: 프로덕션 챔피언 경로는 48피처 게이트를 쓰므로, 게이트가 -0.02~-0.03 이면 '게이트 완화'가 승인 대상 후보다(승격 아님·별도 판단). | RB1 정정: RB1 의 'top30 중 종목상수 11~16개' 관찰은 게이트를 끈 풀 기준이며, 실효피처 계측(n_effective_features)을 요약 JSON 에 추가했다. | 2026-09-26 판정: 노이즈. 폴드평균 d2·lr0.05 0.5477±0.0473 · d3·lr0.03 0.5469±0.0429 · d4(기준) 0.5412±0.0327 · d6·lr0.02 0.5344±0.0271 → depth 4수준 **단조 감소**(얕을수록 좋음)이나 최대 Δ+0.0065 로 문턱 미달. curated 게이트 대조: CO_core30 0.5355 · CO_core_all 0.5263 vs 무게이트 0.5412 → 프로덕션 48피처 게이트를 켜면 −0.015(5폴드 실측).",
+      "attempts": [
+        {
+          "ts": "2026-09-26T05:14:19+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 HP_d2_lr05_h5 0.5477 vs 대조군 LS_quant_q30_h5 0.5412 → Δ+0.0065 (최고: HP_d2_lr05_h5 0.5477)",
+          "log": "data/reports/me_cycle/logs/me_cycle_HP1_20260926-050546.log",
+          "elapsed_min": 8.6
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 HP_d2_lr05_h5 0.5477 vs 대조군 LS_quant_q30_h5 0.5412 → Δ+0.0065 (최고: HP_d2_lr05_h5 0.5477)",
+        "delta": 0.0065,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5251,
+              0.5189,
+              0.5564,
+              0.5981,
+              0.5075
+            ],
+            "mean": 0.5412,
+            "std": 0.0327,
+            "min": 0.5075,
+            "max": 0.5981,
+            "fold_win_rate": 1.0
+          },
+          "CO_core30_h5": {
+            "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5279,
+              0.506,
+              0.5496,
+              0.5503,
+              0.5436
+            ],
+            "mean": 0.5355,
+            "std": 0.0168,
+            "min": 0.506,
+            "max": 0.5503,
+            "fold_win_rate": 1.0
+          },
+          "CO_core_all_h5": {
+            "desc": "core48 전체(선별 없음) — 게이트 적용 시 프로덕션 피처셋과 동일 규모",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5065,
+              0.5076,
+              0.555,
+              0.5047,
+              0.5578
+            ],
+            "mean": 0.5263,
+            "std": 0.0246,
+            "min": 0.5047,
+            "max": 0.5578,
+            "fold_win_rate": 1.0
+          },
+          "HP_d2_lr05_h5": {
+            "desc": "얕은 트리(depth2)·lr0.05 — 소표본 과적합 억제 가설",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.516,
+              0.5211,
+              0.5429,
+              0.6403,
+              0.5182
+            ],
+            "mean": 0.5477,
+            "std": 0.0473,
+            "min": 0.516,
+            "max": 0.6403,
+            "fold_win_rate": 1.0
+          },
+          "HP_d3_lr03_h5": {
+            "desc": "depth3·lr0.03 (WF5 계열 레시피를 h5·동일 프로토콜로)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5209,
+              0.5204,
+              0.5524,
+              0.6282,
+              0.5125
+            ],
+            "mean": 0.5469,
+            "std": 0.0429,
+            "min": 0.5125,
+            "max": 0.6282,
+            "fold_win_rate": 1.0
+          },
+          "HP_d6_lr02_h5": {
+            "desc": "깊은 트리(depth6)·lr0.02 — 상호작용 포착 가설",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5168,
+              0.5168,
+              0.5612,
+              0.5725,
+              0.5045
+            ],
+            "mean": 0.5344,
+            "std": 0.0271,
+            "min": 0.5045,
+            "max": 0.5725,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "HP2",
+      "title": "depth·정규화 후속: d1·lr0.08·강정규화(subsample/colsample/mcw/L2) — 5폴드×5시드",
+      "status": "done",
+      "priority": 1,
+      "arm": "HP_d2_reg_h5",
+      "counterfactual": "LS_quant_q30_h5",
+      "hypothesis": "폴드당 학습행이 1,230행뿐인 소표본에서 depth 를 낮추고 정규화를 직접 세게 걸면 (서브샘플 0.6·열샘플 0.5·min_child_weight 10·L2 5) 폴드 평균이 기준선 대비 +0.02 이상 오르는가? HP1 에서 depth 축은 단조(d2 0.5477 > d3 0.5469 > d4 0.5412 > d6 0.5344)로 방향은 맞았으나 폭이 +0.0065 였다 — 정규화를 더하면 폭이 커지는가?",
+      "evidence": "HP1 실측(5폴드×3시드, 8.6분): d2·lr0.05 0.5477±0.0473 · d3·lr0.03 0.5469±0.0429 · d4(기준) 0.5412±0.0327 · d6·lr0.02 0.5344±0.0271 → 4수준 단조. 스모크(folds=2·seeds=1): HP_d2_reg 0.5573 vs 기준 0.5425. 데이터 축 실측: stock_prices 이력이 2025-06-16~2026-09-23 뿐이라(3,934종목·1,078,479행) 패널 --days 를 늘려도 행이 늘지 않는다 → '표본 확대' 레버는 현재 데이터로는 불가.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,HP_d2_lr05_h5,HP_d2_reg_h5,HP_d1_lr05_h5,HP_d2_lr08_h5,HP_d3_reg_h5'",
+      "metric": "wf_sweep_summary",
+      "success": "arm(HP_d2_reg_h5) 폴드 평균이 대조군(LS_quant_q30_h5, 같은 런·같은 시드) 대비 +0.02 이상",
+      "expected": "스모크 방향이면 +0.015 내외 — 문턱 미달이면 depth·정규화 축도 닫고 새 레버 승인으로 올린다",
+      "cost": "약 16분 (6 config × 5폴드 × 5시드 = 150 학습)",
+      "est_minutes": 45,
+      "risk": "시드를 3→5 로 올렸으므로 기록 기준선(0.5412, seeds=3)과 직접 비교하지 말고 **같은 런의 대조군**과만 비교한다(구동기 judge_per 가 arm/counterfactual 로 처리). recipe_extra 는 wf_label_sweep 프로세스 안에서만 tc.apply_hyperparams 를 감싸 주입한다 — 공유 트레이너·프로덕션 경로는 무변경.",
+      "note": "정규화 키 이름이 모델마다 달라(subsample·colsample_bytree 는 xgb/lgbm, min_child_weight·reg_lambda 는 xgb, lambda_l2 는 lgbm, l2_leaf_reg 는 catboost) 각 모델이 아는 키만 적용된다 — 적용 여부는 스모크에서 params 로 확인했다. | 2026-09-26 판정: 노이즈(Δ+0.0077). 5폴드×5시드 — d1 0.5500±0.0515 · d2+강정규화 0.5491±0.0505 · d2 0.5470±0.0450 · d3+강정규화 0.5467±0.0387 · d2·lr0.08 0.5460±0.0439 vs 대조군 0.5414±0.0308. 모든 HP 변형이 기준선보다 +0.005~+0.009 높지만 문턱 +0.02 미달 → 축 닫음(방향만 기록).",
+      "attempts": [
+        {
+          "ts": "2026-09-26T05:22:53+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 HP_d2_reg_h5 0.5491 vs 대조군 LS_quant_q30_h5 0.5414 → Δ+0.0077 (최고: HP_d1_lr05_h5 0.5500)",
+          "log": "data/reports/me_cycle/logs/me_cycle_HP2_20260926-051832.log",
+          "elapsed_min": 4.4
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 HP_d2_reg_h5 0.5491 vs 대조군 LS_quant_q30_h5 0.5414 → Δ+0.0077 (최고: HP_d1_lr05_h5 0.5500)",
+        "delta": 0.0077,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5233,
+              0.5201,
+              0.5606,
+              0.5926,
+              0.5103
+            ],
+            "mean": 0.5414,
+            "std": 0.0308,
+            "min": 0.5103,
+            "max": 0.5926,
+            "fold_win_rate": 1.0
+          },
+          "HP_d2_lr05_h5": {
+            "desc": "얕은 트리(depth2)·lr0.05 — 소표본 과적합 억제 가설",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5158,
+              0.5214,
+              0.5444,
+              0.6347,
+              0.5186
+            ],
+            "mean": 0.547,
+            "std": 0.045,
+            "min": 0.5158,
+            "max": 0.6347,
+            "fold_win_rate": 1.0
+          },
+          "HP_d2_reg_h5": {
+            "desc": "depth2·lr0.05 + 강정규화(서브샘플0.6·열샘플0.5·mcw10·L2=5)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5131,
+              0.5236,
+              0.5457,
+              0.6476,
+              0.5155
+            ],
+            "mean": 0.5491,
+            "std": 0.0505,
+            "min": 0.5131,
+            "max": 0.6476,
+            "fold_win_rate": 1.0
+          },
+          "HP_d1_lr05_h5": {
+            "desc": "depth1(스텀프)·lr0.05 — 과적합 상한 확인",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5101,
+              0.5277,
+              0.5429,
+              0.6508,
+              0.5185
+            ],
+            "mean": 0.55,
+            "std": 0.0515,
+            "min": 0.5101,
+            "max": 0.6508,
+            "fold_win_rate": 1.0
+          },
+          "HP_d2_lr08_h5": {
+            "desc": "depth2·lr0.08 — 학습률 상향",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5163,
+              0.5191,
+              0.5447,
+              0.6313,
+              0.5187
+            ],
+            "mean": 0.546,
+            "std": 0.0439,
+            "min": 0.5163,
+            "max": 0.6313,
+            "fold_win_rate": 1.0
+          },
+          "HP_d3_reg_h5": {
+            "desc": "depth3·lr0.03 + 강정규화 — depth 축과 정규화 축의 상호작용",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.514,
+              0.529,
+              0.5591,
+              0.6168,
+              0.5147
+            ],
+            "mean": 0.5467,
+            "std": 0.0387,
+            "min": 0.514,
+            "max": 0.6168,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "HP3",
+      "title": "앙상블 구성 축: 가중 방식(균등 vs val-AUC 가중) · 모델 집합(catboost 제외)",
+      "status": "done",
+      "priority": 1,
+      "arm": "EN_equal_h5",
+      "counterfactual": "LS_quant_q30_h5",
+      "hypothesis": "3종 소프트보팅의 가중치는 작은 검증분할에서 계산된 (val AUC − 0.5) 비례값이라 그 자체가 노이즈원이다(실측 로그: catboost 0.078 · lightgbm 0.057 · xgboost 0.29). 가중을 걷어내고 균등평균하면 폴드 평균이 +0.02 이상 오르는가? 부수: 최약 모델(catboost) 제거, 그리고 HP2 최고 설정(depth1·depth2)과의 결합.",
+      "evidence": "HP1·HP2 실측: depth 를 낮추면 +0.005~+0.009 재현(문턱 미달) → 단일모델 쪽엔 남은 폭이 작다. 앙상블 구성(모델 집합·가중)은 이 스택에서 **한 번도 검증된 적 없다**. 스모크(folds=2·seeds=1, 판정 불가): EN_equal 0.5436 · EN_drop_cat 0.5395 vs 기준 0.5425. 구현 검증: EN_drop_cat 에서 'Training catboost' 0회·xgboost 4회(2폴드×2시드) 확인.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,HP_d1_lr05_h5,EN_equal_h5,EN_drop_cat_h5,EN_d2_equal_h5,EN_d1_dropcat_h5'",
+      "metric": "wf_sweep_summary",
+      "success": "arm(EN_equal_h5) 폴드 평균이 대조군(LS_quant_q30_h5, 같은 런) 대비 +0.02 이상",
+      "expected": "스모크 방향은 +0.001 수준 — 낮은 기대. 실패하면 '모델·앙상블 축 종료'로 기록",
+      "cost": "약 18분 (6 config × 5폴드 × 5시드 = 150 학습)",
+      "est_minutes": 50,
+      "risk": "앙상블 조작은 wf_label_sweep 프로세스 안에서만 ml.EnsembleModel 을 서브클래스로 바꿔 적용한다(공유 모듈·프로덕션 경로 무변경). 다중비교 방지를 위해 arm 만 사전등록, 나머지 EN_* 는 탐색으로만 보고한다.",
+      "note": "이 축이 실패하면 남은 후보는 ① 프로덕션 게이트 완화(CO_* 실측 −0.015, 내 소유 아님 → 승인 필요) ② 판정 지표를 pooled → 날짜별 횡단면 AUC 로 전환(기준선 재설정 필요) ③ 리서처 백필(주가 이력이 2025-06-16 부터라 행 수 확대 불가 — DB 실측). | 2026-09-26 판정: 노이즈(Δ+0.0004). 5폴드×5시드 — EN_equal 0.5418±0.0323 · EN_drop_cat 0.5379±0.0274(악화: catboost 제거는 해롭다) · EN_d2_equal 0.5475 · EN_d1_dropcat 0.5499(HP 축 효과만 재현) → 앙상블 구성 축 닫음.",
+      "attempts": [
+        {
+          "ts": "2026-09-26T05:32:19+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 EN_equal_h5 0.5418 vs 대조군 LS_quant_q30_h5 0.5414 → Δ+0.0004 (최고: HP_d1_lr05_h5 0.5500)",
+          "log": "data/reports/me_cycle/logs/me_cycle_HP3_20260926-052730.log",
+          "elapsed_min": 4.8
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 EN_equal_h5 0.5418 vs 대조군 LS_quant_q30_h5 0.5414 → Δ+0.0004 (최고: HP_d1_lr05_h5 0.5500)",
+        "delta": 0.0004,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5233,
+              0.5201,
+              0.5606,
+              0.5926,
+              0.5103
+            ],
+            "mean": 0.5414,
+            "std": 0.0308,
+            "min": 0.5103,
+            "max": 0.5926,
+            "fold_win_rate": 1.0
+          },
+          "HP_d1_lr05_h5": {
+            "desc": "depth1(스텀프)·lr0.05 — 과적합 상한 확인",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5101,
+              0.5277,
+              0.5429,
+              0.6508,
+              0.5185
+            ],
+            "mean": 0.55,
+            "std": 0.0515,
+            "min": 0.5101,
+            "max": 0.6508,
+            "fold_win_rate": 1.0
+          },
+          "EN_drop_cat_h5": {
+            "desc": "catboost 제외(xgb+lgbm, val AUC 가중) — 최약 모델 제거 가설",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5229,
+              0.5178,
+              0.5607,
+              0.5797,
+              0.5086
+            ],
+            "mean": 0.5379,
+            "std": 0.0274,
+            "min": 0.5086,
+            "max": 0.5797,
+            "fold_win_rate": 1.0
+          },
+          "EN_equal_h5": {
+            "desc": "3종 균등가중(val AUC 가중 대신) — 가중이 노이즈인지 확인",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5205,
+              0.5202,
+              0.5605,
+              0.5966,
+              0.5111
+            ],
+            "mean": 0.5418,
+            "std": 0.0323,
+            "min": 0.5111,
+            "max": 0.5966,
+            "fold_win_rate": 1.0
+          },
+          "EN_d2_equal_h5": {
+            "desc": "depth2(최고 HP) + 3종 균등가중 — 두 축 결합",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5167,
+              0.5213,
+              0.5442,
+              0.6365,
+              0.5188
+            ],
+            "mean": 0.5475,
+            "std": 0.0456,
+            "min": 0.5167,
+            "max": 0.6365,
+            "fold_win_rate": 1.0
+          },
+          "EN_d1_dropcat_h5": {
+            "desc": "depth1(현 최고) + catboost 제외 — 두 축 결합",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5045,
+              0.5317,
+              0.5459,
+              0.6501,
+              0.5175
+            ],
+            "mean": 0.5499,
+            "std": 0.0519,
+            "min": 0.5045,
+            "max": 0.6501,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "F3",
+      "title": "프로토콜 민감도: 5폴드(최소 학습창 1,230행) vs 3폴드(약 3,400행) — 소표본 페널티 측정",
+      "status": "done",
+      "priority": 2,
+      "arm": "F3_base_h5",
+      "counterfactual": "LS_quant_q30_h5 (5폴드, 같은 런)",
+      "hypothesis": "depth 를 낮출수록 AUC 가 단조로 올랐다(d1 0.5500 > d2 0.5491 > d3 0.5467 > d4 0.5414 > d6 0.5344) — 전형적 소표본 과적합 증상이다. 폴드 수를 3으로 줄여 최소 학습창을 약 3배로 키우면(같은 데이터·같은 시드) 폴드 평균이 유의하게 오르는가? 오른다면 '표본 부족'이 이 스택의 실질 병목이라는 증거이고, 아니라면 AUC 상한은 표본 크기 문제가 아니다.",
+      "evidence": "fold1 학습행 1,230행(49종목×약25일)·테스트 1,378행. HP1·HP2·HP3 3회 실측 모두 'depth 낮을수록 좋다'가 재현(총 15개 config). DB 실측: 주가 이력이 2025-06-16~ 2026-09-23 뿐이라(3,934종목·1,078,479행) --days 확대로 행을 늘릴 수는 없다 → 표본을 늘리는 유일한 내부 수단이 '폴드당 학습창 확대'다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,F3_base_h5,F3_d1_h5'",
+      "metric": "wf_sweep_summary",
+      "success": "F3_base_h5 폴드 평균이 같은 런 5폴드 대조군 대비 +0.02 이상 (단, 프로토콜이 다르므로 이 값은 '소표본 페널티 크기'의 추정이지 승격 근거가 아니다)",
+      "expected": "미지 — 페널티가 실재하면 +0.01~+0.03, 아니면 Δ≈0",
+      "cost": "약 3~5분 (5폴드 1개 + 3폴드 2개 × 5시드 = 55 학습)",
+      "est_minutes": 25,
+      "risk": "프로토콜이 다르면 기록 기준선과 직접 비교가 무효다(구동기는 같은 런의 cf 와만 비교). 3폴드 결과를 '기준선 갱신'에 쓰려면 별도 승인이 필요하다 — 이 항목은 페널티 측정만 한다.",
+      "note": "fold 수 override 는 wf_label_sweep 의 cfg[\"folds\"] 로만 동작(스크립트 밖 무변경). 시드 5·패널 동일·라벨 동일이라 '학습창 크기'만 바뀐다.",
+      "attempts": [
+        {
+          "ts": "2026-09-26T05:36:19+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 F3_base_h5 0.5256 vs 대조군 LS_quant_q30_h5 0.5414 → Δ-0.0158 (최고: LS_quant_q30_h5 0.5414)",
+          "log": "data/reports/me_cycle/logs/me_cycle_F3_20260926-053349.log",
+          "elapsed_min": 2.5
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 F3_base_h5 0.5256 vs 대조군 LS_quant_q30_h5 0.5414 → Δ-0.0158 (최고: LS_quant_q30_h5 0.5414)",
+        "delta": -0.0158,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5233,
+              0.5201,
+              0.5606,
+              0.5926,
+              0.5103
+            ],
+            "mean": 0.5414,
+            "std": 0.0308,
+            "min": 0.5103,
+            "max": 0.5926,
+            "fold_win_rate": 1.0
+          },
+          "F3_base_h5": {
+            "desc": "기준 설정을 3폴드(최소 학습창 약 3배)로 측정 — 프로토콜 민감도",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.496,
+              0.5545,
+              0.5264
+            ],
+            "mean": 0.5256,
+            "std": 0.0239,
+            "min": 0.496,
+            "max": 0.5545,
+            "fold_win_rate": 0.667
+          },
+          "F3_d1_h5": {
+            "desc": "3폴드 + depth1(현 최고 HP) — 표본이 늘면 얕은 트리 이점이 사라지는가",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5068,
+              0.5522,
+              0.5579
+            ],
+            "mean": 0.539,
+            "std": 0.0228,
+            "min": 0.5068,
+            "max": 0.5579,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      }
     }
   ]
 }

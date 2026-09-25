@@ -1,0 +1,68 @@
+{
+  "kind": "leak_audit",
+  "role": "quant-model-engineer",
+  "ts": "2026-09-25T23:35+09:00",
+  "panel": "services/xgboost-ml/app/models/wf/panel_420_asofpatch.npz",
+  "panel_shape": [13609, 210],
+  "n_stocks": 49,
+  "period": ["2025-07-31", "2026-09-23"],
+  "critical_finding_alignment_bug": {
+    "symptom": "df[feature_names] 가 열을 210 -> 238 로 부풀리고 순서를 바꿔, 선별 인덱스가 '기록된 이름'과 다른 열을 학습에 넣었다",
+    "proof": {
+      "df_list_shape": [13609, 238],
+      "X_shape": [13609, 210],
+      "n_mismatched_positions": 192,
+      "example": "position 16 label=cycle_down 인데 실제 값은 X열 15 (cross_trend)",
+      "duplicate_labels": 14,
+      "duplicate_names": ["cross_trend","momentum_vs_volatility","price_volume","return_5d_mean_10d","short_medium_term_momentum","target_ma_10","target_ma_20","target_ma_5","trend_confirmation","trend_interaction","volatility_20d_mean_10d","volatility_volume","volume_price_trend","volume_ratio_5_mean_10d"]
+    },
+    "impact": "AUC 값 자체는 실제 학습 결과지만, '어떤 피처가 쓰였는가'에 대한 모든 이전 판정(L1/L2/U1, WF1~5, PO_timevary)의 피처 귀속은 무효. 시장레벨 마스크는 조용히 no-op 이 됐다.",
+    "fix": "wf_wave.dedupe_names() (__dupN 접미사) + build_panel 에서 X열수/이름수 불일치 시 즉시 실패 + wf_label_sweep 폴드 루프에 하드 가드(Xtr.shape[1] != len(base_names) -> RuntimeError)",
+    "fix_verified": "스모크(folds=2,seeds=1): 이름 목록에 price_volume__dup1 등장, 가드 통과, 제외 목록이 정답군(cpi_yoy·fx_usd_krw·oil_change_*·yield_spread·krx_*)으로 교체됨"
+  },
+  "gate_checks_after_fix": {
+    "gate1_single_feature_auc_gt_075": {"verdict": "pass", "max_single_feature_separability": 0.5637, "fold": 5, "feature": "atr_pct"},
+    "gate2_stock_constant_dominating_selection": {
+      "verdict": "주의(미해결)",
+      "selected_stock_constant_per_fold": [12, 12, 16, 12, 11],
+      "selected_share": [0.40, 0.40, 0.53, 0.40, 0.37],
+      "population_stock_constant_ratio": 0.3293,
+      "note": "선별에서 1.2~1.6배 과대표집. 리서처 메트릭 dq_feature_stock_constant_ratio=0.3293(살아있는 피처 기준)와 비교한 값"
+    },
+    "gate3_asof_violation": {"verdict": "pass", "dq_asof_violation_rows": 0, "dq_padding_rows_before_listing": 0},
+    "gate4_market_level_in_cross_section": {
+      "verdict_before_fix": "위반(오판 — 정렬 버그 때문)",
+      "verdict_after_fix": "pass",
+      "market_level_in_panel": 27,
+      "market_level_in_top30_per_fold": [0, 0, 0, 0, 0],
+      "cross_check": "리서처 dq_feature_market_level_count=26 과 독립 일치"
+    }
+  },
+  "honest_metric_diagnostic": {
+    "pooled_auc_mean": 0.5395,
+    "mean_daily_auc": 0.5426,
+    "delta": 0.0031,
+    "n_test_dates_scored": 92,
+    "interpretation": "라벨이 날짜내 분위인데 pooled 로 판정하는 현재 방식의 날짜구성 편향은 관측되지 않음(+0.003). 다만 판정 프로토콜은 pooled 유지 가능"
+  },
+  "market_level_exclusion_arm": {
+    "arm": "MK_nomkt_h5",
+    "auc_mean": 0.5395,
+    "counterfactual": "LS_quant_q30_h5",
+    "counterfactual_auc_mean": 0.5395,
+    "delta": 0.0,
+    "verdict": "노이즈/무효 — 제외해도 선별·AUC 불변(시장레벨 피처가 애초에 top30 에 없다). 새 레버 아님"
+  },
+  "in_flight": {
+    "id": "U1",
+    "desc": "유니버스 49 -> 150종목",
+    "started": "2026-09-25T21:29:41+09:00",
+    "progress_at_report": "3400/41893 pairs (8.1%) @1.29 pair/s, ETA ~496min",
+    "eta_finish": "2026-09-26T06:20+09:00",
+    "caveat": "정렬 수정 **이전** 코드로 시작된 실행 — 유니버스 효과(행 구성) 비교는 유효하나 피처 귀속은 무효"
+  },
+  "next_experiments": [
+    {"id": "RB1", "what": "정렬 수정 후 재기준선 + 피처풀 비교", "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 3 --only LS_quant_q30_h5,PO_timevary_h5,PO_const_h5,MK_nomkt_h5'", "est_minutes": 25}
+  ],
+  "researcher_handoff": "없음(데이터 결함 아님 — 우리 파이프라인 코드 결함). 단, panel npz 의 중복 피처명은 재빌드 시 정리 대상(현재 dedupe 로 방어)"
+}

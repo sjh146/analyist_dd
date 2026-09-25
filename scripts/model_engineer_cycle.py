@@ -381,6 +381,63 @@ def failure_cause(rc):
     return f"종료코드 {rc}"
 
 
+# ── 판정 (요약 JSON 에서 직접 계산 — 로그 문구·winner 기준 금지) ───────────────
+def judge_per(item, per_exp) -> tuple:
+    """per_exp(config → {mean,std,folds,...}) 에서 (verdict, detail, delta) 를 계산한다.
+
+    함정 ①(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면 가설군이 **진** 경우
+      winner == 대조군 이 되어 Δ 0.0000 '노이즈' 로 잘못 기록된다(실제 h8 0.5068 vs h5 0.5406
+      = Δ−0.0338). → 반드시 arm 기준으로 계산한다.
+    함정 ②(실측 2026-09-26, U1): 대조군이 **다른 패널/다른 런**에 있어서 `counterfactual` 의
+      첫 토큰이 arm 과 **같은 설정명**이면(예: 둘 다 LS_quant_q30_h5) 같은 런 안에서 자기 자신과
+      비교해 Δ+0.0000 '노이즈' 가 된다. 150종목 실측 0.5140 vs 기록 기준선 0.5406 = Δ−0.0266
+      인데 자기대조로 '노이즈' 로 남았다. → 이름이 같으면 같은 런 비교를 금지하고 **기록
+      기준선(item['baseline'])** 과 비교한다(다른 데이터 스냅샷 대조라 증거 강도는 약함을 명시).
+    """
+    verdict, detail, delta = "판정불가", "", None
+    per = per_exp if isinstance(per_exp, dict) else {}
+    if not per:
+        return verdict, detail, delta
+    arm = item.get("arm")
+    cf_name = (item.get("counterfactual") or "").split(" ")[0]
+    base_rec = item.get("baseline")
+    best = max(per.items(), key=lambda kv: kv[1]["mean"])
+    if arm and arm in per and cf_name in per and cf_name != arm:
+        delta = round(per[arm]["mean"] - per[cf_name]["mean"], 4)
+        verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
+        detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 대조군 {cf_name} "
+                  f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f} "
+                  f"(최고: {best[0]} {best[1]['mean']:.4f})")
+    elif arm and arm in per and base_rec:
+        # 대조군이 이 런에 없거나(다른 패널) arm 과 동명(자기대조) → 기록 기준선과 비교한다.
+        base = float(base_rec["value"])
+        delta = round(per[arm]["mean"] - base, 4)
+        verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
+        why = "자기대조(대조군이 다른 패널·다른 런)" if cf_name == arm \
+            else f"대조군 {cf_name} 이 이 런에 없음"
+        detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 기록 기준선 {base:.4f} "
+                  f"({base_rec.get('source', '출처미상')}) → Δ{delta:+.4f} [{why} · "
+                  f"타 패널 대조라 증거 약함]")
+    elif cf_name in per and cf_name != arm:
+        # arm 미지정: 대조군 **을 제외한** 최고 config 와 비교한다. 대조군이 이미 최고면
+        # 비교 자체가 Δ0 이 되어 의미가 없다(함정 ① 과 같은 종류).
+        others = [(k, v) for k, v in per.items() if k != cf_name]
+        if others:
+            w = max(others, key=lambda kv: kv[1]["mean"])
+            delta = round(w[1]["mean"] - per[cf_name]["mean"], 4)
+            verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
+            detail = (f"[arm 미지정] {cf_name} 제외 최고 {w[0]} {w[1]['mean']:.4f} vs {cf_name} "
+                      f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f}")
+        else:
+            verdict = "기준선없음"
+            detail = (f"대조군 {cf_name} {per[cf_name]['mean']:.4f} 만 측정됨(비교할 가설군 없음)"
+                      + (f" · 기록 기준선 {float(base_rec['value']):.4f} 존재" if base_rec else ""))
+    else:
+        verdict, detail = "기준선없음", (f"최고 {best[0]} {best[1]['mean']:.4f} "
+                                    f"(대조군 {cf_name} 미측정 · 기록 기준선 없음)")
+    return verdict, detail, delta
+
+
 # ── 사이클 실행 ──────────────────────────────────────────────────────────────
 def execute(item, force=False):
     os.makedirs(RUNTIME, exist_ok=True)
@@ -394,7 +451,9 @@ def execute(item, force=False):
     run_log = os.path.join(LOGDIR, f"me_cycle_{item['id']}_{stamp}.log")
     started = now_kst()
 
-    spath = summary_path(item["metric"])
+    # metric 이 없는 항목(예: 산출물 존재를 보는 항목)도 크래시 없이 '판정불가' 로 끝나야 한다.
+    # 실측 2026-09-26: L4 는 metric 키가 없어 사후 처리에서 KeyError 로 죽을 수 있었다.
+    spath = summary_path(item.get("metric") or "")
     pre_mtime = os.path.getmtime(spath) if os.path.exists(spath) else 0.0
     # floor 에 **실행 시작 시각**을 포함한다: 파일 mtime 만 쓰면 갱신되지 않은 옛 요약이
     # 통과한다(설계원칙 4 함정, 실측 2026-09-25).
@@ -419,42 +478,16 @@ def execute(item, force=False):
         verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
         per: dict = {}
     else:
-        parsed = parse_wf_sweep(spath, mtime_floor) if item["metric"] == "wf_sweep_summary" \
-            else {"error": "parser 없음"}
+        parsed = parse_wf_sweep(spath, mtime_floor) if item.get("metric") == "wf_sweep_summary" \
+            else {"error": f"parser 없음 (metric={item.get('metric')!r})"}
         # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
         # ⚠ 함정(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면, 가설군이 **진** 경우
         # winner == 대조군 이 되어 Δ 0.0000 "노이즈" 로 잘못 기록된다. 실제로는 h8 0.5068 vs
         # h5 0.5406 = Δ−0.0338 인데 원장에 Δ+0.0000 으로 남았다. 반드시 arm 기준으로 계산하라.
-        verdict, detail, delta = "판정불가", "", None
         _pe = parsed.get("per_exp")
         per = _pe if isinstance(_pe, dict) else {}
-        if per:
-            arm = item.get("arm")
-            cf_name = (item.get("counterfactual") or "").split(" ")[0]
-            best = max(per.items(), key=lambda kv: kv[1]["mean"])
-            if arm and arm in per and cf_name in per:
-                delta = round(per[arm]["mean"] - per[cf_name]["mean"], 4)
-                verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
-                detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 대조군 {cf_name} "
-                          f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f} "
-                          f"(최고: {best[0]} {best[1]['mean']:.4f})")
-            elif cf_name in per:
-                delta = round(best[1]["mean"] - per[cf_name]["mean"], 4)
-                verdict = "신호있음" if delta >= 0.02 else "노이즈"
-                detail = (f"[arm 미지정] 최고 {best[0]} {best[1]['mean']:.4f} vs {cf_name} "
-                          f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f}")
-            elif item.get("baseline") and arm and arm in per:
-                # **다른 실행(다른 유니버스/패널)과의 비교**: 대조군이 같은 요약에 없을 때 쓴다.
-                # baseline 은 백로그에 기록된 기준선 실측값이다(출처를 함께 적어 추적 가능하게).
-                base = float(item["baseline"]["value"])
-                delta = round(per[arm]["mean"] - base, 4)
-                verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
-                detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 기록 기준선 {base:.4f} "
-                          f"({item['baseline'].get('source', '출처미상')}) → Δ{delta:+.4f}")
-            else:
-                verdict, detail = "기준선없음", (f"최고 {best[0]} {best[1]['mean']:.4f} "
-                                            f"(대조군 {cf_name} 미측정)")
-        elif parsed.get("error"):
+        verdict, detail, delta = judge_per(item, per)
+        if parsed.get("error") and not per:
             detail = parsed["error"]
 
     rec = {
@@ -462,7 +495,7 @@ def execute(item, force=False):
         "id": item["id"], "title": item["title"],
         "rc": rc, "elapsed_min": round((now_kst() - started).total_seconds() / 60.0, 1),
         "log": os.path.relpath(run_log, PROJ),
-        "metric": item["metric"], "parsed": parsed,
+        "metric": item.get("metric"), "parsed": parsed,
         "verdict": verdict, "detail": detail,
         "reported": False,
     }

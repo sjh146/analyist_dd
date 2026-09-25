@@ -90,6 +90,28 @@ def subset(names, select, X_train, y_train):
     return sorted(int(i) for i in order), f"top{k}"
 
 
+def dedupe_names(names):
+    """패널 피처명의 **중복 라벨을 제거**한다(두 번째부터 `__dupN` 접미사).
+
+    ⚠ 왜 필수인가 (실측 2026-09-25, panel_420_asofpatch.npz):
+      피처명 210개 중 14개가 중복(cross_trend, price_volume, target_ma_5, volume_price_trend…)이라
+      `df[names]` 가 열을 **238개로 부풀리고 순서를 바꾼다**. 그래서
+      `Xtr = transform_matrix(tr[base_names])` 의 열과 `base_names`(이름 목록)가 어긋나고,
+      선별 인덱스 `Xtr[:, idx]` 가 **다른 열**을 학습에 넣는다 →
+      '기록된 피처 이름'과 '실제 학습 열'이 달라져 **피처 단위 판정이 전부 무효**가 된다.
+      증상은 조용하다(예외 없음, AUC 도 정상값). 그래서 이름을 1:1 로 만들어 뿌리에서 막는다.
+    """
+    seen, out = {}, []
+    for n in names:
+        if n in seen:
+            seen[n] += 1
+            out.append(f"{n}__dup{seen[n]}")
+        else:
+            seen[n] = 0
+            out.append(n)
+    return out
+
+
 def build_panel(cache, limit, days, log=print, **universe):
     """패널 캐시를 만들거나 재사용한다.
 
@@ -100,8 +122,13 @@ def build_panel(cache, limit, days, log=print, **universe):
     """
     if os.path.exists(cache):
         z = np.load(cache, allow_pickle=True)
-        names = [str(n) for n in z["feature_names"]]
-        df = pd.DataFrame(z["X"], columns=names)
+        names = dedupe_names([str(n) for n in z["feature_names"]])
+        Xc = z["X"]
+        if Xc.shape[1] != len(names):
+            raise RuntimeError(
+                f"패널 파일 불일치: X 열 {Xc.shape[1]}개 vs 피처명 {len(names)}개 ({cache}) "
+                f"— 이름↔열 매핑이 깨진 파일이다(중복 라벨로 저장된 흔적). 재빌드하라.")
+        df = pd.DataFrame(Xc, columns=names)
         df["date"] = [str(d) for d in z["dates"]]
         df["stock_code"] = [str(c) for c in z["codes"]]
         df["price"] = z["price"].astype(float)
@@ -227,6 +254,9 @@ def main():
             y = make_labels(df, "quantile", cfg["horizon"], cfg["q"])
             d = df.copy()
             d["_y"] = y
+            # 라벨 참조일 기준 purge(실측 2026-09-25: 달력 h일 purge 는 갭 종목의 학습 라벨이
+            # 테스트 구간 가격을 참조하는 행을 남긴다 — wf_label_sweep 에서 5폴드 22행 확인).
+            d["_ref"] = df.groupby("stock_code", sort=False)["date"].shift(-cfg["horizon"])
             d = d[~pd.isna(d["_y"])]
             dd = sorted(d["date"].astype(str).unique())
             n = len(dd)
@@ -238,6 +268,12 @@ def main():
                 h = cfg["horizon"]
                 purge = set(dd[max(0, step * i - h):step * i])
                 tr = d[(d["date"] <= cut) & (~d["date"].isin(purge))]
+                if "_ref" in tr.columns:
+                    _bad = np.greater_equal(np.asarray(tr["_ref"].astype(str).values),
+                                            np.asarray(dd[step * i]))
+                    if _bad.any():
+                        ml.log(f"  {exp_id} fold{i}: 라벨 참조일 purge {int(_bad.sum())}행 제거")
+                        tr = tr[np.logical_not(_bad)]
                 te = d[(d["date"] > cut) & (d["date"] <= nxt)]
                 if min(len(tr), len(te)) < 100:
                     ml.log(f"  {exp_id} fold{i}: 표본 부족(tr={len(tr)} te={len(te)}), 건너뜀")
