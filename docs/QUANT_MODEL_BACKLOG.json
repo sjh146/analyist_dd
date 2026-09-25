@@ -308,6 +308,51 @@
       "expected": "미지 (피처가 살아나면 +, 아니면 무변화)",
       "cost": "패치 적용 30분 + 재측정 1시간",
       "note": "command 예시(엔지니어가 확정): ① company_features 의 지연 계산을 disclosures join 으로 교체 ② /usr/bin/python3 scripts/patch_panel_asof.py 로 패널 재패치 ③ docker exec stock_xgboost_ml ... wf_label_sweep.py --only LS_quant_q30_h5 ④ dq_asof_violation_rows == 0 확인"
+    },
+    {
+      "id": "U1B",
+      "title": "150종목 패널에서 라벨 분위 0.25 vs 0.30 (동일 런 내 대조)",
+      "status": "pending",
+      "priority": 4,
+      "arm": "LS_quant_q25_h5",
+      "counterfactual": "LS_quant_q30_h5",
+      "hypothesis": "표본이 49→150종목으로 늘면 라벨 분위 0.25(양성 표본 +)가 0.30을 넘어서는가? 49종목에서는 q25 0.5345 vs q30 0.5406 (Δ-0.0061, 노이즈)였으나 표본 부족이 원인이었을 수 있다.",
+      "evidence": "L2 실측(49종목·panel_420_asofpatch): q30 0.5406±0.0316 > q25 0.5345±0.0179 > q20 0.5241±0.0212 — 분위를 낮추면 단조 감소했지만 폭이 폴드 std(±0.03) 안이다. 유니버스가 커지면 q25 의 양성 표본이 늘어 판정력이 올라갈 수 있다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 28800 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --days 420 --limit 150 --market all --since 2025-07-01 --min-days 250 --min-value 100000000 --order value --folds 5 --seeds 5 --only LS_quant_q30_h5,LS_quant_q25_h5'",
+      "metric": "wf_sweep_summary",
+      "success": "arm(q25) 폴드 평균이 대조군(q30)보다 +0.02 이상 (폴드 승률 0.8 이상 동반)",
+      "expected": "미지 (49종목에서는 Δ-0.0061)",
+      "cost": "패널 캐시 재사용 시 약 5~8분(2 config×5폴드×5시드). panel_150u.npz 가 없으면 150종목 패널 재빌드로 최대 6~10시간",
+      "depends_on": "U1(panel_150u.npz 생성) — U1 이 rc!=0 이면 이 항목이 패널을 다시 빌드한다",
+      "note": "U1 이 유니버스 신호를 내면 새 기준선을 이 런의 q30 값으로 갱신해야 한다(기록 기준선 0.5406 은 49종목 값)."
+    },
+    {
+      "id": "L3",
+      "title": "부활 피처 반영 재학습 + 로버스트 평가 (데이터 축 임팩트 측정)",
+      "status": "pending",
+      "priority": 2,
+      "affects_model": true,
+      "baseline": {
+        "robust_auc": 0.5406,
+        "name": "LS_quant_q30_h5 (h5·분위0.3·top30)"
+      },
+      "hypothesis": "신호의 우위가 부족한 근본 원인은 데이터다(로버스트 AUC 0.5406 ≈ 동전, 트레이더 기대값 -253원/건). 부활 피처를 **한 계열씩** 투입해 로버스트 AUC 델타를 측정한다.",
+      "evidence": "docs/DEAD_FEATURE_REVIVAL.md: 죽은 97개 중 약 43개는 보유 테이블만으로 계산 가능, 19개는 백필 진행 중. 라벨 축·트레일링·스톱 축은 이미 전수 스윕되어 소진.",
+      "method": "① 리서처가 피처 테이블 생성 ② 패널 재빌드(계열 1개씩) ③ wf_label_sweep 로 다중폴드 로버스트 측정 ④ 기준선 +0.02 이상만 신호로 채택, 미달이면 다음 계열",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 14400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_<REVIVED>.npz --folds 5 --seeds 3 --only LS_quant_q30_h5'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "success": "부활 피처 포함 패널의 로버스트 AUC 가 기준선 0.5406 대비 +0.02 이상",
+      "cost": "패널 재빌드 1~2시간 + 측정 30분 (계열당)",
+      "depends_on": [
+        "R9",
+        "R10",
+        "R11",
+        "R12"
+      ]
     }
   ]
 }

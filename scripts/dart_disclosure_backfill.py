@@ -35,8 +35,14 @@ PG = dict(host=os.environ.get("POSTGRES_HOST", "127.0.0.1"),
           user=os.environ.get("POSTGRES_USER", "stock_user"),
           password=os.environ.get("POSTGRES_PASSWORD", ""))
 
-# 정기공시 코드: A = 사업/반기/분기보고서 (재무제표의 원천)
-PBLNTF_TY = "A"
+# 공시 유형 코드 (DART pblntf_ty):
+#   A 정기공시(사업/반기/분기보고서) · B 주요사항보고서(유상증자·CB·합병·소송·자기주식·최대주주변경)
+#   C 증권신고서 · D 지분공시(대량보유) · E 기타공시(임원변경 등) · I 거래소공시(수주·공급계약)
+# WHY 확장(실측 2026-09-25): A 만 수집한 탓에 disclosures 22,278건이 **전부 정기공시**였고
+# 유상증자·공급계약·소송 공시가 0건이었다. 그래서 event_*_5d 피처 18개(+disclosure_count_5d)가
+# 전부 0으로 죽어 있었다. 이벤트 피처를 살리려면 B/D/E/I 가 필요하다.
+PBLNTF_TY = "A"          # 하위호환(단일 유형 실행 시)
+DEFAULT_TYPES = "A"      # 기존 동작 보존 — 확장은 --types B,D,E,I 로 명시
 PAGE_COUNT = 100          # DART 최대
 DELAY_BASE = 1.5          # 초
 JITTER = (0.3, 0.8)
@@ -61,6 +67,8 @@ def main():
     ap.add_argument("--since", default="2025-01-01")
     ap.add_argument("--until", default=None)
     ap.add_argument("--max-calls", type=int, default=400)
+    ap.add_argument("--types", default=DEFAULT_TYPES,
+                    help="쉼표 구분 공시 유형(기본 A). 이벤트 피처는 B,D,E,I 필요")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
@@ -80,7 +88,8 @@ def main():
     since = datetime.strptime(a.since, "%Y-%m-%d").date()
     until = datetime.strptime(a.until, "%Y-%m-%d").date() if a.until else date.today()
     windows = months_between(since, until)
-    log(f"기간 {since} ~ {until} → {len(windows)}개 월 창, 예산 {a.max_calls}콜")
+    types = [t.strip().upper() for t in a.types.split(",") if t.strip()]
+    log(f"기간 {since} ~ {until} → {len(windows)}개 월 창 × 유형 {types}, 예산 {a.max_calls}콜")
 
     conn = psycopg2.connect(**PG)
     cur = conn.cursor()
@@ -100,76 +109,79 @@ def main():
         r = requests.get("https://opendart.fss.or.kr/api/list.json", params=p, timeout=20)
         return r.json()
 
-    for (d0, d1) in windows:
-        page = 1
-        prev_first = None
-        while True:
-            if calls >= a.max_calls:
-                log(f"예산 소진({calls}콜) — 다음 실행에서 이어서")
-                hit_limit = True
-                break
-            try:
-                resp = fetch({"bgn_de": d0.strftime("%Y%m%d"), "end_de": d1.strftime("%Y%m%d"),
-                              "pblntf_ty": PBLNTF_TY, "page_no": page, "page_count": PAGE_COUNT})
-            except Exception as exc:  # noqa: BLE001
-                log(f"{d0} p{page} 요청 실패: {exc}")
-                break
-            calls += 1
-            time.sleep(DELAY_BASE + __import__("random").uniform(*JITTER))
-
-            status = str(resp.get("status", ""))
-            items = resp.get("list") or []
-            if status == "013":        # 조회된 데이터 없음 — 정상(빈 창)
-                break
-            if status != "000":
-                log(f"{d0} p{page} DART 오류 status={status} msg={resp.get('message')}")
-                break
-
-            batch, skipped = [], 0
-            for it in items:
-                code = (it.get("stock_code") or "").strip()
-                if not code:            # 비상장 법인 → 우리 관심 밖
-                    skipped += 1
-                    continue
-                batch.append((code, it.get("rcept_dt"), it.get("rcept_no"),
-                              (it.get("report_nm") or "")[:200], it.get("corp_code")))
-            src_rows += len(items)
-            kept += len(batch)
-
-            if batch and not a.dry_run:
-                cur.executemany(
-                    """INSERT INTO disclosures (stock_code, rcept_dt, rcept_no, report_nm, corp_code)
-                       VALUES (%s, to_date(%s,'YYYYMMDD'), %s, %s, %s)
-                       ON CONFLICT (stock_code, rcept_no) DO NOTHING""",
-                    batch)
-                conn.commit()
-                # ⚠ 멱등 upsert 에서는 "시도 행수"가 아니라 **실제 삽입 행수**를 자기신고해야 한다.
-                # 시도(kept)를 claimed 로 보고하면 재실행 시 차이가 갭으로 잡혀 오탐이 된다
-                # (실측 2026-09-25: claimed 22,278 / persisted 15,895 → gap 6,383 오탐).
-                inserted += max(cur.rowcount, 0)
-
-            log(f"  {d0:%Y-%m} p{page}: {len(items)}건 (적재대상 {len(batch)}, 비상장 {skipped})")
-
-            # ── 종료조건 ① total_count 기반 ──────────────────────────────────
-            # 실측(2025-09-25): DART list.json 은 **total_count 를 넘는 page_no 에 대해 마지막 페이지를
-            # 반복 반환**한다. 2025-05 는 total=3300(33페이지)인데 p50·p100·p200·p500 이 전부 같은
-            # 응답이었다. 이 검사가 없으면 예산을 태우며 같은 페이지를 영원히 돈다
-            # (실측 피해: 214페이지를 돌고도 신규 945행뿐 = 95% 중복).
-            total = int(resp.get("total_count") or 0)
-            if total and page * PAGE_COUNT >= total:
-                break
-            # ── 종료조건 ② 반복 감지(이중 안전장치) ──────────────────────────
-            first_no = items[0].get("rcept_no") if items else None
-            if first_no and first_no == prev_first:
-                log(f"  {d0:%Y-%m} p{page}: 직전 페이지와 동일 응답 → 중단(API 상한 추정)")
-                break
-            prev_first = first_no
-
-            if len(items) < PAGE_COUNT:
-                break
-            page += 1
+    for ty in types:
         if hit_limit:
             break
+        for (d0, d1) in windows:
+            page = 1
+            prev_first = None
+            while True:
+                if calls >= a.max_calls:
+                    log(f"예산 소진({calls}콜) — 다음 실행에서 이어서")
+                    hit_limit = True
+                    break
+                try:
+                    resp = fetch({"bgn_de": d0.strftime("%Y%m%d"), "end_de": d1.strftime("%Y%m%d"),
+                                  "pblntf_ty": ty, "page_no": page, "page_count": PAGE_COUNT})
+                except Exception as exc:  # noqa: BLE001
+                    log(f"{d0} p{page} 요청 실패: {exc}")
+                    break
+                calls += 1
+                time.sleep(DELAY_BASE + __import__("random").uniform(*JITTER))
+
+                status = str(resp.get("status", ""))
+                items = resp.get("list") or []
+                if status == "013":        # 조회된 데이터 없음 — 정상(빈 창)
+                    break
+                if status != "000":
+                    log(f"{d0} p{page} DART 오류 status={status} msg={resp.get('message')}")
+                    break
+
+                batch, skipped = [], 0
+                for it in items:
+                    code = (it.get("stock_code") or "").strip()
+                    if not code:            # 비상장 법인 → 우리 관심 밖
+                        skipped += 1
+                        continue
+                    batch.append((code, it.get("rcept_dt"), it.get("rcept_no"),
+                                  (it.get("report_nm") or "")[:200], it.get("corp_code")))
+                src_rows += len(items)
+                kept += len(batch)
+
+                if batch and not a.dry_run:
+                    cur.executemany(
+                        """INSERT INTO disclosures (stock_code, rcept_dt, rcept_no, report_nm, corp_code)
+                           VALUES (%s, to_date(%s,'YYYYMMDD'), %s, %s, %s)
+                           ON CONFLICT (stock_code, rcept_no) DO NOTHING""",
+                        batch)
+                    conn.commit()
+                    # ⚠ 멱등 upsert 에서는 "시도 행수"가 아니라 **실제 삽입 행수**를 자기신고해야 한다.
+                    # 시도(kept)를 claimed 로 보고하면 재실행 시 차이가 갭으로 잡혀 오탐이 된다
+                    # (실측 2026-09-25: claimed 22,278 / persisted 15,895 → gap 6,383 오탐).
+                    inserted += max(cur.rowcount, 0)
+
+                log(f"  [{ty}] {d0:%Y-%m} p{page}: {len(items)}건 (적재대상 {len(batch)}, 비상장 {skipped})")
+
+                # ── 종료조건 ① total_count 기반 ──────────────────────────────────
+                # 실측(2025-09-25): DART list.json 은 **total_count 를 넘는 page_no 에 대해 마지막 페이지를
+                # 반복 반환**한다. 2025-05 는 total=3300(33페이지)인데 p50·p100·p200·p500 이 전부 같은
+                # 응답이었다. 이 검사가 없으면 예산을 태우며 같은 페이지를 영원히 돈다
+                # (실측 피해: 214페이지를 돌고도 신규 945행뿐 = 95% 중복).
+                total = int(resp.get("total_count") or 0)
+                if total and page * PAGE_COUNT >= total:
+                    break
+                # ── 종료조건 ② 반복 감지(이중 안전장치) ──────────────────────────
+                first_no = items[0].get("rcept_no") if items else None
+                if first_no and first_no == prev_first:
+                    log(f"  [{ty}] {d0:%Y-%m} p{page}: 직전 페이지와 동일 응답 → 중단(API 상한 추정)")
+                    break
+                prev_first = first_no
+
+                if len(items) < PAGE_COUNT:
+                    break
+                page += 1
+            if hit_limit:
+                break
 
     cur.execute("SELECT COUNT(*) FROM disclosures")
     after = int(cur.fetchone()[0])
