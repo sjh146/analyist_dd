@@ -75,6 +75,22 @@ echo "=== Phase 0: Starting all containers ==="
 # 파이프라인 필수 서비스만 기동 (jenkins/grafana/prometheus 등은 호스트에서
 # 별도 실행 중이거나 불필요 — 포트 충돌 방지).
 CORE_SERVICES="postgres redis neo4j krx-collector yfinance-collector economic-calendar news-analyzer stock-vectorizer xgboost-ml strategy-agents api-gateway"
+
+# ── 인플라이트 학습 보호 (2026-09-25 실측 구조적 충돌) ────────────────────────────
+# `docker compose up -d` 는 설정 해시가 바뀌면 컨테이너를 **재생성**한다. 그 순간 컨테이너 안에서
+# 돌던 장시간 작업이 SIGKILL 된다: 평일 20:00 파이프라인이 150종목 패널 빌드(254분 경과,
+# 30,000/41,893 = 71.6%)를 죽였다 — 4시간 반의 작업이 통째로 사라졌다(rc=137).
+# 역할 사이클(모델엔지니어/리서처)이 실행 중이면 **xgboost-ml 만** 재생성 대상에서 제외한다.
+# (다른 서비스의 재생성은 그대로 — 수집기·DB 는 짧은 작업이라 영향이 작다.)
+PROJ_GUARD="${PROJ_DIR:-/home/jhshi/analyist_dd}"
+for PF in "$PROJ_GUARD/data/reports/me_cycle/running.pid" \
+          "$PROJ_GUARD/data/reports/res_cycle/running.pid"; do
+    if [ -f "$PF" ] && kill -0 "$(cat "$PF" 2>/dev/null)" 2>/dev/null; then
+        echo "⚠ 역할 사이클 실행 중(pid $(cat "$PF")) → xgboost-ml 재생성 제외(인플라이트 학습 보호)"
+        CORE_SERVICES="${CORE_SERVICES//xgboost-ml/}"
+        break
+    fi
+done
 docker compose up -d --no-build $CORE_SERVICES 2>&1 | tail -5
 
 echo "Waiting for critical services (postgres, redis, neo4j)..."
