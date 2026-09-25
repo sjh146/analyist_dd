@@ -102,6 +102,7 @@ def main():
 
     for (d0, d1) in windows:
         page = 1
+        prev_first = None
         while True:
             if calls >= a.max_calls:
                 log(f"예산 소진({calls}콜) — 다음 실행에서 이어서")
@@ -144,6 +145,22 @@ def main():
                 conn.commit()
 
             log(f"  {d0:%Y-%m} p{page}: {len(items)}건 (적재대상 {len(batch)}, 비상장 {skipped})")
+
+            # ── 종료조건 ① total_count 기반 ──────────────────────────────────
+            # 실측(2025-09-25): DART list.json 은 **total_count 를 넘는 page_no 에 대해 마지막 페이지를
+            # 반복 반환**한다. 2025-05 는 total=3300(33페이지)인데 p50·p100·p200·p500 이 전부 같은
+            # 응답이었다. 이 검사가 없으면 예산을 태우며 같은 페이지를 영원히 돈다
+            # (실측 피해: 214페이지를 돌고도 신규 945행뿐 = 95% 중복).
+            total = int(resp.get("total_count") or 0)
+            if total and page * PAGE_COUNT >= total:
+                break
+            # ── 종료조건 ② 반복 감지(이중 안전장치) ──────────────────────────
+            first_no = items[0].get("rcept_no") if items else None
+            if first_no and first_no == prev_first:
+                log(f"  {d0:%Y-%m} p{page}: 직전 페이지와 동일 응답 → 중단(API 상한 추정)")
+                break
+            prev_first = first_no
+
             if len(items) < PAGE_COUNT:
                 break
             page += 1
