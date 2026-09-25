@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-25T21:40:00+09:00",
+  "updated_at": "2026-09-26T03:14:07+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -194,7 +194,7 @@
     {
       "id": "U1",
       "title": "유니버스 확장: 49 → 150종목 (KOSPI 포함·유동성 상위)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "hypothesis": "표본을 49종목(13.6k행) → 150종목(약 42k행)으로 늘리면 폴드 평균이 오르는가? 유동성 상위·KOSPI 포함으로 임의 표본 편향도 제거된다.",
       "evidence": "① 150종목 실험군(label_wave5) 0.5727 vs 49종목군(wf sweep) 0.5400. ② 배선 검증 완료: --market all --order value 로 500종목 조회 시 KOSPI 229 + KOSDAQ 271, 앞5 = 000660·005930·009150·005380·402340(유동성 상위). ③ 현행 기본값은 완전 보존(패널 49종목과 교집합 49/49).",
@@ -220,14 +220,40 @@
           "detail": "SIGKILL(137) 컨테이너 재생성 — 30,000/41,893 소실. 측정값 없음(정정)",
           "log": "data/reports/me_cycle/logs/me_cycle_U1_20260925-154544.log",
           "elapsed_min": 254.5
+        },
+        {
+          "ts": "2026-09-26T03:14:07+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 LS_quant_q30_h5 0.5140 vs 대조군 LS_quant_q30_h5 0.5140 → Δ+0.0000 (최고: LS_quant_q30_h5 0.5140)",
+          "log": "data/reports/me_cycle/logs/me_cycle_U1_20260925-212941.log",
+          "elapsed_min": 344.4
         }
       ],
       "result": {
-        "verdict": "실행실패",
-        "detail": "rc=137 컨테이너 재생성 — 측정값 없음(정정)",
-        "delta": null,
-        "per_exp": null,
-        "rc": 137
+        "verdict": "노이즈",
+        "detail": "가설 LS_quant_q30_h5 0.5140 vs 대조군 LS_quant_q30_h5 0.5140 → Δ+0.0000 (최고: LS_quant_q30_h5 0.5140)",
+        "delta": 0.0,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5013,
+              0.5402,
+              0.5253,
+              0.4824,
+              0.5207
+            ],
+            "mean": 0.514,
+            "std": 0.0201,
+            "min": 0.4824,
+            "max": 0.5402,
+            "fold_win_rate": 0.8
+          }
+        },
+        "rc": 0
       },
       "est_minutes": 700,
       "resumable": true
@@ -437,6 +463,60 @@
       "expected": "미지 — momentum_3_12m 은 기존 모멘텀 계열과 중복될 가능성이 높다(중복이면 기여 0).",
       "cost": "단변량 측정 30분 + 폴드 1시간",
       "note": "리서처는 커버리지·변별력까지만 판정했다(AUC 는 엔지니어 몫). command 는 비워 둔다 — 대조군(기존 모멘텀 계열 포함/제외)을 엔지니어가 확정해야 한다."
+    },
+    {
+      "id": "RB1",
+      "title": "정렬 버그 수정 후 재기준선 + 피처풀(시간가변/종목상수/시장레벨) 비교",
+      "status": "pending",
+      "priority": 0,
+      "hypothesis": "패널 중복 피처명 정렬 버그로 이전 기준선(0.5406)의 '피처 귀속'이 무효다. 정렬을 고치면 ① 재기준선이 달라지고 ② 종목상수(top30 의 37~53%)를 뺀 시간가변 풀이 실제로 더 나은가를 정직하게 판정할 수 있다.",
+      "evidence": "실측 2026-09-25: df[base_names].shape=(13609,238) vs X=(13609,210), 210개 위치 중 192개가 어긋남(예: pos16 label=cycle_down 인데 값은 X열15 cross_trend). 중복 라벨 14개. 수정 후 스모크(folds=2,seeds=1)에서 이름 price_volume__dup1 생성·가드 통과·제외군이 정답군으로 교체됨. 수정 후 5폴드 판정: top30 중 시장레벨 0개(gate #4 pass), 종목상수 11~16개(gate #2 주의).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 3 --only LS_quant_q30_h5,PO_timevary_h5,PO_const_h5,MK_nomkt_h5'",
+      "metric": "wf_sweep_summary",
+      "success": "PO_timevary_h5(종목상수 제외) 폴드 평균이 재기준선 LS_quant_q30_h5 대비 +0.02 이상이면 종목상수 제거가 레버. 미달이면 '종목상수 없이는 못 버틴다'를 수치로 확정하고 새 레버 승인 요청으로 올린다.",
+      "expected": "재기준선은 0.53~0.55 사이에서 이동(정렬 수정 영향), PO_timevary 는 기존 측정(−0.028)보다 개선될 가능성",
+      "cost": "약 10~25분(4개 실험×5폴드×3시드)",
+      "est_minutes": 30,
+      "counterfactual": "LS_quant_q30_h5 (정렬 수정 후 재측정값 — 이전 0.5406 과 직접 비교 금지)",
+      "note": "U1(150종목, 21:29 시작)은 정렬 수정 이전 코드로 돌고 있다 → 유니버스 효과 비교는 유효, 피처 귀속은 무효. RB1 완료 후 필요하면 U1B 의 재측정을 새 기준선으로 다시 판정한다.",
+      "attempts": [],
+      "result": null
+    },
+    {
+      "id": "RB2",
+      "title": "위임 리뷰(Claude) 후속 코드 하드닝 — 캐시 재사용 코드검증·동시성·중복명 index 붕괴",
+      "status": "backlog",
+      "priority": 3,
+      "hypothesis": "정렬 버그(F1·F6 계열)와 같은 '조용한 이름↔값 어긋남'이 다른 경로에도 남아 있다. 코드로 닫아두지 않으면 다음에 또 무효 측정이 나온다.",
+      "evidence": "위임 리뷰 reports/claude_review_wf_label_sweep_20260925.md (backend=claude, 12,091B) 중 실측 확인분: F1(라벨참조일 purge)은 내가 5폴드 22행으로 재현해 **수정 완료**(폴드4 8행·폴드5 14행, 수정 후 스모크에서 동일 수치 확인). F7(makedirs) 수정 완료. 남은 항목 — F3: wf_wave.build_panel 캐시 재사용 시 code_sig·유니버스 검증 전무(피처 코드 고쳐도 구패널 조용히 재사용) / F4: _feature_code_sig 가 feature_engine/*.py 만 커버(scripts/overnight_ml_loop._engineer_features 변경 미탐지) / F6: overnight_ml_loop.py:317 `feature_names.index(f)` 는 중복명에서 후행 탈락 / F8: code_sig 예외 시 None → 가드 무력 / F9: rows.pkl·meta.json 비트랜잭션 / F10: 빌드 잠금 없음 / F11: 캐시 히트 시 --days·--limit 무시.",
+      "command": null,
+      "metric": null,
+      "success": "각 항목에 대해 '악화 유도 → 가드가 막거나 명시 실패'를 1회 이상 실측으로 보인다(예: 피처 코드 mtime 변경 후 재실행 시 'cache 재사용 거부/경고' 로그).",
+      "expected": "조용한 혼합패널·무효 측정 재발 차단",
+      "cost": "항목당 20~40분(코드+검증), 총 3~4시간",
+      "est_minutes": null,
+      "counterfactual": null,
+      "note": "F3 을 구현할 때는 사이드카 panel_*.npz.build_meta.json 을 '쓰기 + 검증실패 시 경고' 로만 두어라 — 기존 패널(사이드카 없음)에서 거부하면 U1/RB1 실행이 막힌다.",
+      "attempts": [],
+      "result": null
+    },
+    {
+      "id": "XR7",
+      "title": "[리서처 R7] 휴장 캘린더의 당일 누락 자동 보완 (가드가 휴장일을 놓치는 문제)",
+      "status": "done",
+      "priority": 8,
+      "from_research": "R7",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": null,
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "data/krx_holidays.json 이 data_gap.py 의 probe 로 유지되는데, probe 가 다음 실행 시점에야 그 날을 채운다 → 당일 휴장은 캘린더에 없다.",
+      "evidence": "리서처 R7 검증(2026-09-26): base.market_hours(dt) → 2026-09-24 10:00 False, 2026-09-25 14:00 False, 2026-09-23 10:00 True, 2026-09-28 10:00 True. 캘린더에 09-24·09-25 기록됨. 표준 라이브러리로 재현 가능한 시뮬레이션 없는 휴장 판정이므로 실측 시각 검증으로 충분하다.",
+      "success": "data_gap probe 가 당일도 검사하도록 수정 + 휴장일이면 즉시 캘린더에 기록. 검증: 다음 휴장일에 market_hours() 가 False 를 반환",
+      "expected": "미지",
+      "cost": "30분",
+      "note": "리서처 자체 수정으로 종결(엔지니어 작업 없음, 2026-09-26). 수정: scripts/data_gap.py expected_dates() range(1,..) → range(0,..) (당일 포함, 공실로는 세지 않음). 검증: base.market_hours() 가 휴장일 2026-09-24 10:00 / 09-25 14:00 에 False, 정상 거래일 09-23·09-28 10:00 에 True. 핸드오프 근거란의 'R7 결과: 0 >= 1 → 미달' 은 주말 아티팩트였고 check 를 교체했다."
     }
   ]
 }

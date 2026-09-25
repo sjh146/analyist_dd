@@ -194,21 +194,36 @@
     {
       "id": "R7",
       "title": "휴장 캘린더의 당일 누락 자동 보완 (가드가 휴장일을 놓치는 문제)",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "kind": "investigate",
       "affects_model": true,
       "hypothesis": "data/krx_holidays.json 이 data_gap.py 의 probe 로 유지되는데, probe 가 다음 실행 시점에야 그 날을 채운다 → 당일 휴장은 캘린더에 없다.",
       "evidence": "실측 2026-09-25(추석 연휴): 캘린더에 2026-09-24 만 있고 당일 09-25 가 없어, 자율 루프의 휴장 인식 가드가 하루 종일 '장중'으로 오판 → 휴장일 CPU 를 놀렸다. market_data 도 09-24·09-25 모두 0행(거래 없음)이라 휴장이 확실한 날이었다.",
       "command": "cd /home/jhshi/analyist_dd && sed -n '140,175p' scripts/data_gap.py && grep -n 'date.today|days=1|lookback' scripts/data_gap.py | head -10",
-      "check": "/usr/bin/python3 -c \"import sys, datetime; sys.path.insert(0,'/home/jhshi/analyist_dd/scripts'); import data_gap; print(1 if datetime.date.today().isoformat() in data_gap.expected_dates() else 0)\"",
+      "check": "/usr/bin/python3 -c \"import sys, datetime; sys.path.insert(0,'/home/jhshi/analyist_dd/scripts'); import data_gap; t=datetime.date.today(); print(1 if (t.weekday()>=5 or t.isoformat() in data_gap.expected_dates()) else 0)\"",
       "check_target": {
         "op": ">=",
         "value": 1
       },
       "fix": "2026-09-25 적용: data_gap.py 의 expected_dates() 가 range(1, ..) 라 **당일이 점검 창에서 빠져 있었다** → range(0, ..) 로 당일 포함. find_gaps() 는 당일을 '휴장 판정'에만 쓰고 공실로 세지 않는다(d == today_s → continue, 장중이면 일봉이 아직 없어 count=0 이라 공실로 오판하면 매일 백필이 돈다). 검증(probe 모사, 캘린더에서 오늘 제거 후): ① no_data 응답 → 오늘 즉시 캘린더 기록·gaps 미포함 ② exists 응답 → 휴장 아님·gaps 미포함. 실측: /usr/bin/python3 scripts/data_gap.py report → rc=0 '공실 없음 — 데이터 정상'. 종전 check(CURRENT_DATE 행수 >= 0)는 0>=0 이 항상 참이라 픽스 없이도 완료로 오판됐다.",
       "success": "data_gap probe 가 당일도 검사하도록 수정 + 휴장일이면 즉시 캘린더에 기록. 검증: 다음 휴장일에 market_hours() 가 False 를 반환",
-      "cost": "30분"
+      "cost": "30분",
+      "attempts": [
+        {
+          "ts": "2026-09-26T04:00:40+09:00",
+          "rc": 0,
+          "detail": "[조사]R7: 0 >= 1 → 미달 | 증거: # KIS 키 없음/미인증/게이트웨이 오류 등 판별 불가 → KRX 2콜 프로브로 대체 | print(\"KIS 프로브 판별 불가 → KRX 프로브로 대체: {0}\".format(d)) | exists, no_data = probe_krx(d)"
+        }
+      ],
+      "result": {
+        "detail": "[조사]R7: 0 >= 1 → 미달 | 증거: # KIS 키 없음/미인증/게이트웨이 오류 등 판별 불가 → KRX 2콜 프로브로 대체 | print(\"KIS 프로브 판별 불가 → KRX 프로브로 대체: {0}\".format(d)) | exists, no_data = probe_krx(d)",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R7_20260926-040040.log"
+      },
+      "check_note": "2026-09-26 교체: 이전 check(`today in expected_dates()`)는 **주말에 구조적으로 0** 이다 — expected_dates() 는 평일만 담으므로 토·일요일 틱마다 '0 >= 1 → 미달'이 기록됐다(실측 2026-09-26 04:00 토요일: 수정은 이미 들어가 있는데 미달로 기록). 새 check 는 수정의 결함 자체를 본다: 평일이면 '오늘이 창에 포함', 주말이면 가드가 쓰이지 않으므로 통과(주말엔 판정 대상이 없다). 픽스 전이면 평일에 0 이 나온다.",
+      "note": " | [2026-09-26 04:10 리서처] R7 재실행은 커맨드가 '코드 열람(sed/grep)'이라 조사형 rc=0 으로 done 처리됐지만 check 는 주말 아티팩트로 0 이었다 → check 를 주말 인지형으로 교체. 성공 기준 실측 검증: base.market_hours(dt) 가 휴장일 2026-09-24 10:00 = False, 2026-09-25 14:00 = False, 정상 거래일 2026-09-23 10:00 = True, 2026-09-28 10:00 = True (캘린더 data/krx_holidays.json 에 09-24·09-25 포함)."
     },
     {
       "id": "R9",
@@ -387,19 +402,19 @@
       "kind": "investigate",
       "hypothesis": "R10 이 feature_coverage 에 쓴 커버리지는 464일 전체 격자를 분모로 쓴 값이라, 모델이 실제로 쓰는 최근 창에서는 커버리지가 더 높다. 격자 기준으로 '커버리지 0.9%' 로 보이는 피처가 창 기준에서는 쓸 수 있는 피처일 수 있다. 반대로 stock_unique_median<=1(종목별 값 1개)은 창과 무관하게 횡단면 무변별이므로 그대로 실격이다.",
       "evidence": "실측 2026-09-25 20:22 — R10 19개 중 착시 15개 / 결측>0.90 8개가 전부 이 배치 소속이고, 180개 기존 피처는 착시 0. 단 이 수치는 window_days=464 격자 기준이다. 공시 기반 피처(short_interest_ratio 등)는 데이터가 존재하는 기간이 최근으로 한정되므로 격자 분모가 커버리지를 구조적으로 낮게 만든다.",
-      "method": "① build_supply_market_features.py 의 compute_coverage 를 창 파라미터화(예: --since 250d) ② 같은 19개를 90/250/464일 세 창으로 측정해 표로 비교 ③ 창 기준 nonzero_ratio>=0.044(선별 문턱) 이면서 stock_unique_median>=2 인 피처만 '엔지니어 제안 가능'으로 표시",
-      "command": "",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('bb_position','krx_advance_decline_ratio','krx_total_trading_value','market_breadth','relative_strength','momentum_3_12m','momentum_ni','momentum_op','foreign_net_buy','institution_net_buy','market_impact_score','short_selling_ratio','retail_ownership_pct','foreign_ownership_pct','short_interest_ratio','days_to_cover','institution_ownership_pct','foreign_net_buy_5d','institution_net_buy_5d') AND window_days <= 250 AND nonzero_ratio >= 0.044 AND stock_unique_median >= 2 AND cross_section_constant_ratio < 0.99\"",
+      "method": "① scripts/r16_window_coverage.py 로 창별 실측(기본 250d, --window-days 로 변경) ② 정의는 build_supply_market_features.compute_coverage_rows 를 import 해 재사용 (계약 #2 NaN≠0 포함) ③ 판정 5종: SELECTABLE / universe_limited(값 보유 행에서는 쓸 수 있음) / universe_missing(원천 부족) / market_level(계약 #6 횡단면 금지) / xsec_flat. feature_coverage 에는 **쓰지 않는다**(창 정의 변경이 전역 기준선을 뒤집는다).",
+      "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r16_window_coverage.py --window-days 250 --no-cache",
+      "check": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r16_window_coverage.py --check --window-days 250",
       "check_target": {
         "op": ">=",
         "value": 1
       },
-      "check_note": "결함 자체를 검사한다: '창 기준으로도 쓸 수 있는 피처가 0개'면 0 이 나와 미달로 남고, 재측정해서 쓸 수 있는 피처가 확인되어야 통과한다. 격자(464) 값으로는 절대 통과하지 않는다.",
+      "check_note": "check 를 feature_coverage 조회에서 **실측 스크립트**로 교체했다(2026-09-26). 이유: 이전 check 는 `feature_coverage WHERE window_days<=250` 을 세는데, 그 테이블은 feature_name 이 PK 인 현재상태 테이블이라 통과하려면 464일 값을 250일 창 값으로 **덮어써야** 한다 — 부분 재계산이 북극성 지표(alive/dead·종목상수)를 뒤집는 그 사고 경로다(실측 2026-09-25: 76/97→16/3). 새 check 는 DB 를 읽기만 하고 마지막 줄에 'SELECTABLE 피처 수'를 정수로 출력한다 → 재측정 없이는 통과하지 않는다(0이면 미달). command 는 --no-cache 로 매번 재실측, check 는 24h 이내 결과를 재사용(실측 14초).",
       "setup_needed": [],
       "cost": "2~3시간",
       "success": "19개 각각에 대해 창별 커버리지·횡단면 변별력이 표로 나오고, 엔지니어에 넘길 수 있는 피처 목록이 확정된다",
       "result": "**측정 완료(2026-09-25 21:30), 쓰기는 다음 사이클** — 19개를 464일 격자와 최근 250일 창으로 각각 실측(supply_market_features ⋈ market_data 격자, NULL 은 0 으로 세지 않음). 창을 좁혀도 결론은 대체로 불변: 464d→250d 에서 momentum_3_12m 0.1356→0.2353, bb_position 0.9020→0.9632, relative_strength 0.9649→0.9679, foreign_net_buy 0.0705→0.0784, short_selling_ratio 0.0021→0.0037, krx_advance_decline_ratio 0.9661→0.9682. **엔지니어 제안 가능(250d 창): 3개** — momentum_3_12m(uniq_med 62, xsec 0.633), relative_strength(uniq_med 169, xsec 0.000), bb_position(uniq_med 169, xsec 0.000). **시장레벨이라 횡단면 피처 금지(계약 #6): 3개** — krx_advance_decline_ratio·market_breadth·krx_total_trading_value (xsec_const=1.000). **원천 유니버스 부족: 4개** — 수급 4종(fi 2 + inst 2). 이것이 R16 의 핵심 발견이다: 격자 3,970종목 중 수급 값 보유는 **338종목**뿐(null 0.9163)이라 시장 분모에서는 0.08 로 보이지만, **그 338종목 행 안에서는 nonzero 0.9370**(문턱 0.044 의 21배)이다 → 피처가 무효가 아니라 **분모가 시장 전체**다. 유니버스를 좁히면 쓸 수 있고, 넓히려면 R3(수급 이력 확장)이 선행. **무효(원천 없음): 9개** — ownership_pct 3종(ownership 225종목뿐, null 0.9997~1.0), short_interest_ratio·days_to_cover(null 1.0), market_impact_score 0.0015, momentum_ni·momentum_op(null 0.58~0.61 · uniq_med 0 = 재무 원천 부족). 주의: 이것도 '피처 못 쓴다'가 아니라 '원천을 못 채웠다'로 읽어야 한다.",
-      "note": "| [2026-09-25 21:35 리서처] 창별 표를 result 에 붙였다. 남은 일: 이 값으로 feature_coverage 를 **덮어쓰지 않았다** — window_days 를 250 으로 바꿔 쓰면 464d 측정과 섞여 전역 판정 기준선이 또 뒤집힌다(2026-09-25 20:20 실측 사고와 같은 유형). 전체 199개를 같은 창으로 재측정하는 단일 패스로 처리해야 한다 → 다음 사이클."
+      "note": "| [2026-09-25 21:35 리서처] 창별 표를 result 에 붙였다. 남은 일: 이 값으로 feature_coverage 를 **덮어쓰지 않았다** — window_days 를 250 으로 바꿔 쓰면 464d 측정과 섞여 전역 판정 기준선이 또 뒤집힌다(2026-09-25 20:20 실측 사고와 같은 유형). 전체 199개를 같은 창으로 재측정하는 단일 패스로 처리해야 한다 → 다음 사이클. | [2026-09-26 04:10 리서처] 창 기준 실측을 스크립트로 고정·재현했다(scripts/r16_window_coverage.py, 14초, JSON data/reports/r16_window_coverage.json). 실측(250d, 격자 617,974행 / 3,875종목 / 168거래일, 2026-01-17~09-23): **SELECTABLE 2개** relative_strength(nz 0.9997, uniq 168, xsec 0.000)·bb_position(nz 0.9948, uniq 168, xsec 0.000); **조건부 1개** momentum_3_12m(nz 0.2444, null 0.7550 — 값 보유 행 안에서는 nz 0.998, uniq 62) → 09-25 의 '3개' 판정은 '무조건 2 + 유니버스 조건부 1' 로 갈라진다; market_level(횡단면 금지) 3개 adr·total_trading_value·market_breadth(xsec 1.000); 원천 부족 13개(수급 4종 null 0.9136, ownership 3종 null 0.9996~1.0, short_interest·days_to_cover null 1.0, short_selling_ratio 0.9961, market_impact_score 0.9984, momentum_ni·op null 0.56~0.59). 주의 — xsec 는 nunique 기반이라 결측이 큰 피처에서 '원천 부재'를 '시장레벨'로 오독하게 만든다(스크립트는 null>=0.5 를 먼저 판정한다)."
     }
   ]
 }

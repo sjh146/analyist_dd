@@ -126,3 +126,33 @@
 - check 무결성 경고: R13 의 check(`dead <= 78`)는 R9~R12 부활로 dead 가 97 → 35 로 줄어
   **조사 없이도 통과**한다. target 을 35 로 조였고, R13 의 실제 산출물(피처별 원천 판정표)이
   나오기 전에는 이 신호로 done 처리하지 않는다.
+
+## [리서처 R7] 휴장 캘린더의 당일 누락 자동 보완 (가드가 휴장일을 놓치는 문제)  (2026-09-26 04:00)
+- 결과: [조사]R7: 0 >= 1 → 미달 | 증거: # KIS 키 없음/미인증/게이트웨이 오류 등 판별 불가 → KRX 2콜 프로브로 대체 | print("KIS 프로브 판별 불가 → KRX 프로브로 대체: {0}".format(d)) | exists, no_data = probe_krx(d)
+- 판정: 조사완료
+- 근거: 실측 2026-09-25(추석 연휴): 캘린더에 2026-09-24 만 있고 당일 09-25 가 없어, 자율 루프의 휴장 인식 가드가 하루 종일 '장중'으로 오판 → 휴장일 CPU 를 놀렸다. market_data 도 09-24·09-25 모두 0행(거래 없음)이라 휴장이 확실한 날이었다.
+- 엔지니어 백로그: `XR7` (command·대조군 기입 필요)
+
+## [리서처] R16 창 기준 실측을 재현 스크립트로 고정 · R7 check 주말 아티팩트 수리 (2026-09-26 04:15)
+- **R16 배선 완료**: `scripts/r16_window_coverage.py` (읽기 전용, 실측 14초, JSON `data/reports/r16_window_coverage.json`).
+  `feature_coverage` 에는 **쓰지 않는다** — feature_name 이 PK 인 현재상태 테이블이라 464일 값을 250일 창 값으로
+  덮으면 창 정의 변경만으로 전역 판정(alive/dead·종목상수)이 뒤집힌다(실측 사고 경로 76/97→16/3).
+  기존 check 는 그 덮어쓰기를 요구하는 형태(`WHERE window_days<=250`)였다 → 실측 스크립트 기반 check 로 교체.
+- **실측(250일 창, 격자 617,974행 / 3,875종목 / 168거래일, 2026-01-17~09-23)**:
+  SELECTABLE **2개** — relative_strength(nz 0.9997, uniq 168, xsec 0.000) · bb_position(0.9948, 168, 0.000).
+  조건부 **1개** — momentum_3_12m(nz 0.2444, null 0.7550 이지만 값 보유 행 안에서는 nz 0.998, uniq 62).
+  → 09-25 의 "3개" 는 **무조건 2 + 유니버스 조건부 1** 로 갈라진다.
+  market_level(계약 #6 횡단면 금지) 3개 — adr·total_trading_value·market_breadth(xsec 1.000).
+  원천 부족 13개 — 수급 4종(null 0.9136), ownership 3종(null 0.9996~1.0), short_interest·days_to_cover(null 1.0),
+  short_selling_ratio(0.9961), market_impact_score(0.9984), momentum_ni·op(null 0.56~0.59).
+- **함정 등록**: `cross_section_constant_ratio` 는 `nunique` 기반이라 **NaN 을 세지 않는다** → 결측 99% 피처는
+  '값 1개인 날'이 다수라 xsec≈1.0 이 되고, 이걸 시장레벨로 읽으면 **원천 부재를 시장레벨로 오독**한다
+  (실측: institution_ownership_pct null 1.0 / xsec 1.0). 스크립트는 `null>=0.5` 를 먼저 판정한다.
+- **R7 check 수리**: 이전 check(`today in expected_dates()`)는 **주말에 구조적으로 0** 이다(캘린더는 평일만 담는다)
+  → 2026-09-26 04:00(토) 틱이 "0 >= 1 → 미달"을 기록했다(수정은 이미 들어가 있었다). 교체 후 재검증:
+  R7 eval_check = 1 >= 1 충족, R16 eval_check = 2 >= 1 충족. R7 성공 기준은 실측으로 확인 —
+  `market_hours()` 가 휴장일 09-24 10:00 / 09-25 14:00 에 False, 정상 거래일 09-23·09-28 10:00 에 True.
+  XR7 은 엔지니어 작업이 없으므로 종결 처리(소음 방지).
+- **관측(엔지니어 소관, 미수정)**: `stock_xgboost_ml` 에 좀비 3개 누적(pid 2344707·2353926·2374996, 부모 2331621
+  = 컨테이너 PID1 `python -m app.main`, 7시간 이상). 자식 reap 누락 — 위생 `warn` 의 유일 원인.
+  디스크 4.0% / 댕글링볼륨 0 은 정상.
