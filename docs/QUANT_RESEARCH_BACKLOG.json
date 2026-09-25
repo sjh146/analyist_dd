@@ -218,16 +218,17 @@
       "hypothesis": "이벤트 공시가 없어 event_*_5d 18개 + disclosure_count_5d 가 전부 0 이다. 공시 이벤트(유상증자·공급계약·소송·자기주식 등)는 단기 방향성의 실질 신호다.",
       "evidence": "실측 2026-09-25: feature_coverage 최신 스냅샷에서 nonzero_ratio=0 인 97개 중 event 계열 18개 + disclosure_count_5d. disclosures 22,278건이 **전부 정기공시**(report_nm 이 사업/분기/반기보고서 계열뿐)였고 '유상증자' 매치 0건 — 원인은 수집 스크립트의 pblntf_ty='A' 하드코딩. B 유형 dry-run 실측: 2026-08 월 300건 수신 (적재대상 77~82건/페이지)로 이벤트 공시는 실재 확인.",
       "method": "① --types B,D,E,I 백필(오늘 진행 중) ② report_nm 키워드 → 16종 이벤트 유형 분류 ③ 종목×일자 롤링 5일 카운트 테이블 생성 ④ 모델 피처로 연결(as-of 준수)",
-      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT report_nm) FROM disclosures\"",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT report_nm) FROM disclosures\"",
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('event_capital_increase_5d','event_contract_5d','event_mna_5d','event_treasury_5d','disclosure_count_5d') AND nonzero_ratio > 0\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('event_capital_increase_5d','event_contract_5d','event_mna_5d','event_treasury_5d','disclosure_count_5d') AND nonzero_ratio > 0\"",
       "check_target": {
         "op": ">=",
-        "value": 100
+        "value": 3
       },
       "setup_needed": [],
       "cost": "백필 30분 + 분류 스크립트·검증 1~2시간",
       "success": "report_nm 유형 100개 이상 적재 후 event_features 생성, 부활 피처 nonzero 확인",
-      "doc": "docs/DEAD_FEATURE_REVIVAL.md"
+      "doc": "docs/DEAD_FEATURE_REVIVAL.md",
+      "result": "부분 완료(2026-09-25 16:25): **원천 백필은 성공** — disclosures 22,278 → 36,591행, 보고서 유형 12~20 → 305개(유상증자·계약·소송 등 이벤트 공시 실제 적재 확인). 남은 것: 16종 키워드 분류 → 롤링 5일 카운트 → event_features 생성 후 모델 연결. **체크 기준을 '원천 적재'에서 '피처가 실제 값을 갖는가'로 교정** — 원천 카운트로 두면 사이클이 조기 완료로 오판한다(자가 점검 2026-09-25 16:25)."
     },
     {
       "id": "R10",
