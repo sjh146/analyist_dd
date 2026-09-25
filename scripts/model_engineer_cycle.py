@@ -363,7 +363,28 @@ def start_background(item_id, force=False):
 
 
 # ── 틱/상태 출력 (에이전트가 읽는 요약) ────────────────────────────────────────
+def north_star(role):
+    """목표 사슬 스코어보드에서 내 북극성 한 줄을 가져온다.
+
+    WHY(2026-09-25 사용자 지시): 엔지니어의 목표는 "실험을 돌렸다"가 아니라 **로버스트 AUC 향상**이다.
+    매 틱 현재 최고 로버스트 값과 기준선 대비 델타, 무개선 사이클 수를 보고 앞에 붙인다.
+    실패해도 틱은 계속 돌아야 하므로 예외를 삼킨다.
+    """
+    try:
+        import subprocess
+        import sys
+        r = subprocess.run(
+            [sys.executable, os.path.join(PROJ, "scripts/quant_scoreboard.py"), "--stanza", role],
+            capture_output=True, text=True, timeout=90)
+        return (r.stdout or "").strip()
+    except Exception:   # noqa: BLE001 — 정보 줄이지 치명 경로가 아니다(import 실패까지 포함)
+        return ""
+
+
 def tick(force=False):
+    ns = north_star("engineer")
+    if ns:
+        print(ns)
     pid = running_pid()
     if pid:
         st = {}

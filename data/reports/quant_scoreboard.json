@@ -1,0 +1,63 @@
+{
+  "ts": "2026-09-25T15:55:28+09:00",
+  "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
+  "trader": {
+    "role": "trader",
+    "north": "실현 순손익(₩)",
+    "source": "/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3",
+    "realized_krw": -7839,
+    "trades": 31,
+    "wins": 12,
+    "win_rate": 38.7,
+    "expectancy_krw": -253,
+    "avg_return_pct": 0.32,
+    "open_positions": 10,
+    "days_since_entry": 4.0,
+    "alerts": [
+      "순손익 마이너스 -7,839원 — 기대값 -253원/건",
+      "신규 진입 4.0일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤"
+    ],
+    "error": null
+  },
+  "engineer": {
+    "role": "engineer",
+    "north": "로버스트 AUC (다중폴드 평균)",
+    "champion_single": 0.551318,
+    "best_robust": 0.5406,
+    "best_robust_std": 0.0316,
+    "best_exp": "LS_quant_q30_h5",
+    "baseline": 0.5406,
+    "baseline_name": "LS_quant_q30_h5 (h5·분위0.3·top30)",
+    "delta": 0.0,
+    "last_verdict": "노이즈",
+    "no_improve_cycles": 2,
+    "source": "/home/jhshi/analyist_dd/data/reports/model_engineer_ledger.jsonl + /app/app/models/champion/auc.txt",
+    "alerts": []
+  },
+  "researcher": {
+    "role": "researcher",
+    "north": "모델 학습 데이터의 품질·커버리지",
+    "sample": "dq_20260925-155253.json",
+    "status": "warn",
+    "warns": [
+      "종목상수 피처 비율(dq_feature_stock_constant_ratio)=0.381579 ≥ 0.35"
+    ],
+    "breaches": [],
+    "alive_features": 76.0,
+    "dead_features": 97.0,
+    "stock_constant_ratio": 0.3815789473684211,
+    "news_freshness_hours": 0.26964189944444444,
+    "rows_delivered": 54.0,
+    "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
+    "alerts": [
+      "DQ 경고: 종목상수 피처 비율(dq_feature_stock_constant_ratio)=0.381579 ≥ 0.35",
+      "죽은 피처 97개 > 살아있는 피처 76개 — 모델이 쓸 수 있는 신호가 소수"
+    ]
+  },
+  "needs_human": [
+    "[trader] 순손익 마이너스 -7,839원 — 기대값 -253원/건",
+    "[trader] 신규 진입 4.0일 없음 (보유 10종목) — 돈이 도는 회전이 멈춤",
+    "[researcher] DQ 경고: 종목상수 피처 비율(dq_feature_stock_constant_ratio)=0.381579 ≥ 0.35",
+    "[researcher] 죽은 피처 97개 > 살아있는 피처 76개 — 모델이 쓸 수 있는 신호가 소수"
+  ]
+}

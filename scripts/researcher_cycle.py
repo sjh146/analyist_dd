@@ -211,6 +211,24 @@ def execute(item, force=False):
 
 
 # ── 틱 ──────────────────────────────────────────────────────────────────────
+def north_star(role):
+    """목표 사슬 스코어보드에서 내 북극성 한 줄을 가져온다.
+
+    WHY(2026-09-25 사용자 지시): 각 역할은 "사이클을 돌았다"가 아니라 **자기 목표 지표**로
+    판정되어야 한다 — 리서처=데이터 품질, 엔지니어=로버스트 AUC, 트레이더=순손익(₩).
+    실패해도 틱은 계속 돌아야 하므로 예외를 삼킨다(정보 줄이지 치명 경로가 아니다).
+    """
+    try:
+        import subprocess
+        import sys
+        r = subprocess.run(
+            [sys.executable, os.path.join(PROJ, "scripts/quant_scoreboard.py"), "--stanza", role],
+            capture_output=True, text=True, timeout=90)
+        return (r.stdout or "").strip()
+    except Exception:   # noqa: BLE001 — 정보 줄이지 치명 경로가 아니다(import 실패까지 포함)
+        return ""
+
+
 def tick(force=False):
     pid = base.running_pid()
     if pid:
@@ -230,6 +248,10 @@ def tick(force=False):
         return 0
 
     src_rc, src_out = snapshot(24)
+    # 북극성 먼저: 데이터 품질이 목표(모델에 학습되는 양질 데이터)에 얼마나 가까운지 매 틱 확인.
+    ns = north_star("researcher")
+    if ns:
+        print(ns)
     print(f"[모니터링] dq_snapshot rc={src_rc} (0=정상 2=경고 3=위반)")
     for ln in snapshot_brief(src_out):
         print("  " + ln)
