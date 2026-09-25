@@ -236,6 +236,15 @@ def tick(force=False):
 
     led = base.load_ledger()
     unreported = [r for r in led if not r.get("reported")]
+    # 위생 상태(30분 주기 크론이 갱신)를 한 줄로 함께 보여준다 — 리포트마다 시스템 건강을 확인.
+    try:
+        with open(os.path.join(PROJ, "data/reports/hygiene/latest.json"), encoding="utf-8") as f:
+            h = json.load(f)
+        print(f"[위생] {h.get('status')} / 좀비 {len(h.get('zombies') or [])} / "
+              f"디스크 {(h.get('disk') or {}).get('use_pct')}% / "
+              f"댕글링볼륨 {(h.get('docker') or {}).get('dangling_volumes')}")
+    except (OSError, json.JSONDecodeError):
+        pass
     if unreported:
         for r in unreported:
             print(f"=== 결과 도착: {r['id']} — {r['title']}")

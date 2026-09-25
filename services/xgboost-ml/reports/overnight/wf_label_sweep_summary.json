@@ -1,13 +1,18 @@
 {
-  "finished_at": "2026-09-25T04:28:04+00:00",
+  "finished_at": "2026-09-25T06:28:46+00:00",
   "config": {
     "panel": "/app/app/models/wf/panel_420_asofpatch.npz",
     "days": 420,
     "limit": 50,
+    "market": null,
+    "since": null,
+    "min_days": null,
+    "min_value": null,
+    "order": null,
     "folds": 5,
     "seeds": 3,
     "wait_for_panel": 0,
-    "only": "LS_quant_q30_h5,LS_quant_q30_h8,LS_rel_h8",
+    "only": "LS_quant_q30_h5,LS_rel_h5,LS_quant_q25_h5,LS_quant_q20_h5",
     "dry_run": false
   },
   "best": {
@@ -18,7 +23,7 @@
     "q": 0.3,
     "select": "top30",
     "transform": null,
-    "ts": "2026-09-25T04:24:31+00:00",
+    "ts": "2026-09-25T06:26:16+00:00",
     "status": "ok",
     "folds": {
       "fold1": {
@@ -75,7 +80,7 @@
       "q": 0.3,
       "select": "top30",
       "transform": null,
-      "ts": "2026-09-25T04:24:31+00:00",
+      "ts": "2026-09-25T06:26:16+00:00",
       "status": "ok",
       "folds": {
         "fold1": {
@@ -124,116 +129,172 @@
       "n_rows_used": 8184
     },
     {
-      "exp": "LS_quant_q30_h8",
-      "desc": "분위0.3 h8 top30 — wave5 최고 설정을 동일 프로토콜로 검증",
-      "kind": "quantile",
-      "horizon": 8,
-      "q": 0.3,
-      "select": "top30",
-      "transform": null,
-      "ts": "2026-09-25T04:25:29+00:00",
-      "status": "ok",
-      "folds": {
-        "fold1": {
-          "train_rows": 1110,
-          "test_rows": 1350,
-          "test_from": "2025-10-10",
-          "test_to": "2025-12-11",
-          "mean": 0.48250315500685864,
-          "n_features": 30
-        },
-        "fold2": {
-          "train_rows": 2460,
-          "test_rows": 1349,
-          "test_from": "2025-12-12",
-          "test_to": "2026-02-20",
-          "mean": 0.4989628896948382,
-          "n_features": 30
-        },
-        "fold3": {
-          "train_rows": 3809,
-          "test_rows": 1329,
-          "test_from": "2026-02-23",
-          "test_to": "2026-04-27",
-          "mean": 0.5182361023039527,
-          "n_features": 30
-        },
-        "fold4": {
-          "train_rows": 5150,
-          "test_rows": 1324,
-          "test_from": "2026-04-28",
-          "test_to": "2026-07-03",
-          "mean": 0.5400492267625646,
-          "n_features": 30
-        },
-        "fold5": {
-          "train_rows": 6478,
-          "test_rows": 1312,
-          "test_from": "2026-07-06",
-          "test_to": "2026-09-08",
-          "mean": 0.49400700847709694,
-          "n_features": 30
-        }
-      },
-      "auc_mean": 0.5067516764490623,
-      "auc_std": 0.02025685783653585,
-      "n_rows_used": 8098
-    },
-    {
-      "exp": "LS_rel_h8",
-      "desc": "시장상대 이진 h8 top30 — 분위 대신 중앙값 기준",
+      "exp": "LS_rel_h5",
+      "desc": "시장상대 이진(중앙값 초과=1) h5 top30 — 미측정 레버",
       "kind": "relative",
-      "horizon": 8,
+      "horizon": 5,
       "q": null,
       "select": "top30",
       "transform": null,
-      "ts": "2026-09-25T04:26:34+00:00",
+      "ts": "2026-09-25T06:27:18+00:00",
       "status": "ok",
       "folds": {
         "fold1": {
-          "train_rows": 1813,
-          "test_rows": 2205,
-          "test_from": "2025-10-10",
-          "test_to": "2025-12-11",
-          "mean": 0.4867270233196159,
+          "train_rows": 2009,
+          "test_rows": 2254,
+          "test_from": "2025-10-13",
+          "test_to": "2025-12-15",
+          "mean": 0.5170349984075759,
           "n_features": 30
         },
         "fold2": {
-          "train_rows": 4018,
-          "test_rows": 2205,
-          "test_from": "2025-12-12",
-          "test_to": "2026-02-20",
-          "mean": 0.5237895747599451,
+          "train_rows": 4263,
+          "test_rows": 2254,
+          "test_from": "2025-12-16",
+          "test_to": "2026-02-25",
+          "mean": 0.5251283982104987,
           "n_features": 30
         },
         "fold3": {
-          "train_rows": 6223,
-          "test_rows": 2155,
-          "test_from": "2026-02-23",
-          "test_to": "2026-04-27",
-          "mean": 0.5101467152022997,
+          "train_rows": 6517,
+          "test_rows": 2198,
+          "test_from": "2026-02-26",
+          "test_to": "2026-05-04",
+          "mean": 0.5090320694977115,
           "n_features": 30
         },
         "fold4": {
-          "train_rows": 8392,
-          "test_rows": 2160,
-          "test_from": "2026-04-28",
-          "test_to": "2026-07-03",
-          "mean": 0.5215896336146097,
+          "train_rows": 8723,
+          "test_rows": 2201,
+          "test_from": "2026-05-06",
+          "test_to": "2026-07-10",
+          "mean": 0.5608324304564594,
           "n_features": 30
         },
         "fold5": {
-          "train_rows": 10562,
-          "test_rows": 2148,
-          "test_from": "2026-07-06",
-          "test_to": "2026-09-08",
-          "mean": 0.4818630341287459,
+          "train_rows": 10930,
+          "test_rows": 2203,
+          "test_from": "2026-07-13",
+          "test_to": "2026-09-16",
+          "mean": 0.5106125380785703,
           "n_features": 30
         }
       },
-      "auc_mean": 0.5048231962050432,
-      "auc_std": 0.017457475814561627,
-      "n_rows_used": 13217
+      "auc_mean": 0.5245280869301632,
+      "auc_std": 0.01901726144440289,
+      "n_rows_used": 13364
+    },
+    {
+      "exp": "LS_quant_q25_h5",
+      "desc": "분위0.25 h5 top30 (표본 +)",
+      "kind": "quantile",
+      "horizon": 5,
+      "q": 0.25,
+      "select": "top30",
+      "transform": null,
+      "ts": "2026-09-25T06:28:23+00:00",
+      "status": "ok",
+      "folds": {
+        "fold1": {
+          "train_rows": 979,
+          "test_rows": 1103,
+          "test_from": "2025-10-13",
+          "test_to": "2025-12-15",
+          "mean": 0.5359529664992065,
+          "n_features": 30
+        },
+        "fold2": {
+          "train_rows": 2082,
+          "test_rows": 1104,
+          "test_from": "2025-12-16",
+          "test_to": "2026-02-25",
+          "mean": 0.5298218380242247,
+          "n_features": 30
+        },
+        "fold3": {
+          "train_rows": 3186,
+          "test_rows": 1103,
+          "test_from": "2026-02-26",
+          "test_to": "2026-05-04",
+          "mean": 0.5678525868644625,
+          "n_features": 30
+        },
+        "fold4": {
+          "train_rows": 4289,
+          "test_rows": 1102,
+          "test_from": "2026-05-06",
+          "test_to": "2026-07-10",
+          "mean": 0.5205752506304876,
+          "n_features": 30
+        },
+        "fold5": {
+          "train_rows": 5392,
+          "test_rows": 1104,
+          "test_from": "2026-07-13",
+          "test_to": "2026-09-16",
+          "mean": 0.518181579500105,
+          "n_features": 30
+        }
+      },
+      "auc_mean": 0.5344768443036972,
+      "auc_std": 0.017869404989280954,
+      "n_rows_used": 6615
+    },
+    {
+      "exp": "LS_quant_q20_h5",
+      "desc": "분위0.20 h5 top30 (표본 ++)",
+      "kind": "quantile",
+      "horizon": 5,
+      "q": 0.2,
+      "select": "top30",
+      "transform": null,
+      "ts": "2026-09-25T06:28:36+00:00",
+      "status": "ok",
+      "folds": {
+        "fold1": {
+          "train_rows": 818,
+          "test_rows": 920,
+          "test_from": "2025-10-13",
+          "test_to": "2025-12-15",
+          "mean": 0.5055379647132956,
+          "n_features": 30
+        },
+        "fold2": {
+          "train_rows": 1738,
+          "test_rows": 920,
+          "test_from": "2025-12-16",
+          "test_to": "2026-02-25",
+          "mean": 0.5058191556395715,
+          "n_features": 30
+        },
+        "fold3": {
+          "train_rows": 2658,
+          "test_rows": 919,
+          "test_from": "2026-02-26",
+          "test_to": "2026-05-04",
+          "mean": 0.5546998831738814,
+          "n_features": 30
+        },
+        "fold4": {
+          "train_rows": 3577,
+          "test_rows": 890,
+          "test_from": "2026-05-06",
+          "test_to": "2026-07-10",
+          "mean": 0.544608004039894,
+          "n_features": 30
+        },
+        "fold5": {
+          "train_rows": 4475,
+          "test_rows": 918,
+          "test_from": "2026-07-13",
+          "test_to": "2026-09-16",
+          "mean": 0.5097825622623777,
+          "n_features": 30
+        }
+      },
+      "auc_mean": 0.5240895139658039,
+      "auc_std": 0.021169118914384194,
+      "n_rows_used": 5485
     }
   ]
 }

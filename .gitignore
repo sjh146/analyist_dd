@@ -75,3 +75,6 @@ data/reports/dq_snapshots/
 *.npz.stale-*
 dumps/
 *.sql.gz
+
+# 위생 점검 산출물(30분 주기, 파생)
+data/reports/hygiene/

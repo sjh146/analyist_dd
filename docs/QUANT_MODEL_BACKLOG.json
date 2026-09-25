@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-25T13:28:04+09:00",
+  "updated_at": "2026-09-25T15:28:47+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -92,7 +92,7 @@
     {
       "id": "L2",
       "title": "라벨 종류·분위 @h5: 분위0.3 vs 시장상대 vs 분위0.25/0.20",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "hypothesis": "L1 에서 h8 이 탈락했으므로 호라이즌은 h5 로 고정하고, **라벨 종류(시장상대 vs 절대분위)** 와 **분위 폭(0.30/0.25/0.20)** 만 바꾼다.",
       "evidence": "L1 실측: h8 0.5068 / rel_h8 0.5048 / h5 0.5406. LS_rel_* 는 이 프로토콜에서 아직 미측정(구성만 존재).",
@@ -103,7 +103,93 @@
       "cost": "약 40~70분",
       "counterfactual": "LS_quant_q30_h5",
       "arm": "LS_rel_h5",
-      "note": "L1 결과로 재구성(2026-09-25). h8 계열은 폐기."
+      "note": "L1 결과로 재구성(2026-09-25). h8 계열은 폐기.",
+      "attempts": [
+        {
+          "ts": "2026-09-25T15:28:47+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 LS_rel_h5 0.5245 vs 대조군 LS_quant_q30_h5 0.5406 → Δ-0.0161 (최고: LS_quant_q30_h5 0.5406)",
+          "log": "data/reports/me_cycle/logs/me_cycle_L2_20260925-152609.log",
+          "elapsed_min": 2.6
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 LS_rel_h5 0.5245 vs 대조군 LS_quant_q30_h5 0.5406 → Δ-0.0161 (최고: LS_quant_q30_h5 0.5406)",
+        "delta": -0.0161,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.521,
+              0.5228,
+              0.5524,
+              0.5972,
+              0.5098
+            ],
+            "mean": 0.5406,
+            "std": 0.0316,
+            "min": 0.5098,
+            "max": 0.5972,
+            "fold_win_rate": 1.0
+          },
+          "LS_rel_h5": {
+            "desc": "시장상대 이진(중앙값 초과=1) h5 top30 — 미측정 레버",
+            "kind": "relative",
+            "horizon": 5,
+            "folds": [
+              0.517,
+              0.5251,
+              0.509,
+              0.5608,
+              0.5106
+            ],
+            "mean": 0.5245,
+            "std": 0.019,
+            "min": 0.509,
+            "max": 0.5608,
+            "fold_win_rate": 1.0
+          },
+          "LS_quant_q25_h5": {
+            "desc": "분위0.25 h5 top30 (표본 +)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.536,
+              0.5298,
+              0.5679,
+              0.5206,
+              0.5182
+            ],
+            "mean": 0.5345,
+            "std": 0.0179,
+            "min": 0.5182,
+            "max": 0.5679,
+            "fold_win_rate": 1.0
+          },
+          "LS_quant_q20_h5": {
+            "desc": "분위0.20 h5 top30 (표본 ++)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5055,
+              0.5058,
+              0.5547,
+              0.5446,
+              0.5098
+            ],
+            "mean": 0.5241,
+            "std": 0.0212,
+            "min": 0.5055,
+            "max": 0.5547,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      }
     },
     {
       "id": "U1",
