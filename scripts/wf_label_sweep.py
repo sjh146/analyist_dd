@@ -186,6 +186,16 @@ CONFIGS = [
     {"id": "F3_d1_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "folds": 3, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "3폴드 + depth1(현 최고 HP) — 표본이 늘면 얕은 트리 이점이 사라지는가"},
+    # ── SEL1: 선별 크기(topN) 축 (정렬 버그 수정 후 미측정) ──────────────────────
+    # 근거: 학습행이 폴드당 1,230행뿐인데 피처는 30개를 쓴다. depth 단조 실측(과적합 신호)과
+    # 같은 맥락에서 '피처 수를 줄이면 일반화가 좋아지는가'는 수정 후 프로토콜에서 미측정이다.
+    # arm 사전등록 = SEL_top15_h5 (30 → 절반, 중간값). 나머지는 탐색.
+    {"id": "SEL_top10_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top10",
+     "desc": "edge 상위 10개만 — 소표본에서 피처 축소 가설"},
+    {"id": "SEL_top15_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top15",
+     "desc": "edge 상위 15개 — 사전등록 arm"},
+    {"id": "SEL_top20_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top20",
+     "desc": "edge 상위 20개"},
 ]
 
 
