@@ -220,9 +220,21 @@ def check_orphan_pidfiles():
             continue
         try:
             pid = int(open(p, encoding="utf-8").read().strip())
-            os.kill(pid, 0)
         except (OSError, ValueError):
+            bad.append(name)  # pidfile 자체가 못 읽히면 이상 상태
+            continue
+        # EPERM 은 "죽은 프로세스"가 아니다 — 다른 uid(예: root 로 시작한 사이클)가
+        # 살아 있으면 kill(pid,0) 이 PermissionError 를 낸다. ESRCH 만 죽은 것으로 본다.
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
             bad.append(name)
+        except PermissionError:
+            pass
+        except OSError:
+            # 그 밖의 커널 오류는 /proc 존재로 교차 확인한다(uid 무관하게 읽힌다).
+            if not os.path.exists(f"/proc/{pid}"):
+                bad.append(name)
     return bad
 
 
