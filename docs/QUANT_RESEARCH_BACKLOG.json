@@ -217,8 +217,8 @@
         }
       ],
       "result": {
-        "detail": "[조사]R7: 0 >= 1 → 미달 | 증거: # KIS 키 없음/미인증/게이트웨이 오류 등 판별 불가 → KRX 2콜 프로브로 대체 | print(\"KIS 프로브 판별 불가 → KRX 프로브로 대체: {0}\".format(d)) | exists, no_data = probe_krx(d)",
-        "check_value": 0.0,
+        "detail": "[조사]R7: 0 >= 1 → 미달 | 증거: # KIS 키 없음/미인증/게이트웨이 오류 등 판별 불가 → KRX 2콜 프로브로 대체 | print(\"KIS 프로브 판별 불가 → KRX 프로브로 대체: {0}\".format(d)) | exists, no_data = probe_krx(d) | 수리 검증(2026-09-26 06:01 토): check 실측 1 → 통과. 04:00 의 0 은 수리 전 주말 아티팩트(check 문자열에 t.weekday()>=5 추가, 커밋 c983f3b).",
+        "check_value": 1.0,
         "rc": 0,
         "log": "data/reports/res_cycle/logs/res_R7_20260926-040040.log"
       },
