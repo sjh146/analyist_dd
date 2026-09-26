@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-26T19:35:00+09:00",
+  "updated_at": "2026-09-26T20:04:19+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -1762,11 +1762,29 @@
       },
       "cost": "패널 빌드 3.5~7.5h(659거래일×49종목≈32,300페어, 1.2~2.7페어/초) + 측정 ~20분",
       "success": "659거래일 창 로버스트 AUC 가 314거래일 실측(0.5406) 대비 +0.02 이상",
-      "caution": "평일 20:00 컨테이너 재생성 창(est_minutes=700 → 구동기 ETA 가드). 재개: 같은 명령 재실행(체크포인트 .rows.pkl/.meta.json).",
-      "est_minutes": 700,
+      "caution": "평일 20:00 컨테이너 재생성 창(est_minutes=700 → 구동기 ETA 가드). 재개: 같은 명령 재실행(체크포인트 .rows.pkl/.meta.json). | 2026-09-26 실측: 부하(load1 7.2·postgres 경쟁) 하에서 0.41 페어/초 → 32,626페어 ETA 20.9h = est_minutes 700(1.2~2.7페어/초 가정)의 3배. 19:55 사용자 종료 준비로 1,400/32,626(4.3%)에서 SIGKILL. 체크포인트 500페어 단위·재개 가능 → 야간 중단 손실은 최대 500페어. 21h 작업이라 평일 ETA 가드(20:00 재생성 창)에 걸려 주말에만 시작된다.",
+      "est_minutes": 1250,
       "metric": "wf_sweep_summary",
       "arm": "LS_quant_q30_h5",
-      "counterfactual": "기록 기준선 0.5406 (panel_420_asofpatch · 281거래일 창)"
+      "counterfactual": "기록 기준선 0.5406 (panel_420_asofpatch · 281거래일 창)",
+      "attempts": [
+        {
+          "ts": "2026-09-26T19:55:00+09:00",
+          "rc": 137,
+          "verdict": "실행실패",
+          "detail": "외부 종료(사용자 종료 준비가 의도적으로 정지) — 측정값 없음 · 빌드 진행 1,400/32,626 (4.3%) · 체크포인트 1,000행 보존(재개 가능)",
+          "log": "data/reports/me_cycle/logs/me_cycle_U3_20260926-185733.log",
+          "elapsed_min": 57.5
+        }
+      ],
+      "retry_note": "2026-09-26 19:55 기록 없이 종료(사용자 종료 준비) → 재시도 1/3 (체크포인트 재개)",
+      "result": {
+        "verdict": "실행실패",
+        "detail": "외부 종료(사용자 종료 준비가 의도적으로 정지) — 측정값 없음 · 빌드 진행 1,400/32,626 (4.3%) · 체크포인트 1,000행 보존(재개 가능)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 137
+      }
     },
     {
       "id": "U3b",
@@ -1825,6 +1843,33 @@
         "op": ">=",
         "value": 5
       }
+    },
+    {
+      "id": "TR3",
+      "title": "rank 변환 재현성 확정: TR_rank_h5 5폴드×10시드 vs 같은 런 대조군 LS_quant_q30_h5",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5412,
+        "source": "TR1 동일 런 대조군 LS_quant_q30_h5(5폴드×3시드) · panel_420_asofpatch"
+      },
+      "hypothesis": "지금까지 유일하게 부호가 재현된 방향(횡단면 rank 변환)이 시드 노이즈인지 작은 실효인지 확정한다. TR1 Δ+0.0107 · TR2 Δ+0.0081, 두 번 모두 폴드승률 1.0.",
+      "evidence": "TR1 0.5519 vs 0.5412(Δ+0.0107, 폴드 5/5 승) · TR2 0.5495 vs 0.5414(Δ+0.0081, 5/5). 둘 다 +0.02 문턱 미달로 '노이즈' 기록이지만 방향·승률이 반복됐다 — 시드 3→10 으로 평균의 시드 노이즈를 줄여 부호검정을 강화한다.",
+      "method": "같은 패널·같은 런에서 대조군과 실험군을 함께 측정(교차패널 비교 금지). 시드 10개로 각 폴드 평균의 표준오차를 약 1.8배 줄인다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --days 420 --limit 50 --folds 5 --seeds 10 --only LS_quant_q30_h5,TR_rank_h5'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "cost": "약 15~25분(시드 3→10, config 2개)",
+      "success": "TR_rank_h5 평균 − LS_quant_q30_h5 평균 ≥ +0.02 (부호 일관 + 폴드승률 ≥ 0.8)",
+      "counterfactual": "LS_quant_q30_h5 (같은 런 대조군)",
+      "arm": "TR_rank_h5",
+      "metric": "wf_sweep_summary",
+      "est_minutes": 30,
+      "note": "부호가 재현된 유일한 축이라 '노이즈'로 닫기 전에 시드 노이즈를 확정한다. 통과하면 다음 실험 대조군을 rank 변환판으로 승격하고, 미달이면 이 축도 닫는다."
     }
   ]
 }

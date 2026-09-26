@@ -609,6 +609,77 @@ def _progress_note(item_id):
     return f" · 빌드 진행 {d:,}/{t:,} ({d / t * 100:.1f}%)"
 
 
+def _run_log_of(item_id):
+    """그 사이클의 실행 로그 상대경로(가장 최근 것). 없으면 빈 문자열."""
+    try:
+        cands = [os.path.join(LOGDIR, n) for n in os.listdir(LOGDIR)
+                 if n.startswith(f"me_cycle_{item_id}_") and n.endswith(".log")]
+    except OSError:
+        return ""
+    if not cands:
+        return ""
+    return os.path.relpath(max(cands, key=os.path.getmtime), PROJ)
+
+
+def _record_orphan(orphan, started):
+    """기록 없이 사라진 사이클을 **원장에 남긴다**(측정값 없음 → 무효, 무개선 카운터 비오염).
+
+    왜(실측 2026-09-26 U3): 사용자가 기차 탑승 전 컴퓨터를 끄면서 종료 준비 스크립트가
+    사이클(pid 14876)과 wf_label_sweep 자식들을 **의도적으로 정지**시켰는데, 구동기 프로세스가
+    함께 SIGKILL 되어 원장에 아무 기록이 남지 않았다. 틱은 "기록 없이 죽었다" 한 줄만 출력하고
+    끝나서 ① 그 실행이 무엇이었는지·얼마나 진척됐는지가 증거로 남지 않고 ② scoreboard 의
+    무효(invalid) 카운터에도 잡히지 않는다. 외부 종료도 rc=137 '실행실패(측정값 없음)' 로
+    명시해 남긴다 — **성능 판정은 절대 붙이지 않는다**(rc!=0 규칙: 소실을 '측정된 노이즈'로
+    세면 무개선 카운터와 '새 레버 필요' 판단이 오염된다).
+
+    반환: (원장 레코드, 백로그 상태 문자열)
+    """
+    detail = ("외부/비정상 종료 — 원장 기록 전에 프로세스가 사라짐(추정: 호스트 종료·수동 정지·"
+              "컨테이너 재생성 SIGKILL). 측정값 없음")
+    note = _progress_note(orphan)
+    try:
+        mins = round((now_kst() - datetime.fromisoformat(started)).total_seconds() / 60.0, 1)
+    except (TypeError, ValueError):
+        mins = None
+    rec = {
+        "ts": now_kst().isoformat(timespec="seconds"),
+        "id": orphan,
+        "title": f"(기록 없이 종료된 사이클 — {orphan})",
+        "rc": 137,
+        "elapsed_min": mins,
+        "log": _run_log_of(orphan),
+        "metric": None,
+        "parsed": {"error": "실행 실패 — 측정값 없음", "rc": 137, "cause": detail,
+                   "progress": (note.strip(" ·") or None)},
+        "verdict": "실행실패",
+        "detail": detail + note,
+        "reported": True,      # 이 줄에서 이미 사람에게 보고했다(중복 보고 방지)
+    }
+    append_ledger(rec)
+
+    # 백로그도 execute() 와 같은 규칙으로 갱신한다(인프라 사고 = 가설의 결과가 아니다).
+    b = load_backlog()
+    status = "?"
+    for it in b["items"]:
+        if it["id"] == orphan:
+            it.setdefault("attempts", []).append({
+                "ts": rec["ts"], "rc": 137, "verdict": "실행실패", "detail": rec["detail"],
+                "log": rec["log"], "elapsed_min": mins,
+            })
+            if len(it["attempts"]) < RETRY_MAX:
+                it["status"] = "pending"
+                it["retry_note"] = (f"{rec['ts']} 기록 없이 종료 → 재시도 "
+                                    f"{len(it['attempts'])}/{RETRY_MAX} (체크포인트 재개)")
+            else:
+                it["status"] = "failed"
+            it["result"] = {"verdict": "실행실패", "detail": rec["detail"],
+                            "delta": None, "per_exp": None, "rc": 137}
+            status = it["status"]
+            break
+    save_backlog(b)
+    return rec, status
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
@@ -660,7 +731,10 @@ def tick(force=False):
                     print("  로그 꼬리:", tail.replace("\n", "\n  "))
                 except OSError:
                     pass
-                print("  → 원인을 고치고 다시 시작하라(백로그에 기록되지 않았다).")
+                # 원장·백로그에 남긴다: 안 남기면 "왜 그 실험 기록이 없지"를 아무도 모른다.
+                rec, st_new = _record_orphan(orphan, started)
+                print(f"  기록: {rec['verdict']} · {rec['detail']} · 백로그 상태 → {st_new}")
+                print("  → 원인을 고치고 다시 시작하라(재시도는 구동기가 체크포인트에서 재개한다).")
                 return 0
 
     led = load_ledger()
