@@ -1,0 +1,76 @@
+{
+  "request_type": "factor_report",
+  "generated_at": "2026-09-26T10:17:09.360678Z",
+  "strategies": {
+    "lowvol_factor": {
+      "metrics": {
+        "total_return": -0.008222,
+        "sharpe": -0.0402,
+        "max_drawdown": 0.060082,
+        "win_rate": 0.5,
+        "num_trades": 180
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 6
+    },
+    "momentum_factor": {
+      "metrics": {
+        "total_return": 0.065048,
+        "sharpe": 1.5932,
+        "max_drawdown": 0.022354,
+        "win_rate": 0.8333,
+        "num_trades": 180
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 6
+    },
+    "multifactor": {
+      "metrics": {
+        "total_return": 0.3165,
+        "sharpe": 0.7656,
+        "max_drawdown": 0.165874,
+        "win_rate": 0.4118,
+        "num_trades": 340
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 17
+    },
+    "quality_factor": {
+      "metrics": {
+        "total_return": 0.35772,
+        "sharpe": 1.4289,
+        "max_drawdown": 0.084363,
+        "win_rate": 0.8333,
+        "num_trades": 180
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 6
+    },
+    "value_factor": {
+      "metrics": {
+        "total_return": 0.06518,
+        "sharpe": 0.3483,
+        "max_drawdown": 0.199794,
+        "win_rate": 0.5,
+        "num_trades": 180
+      },
+      "window": {
+        "start": "2025-08-01",
+        "end": "2026-07-31"
+      },
+      "periods": 6
+    }
+  }
+}
