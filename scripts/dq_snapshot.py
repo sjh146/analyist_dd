@@ -56,9 +56,16 @@ plt.rcParams["axes.unicode_minus"] = False
 
 # (메트릭, 집계, warn, breach, 라벨)  ※ warn/breach=None 이면 정보용
 SPECS = [
-    # ⚠ 임계값은 **비거래일**을 감안한다: 9/24~25 추석 휴장이라 2일은 정상인데 warn 이 떴다.
-    # 주말/연휴가 끼면 3일까지는 정상 → warn 3 / breach 5.
-    ("market_data_freshness_days", "max", 3.0, 5.0, "데이터 신선도(일)"),
+    # ⚠ 신선도는 **거래일** 기준으로 판정한다(달력일이 아니다).
+    #   종전에는 달력일 고정 문턱 3/5 였는데 두 방향으로 틀렸다:
+    #     · 과대(오탐) — 9/24~25 추석 휴장 + 주말이면 달력 3일이 **정상**인데 warn 이 뜨고,
+    #       9/28(월) 00:00 틱은 달력 5일이 되어 **위반 오탐**이 예정돼 있었다(실측 2026-09-26 20:00 warn=3).
+    #     · 과소(실명) — 같은 문턱은 **진짜 2거래일 적재 실패**를 warn 으로 숨긴다(3일까지 정상이므로).
+    #   → 기준을 '휴장일을 제외한 거래일 지연'으로 바꾸고 문턱을 warn 1 / breach 2 로 **조인다**.
+    #   휴장일 근거는 추정이 아니라 실측이다: data/krx_holidays.json 은 data_gap.py 가
+    #   KIS 1종목 프로브가 no_data 를 반환한 날짜만 기록한 파일이다(2026-09-24·25 기록됨).
+    #   파일을 못 읽으면(폴백) 종전 달력일 문턱 3/5 를 그대로 쓰고 그 사실을 보고에 남긴다.
+    ("market_data_freshness_days", "max", 1.0, 2.0, "데이터 신선도(거래일)"),
     ("market_data_rows_recent", "sum", None, None, "최근 적재 행수"),
     ("market_data_zero_volume_ratio_20d", "max", 0.05, 0.10, "거래량0 비율"),
     ("market_data_frozen_ratio_20d", "max", 0.05, 0.15, "동결(가격 불변) 비율"),
@@ -138,6 +145,52 @@ EN = {
     "feature_alive_count": "alive features",
     "feature_dead_count": "dead features",
 }
+
+
+HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
+
+
+def load_holidays(path=HOLIDAY_PATH):
+    """KRX 휴장일 집합 → (holidays: set[str], ok: bool).
+
+    출처는 **실측**이다: data_gap.py 가 KIS 1종목 프로브가 no_data 를 반환한 날짜만
+    이 파일에 기록한다(추정·달력 하드코딩이 아니다). 읽기 실패는 조용히 넘기지 않고
+    ok=False 로 돌려주어 호출부가 폴백(달력일 문턱) 사실을 보고하게 한다.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return set(), False
+    if isinstance(data, dict):
+        data = data.get("holidays", [])
+    if not isinstance(data, (list, tuple)):
+        return set(), False
+    out = set()
+    for x in data:
+        try:
+            out.add(datetime.strptime(str(x), "%Y-%m-%d").strftime("%Y-%m-%d"))
+        except ValueError:
+            continue
+    return out, True
+
+
+def trading_days_behind(freshness_days, today, holidays):
+    """신선도(달력일) → **거래일 지연**. 마지막 적재일 이후 오늘까지의 거래일 수.
+
+    마지막 적재일 = today - freshness_days. 그 다음날부터 오늘까지 평일(휴장 제외)을 센다.
+    휴장·주말만 지났으면 0 → 정상. 실제 거래일을 하루 놓쳤으면 1 → warn, 이틀이면 2 → breach.
+    """
+    if freshness_days is None:
+        return None
+    last = today - timedelta(days=int(round(float(freshness_days))))
+    n = 0
+    d = last + timedelta(days=1)
+    while d <= today:
+        if d.weekday() < 5 and d.strftime("%Y-%m-%d") not in holidays:
+            n += 1
+        d += timedelta(days=1)
+    return n
 
 
 def _host_uptime_s():
@@ -264,6 +317,13 @@ def main():
     snap = {"ts": now.isoformat(timespec="seconds"), "hours": a.hours, "metrics": {}}
     breaches, warns, nodata = [], [], []
 
+    holidays, hol_ok = load_holidays()
+    snap["holiday_calendar"] = {"path": os.path.relpath(HOLIDAY_PATH, PROJ), "usable": hol_ok,
+                               "n_holidays": len(holidays)}
+    if not hol_ok:
+        # 폴백 사실을 숨기지 않는다 — 거래일 판정이 꺼져 있으면 종전 달력일 문턱으로 판정된다.
+        warns.append(f"휴장 캘린더 없음({snap['holiday_calendar']['path']}) → 신선도는 달력일 문턱 3/5 폴백")
+
     for name, agg, warn, breach, label in SPECS:
         vals, series = instant(name)
         if not vals:
@@ -271,14 +331,29 @@ def main():
             nodata.append(name)
             continue
         val = max(vals) if agg == "max" else sum(vals)
+        raw_days = None
+        if name == "market_data_freshness_days":
+            if hol_ok:
+                raw_days = val                   # 달력일(원값)은 보존
+                td = trading_days_behind(raw_days, now.date(), holidays)
+                if td is not None:
+                    val = float(td)
+            else:
+                # 폴백: 휴장 캘린더가 없으면 거래일 환산을 할 수 없다 → 종전 달력일 문턱 3/5.
+                # (1/2 를 그대로 두면 주말마다 위반 오탐이 난다 — 판정을 바꿀 수 없는 상태에서는
+                #  문턱도 같이 되돌리는 것이 맞다.)
+                warn, breach = 3.0, 5.0
         st = verdict(val, warn, breach)
         snap["metrics"][name] = {"label": label, "value": val, "agg": agg, "status": st,
                                  "warn": warn, "breach": breach, "n_series": len(series),
                                  "series": series[:8]}
+        suffix = f" (달력 {raw_days:g}일, 휴장·주말 제외)" if raw_days is not None else ""
+        if raw_days is not None:
+            snap["metrics"][name]["calendar_days"] = raw_days
         if st == "breach":
-            breaches.append(f"{label}({name})={val:g} ≥ {breach:g}")
+            breaches.append(f"{label}({name})={val:g} ≥ {breach:g}{suffix}")
         elif st == "warn":
-            warns.append(f"{label}({name})={val:g} ≥ {warn:g}")
+            warns.append(f"{label}({name})={val:g} ≥ {warn:g}{suffix}")
 
     # ── 모니터링 사각지대 판정 ────────────────────────────────────────────────
     # WHY: nodata 를 그냥 넘기면 완전 실명이 rc=0 으로 "정상" 보고된다 — 실측 2026-09-25 20:01:
@@ -329,10 +404,14 @@ def main():
             for i, name in enumerate(keys):
                 ax = axes[i // cols][i % cols]
                 s, label, warn, breach = series_by[name]
+                # 신선도 패널은 **거래일 지연**으로 그린다 — 달력일로 그리면 주말·휴장이
+                # 문턱선(warn 1 / breach 2)과 축이 어긋나 눈에 잘못 읽힌다(수치와 같은 단위로).
+                conv = (lambda d, v: float(trading_days_behind(v, d, holidays) or 0)) \
+                    if (name == "market_data_freshness_days" and hol_ok) else None
                 for ser in s[:4]:
                     lb = ",".join(f"{k}={v}" for k, v in list(ser["labels"].items())[:2]) or name
                     xs = [p[0] for p in ser["points"]]
-                    ys = [p[1] for p in ser["points"]]
+                    ys = [conv(p[0].date(), p[1]) if conv else p[1] for p in ser["points"]]
                     ax.plot(xs, ys, marker=".", linewidth=1.2, label=lb[:22])
                 if breach is not None:
                     ax.axhline(breach, color="crimson", linestyle="--", linewidth=1,
