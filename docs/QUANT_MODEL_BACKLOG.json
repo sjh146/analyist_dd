@@ -1718,6 +1718,30 @@
       ],
       "cost": "수집 2~6시간(호출 제한 의존)",
       "success": "거래일 600일 이상(2023~현재) 확보 + 학습 표본·폴드 수 증가 확인"
+    },
+    {
+      "id": "U3",
+      "title": "확장 이력(910일)으로 패널 재빌드 + 로버스트 재측정 (동일창 A/B 먼저)",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "baseline": {
+        "robust_auc": 0.5406,
+        "name": "LS_quant_q30_h5 (314일 창)",
+        "note": "창이 달라지면 직접 비교 금지"
+      },
+      "hypothesis": "R17 로 가격 이력이 314 → 910일(2.9배)이 됐다. 학습 표본·폴드 수가 늘면 로버스트 AUC 가 움직일 수 있다 — 지금까지 시도한 라벨·유니버스·피처 축과 **다른 종류의 레버**다.",
+      "evidence": "R17 완료: market_data 3,093,147행 / 910거래일 / 3,970종목(2023-01-02~2026-09-23). 기존 패널은 314일 창(panel_420*, panel_150u*)이라 학습 표본이 그 창에 묶여 있었다. ⚠ 방법론: 창이 바뀌면 기존 기준선 0.5406 과 직접 비교 불가 → ① 같은 창(최근 314일)에서 새 패널과 기존 패널 A/B 로 구현 일치 확인 ② 그 다음 확장 창(910일)에서 재측정해 '이력 확대의 효과'만 분리 측정.",
+      "method": "① 확장 창으로 패널 빌드(150종목·910일 ≈ 136,500 페어 — 빌드 비용 주의, 1.9~2.7 페어/초 실측 → 약 14~20시간. 50종목이면 약 5~7시간) ② 동일 창 A/B 로 패널 구현 검증 ③ 확장 창 로버스트 측정(폴드 5·시드 3) ④ 폴드 평균 +0.02 이상이면 신호",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 57600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_910.npz --folds 5 --seeds 3 --only LS_quant_q30_h5'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "cost": "패널 빌드 5~20시간(유니버스 크기 의존) + 측정 30분",
+      "success": "확장 창 로버스트 AUC 가 910일 창 기준선을 +0.02 이상 상회",
+      "caution": "20:00 저녁 파이프라인의 컨테이너 재생성 가드 확인(2026-09-26 추가됨) — 16h 타임아웃으로도 잘릴 수 있다"
     }
   ]
 }
