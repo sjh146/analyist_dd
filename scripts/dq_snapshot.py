@@ -140,6 +140,34 @@ EN = {
 }
 
 
+def _host_uptime_s():
+    """호스트 업타임(초). 읽을 수 없으면 None — 판정은 '모름'으로 두고 위반을 유지한다."""
+    try:
+        with open("/proc/uptime", encoding="ascii") as f:
+            return float(f.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def classify_blackout(nodata, n_total, core_missing, uptime_s):
+    """조회 실패(nodata)를 위반/경고로 판정 → (severity, message). severity: 'breach' | 'warn'.
+
+    기본은 **위반**이다 — nodata 를 판정에서 빼면 '모니터링 실명'이 '정상'으로 보고된다
+    (실측 2026-09-25 20:01: postgres-exporter 스크랩 12.7초 > scrape_timeout 10초로 dq_* 51개가
+    통째로 사라졌는데 rc=0 이었다).
+
+    예외는 **기동 과도기**뿐이다(실측 2026-09-26 18:44: WSL 재부팅 18:44, 스냅샷 18:44:39,
+    exporter 의 DB 커넥션 수립 18:44:44). 조건을 좁게 둔다 — ①전면 소실(≥90%)이고
+    ②호스트 업타임이 300초 미만일 때만 경고로 낮춘다. 부분 소실(타겟 1개만 죽음)이나
+    업타임이 지난 뒤의 소실은 그대로 위반이고, 다음 틱에서는 어떤 경우든 위반으로 재판정된다.
+    """
+    msg = (f"모니터링 사각지대: 핵심 {len(core_missing)}/{len(CORE_ALWAYS)}개 미조회 "
+           f"(전체 nodata {len(nodata)}/{n_total}) — Prometheus 타겟/exporter 스크랩 확인")
+    if nodata and len(nodata) / n_total >= 0.9 and uptime_s is not None and uptime_s < 300:
+        return "warn", f"{msg} [기동 과도기: 호스트 업타임 {uptime_s:.0f}s — 다음 틱 재판정]"
+    return "breach", msg
+
+
 def _prune(outdir, keep_png=48, keep_json=48, keep_hist=2000):
     """보존 정책 — 스냅샷은 격 2시간마다 쌓인다(하루 12개, PNG ~200KB).
 
@@ -164,9 +192,19 @@ def _prune(outdir, keep_png=48, keep_json=48, keep_hist=2000):
 
 
 def _api(path, params):
+    """Prometheus 조회. 도달 불가·응답 지연·JSON 파손이면 빈 dict(=값 없음)로 흘려보낸다.
+
+    WHY: 예전에는 URLError 가 그대로 올라와 트레이스백과 함께 rc=1 로 죽었다(실측 2026-09-26:
+    PROM_URL 을 닫힌 포트로 두면 `urllib.error.URLError: Connection refused` 스택만 남았다).
+    사각지대를 판정하려고 만든 코드가 정작 사각지대에서 판정 줄 대신 스택을 출력한 것이다.
+    조회 실패를 '값 없음'으로 넘기면 전 메트릭이 nodata 가 되어 위반/기동과도기로 **판정**된다.
+    """
     url = f"{PROM}{path}?" + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(url, timeout=20) as r:
-        return json.load(r)
+    try:
+        with urllib.request.urlopen(url, timeout=20) as r:
+            return json.load(r)
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 
 def instant(name):
@@ -251,9 +289,8 @@ def main():
     core_missing = [n for n in nodata if n in CORE_ALWAYS]
     n_total = len(SPECS)
     if core_missing or len(nodata) / n_total >= 0.3:
-        breaches.append(
-            f"모니터링 사각지대: 핵심 {len(core_missing)}/{len(CORE_ALWAYS)}개 미조회 "
-            f"(전체 nodata {len(nodata)}/{n_total}) — Prometheus 타겟/exporter 스크랩 확인")
+        severity, msg = classify_blackout(nodata, n_total, core_missing, _host_uptime_s())
+        (breaches if severity == "breach" else warns).append(msg)
     snap["nodata"] = nodata
     snap["nodata_core"] = core_missing
 
