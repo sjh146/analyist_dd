@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-26T19:02:00+09:00",
+  "updated_at": "2026-09-26T19:35:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -411,7 +411,7 @@
     {
       "id": "L4",
       "title": "팩터 전략(가치·퀄리티·모멘텀·저변동·멀티팩터) vs ML 챔피언 비교 평가",
-      "status": "needs_setup",
+      "status": "measured_pending_pit",
       "priority": 3,
       "affects_model": true,
       "hypothesis": "고전 팩터 프리미엄은 문서화된 효과다. 로버스트 AUC 0.5406(≈동전)인 ML 모델보다 동일 기간·동일 유니버스에서 팩터 랭킹이 **위험조정 성과가 나을 수 있다** — 그렇다면 최종 목표(순손익)에 더 직접적인 경로다.",
@@ -433,7 +433,13 @@
       "metric": "wf_sweep_summary",
       "arm": "FACTOR_multi_h5",
       "counterfactual": "LS_quant_q30_h5",
-      "note": "| 2026-09-26: metric 키 부재 + command 가 ls 뿐이라 그대로 pending 이면 사이클이 '판정불가' 로 끝난다(구동기 KeyError 위험도 함께 수정). needs_setup 으로 내렸다."
+      "note": "| 2026-09-26: metric 키 부재 + command 가 ls 뿐이라 그대로 pending 이면 사이클이 '판정불가' 로 끝난다(구동기 KeyError 위험도 함께 수정). needs_setup 으로 내렸다.",
+      "result": "**1차 실측(2026-09-26 19:17, 910일 이력 백필 후)** — 유니버스가 전 구간 성립(784~813종목), 리밸런싱 6구간, 2025-08~2026-07:\n  quality_factor   +35.77% 샤프 1.43 MDD 8.4%  승률 83.3% 180건\n  multifactor      +31.65% 샤프 0.77 MDD 16.6% 승률 41.2% 340건\n  value_factor     + 6.52% 샤프 0.35 MDD 20.0% 승률 50.0% 180건\n  momentum_factor  + 6.50% 샤프 1.59 MDD 2.2%  승률 83.3% 180건(위험조정 최고)\n  lowvol_factor    - 0.82% 샤프 -0.04 MDD 6.0%\n비교: ML 챔피언 로버스트 AUC 0.5519(≈동전) / 트레이더 실현 -7,839원(기대값 -253원/건).\n⚠ **낙관 편향 경고**: 유니버스 시총 조건이 get_market_caps()=현재 시총(asof 없음) → 미래정보 누수. 표본도 6구간으로 작다. → L5c 로 PIT 교체 후 재측정해야 최종 판정.",
+      "caveats": [
+        "PIT 아님(현재 시총) → 낙관 편향",
+        "6구간 소표본",
+        "record_strategy_run 미배선(전략 DB 기록 없음)"
+      ]
     },
     {
       "id": "XR9",
@@ -1791,6 +1797,34 @@
       ],
       "caution": "U3 완료 후 실행(U3 결과가 대조군). panel_995.npz 가 없으면 먼저 U3 를 돌려야 한다.",
       "note": "2026-09-26: pending 으로 올렸다. next_item 정렬(priority,id)에서 'U3' < 'U3b' 이고 U3 이 도는 동안 틱은 '사이클 실행 중'으로 아무것도 시작하지 않으므로 안전하다."
+    },
+    {
+      "id": "L5b",
+      "title": "record_strategy_run 배선 수정 (strategy_runs 미기록)",
+      "status": "pending",
+      "priority": 2,
+      "affects_model": true,
+      "detail": "sys.path 에 /app/app 누락 → 'No module named scripts.record_strategy_run'. 한 줄 수정.",
+      "note": "sys.path 에 /app/app 누락 → 'No module named scripts.record_strategy_run'. 한 줄 수정.",
+      "check": "docker exec stock_job_runner sh -c 'ls /app/factor_reports/real-backtest-*.json 2>/dev/null | wc -l'",
+      "check_target": {
+        "op": ">=",
+        "value": 5
+      }
+    },
+    {
+      "id": "L5c",
+      "title": "PIT 유니버스로 교체 (시총 → 일별 거래대금) — 팩터 결과의 낙관 편향 제거",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "detail": "get_market_caps()/get_avg_trading_value() 가 asof 미지원 → 현재값 사용 = 미래정보 누수. R17 백필로 확보한 일별 거래대금(close×volume)을 유니버스 기준으로 쓰면 그 시점 관측 가능값만 사용 ✓. 교체 후 5전략 재측정 → ML 과 동일 조건 비교가 최종 판정.",
+      "note": "get_market_caps()/get_avg_trading_value() 가 asof 미지원 → 현재값 사용 = 미래정보 누수. R17 백필로 확보한 일별 거래대금(close×volume)을 유니버스 기준으로 쓰면 그 시점 관측 가능값만 사용 ✓. 교체 후 5전략 재측정 → ML 과 동일 조건 비교가 최종 판정.",
+      "check": "docker exec stock_job_runner sh -c 'ls /app/factor_reports/real-backtest-*.json 2>/dev/null | wc -l'",
+      "check_target": {
+        "op": ">=",
+        "value": 5
+      }
     }
   ]
 }
