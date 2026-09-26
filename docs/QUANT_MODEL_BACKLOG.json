@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-26T09:10:00+09:00",
+  "updated_at": "2026-09-26T19:02:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -1701,7 +1701,7 @@
     {
       "id": "R17",
       "title": "market_data 가격 이력 백필 (2025-06 이전) — 모델·팩터 공통 전제",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "affects_model": true,
       "hypothesis": "현재 가격 이력이 314거래일(2025-06-16~)뿐이다. 이력이 늘면 ① 모델 학습 표본이 늘고 ② 팩터 백테스트의 상장기간 필터가 성립한다. 사용자 장기 승인 항목(1안: 중기 데이터 이력 확장)과 같은 방향이다.",
@@ -1717,31 +1717,80 @@
         "소스 선택(KIS/Naver/pykrx) 확인"
       ],
       "cost": "수집 2~6시간(호출 제한 의존)",
-      "success": "거래일 600일 이상(2023~현재) 확보 + 학습 표본·폴드 수 증가 확인"
+      "success": "거래일 600일 이상(2023~현재) 확보 + 학습 표본·폴드 수 증가 확인",
+      "attempts": [
+        {
+          "ts": "2026-09-26T18:45:00+09:00",
+          "rc": 0,
+          "verdict": "달성",
+          "detail": "market_data 3,093,147행 / 910거래일 / 3,970종목 (2023-01-02~2026-09-23) — check_target(≥600거래일) 충족. 연도별: 2023=245일·2024=244일·2025=242일·2026=179일 (일별 종목수 2,998~3,926).",
+          "log": "(DB 직접 조회로 검증)"
+        }
+      ],
+      "result": {
+        "verdict": "달성",
+        "delta": null,
+        "rc": 0,
+        "detail": "910거래일 확보 — U3 의 전제 충족"
+      }
     },
     {
       "id": "U3",
-      "title": "확장 이력(910일)으로 패널 재빌드 + 로버스트 재측정 (동일창 A/B 먼저)",
+      "title": "확장 이력 패널(995일 창 = 659거래일) 재빌드 + 로버스트 재측정 — 기존 281거래일 창 대비 2.35배",
       "status": "pending",
       "priority": 1,
       "affects_model": true,
       "baseline": {
-        "robust_auc": 0.5406,
-        "name": "LS_quant_q30_h5 (314일 창)",
-        "note": "창이 달라지면 직접 비교 금지"
+        "value": 0.5406,
+        "source": "L1/RB1 실측 · 49종목 · 5폴드×3시드 · 281거래일 창(2025-07-31~2026-09-23)",
+        "note": "창이 다르므로 직접 비교는 약한 증거 — U3b 로 격리"
       },
-      "hypothesis": "R17 로 가격 이력이 314 → 910일(2.9배)이 됐다. 학습 표본·폴드 수가 늘면 로버스트 AUC 가 움직일 수 있다 — 지금까지 시도한 라벨·유니버스·피처 축과 **다른 종류의 레버**다.",
-      "evidence": "R17 완료: market_data 3,093,147행 / 910거래일 / 3,970종목(2023-01-02~2026-09-23). 기존 패널은 314일 창(panel_420*, panel_150u*)이라 학습 표본이 그 창에 묶여 있었다. ⚠ 방법론: 창이 바뀌면 기존 기준선 0.5406 과 직접 비교 불가 → ① 같은 창(최근 314일)에서 새 패널과 기존 패널 A/B 로 구현 일치 확인 ② 그 다음 확장 창(910일)에서 재측정해 '이력 확대의 효과'만 분리 측정.",
-      "method": "① 확장 창으로 패널 빌드(150종목·910일 ≈ 136,500 페어 — 빌드 비용 주의, 1.9~2.7 페어/초 실측 → 약 14~20시간. 50종목이면 약 5~7시간) ② 동일 창 A/B 로 패널 구현 검증 ③ 확장 창 로버스트 측정(폴드 5·시드 3) ④ 폴드 평균 +0.02 이상이면 신호",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 57600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_910.npz --folds 5 --seeds 3 --only LS_quant_q30_h5'",
+      "hypothesis": "학습 표본이 2.1배(314→659거래일)가 되면 로버스트 AUC 가 움직인다 — 지금까지 소진한 라벨·유니버스·피처·하이퍼파라미터 축과 **다른 종류의 레버**다. 창은 피처 워밍업(365일 lookback)이 완전한 최대치로 잡았다.",
+      "evidence": "R17 실측: market_data 910거래일(2023-01-02~2026-09-23). 기존 패널(panel_420*, panel_150u*)은 314거래일 창에 묶여 있었다. U3a(교차패널)·U3b(동일패널 행 A/B)를 분리해 둔다 — 교차패널 비교는 스냅샷 차이로 부호가 뒤집힌 전례가 있다.",
+      "method": "① panel_995.npz 빌드(체크포인트 500페어·재개 가능, 예상 3.5~7.5h) ② 같은 런에서 LS_quant_q30_h5 5폴드×3시드 로버스트 측정 ③ 기록 기준선 0.5406(314거래일·panel_420_asofpatch)과 비교 — **타 패널 대조라 증거 약함** ④ 창 효과의 확증은 U3b(같은 패널 행 부분집합)로 한다",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 43200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_995.npz --days 995 --limit 50 --folds 5 --seeds 3 --only LS_quant_q30_h5'",
       "check": "python3 scripts/model_engineer_cycle.py --status",
       "check_target": {
         "op": ">=",
         "value": 1
       },
-      "cost": "패널 빌드 5~20시간(유니버스 크기 의존) + 측정 30분",
-      "success": "확장 창 로버스트 AUC 가 910일 창 기준선을 +0.02 이상 상회",
-      "caution": "20:00 저녁 파이프라인의 컨테이너 재생성 가드 확인(2026-09-26 추가됨) — 16h 타임아웃으로도 잘릴 수 있다"
+      "cost": "패널 빌드 3.5~7.5h(659거래일×49종목≈32,300페어, 1.2~2.7페어/초) + 측정 ~20분",
+      "success": "659거래일 창 로버스트 AUC 가 314거래일 실측(0.5406) 대비 +0.02 이상",
+      "caution": "평일 20:00 컨테이너 재생성 창(est_minutes=700 → 구동기 ETA 가드). 재개: 같은 명령 재실행(체크포인트 .rows.pkl/.meta.json).",
+      "est_minutes": 700,
+      "metric": "wf_sweep_summary",
+      "arm": "LS_quant_q30_h5",
+      "counterfactual": "기록 기준선 0.5406 (panel_420_asofpatch · 281거래일 창)"
+    },
+    {
+      "id": "U3b",
+      "title": "창 효과 격리 — 같은 패널(panel_995)에서 281거래일 행만 잘라 A/B (동일 스냅샷·동일 피처, 창만 다름)",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5406,
+        "source": "314거래일 창 기록 기준선(U3b 대조군)"
+      },
+      "hypothesis": "U3 에서 창이 늘어 AUC 가 변했다면, 그 변화가 정말 '창' 때문인지 확인한다. 피처·종목·코드가 동일하고 행 범위만 다르면 차이는 순수한 창 효과다(교차패널 비교의 혼입 제거).",
+      "evidence": "실측: panel_420_asofpatch = 281거래일(2025-07-31~2026-09-23)·49종목·13,609행 (panel_subset.py 로 확인). U1 은 교차패널로 Δ−0.0266 으로 기록됐지만 같은 패널 안에서 행 집합만 바꾸면 Δ+0.0071(부호 반전)이었다 — 창 비교는 반드시 같은 스냅샷 안에서 해야 한다.",
+      "method": "① panel_subset.py 로 panel_995 → panel_995_w281.npz (--since 2025-07-31 = 기준선 패널과 같은 281거래일 창) ② 같은 설정(LS_quant_q30_h5·5폴드×3시드)으로 스윕 ③ Δ(659거래일 − 281거래일) 를 창 효과로 판정 ④ 기준선 패널(panel_420_asofpatch)의 0.5406 과도 함께 비교",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python3 /app/scripts/panel_subset.py --src /app/app/models/wf/panel_995.npz --dst /app/app/models/wf/panel_995_w281.npz --since 2025-07-31 && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_995_w281.npz --folds 5 --seeds 3 --only LS_quant_q30_h5'",
+      "check": "docker exec stock_xgboost_ml ls -la /app/app/models/wf/panel_995_w281.npz",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "wf_sweep_summary",
+      "arm": "LS_quant_q30_h5",
+      "counterfactual": "U3 실측(같은 패널·659거래일 창) — 원장의 U3 result.per_exp",
+      "cost": "부분집합 생성 수 분 + 측정 ~10분",
+      "success": "Δ(659 − 314)= +0.02 이상이면 창 효과 실재, |Δ|<0.02 면 '창은 레버가 아니다'로 닫는다",
+      "depends_on": [
+        "U3"
+      ],
+      "caution": "U3 완료 후 실행(U3 결과가 대조군). panel_995.npz 가 없으면 먼저 U3 를 돌려야 한다.",
+      "note": "2026-09-26: pending 으로 올렸다. next_item 정렬(priority,id)에서 'U3' < 'U3b' 이고 U3 이 도는 동안 틱은 '사이클 실행 중'으로 아무것도 시작하지 않으므로 안전하다."
     }
   ]
 }
