@@ -13,10 +13,20 @@ PY=/mnt/c/Users/jhshi/Python312-64/python.exe
 STATE=/mnt/c/Users/jhshi/analyist_dd/trader-agent/loop_state.json
 
 probe=$("$PY" -c "
-import urllib.request, json
+import json
+import urllib.error
+import urllib.request
+# WSL/Windows 공통: Windows 시스템 프록시(ProxyEnable=1, <local> 미포함)가
+# 127.0.0.1 요청까지 가로채 502 를 돌려준다(2026-09-28 실측) → 루프백은 프록시 제외.
+_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 def get(p):
     try:
-        return json.loads(urllib.request.urlopen('http://127.0.0.1:8100'+p, timeout=10).read().decode())
+        return json.loads(_opener.open('http://127.0.0.1:8100'+p, timeout=10).read().decode())
+    except urllib.error.HTTPError as e:
+        try:
+            return json.loads(e.read().decode())
+        except Exception:
+            return {'err': 'HTTP %s' % e.code}
     except Exception as e:
         return {'err': type(e).__name__}
 h=get('/health'); b=get('/balance'); n=get('/positions')
@@ -24,7 +34,8 @@ bal=(b.get('balance') or {})
 print('CONNECTED=%s' % h.get('connected'))
 print('HEALTH=%s' % h.get('err', 'ok'))
 print('EQUITY=%s CASH=%s POS=%s' % (bal.get('equity'), bal.get('cash'), bal.get('positions_count') if bal else b.get('err','?')))
-print('POSITIONS_REPLY=%s' % (len(n.get('positions') or []) if not n.get('err') else n['err']))
+print('POSITIONS_REPLY=%s' % (len(n.get('positions') or []) if n.get('ok')
+                            else (n.get('error') or {}).get('code') or n.get('err') or 'unknown'))
 " 2>/dev/null | tr -d '\r')
 
 state=$(python3 - "$STATE" <<'PYEOF'

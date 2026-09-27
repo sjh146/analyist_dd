@@ -165,6 +165,30 @@ cd /home/jhshi/analyist_dd
   Phase 3 은 "0 stocks" 를 저장했다 → swing 산출물 출처 확인 필요.
 - 켈리: `screener_stats_measured.json` `usable=false`(close f*=-0.0267 ≤ 0) → 페이로드 미기록 유지(올바름).
 
+### 트레이더 (2026-09-28 08:2x 개장 전 자체 점검)
+- **피드 발행은 됐지만 후보 0건 — 신선도 가드 정상 작동**: 연휴(9/24·9/25)+주말로 마지막 거래일이
+  9/23 이라 `close_latest.json`(date 09-25 = 3.3일)·`swing_latest.json`(date 09-24 = 4.3일)이
+  `--max-source-age-days 3.0` 을 넘겨 **두 전략 모두 빈 리스트로 발행**(160 bytes). 08:30 스윙
+  파이프라인 → 08:40 `feed_publish` 가 오늘자로 갱신하고, 종가 리스트는 14:40 `close_job` 이후 채워진다.
+- **브리지 connected:false(낡은 세션)**: 04:13 기동 브리지 pid 1712 가 `/balance`·`/positions` 에
+  `not_connected`(“start Creon PLUS and re-login”). 08:31 현재 매매 루프는 정상 가동(pid 7568, 300s 사이클,
+  개장 전 idle) → 사람이 HTS 로그인 + 브리지 재기동만 하면 08:55 창에서 바로 붙는다.
+- **실측 차단 2건 수리(커밋 `1ccf644`, trader-agent main 푸시 완료)**:
+  ① Windows 시스템 프록시(`ProxyEnable=1` → `192.168.196.145:8080`, `<local>` 미포함)가 **127.0.0.1 요청까지
+     가로채 502** 를 돌려줬다(실측: stdlib urlopen 502 vs curl 200; Windows 는 `no_proxy` 무시).
+     루프의 브리지/피드 호출이 전부 실패할 상태였다 → `trader_core/net.py` 신설(루프백/RFC1918/link-local/
+     Tailscale 100.64/10 만 프록시 제외), feed·bridge_client·R5 뉴스게이트·점검도구에 적용, 회귀 16건 추가
+     (pytest 전체 416 passed, 3.11·3.12 양쪽). 수리 전 `HTTPError 502` → 수리 후 브리지 JSON 정상 수신.
+  ② `loop_start_bg.bat`·`bridge_start_bg.bat` 가 **파스 단계에서 rc=255 로 죽어 기동 자체가 불가**했다
+     (`- was unexpected at this time`: for/do 블록 안 echo 의 `)` 가 블록을 조기 종료). 괄호 제거 →
+     두 스크립트 검증 완료(브리지는 “already listening pid=1712 skip”, 루프는 pid 7568 기동).
+- **북극성(실현 순손익)**: **-7,839원** / 청산 31건 / 승률 38.7% / 기대값 **-253원/건** / 보유 10종목 /
+  마지막 진입 9/21 14:52(6.7일 전) → 회전 정지 경고 유지. ※ `quant_scoreboard.py --stanza trader` 가 WSL 에서
+  저널을 못 열어(`disk I/O error` — drvfs+WAL) `realized_krw=None` → 포맷 TypeError 로 **크래시**한다.
+  위 수치는 저널을 `/tmp` 로 복사해 계산했다(수리 필요, 엔지니어 소유 파일).
+- **확인 필요(리서처 환류)**: 9/28 `market_data` 에 `000020` 1행(가격 4990, 거래량 0)만 들어와 있다 →
+  9/23(3,839종목) 이후 신규 일봉 0건. 연휴 때문인지 수집 실패인지 구분 필요.
+
 ### 열린 사람 단계 (리뷰보드 집계 — 중복 제거)
 1. **⏰ 월(9/28) 08:35~08:40 — HTS(Creon) 로그인 + 브리지 재기동 (사람 직접, 대행 불가)**
    지금 브리지(pid 18996)는 금요일 세션을 물고 있어 주말을 못 버틸 가능성이 크다. 08:45 예약작업이
