@@ -25,7 +25,14 @@ services:
     container_name: stock_neo4j
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
-      NEO4J_PLUGINS: '["graph-data-science"]'
+      # NEO4J_PLUGINS: '["graph-data-science"]'  ← 제거(2026-09-28)
+      # WHY: neo4j:5.15 이미지가 받는 GDS jar 가 호환 불가(60135088B, 2025-03-20 빌드)라
+      #   "No compatible graph-data-science plugin found for Neo4j 5.15.0" +
+      #   "ZipException: graph-data-science.jar invalid" 로 **기동 실패** → restart: unless-stopped 가
+      #   매번 재기동하며 60MB jar 를 다시 내려받고(3시간 로그에 기동 실패 43회) 컨테이너가 unhealthy 로
+      #   남아 뉴스 그래프 쓰기가 전부 스킵됐다(news_graph_writer: No Neo4j connection available).
+      #   실측: 저장소 전체에 gds.* 프로시저 사용처 0건 → 플러그인 제거가 기능 손실 없다.
+      #   GDS 가 필요해지면 Neo4j 5.15 호환 버전을 명시해 되살린다(롤백 = 이 줄 복원).
       # 참고: neo4j CE는 Prometheus 메트릭 미지원(Enterprise 전용) — Prometheus 스크랩은 HTTP로 대체
     volumes:
       - neo4j_data:/data

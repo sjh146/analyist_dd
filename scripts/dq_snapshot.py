@@ -175,18 +175,44 @@ def load_holidays(path=HOLIDAY_PATH):
     return out, True
 
 
-def trading_days_behind(freshness_days, today, holidays):
-    """신선도(달력일) → **거래일 지연**. 마지막 적재일 이후 오늘까지의 거래일 수.
+def utc_date_of(now):
+    """KST 시각 → 메트릭과 **같은 시계**의 날짜(UTC)."""
+    return now.astimezone(timezone.utc).date()
 
-    마지막 적재일 = today - freshness_days. 그 다음날부터 오늘까지 평일(휴장 제외)을 센다.
+
+# 전일 바가 '마땅히 있어야 할' 시각(KST). market_data 적재는 yfinance 수집기가 18:00 스윕을
+# 끝내고 저장하는 **자정~새벽**에 일어난다(services/yfinance-collector/app/main.py: 스윕 전체를
+# 모은 뒤 Step 6 에서 저장). 그래서 00:00 틱에 전일 바를 요구하면 적재가 진행 중일 때 오탐이 된다.
+DUE_HOUR = 2
+
+
+def trading_days_behind(freshness_days, today, holidays, now=None):
+    """신선도(달력일) → **거래일 지연** = '마땅히 있어야 하는데 없는' 거래일 수.
+
+    마지막 적재일 = (메트릭과 같은 시계의) 기준일 − freshness_days. 그 다음날부터
+    **마지막으로 마감된 거래일**까지 평일(휴장 제외)을 센다.
     휴장·주말만 지났으면 0 → 정상. 실제 거래일을 하루 놓쳤으면 1 → warn, 이틀이면 2 → breach.
+
+    실측 함정 두 가지를 함께 고친다(2026-09-28, WSL 재부팅 후 04:00 틱):
+    ① **오늘 바는 아직 '마땅히 있어야 할' 것이 아니다.** 종전 구현은 `today` 를 그대로 세서
+       장 시작도 안 한 04:00 에 지연 1(warn)을 띄웠다. 같은 이유로 정상 거래일이면 09:00 KST
+       이후(UTC 날짜가 오늘로 넘어간 뒤) 16·18·20·22 시 틱이 **매일** warn 을 띄운다 —
+       아무 결함이 없는데 발화하는 문턱은 문턱이 아니다(실측 DB: 9/23 이 마지막 거래일,
+       9/24·25 휴장 + 주말 → 결번 0, 그런데 04:00 스냅샷은 warn 1).
+    ② **메트릭의 시계는 UTC 다.** exporter 는 `CURRENT_DATE - MAX(trade_date)` 이므로
+       KST 날짜에서 빼면 09:00 이전에 하루가 밀려 없는 결번을 만들고(①의 연료),
+       진짜 결번은 하루 먹는다(금요일 바가 없는 월요일 → 종전 0 = 실명).
     """
     if freshness_days is None:
         return None
-    last = today - timedelta(days=int(round(float(freshness_days))))
+    raw = int(round(float(freshness_days)))
+    ref = utc_date_of(now) if now is not None else today
+    last = ref - timedelta(days=raw)
+    back = 1 if (now is None or now.hour >= DUE_HOUR) else 2
+    horizon = today - timedelta(days=back)
     n = 0
     d = last + timedelta(days=1)
-    while d <= today:
+    while d <= horizon:
         if d.weekday() < 5 and d.strftime("%Y-%m-%d") not in holidays:
             n += 1
         d += timedelta(days=1)
@@ -335,7 +361,7 @@ def main():
         if name == "market_data_freshness_days":
             if hol_ok:
                 raw_days = val                   # 달력일(원값)은 보존
-                td = trading_days_behind(raw_days, now.date(), holidays)
+                td = trading_days_behind(raw_days, now.date(), holidays, now=now)
                 if td is not None:
                     val = float(td)
             else:
@@ -406,12 +432,12 @@ def main():
                 s, label, warn, breach = series_by[name]
                 # 신선도 패널은 **거래일 지연**으로 그린다 — 달력일로 그리면 주말·휴장이
                 # 문턱선(warn 1 / breach 2)과 축이 어긋나 눈에 잘못 읽힌다(수치와 같은 단위로).
-                conv = (lambda d, v: float(trading_days_behind(v, d, holidays) or 0)) \
+                conv = (lambda t, v: float(trading_days_behind(v, t.date(), holidays, now=t) or 0)) \
                     if (name == "market_data_freshness_days" and hol_ok) else None
                 for ser in s[:4]:
                     lb = ",".join(f"{k}={v}" for k, v in list(ser["labels"].items())[:2]) or name
                     xs = [p[0] for p in ser["points"]]
-                    ys = [conv(p[0].date(), p[1]) if conv else p[1] for p in ser["points"]]
+                    ys = [conv(p[0], p[1]) if conv else p[1] for p in ser["points"]]
                     ax.plot(xs, ys, marker=".", linewidth=1.2, label=lb[:22])
                 if breach is not None:
                     ax.axhline(breach, color="crimson", linestyle="--", linewidth=1,

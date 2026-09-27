@@ -27,6 +27,12 @@ class StockListCollector:
                 user=config.POSTGRES_USER,
                 password=config.POSTGRES_PASSWORD,
             )
+            # WHY(실측 2026-09-28): 이 연결은 서비스 수명 내내 캐시되는데 읽기만 한다. psycopg2 는
+            #   첫 execute 에서 트랜잭션을 열고 commit/rollback 을 하지 않으면 그대로 남는다 →
+            #   pg_stat_activity 에 'idle in transaction' 52분(pid 48, 스윕 1회 = 6시간)으로 남아
+            #   stocks 테이블 DDL(ACCESS SHARE 충돌)을 막고 모니터링을 오염시킨다. 읽기 전용이므로
+            #   autocommit 으로 열어 트랜잭션을 남기지 않는다.
+            self._conn.autocommit = True
         return self._conn
 
     def get_all_stocks(self) -> List[Dict]:

@@ -206,16 +206,29 @@ class NewsGraphWriter:
     # ------------------------------------------------------------------
     # Batch execution
     # ------------------------------------------------------------------
+    def _ensure_driver(self):
+        """드라이버가 없으면 다시 연결을 시도한다(있으면 그대로).
+
+        WHY(실측 2026-09-28): `_connect()` 는 __init__ 에서 한 번만 불리고 실패하면 `_driver=None`
+        으로 남는데 `_run_batch` 는 재연결을 시도하지 않았다. 그래서 **기동 시점에 Neo4j 가
+        죽어 있으면 그 프로세스 수명 내내** 그래프 쓰기가 0건인 채 'No Neo4j connection available'
+        경고만 반복된다(실측: neo4j 플러그인 오류로 컨테이너가 unhealthy → 19:06 사이클 그래프
+        쓰기 전량 스킵). 일시 장애가 영구 실명이 되지 않도록 배치마다 재연결을 허용한다.
+        """
+        if self._driver is None and self._owns_driver:
+            self._connect()
+        return self._driver is not None
+
     def _run_batch(self, queries: List[Tuple[str, Dict]]) -> int:
         """Execute a batch of (cypher, params) in a single session.
 
         Returns the number of queries executed. Fail-open: on error the
         remaining batch is skipped and the error is logged.
         """
-        if not self._driver:
-            logger.warning("No Neo4j connection available (NewsGraphWriter)")
-            return 0
         if not queries:
+            return 0
+        if not self._driver and not self._ensure_driver():
+            logger.warning("No Neo4j connection available (NewsGraphWriter)")
             return 0
         try:
             with self._driver.session() as session:
