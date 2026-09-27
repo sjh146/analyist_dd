@@ -790,7 +790,12 @@ def status():
         print(f"  [{i['status']:11s}] {i['id']:3s} {i['title']}")
         if i.get("result"):
             r = i["result"]
-            print(f"                 → {r['verdict']} {r['detail']}")
+            # 원장/백로그의 result 는 dict 일 수도, 자유서술 문자열일 수도 있다(실측 L4).
+            # dict 만 가정하면 --status 가 TypeError 로 죽어 현황 조회가 불가능해진다.
+            if isinstance(r, dict):
+                print(f"                 → {r.get('verdict')} {r.get('detail')}")
+            else:
+                print(f"                 → {r}")
     pid = running_pid()
     print(f"실행 중: {pid if pid else '없음'}")
     led = load_ledger(5)
