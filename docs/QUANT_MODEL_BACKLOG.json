@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-28T04:10:49+09:00",
+  "updated_at": "2026-09-28T04:31:45+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -1754,16 +1754,16 @@
       "hypothesis": "학습 표본이 2.1배(314→659거래일)가 되면 로버스트 AUC 가 움직인다 — 지금까지 소진한 라벨·유니버스·피처·하이퍼파라미터 축과 **다른 종류의 레버**다. 창은 피처 워밍업(365일 lookback)이 완전한 최대치로 잡았다.",
       "evidence": "R17 실측: market_data 910거래일(2023-01-02~2026-09-23). 기존 패널(panel_420*, panel_150u*)은 314거래일 창에 묶여 있었다. U3a(교차패널)·U3b(동일패널 행 A/B)를 분리해 둔다 — 교차패널 비교는 스냅샷 차이로 부호가 뒤집힌 전례가 있다.",
       "method": "① panel_995.npz 빌드(체크포인트 500페어·재개 가능, 예상 3.5~7.5h) ② 같은 런에서 LS_quant_q30_h5 5폴드×3시드 로버스트 측정 ③ 기록 기준선 0.5406(314거래일·panel_420_asofpatch)과 비교 — **타 패널 대조라 증거 약함** ④ 창 효과의 확증은 U3b(같은 패널 행 부분집합)로 한다",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 90000 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_995.npz --days 995 --limit 50 --folds 5 --seeds 3 --only LS_quant_q30_h5'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 42000 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_995.npz --days 995 --end-date 2026-09-27 --limit 50 --folds 5 --seeds 3 --only LS_quant_q30_h5'",
       "check": "python3 scripts/model_engineer_cycle.py --status",
       "check_target": {
         "op": ">=",
         "value": 1
       },
-      "cost": "패널 빌드 3.5~7.5h(659거래일×49종목≈32,300페어, 1.2~2.7페어/초) + 측정 ~20분",
+      "cost": "남은 17,576 페어 ÷ 0.368 pair/s = 13.3시간 → 2밤 분할(밤당 ≤11.7시간). timeout 42000s = 개장(09:00) 전 강제 종료, 체크포인트 500페어마다 저장",
       "success": "659거래일 창 로버스트 AUC 가 314거래일 실측(0.5406) 대비 +0.02 이상",
       "caution": "평일 20:00 컨테이너 재생성 창(est_minutes=700 → 구동기 ETA 가드). 재개: 같은 명령 재실행(체크포인트 .rows.pkl/.meta.json). | 2026-09-26 실측: 부하(load1 7.2·postgres 경쟁) 하에서 0.41 페어/초 → 32,626페어 ETA 20.9h = est_minutes 700(1.2~2.7페어/초 가정)의 3배. 19:55 사용자 종료 준비로 1,400/32,626(4.3%)에서 SIGKILL. 체크포인트 500페어 단위·재개 가능 → 야간 중단 손실은 최대 500페어. 21h 작업이라 평일 ETA 가드(20:00 재생성 창)에 걸려 주말에만 시작된다. | 2026-09-27 실측: 호스트 재부팅(14:43) 직후 재시작 — 0.38 페어/초·총 32,576페어(전일 32,626 과 다름) → ETA 1,410분(23.5h). 전일 체크포인트(1,000행)는 **페어 총수가 달라져 자동 폐기**(feature_pipeline.py L404-421: stock_codes/start/end/code_sig 비교) → 처음부터 빌드. est_minutes 1250→1410 정정.",
-      "est_minutes": 1410,
+      "est_minutes": 700,
       "metric": "wf_sweep_summary",
       "arm": "LS_quant_q30_h5",
       "counterfactual": "기록 기준선 0.5406 (panel_420_asofpatch · 281거래일 창)",
@@ -1793,7 +1793,9 @@
         "per_exp": null,
         "rc": 137
       },
-      "notes": "[2026-09-27 실측] 패널 빌드 0.42 pair/s × 32,626 pair = 21.6h 인데 timeout 43200s(12h) → 55% 지점 SIGKILL 구조. 체크포인트 500 pair 단위라 재개는 가능하지만 한 번에 완주하도록 90000s(25h) 로 정정. host 재부팅 후 첫 실행이라 유휴 시에는 더 빠를 수 있다."
+      "notes": "[2026-09-27 실측] 패널 빌드 0.42 pair/s × 32,626 pair = 21.6h 인데 timeout 43200s(12h) → 55% 지점 SIGKILL 구조. 체크포인트 500 pair 단위라 재개는 가능하지만 한 번에 완주하도록 90000s(25h) 로 정정. host 재부팅 후 첫 실행이라 유휴 시에는 더 빠를 수 있다.",
+      "note": " [2026-09-28 정정] ①구간 고정(--end-date 2026-09-27)을 넣어야 체크포인트가 이어진다(실측: 재개 processed=15000/32576 확인). ②크론 틱은 --force 를 못 쓰므로 U3 착수는 scripts/u3_launcher.sh(20:35~21:00 창)가 담당한다. ③ETA 가드 상한(est_minutes 700)이라 정상 틱도 21:00 이후엔 시작 가능.",
+      "launcher": "scripts/u3_launcher.sh (nohup) — data/reports/me_cycle/u3_launcher.log"
     },
     {
       "id": "U3b",
@@ -1906,7 +1908,7 @@
     {
       "id": "LB1",
       "title": "라벨 잡음 축: 선행 1~5일 평균(스무딩) · 변동성 조정 라벨 — 같은 런 A/B",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "affects_model": true,
       "baseline": {
@@ -1928,7 +1930,155 @@
       "cost": "유휴 약 5분 / 부하 경쟁 시 최대 2시간(timeout 7200s = 08:30 이전 종료 상한)",
       "est_minutes": 120,
       "success": "LB_smooth_h5 또는 LB_voladj_h5 의 폴드 평균 AUC 가 같은 런 대조군 대비 +0.02 이상(폴드승률 ≥0.8). 미달이면 라벨 잡음 축도 노이즈로 닫는다.",
-      "note": "judge_per 는 arm 하나만 비교한다 → 원장 per_exp 에 3 arm 이 모두 있으므로 다음 틱에서 LB_voladj 도 수동 재판정하라(둘 중 큰 쪽이 신호면 그쪽을 승격 대상으로)."
+      "note": "judge_per 는 arm 하나만 비교한다 → 원장 per_exp 에 3 arm 이 모두 있으므로 다음 틱에서 LB_voladj 도 수동 재판정하라(둘 중 큰 쪽이 신호면 그쪽을 승격 대상으로).",
+      "attempts": [
+        {
+          "ts": "2026-09-28T04:21:17+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 LB_smooth_q30_h5 0.5467 vs 대조군 LS_quant_q30_h5 0.5414 → Δ+0.0053 (최고: LB_smooth_q30_h5 0.5467)",
+          "log": "data/reports/me_cycle/logs/me_cycle_LB1_20260928-041227.log",
+          "elapsed_min": 8.8
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 LB_smooth_q30_h5 0.5467±0.0173 vs 대조군 LS_quant_q30_h5 0.5414±0.0308 → Δ+0.0053 (폴드 3/5 승) · LB_voladj_q30_h5 0.5381±0.0219 → Δ−0.0033 (3/5). 스무딩은 평균 이득 없음, 다만 폴드 std −44%·최악 폴드 +0.0167.",
+        "delta": 0.0053,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "mean": 0.5414,
+            "std": 0.0308,
+            "folds": [
+              0.5233,
+              0.5201,
+              0.5606,
+              0.5926,
+              0.5103
+            ]
+          },
+          "LB_smooth_q30_h5": {
+            "mean": 0.5467,
+            "std": 0.0173,
+            "folds": [
+              0.531,
+              0.5595,
+              0.5431,
+              0.573,
+              0.527
+            ]
+          },
+          "LB_voladj_q30_h5": {
+            "mean": 0.5381,
+            "std": 0.0219,
+            "folds": [
+              0.5056,
+              0.543,
+              0.5679,
+              0.5227,
+              0.5516
+            ]
+          }
+        },
+        "rc": 0
+      },
+      "closed_at": "2026-09-28T04:23:05+09:00"
+    },
+    {
+      "id": "LB2",
+      "title": "가산성 확인: 횡단면 rank 변환 × 라벨 스무딩 (약한 양(+) 두 방향의 결합)",
+      "status": "done",
+      "priority": 2,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5406,
+        "source": "panel_420_asofpatch · 5폴드 확장창 기록 기준선"
+      },
+      "hypothesis": "전처리(rank, TR1 Δ+0.0107)와 라벨(스무딩, LB1 Δ+0.0053·폴드 std −44%)은 메커니즘이 달라 결합이 가산적이면 Δ+0.015 근처가 나올 수 있다. 비가산이면 조정 축 전체를 닫고 데이터 축으로 넘어간다.",
+      "evidence": "TR2(rank×depth1)는 비가산이었다: Δ+0.0060 < rank 단독 +0.0107. 라벨 축은 아직 어떤 조합으로도 측정된 적이 없다. 두 축 모두 같은 런 대조군에서 부호가 양(+)이었고 각각 폴드 3/5 승.",
+      "method": "같은 패널·같은 런 3 arm: LS_quant_q30_h5(대조군) / TR_rank_h5 / TR_rank_LBsmooth_h5, 5폴드×5시드.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --days 420 --limit 50 --folds 5 --seeds 5 --only LS_quant_q30_h5,TR_rank_h5,TR_rank_LBsmooth_h5'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "wf_sweep_summary",
+      "arm": "TR_rank_LBsmooth_h5",
+      "counterfactual": "LS_quant_q30_h5 (같은 런·같은 패널 대조군)",
+      "cost": "약 9분(LB1 3config·5폴드×5시드 실측 8.8분, 부하 경쟁 포함)",
+      "est_minutes": 30,
+      "success": "결합 arm 이 대조군 대비 +0.02 이상(폴드승률 ≥0.8) → 조정 축 유지. 미달이면 조정 축 종료.",
+      "note": "조정(피처·HP·유니버스·라벨) 축의 마지막 실험으로 등록한다. 미달이면 '데이터 축' 승인 요청으로 올린다.",
+      "attempts": [
+        {
+          "ts": "2026-09-28T04:28:07+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 TR_rank_LBsmooth_h5 0.5514 vs 대조군 LS_quant_q30_h5 0.5414 → Δ+0.0100 (최고: TR_rank_LBsmooth_h5 0.5514)",
+          "log": "data/reports/me_cycle/logs/me_cycle_LB2_20260928-042305.log",
+          "elapsed_min": 5.0
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 TR_rank_LBsmooth_h5 0.5514 vs 대조군 LS_quant_q30_h5 0.5414 → Δ+0.0100 (최고: TR_rank_LBsmooth_h5 0.5514)",
+        "delta": 0.01,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5233,
+              0.5201,
+              0.5606,
+              0.5926,
+              0.5103
+            ],
+            "mean": 0.5414,
+            "std": 0.0308,
+            "min": 0.5103,
+            "max": 0.5926,
+            "fold_win_rate": 1.0
+          },
+          "TR_rank_LBsmooth_h5": {
+            "desc": "횡단면 rank 변환 × 라벨 스무딩 — 두 약한 양(+) 방향의 가산성 측정",
+            "kind": "smooth",
+            "horizon": 5,
+            "folds": [
+              0.5452,
+              0.5576,
+              0.5476,
+              0.5687,
+              0.5378
+            ],
+            "mean": 0.5514,
+            "std": 0.0107,
+            "min": 0.5378,
+            "max": 0.5687,
+            "fold_win_rate": 1.0
+          },
+          "TR_rank_h5": {
+            "desc": "피처 날짜별 횡단면 rank(pct) — 시장레벨 성분 제거",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5197,
+              0.537,
+              0.5552,
+              0.6078,
+              0.5279
+            ],
+            "mean": 0.5495,
+            "std": 0.0314,
+            "min": 0.5197,
+            "max": 0.6078,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      }
     }
   ]
 }

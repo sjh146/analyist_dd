@@ -72,6 +72,12 @@ CONFIGS = [
      "desc": "라벨=선행 1~5일 수익률 평균(스무딩) — 5일 보유와 정합, 라벨 잡음 축소"},
     {"id": "LB_voladj_q30_h5", "kind": "voladj", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "라벨=선행 5일 수익률 ÷ 후행 20일 실현변동성 — 위험조정(시점정합)"},
+    # LB2(2026-09-28 04:2x): 약한 양(+) 두 방향의 결합 — 전처리(횡단면 rank, TR1 Δ+0.0107)와
+    # 라벨 스무딩(LB_smooth Δ+0.0053, 폴드 std 0.0308→0.0173). 두 축은 메커니즘이 다르므로
+    # 가산적일 수 있다(TR2 의 rank×depth1 은 비가산이었다: Δ+0.0060 < rank 단독 +0.0107).
+    {"id": "TR_rank_LBsmooth_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank",
+     "desc": "횡단면 rank 변환 × 라벨 스무딩 — 두 약한 양(+) 방향의 가산성 측정"},
     # ── 피처 변환 축 (라벨은 최고 설정 고정, 횡단면 정규화만 바꾼다) ──────────────
     {"id": "TR_rank_h5",    "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank",
@@ -268,6 +274,9 @@ def main():
     ap = argparse.ArgumentParser(description="라벨 설계 스윕 (확장창 walk-forward)")
     ap.add_argument("--panel", default="/app/app/models/wf/panel_420.npz")
     ap.add_argument("--days", type=int, default=420)
+    # 구간 끝 고정(기본: 실행 시각). 긴 패널 빌드의 체크포인트 재개용 — wf_wave.build_panel 주석 참조.
+    ap.add_argument("--end-date", default=None,
+                    help="패널 빌드 구간 끝 날짜 YYYY-MM-DD (기본: 실행 시각)")
     ap.add_argument("--limit", type=int, default=50)
     # ── 유니버스 확장 옵션 (비우면 현행 기본값: KOSDAQ·코드순·최소 50일) ──
     # 유니버스를 바꿀 때는 --panel 파일명도 새로 줘라(캐시가 파일명으로만 구분된다).
@@ -322,7 +331,8 @@ def main():
         uni["order"] = args.order
     if uni:
         ml.log(f"universe 옵션: {uni}")
-    df, names = W.build_panel(args.panel, args.limit, args.days, log=ml.log, **uni)
+    df, names = W.build_panel(args.panel, args.limit, args.days, log=ml.log,
+                              end_date=args.end_date, **uni)
     base_names = [n for n in names if n in df.columns]
     all_dates = sorted(df["date"].astype(str).unique())
     ml.log(f"panel rows={len(df)} dates={len(all_dates)} ({all_dates[0]} ~ {all_dates[-1]})")

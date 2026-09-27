@@ -112,8 +112,15 @@ def dedupe_names(names):
     return out
 
 
-def build_panel(cache, limit, days, log=print, **universe):
+def build_panel(cache, limit, days, log=print, end_date=None, **universe):
     """패널 캐시를 만들거나 재사용한다.
+
+    end_date: 빌드 구간의 끝 날짜(YYYY-MM-DD). 기본 None = 실행 시각(now).
+      ⚠ 왜 필요한가(실측 2026-09-28): 구간이 `end=now` 로 매일 하루씩 밀리므로 **체크포인트가
+      날마다 무효화**된다(feature_pipeline 비교 키 = stock_codes·start_date·end_date·code_sig).
+      995일 창(32,576 페어·실측 0.368 pair/s = 24.6시간)을 여러 밤에 걸쳐 완주하려면 구간을
+      고정해야 한다 — 안 그러면 매일 0% 에서 다시 시작해 영원히 완주하지 못한다(47%에서 두 번 소실).
+      고정하면 재개가 실제로 이어지고, 구간이 같으므로 실험 프로토콜도 그대로다.
 
     universe: `tc._select_universe` 로 전달되는 확장 옵션(market/since/min_days/min_value/order).
     비우면 현행 기본값(KOSDAQ·코드순·최소 50일)이 그대로 쓰인다.
@@ -141,9 +148,11 @@ def build_panel(cache, limit, days, log=print, **universe):
         codes = tc._select_universe(pg, limit, **universe)
         log(f"universe: {len(codes)} 종목 (limit={limit})")
         pipeline = ml.FeaturePipeline(pg_conn=pg)
-        end = datetime.now()
+        end = (datetime.strptime(end_date, "%Y-%m-%d") if end_date
+               else datetime.now())
         start = end - timedelta(days=days)
-        log(f"빌드 구간: {start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}")
+        log(f"빌드 구간: {start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}"
+            + (" (end_date 고정 — 체크포인트 재개용)" if end_date else ""))
         df = pipeline.build_training_features(
             codes, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"),
             # 체크포인트: 부분 진척을 저장/재개한다. 컨테이너 재생성으로 docker exec 가
@@ -230,6 +239,10 @@ def make_labels(df, kind, horizon, q):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=420)
+    # 구간 끝을 고정한다(기본: 실행 시각). 긴 패널 빌드를 여러 밤에 걸쳐 재개하려면 필수 —
+    # end_date 가 매일 밀리면 체크포인트가 매번 무효화된다(wf_wave.build_panel 주석 참조).
+    ap.add_argument("--end-date", default=None,
+                    help="빌드 구간 끝 날짜 YYYY-MM-DD (기본: 실행 시각)")
     ap.add_argument("--limit", type=int, default=50)
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seeds", type=int, default=5)
@@ -251,7 +264,8 @@ def main():
     ml.set_exp_log("wf_wave")
     ml.log(f"wf_wave start KST={ml.now_kst().isoformat(timespec='seconds')} "
            f"days={args.days} limit={args.limit} folds={args.folds} seeds={args.seeds}")
-    df, names = build_panel(cache, args.limit, args.days, log=ml.log)
+    df, names = build_panel(cache, args.limit, args.days, log=ml.log,
+                            end_date=args.end_date)
     base_names = [n for n in names if n in df.columns]
     all_dates = sorted(df["date"].astype(str).unique())
     ml.log(f"panel rows={len(df)} dates={len(all_dates)} "

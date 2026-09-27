@@ -1,65 +1,49 @@
 #!/usr/bin/env bash
-# U3 대기형 런처 — 부하가 내려가면 U3(확장 이력 패널 빌드 + 로버스트 측정)을 시작한다.
+# u3_launcher.sh — 995일 창 패널 빌드(U3)를 "재생성 창 이후 · 개장 전" 좁은 틈에 자동 착수시킨다.
 #
-# WHY (2026-09-26 실측): 틱은 매시 1회이고 그 **순간** load1 이 3.5 를 넘으면 그냥 대기한다.
-# 오늘은 WSL 재부팅(18:44) 직후 다른 역할의 수집기 + postgres 병렬워커가 load1=11 을 만들었고,
-# 18:45 틱은 "부하 과다"로 아무것도 시작하지 못했다. 밤이 통째로 비는 것을 막으려면 5분 간격
-# 재시도가 필요하다(u1_launcher.sh 와 같은 이유·같은 구조).
-#   ① load1 < 3.0 이면 시작  ② 60분 경과 후부터 --force(드라이버가 **장외에서만** 허용)
-#   ③ 시작 직후 컨테이너에서 실제 빌드 프로세스를 확인(자기신고 금지) ④ 하드 데드라인 09:00
-set -uo pipefail
+# 왜 런처가 필요한가 (2026-09-28 실측):
+#   · U3 은 남은 17,576 페어 ÷ 0.368 pair/s = 13.3시간 → 평일 장외 창(20:35~09:00)보다 길다.
+#     그래서 20:00 컨테이너 재생성 직후에 시작해 컨테이너 timeout 42,000초(11.7시간)로
+#     **개장(09:00) 전에 반드시 끝나게** 자르고, 2밤에 나눠 완주한다(체크포인트 500페어).
+#   · 크론 틱(--tick)은 --force 를 못 쓰므로 ETA 가드가 U3 를 건너뛴다(설계대로).
+#     장외의 부하 가드는 --force 로만 뚫리므로 런처가 그 역할을 맡는다.
+#   · 구간 고정(--end-date 2026-09-27)이 없으면 end_date 가 매일 밀려 체크포인트가 폐기된다
+#     (실측: 고정하면 "체크포인트 재개: processed=15000/32576 (46.0%)").
+#
+# 중지: 이 스크립트의 pid 를 kill (pgrep -f u3_launcher.sh)
+LOG=/home/jhshi/analyist_dd/data/reports/me_cycle/u3_launcher.log
+PANEL=/home/jhshi/analyist_dd/services/xgboost-ml/app/models/wf/panel_995.npz
 cd /home/jhshi/analyist_dd || exit 1
 
-LOG=/home/jhshi/analyist_dd/data/reports/me_cycle/u3_launcher.log
-LOCK=/home/jhshi/analyist_dd/data/reports/me_cycle/u3_launcher.pid
-mkdir -p "$(dirname "$LOG")"
-say() { echo "[$(date '+%m-%d %T')] $*" >> "$LOG"; }
+echo "[$(date '+%F %T')] u3_launcher 시작 (pid $$) — 창 20:35~21:00, 종료 상한 08:40" >> "$LOG"
+while true; do
+  if [ -f "$PANEL" ]; then
+    echo "[$(date '+%F %T')] panel_995.npz 완성 — 런처 종료" >> "$LOG"
+    exit 0
+  fi
+  hhmm=$(date +%H%M)
+  weekday=$(date +%u)
+  # 착수 창: 평일·주말 모두 20:35~21:00 (11.7시간 실행 → 08:20 종료). 주말은 여유가 있으면 더 일찍도 가능.
+  in_window=0
+  if [ "$hhmm" -ge 2035 ] && [ "$hhmm" -le 2100 ]; then in_window=1; fi
+  if [ "$weekday" -ge 6 ] && [ "$hhmm" -ge 0300 ] && [ "$hhmm" -le 0800 ]; then in_window=1; fi
 
-# 단일 인스턴스 가드(pgrep 자기매칭 교훈): pidfile 의 pid 가 **살아있고 cmdline 이 런처**일 때만
-# '이미 실행 중'으로 본다. cmdline 검사가 없으면 pid 재사용·유령 pidfile 에 런처가 조용히 죽는다.
-if [ -f "$LOCK" ]; then
-    op=$(cat "$LOCK" 2>/dev/null || true)
-    if [ -n "$op" ] && [ -d "/proc/$op" ] && tr '\0' ' ' < "/proc/$op/cmdline" 2>/dev/null | grep -q 'u3_launcher\.sh'; then
-        say "이미 런처 실행 중(pid=$op) — 종료"
-        exit 0
-    fi
-fi
-echo $$ > "$LOCK"
-trap 'rm -f "$LOCK"' EXIT INT TERM
-
-START=$(date +%s)
-FORCE_AT=$((START + 3600))                        # 60분 뒤부터 --force 허용(장외 한정)
-HARD=$(date -d 'today 09:00' +%s)
-[ "$HARD" -le "$START" ] && HARD=$(date -d 'tomorrow 09:00' +%s)
-
-# 자기 매칭 방지: 패턴은 브래킷으로 쪼개 쓰고(--run U3), 래퍼 자신의 커맨드라인에는
-# --start U3 만 들어간다.
-cycle_running() { pgrep -f 'model_engineer_cycle\.py --run U3' >/dev/null 2>&1; }
-build_running() { docker top stock_xgboost_ml 2>/dev/null | grep -q '[w]f_label_sweep'; }
-
-say "U3 대기형 런처 시작 (임계 load1<3.0 · 60분 뒤 --force · 하드 데드라인 $(date -d "@$HARD" '+%m-%d %H:%M'))"
-while :; do
-    now=$(date +%s)
-    if cycle_running; then say "U3 사이클 실행 중 확인 — 런처 종료"; exit 0; fi
-    L=$(cut -d' ' -f1 /proc/loadavg)
-    if awk -v l="$L" 'BEGIN{exit !(l < 3.0)}'; then
-        say "load1=$L < 3.0 → U3 시작"
-        /usr/bin/python3 -u scripts/model_engineer_cycle.py --start U3 >> "$LOG" 2>&1
-    elif [ "$now" -ge "$FORCE_AT" ]; then
-        say "load1=$L · 60분 경과 → --force 시작(장외 한정)"
-        /usr/bin/python3 -u scripts/model_engineer_cycle.py --start U3 --force >> "$LOG" 2>&1
+  if [ "$in_window" = "1" ]; then
+    if pgrep -f "[w]f_label_sweep.py --panel /app/app/models/wf/panel_995" >/dev/null; then
+      echo "[$(date '+%F %T')] 이미 빌드가 돌고 있다 — 대기" >> "$LOG"
+    elif [ -f /home/jhshi/analyist_dd/data/reports/me_cycle/running.pid ]; then
+      echo "[$(date '+%F %T')] 사이클 lock 존재 — 대기" >> "$LOG"
     else
-        say "load1=$L — 대기(5분)"
-        sleep 300; continue
+      out=$(/usr/bin/python3 scripts/model_engineer_cycle.py --start U3 --force 2>&1)
+      rc=$?
+      echo "[$(date '+%F %T')] --start U3 --force rc=$rc :: $out" >> "$LOG"
+      sleep 120
+      if pgrep -f "[w]f_label_sweep.py --panel /app/app/models/wf/panel_995" >/dev/null; then
+        echo "[$(date '+%F %T')] 빌드 기동 확인 ✓" >> "$LOG"
+      else
+        echo "[$(date '+%F %T')] 기동 실패 — 다음 주기에 재시도" >> "$LOG"
+      fi
     fi
-    for i in 1 2 3 4 5 6; do                      # 기동 확인(최대 2분)
-        sleep 20
-        if cycle_running || build_running; then
-            say "기동 확인 — 컨테이너 빌드 프로세스 $(docker top stock_xgboost_ml 2>/dev/null | grep -c '[w]f_label_sweep')개"
-            exit 0
-        fi
-    done
-    say "기동 실패(사이클·빌드 프로세스 미확인) — 10분 뒤 재시도"
-    [ "$(date +%s)" -ge "$HARD" ] && { say "하드 데드라인 도달 — 런처 종료(다음 크론 틱이 이어받는다)"; exit 1; }
-    sleep 600
+  fi
+  sleep 240
 done
