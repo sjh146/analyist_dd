@@ -745,10 +745,60 @@ def _record_orphan(orphan, started):
     return rec, status
 
 
+# ── U3 런처 상시 유지 ─────────────────────────────────────────────────────────
+# 왜 틱이 런처를 관리하는가(실측 2026-09-28 05:0x): U3(995일 창 패널 빌드)는 est_minutes 가
+# 컨테이너 재생성 창을 넘는 장시간 항목이라 **틱은 시작할 수 없다**(--force 필요) → 런처가
+# 20:35~21:00 창에 대신 착수시킨다. 그런데 런처는 Hermes 세션에서 nohup 으로 뜨므로
+# **세션이 끝나면 함께 사라진다**(실측: 04:31:45 에 뜬 pid 84267 이 05:0x 에 이미 없음 —
+# 로그에 종료 흔적조차 없이). 런처가 없으면 그날 밤 U3 는 시작조차 못 하고 큐가 조용히 멈춘다.
+# 틱은 크론이라 세션과 무관하게 매시간 돌므로, 틱이 생존을 확인해 없으면 setsid 로 다시 띄운다
+# (자식의 프로세스 그룹을 세션에서 분리해야 세션 정리 SIGKILL 을 피한다).
+LAUNCHER = os.path.join(PROJ, "scripts/u3_launcher.sh")
+PANEL995 = os.path.join(PROJ, "services/xgboost-ml/app/models/wf/panel_995.npz")
+
+
+def launcher_alive():
+    """u3_launcher.sh 가 살아 있는가. pgrep 대신 /proc 스캔(pgrep 부재·플래그 차이 회피)."""
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                cl = f.read().replace(b"\x00", b" ").decode("utf-8", "ignore")
+        except OSError:
+            continue
+        if "u3_launcher.sh" in cl:
+            return True
+    return False
+
+
+def ensure_launcher(dry=False) -> str:
+    """U3 런처를 살아 있게 유지한다. 반환: 사람이 읽을 상태 문자열."""
+    if os.path.exists(PANEL995):
+        return "U3 패널 완성 — 런처 불필요"
+    if launcher_alive():
+        return "U3 런처 실행 중"
+    if not os.path.exists(LAUNCHER):
+        return "U3 런처 스크립트 없음(경로 확인 필요)"
+    if dry:
+        return "U3 런처 시작 필요(dry-run)"
+    try:
+        with open(os.path.join(RUNTIME, "u3_launcher.log"), "a", encoding="utf-8") as lg:
+            lg.write(f"[{now_kst().strftime('%F %T')}] 틱이 런처를 (재)기동"
+                     f" — 세션 종료로 죽었던 것으로 보임\n")
+    except OSError:
+        pass
+    subprocess.Popen(["setsid", "bash", LAUNCHER], cwd=PROJ, start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL)
+    return "U3 런처 (재)기동 — 20:35~21:00 창에 U3 착수"
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
         print(ns)
+    print(f"  런처: {ensure_launcher()}")
     pid = running_pid()
     if pid:
         st = {}
