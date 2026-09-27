@@ -6,7 +6,7 @@
     "grid_rows": 617974,
     "stocks": 3875,
     "dates": 168,
-    "computed_at": "2026-09-25T19:04:47+00:00",
+    "computed_at": "2026-09-27T21:01:55+00:00",
     "thresholds": {
       "select": 0.044,
       "uniq_min": 2,
@@ -18,53 +18,53 @@
     {
       "feature_name": "institution_net_buy",
       "nonzero_ratio": 0.052661,
-      "std": 16391385787.598661,
+      "std": 16391385787.579514,
       "window_days": 250,
       "nonzero_ratio_naive": 0.966222,
       "nonzero_ratio_honest": 0.052661,
       "null_ratio": 0.913561,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
       "feature_name": "institution_net_buy_5d",
       "nonzero_ratio": 0.06294,
-      "std": 34784995317.92791,
+      "std": 34784995317.931435,
       "window_days": 250,
       "nonzero_ratio_naive": 0.976501,
       "nonzero_ratio_honest": 0.06294,
       "null_ratio": 0.913561,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
       "feature_name": "foreign_net_buy",
       "nonzero_ratio": 0.081005,
-      "std": 26719035865.38407,
+      "std": 26719035865.485703,
       "window_days": 250,
       "nonzero_ratio_naive": 0.994566,
       "nonzero_ratio_honest": 0.081005,
       "null_ratio": 0.913561,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
       "feature_name": "foreign_net_buy_5d",
       "nonzero_ratio": 0.083308,
-      "std": 89141955383.58463,
+      "std": 89141955383.57457,
       "window_days": 250,
       "nonzero_ratio_naive": 0.996869,
       "nonzero_ratio_honest": 0.083308,
       "null_ratio": 0.913561,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -77,7 +77,7 @@
       "null_ratio": 0.999647,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.994,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -90,7 +90,7 @@
       "null_ratio": 1.0,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 1.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -103,7 +103,7 @@
       "null_ratio": 0.999647,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.994,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -116,7 +116,7 @@
       "null_ratio": 1.0,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 1.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -129,7 +129,7 @@
       "null_ratio": 0.996128,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.5,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -142,7 +142,7 @@
       "null_ratio": 1.0,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 1.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -155,7 +155,7 @@
       "null_ratio": 0.755017,
       "stock_unique_median": 62.0,
       "cross_section_constant_ratio": 0.631,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_limited(조건부 — 값 보유 행에서 nz 0.998)"
     },
     {
@@ -168,7 +168,7 @@
       "null_ratio": 0.592292,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -181,7 +181,7 @@
       "null_ratio": 0.561312,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -194,20 +194,20 @@
       "null_ratio": 0.0,
       "stock_unique_median": 168.0,
       "cross_section_constant_ratio": 1.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "market_level(계약#6 횡단면 금지)"
     },
     {
       "feature_name": "krx_total_trading_value",
       "nonzero_ratio": 1.0,
-      "std": 12386904706903.438,
+      "std": 12386904706903.225,
       "window_days": 250,
       "nonzero_ratio_naive": 1.0,
       "nonzero_ratio_honest": 1.0,
       "null_ratio": 0.0,
       "stock_unique_median": 168.0,
       "cross_section_constant_ratio": 1.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "market_level(계약#6 횡단면 금지)"
     },
     {
@@ -220,7 +220,7 @@
       "null_ratio": 0.0,
       "stock_unique_median": 168.0,
       "cross_section_constant_ratio": 1.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "market_level(계약#6 횡단면 금지)"
     },
     {
@@ -233,7 +233,7 @@
       "null_ratio": 0.998392,
       "stock_unique_median": 0.0,
       "cross_section_constant_ratio": 0.2857,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "universe_missing(원천 부족 — 피처 결함 아님)"
     },
     {
@@ -246,7 +246,7 @@
       "null_ratio": 0.000301,
       "stock_unique_median": 168.0,
       "cross_section_constant_ratio": 0.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "SELECTABLE(문턱 22.7x)"
     },
     {
@@ -259,7 +259,7 @@
       "null_ratio": 0.005233,
       "stock_unique_median": 168.0,
       "cross_section_constant_ratio": 0.0,
-      "computed_at": "2026-09-25 19:04:47.883467+00:00",
+      "computed_at": "2026-09-27 21:01:55.133983+00:00",
       "verdict": "SELECTABLE(문턱 22.6x)"
     }
   ]

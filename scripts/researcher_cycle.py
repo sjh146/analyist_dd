@@ -49,12 +49,35 @@ now_kst = base.now_kst
 log = base.log
 
 
+def _host_db_env():
+    """호스트에서 도는 사이클의 DB 좌표를 정규화한다(자식 프로세스에만 영향).
+
+    WHY: 저장소의 `.env` 는 **컨테이너용** 값이다(`POSTGRES_HOST=postgres`, `POSTGRES_PORT=5432`).
+    크론 틱의 환경에는 POSTGRES_* 가 없고, 백로그 명령이 `.env` 를 스스로 읽는 스크립트
+    (예: `scripts/r16_window_coverage.py::env_from_dotenv`)는 컨테이너 서비스명을 물려받아
+    호스트에서 이름해석에 실패한다 — 실측 2026-09-28 06:00 R16: `could not translate host name
+    "postgres" to address` → rc=1 '실패'로 원장에 기록(명령 자체는 멀쩡했다). 같은 함정은
+    백로그의 모든 'DB 를 읽는' 명령에 잠복한다(R3 만 명령 안에서 export 를 직접 하고 있었다).
+    → 호스트 포트 매핑(5434→5432, `docker port stock_postgres` 로 확인)으로 바꿔 물려준다.
+    명령 안에서 `export POSTGRES_HOST=...` 를 다시 하면 셸이 그 값을 우선하므로 무해하다.
+    """
+    env = dict(os.environ)
+    if env.get("POSTGRES_HOST", "") in ("", "postgres", "localhost", "0.0.0.0"):
+        env["POSTGRES_HOST"] = "127.0.0.1"
+    if env.get("POSTGRES_PORT", "") in ("", "5432"):
+        env["POSTGRES_PORT"] = "5434"
+    return env
+
+
+HOST_DB_ENV = _host_db_env()
+
+
 # ── 모니터링 ────────────────────────────────────────────────────────────────
 def snapshot(hours=24):
     """DQ 스냅샷 + 차트를 남기고 (rc, stdout) 을 돌려준다. 실패해도 예외로 죽지 않는다."""
     try:
         p = subprocess.run(["/usr/bin/python3", SNAPSHOT, "--hours", str(hours)],
-                           capture_output=True, text=True, timeout=600, cwd=PROJ)
+                           capture_output=True, text=True, timeout=600, cwd=PROJ, env=HOST_DB_ENV)
         return p.returncode, (p.stdout or "") + (p.stderr or "")
     except Exception as exc:   # noqa: BLE001 - 모니터링 실패가 수집을 막으면 안 된다
         return 99, f"스냅샷 실행 실패: {exc}"
@@ -74,7 +97,8 @@ def eval_check(item):
     if not chk:
         return None, "check 미정의", None
     try:
-        p = subprocess.run(chk, shell=True, capture_output=True, text=True, timeout=180, cwd=PROJ)
+        p = subprocess.run(chk, shell=True, capture_output=True, text=True, timeout=180, cwd=PROJ,
+                           env=HOST_DB_ENV)
     except subprocess.TimeoutExpired:
         return None, "check 타임아웃", None
     nums = re.findall(r"[-+]?\d+(?:\.\d+)?", p.stdout or "")
@@ -224,7 +248,7 @@ def execute(item, force=False):
                  f"# command: {item['command']}\n\n")
         lf.flush()
         rc = subprocess.run(item["command"], shell=True, stdout=lf,
-                            stderr=subprocess.STDOUT, cwd=PROJ).returncode
+                            stderr=subprocess.STDOUT, cwd=PROJ, env=HOST_DB_ENV).returncode
 
     val, detail, passed = eval_check(item)
     # 저작 결과를 판정 문구에 합친다 — 저작 실패면 명령도 실패하므로 원인이 한 줄에 남아야 한다.

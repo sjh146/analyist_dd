@@ -156,3 +156,20 @@
 - **관측(엔지니어 소관, 미수정)**: `stock_xgboost_ml` 에 좀비 3개 누적(pid 2344707·2353926·2374996, 부모 2331621
   = 컨테이너 PID1 `python -m app.main`, 7시간 이상). 자식 reap 누락 — 위생 `warn` 의 유일 원인.
   디스크 4.0% / 댕글링볼륨 0 은 정상.
+
+## [리서처 R16] 창(250d) 재측정 성공 + '컨테이너 좌표 누출' 함정 수리 (2026-09-28 06:02)
+- **결과**: R16 rc=0, check **2 >= 1 충족**, 소요 0.2분(읽기 전용). SELECTABLE 2개 —
+  `relative_strength`(비영률 0.9997) · `bb_position`(0.9948), 둘 다 선별 문턱 대비 22배.
+  나머지는 `universe_missing`(원천 부족) 13개 + `market_level`(계약 #6) 3개 + `universe_limited` 1개.
+  `feature_coverage` 에는 아무것도 쓰지 않았다(창 정의가 전역 기준선 alive/dead·종목상수를 뒤집는다).
+- **실패 → 수리(같은 틱)**: 06:00 틱의 R16 은 rc=1 `psycopg2.OperationalError: could not translate
+  host name "postgres"` 였다. 명령 자체는 정상이었고 **환경이 틀렸다** — 저장소 `.env` 는 컨테이너용
+  (`POSTGRES_HOST=postgres`, `POSTGRES_PORT=5432`)이고, 그것을 스스로 읽는 스크립트
+  (`scripts/r16_window_coverage.py::env_from_dotenv`)가 호스트에서 컨테이너 서비스명을 물려받았다.
+  → 구동기가 자식(스냅샷·check·명령)에 **호스트 포트 매핑(127.0.0.1:5434)** 을 물려주도록 수리
+  (`scripts/researcher_cycle.py::_host_db_env`). 명령 안에서 `export POSTGRES_HOST=...` 를 다시 하는
+  항목(R3 형태)은 셸 우선순위로 그대로 동작한다. 회귀 5건: `tests/test_researcher_cycle_host_db_env.py`
+  (미설정→호스트매핑 / postgres→매핑 / localhost·0.0.0.0→매핑 / 운영자 지정 원격좌표 보존 / 부모 os.environ 불변).
+- **잠복 범위**: 같은 함정은 백로그의 모든 'DB 를 읽는' 명령에 있었다(R11 `build_macro_features.py`,
+  R12 `build_financial_ratio_features.py` — 승인 대기 아님, 드라이버 수리로 함께 해소).
+- 엔지니어 백로그: `XR16` (기존 항목, 중복 생성 안 함)
