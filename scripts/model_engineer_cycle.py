@@ -365,17 +365,36 @@ def parse_wf_sweep(path, mtime_floor) -> dict:
     return {"finished_at": d.get("finished_at"), "config": d.get("config"), "per_exp": per}
 
 
-def failure_cause(rc):
-    """실패 원인 추정. 137 이면 컨테이너 재생성(SIGKILL) 여부를 실제로 확인해 적는다."""
+def failure_cause(rc, started=None):
+    """실패 원인 추정. 137 이면 컨테이너가 **실행 중에** 재생성됐는지 실제로 확인해 적는다.
+
+    실측(2026-09-27 TR3): StartedAt 을 실행 시작 시각과 비교하지 않고 무조건 "컨테이너 재생성
+    (평일 20:00 evening_pipeline)"으로 단정해, **호스트 부팅(14:43) 이후 시작한 실행(14:54)** 의
+    137 을 엉뚱한 원인으로 원장에 남겼다(실제는 수동 kill). StartedAt 이 실행 시작보다 이전이면
+    재생성은 원인이 아니다 — 후보를 좁혀 적어야 다음 사람이 잘못된 복구를 하지 않는다.
+    """
     if rc == 137:
+        st = ""
         try:
             st = subprocess.run(
                 ["docker", "inspect", CONTAINER, "--format", "{{.State.StartedAt}}"],
                 capture_output=True, text=True, timeout=20).stdout.strip()
         except Exception:
             st = ""
-        return ("SIGKILL(137) — 추정: 컨테이너 재생성(실행 중 컨테이너 StartedAt="
-                f"{st[:19]}). 평일 20:00 evening_pipeline 의 docker compose up -d 가 원인")
+        st_dt = None
+        try:
+            st_dt = datetime.strptime(st[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        except Exception:
+            st_dt = None
+        if st_dt is not None and started is not None:
+            if st_dt > started.astimezone(timezone.utc):
+                return (f"SIGKILL(137) — 컨테이너가 **실행 중** 재생성됨(StartedAt={st[:19]}Z > 실행 시작)"
+                        " → 평일 20:00 evening_pipeline 의 docker compose up -d 가 원인")
+            return (f"SIGKILL(137) — 컨테이너 재생성 아님(StartedAt={st[:19]}Z 는 실행 시작보다 이전)"
+                    " → 외부/수동 종료 후보: 호스트 세션 종료, 사용자 종료 준비, 수동 kill."
+                    " 호스트 uptime·auth.log ROOT LOGIN·다른 세션 흔적으로 확인하라")
+        return ("SIGKILL(137) — 컨테이너 StartedAt 조회/파싱 실패로 원인 미확정"
+                " (재생성 여부를 단정하지 말 것)")
     if rc == 124:
         return "timeout(124) — 작업이 타임아웃을 초과(진행률 대비 타임아웃이 짧았는지 확인하라)"
     return f"종료코드 {rc}"
@@ -444,6 +463,20 @@ def execute(item, force=False):
     ok, why = guards(force, item)
     if not ok:
         log(f"시작 보류: {why}")
+        # 거부는 '사이클 실행'이 아니다 — pidfile/state 를 남기면 다음 틱이 "기록 없이 죽었다"로
+        # 오보하고 **원장에 가짜 실행실패 기록 + 재시도 카운터**를 남긴다. 실측(2026-09-27 15:10):
+        # `--start U3` 가 부하 가드로 거부됐는데 state.json 에 pid 27092 가 남아, 그대로 뒀으면
+        # 16:00 틱이 "사이클이 기록 없이 죽었다: U3" 로 orphan 을 기록할 참이었다.
+        # 단, **내 pid 일 때만** 지운다(뒤늦게 끝난 옛 자식이 지금 도는 사이클의 락을 지우면 안 된다).
+        try:
+            if os.path.exists(PIDFILE) and \
+                    open(PIDFILE, encoding="utf-8").read().strip() == str(os.getpid()):
+                os.remove(PIDFILE)
+            with open(STATE, encoding="utf-8") as fh:
+                if json.load(fh).get("pid") == os.getpid():
+                    os.remove(STATE)
+        except (OSError, json.JSONDecodeError):
+            pass
         return 3
 
     os.makedirs(LOGDIR, exist_ok=True)
@@ -472,7 +505,7 @@ def execute(item, force=False):
     if rc != 0:
         # 실패한 실행에 성능 판정을 붙이지 않는다(설계원칙 6). 옛 요약을 읽어 Δ 를 만들면
         # 소실이 '노이즈(측정됨)'로 세어져 무개선 카운터·승격 판단이 오염된다.
-        cause = failure_cause(rc)
+        cause = failure_cause(rc, started)
         parsed = {"error": "실행 실패 — 측정값 없음", "rc": rc, "cause": cause,
                   "summary_mtime": os.path.getmtime(spath) if os.path.exists(spath) else None}
         verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
@@ -541,6 +574,25 @@ def start_background(item_id, force=False):
         f.write(str(p.pid))
     with open(STATE, "w", encoding="utf-8") as f:
         json.dump({"id": item_id, "pid": p.pid, "started": now_kst().isoformat(timespec="seconds")}, f)
+    # ── 기동 확인: 가드 거부로 즉시 죽은 자식을 '실행 중'으로 세우지 않는다 ────────────
+    # 실측(2026-09-27 15:10): `--start U3` 가 부하 가드 거부로 rc=3 즉시 종료했는데 pidfile·state
+    # 가 남아 다음 틱이 "기록 없이 죽었다"로 오보하고 원장에 가짜 실행실패를 남길 참이었다.
+    time.sleep(3)
+    refused = False
+    try:
+        with open(logfile, encoding="utf-8") as fh:
+            refused = "시작 보류" in fh.read()
+    except OSError:
+        pass
+    if p.poll() is not None or refused:
+        for f in (PIDFILE, STATE):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+        log(f"기동 실패: {item_id} — 가드 거부 또는 즉시 종료"
+            f"(로그 {os.path.relpath(logfile, PROJ)}). '실행 중'으로 기록하지 않는다")
+        return 3
     log(f"백그라운드 시작: {item_id} pid={p.pid} (로그 {os.path.relpath(logfile, PROJ)})")
     return 0
 
@@ -836,7 +888,13 @@ def main():
         try:
             if _pid_of(PIDFILE) == os.getpid():
                 os.remove(PIDFILE)
-        except OSError:
+            # state.json 도 같은 소유권 규칙으로 정리한다. 실측(2026-09-27 15:10): 가드 거부로
+            # 즉시 끝난 `--run U3` 이 pidfile 만 지워 state.json 에 죽은 pid 가 남았고,
+            # running_pid() 의 fallback 이 그걸 읽어 "실행 중"으로 오인할 수 있는 상태였다.
+            with open(STATE, encoding="utf-8") as fh:
+                if json.load(fh).get("pid") == os.getpid():
+                    os.remove(STATE)
+        except (OSError, json.JSONDecodeError):
             pass
         return rc
     ap.print_help()
