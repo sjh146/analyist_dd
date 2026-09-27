@@ -193,8 +193,26 @@ def build_panel(cache, limit, days, log=print, **universe):
 
 
 def make_labels(df, kind, horizon, q):
-    ret = df.groupby("stock_code", sort=False)["price"].transform(
-        lambda s: s.shift(-horizon) / s - 1.0)
+    """라벨 생성. kind: quantile(기본) / relative(시장상대) / smooth / voladj / voladj_smooth.
+
+    ⚠ 시점정합: 모든 변형은 **앞만** 본다(선행수익 shift(-k), 후행변동성 rolling).
+    smooth   = 선행 1~h일 수익률의 평균 — 5일 보유와 정합, 라벨 잡음 축소.
+    voladj   = 선행 h일 수익률 ÷ 후행 20일 실현변동성(위험조정, 표준 관행).
+    """
+    price = df.groupby("stock_code", sort=False)["price"]
+    if kind in ("smooth", "voladj_smooth"):
+        acc = None
+        for k in range(1, horizon + 1):
+            r = price.transform(lambda s, _k=k: s.shift(-_k) / s - 1.0)
+            acc = r if acc is None else acc + r
+        ret = acc / float(horizon)
+    else:
+        ret = price.transform(lambda s: s.shift(-horizon) / s - 1.0)
+    if kind in ("voladj", "voladj_smooth"):
+        vol = price.transform(
+            lambda s: s.pct_change().rolling(20, min_periods=10).std())
+        # 변동성 0/결측 → 라벨 결측(보수적: 추정 불가 구간은 학습에서 제외된다).
+        ret = ret / vol.replace(0.0, np.nan)
     day = df["date"]
     if kind == "relative":
         med = ret.groupby(day).transform("median")

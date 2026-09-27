@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-27T15:10:03+09:00",
+  "updated_at": "2026-09-28T04:10:49+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -1775,12 +1775,20 @@
           "detail": "외부 종료(사용자 종료 준비가 의도적으로 정지) — 측정값 없음 · 빌드 진행 1,400/32,626 (4.3%) · 체크포인트 1,000행 보존(재개 가능)",
           "log": "data/reports/me_cycle/logs/me_cycle_U3_20260926-185733.log",
           "elapsed_min": 57.5
+        },
+        {
+          "ts": "2026-09-28T02:50:46+09:00",
+          "rc": 137,
+          "verdict": "실행실패",
+          "detail": "외부/비정상 종료 — 원장 기록 전에 프로세스가 사라짐(추정: 호스트 종료·수동 정지·컨테이너 재생성 SIGKILL). 측정값 없음 · 빌드 진행 15,400/32,576 (47.3%)",
+          "log": "data/reports/me_cycle/logs/me_cycle_U3_20260927-151127.log",
+          "elapsed_min": 699.3
         }
       ],
-      "retry_note": "2026-09-26 19:55 기록 없이 종료(사용자 종료 준비) → 재시도 1/3 (체크포인트 재개)",
+      "retry_note": "2026-09-28T02:50:46+09:00 기록 없이 종료 → 재시도 2/3 (체크포인트 재개)",
       "result": {
         "verdict": "실행실패",
-        "detail": "외부 종료(사용자 종료 준비가 의도적으로 정지) — 측정값 없음 · 빌드 진행 1,400/32,626 (4.3%) · 체크포인트 1,000행 보존(재개 가능)",
+        "detail": "외부/비정상 종료 — 원장 기록 전에 프로세스가 사라짐(추정: 호스트 종료·수동 정지·컨테이너 재생성 SIGKILL). 측정값 없음 · 빌드 진행 15,400/32,576 (47.3%)",
         "delta": null,
         "per_exp": null,
         "rc": 137
@@ -1790,7 +1798,7 @@
     {
       "id": "U3b",
       "title": "창 효과 격리 — 같은 패널(panel_995)에서 281거래일 행만 잘라 A/B (동일 스냅샷·동일 피처, 창만 다름)",
-      "status": "pending",
+      "status": "needs_setup",
       "priority": 1,
       "affects_model": true,
       "baseline": {
@@ -1815,7 +1823,8 @@
         "U3"
       ],
       "caution": "U3 완료 후 실행(U3 결과가 대조군). panel_995.npz 가 없으면 먼저 U3 를 돌려야 한다.",
-      "note": "2026-09-26: pending 으로 올렸다. next_item 정렬(priority,id)에서 'U3' < 'U3b' 이고 U3 이 도는 동안 틱은 '사이클 실행 중'으로 아무것도 시작하지 않으므로 안전하다."
+      "note": "2026-09-26: pending 으로 올렸다. next_item 정렬(priority,id)에서 'U3' < 'U3b' 이고 U3 이 도는 동안 틱은 '사이클 실행 중'으로 아무것도 시작하지 않으므로 안전하다. [2026-09-28] pending→needs_setup: panel_995.npz 가 없어 command 가 즉시 실패하고 재시도 카운터만 소모한다.",
+      "setup_needed": "panel_995.npz 부재(U3 패널 빌드가 47.3%에서 두 번 소실) — U3 완주 후 panel_subset.py 로 w281 부분집합을 만들 수 있다."
     },
     {
       "id": "L5b",
@@ -1848,7 +1857,7 @@
     {
       "id": "TR3",
       "title": "rank 변환 재현성 확정: TR_rank_h5 5폴드×10시드 vs 같은 런 대조군 LS_quant_q30_h5",
-      "status": "pending",
+      "status": "failed",
       "priority": 4,
       "affects_model": true,
       "baseline": {
@@ -1883,13 +1892,43 @@
       ],
       "retry_note": "2026-09-27T15:08:42+09:00 rc=137 소실 → 재시도 1/3 (체크포인트 재개)",
       "result": {
-        "verdict": "실행실패",
-        "detail": "측정값 없음 — SIGKILL(137) — 추정: 컨테이너 재생성(실행 중 컨테이너 StartedAt=2026-09-27T05:43:17). 평일 20:00 evening_pipeline 의 docker compose up -d 가 원인",
+        "verdict": "노이즈(축 종료)",
+        "detail": "재측정 미실행 — 기존 2회 실측(Δ+0.0107 3시드, Δ+0.0081 5시드)으로 효과크기 상한 < +0.02 판단. rank 변환은 '노이즈' 축으로 닫는다.",
         "delta": null,
         "per_exp": null,
-        "rc": 137
+        "rc": null
       },
-      "notes": "[2026-09-27 실측] 호스트 부팅 직후 다른 컨테이너 postgres 잡(168% CPU)과 경쟁해 0.39 cell/min(155s/cell) — TR1(2026-09-26 06:06, 유휴)은 7s/cell 이었다. 시드 10개×2config=100 cell → 약 4시간. timeout 3600s 는 구조적으로 완주 불가라 21600s 로 정정. 우선순위 1→4(U3 995일 패널 재빌드가 더 큰 레버)."
+      "notes": "[2026-09-27 실측] 호스트 부팅 직후 다른 컨테이너 postgres 잡(168% CPU)과 경쟁해 0.39 cell/min(155s/cell) — TR1(2026-09-26 06:06, 유휴)은 7s/cell 이었다. 시드 10개×2config=100 cell → 약 4시간. timeout 3600s 는 구조적으로 완주 불가라 21600s 로 정정. 우선순위 1→4(U3 995일 패널 재빌드가 더 큰 레버).",
+      "closed_at": "2026-09-28T04:10:49+09:00",
+      "closed_by": "engineer",
+      "closed_reason": "축 종료(미측정·재측정 중단 판단). 실측 효과크기 상한: TR1 5폴드×3시드 Δ+0.0107 (0.5519 vs 0.5412, 폴드 3/5 승) · TR2 5폴드×5시드 Δ+0.0081 (0.5495 vs 0.5414) — 둘 다 문턱 +0.02 의 절반 이하이고 시드를 늘려도 추정치가 문턱에 도달할 근거가 없다. 시드 10 재측정(4시간·경쟁 시 6시간+)은 같은 축의 정밀도만 올린다 → 다른 축(LB1 라벨 잡음)으로 자원을 옮긴다. 수정 전 구동기 결함으로 이 항목이 priority=1 급 항목만 계속 재시도되는 구조였던 것도 함께 정리(scripts/model_engineer_cycle.py next_item ETA 스킵)."
+    },
+    {
+      "id": "LB1",
+      "title": "라벨 잡음 축: 선행 1~5일 평균(스무딩) · 변동성 조정 라벨 — 같은 런 A/B",
+      "status": "pending",
+      "priority": 2,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5406,
+        "source": "panel_420_asofpatch · 5폴드 확장창 기록 기준선"
+      },
+      "hypothesis": "피처·HP·유니버스 축이 15사이클 전부 노이즈(Δ<+0.02)였으므로 남은 레버는 라벨 쪽이다. 5일 보유와 불일치하는 '점대점 5일 방향' 라벨의 잡음을 줄이면(① 선행 1~5일 수익률 평균 ② 수익률÷후행 20일 변동성) 같은 피처로도 AUC 가 오른다.",
+      "evidence": "① 병목은 피처 정보량: 단일피처 최고 AUC 0.5072 · |IC| 최고 0.0202 (_db_feature_screen, 38개 중 31개 채점). ② 라벨 축 전례: 같은 피처셋에서 라벨만 바꿔 0.5133 → 0.5270 → 분위+호라이즌(+0.06). ③ 기존 라벨 변형은 q(0.30/0.25/0.20)·호라이즌(h3/h5/h8/h10)·시장상대(중앙값) 뿐 — 라벨 잡음 구조는 미측정.",
+      "method": "같은 패널·같은 런에서 3 arm(대조군 LS_quant_q30_h5 / LB_smooth_q30_h5 / LB_voladj_q30_h5) 5폴드×5시드. 라벨 kind(smooth·voladj)는 wf_wave.make_labels 에 구현 — 모두 선행 shift(-k)·후행 rolling 만 사용(시점정합, 미래정보 없음).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --days 420 --limit 50 --folds 5 --seeds 5 --only LS_quant_q30_h5,LB_smooth_q30_h5,LB_voladj_q30_h5'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "wf_sweep_summary",
+      "arm": "LB_smooth_q30_h5",
+      "counterfactual": "LS_quant_q30_h5 (같은 런·같은 패널 대조군)",
+      "cost": "유휴 약 5분 / 부하 경쟁 시 최대 2시간(timeout 7200s = 08:30 이전 종료 상한)",
+      "est_minutes": 120,
+      "success": "LB_smooth_h5 또는 LB_voladj_h5 의 폴드 평균 AUC 가 같은 런 대조군 대비 +0.02 이상(폴드승률 ≥0.8). 미달이면 라벨 잡음 축도 노이즈로 닫는다.",
+      "note": "judge_per 는 arm 하나만 비교한다 → 원장 per_exp 에 3 arm 이 모두 있으므로 다음 틱에서 LB_voladj 도 수동 재판정하라(둘 중 큰 쪽이 신호면 그쪽을 승격 대상으로)."
     }
   ]
 }

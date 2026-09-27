@@ -311,7 +311,15 @@ def guards(force=False, item=None) -> tuple:
     return True, "ok"
 
 
-def next_item(backlog):
+def next_item(backlog, force=False):
+    """다음 실행 후보. **ETA 가드에 걸리는 항목은 건너뛴다.**
+
+    왜(실측 2026-09-28): U3(est_minutes=1410 = 23.5h)가 priority=1 인데 평일엔 예상 종료가
+    다음 컨테이너 재생성(평일 20:00)을 항상 넘어 execute() 가 rc=3 으로 거부된다 →
+    next_item 이 매 틱 U3 만 돌려주므로 **큐 전체가 굶는다**(U3b·L5b·L5c·신규 라벨 실험
+    전부 영구 대기). ETA 가드의 목적은 SIGKILL 로 결과를 잃지 않는 것이지 큐를 멈추는 게 아니다.
+    건너뛴 이유는 로그에 남겨 '왜 이 항목이 안 도는지'를 추적 가능하게 한다.
+    """
     pend = [i for i in backlog["items"] if i.get("status") == "pending"]
     pend.sort(key=lambda i: (i.get("priority", 99), i["id"]))
     for i in pend:
@@ -319,6 +327,11 @@ def next_item(backlog):
             log(f"경고: {i['id']} 는 pending 인데 command 가 없다 → 건너뜀"
                 f"{' (setup: ' + str(i.get('setup_needed'))[:80] + ')' if i.get('setup_needed') else ''}")
             continue
+        if not force:
+            blocked, why = eta_blocks(i)
+            if blocked:
+                log(f"{i['id']}: ETA 가드로 건너뜀 — {why}")
+                continue
         return i
     return None
 
@@ -818,7 +831,7 @@ def tick(force=False):
     if not ok:
         print(f"대기: {why}")
         return 0
-    it = next_item(load_backlog())
+    it = next_item(load_backlog(), force)
     if not it:
         print("백로그에 실행 가능한 pending 항목 없음 → 새 가설을 설계해 backlog/needs_setup 로 추가하라.")
         return 0

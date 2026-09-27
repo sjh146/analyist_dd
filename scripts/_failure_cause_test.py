@@ -12,8 +12,11 @@ import model_engineer_cycle as m
 
 ok = True
 
-# 케이스 A: 컨테이너 StartedAt(2026-09-27T05:43:17Z = 14:43 KST) < 실행 시작(14:54 KST)
-started = datetime(2026, 9, 27, 14, 54, tzinfo=m.KST)
+# 케이스 A: 컨테이너 StartedAt < 실행 시작 → "재생성 아님"
+# ⚠ started 를 하드코딩하면 안 된다(2026-09-28 실측: 호스트 재부팅으로 컨테이너 StartedAt 이
+#   03:13 KST 로 갱신되자 09-27 의 고정 시작시각이 과거가 되어 테스트가 거짓 FAIL 했다).
+#   "지금 시작한 실행"은 어떤 StartedAt 보다 항상 나중이므로 시각 의존이 사라진다.
+started = datetime.now(m.KST)
 c = m.failure_cause(137, started)
 a_ok = ("재생성 아님" in c) and ("Evening" not in c) and ("evening_pipeline 이 원인" not in c)
 print(f"[A] StartedAt < 시작 → 재생성 아님 판정: {'PASS' if a_ok else 'FAIL'}")
