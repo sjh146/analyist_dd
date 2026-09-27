@@ -22,7 +22,18 @@ import pandas as pd
 import psycopg2
 
 PANEL = "/app/app/models/wf/panel_420_asofpatch.npz"
+# 표마다 키 날짜 컬럼이 다르다(기본 trade_date). stock_sentiment 는 analysis_date 를 쓴다.
+DATE_COLS = {"stock_sentiment": "analysis_date"}
 TABLES = {
+    # ── 뉴스 감성 그룹 (2026-09-28 추가) ─────────────────────────────────────
+    # 왜: 리서처가 뉴스 파이프라인(stock_sentiment·news_analysis)을 계속 채우고 있는데
+    # 이 그룹만 DB 스크린을 한 번도 통과하지 않았다. 조정 축(피처·HP·유니버스·라벨)이
+    # 17사이클 전부 +0.02 미달인 상황에서 '이미 적재된 시간가변 데이터에 edge 가 있는가'는
+    # 다음 레버를 정하는 데 가장 결정적인 질문이다.
+    "stock_sentiment": [
+        "avg_sentiment", "sentiment_count", "positive_count", "negative_count",
+        "neutral_count", "avg_authenticity",
+    ],
     "supply_market_features": [
         "institution_net_buy", "institution_net_buy_5d", "foreign_net_buy",
         "foreign_net_buy_5d", "foreign_ownership_pct", "institution_ownership_pct",
@@ -80,11 +91,12 @@ def main():
            "features": {}, "asof": {}}
     cur = conn.cursor()
     for table, cols in TABLES.items():
+        dcol = DATE_COLS.get(table, "trade_date")
         sel = ", ".join(cols)
         extra = ", rcept_dt" if table == "financial_ratio_features" else ""
         cur.execute(
-            f"select stock_code, trade_date, {sel}{extra} from {table} "
-            f"where stock_code = any(%s) and trade_date between %s and %s",
+            f"select stock_code, {dcol}, {sel}{extra} from {table} "
+            f"where stock_code = any(%s) and {dcol} between %s and %s",
             (list(set(codes)), dates.min().date(), dates.max().date()))
         rows = cur.fetchall()
         names = ["code", "date"] + cols + (["rcept_dt"] if extra else [])
