@@ -160,6 +160,26 @@ CONFIGS = [
     {"id": "CO_rank_smooth_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "core_only": True,
      "desc": "core48 게이트 ON + rank 변환 + 라벨 스무딩 — 스윕 최고 설정의 프로덕션 경로 전이 검정"},
+    # CG2(2026-09-28): 2×2 분해 — 게이트 비용과 게이트 안에서의 rank 이득을 **같은 런**에서 분리한다.
+    # CG1 실측: 게이트 OFF 최고 TR_rank_LBsmooth_h5 0.5514 vs 게이트 ON 같은 설정 CO_rank_smooth_h5
+    # 0.5412 → 게이트가 −0.0102 를 먹어 스윕 이득(Δ+0.0100)을 통째로 상쇄했다. 다만 CO_core30_h5
+    # (게이트 ON 평범)는 이 런에 없어 '게이트 자체의 비용'과 'rank·스무딩의 조건부 효과'가 미분리였다.
+    {"id": "CO_rank_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True,
+     "desc": "core48 게이트 ON + rank 변환(스무딩 없음) — 게이트 안에서 rank 단독 효과"},
+    # CG3(2026-09-28): 게이트 ON 경로에서 '가진 방향을 전부 결합'하면 +0.02 에 닿는가 — 조정 축의
+    # 생산경로 천장을 확정한다. CG2 실측: 게이트 ON 평범 0.5363 → rank+스무딩 0.5412(+0.0049),
+    # rank 단독은 0.5098(−0.0265, 스무딩이 없으면 파괴적). 아직 게이트 ON 으로 안 재본 방향은
+    # 라벨 스무딩 단독과 depth1·lr0.05(게이트 OFF 에서 Δ+0.0065) 뿐이다.
+    {"id": "CO_smooth_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "desc": "게이트 ON + 라벨 스무딩만(rank 없음) — 스무딩 단독 기여 분리"},
+    {"id": "CO_d1_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "게이트 ON + depth1·lr0.05 — 유일하게 재현된 HP 방향의 게이트 내 효과"},
+    {"id": "CO_rank_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "게이트 ON + rank + 스무딩 + depth1 — 생산경로에서 가진 방향 전부 결합"},
     # ── 데이터 축 A/B: 부활 이벤트 피처 가산효과 (2026-09-26, L3 준비) ────────────
     # panel_420_asofpatch_ev.npz 는 기준선 패널과 **행이 비트 동일**하고(13,609행·날짜·종목·
     # 가격 동일, 공유 210컬럼 최대 절대차 0.0) 뒤에 event_* 17개만 덧붙은 패널이다 →

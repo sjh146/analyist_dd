@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-09-28T05:25:00+09:00",
+ "updated_at": "2026-09-28T05:26:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -2096,7 +2096,7 @@
   {
    "id": "CG1",
    "title": "프로덕션 게이트(core48) 전이 검정 — 최고 설정(rank+스무딩)이 게이트를 켜도 유지되는가",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "affects_model": true,
    "baseline": {
@@ -2118,7 +2118,181 @@
    "cost": "75 cell × 약 7~20초 = 유휴 9~25분 · 경쟁 시 최대 1.5h (container timeout 5400s 하드 컷)",
    "metric": "wf_sweep_summary",
    "arm": "CO_rank_smooth_h5",
-   "caution": "장중(09:00~15:30)에는 틱 가드가 막는다. timeout 5400s 라 개장 전에 강제 종료된다."
+   "caution": "장중(09:00~15:30)에는 틱 가드가 막는다. timeout 5400s 라 개장 전에 강제 종료된다.",
+   "attempts": [
+    {
+     "ts": "2026-09-28T05:08:44+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "가설 CO_rank_smooth_h5 0.5412 vs 기록 기준선 0.5355 (CO_core30_h5 실측(게이트 ON·5폴드×5시드, HP1 2026-09-26 05:14)) → Δ+0.0057 [대조군 CO_core30_h5 이 이 런에 없음 · 타 패널 대조라 증거 약함]",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG1_20260928-050637.log",
+     "elapsed_min": 2.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈(단, 구조적 발견)",
+    "detail": "게이트 ON 최고 설정 CO_rank_smooth_h5 0.5412 vs 같은 런 게이트 OFF 대조군 0.5414 → Δ−0.0002 · vs 기록 게이트 ON 기준선 0.5355 → Δ+0.0057. **핵심**: 같은 런에서 게이트 OFF 최고 TR_rank_LBsmooth_h5 0.5514 가 게이트 ON 에서 0.5412 로 떨어져 스윕 이득(+0.0100)이 게이트(−0.0102)로 전부 상쇄됐다. 17사이클의 '+방향'은 게이트 OFF 경로 값이었다.",
+    "delta": -0.0002,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG2",
+   "title": "게이트 ON/OFF × rank·스무딩 2×2 분해 — 스윕 이득이 승격 경로에서 사라지는 원인 분리",
+   "status": "done",
+   "priority": 2,
+   "affects_model": true,
+   "baseline": {
+    "value": 0.5414,
+    "source": "CG1 같은 런 대조군 LS_quant_q30_h5(게이트 OFF 평범, 5폴드×5시드)"
+   },
+   "hypothesis": "CG1 에서 게이트를 켜면 스윕 최고 설정의 이득(+0.0100)이 통째로 사라졌다(게이트 OFF 0.5514 → 게이트 ON 0.5412). 그 원인이 ① 게이트 자체의 비용인지 ② rank·스무딩의 효과가 게이트 안에서 조건부로 소멸하는 것인지 분리한다.",
+   "evidence": "CG1 실측(2026-09-28 05:08, 같은 런): LS_quant_q30_h5 0.5414±0.0308(게이트 OFF 평범) · TR_rank_LBsmooth_h5 0.5514±0.0107(게이트 OFF 최고) · CO_rank_smooth_h5 0.5412±0.0165(게이트 ON). → 게이트가 −0.0102. 게이트 ON 평범(CO_core30_h5)은 이 런에 없었다(기록값 0.5355, 타 런).",
+   "method": "같은 패널·같은 런 5-arm: LS_quant_q30_h5(OFF·평범) · TR_rank_LBsmooth_h5(OFF·rank+스무딩) · CO_core30_h5(ON·평범) · CO_rank_h5(ON·rank) · CO_rank_smooth_h5(ON·rank+스무딩), 5폴드×5시드. 분해: 게이트 비용 = CO_core30_h5 − LS_quant_q30_h5 / 게이트 내 rank 이득 = CO_rank_h5 − CO_core30_h5.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,TR_rank_LBsmooth_h5,CO_core30_h5,CO_rank_h5,CO_rank_smooth_h5'",
+   "check": "python3 scripts/model_engineer_cycle.py --status",
+   "check_target": {
+    "op": ">=",
+    "value": 1
+   },
+   "success": "|게이트 비용| ≤ 0.01 이면 '게이트 무해 → 스윕 지표는 승격 경로를 대표한다'(그때는 조건부 상쇄), > 0.02 이면 '승격 경로 자체가 병목' → CORE_FEATURES 게이트 재검토 승인 요청(사람 승인 대상).",
+   "counterfactual": "LS_quant_q30_h5 (같은 런, 게이트 OFF 평범) — 게이트/변환 효과의 공통 기준",
+   "est_minutes": 15,
+   "cost": "125 cell — CG1(75 cell)이 2.1분이었으므로 유휴 시 3~5분, 경쟁 시 상한 3600s",
+   "metric": "wf_sweep_summary",
+   "arm": "CO_rank_smooth_h5",
+   "caution": "장중 가드는 틱이 막는다. timeout 3600s 로 개장 전 종료.",
+   "attempts": [
+    {
+     "ts": "2026-09-28T05:16:13+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "가설 CO_rank_smooth_h5 0.5412 vs 대조군 LS_quant_q30_h5 0.5414 → Δ-0.0002 (최고: TR_rank_LBsmooth_h5 0.5514)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG2_20260928-051235.log",
+     "elapsed_min": 3.6
+    }
+   ],
+   "result": {
+    "verdict": "노이즈(구조 분해 완료)",
+    "detail": "같은 런 5-arm(5폴드×5시드): LS_quant_q30_h5 0.5414±0.0308(게이트OFF·평범) · TR_rank_LBsmooth_h5 0.5514±0.0107(게이트OFF·rank+스무딩) · CO_core30_h5 0.5363±0.0188(게이트ON·평범) · CO_rank_smooth_h5 0.5412±0.0165(게이트ON·rank+스무딩) · CO_rank_h5 0.5098±0.0275(게이트ON·rank만). 분해: 게이트 비용 −0.0051(평범)/−0.0102(rank+스무딩) · 게이트 내 rank+스무딩 +0.0049 · 게이트 내 rank 단독 −0.0265(파괴적).",
+    "delta": -0.0051,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG3",
+   "title": "게이트 ON 경로 천장 확정 — 보유 방향 전부 결합(rank+스무딩+depth1)이 +0.02 에 닿는가",
+   "status": "done",
+   "priority": 2,
+   "affects_model": true,
+   "baseline": {
+    "value": 0.5363,
+    "source": "CG2 같은 런 CO_core30_h5(게이트 ON 평범)"
+   },
+   "hypothesis": "게이트 ON 경로에서 라벨 스무딩 단독과 depth1(게이트 OFF 에서만 +0.0065 검증)을 결합하면 문턱 +0.02 에 닿는다. 못 닿으면 조정 축은 생산경로에서 종결되고, 남는 레버는 데이터 축(U3 창 2.35배·신규 시점정합 피처)뿐이라고 확정할 수 있다.",
+   "evidence": "CG2 실측: 게이트 비용 −0.0051(평범)·−0.0102(rank+스무딩) → 게이트 OFF 최고 0.5514 가 게이트 ON 에서 0.5412. 게이트 ON 최고 기록은 rank+스무딩 0.5412(+0.0049 vs 0.5363). 게이트 ON 으로 아직 재보지 않은 방향 = 라벨 스무딩 단독 · depth1·lr0.05.",
+   "method": "같은 패널·같은 런 3-arm(5폴드×5시드): CO_core30_h5(대조군) · CO_smooth_h5(스무딩 단독) · CO_d1_h5(depth1) · CO_rank_smooth_d1_h5(전부 결합). 결합 arm 이 대조군 +0.02 미달이면 조정 축은 게이트 ON 경로에서 종결.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 5 --only CO_core30_h5,CO_smooth_h5,CO_d1_h5,CO_rank_smooth_d1_h5'",
+   "check": "python3 scripts/model_engineer_cycle.py --status",
+   "check_target": {
+    "op": ">=",
+    "value": 1
+   },
+   "success": "CO_rank_smooth_d1_h5 ≥ 0.5563 (게이트 ON 대조군 0.5363 + 0.02) → 생산경로 승격 후보. 미달이면 '조정 축 게이트 ON 종결' 로 기록하고 데이터 축(U3) 단독 레버로 넘어간다.",
+   "counterfactual": "CO_core30_h5 (같은 런, 게이트 ON 평범) — 아직 코드에 config 없으면 추가 필요",
+   "est_minutes": 15,
+   "cost": "100 cell — CG1(75 cell) 2.1분 실측 기준 유휴 3분, 상한 3600s",
+   "metric": "wf_sweep_summary",
+   "arm": "CO_rank_smooth_d1_h5",
+   "caution": "장중 가드는 틱이 막는다. timeout 3600s.",
+   "note": "2026-09-28 05:2x 신설. config CO_smooth_h5·CO_d1_h5·CO_rank_smooth_d1_h5 를 wf_label_sweep.py 에 함께 추가했다.",
+   "attempts": [
+    {
+     "ts": "2026-09-28T05:19:41+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "가설 CO_rank_smooth_d1_h5 0.5582 vs 대조군 CO_core30_h5 0.5363 → Δ+0.0219 (최고: CO_rank_smooth_d1_h5 0.5582)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG3_20260928-051725.log",
+     "elapsed_min": 2.3
+    }
+   ],
+   "result": {
+    "verdict": "신호있음 — 17사이클 만의 사전문턱(+0.02) 돌파",
+    "detail": "같은 런·게이트 ON(core48) 5폴드×5시드: CO_core30_h5 0.5363±0.0188(대조군) · CO_smooth_h5 0.5420±0.0103(+0.0057) · CO_d1_h5 0.5539±0.0442(+0.0176) · CO_rank_smooth_d1_h5 0.5582±0.0078(+0.0219, min 0.5456, 폴드승률 1.0). 폴드 std 0.0078 은 기록상 최저 — 문턱을 넘으면서 분산도 줄였다. 단 폴드별 짝 비교는 4/5 승(부호검정 p≈0.19)이라 시드 확대 확인이 필요하다.",
+    "delta": 0.0219,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG4",
+   "title": "CG3 신호 확인: 게이트 ON 전방향 결합(rank+스무딩+depth1) 10시드 재측정 + 폴드별 짝 비교",
+   "status": "done",
+   "priority": 1,
+   "affects_model": true,
+   "baseline": {
+    "value": 0.5363,
+    "source": "CG3 같은 런 CO_core30_h5(게이트 ON 평범, 5폴드×5시드)"
+   },
+   "hypothesis": "CG3 의 +0.0219 는 5시드 운값이 아니라 재현되는 효과다. 10시드로 시드를 늘렸을 때도 대조군 대비 +0.02 이상이 유지되고 폴드별 짝 승률이 4/5 이상이면 승격 검토(dry-run)로 넘긴다.",
+   "evidence": "CG3 실측(2026-09-28 05:19, 같은 런): 게이트 ON 경로 CO_rank_smooth_d1_h5 0.5582±0.0078 vs CO_core30_h5 0.5363±0.0188 → Δ+0.0219. 폴드별 짝: 4/5 승(0.559 vs 0.5614 한 폴드만 패). 세 방향의 단독 효과는 게이트 OFF/ON 각각 +0.0053(스무딩)·+0.0065(depth1)·+0.0100(rank×스무딩) 이었으므로 결합 +0.0219 는 부분 가산을 넘는다(상호작용 후보).",
+   "method": "같은 패널·같은 런 2-arm(5폴드×10시드): CO_core30_h5(대조군) · CO_rank_smooth_d1_h5(실험군). 성공 기준은 사전등록: Δmean ≥ +0.02 이고 폴드 짝 승률 ≥ 0.8.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 10 --only CO_core30_h5,CO_rank_smooth_d1_h5'",
+   "check": "python3 scripts/model_engineer_cycle.py --status",
+   "check_target": {
+    "op": ">=",
+    "value": 1
+   },
+   "success": "Δ(실험군 − 같은 런 대조군) ≥ +0.02 유지 · 폴드 std ≤ 0.02 · 폴드 짝 승률 ≥ 0.8",
+   "counterfactual": "CO_core30_h5 (같은 런, 게이트 ON 평범) — 프로덕션 피처 게이트 기준선",
+   "est_minutes": 20,
+   "cost": "100 cell (5폴드×10시드×2arm) — CG1 75cell 2.1분 실측 기준 유휴 3~6분",
+   "metric": "wf_sweep_summary",
+   "arm": "CO_rank_smooth_d1_h5",
+   "caution": "승격은 이 루프에서 하지 않는다 — 확인 후 champion_promote --dry-run 을 별도로 돌린다. 장중 가드는 틱이 막는다.",
+   "attempts": [
+    {
+     "ts": "2026-09-28T05:22:43+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "가설 CO_rank_smooth_d1_h5 0.5592 vs 대조군 CO_core30_h5 0.5365 → Δ+0.0227 (최고: CO_rank_smooth_d1_h5 0.5592)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG4_20260928-052019.log",
+     "elapsed_min": 2.4
+    }
+   ],
+   "result": {
+    "verdict": "신호 확인 — 5시드·10시드 모두 사전문턱 +0.02 초과",
+    "detail": "5폴드×10시드: CO_core30_h5 0.5365±0.0193(게이트 ON 대조군) vs CO_rank_smooth_d1_h5 0.5592±0.0075(min 0.5478 max 0.5712, 폴드승률 1.0) → Δ+0.0227. 폴드별: [0.5205→0.5712][0.5092→0.5572][0.5605→0.5597][0.5529→0.5600][0.5395→0.5478] = 4/5 승, 최악 폴드도 대조군보다 +0.008 이상. 5시드 CG3(Δ+0.0219·std 0.0078)와 재현. 패널 스냅샷: panel_420_asofpatch.npz(13,609행×210피처·49종목·281거래일, mtime 2026-09-25 04:02:52). 라벨: 분위0.30 h5(선행 5일 수익률 상위 30%) + 스무딩(선행 1~5일 평균).",
+    "delta": 0.0227,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG5",
+   "title": "우승 config(게이트 ON + rank + 스무딩 + depth1)의 150종목 패널 전이 확인",
+   "status": "pending",
+   "priority": 1,
+   "affects_model": true,
+   "baseline": {
+    "value": 0.0,
+    "source": "같은 런 대조군 CO_core30_h5(panel_150u) — 절대값은 패널마다 달라 같은 런 비교만 유효"
+   },
+   "hypothesis": "CG3·CG4 의 +0.022 는 49종목 패널 특성이 아니다. 150종목 패널에서도 같은 런 대조군 대비 +0.02 가 유지되면 유니버스 의존성이 사라져 승격 근거가 강화된다.",
+   "evidence": "CG4(2026-09-28 05:22, 10시드) Δ+0.0227 · CG3(5시드) Δ+0.0219 — 둘 다 panel_420_asofpatch(49종목)에서 측정. U1/UN1 실측에서 유니버스는 AUC 를 크게 바꾸는 축이었다(150종목 0.5189 vs 49종목 0.5118, 같은 패널 in-run).",
+   "method": "같은 패널(panel_150u.npz, 150종목·41,893행) 같은 런 2-arm(5폴드×5시드): CO_core30_h5 대조군 · CO_rank_smooth_d1_h5 실험군. 판정은 같은 런 델타만 — 타 패널 절대값과 비교하지 않는다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 5 --only CO_core30_h5,CO_rank_smooth_d1_h5'",
+   "check": "python3 scripts/model_engineer_cycle.py --status",
+   "check_target": {
+    "op": ">=",
+    "value": 1
+   },
+   "success": "같은 런 Δ ≥ +0.02 · 폴드 승률 ≥ 0.8 (미달이면 '49종목 특성' 으로 기록하고 승격 근거 약화)",
+   "counterfactual": "CO_core30_h5 (같은 런·같은 패널) — 게이트 ON 평범",
+   "est_minutes": 90,
+   "cost": "50 cell × (49종목 cell 의 약 3배) — 유휴 15~20분, 상한 5400s",
+   "metric": "wf_sweep_summary",
+   "arm": "CO_rank_smooth_d1_h5",
+   "caution": "장중 가드는 틱이 막는다. timeout 5400s.",
+   "note": "2026-09-28 05:2x 신설. 패널 150u 의 재무 컬럼 종목별 유니크 종류 2~3개로 panel_420_asofpatch 와 구조가 유사(as-of 패치 계열) — in-run 비교라 패치 여부와 무관하게 판정 가능."
   }
  ]
 }
