@@ -160,6 +160,21 @@ CONFIGS = [
     {"id": "CO_core_all_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "all",
      "core_only": True,
      "desc": "core48 전체(선별 없음) — 게이트 적용 시 프로덕션 피처셋과 동일 규모"},
+    # ── CG26: 게이트 ON 경로의 '선별 크기' 최적점 (2026-09-29 신설) ──────────────
+    # 왜: 게이트 ON 에서 선별 크기 곡선은 **점이 둘뿐**이다 — core30 0.5355/0.5363(같은 런 CG2)
+    # / core48 전체 0.5263. 즉 48 은 30 보다 나쁘다. 반면 게이트 OFF 곡선(SEL1: top10 0.5364 ·
+    # top15 0.5343 · top20 0.5345 · top30 0.5414)은 30 까지 상승이라 두 곡선의 모양이 다르다 →
+    # **게이트 ON 의 최적점이 30 보다 작은지**가 미측정으로 남아 있었다. 여기서 양(+)이 나오면
+    # k 를 낮추는 것만으로 승격 경로가 개선된다(추론 계약 변경 없음 — 순수 config 축).
+    {"id": "CO_core15_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top15",
+     "core_only": True,
+     "desc": "게이트 ON + edge top15 — 게이트 ON 선별 크기 곡선의 하단(미측정)"},
+    {"id": "CO_core20_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top20",
+     "core_only": True,
+     "desc": "게이트 ON + edge top20 — 게이트 ON 선별 크기 곡선의 하단(미측정)"},
+    {"id": "CO_core40_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top40",
+     "core_only": True,
+     "desc": "게이트 ON + edge top40 — core30(0.5355)과 core48(0.5263) 사이 확인점"},
     # ── CG19: 게이트 ON 경로에서 '라벨 꼬리 두께' 축이 살아남는가 (2026-09-28 18:3x) ──
     # CG18 실측(panel_150u·게이트 OFF·5폴드×5시드): q0.30 0.5189 → q0.20 0.5198 →
     # q0.15 0.5216 → q0.10 0.5355 → q0.05 0.5609(폴드 짝 Δ+0.0420, 5/5 승).
