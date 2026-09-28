@@ -24,8 +24,12 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 import urllib.error
 import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from net_local import opener  # noqa: E402  (로컬 Prometheus 요청은 프록시 우회)
 from datetime import datetime, timedelta, timezone
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -37,7 +41,7 @@ REENOTIFY_H = 6
 
 def fetch_firing(timeout=10):
     try:
-        with urllib.request.urlopen(API, timeout=timeout) as r:
+        with opener(API).open(API, timeout=timeout) as r:
             data = json.loads(r.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
         return None, f"Prometheus 조회 실패: {type(exc).__name__}"

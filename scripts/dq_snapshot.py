@@ -26,6 +26,9 @@ import json
 import os
 import sys
 import urllib.parse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from net_local import opener  # noqa: E402  (로컬 요청은 프록시 우회)
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -280,7 +283,7 @@ def _api(path, params):
     """
     url = f"{PROM}{path}?" + urllib.parse.urlencode(params)
     try:
-        with urllib.request.urlopen(url, timeout=20) as r:
+        with opener(url).open(url, timeout=20) as r:  # 프록시 우회(net_local)
             return json.load(r)
     except (OSError, json.JSONDecodeError):
         return {}
