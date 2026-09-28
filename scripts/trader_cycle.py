@@ -415,6 +415,7 @@ def handoff_to_research(title: str, detail: str, *, key: str, affects_model=Fals
         "status": "backlog",
         "priority": priority,
         "from_trader": key,
+        "created_at": now_kst().isoformat(timespec="seconds"),
         "affects_model": bool(affects_model),
         "hypothesis": None,
         "command": None,
@@ -451,6 +452,7 @@ def handoff_to_model(title: str, detail: str, *, key: str, priority=8):
         "status": "needs_setup",
         "priority": priority,
         "from_trader": key,
+        "created_at": now_kst().isoformat(timespec="seconds"),
         "arm": None, "counterfactual": None, "baseline": None,
         "command": None, "metric": "wf_sweep_summary",
         "hypothesis": detail,
@@ -496,6 +498,45 @@ PROBES = {
 }
 
 
+
+# ── 협업 점검: 핸드오프가 '생성'에서 '소비'로 넘어갔는가 ─────────────────────
+BACKLOGS = (("engineer", MODEL_BACKLOG), ("researcher", RESEARCH_BACKLOG))
+
+
+def handoff_report() -> dict:
+    """역할 간 핸드오프 항목의 **채택 여부**를 센다.
+
+    WHY: 항목을 만들어 넣는 것만으로는 협업이 아니다. 상대 역할이 재현 명령(command)을
+    채워야 실행 가능해진다. 실측(2026-09-28 14:35)에서 리서처→엔지니어 핸드오프 5건이
+    전부 command 비어 있는 채로 멈춰 있었다 — 이걸 매 틱 세지 않으면 '조용한 공전'이 된다.
+    """
+    out = {"total": 0, "unfilled": 0, "items": []}
+    for target, path in BACKLOGS:
+        try:
+            with open(path, encoding="utf-8") as f:
+                b = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        for i in b.get("items", []):
+            if not (i.get("from_trader") or i.get("from_research")):
+                continue
+            created = i.get("created_at")
+            age_h = None
+            if created:
+                try:
+                    age_h = round((now_kst() - datetime.fromisoformat(created)).total_seconds() / 3600.0, 1)
+                except ValueError:
+                    pass
+            filled = bool(i.get("command"))
+            out["total"] += 1
+            if not filled:
+                out["unfilled"] += 1
+            out["items"].append({"target": target, "id": i.get("id"), "status": i.get("status"),
+                                 "from": i.get("from_trader") or i.get("from_research"),
+                                 "filled": filled, "age_h": age_h})
+    return out
+
+
 # ── 백로그 항목 실행 (자체 실행기 — 리서처/엔지니어의 실행기 가정에 의존하지 않는다) ──
 def _run_item(item: dict, force: bool = False) -> int:
     """항목의 `command` 를 실행하고 마지막 수치를 `check` 와 비교해 상태·원장을 갱신한다."""
@@ -531,6 +572,14 @@ def _run_item(item: dict, force: bool = False) -> int:
                       "verdict": verdict, "rc": rc, "stdout_tail": out[-400:],
                       "stderr_tail": err[-300:]}
     log(f"{item['id']} → {verdict} ({item['result']['check'] or 'n/a'})")
+    try:
+        os.makedirs(TR_LOGDIR, exist_ok=True)
+        with open(os.path.join(TR_LOGDIR, "tr_{0}_{1}.log".format(
+                item["id"], now_kst().strftime("%Y%m%d-%H%M%S"))), "w", encoding="utf-8") as f:
+            f.write("command: {0}\nrc={1}\n\n--- stdout ---\n{2}\n--- stderr ---\n{3}\n".format(
+                cmd, rc, out, err))
+    except OSError:
+        pass
     return 0 if met else 1
 
 
@@ -633,6 +682,14 @@ def tick(force=False) -> int:
             if isinstance(tmp, str) and os.path.isdir(tmp):
                 shutil.rmtree(tmp, ignore_errors=True)
 
+    # ⑤-2 협업 점검: 핸드오프가 채택되었는가
+    ho = handoff_report()
+    if ho["total"]:
+        stale = [i for i in ho["items"] if not i["filled"] and (i["age_h"] or 0) >= 24]
+        log("핸드오프: 총 {0}건 중 미채택 {1}건{2}".format(
+            ho["total"], ho["unfilled"],
+            f" (24시간 초과 {len(stale)}건: {', '.join(str(i['id']) for i in stale)})" if stale else ""))
+
     # ⑥ 백로그 항목 1건 실행(있으면) — failed 항목은 12시간 뒤 자동 재시도
     ran = None
     if os.path.exists(TR_BACKLOG):
@@ -673,7 +730,8 @@ def tick(force=False) -> int:
            "win_rate": m.get("win_rate"), "fees": m.get("fees_sum"),
            "open_positions": m.get("open_positions"), "halt": m.get("loop_halt"),
            "bridge": m.get("bridge_connected"), "model_gaps": model["gaps"],
-           "feed_violations": len(feed["violations"]), "ran": ran,
+           "feed_violations": len(feed["violations"]),
+           "handoffs_total": ho["total"], "handoffs_unfilled": ho["unfilled"], "ran": ran,
            "reported": False}
     append_ledger(rec)
 
@@ -721,10 +779,19 @@ def main() -> int:
     ap.add_argument("--tick", action="store_true")
     ap.add_argument("--probe", choices=sorted(PROBES))
     ap.add_argument("--list-probes", action="store_true")
+    ap.add_argument("--handoffs", action="store_true", help="역할 간 핸드오프 채택 현황")
     ap.add_argument("--json", action="store_true", help="틱 결과를 JSON 으로도 출력")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
 
+    if a.handoffs:
+        ho = handoff_report()
+        print(f"핸드오프 총 {ho['total']}건 · 미채택(재현 명령 없음) {ho['unfilled']}건")
+        for i in sorted(ho["items"], key=lambda x: (x["target"], str(x["id"]))):
+            print("  [{0:10s}] {1:6s} from={2:18s} status={3:12s} command={4} age={5}h".format(
+                i["target"], str(i["id"]), str(i["from"]), str(i["status"]),
+                "있음" if i["filled"] else "없음", i["age_h"]))
+        return 0
     if a.list_probes:
         for k, v in sorted(PROBES.items()):
             print(f"{k}: {v}")
