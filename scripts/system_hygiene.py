@@ -134,6 +134,34 @@ def check_stale_loops():
     return stale, long_running
 
 
+def _prev_restart_counts():
+    """직전 점검의 컨테이너별 RestartCount (없으면 빈 dict)."""
+    try:
+        with open(os.path.join(OUTDIR, "latest.json"), encoding="utf-8") as f:
+            return (json.load(f).get("docker") or {}).get("restart_counts") or {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def flapping_delta(cur, prev):
+    """재시작 **누적값이 아니라 증가분**으로 플래핑을 판정한다(순수 함수).
+
+    왜(실측 2026-09-28): 재부팅 연쇄 장애로 stock_krx_collector.RestartCount 가 23 이 된 뒤
+    컨테이너가 18시간 정상 가동 중이었는데도 누적 23 >= 문턱 5 로 **매 틱** '재시작 반복' 경고가
+    떴다. docker RestartCount 는 줄어들지 않으므로 누적값에 문턱을 걸면 영구 경고가 된다
+    (= '값이 변하지 않는 메트릭에 문턱을 준' 함정 — 기준선 위에 문턱을 두는 것과 같은 교훈).
+    증가분만 세면 실제 플래핑은 잡고 과거의 흉터는 침묵한다. 직전 관측이 없는 컨테이너
+    (첫 관측·신규 생성)는 '최근 재시작'의 증거가 없으므로 경고하지 않는다.
+    """
+    out = []
+    for name, cnt in sorted(cur.items()):
+        if name not in prev:
+            continue
+        if cnt > prev[name]:
+            out.append(f"{name}:+{cnt - prev[name]}회 (누적 {cnt})")
+    return out
+
+
 def check_docker():
     info = {}
     df = sh("docker system df --format '{{.Type}}|{{.TotalCount}}|{{.Size}}|{{.Reclaimable}}'")
@@ -144,13 +172,16 @@ def check_docker():
     info["unhealthy"] = [u for u in unhealthy if u]
     info["dangling_volumes"] = len([v for v in sh("docker volume ls -qf dangling=true").split() if v])
     info["dangling_images"] = len([i for i in sh("docker images -qf dangling=true").split() if i])
-    # 재시작 횟수(플래핑 감지)
-    flapping = []
+    # 재시작 횟수(플래핑 감지) — 문턱은 **증가분**에 건다(누적값은 정보로만 보관).
+    counts = {}
     for c in sh("docker ps --format '{{.Names}}'").split():
         rc = sh(f"docker inspect -f '{{{{.RestartCount}}}}' {c}").strip()
-        if rc.isdigit() and int(rc) >= TH["restart_warn"]:
-            flapping.append(f"{c}:{rc}회")
-    info["flapping"] = flapping
+        if rc.isdigit():
+            counts[c] = int(rc)
+    info["restart_counts"] = counts
+    info["flapping"] = flapping_delta(counts, _prev_restart_counts())
+    info["flapping_cumulative"] = [f"{n}:{v}회" for n, v in sorted(counts.items())
+                                   if v >= TH["restart_warn"]]
     # 빌드 캐시: **회수 가능량** 기준으로 경고한다. 총량만 보면 오탐이 난다.
     # 실측: 총 12.4GB 인데 RECLAIMABLE 은 0B 였다(공유/사용 중 레이어) → 총량 기준 경고는 항상 뜬다.
     gc = gc_reclaim = 0.0
@@ -369,6 +400,7 @@ def main():
               f"비정상 {len(dinfo['unhealthy'])} / 댕글링볼륨 {dinfo['dangling_volumes']} / "
               f"댕글링이미지 {dinfo['dangling_images']}")
         print(f"  컨테이너 {dinfo['containers_running']}개 running / 재시작반복 {len(dinfo['flapping'])} / "
+              f"누적문턱초과 {len(dinfo.get('flapping_cumulative') or [])} / "
               f"내부좀비 {len(dinfo['inner_zombies'])}")
         print(f"  디스크 {dp}% (여유 {disk.get('avail')}) / 빌드캐시 {dinfo['build_cache_gb']}GB / "
               f"/tmp {disk['tmp_mb']:.0f}MB / 스냅샷 {disk['snapshots']}개")
