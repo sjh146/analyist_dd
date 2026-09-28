@@ -1,0 +1,325 @@
+{
+  "ts": "2026-09-28T18:07:01+09:00",
+  "dead_total": 35,
+  "buckets": {
+    "buildable": {
+      "n": 11,
+      "features": [
+        "atr_pct",
+        "authenticity_avg",
+        "bayes_gain_uncertainty",
+        "bayes_momentum_1d",
+        "bayes_momentum_5d",
+        "bayes_volatility",
+        "quality_beta",
+        "quality_price_volatility_60d",
+        "similarity_std",
+        "twin_avg_correlation",
+        "twin_count"
+      ]
+    },
+    "coverage_low": {
+      "n": 7,
+      "features": [
+        "days_to_cover",
+        "sector_count",
+        "sector_momentum",
+        "short_interest_ratio",
+        "sns_bot_filtered_count",
+        "sns_sentiment_score_best_lag",
+        "sns_sentiment_score_lag_sign"
+      ]
+    },
+    "market_level": {
+      "n": 7,
+      "features": [
+        "basis",
+        "basis_change_5d",
+        "derivatives_volume",
+        "event_macro_5d",
+        "event_market_liquidity_5d",
+        "futures_premium",
+        "program_trading_ratio"
+      ]
+    },
+    "source_absent": {
+      "n": 10,
+      "features": [
+        "credit_balance_change",
+        "credit_spread",
+        "etf_flow_5d",
+        "institution_ownership_pct",
+        "margin_balance_change",
+        "theme_count",
+        "theme_exposure_5d",
+        "theme_max_relevance",
+        "theme_momentum",
+        "value_ncav"
+      ]
+    }
+  },
+  "unclassified": [],
+  "probes": {
+    "market_data": "3093148|2023-01-02|2026-09-28",
+    "news_analysis": "5575/8418|2026-09-28",
+    "stock_vectors": "4340|4340|2026-09-27",
+    "krx_short_selling": "2393|30|2026-09-23",
+    "stocks": "1544/4340",
+    "sns_post_features": "14576|250|184",
+    "krx_derivatives": "false|2993|2026-09-23",
+    "krx_program_trading": "false|196|2026-09-23",
+    "economic_events": "291|10",
+    "financial_statements": "false|10370",
+    "ownership": "true|225",
+    "credit_balance": "0",
+    "etf_flow": "0",
+    "theme": "0"
+  },
+  "features": [
+    {
+      "feature": "atr_pct",
+      "bucket": "buildable",
+      "source": "market_data",
+      "why": "일봉 종목 레벨 — ATR 계산 가능",
+      "probe": "3093148|2023-01-02|2026-09-28"
+    },
+    {
+      "feature": "authenticity_avg",
+      "bucket": "buildable",
+      "source": "news_analysis",
+      "why": "authenticity_score 결측 아님",
+      "probe": "5575/8418|2026-09-28"
+    },
+    {
+      "feature": "basis",
+      "bucket": "market_level",
+      "source": "krx_derivatives",
+      "why": "선물 지수 단위 — stock_code 없음",
+      "probe": "false|2993|2026-09-23"
+    },
+    {
+      "feature": "basis_change_5d",
+      "bucket": "market_level",
+      "source": "krx_derivatives",
+      "why": "선물 지수 단위 — stock_code 없음",
+      "probe": "false|2993|2026-09-23"
+    },
+    {
+      "feature": "bayes_gain_uncertainty",
+      "bucket": "buildable",
+      "source": "stock_vectors",
+      "why": "종목 벡터 존재",
+      "probe": "4340|4340|2026-09-27"
+    },
+    {
+      "feature": "bayes_momentum_1d",
+      "bucket": "buildable",
+      "source": "stock_vectors",
+      "why": "종목 벡터 존재",
+      "probe": "4340|4340|2026-09-27"
+    },
+    {
+      "feature": "bayes_momentum_5d",
+      "bucket": "buildable",
+      "source": "stock_vectors",
+      "why": "종목 벡터 존재",
+      "probe": "4340|4340|2026-09-27"
+    },
+    {
+      "feature": "bayes_volatility",
+      "bucket": "buildable",
+      "source": "stock_vectors",
+      "why": "종목 벡터 존재",
+      "probe": "4340|4340|2026-09-27"
+    },
+    {
+      "feature": "credit_balance_change",
+      "bucket": "source_absent",
+      "source": "credit_balance",
+      "why": "신용잔고 테이블 없음",
+      "probe": "0"
+    },
+    {
+      "feature": "credit_spread",
+      "bucket": "source_absent",
+      "source": "credit_balance",
+      "why": "신용잔고 테이블 없음",
+      "probe": "0"
+    },
+    {
+      "feature": "days_to_cover",
+      "bucket": "coverage_low",
+      "source": "krx_short_selling",
+      "why": "공매도 종목 수 부족",
+      "probe": "2393|30|2026-09-23"
+    },
+    {
+      "feature": "derivatives_volume",
+      "bucket": "market_level",
+      "source": "krx_derivatives",
+      "why": "선물 지수 단위 — stock_code 없음",
+      "probe": "false|2993|2026-09-23"
+    },
+    {
+      "feature": "etf_flow_5d",
+      "bucket": "source_absent",
+      "source": "etf_flow",
+      "why": "ETF 수급 테이블 없음",
+      "probe": "0"
+    },
+    {
+      "feature": "event_macro_5d",
+      "bucket": "market_level",
+      "source": "economic_events",
+      "why": "거시 이벤트는 전 종목 동일값",
+      "probe": "291|10"
+    },
+    {
+      "feature": "event_market_liquidity_5d",
+      "bucket": "market_level",
+      "source": "economic_events",
+      "why": "유동성 이벤트는 전 종목 동일값",
+      "probe": "291|10"
+    },
+    {
+      "feature": "futures_premium",
+      "bucket": "market_level",
+      "source": "krx_derivatives",
+      "why": "선물 지수 단위 — stock_code 없음",
+      "probe": "false|2993|2026-09-23"
+    },
+    {
+      "feature": "institution_ownership_pct",
+      "bucket": "source_absent",
+      "source": "ownership",
+      "why": "KIS 현재가에 기관 지분율 필드 없음(R2 확정)",
+      "probe": "true|225"
+    },
+    {
+      "feature": "margin_balance_change",
+      "bucket": "source_absent",
+      "source": "credit_balance",
+      "why": "신용융자 테이블 없음",
+      "probe": "0"
+    },
+    {
+      "feature": "program_trading_ratio",
+      "bucket": "market_level",
+      "source": "krx_program_trading",
+      "why": "시장 단위 집계 — stock_code 없음",
+      "probe": "false|196|2026-09-23"
+    },
+    {
+      "feature": "quality_beta",
+      "bucket": "buildable",
+      "source": "market_data",
+      "why": "일봉 종목 레벨 — 베타 계산 가능",
+      "probe": "3093148|2023-01-02|2026-09-28"
+    },
+    {
+      "feature": "quality_price_volatility_60d",
+      "bucket": "buildable",
+      "source": "market_data",
+      "why": "일봉 종목 레벨 — 60일 변동성",
+      "probe": "3093148|2023-01-02|2026-09-28"
+    },
+    {
+      "feature": "sector_count",
+      "bucket": "coverage_low",
+      "source": "stocks",
+      "why": "섹터 결측 종목 존재",
+      "probe": "1544/4340"
+    },
+    {
+      "feature": "sector_momentum",
+      "bucket": "coverage_low",
+      "source": "stocks",
+      "why": "섹터 결측 종목 존재",
+      "probe": "1544/4340"
+    },
+    {
+      "feature": "short_interest_ratio",
+      "bucket": "coverage_low",
+      "source": "krx_short_selling",
+      "why": "공매도 종목 수 부족",
+      "probe": "2393|30|2026-09-23"
+    },
+    {
+      "feature": "similarity_std",
+      "bucket": "buildable",
+      "source": "stock_vectors",
+      "why": "종목 벡터 존재",
+      "probe": "4340|4340|2026-09-27"
+    },
+    {
+      "feature": "sns_bot_filtered_count",
+      "bucket": "coverage_low",
+      "source": "sns_post_features",
+      "why": "SNS 피처 적재일 얇음",
+      "probe": "14576|250|184"
+    },
+    {
+      "feature": "sns_sentiment_score_best_lag",
+      "bucket": "coverage_low",
+      "source": "sns_post_features",
+      "why": "SNS 피처 적재일 얇음",
+      "probe": "14576|250|184"
+    },
+    {
+      "feature": "sns_sentiment_score_lag_sign",
+      "bucket": "coverage_low",
+      "source": "sns_post_features",
+      "why": "SNS 피처 적재일 얇음",
+      "probe": "14576|250|184"
+    },
+    {
+      "feature": "theme_count",
+      "bucket": "source_absent",
+      "source": "theme",
+      "why": "테마 테이블 없음(그래프 전용)",
+      "probe": "0"
+    },
+    {
+      "feature": "theme_exposure_5d",
+      "bucket": "source_absent",
+      "source": "theme",
+      "why": "테마 테이블 없음(그래프 전용)",
+      "probe": "0"
+    },
+    {
+      "feature": "theme_max_relevance",
+      "bucket": "source_absent",
+      "source": "theme",
+      "why": "테마 테이블 없음(그래프 전용)",
+      "probe": "0"
+    },
+    {
+      "feature": "theme_momentum",
+      "bucket": "source_absent",
+      "source": "theme",
+      "why": "테마 테이블 없음(그래프 전용)",
+      "probe": "0"
+    },
+    {
+      "feature": "twin_avg_correlation",
+      "bucket": "buildable",
+      "source": "stock_vectors",
+      "why": "종목 벡터 존재",
+      "probe": "4340|4340|2026-09-27"
+    },
+    {
+      "feature": "twin_count",
+      "bucket": "buildable",
+      "source": "stock_vectors",
+      "why": "종목 벡터 존재",
+      "probe": "4340|4340|2026-09-27"
+    },
+    {
+      "feature": "value_ncav",
+      "bucket": "source_absent",
+      "source": "financial_statements",
+      "why": "유동자산·유동부채 컬럼 없음",
+      "probe": "false|10370"
+    }
+  ]
+}

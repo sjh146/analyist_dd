@@ -260,3 +260,21 @@
 - **유니버스 정합 배선 완료(CG10 선행조건)**: DB 실측 교집합 **19/200 = 9.5%**(위 항목 참조).
 - **XR11 종결(거부)**: 거시 16개는 전부 시장레벨 — 누수 게이트 ④로 그대로 투입 금지. 패널에 이미
   19개가 있고 정보가 0(MK1 Δ−0.0125). 재개 조건은 국면 조건화 재설계.
+
+## [리서처 R13] 죽은 피처 35개 분해 조사 (원천부재/커버리지/시장레벨/부활가능)  (2026-09-28 18:07)
+- 결과: [조사]R13: 0 <= 0 → 충족 | 증거: source_absent  10  credit_balance_change, credit_spread, etf_flow_5d, institution_ownership_pct, margin_balance_change … | JSON: data/reports/r13_dead_feature_audit.json | R13 미분류 0
+- 판정: 조사완료
+- 근거: 2026-09-28 18:05 실측(스크립트 생성 전 수동 프로브 + 이후 스크립트 재현). dead 35 분해: 부활가능 11(원천 보유: market_data 3,093,148행 종목일봉 → atr_pct/quality_beta/quality_price_volatility_60d, stock_vectors 4,340행·4,340종목 → bayes 4·similarity_std·twin 2, news_analysis authenticity_score 5,575/8,418 → authenticity_avg) / 커버리지부족 7(krx_short_selling 2,393행이지만 **30종목뿐** → short_interest_ratio·days_to_cover, stocks.sector 1,544/4,340(35.6%) → sector_count·sector_momentum, sns_post_features 14,576행·250종목·184일 → sns 3) / 시장레벨 7(krx_derivatives 2,993행·stock_code **컬럼 없음** → basis·basis_change_5d·futures_premium·derivatives_volume, krx_program_trading 196행·시장 단위 → program_trading_ratio, economic_events 291행·10카테고리(전 종목 동일값) → event_macro_5d·event_market_liquidity_5d) / 원천부재 10(신용·융자 테이블 0개 → credit_balance_change·credit_spread·margin_balance_change, ETF 테이블 0개 → etf_flow_5d, 테마 테이블 0개(그래프 전용) → theme 4, financial_statements 에 유동자산·유동부채 컬럼 없음 → value_ncav, ownership.institution_ownership_pct 컬럼은 있으나 100% 결측 → institution_ownership_pct).
+- 엔지니어 백로그: `XR13` (command·대조군 기입 필요)
+
+## [리서처 R3] 수급 이력 확장: foreign_institutional 343 → 800종목  (2026-09-28 18:09)
+- 결과: R3: 343 >= 500 → 미달
+- 판정: 미달
+- 근거: DB 실측: foreign_institutional 343종목/87,895행. 유니버스 풀은 2,428종목(250일 이상 + 유동성 1억 이상). 150종목 실험군 0.5727 vs 49종목군 0.5400.
+- 엔지니어 백로그: `XR3` (command·대조군 기입 필요)
+
+## [정정] 리서처 R3 자동 인계(XR3)는 무효 — 러너 결함 2건  (2026-09-28 18:10)
+- XR3 는 R3 러너가 **1초 만에 rc=2 로 죽은** 실행에서 자동 생성된 인계다. 수급 데이터는 준비되지 않았다.
+- 결함 ①: `run_with_claim.py` 위치인자 형태 → 현재 CLI 는 `--runner/--table` 필요.
+- 결함 ②: 종목 유니버스 미지정 시 이미 수집된 종목만 대상 → 종목 수가 늘 수 없어 check(>=500)가 구조적으로 통과 불가였다(완료 318 / 남음 0 실측).
+- 조치: `data/kis/supply_universe_800.txt`(800코드) 주입 + 래퍼 인자 수정 후 재실행. XR3 는 재실행 성공 전까지 채우지 말 것.

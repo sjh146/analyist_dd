@@ -48,13 +48,22 @@ DEFAULT_PATTERNS = [
 def _pg_connect():
     import psycopg2
 
-    return psycopg2.connect(
+    conn = psycopg2.connect(
         host=os.environ.get("POSTGRES_HOST", "127.0.0.1"),
         port=int(os.environ.get("POSTGRES_PORT", "5434")),
         dbname=os.environ.get("POSTGRES_DB", "stock_trading"),
         user=os.environ.get("POSTGRES_USER", "stock_user"),
         password=os.environ.get("POSTGRES_PASSWORD", ""),
     )
+    # ⚠ autocommit 필수: 래퍼는 `SELECT COUNT(*)` 두 번(전/후) 사이에 **자식 러너를 몇 분~몇 시간** 돌린다.
+    # 기본 트랜잭션이면 그 사이 커넥션이 'idle in transaction' 으로 남아 테이블에 AccessShareLock 을 계속
+    # 쥐고 있고, ① 다른 서비스의 DDL(예: kis-collector 의 `ALTER TABLE foreign_institutional ADD COLUMN`)을
+    # 막은 뒤 ② 그 ALTER 가 AccessExclusive 를 기다리며 **락 큐 맨 앞에 서서** 자식의 INSERT 를 다시 막는다
+    # — 서로가 서로를 기다리는 교착. 실측 2026-09-28 18:11~18:21: 수급 러너가 콜 4회만 남기고 250초
+    # 무한 대기(자식이 DB 소켓에서 poll, KIS 소켓은 없음). COUNT 는 단일 문장이라 autocommit 으로 값이
+    # 달라지지 않는다.
+    conn.autocommit = True
+    return conn
 
 
 def _count(conn, table: str) -> int:
@@ -66,8 +75,28 @@ def _count(conn, table: str) -> int:
         cur.close()
 
 
+SUMMARY_HINT = re.compile(r"(연장 완료|합계|총계|TOTAL|자기신고|전체 완료)", re.I)
+
+
 def parse_claim(text: str, patterns) -> int | None:
-    """출력에서 자기신고 수치를 뽑는다. 여러 줄이면 합계(러너들이 종목별 +N행을 찍는다)."""
+    """출력에서 자기신고 수치를 뽑는다.
+
+    ⚠ 항목별 `+N행` 과 **총계 줄**(`연장 완료: +119행`)이 함께 찍히면 단순 합산은 총계를 두 번 센다.
+    실측 2026-09-28: 수급 러너가 `[1/2] +90행`, `[2/2] +29행`, `연장 완료: +119행` 을 찍어 claimed 가
+    238(=90+29+119)로 부풀었고, 러너가 직접 남긴 정확한 신고(소스 120 / 저장 119)와 **같은 실행에
+    두 행**이 되어 gap·source_rows 지표가 왜곡됐다. → 총계 줄이 있으면 그 값을 쓴다(마지막 총계 우선).
+    """
+    summary = None
+    for ln in text.splitlines():
+        if not SUMMARY_HINT.search(ln):
+            continue
+        for pat in patterns:
+            hits = list(pat.finditer(ln))
+            if hits:
+                summary = int(hits[-1].group(1).replace(",", ""))
+                break
+    if summary is not None:
+        return summary
     total = 0
     found = False
     for pat in patterns:
