@@ -193,6 +193,7 @@ def engineer_stanza() -> dict:
           "champion_single": None, "best_robust": None, "best_robust_std": None,
           "best_exp": None, "baseline": BASELINE_ROBUST, "baseline_name": BASELINE_NAME,
           "delta": None, "last_verdict": None, "no_improve_cycles": 0,
+          "no_improve_streak": 0, "last_improve": None,
           "source": f"{ME_LEDGER} + /app/app/models/champion/auc.txt", "alerts": []}
 
     auc = _docker_cat("/app/app/models/champion/auc.txt")
@@ -228,15 +229,26 @@ def engineer_stanza() -> dict:
                 if r.get("rc") == 0
                 and _rec_best_mean(r) is not None
                 and not (isinstance(r.get("parsed"), dict) and r["parsed"].get("error"))]
-    improved = sum(1 for r in measured
-                   if (_rec_best_mean(r) or 0.0) - BASELINE_ROBUST >= SIGNAL_DELTA)
-    st["no_improve_cycles"] = max(0, len(measured) - improved)
+    improved = [r for r in measured
+                if (_rec_best_mean(r) or 0.0) - BASELINE_ROBUST >= SIGNAL_DELTA]
+    st["no_improve_cycles"] = max(0, len(measured) - len(improved))
     st["measured_cycles"] = len(measured)
     st["invalid_cycles"] = len(recs) - len(measured)
-    if st["no_improve_cycles"] >= NO_IMPROVE_CYCLES:
-        st["alerts"].append(f"로버스트 AUC 가 {st['no_improve_cycles']}사이클(측정 {len(measured)}회) "
-                            f"연속 기준선 ({BASELINE_ROBUST}) 대비 +{SIGNAL_DELTA} 미달 — 새 레버 필요 "
-                            f"(사람 승인 대상)")
+    # **'연속'과 '누적'을 구분하라**(실측 2026-09-28): 종전 구현은 '측정 − 개선' 누적 개수를
+    # 그대로 '연속 N사이클'로 보고했다. 그래서 그날 CG20 이 Δ+0.0236 으로 사전 문턱(+0.02)을
+    # 넘겨 새 레버가 실제로 나왔는데도 "33사이클 연속 미달 — 새 레버 필요(사람 승인)" 경보가 남아
+    # **없는 사람 단계**를 만들었다. 경보는 꼬리 연속(tail)으로만 판정하고 누적은 정보로 남긴다.
+    tail = 0
+    for r in reversed(measured):
+        if (_rec_best_mean(r) or 0.0) - BASELINE_ROBUST >= SIGNAL_DELTA:
+            break
+        tail += 1
+    st["no_improve_streak"] = tail
+    st["last_improve"] = ({"ts": improved[-1].get("ts"), "id": improved[-1].get("id")}
+                          if improved else None)
+    if tail >= NO_IMPROVE_CYCLES:
+        st["alerts"].append(f"로버스트 AUC 가 {tail}사이클 연속 기준선 ({BASELINE_ROBUST}) 대비 "
+                            f"+{SIGNAL_DELTA} 미달 — 새 레버 필요 (사람 승인 대상)")
     return st
 
 
@@ -376,9 +388,12 @@ def main() -> int:
         return 0
     if a.stanza == "engineer":
         s = engineer_stanza()
+        _li = s.get("last_improve") or {}
         print(f"[북극성·엔지니어] 로버스트 {_num(s.get('best_robust'), '.4f')} vs 기준선 "
-              f"{_num(s.get('baseline'), '.4f')} (Δ{s.get('delta')}) | 무개선 {s['no_improve_cycles']}사이클"
-              f" (측정 {s.get('measured_cycles')}·무효 {s.get('invalid_cycles')})")
+              f"{_num(s.get('baseline'), '.4f')} (Δ{s.get('delta')}) | 무개선 연속 "
+              f"{s.get('no_improve_streak')}사이클 (누적 미달 {s['no_improve_cycles']}/{s.get('measured_cycles')}"
+              f"·무효 {s.get('invalid_cycles')})"
+              + (f" | 직전 개선 {_li.get('id')} @{_li.get('ts')}" if _li else ""))
         for x in s["alerts"]:
             print(f"  ⚠ {x}")
         return 0

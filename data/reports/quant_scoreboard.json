@@ -1,5 +1,5 @@
 {
-  "ts": "2026-09-28T16:07:20+09:00",
+  "ts": "2026-09-28T22:47:07+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
@@ -20,25 +20,28 @@
     "role": "engineer",
     "north": "로버스트 AUC (다중폴드 평균)",
     "champion_single": 0.551318,
-    "best_robust": 0.5592,
-    "best_robust_std": 0.0075,
-    "best_exp": "CO_rank_smooth_d1_h5",
+    "best_robust": 0.5642,
+    "best_robust_std": 0.0375,
+    "best_exp": "CO_q05_h5",
     "baseline": 0.5406,
     "baseline_name": "LS_quant_q30_h5 (h5·분위0.3·top30)",
-    "delta": 0.0186,
-    "last_verdict": "노이즈",
-    "no_improve_cycles": 26,
+    "delta": 0.0236,
+    "last_verdict": "신호있음",
+    "no_improve_cycles": 33,
+    "no_improve_streak": 0,
+    "last_improve": {
+      "ts": "2026-09-28T19:25:57+09:00",
+      "id": "CG20"
+    },
     "source": "/home/jhshi/analyist_dd/data/reports/model_engineer_ledger.jsonl + /app/app/models/champion/auc.txt",
-    "alerts": [
-      "로버스트 AUC 가 26사이클(측정 26회) 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
-    ],
-    "measured_cycles": 26,
+    "alerts": [],
+    "measured_cycles": 35,
     "invalid_cycles": 4
   },
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20260928-160709.json",
+    "sample": "dq_20260928-220041.json",
     "status": "ok",
     "warns": [],
     "breaches": [],
@@ -46,12 +49,10 @@
     "alive_xsec_features": 138.0,
     "dead_features": 35.0,
     "stock_constant_ratio": 0.32926829268292684,
-    "news_freshness_hours": 0.26583962194444444,
-    "rows_delivered": 2439933.0,
+    "news_freshness_hours": 0.20618874583333333,
+    "rows_delivered": 2459641.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
     "alerts": []
   },
-  "needs_human": [
-    "[engineer] 로버스트 AUC 가 26사이클(측정 26회) 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
-  ]
+  "needs_human": []
 }
