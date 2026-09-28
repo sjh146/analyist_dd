@@ -102,6 +102,27 @@ def progress_path(d_from, d_to):
                         f"supply_progress_{d_from}_{d_to}.txt")
 
 
+def staleness_order(conn, todo):
+    """최신 보유일이 **오래된 종목부터** 처리하도록 정렬한다.
+
+    WHY (실측 2026-09-28): 진행파일 키가 `supply_progress_<from>_<to>` 라 `--to`
+    (=최신거래일)가 바뀌는 날마다 `done` 이 리셋된다. 유니버스 800종목 × 실행당 호출
+    상한 500 이면 실행마다 **유니버스 앞 250종목만** 갱신되고 끝나, 꼬리 종목의 최신일이
+    영구히 뒤처진다(실측: foreign_institutional 9/28 커버리지 250/542종목 = 46%,
+    280종목이 9/23 에 정지). 상한에 걸려도 처리가 편중되지 않도록 DB 상 최신일
+    오름차순(미보유 = 가장 오래됨)으로 돌린다. 읽기 전용 — 쓰기 없음.
+    """
+    codes = [c for c, _ in todo]
+    if not codes:
+        return todo
+    cur = conn.cursor()
+    cur.execute("SELECT stock_code, MAX(trade_date) FROM foreign_institutional "
+                "WHERE stock_code = ANY(%s) GROUP BY stock_code", (codes,))
+    last = {r[0]: r[1] for r in cur.fetchall()}
+    cur.close()
+    return sorted(todo, key=lambda cn: (last.get(cn[0]) or date.min, cn[0]))
+
+
 def load_done(path):
     if not os.path.exists(path):
         return set()
@@ -175,10 +196,12 @@ def main():
     ppath = progress_path(d_from, d_to)
     done = load_done(ppath)
     todo = [(c, n) for c, n in universe if c not in done]
+    # 상한(500콜)에 걸려도 꼬리 종목이 굶지 않도록 '최신일 오래된 순'으로 돌린다.
+    todo = staleness_order(conn, todo)
 
     print(f"기준 거래일(as-of) = {as_of} / 구간 {d_from}~{d_to} (목표 {args.days}영업일)", flush=True)
     print(f"유니버스 {len(universe)}종목 (완료 {len(done)}, 남음 {len(todo)}) / "
-          f"지연 {args.delay}s / 종목당 최대 {args.max_pages + 1}콜", flush=True)
+          f"지연 {args.delay}s / 종목당 최대 {args.max_pages + 1}콜 / 신선도 오름차순 정렬", flush=True)
 
     client = SupplyClient(cfg.KIS_APP_KEY, cfg.KIS_APP_SECRET, cfg.KIS_BASE_URL,
                           delay=args.delay, jitter=0.3,
