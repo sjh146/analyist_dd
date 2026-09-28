@@ -227,7 +227,10 @@ import logging; logging.basicConfig(level=logging.INFO)
 from app.main import NewsAnalyzerService
 async def run():
     s = NewsAnalyzerService()
-    await s.run_collection()
+    # 실제 메서드명은 analyze_recent_articles() 다. run_collection() 은 존재하지 않아
+    # 이 phase 가 매일 AttributeError 로 죽었고, 그래서 파이프라인의 '뉴스 수집' 단계는
+    # 컨테이너 자체 스케줄(30분 주기 run_scheduled)에만 의존했다(2026-09-28 실측).
+    await s.analyze_recent_articles()
     print('News DONE')
 asyncio.run(run())
 PYEOF

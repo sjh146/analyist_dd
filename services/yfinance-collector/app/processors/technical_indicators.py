@@ -64,6 +64,30 @@ class TechnicalIndicatorCalculator:
         df["rsi"] = df.groupby("stock_code")["close"].transform(_rsi)
         return df
 
+    @staticmethod
+    def _grouped_frame(df: pd.DataFrame, key: str, func) -> pd.DataFrame:
+        """그룹별 함수를 **원본 인덱스에 정렬된** 프레임으로 돌려준다.
+
+        왜 필요한가 (2026-09-28 실측): pandas 2.x 부터 ``groupby(...).apply(func)`` 가
+        DataFrame 을 돌려줄 때 결과 구조가 바뀌어 ``result.xs(col, level=-1)`` 가
+        ``KeyError: 'macd'`` 로 죽는다. calculate_all 이 그 지점에서 예외를 삼키고 중단해
+        **macd·볼린저·스토캐스틱 지표가 통째로 생성되지 않았다**(컨테이너 로그:
+        `Failed to calculate indicators: 'macd'`). 그룹 루프 + concat + reindex 는
+        pandas 버전과 무관하게 같은 결과를 원본 순서로 준다.
+        """
+        parts = []
+        for _, group in df.groupby(key, sort=False):
+            out = func(group)
+            if out is None or len(out) == 0:
+                continue
+            out = out.copy()
+            out.index = group.index
+            parts.append(out)
+        if not parts:
+            return pd.DataFrame(index=df.index)
+        return pd.concat(parts).reindex(df.index)
+
+
     def calculate_macd(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate MACD(12,26,9) with signal and histogram."""
 
@@ -78,9 +102,9 @@ class TechnicalIndicatorCalculator:
                 "macd_hist": macd_line - signal,
             })
 
-        result = df.groupby("stock_code")["close"].apply(_macd)
+        result = self._grouped_frame(df, "stock_code", lambda g: _macd(g["close"]))
         for col in ["macd", "macd_signal", "macd_hist"]:
-            df[col] = result.xs(col, level=-1)
+            df[col] = result[col]
         return df
 
     def calculate_bollinger_bands(
@@ -98,9 +122,9 @@ class TechnicalIndicatorCalculator:
                 "bb_width": ((std * std_dev * 2) / ma.replace(0, np.nan)) * 100,
             })
 
-        result = df.groupby("stock_code")["close"].apply(_bb)
+        result = self._grouped_frame(df, "stock_code", lambda g: _bb(g["close"]))
         for col in ["bb_middle", "bb_upper", "bb_lower", "bb_width"]:
-            df[col] = result.xs(col, level=-1)
+            df[col] = result[col]
         return df
 
     def calculate_atr(self, df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
@@ -117,7 +141,17 @@ class TechnicalIndicatorCalculator:
             atr_val = tr.rolling(window=period, min_periods=1).mean().shift(1)
             return atr_val
 
-        df["atr"] = df.groupby("stock_code")[["high", "low", "close"]].apply(_atr).reset_index(level=0, drop=True)
+        # apply(...).reset_index(level=0) 방식은 **종목이 하나뿐인 프레임**에서 apply 가 DataFrame 을
+        # 돌려주며 "Cannot set a DataFrame with multiple columns to the single column atr" 로 죽는다
+        # (2026-09-28 실측 — ML 쪽은 종목별로 호출하므로 atr 피처가 늘 죽어 있었다).
+        # 그룹 루프 + concat 은 단일 그룹에서도 동일하게 동작한다.
+        parts = []
+        for _, group in df.groupby("stock_code", sort=False):
+            out = _atr(group)
+            out.index = group.index
+            parts.append(out)
+        atr = pd.concat(parts).reindex(df.index) if parts else pd.Series(index=df.index, dtype=float)
+        df["atr"] = atr
         return df
 
     def calculate_stochastic(
@@ -134,9 +168,9 @@ class TechnicalIndicatorCalculator:
             slow_d = slow_k.rolling(window=d_period, min_periods=1).mean()
             return pd.DataFrame({"stoch_k": slow_k, "stoch_d": slow_d})
 
-        result = df.groupby("stock_code")[["high", "low", "close"]].apply(_stoch)
+        result = self._grouped_frame(df, "stock_code", _stoch)
         for col in ["stoch_k", "stoch_d"]:
-            df[col] = result.xs(col, level=-1)
+            df[col] = result[col]
         return df
 
     def calculate_obv(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -148,9 +182,14 @@ class TechnicalIndicatorCalculator:
             obv_val = (direction * group["volume"]).cumsum()
             return obv_val.shift(1)
 
-        df["obv"] = df.groupby("stock_code")[["close", "volume"]].apply(
-            lambda g: _obv(g)
-        ).reset_index(level=0, drop=True)
+        # atr 과 같은 이유로 단일 종목 프레임에서 죽는다(2026-09-28 실측).
+        parts = []
+        for _, group in df.groupby("stock_code", sort=False):
+            out = _obv(group)
+            out.index = group.index
+            parts.append(out)
+        obv = pd.concat(parts).reindex(df.index) if parts else pd.Series(index=df.index, dtype=float)
+        df["obv"] = obv
         return df
 
     def calculate_volume_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
