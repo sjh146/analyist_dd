@@ -4088,6 +4088,34 @@
         },
         "rc": 0
       }
+    },
+    {
+      "id": "CG19",
+      "title": "게이트 ON(생산 경로)에서 '라벨 꼬리 두께' 축이 살아남는가 — q0.10/0.05 vs q0.30 · 5폴드×10시드",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5365,
+        "source": "CG4/CG17 실측 게이트 ON 대조군(49종목) — 이 실험은 panel_150u 같은 런 3-arm"
+      },
+      "hypothesis": "CG18 이 같은 패널·같은 런에서 q 를 좁히면 AUC 가 단조 증가함을 보였다(0.5189→0.5609, q0.05 짝 Δ+0.0420·폴드 5/5). 그런데 스윕 이득은 승격 경로(core48 게이트 ON)에서 −0.005~−0.010 이 깎이는 전례가 있다(CG1/CG2). 게이트 ON 에서도 꼬리 두께 이득이 유지되면 — 31사이클 만에 처음으로 '승격 후보'가 될 수 있는 레버가 된다. 반대로 게이트가 이득을 다시 삼키면 원인은 피처 게이트 자체다.",
+      "evidence": "CG18 실측(2026-09-28 18:24, panel_150u·게이트 OFF·5폴드×5시드, 6.9분): LS_quant_q30_h5 0.5189±0.0135 · q25 0.5070 · q20 0.5198 · q15 0.5216 · q10 0.5355±0.0140(짝 Δ+0.0166·4/5) · q05 0.5609±0.0335(짝 Δ+0.0420·5/5). 날짜별 횡단면 AUC 도 동일 방향(0.5179→0.5653, gap≤0.0044) → 날짜 구성 아티팩트 아님. 밀도 환산: 49종목 q0.30=14.7 pos/일 vs 150종목 q0.10=15.0 pos/일 → 같은 밀도에서 0.5414 vs 0.5355(Δ−0.0059)로 유니버스 격차 −0.030 이 대부분 설명된다.",
+      "method": "panel_150u 같은 런 3-arm(5폴드×10시드, 게이트 ON): CO_core30_h5(q0.30 대조군) · CO_q10_h5 · CO_q05_h5. 판정은 (a) q0.05−q0.30 폴드 짝 Δ (b) 게이트 OFF 짝 Δ(+0.0420) 대비 잔존율.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 10 --only CO_core30_h5,CO_q10_h5,CO_q05_h5'",
+      "arm": "CO_q05_h5",
+      "counterfactual": "CO_core30_h5",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "wf_sweep_summary",
+      "est_minutes": 12,
+      "cost": "약 6~10분 (3 config×5폴드×10시드=150 cell · CG18 150 cell=6.9분 실측)",
+      "success": "CO_q05_h5 − CO_core30_h5 폴드 짝 Δ ≥ +0.02 이고 양(+) 폴드 ≥ 4/5 → 게이트 통과 확인 → 라벨 후보로 등록(승격은 dry-run 별도). Δ ≤ +0.01 이면 '게이트가 꼬리 이득도 삼킨다'로 기록하고 게이트 구성(CORE_FEATURES 48) 자체를 승인 항목으로 올린다.",
+      "expected": "게이트 비용 −0.005~−0.010 을 감안하면 Δ +0.03 내외. 시드 10으로 q05 의 std 0.0335 를 절반으로 줄이는 것이 목적.",
+      "note": "2026-09-28 18:3x 신설(CG18 직후). 주의: q 를 좁히면 AUC 가 오르는 것은 '더 극단적인 양성'을 맞히는 과제가 되기 때문일 수 있다(과제 정의 효과). 트레이더가 실제로 사는 상위 k 종목의 정밀도(precision@k)는 별도 측정이 필요하다 — 현 스윕은 예측 확률을 저장하지 않으므로 후속 항목으로 등록할 것."
     }
   ]
 }
