@@ -116,8 +116,10 @@ def snapshot(hours=24):
 
 def snapshot_brief(out):
     """틱 출력용 요약 — 위반/경고 줄과 차트 경로만 뽑는다."""
+    # [경로] 는 스크랩 건강 줄 — 사고 때만 뜨는 ★/· 와 달리 **매 틱** 보여야 '모니터링이 살아 있다'가
+    #  증거로 남는다(실측 2026-09-28: 11분 실명을 어떤 틱도 보고하지 않아 3시간 뒤에야 발견했다).
     lines = [ln for ln in out.splitlines()
-             if ln.strip().startswith(("[WARN]", "[위반]", "★", "·", "차트:"))]
+             if ln.strip().startswith(("[WARN]", "[위반]", "★", "·", "[경로]", "차트:"))]
     return lines
 
 
