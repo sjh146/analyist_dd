@@ -430,6 +430,32 @@ def judge_per(item, per_exp) -> tuple:
     per = per_exp if isinstance(per_exp, dict) else {}
     if not per:
         return verdict, detail, delta
+    # ── 구간 짝(paired) 프로토콜 (2026-09-28, CG13 후속) ─────────────────────────
+    # 왜: CG13 실측(5.7분)에서 **같은 크기(30종목) 서로소 5구간**의 게이트 ON 대조군 폴드 평균이
+    # 0.5204([0:30)) ~ 0.4917([120:150)) = Δ0.0287 로 사전문턱 +0.02 를 유니버스 교체만으로 넘겼다.
+    # 그러면 '단일 arm vs 단일 대조군' 비교는 유니버스 교체 잡음과 뒤섞여 해석할 수 없다 →
+    # 같은 구간 **안에서** arm−대조군 짝 Δ 를 구해(구간 간 교체 효과가 상쇄된다) 평균·부호로 판정한다.
+    # 사전등록: 짝 Δ 평균 ≥ +0.02 **이고** 양(+) 구간이 n-1 개 이상이면 신호, 평균 ≤ −0.02 면 악화,
+    # 그 사이는 노이즈(구간 수가 5라 '1개 예외'까지 허용한다).
+    pairs = item.get("pairs")
+    if pairs:
+        ds, wins, miss = [], 0, []
+        for a, c in pairs:
+            if a in per and c in per:
+                dseg = per[a]["mean"] - per[c]["mean"]
+                ds.append(dseg)
+                wins += 1 if dseg > 0 else 0
+            else:
+                miss.append(f"{a}/{c}")
+        if ds:
+            mean_d = sum(ds) / len(ds)
+            delta = round(mean_d, 4)
+            verdict = "신호있음" if (mean_d >= 0.02 and wins >= len(ds) - 1) else \
+                ("악화" if mean_d <= -0.02 else "노이즈")
+            detail = (f"구간 짝 Δ 평균 {mean_d:+.4f} (n={len(ds)}구간 · 양(+) {wins}/{len(ds)}) "
+                      f"[{', '.join(f'{d:+.4f}' for d in ds)}]"
+                      + (f" · 미측정 {', '.join(miss)}" if miss else ""))
+            return verdict, detail, delta
     arm = item.get("arm")
     cf_name = (item.get("counterfactual") or "").split(" ")[0]
     base_rec = item.get("baseline")

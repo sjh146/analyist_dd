@@ -247,6 +247,84 @@ CONFIGS = [
     {"id": "US_all150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_limit": 150,
      "desc": "게이트 ON 대조군 · 150종목 전체(같은 런 기준점)"},
+    # ── CG14: 우승 후보의 구간 짝(paired) 재판정 (2026-09-28 신설) ────────────────
+    # 왜(CG13 실측 5.7분): 같은 크기(30종목) **서로소** 5구간의 게이트 ON 대조군 폴드 평균이
+    # 0.5204([0:30)) ~ 0.4917([120:150)) = Δ0.0287 로, 사전문턱 +0.02 를 **유니버스 교체만으로**
+    # 넘겼다. 즉 27사이클의 모든 Δ≤0.03 은 유니버스 교체 잡음과 구분되지 않는다.
+    # CG4/CG8 의 유일한 후보(게이트 ON + rank + 스무딩 + depth1, Δ+0.0227)도 그 밴드 안이다.
+    # → 같은 구간 **안에서** arm−대조군 짝 Δ 를 5개 얻어(구간 간 교체 효과가 상쇄된다) 평균·부호로
+    # 재판정한다. 대조군은 같은 런의 US_00_30..US_120_150(게이트 ON 평범 config)이다.
+    {"id": "RSs_00_30", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_slice": [0, 30],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [0:30) · 게이트 ON + rank + 스무딩 + depth1 (CG4/CG8 후보)"},
+    {"id": "RSs_30_60", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_slice": [30, 60],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [30:60) · 게이트 ON + rank + 스무딩 + depth1 (CG4/CG8 후보)"},
+    {"id": "RSs_60_90", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_slice": [60, 90],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [60:90) · 게이트 ON + rank + 스무딩 + depth1 (CG4/CG8 후보)"},
+    {"id": "RSs_90_120", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_slice": [90, 120],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [90:120) · 게이트 ON + rank + 스무딩 + depth1 (CG4/CG8 후보)"},
+    {"id": "RSs_120_150", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_slice": [120, 150],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [120:150) · 게이트 ON + rank + 스무딩 + depth1 (CG4/CG8 후보)"},
+    # ── CG15: 유동성 단조 추세의 출처 분해 — 라벨 구성을 바꿔도 남는가 (2026-09-28 신설) ──
+    # 왜(CG13 실측): 게이트 ON 대조군의 폴드 평균이 패널 순서(유동성 정렬)대로
+    # 0.5204 → 0.5112 → 0.5034 → 0.4998 → 0.4917 로 **거의 단조 감소**했다. 구간마다 종목 수가
+    # 30 으로 같으므로 단순 크기 효과는 아니다. 두 갈래 후보: ①유동성 상위 종목이 실제로 더
+    # 예측 가능하다 ②분위 라벨(q=0.30)이 30종목 부분집합에서 날짜별 구성이 달라져 생기는 표본 효과.
+    # → 같은 5구간을 **시장상대(relative: 횡단면 중앙값 초과) 라벨**로 재측정한다. 추세가 사라지면
+    # 라벨 구성 효과(②), 남으면 유동성 예측성(①).
+    {"id": "REl_00_30", "kind": "relative", "horizon": 5, "q": None, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30],
+     "desc": "구간 [0:30) · 게이트 ON + 시장상대 라벨(중앙값 초과)"},
+    {"id": "REl_30_60", "kind": "relative", "horizon": 5, "q": None, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60],
+     "desc": "구간 [30:60) · 게이트 ON + 시장상대 라벨"},
+    {"id": "REl_60_90", "kind": "relative", "horizon": 5, "q": None, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90],
+     "desc": "구간 [60:90) · 게이트 ON + 시장상대 라벨"},
+    {"id": "REl_90_120", "kind": "relative", "horizon": 5, "q": None, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120],
+     "desc": "구간 [90:120) · 게이트 ON + 시장상대 라벨"},
+    {"id": "REl_120_150", "kind": "relative", "horizon": 5, "q": None, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150],
+     "desc": "구간 [120:150) · 게이트 ON + 시장상대 라벨"},
+    {"id": "REl_all150", "kind": "relative", "horizon": 5, "q": None, "select": "top30",
+     "core_only": True, "codes_limit": 150,
+     "desc": "150종목 전체 · 시장상대 라벨(같은 런 기준점)"},
+    # ── CG16: depth1(유일하게 재현됐던 HP 방향)의 구간 짝 재판정 (2026-09-28 신설) ──
+    # 왜: CG8 은 게이트 ON 에서 depth1·lr0.05 단독이 Δ+0.0180(문턱 미달)·rank+스무딩+depth1 결합이
+    # Δ+0.0227(문턱 통과)라고 기록했다. 그런데 CG13 실측으로 유니버스 교체만으로 0.0287 이 움직이고,
+    # CG14 에서 결합 후보는 구간 짝 Δ 평균 **−0.0057(1/5 구간 양(+))** 로 소멸했다 → 같은 방식으로
+    # HP 축의 마지막 후보(depth1)도 검정한다. 여기서 죽으면 튜닝 축 전체가 종료되고 남는 레버는
+    # 데이터 축(창·신규 피처)뿐이라는 결론이 선다.
+    {"id": "DSs_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [0:30) · 게이트 ON + depth1·lr0.05 (CG8 HP 후보)"},
+    {"id": "DSs_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [30:60) · 게이트 ON + depth1·lr0.05 (CG8 HP 후보)"},
+    {"id": "DSs_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [60:90) · 게이트 ON + depth1·lr0.05 (CG8 HP 후보)"},
+    {"id": "DSs_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [90:120) · 게이트 ON + depth1·lr0.05 (CG8 HP 후보)"},
+    {"id": "DSs_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [120:150) · 게이트 ON + depth1·lr0.05 (CG8 HP 후보)"},
     # ── 데이터 축 A/B: 부활 이벤트 피처 가산효과 (2026-09-26, L3 준비) ────────────
     # panel_420_asofpatch_ev.npz 는 기준선 패널과 **행이 비트 동일**하고(13,609행·날짜·종목·
     # 가격 동일, 공유 210컬럼 최대 절대차 0.0) 뒤에 event_* 17개만 덧붙은 패널이다 →
