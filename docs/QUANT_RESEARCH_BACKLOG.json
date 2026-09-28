@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T00:09:50+09:00",
+  "updated_at": "2026-09-29T00:14:18+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -560,7 +560,7 @@
       ],
       "affects_model": false,
       "hypothesis": "일별 수급 러너(kis_supply_backfill.py)가 실행마다 **유동성 상위 250종목만** 최신 거래일을 갱신하고 꼬리 종목은 굶는다. 원인은 ① 진행파일 키가 날짜창(supply_progress_<from>_<to>)이라 --to(=최신거래일)가 바뀌는 날마다 done 이 리셋되고 ② 유니버스 800종목 × 실행당 호출 상한 500콜 ÷ 종목당 2콜 ≈ 250종목에서 잘리기 때문이다. 정렬을 '최신일 오래된 순'으로 두면 상한에 걸려도 뒤처진 종목부터 채워져 지연이 상한(≈2거래일) 안에서 유지된다.",
-      "evidence": "실측 2026-09-29 00:1x (읽기 전용 프로브): ① market_data 최신일=2026-09-28 인데 foreign_institutional 에 9/28 을 가진 종목은 250/542. ② 유동성 상위 250 ∩ 9/28 보유 = 250/250 (100.0%), 유동성 250 밖 ∩ 9/28 보유 = 0/550 (0.0%) → 최신일을 상위 구간이 독식. ③ 종목별 최신일 지연(거래일): 0일 250종목 / 1일 280종목 / 2일 11종목 / 4일 1종목. ④ 이력 확장 러너(kis_supply_extend_history.py)는 '이미 있는 행보다 오래된 행만' 적재하므로 최신일을 채우는 경로가 아니다 — 즉 꼬리는 구조적으로 굶는다. ⑤ logs/…R3 의 20:12 실행에서 005387·000100 은 9/28 까지 있으나 241560·326030 은 9/23 정지 (둘 다 같은 실행에서 처리됨) — 상한 잘림 위치와 일치. 수정: scripts/kis_supply_backfill.py 에 staleness_order() 추가(최신일 오름차순 정렬, 읽기 전용 SELECT). 회귀 6건: tests/test_kis_supply_staleness_order.py. 프로브: scripts/r_supply_newest_day_probe.py · r_supply_universe_bias_probe.py · r_supply_staleness_order_probe.py · r_supply_front_bias_confirm.py",
+      "evidence": "실측 2026-09-29 00:1x (읽기 전용 프로브): ① market_data 최신일=2026-09-28 인데 foreign_institutional 에 9/28 을 가진 종목은 250/542. ② 유동성 상위 250 ∩ 9/28 보유 = 250/250 (100.0%), 유동성 250 밖 ∩ 9/28 보유 = 0/550 (0.0%) → 최신일을 상위 구간이 독식. ③ 종목별 최신일 지연(거래일): 0일 250종목 / 1일 280종목 / 2일 11종목 / 4일 1종목. ④ 이력 확장 러너(kis_supply_extend_history.py)는 '이미 있는 행보다 오래된 행만' 적재하므로 최신일을 채우는 경로가 아니다 — 즉 꼬리는 구조적으로 굶는다. ⑤ logs/…R3 의 20:12 실행에서 005387·000100 은 9/28 까지 있으나 241560·326030 은 9/23 정지 (둘 다 같은 실행에서 처리됨) — 상한 잘림 위치와 일치. 수정: scripts/kis_supply_backfill.py 에 staleness_order() 추가(최신일 오름차순 정렬, 읽기 전용 SELECT). 회귀 6건: tests/test_kis_supply_staleness_order.py. 프로브: scripts/r_supply_newest_day_probe.py · r_supply_universe_bias_probe.py · r_supply_staleness_order_probe.py · r_supply_front_bias_confirm.py 실행 검증(수정 후 스모크): `--stocks 005930 --days 1 --max-pages 1` 1종목 실행에서 '신선도 오름차순 정렬' 적용 상태로 정상 처리(자기신고 소스 30/저장 30/신규 0 — 이미 있는 창 재수집 no-op). 다음 평일 16:20 크론이 유니버스 꼬리부터 채운다.",
       "method": "① 다음 평일 실행(16:20 크론)에서 staleness_order 가 꼬리부터 처리하는지 로그 앞부분으로 확인 ② 아래 command 로 1회 추가 실행해 밀린 292종목을 따라잡게 한다(700콜 ≈ 20분, 상한 도달 시 재개) ③ check 로 '종목별 최신일 지연(거래일) 최대값 ≤ 2' 를 판정한다 — 수정이 없으면 지연이 계속 커져 며칠 안에 미달이 되고, 수정이 살아 있으면 회전으로 상한 안에 머문다",
       "command": "cd /home/jhshi/analyist_dd && KIS_SUPPLY_MAX_CALLS=700 /usr/bin/python3 scripts/run_with_claim.py --runner kis_supply_backfill --table foreign_institutional -- /usr/bin/python3 scripts/kis_supply_backfill.py --top 800 --days 5 --delay 1.5",
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"WITH md AS MATERIALIZED (SELECT DISTINCT trade_date FROM market_data), s AS (SELECT stock_code, MAX(trade_date) AS d FROM foreign_institutional GROUP BY stock_code) SELECT COALESCE(MAX((SELECT COUNT(*) FROM md WHERE trade_date > s.d)),0) FROM s\"",
@@ -570,6 +570,31 @@
         "unit": "거래일(최대 지연)"
       },
       "note": "수정(정렬)은 저장소에 반영됨 — 검증은 다음 실행 결과로만 한다. 외국인/기관 순매수 피처의 '최신일 횡단면'은 종목당 2일 주기 갱신이 설계 상한이다(하루 250종목). 더 빠른 신선도가 필요하면 호출 상한(KIS_SUPPLY_MAX_CALLS)을 올리거나 일별 크론을 1일 2회로 늘린다 — KIS 일일 한도 확인 후 결정(사람 승인 항목). Prometheus 메트릭(dq_supply_max_lag_trading_days) 신설은 보류 — 이 check 가 2시간 주기로 같은 값을 본다. check 는 MATERIALIZED CTE 형태(실측 1.1초) — 상관 서브쿼리 형태는 market_data 재스캔으로 180초 타임아웃이 났다(교훈: 날짜 목록을 먼저 고정하라)."
+    },
+    {
+      "id": "R20",
+      "title": "수급 최신일 신선도 상향 여부 결정 (현재 회전 주기: 종목당 2일 — 250종목/일)",
+      "status": "needs_approval",
+      "priority": 3,
+      "affects_model": false,
+      "kind": "investigate",
+      "hypothesis": "외국인/기관 순매수 피처의 '최신 거래일 횡단면'은 하루 250종목(호출 상한 500콜 ÷ 종목당 2콜)만 갱신된다. 정렬 수정(R19)으로 굶주림은 사라지지만 최신일 커버리지는 여전히 250/542종목(46%)이다. 모델이 최신일 횡단면을 쓰는 방식(예: 당일 스크리닝)에 따라 이 46% 가 병목일 수 있다.",
+      "evidence": "실측 2026-09-29 00:1x: foreign_institutional 9/28 보유 250종목 = 유동성 상위 250종목과 100% 일치(250/250), 그 밖은 0/550. 종목별 지연 분포 0일 250 / 1일 280 / 2일 11 / 4일 1. R19 정렬 수정 후에는 지연이 상한(≈2거래일) 안에 머문다 — 즉 '최신일 250종목' 자체는 호출 예산의 함수이지 결함이 아니다.",
+      "method": "① 사용자 결정 필요: 회전 주기를 현행(2일)으로 둘지, KIS 일일 호출 한도 안에서 늘릴지 (1일 2회 크론 = 약 1,000콜/일, 또는 KIS_SUPPLY_MAX_CALLS 상향) ② 결정이 '확대'면 크론 시간표와 상한을 바꾸고 R19 check 를 지연 상한 1거래일로 강화",
+      "command": "",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM foreign_institutional WHERE trade_date = (SELECT MAX(trade_date) FROM market_data)\"",
+      "check_target": {
+        "op": ">=",
+        "value": 250,
+        "unit": "최신일 보유 종목수"
+      },
+      "check_note": "check 는 현행 회전 하한(250종목)만 본다. 확대 결정 시 목표를 500 으로 올린다.",
+      "setup_needed": [
+        "수급 신선도 상향 여부 결정 — 현행 유지(종목당 2일 회전) 권고, 모델이 최신일 횡단면을 쓰면 1일 2회로 확대",
+        "필요 정보: KIS 앱키의 일일 호출 한도 — 미확인이라 확대 가능 폭을 제가 정할 수 없습니다(알려주시면 크론 조정)"
+      ],
+      "cost": "크론 1줄 변경(약 20분 내외)",
+      "success": "최신 거래일 수급 커버리지가 모델 유니버스 요구를 충족한다(결정된 목표치 이상)"
     }
   ]
 }
