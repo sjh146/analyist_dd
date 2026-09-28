@@ -153,7 +153,17 @@ EN = {
     "dq_padding_rows_before_listing": "pre-listing padded rows",
     "feature_alive_count": "alive features",
     "feature_dead_count": "dead features",
+    "scrape_duration_postgres": "postgres scrape duration (s)",
 }
+
+# ── 수집 경로(스크랩) 건강 문턱 — 실측 2026-09-28 ────────────────────────────
+# 정상 범위 실측 3.9~28.2초(scrape_interval 60s / scrape_timeout 45s), 타임아웃은 45.009초.
+SCRAPE_JOB = "postgres"
+SCRAPE_WARN_S = 30.0      # 정상 실측 최대(28.2초) 위에 둔다 — 기준선 아래에 두면 매 틱 경고.
+SCRAPE_BREACH_S = 44.5    # scrape_timeout(45초) 도달 = 스크랩 실패 = dq_* 소실
+SCRAPE_SERIES = 'scrape_duration_seconds{job="postgres"}'
+SCRAPE_WINDOW = "6m"       # 실패가 '단발'인지 '지속'인지 가르는 창(스크랩 간격 60초 → 6~7 표본)
+SCRAPE_FAILS_BREACH = 2    # 창 안 실패가 이 개수 이상이면 지속 장애(단발 = 재기동 과도기, 실측 ~26초)
 
 
 HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
@@ -330,6 +340,44 @@ def range_series(name, hours, step=1800):
     return out
 
 
+def classify_scrape_path(up, scrapes_6m, ok_6m, duration_s):
+    """수집 경로(스크랩) 건강 판정 → (status, 문구|None). 조회 없는 순수 함수.
+
+    신호 넷: 지금 스크랩 성공 여부(up) · 6분 창 스크랩 수 · 그중 성공 수 · 스크랩 소요(duration).
+    · up=1, 지연이 문턱 아래 = ok (정상 실측 3.9~28.2초)
+    · up=1, 지연이 임계 도달 = warn/breach — dq_* 가 소실되기 **전에** 알린다(리드타임)
+    · up=0 인데 창 안 실패가 1회 = warn (exporter 재기동 직후 ~26초는 정상 과도기, 실측)
+    · up=0 이고 실패 2회 이상 = breach (단발이 아니다 — dq_* 가 lookback 을 넘겨 소실된다)
+    · up 을 못 읽었다 = nodata (없는 정보를 '정상'으로 세지 않는다)
+    · up=0 인데 실패 횟수를 못 셌다 = breach (fail closed — 모르면 조용해지지 않는다)
+
+    ⚠ 왜 '창 평균 0'이 아니라 '실패 횟수'인가 (실측 2026-09-28 18:16 KST):
+      사고 당시 실측은 up=0 · avg_over_time(up[6m])=0.1667 이었다 — 6분 창에 **성공 스크랩이 아직
+      1개 남아 있어** 평균이 0 이 아니었고, 평균 기준으로는 '단발 실패(과도기)'로 분류된다.
+      6분 넘게 지속된 실명을 '재기동 과도기'라고 부르는 오독이다(그 시점 실패는 이미 5회).
+      → 평균은 실패 *규모*를 뭉개므로, 총 스크랩 수와 성공 수를 따로 받아 실패 횟수로 가른다.
+    """
+    if up is None:
+        return "nodata", f'수집 경로 신호 없음(up{{job="{SCRAPE_JOB}"}} 조회 불가) → 스크랩 건강 판정 불가'
+    if up == 0:
+        if scrapes_6m is None or ok_6m is None:
+            return "breach", ("수집 모니터링 스크랩 실패(up=0) — 실패 횟수 확인 불가"
+                              " → 모르면 조용해지지 않도록 위반으로 둔다")
+        fails = int(round(scrapes_6m - ok_6m))
+        if fails >= SCRAPE_FAILS_BREACH:
+            tail = (f" — 스크랩 {duration_s:g}초 ≥ 타임아웃 {SCRAPE_BREACH_S:g}초" if duration_s is not None else "")
+            return "breach", (f"수집 모니터링 스크랩 실패 지속(최근 {SCRAPE_WINDOW} 실패 {fails}회)"
+                              + tail + " — dq_* 소실")
+        return "warn", (f"수집 경로 스크랩 {fails}회 실패(재기동 과도기일 수 있음)"
+                        f" — {SCRAPE_WINDOW} 내 {SCRAPE_FAILS_BREACH}회 이상이면 위반으로 올린다")
+    if duration_s is not None and duration_s >= SCRAPE_BREACH_S:
+        return "breach", f"스크랩 지연 {duration_s:g}초 ≥ {SCRAPE_BREACH_S:g}초(타임아웃 임계) — dq_* 소실 직전"
+    if duration_s is not None and duration_s >= SCRAPE_WARN_S:
+        return "warn", (f"스크랩 지연 {duration_s:g}초 ≥ {SCRAPE_WARN_S:g}초 — 타임아웃까지 여유 "
+                        f"{SCRAPE_BREACH_S - duration_s:g}초")
+    return "ok", None
+
+
 def verdict(val, warn, breach):
     if val is None or (warn is None and breach is None):
         return "info"
@@ -390,6 +438,34 @@ def main():
         elif st == "warn":
             warns.append(f"{label}({name})={val:g} ≥ {warn:g}{suffix}")
 
+    # ── 수집 경로(스크랩) 자체의 건강 ─────────────────────────────────────────
+    # WHY(실측 2026-09-28 18:11~18:21 KST): postgres-exporter 스크랩이 scrape_timeout 45초에 걸려
+    #   **11회 연속 실패**했다(up=0, scrape_duration 45.009초, 모든 컬렉터가 내부 60초 데드라인 초과).
+    #   그 사이 dq_* 86개 시리즈는 Prometheus 5분 lookback 을 넘겨 stale(실명)이 됐는데, 그 창에 이
+    #   틱이 한 번도 돌지 않아(18:09:30 → 18:23:27) **어떤 틱도 실명을 보고하지 않았다** — 3시간 뒤
+    #   수동 조사로 발견했다. dq_* 소실은 5분 뒤에야 드러나므로 그 **직전 단계**를 직접 판정한다.
+    #   Alertmanager 가 없어(백로그 R15) 이 틱이 유일한 통보 경로라는 점이 이 판정의 이유다.
+    #   ⚠ 타임아웃을 50~55초로 늘리는 것은 수리가 아니다: 컬렉터 내부 데드라인이 60초라 쿼리가
+    #     멈추면 연장해도 실패하고, 늘린 만큼 실명이 더 늦게 드러난다(문턱을 낮춰 숨기는 것과 같다).
+    #   ⚠ 단발 실패는 breach 로 세지 않는다: exporter 재기동 직후 ~26초는 정상 과도기다(실측).
+    #     단발/지속은 6분 창의 **실패 횟수**로 가른다(1회 = 과도기 warn, 2회 이상 = breach).
+    #     평균이 아니라 횟수인 이유는 아래 classify_scrape_path 주석에 실측값과 함께 적어 두었다.
+    sp = {"job": SCRAPE_JOB, "up": None, "duration_s": None, "status": "nodata",
+          "warn_s": SCRAPE_WARN_S, "breach_s": SCRAPE_BREACH_S}
+    up_vals, _ = instant(f'up{{job="{SCRAPE_JOB}"}}')
+    cnt_vals, _ = instant(f'count_over_time(up{{job="{SCRAPE_JOB}"}}[{SCRAPE_WINDOW}])')
+    ok_vals, _ = instant(f'sum_over_time(up{{job="{SCRAPE_JOB}"}}[{SCRAPE_WINDOW}])')
+    sd_vals, _ = instant(SCRAPE_SERIES)
+    sp["up"] = max(up_vals) if up_vals else None
+    sp["scrapes_6m"] = max(cnt_vals) if cnt_vals else None
+    sp["ok_6m"] = max(ok_vals) if ok_vals else None
+    sp["duration_s"] = max(sd_vals) if sd_vals else None
+    sp["status"], _msg = classify_scrape_path(sp["up"], sp["scrapes_6m"], sp["ok_6m"], sp["duration_s"])
+    if _msg:
+        # status=nodata(판정 불가)는 위반으로 단정하지 않고 경고로 올린다 — 다만 조용히는 넘기지 않는다.
+        (breaches if sp["status"] == "breach" else warns).append(_msg)
+    snap["scrape_path"] = sp
+
     # ── 모니터링 사각지대 판정 ────────────────────────────────────────────────
     # WHY: nodata 를 그냥 넘기면 완전 실명이 rc=0 으로 "정상" 보고된다 — 실측 2026-09-25 20:01:
     #   postgres-exporter 스크랩이 12.7초인데 Prometheus scrape_timeout 이 10초여서 매 스크랩이
@@ -408,6 +484,12 @@ def main():
     print(f"[dq_snapshot] {now.isoformat(timespec='seconds')} (추세 {a.hours:g}h)")
     if nodata:
         print(f"  [!!] 조회 실패(nodata) {len(nodata)}/{n_total}: " + ", ".join(nodata))
+    _u = "없음" if sp["up"] is None else f"{sp['up']:g}"
+    _d = "없음" if sp["duration_s"] is None else f"{sp['duration_s']:.1f}s"
+    _c = (f"{sp['ok_6m']:g}/{sp['scrapes_6m']:g}성공" if sp["ok_6m"] is not None and sp["scrapes_6m"] is not None
+          else "창 없음")
+    print(f"  [경로] 스크랩 up={_u} 지연={_d} ({SCRAPE_WINDOW} {_c}) "
+          f"(warn {SCRAPE_WARN_S:g} / 타임아웃 {SCRAPE_BREACH_S:g})")
     for name, m in snap["metrics"].items():
         v = "없음" if m["value"] is None else f"{m['value']:g}"
         mark = {"ok": "OK  ", "warn": "WARN", "breach": "위반", "info": "·   ", "nodata": "데이터X"}[m["status"]]
@@ -427,12 +509,17 @@ def main():
     png = None
     if not a.no_chart:
         series_by = {}
+        # 스크랩 경로 패널을 **맨 앞**에 둔다 — 모니터링이 눈먼 상태를 첫 화면에서 본다.
+        _ss = range_series(SCRAPE_SERIES, a.hours)
+        if _ss:
+            series_by["scrape_duration_postgres"] = (_ss, "postgres scrape duration (s)",
+                                                    SCRAPE_WARN_S, SCRAPE_BREACH_S)
         for name, agg, warn, breach, label in SPECS:
             s = range_series(name, a.hours)
             if s:
                 series_by[name] = (s, label, warn, breach)
         if series_by:
-            keys = list(series_by)[:12]
+            keys = list(series_by)[:13]
             cols = 3
             rows = (len(keys) + cols - 1) // cols
             fig, axes = plt.subplots(rows, cols, figsize=(5.2 * cols, 3.0 * rows), squeeze=False)
@@ -481,6 +568,7 @@ def main():
                             "nodata": len(nodata), "nodata_core": len(snap["nodata_core"]),
                             "values": {k: v["value"] for k, v in snap["metrics"].items()
                                        if v.get("value") is not None},
+                            "scrape_up": sp["up"], "scrape_duration_s": sp["duration_s"],
                             "chart": snap.get("chart")}, ensure_ascii=False) + "\n")
 
     _prune(OUTDIR)   # 스냅샷 보존 정책(최근 48개) — 무한 증가 방지
