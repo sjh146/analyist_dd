@@ -506,6 +506,13 @@ def main():
     ap.add_argument("--summary-out", default="/app/reports/overnight/wf_label_sweep_summary.json",
                     help="요약 JSON 경로 — ⚠ 기본값을 덮으면 진행 중 사이클의 판정 요약이 오염된다")
     ap.add_argument("--dry-run", action="store_true")
+    # ── 확률 덤프 (2026-09-28 CG21) ────────────────────────────────────────────
+    # 왜: AUC 는 순위 지표라 '라벨 꼬리를 좁혀 과제가 쉬워진 것'과 '실제로 상위 k 를 잘
+    # 고르게 된 것'을 구분하지 못한다. 매매 KPI 는 상위 k 바스켓의 정밀도·기대수익이므로
+    # 폴드별 (date, code, y_true, y_pred, fwd_ret) 를 남겨 사후 계산이 가능하게 한다.
+    # 기본 None → 기존 실행에는 아무 영향이 없다(파일도 쓰지 않는다).
+    ap.add_argument("--dump-preds", default=None,
+                    help="폴드 앙상블 확률 jsonl 저장 경로 (예: /app/scripts/_preds_CG21.jsonl)")
     args = ap.parse_args()
 
     if args.dry_run:
@@ -611,6 +618,7 @@ def main():
         if _d:
             os.makedirs(_d, exist_ok=True)
     results = []
+    dump_recs: list = []        # --dump-preds 전용(CG21). 기본 경로에서는 비어 있다.
 
     cfgs = CONFIGS
     if args.only:
@@ -634,6 +642,17 @@ def main():
             y = W.make_labels(df, cfg["kind"], cfg["horizon"], cfg["q"])
             d = df.copy()
             d["_y"] = y
+            # ── 실현 선행수익(진단·precision@k 전용, 2026-09-28 CG21) ────────────────
+            # 판정에는 쓰지 않는다(판정은 폴드 평균 AUC 만). 매매 KPI 는 '상위 k 바스켓의
+            # 보유기간 수익률'이라 예측 확률과 함께 남겨야 사후에 계산할 수 있다.
+            # 라벨과 같은 shift(-h) 정의를 쓴다(스무딩 라벨이어도 여기선 단순 선행수익).
+            if args.dump_preds:
+                try:
+                    d["_fwd"] = df.groupby("stock_code", sort=False)["price"].transform(
+                        lambda s: s.shift(-int(cfg["horizon"])) / s - 1.0).values
+                except Exception as e:      # 계산 실패 시에도 측정은 계속(진단만 생략)
+                    ml.log(f"  {exp_id}: 선행수익 계산 실패({type(e).__name__}: {e}) — fwd_ret 결측")
+                    d["_fwd"] = np.nan
             # 라벨 참조일(그 종목의 h번째 미래 '행'의 날짜) — purge 를 달력 h일이 아니라
             # **라벨이 실제로 참조하는 날짜** 기준으로 하기 위해 미리 계산한다.
             # 근거(실측 2026-09-25): 달력 h일 purge 만으로는 거래 갭이 있는 종목의 학습 행이
@@ -849,6 +868,17 @@ def main():
                             n_dates_scored = len(_da)
                     except Exception as e:
                         ml.log(f"  {exp_id} fold{i}: 날짜별 AUC 계산 실패({type(e).__name__}: {e})")
+                    # ── 확률 덤프(CG21): 판정에는 쓰지 않고 매매 KPI 계산용으로만 남긴다 ──
+                    if args.dump_preds:
+                        _codes = (te["stock_code"].astype(str).values
+                                  if "stock_code" in te.columns else [""] * len(ted))
+                        _fwd = (np.asarray(te["_fwd"].values, dtype=float)
+                                if "_fwd" in te.columns else np.full(len(ted), np.nan))
+                        for _j in range(len(ted)):
+                            dump_recs.append(
+                                {"exp": exp_id, "fold": int(i), "date": str(ted[_j]),
+                                 "code": str(_codes[_j]), "y_true": int(yte[_j]),
+                                 "y_pred": float(ens_p[_j]), "fwd_ret": float(_fwd[_j])})
                 fold_means.append(float(np.mean(aucs)))
                 fold_sizes.append((len(tr), len(te)))
                 rec["folds"][f"fold{i}"] = {"train_rows": len(tr), "test_rows": len(te),
@@ -884,6 +914,19 @@ def main():
         results.append(rec)
         with open(out_path, "a") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    # ── 확률 덤프 저장(파일 핸들을 오래 열지 않는다: 중단돼도 손상 없음) ──────────
+    if args.dump_preds:
+        try:
+            _dd = os.path.dirname(args.dump_preds)
+            if _dd:
+                os.makedirs(_dd, exist_ok=True)
+            with open(args.dump_preds, "w") as f:
+                for _r in dump_recs:
+                    f.write(json.dumps(_r, ensure_ascii=False) + "\n")
+            print(f"preds dumped: {args.dump_preds} ({len(dump_recs)} rows)", flush=True)
+        except Exception as e:      # 덤프 실패가 AUC 판정을 막아서는 안 된다
+            print(f"preds dump 실패({type(e).__name__}: {e})", flush=True)
 
     ok = [r for r in results if r.get("status") == "ok"]
     ok.sort(key=lambda r: -r["auc_mean"])

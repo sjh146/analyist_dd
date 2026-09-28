@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-28T18:24:36+09:00",
+  "updated_at": "2026-09-28T20:05:42+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -4092,7 +4092,7 @@
     {
       "id": "CG19",
       "title": "게이트 ON(생산 경로)에서 '라벨 꼬리 두께' 축이 살아남는가 — q0.10/0.05 vs q0.30 · 5폴드×10시드",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "affects_model": true,
       "baseline": {
@@ -4115,7 +4115,247 @@
       "cost": "약 6~10분 (3 config×5폴드×10시드=150 cell · CG18 150 cell=6.9분 실측)",
       "success": "CO_q05_h5 − CO_core30_h5 폴드 짝 Δ ≥ +0.02 이고 양(+) 폴드 ≥ 4/5 → 게이트 통과 확인 → 라벨 후보로 등록(승격은 dry-run 별도). Δ ≤ +0.01 이면 '게이트가 꼬리 이득도 삼킨다'로 기록하고 게이트 구성(CORE_FEATURES 48) 자체를 승인 항목으로 올린다.",
       "expected": "게이트 비용 −0.005~−0.010 을 감안하면 Δ +0.03 내외. 시드 10으로 q05 의 std 0.0335 를 절반으로 줄이는 것이 목적.",
-      "note": "2026-09-28 18:3x 신설(CG18 직후). 주의: q 를 좁히면 AUC 가 오르는 것은 '더 극단적인 양성'을 맞히는 과제가 되기 때문일 수 있다(과제 정의 효과). 트레이더가 실제로 사는 상위 k 종목의 정밀도(precision@k)는 별도 측정이 필요하다 — 현 스윕은 예측 확률을 저장하지 않으므로 후속 항목으로 등록할 것."
+      "note": "2026-09-28 18:3x 신설(CG18 직후). 주의: q 를 좁히면 AUC 가 오르는 것은 '더 극단적인 양성'을 맞히는 과제가 되기 때문일 수 있다(과제 정의 효과). 트레이더가 실제로 사는 상위 k 종목의 정밀도(precision@k)는 별도 측정이 필요하다 — 현 스윕은 예측 확률을 저장하지 않으므로 후속 항목으로 등록할 것.",
+      "attempts": [
+        {
+          "ts": "2026-09-28T19:09:55+09:00",
+          "rc": 0,
+          "verdict": "신호있음",
+          "detail": "가설 CO_q05_h5 0.5575 vs 대조군 CO_core30_h5 0.5105 → Δ+0.0470 (최고: CO_q05_h5 0.5575)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG19_20260928-190150.log",
+          "elapsed_min": 8.1
+        }
+      ],
+      "result": {
+        "verdict": "신호있음",
+        "detail": "가설 CO_q05_h5 0.5575 vs 대조군 CO_core30_h5 0.5105 → Δ+0.0470 (최고: CO_q05_h5 0.5575)",
+        "delta": 0.047,
+        "per_exp": {
+          "CO_core30_h5": {
+            "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5178,
+              0.5137,
+              0.4861,
+              0.5067,
+              0.5284
+            ],
+            "mean": 0.5105,
+            "std": 0.0141,
+            "min": 0.4861,
+            "max": 0.5284,
+            "fold_win_rate": 0.8
+          },
+          "CO_q10_h5": {
+            "desc": "게이트 ON + 분위0.10 — 49종목 q0.30 과 같은 15 pos/일 밀도",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5206,
+              0.5549,
+              0.4557,
+              0.5235,
+              0.55
+            ],
+            "mean": 0.5209,
+            "std": 0.0354,
+            "min": 0.4557,
+            "max": 0.5549,
+            "fold_win_rate": 0.8
+          },
+          "CO_q05_h5": {
+            "desc": "게이트 ON + 분위0.05 — 극단 꼬리(게이트 OFF 실측 Δ+0.0420)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5433,
+              0.5768,
+              0.5539,
+              0.5078,
+              0.6059
+            ],
+            "mean": 0.5575,
+            "std": 0.0329,
+            "min": 0.5078,
+            "max": 0.6059,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG20",
+      "title": "라벨 꼬리(q0.05) 레버의 폴드 구조 견고성 — 10폴드 확장창에서 게이트 ON 짝 Δ 가 유지되는가",
+      "status": "done",
+      "priority": 1,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5105,
+        "source": "CG19 같은 런 게이트 ON 대조군 CO_core30_h5(5폴드×10시드, 0.5105±0.0141)"
+      },
+      "hypothesis": "CG19(2026-09-28 19:09)는 게이트 ON 에서 CO_q05_h5 0.5575±0.0329 vs CO_core30_h5 0.5105±0.0141 = Δ+0.0470(폴드 5/5 양(+))로, 32사이클 만에 처음으로 **같은 런·승격 경로에서** 사전문턱 +0.02 를 넘긴 레버다(라벨 꼬리 두께 q). 이게 5폴드라는 단일 분할 구조의 우연인지 확인한다.",
+      "evidence": "CG19 실측(panel_150u·게이트 ON·5폴드×10시드·8.1분): q0.30 0.5105±0.0141(행 24,742) · q0.10 0.5209±0.0354(행 8,247) · q0.05 0.5575±0.0329(행 4,399, min 0.5078 max 0.6059, 폴드승률 1.0). 폴드별 q05−q30 = [+0.0255, +0.0631, +0.0678, +0.0011, +0.0775]. 날짜별 횡단면 AUC 0.5617(pooled 0.5575, gap 0.0042 ≤ 0.01) → 날짜 구성 아티팩트 아님. 게이트 비용: CG18(게이트 OFF) q05 0.5609 → CG19(게이트 ON) 0.5575 = −0.0034(타 런·타 시드라 약한 비교).",
+      "method": "같은 패널(panel_150u)·같은 시드에서 folds=10 으로 3-arm 동일 런: CO_core30_h5(대조군) · CO_q05_h5 · LS_quant_q05_h5(게이트 OFF 대조 — 같은 런에서 게이트 비용을 직접 측정). 판정은 폴드 짝 Δ(q05 − q30) 와 부호검정.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 10 --seeds 5 --only CO_core30_h5,CO_q05_h5,LS_quant_q05_h5'",
+      "arm": "CO_q05_h5",
+      "counterfactual": "CO_core30_h5",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "wf_sweep_summary",
+      "est_minutes": 12,
+      "cost": "약 8~12분 (3 config×5폴드×10시드=150 cell · CG19 150 cell=8.1분 실측). folds=10 이면 3×10×5=150 cell 동일.",
+      "success": "폴드 짝 Δ(q05−q30) ≥ +0.02 이고 양(+) 폴드 ≥ 8/10, 그리고 날짜별 AUC gap ≤ 0.01 → 라벨 꼬리 레버 확정 → 생산 경로 옵션 구현(CG9 확장)+precision@k(CG21)로 승격 검토. 미달(양(+) ≤ 6/10)이면 5폴드 특이로 기록하고 축 종료.",
+      "expected": "미지 — 행 수가 q0.05 에서 4,399행(150종목·280일)이라 폴드별 학습표본이 급감해 분산이 크다.",
+      "note": "2026-09-28 19:1x 신설(CG19 직후). pairs(구간 짝) 설계를 쓰지 않는 이유: 유니버스가 동일해 CG13 류 '유니버스 교체 잡음'이 원리적으로 없고, 이 축의 교란 요인은 폴드/시간 구조다 → 폴드 수를 2배로 늘려 그 구조 의존성을 직접 본다. 같은 런에 게이트 OFF arm 을 넣어 게이트 비용도 타 런 비교 없이 측정한다.",
+      "attempts": [
+        {
+          "ts": "2026-09-28T19:25:57+09:00",
+          "rc": 0,
+          "verdict": "신호있음",
+          "detail": "가설 CO_q05_h5 0.5642 vs 대조군 CO_core30_h5 0.5161 → Δ+0.0481 (최고: CO_q05_h5 0.5642)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG20_20260928-191456.log",
+          "elapsed_min": 11.0
+        }
+      ],
+      "result": {
+        "verdict": "신호있음",
+        "detail": "가설 CO_q05_h5 0.5642 vs 대조군 CO_core30_h5 0.5161 → Δ+0.0481 (최고: CO_q05_h5 0.5642)",
+        "delta": 0.0481,
+        "per_exp": {
+          "LS_quant_q05_h5": {
+            "desc": "분위0.05 h5 top30 — 극단 꼬리(7 positive/일). 표본 급감 주의",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5358,
+              0.5038,
+              0.5635,
+              0.6118,
+              0.6534,
+              0.5314,
+              0.5208,
+              0.5363,
+              0.4831,
+              0.6649
+            ],
+            "mean": 0.5605,
+            "std": 0.0591,
+            "min": 0.4831,
+            "max": 0.6649,
+            "fold_win_rate": 0.9
+          },
+          "CO_core30_h5": {
+            "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4912,
+              0.5157,
+              0.5284,
+              0.5123,
+              0.5208,
+              0.5052,
+              0.481,
+              0.5673,
+              0.4982,
+              0.541
+            ],
+            "mean": 0.5161,
+            "std": 0.0239,
+            "min": 0.481,
+            "max": 0.5673,
+            "fold_win_rate": 0.7
+          },
+          "CO_q05_h5": {
+            "desc": "게이트 ON + 분위0.05 — 극단 꼬리(게이트 OFF 실측 Δ+0.0420)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5753,
+              0.5649,
+              0.5587,
+              0.5543,
+              0.6105,
+              0.525,
+              0.4974,
+              0.5562,
+              0.5606,
+              0.639
+            ],
+            "mean": 0.5642,
+            "std": 0.0375,
+            "min": 0.4974,
+            "max": 0.639,
+            "fold_win_rate": 0.9
+          }
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG21",
+      "title": "라벨 꼬리 이득의 실질성 — 상위 k 정밀도(precision@k)·기대수익 (셋업 완료)",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "setup_done": "완료(2026-09-28 20:0x): ① scripts/wf_label_sweep.py 에 --dump-preds <path> 신설 — 폴드별 앙상블 확률·실현 선행수익을 (exp, fold, date, code, y_true, y_pred, fwd_ret) jsonl 로 저장(기본 None → 기존 실행 무영향, 검증: 2폴드 스모크에서 19,285행 덤프 확인) ② scripts/topk_precision.py 신설 — 날짜별 top-k 정밀도·바스켓 기대수익, (fold,date) 짝 Δ, 동점 제외 부호검정 ③ scripts/_topk_precision_test.py 5/5 PASS(합성값 대조: 자체 후보집합 Δ−0.5000 · 공통집합 Δ+0.0000 · 포화 감지 · 동점 집계 · JSON 산출).",
+      "baseline": {
+        "value": 0.5105,
+        "source": "CG19 같은 런 CO_core30_h5(게이트 ON·5폴드×10시드)"
+      },
+      "hypothesis": "q 를 좁혀 AUC 가 오르는 것이 '더 극단적인 양성을 맞히는 과제'가 되어서인지, 실제로 트레이더가 사는 상위 k 종목의 적중률·기대수익이 올라서인지 분해한다. AUC 는 순위 지표라 과제 정의가 바뀌어도 값이 비교되지만, 매매는 상위 k 만 사므로 precision@k 가 최종 KPI 다.",
+      "evidence": "CG19: q0.05 0.5575 vs q0.30 0.5105(Δ+0.0470, 폴드 5/5) · CG20(10폴드): 0.5642±0.0375 vs 0.5161±0.0239(Δ+0.0481, 폴드 짝 9/10, 부호검정 p=0.0215) · 게이트 비용 +0.0037. 행 수 24,742 → 4,399(양성 밀도 45/일 → 7/일). 트레이더 실계좌 한도: 일 3건·종목 10%·동시 3종목 → k=3 이 실제 매매 단위.",
+      "method": "panel_150u 게이트 ON 2-arm(CO_core30_h5·CO_q05_h5)을 --dump-preds 로 돌린 뒤, (fold,date) 별 **실현수익 양쪽 꼬리 공통집합**(--restrict-q 0.05) 위에서 두 arm 을 채점한다. 각자 후보집합 채점은 분모가 달라 금지(합성 실측: Δ−0.5 로 뒤집힘). k=3·5 를 주 지표로, k=10 은 포화 확인용.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 2400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 3 --only CO_core30_h5,CO_q05_h5 --dump-preds /app/scripts/_preds_CG21.jsonl' && python3 scripts/topk_precision.py /app/scripts/_preds_CG21.jsonl --k 3,5,10 --arm CO_q05_h5 --control CO_core30_h5 --restrict-q 0.05 --json-out data/reports/me_cycle/topk_CG21.json",
+      "arm": "CO_q05_h5",
+      "counterfactual": "CO_core30_h5",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "wf_sweep_summary",
+      "est_minutes": 20,
+      "cost": "실행 8분(2 config×5폴드×3시드=30 cell) + 집계 수초. (셋업은 완료 — 2026-09-28)",
+      "success": "공통 후보집합에서 k=3·5 의 Δprec 짝 평균 ≥ +0.05 이고 동점제외 부호검정 p < 0.05, 그리고 Δ바스켓 기대수익 > 0 → 라벨 꼬리 레버가 '과제 난이도 효과'가 아님을 확인, 승격 검토로 올린다. Δprec ≤ +0.02 또는 부호 불일치면 난이도 효과로 판정하고 라벨 축 종료.",
+      "expected": "미지 — q0.05 는 실제 상위 5% 만 양성이라 공통집합(≈15행/일)에서 top-10 정밀도는 포화한다. k=3·5 만 해석할 것.",
+      "caution": "① k=10 은 포화(스모크 실측: 동점 182/182, Δprec +0.0000) → 해석 금지. ② 정밀도는 이산이라 동점이 흔하다 — 부호검정은 동점 제외값(n_eff)으로만 읽는다. ③ --dump-preds 파일은 /app/scripts(=호스트 scripts/)에 쓴다: 컨테이너 reports/ 는 root 소유라 호스트 python 이 쓸 수 없다. ④ 이 결과는 보조 KPI 다 — 북극성(AUC) 판정을 대체하지 않는다.",
+      "note": "2026-09-28 19:1x 신설(CG19 직후) → 같은 날 20:0x 셋업 완료·pending 승격. CG20 통과 후 착수. 셋업 중 발견한 집계 함정 2개(분모·포화)는 코드에 반영·검증 완료."
+    },
+    {
+      "id": "CG22",
+      "title": "라벨 꼬리(q0.05) 레버의 유니버스 재현 — 생산 유니버스(49종목·panel_420_asofpatch)에서도 게이트 ON 짝 Δ 가 나오는가",
+      "status": "pending",
+      "priority": 2,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5363,
+        "source": "CG17 실측 같은 런 게이트 ON 대조군 CO_core30_h5(49종목·5폴드×??시드, 0.5363)"
+      },
+      "hypothesis": "CG19/CG20 은 전부 panel_150u(150종목)에서 나온 신호다. 과거 조정 축 신호가 유니버스를 바꾸면 부호가 뒤집힌 전례(CG4 +0.0227 → CG5 −0.0109, CG14 구간 짝 −0.0057)가 있으므로, **생산 경로가 실제로 학습하는 49종목 유니버스**(train_curated.UNIVERSE_SQL = KOSDAQ 코드순 LIMIT 50)에서 같은 런 3-arm 으로 재현되는지 먼저 본다. 재현되지 않으면 라벨 꼬리 레버는 승격 후보가 아니라 '150종목 패널 특이'로 기록한다.",
+      "evidence": "CG18/CG19/CG20 은 panel_150u 단일 패널 실측이다. 유니버스가 성능을 지배한 실측 이력: CG12(25→150종목 단조 하락) · CG13(서로소 30종목 구간 폴드 평균 0.5204→0.4917, 총폭 0.0287 = 사전문턱 +0.02 보다 큼) · CG14(같은 후보를 구간 짝으로 재판정하면 Δ 평균 −0.0057). 즉 '한 유니버스에서 +0.02' 만으로는 승격 근거가 못 된다.",
+      "method": "panel_420_asofpatch(49종목·210피처·281거래일, 등록 기준선 패널)에서 게이트 ON 3-arm 동일 런: CO_core30_h5(q0.30 대조군) · CO_q10_h5(중간점) · CO_q05_h5. 판정은 폴드 짝 Δ(q0.05−q0.30) 와 부호검정(게이트 ON 이므로 게이트 비용 교란 없음).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 10 --only CO_core30_h5,CO_q10_h5,CO_q05_h5'",
+      "arm": "CO_q05_h5",
+      "counterfactual": "CO_core30_h5",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "wf_sweep_summary",
+      "est_minutes": 12,
+      "cost": "약 6~10분(3 config×5폴드×10시드=150 cell). 49종목 q0.05 는 행 1,400 안팎이라 폴드당 학습표본이 작다.",
+      "success": "폴드 짝 Δ(q0.05−q0.30) ≥ +0.02 이고 양(+) 폴드 ≥ 4/5 → 유니버스 무관 재현 → CG21(실질성)과 함께 승격 검토로 올린다. |Δ| < 0.02 또는 부호 불일치 → '150종목 패널 특이'로 닫고 라벨 축 종료(무개선 카운터가 그대로 돈다).",
+      "expected": "미지 — 49종목 q0.05 는 양성 2.5/일(150종목 7.35/일)로 꼬리가 훨씬 얇아 AUC 분산이 크다. 밀도가 달라 절대 AUC 는 150종목 값과 비교하지 않는다(같은 런 짝만).",
+      "caution": "① 꼬리 두께 q 는 '양성 밀도'를 유니버스 크기에 비례해 바꾼다 → 150종목 q0.05(7.35/일)와 49종목 q0.05(2.5/일)는 같은 과제가 아니다. 중간점 CO_q10_h5(4.9/일)로 단조성을 본다. ② q0.05 는 행이 1,400 안팎 → 폴드 std 가 커진다(단일 폴드로 판정 금지).",
+      "note": "2026-09-28 20:0x 신설(CG20 통과 후속). 순서: CG21(실질성) → CG22(유니버스 재현). 둘 다 통과해야 '승격 후보'이며 승격 자체는 champion_promote --dry-run 별도 판단."
     }
   ]
 }

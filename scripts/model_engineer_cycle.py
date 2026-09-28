@@ -68,6 +68,12 @@ HOLIDAY_PATH = os.path.join(PROJ, "data/krx_holidays.json")
 RECREATE_WEEKDAYS = (1, 2, 3, 4, 5)     # cron 의 1-5 = 월~금
 RECREATE_HOUR = 20
 RECREATE_SAFETY_MIN = 10                # 재생성 10분 전부터는 새로 시작하지 않는다
+# 재생성 **직후** 창 — 20:00 정각에 뜬 틱이 '창을 넘지 않는' 짧은 실험(8~12분)을 시작하면
+# 컨테이너 교체(SIGKILL 137)에 그대로 노출된다. eta_blocks 는 '예상 종료가 창을 넘는가'만
+# 보므로 이 경로를 못 막는다. full_pipeline_dd.sh 는 running.pid 가 있으면 xgboost-ml 을
+# 재생성에서 제외하지만, 파이프라인이 pidfile 을 읽는 시점(20:00:0x)과 우리가 쓰는 시점의
+# 경쟁이라 보장이 아니다(실측 2026-09-25 20:00:16 U1 rc=137). 그래서 창 앞뒤로 시작을 막는다.
+RECREATE_GRACE_MIN = 12                 # 20:00~20:12 은 시작 금지(다음 틱에서 재시도)
 RETRY_MAX = 3                           # 인프라 사고(소실·타임아웃) 재시도 상한
 
 
@@ -210,6 +216,23 @@ def market_note(dt=None) -> str:
     return "장중(09:00~15:30) — 트레이더/피드가 CPU 우선"
 
 
+def in_recreate_window(dt=None) -> bool:
+    """평일 20:00~20:12(컨테이너 재생성 창)인가 — 이 구간엔 **시작 자체**를 막는다.
+
+    왜: eta_blocks 는 '예상 종료가 창을 넘는가'만 본다 → 20:00 정각 틱은 8~12분짜리 실험을
+    통과시킨다(종료 20:08 < 다음 재생성 20:00+1일). 그런데 그 실험은 파이프라인의 docker
+    compose 재생성과 정면으로 겹친다(실측 2026-09-25 20:00:16 U1 rc=137).
+    full_pipeline_dd.sh 의 인플라이트 보호(running.pid 있으면 xgboost-ml 제외)는 pidfile 을
+    읽는 시점 경쟁이 있어 보장이 아니므로, 시작을 창 밖으로 미룬다(손실 = 틱 1회 지연).
+    --force 로도 뚫지 않는다: 이건 우리 부하가 아니라 **외부 이벤트**라서다(장중 가드와 같은 성격).
+    """
+    dt = dt or now_kst()
+    if dt.isoweekday() not in RECREATE_WEEKDAYS:
+        return False
+    t = (dt.hour, dt.minute)
+    return (RECREATE_HOUR, 0) <= t < (RECREATE_HOUR, RECREATE_GRACE_MIN)
+
+
 def load1():
     try:
         return os.getloadavg()[0]
@@ -287,6 +310,10 @@ def guards(force=False, item=None) -> tuple:
         return False, f"다른 역할이 실행 중(pid={pid}, {rel}) — CPU 직렬화를 위해 대기"
     if not container_up():
         return False, f"{CONTAINER} 컨테이너가 떠 있지 않음"
+    if in_recreate_window():
+        return False, (f"컨테이너 재생성 창({RECREATE_HOUR:02d}:00~{RECREATE_HOUR:02d}:"
+                       f"{RECREATE_GRACE_MIN:02d}, 평일 저녁 파이프라인 docker compose up -d)"
+                       f" — 시작하지 않음 · 다음 틱에서 재시도")
     blocked, why = eta_blocks(item)
     if blocked and not force:
         return False, why
