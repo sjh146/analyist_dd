@@ -22,7 +22,33 @@
    └→ 모델엔지니어(평일 22:00, context_from=리서처)
           └→ 트레이더(평일 08:20, context_from=모델엔지니어)
                  └→ 리뷰보드(매일 22:40, context_from=리서처+엔지니어+트레이더)
+
+장외 자율 틱(사람 없이 굴러가는 부분 — 각자 자기 백로그를 앞에서부터 실행)
+   리서처 틱   : scripts/res_cron_tick.sh → scripts/researcher_cycle.py --tick   (16,18,20,22,0,2,4,6시)
+   엔지니어 틱 : scripts/me_cron_tick.sh  → scripts/model_engineer_cycle.py --tick (16~07시 매시)
+   트레이더 틱 : scripts/tr_cron_tick.sh  → scripts/trader_cycle.py --tick        (평일 9,11,13,15시 25분)
+   트레이더 장마감: quant-trader-postclose(평일 15:10)
 ```
+
+### 트레이더 자율 사이클 (scripts/trader_cycle.py) — 2026-09-28 신설
+
+세 역할 중 트레이더만 **구동기·백로그·원장이 없어서** 협업 계약 3번(트레이더 → 리서처 환류)이
+사람 손으로만 이뤄졌다. 이 사이클이 그 구멍을 메운다(리서처·엔지니어와 같은 규약: 항목마다
+재현 명령 + 수치 check, 판정은 산출물에서 직접).
+
+- 산출물: `docs/QUANT_TRADER_BACKLOG.json` · `data/reports/trader_ledger.jsonl` ·
+  로그 `data/reports/tr_cycle/`
+- 측정(북극성): 저널을 **/tmp 로 복사해** 읽어(드라이브+WAL 직접 읽기 금지) 청산 건수·승률·
+  기대값·수수료·보유·회전 + `loop_state.json`/브리지 `/health` 로 실행 경로 생존을 본다.
+- 실행 계약 점검: `data/feed/*.json` 계약(필수 필드·신선도), 킬스위치 파일, 한도 설정.
+- **환류(자동 핸드오프)**: ① 피드 계약 위반·스크리너 기여도 → 리서처 백로그(`from_trader`)
+  ② 검증 성적표 미비(폴드 통계·purge·승격 dry-run 누락) → 엔지니어 백로그(`from_trader`)
+  ③ 요약은 `docs/QUANT_FINDINGS.md` 에 append. 중복은 provenance 키로 막는다.
+- 가드: 동시 실행 금지(running_pid + peer_running) · load1 > 6 이면 양보.
+  **장중 금지는 적용하지 않는다** — 세션 중/직후 측정이 본업이고 CPU 를 쓰지 않기 때문
+  (공용 `guards()` 의 장중 차단은 학습 역할 보호용이다).
+- 권한: **주문·취소·전략 파라미터 변경 금지**(측정·검증·환류만). 트레이더에이전트 워크스페이스는
+  읽기 전용. 미달(failed) 항목은 12시간 뒤 자동으로 pending 으로 돌아 재측정된다.
 
 각 역할은 자기 실행 결과를 이 문서의 **"현재 상태"** 절과 아래 핸드오프 로그에 남긴다.
 

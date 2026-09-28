@@ -432,6 +432,22 @@
           "detail": "[조사]R16: 2 >= 1 → 충족 | 증거: days_to_cover                    0.0000   1.0000        0   1.0000  universe_missing(원천 부족 — 피처 결함 아님) | → SELECTABLE 2개: relative_strength, bb_position | → JSON: data/reports/r16_window_coverage.json (feature_coverage 에는 쓰지 않음 — 창 정의가 전역 기준선을 뒤집는다)"
         }
       ]
+    },
+    {
+      "id": "T17",
+      "title": "[트레이더 환류] 스크리너별 실현 성과 — 어느 데이터가 기여했는지 확인 필요",
+      "status": "backlog",
+      "priority": 8,
+      "from_trader": "screener-attribution",
+      "affects_model": false,
+      "hypothesis": null,
+      "command": null,
+      "metric": null,
+      "check": null,
+      "evidence": "트레이더 사이클 환류: 스크리너별 실현: rank_momentum: 30건 -5,149원, : 2건 -9,090원",
+      "success": null,
+      "cost": null,
+      "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다."
     }
   ]
 }

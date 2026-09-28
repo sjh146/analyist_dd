@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "updated_at": "2026-09-28T14:06:34+09:00",
+  "owner": "quant-trader",
+  "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
+  "rules": [
+    "판정은 산출물에서 직접 읽는다 — 저널(SQLite), 브리지 /health·/positions, 피드 파일, loop_state.json. 자기신고 금지.",
+    "저널은 /mnt/c drvfs+WAL 이라 직접 못 읽는다 → /tmp 로 .sqlite3+(-wal)+(-shm) 복사 후 read-only 로 연다(trader_cycle.measure 가 강제).",
+    "**실주문·주문취소·전략 파라미터 변경은 이 사이클의 권한 밖**이다(보드 §권한). 여기서는 측정·검증·환류만 한다.",
+    "트레이더에이전트 워크스페이스(/mnt/c/.../trader-agent)는 **읽기 전용**으로만 만진다. 프로세스 시작·종료 금지.",
+    "실현 손익은 %가 아니라 **원(₩)** 으로 본다(포지션 크기가 달라 %가 기만적: 실측 +0.32% / -7,839원).",
+    "실패도 자산이다: status=failed 도 result(수치·stdout 꼬리)를 남긴다."
+  ],
+  "items": [
+    {
+      "id": "T1",
+      "title": "청산 수수료·세금이 저널에 반영되는가 (fees 컬럼 실측)",
+      "status": "failed",
+      "priority": 1,
+      "command": "python3 scripts/trader_cycle.py --probe fees",
+      "metric": "fees_sum",
+      "check": {
+        "op": ">=",
+        "value": 1
+      },
+      "hypothesis": "fees=0 이면 실현 손익이 수수료·거래세를 빼지 않은 값이라 실제 순손익보다 낙관적이다(모의투자라도 회계 규칙은 같아야 한다).",
+      "evidence": "2026-09-25 리뷰보드 실측: 청산 31건 전부 fees=0 → 수수료·세금 미반영.",
+      "success": "fees_sum >= 1 (건당 수수료가 기록됨)",
+      "cost": "저",
+      "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다.",
+      "result": {
+        "ts": "2026-09-28T13:59:28+09:00",
+        "value": 0.0,
+        "check": "0.0 >= 1.0",
+        "verdict": "미달",
+        "rc": 0,
+        "stdout_tail": "0.0",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "id": "T2",
+      "title": "회전 정지 감지 — 마지막 진입 경과일",
+      "status": "failed",
+      "priority": 2,
+      "command": "python3 scripts/trader_cycle.py --probe rotation",
+      "metric": "last_entry_age_days",
+      "check": {
+        "op": "<=",
+        "value": 3
+      },
+      "hypothesis": "신규 진입이 3일 이상 없으면 전략이 사실상 멈춘 것이다(보유만 청산 규칙으로 굴러가는 상태).",
+      "evidence": "실측: 마지막 진입 2026-09-21 14:52 → 2026-09-28 기준 6.7일. 같은 기간 청산 0건.",
+      "success": "마지막 진입 경과일 <= 3",
+      "cost": "저",
+      "note": "원인이 피드 신선도인지 실행 경로인지 구분해서 리서처/엔지니어로 환류한다.",
+      "result": {
+        "ts": "2026-09-28T14:04:02+09:00",
+        "value": 6.97,
+        "check": "6.97 <= 3.0",
+        "verdict": "미달",
+        "rc": 0,
+        "stdout_tail": "6.97",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "id": "T3",
+      "title": "피드 계약 위반 0건 유지 (필수 필드·신선도)",
+      "status": "done",
+      "priority": 3,
+      "command": "python3 scripts/trader_cycle.py --probe feed",
+      "metric": "feed_contract_violations",
+      "check": {
+        "op": "<=",
+        "value": 0
+      },
+      "hypothesis": "발행물이 계약(필수 필드·신선도)을 어기면 소비 측이 조용히 후보를 버린다 — 2026-09-28 실측: 연휴로 후보 0건 발행(가드 정상).",
+      "evidence": "FEED_CONTRACT.md 9절 계약 검증 + data/feed/*.json 실측.",
+      "success": "위반 0건",
+      "cost": "저",
+      "note": "위반이 잡히면 리서처 백로그로 환류(어떤 데이터가 신선도/필드를 못 맞추는지).",
+      "result": {
+        "ts": "2026-09-28T14:06:34+09:00",
+        "value": 0.0,
+        "check": "0.0 <= 0.0",
+        "verdict": "충족",
+        "rc": 0,
+        "stdout_tail": "0.0",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "id": "T4",
+      "title": "실행 감시 단절 감지 — loop_state 갱신 지연",
+      "status": "pending",
+      "priority": 4,
+      "command": "python3 scripts/trader_cycle.py --probe stale",
+      "metric": "loop_stale_min",
+      "check": {
+        "op": "<=",
+        "value": 12
+      },
+      "hypothesis": "루프가 돌지 않거나 죽으면 loop_state.json 갱신이 멈춘다 — 보유 포지션이 무감시가 된다.",
+      "evidence": "2026-09-28 실측: 브리지가 08:50경 사라져 루프가 09:0x halt → 13:29 프로세스 소멸, 보유 10건이 장중 내내 무관리(감독 작업 도입 계기).",
+      "success": "갱신 지연 <= 12분 (장중 300초 사이클 기준)",
+      "cost": "저",
+      "note": "장외·휴장 시간에는 지연이 정상이므로 판정 시 장중 여부를 함께 본다."
+    },
+    {
+      "id": "T5",
+      "title": "건당 기대값 흑자 전환",
+      "status": "pending",
+      "priority": 5,
+      "command": "python3 scripts/trader_cycle.py --probe expectancy",
+      "metric": "expectancy_krw",
+      "check": {
+        "op": ">",
+        "value": 0
+      },
+      "hypothesis": "건당 기대값이 음수면 매매 횟수를 늘릴수록 손실이 커진다 — 전략/피처/사이징 중 어디를 고쳐야 하는지가 핵심 질문이다.",
+      "evidence": "실측: 청산 31건 실현 -7,839원 → 기대값 -253원/건. 승률 38.7%.",
+      "success": "expectancy_krw > 0",
+      "cost": "저",
+      "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요)."
+    }
+  ]
+}
