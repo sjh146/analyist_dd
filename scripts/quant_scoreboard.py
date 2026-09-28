@@ -28,8 +28,10 @@ import argparse
 import glob
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
+import tempfile
 from datetime import datetime, timedelta, timezone
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -81,7 +83,33 @@ def _jsonl(path: str) -> list[dict]:
     return out
 
 
+def _num(v, spec: str = "+,") -> str:
+    """None 안전 숫자 포맷. 값이 없으면 'n/a' — None 에 포맷을 걸면 TypeError 로 죽는다
+    (실측 2026-09-28: 저널을 못 읽어 realized_krw=None 인데 :+, 를 걸어 크래시)."""
+    return format(v, spec) if isinstance(v, (int, float)) else "n/a"
+
+
 # ── 트레이더: 돈 ────────────────────────────────────────────────────────────
+def _copy_journal_local() -> tuple[str, str]:
+    """LIVE 저널을 로컬(/tmp)로 **복사**해서 읽는다. 원본은 절대 건드리지 않는다.
+
+    WHY: 저널은 Windows drvfs(/mnt/c) 위에 있고 트레이더가 WAL 모드로 계속 쓴다.
+    drvfs 는 파일 락·mmap 을 제대로 지원하지 않아 sqlite3 가 직접 읽으면
+    'disk I/O error' 를 내고, 본체에 아직 체크포인트되지 않은(-wal 에만 있는) 행은
+    아예 안 보인다. 실측 2026-09-28: 직접 열면 error='저널 읽기 실패: disk I/O error'.
+    본체 + -wal + -shm 세 개를 함께 복사해 로컬에서 read-only 로 열면 정상(41행/청산 32건).
+
+    반환: (tmpdir, 복사본 경로) — 호출자가 **반드시** finally 에서 tmpdir 를 지운다.
+    """
+    tmpdir = tempfile.mkdtemp(prefix="qsb_journal_")
+    dst = os.path.join(tmpdir, os.path.basename(JOURNAL))
+    for suf in ("", "-wal", "-shm"):
+        src = JOURNAL + suf
+        if os.path.exists(src):
+            shutil.copy2(src, dst + suf)   # -wal/-shm 이 있어야 최신 미체크포인트 행이 보인다
+    return tmpdir, dst
+
+
 def trader_stanza() -> dict:
     """실현 순손익을 **원**으로. 청산된 거래만 돈이 확정된다."""
     st = {"role": "trader", "north": "실현 순손익(₩)", "source": JOURNAL,
@@ -91,17 +119,33 @@ def trader_stanza() -> dict:
     if not os.path.exists(JOURNAL):
         st["error"] = "저널 없음"
         return st
-    try:
-        conn = sqlite3.connect(f"file:{JOURNAL}?mode=ro", uri=True, timeout=10)
-        conn.row_factory = sqlite3.Row
-        closed = [dict(r) for r in conn.execute(
-            "SELECT * FROM trades WHERE exit_price IS NOT NULL AND exit_price > 0")]
-        opens = [dict(r) for r in conn.execute(
-            "SELECT * FROM trades WHERE exit_price IS NULL OR exit_price = 0")]
-        last_ts = conn.execute("SELECT MAX(ts) FROM trades").fetchone()[0]
-        conn.close()
-    except sqlite3.Error as exc:
-        st["error"] = f"저널 읽기 실패: {exc}"
+    # 저널이 안 읽혀도 **크래시하지 않고** None/0 으로 퇴화한다(판정 불가를 숨기지 않는다).
+    # 복사본이 읽는 도중 어긋날 수 있어(쓰는 쪽과 동시성) 2회 시도한다.
+    closed, opens, last_ts = None, None, None
+    last_exc: Exception | None = None
+    for _ in range(2):
+        tmpdir = None
+        try:
+            tmpdir, local = _copy_journal_local()
+            conn = sqlite3.connect(f"file:{local}?mode=ro", uri=True, timeout=10)
+            try:
+                conn.row_factory = sqlite3.Row
+                closed = [dict(r) for r in conn.execute(
+                    "SELECT * FROM trades WHERE exit_price IS NOT NULL AND exit_price > 0")]
+                opens = [dict(r) for r in conn.execute(
+                    "SELECT * FROM trades WHERE exit_price IS NULL OR exit_price = 0")]
+                last_ts = conn.execute("SELECT MAX(ts) FROM trades").fetchone()[0]
+            finally:
+                conn.close()
+            last_exc = None
+            break
+        except (sqlite3.Error, OSError) as exc:
+            last_exc = exc
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+    if last_exc is not None or closed is None or opens is None:
+        st["error"] = f"저널 읽기 실패 (drvfs+WAL — journal unreadable): {last_exc}"
         return st
 
     total, wins, rets = 0.0, 0, []
@@ -264,24 +308,26 @@ def fmt(st: dict, with_source: bool = True) -> str:
     L = []
     L.append(f"[퀀트 목표 사슬] {kst} — 최종 목표: 돈(순손익)")
     if t.get("error"):
-        L.append(f"💰 트레이더   : 측정 불가 ({t['error']})")
+        L.append(f"💰 트레이더   : 측정 불가 ({t['error']}) — 저널 {t['source']}")
     else:
-        L.append(f"💰 트레이더   : 순손익 {t['realized_krw']:+,}원 | {t['trades']}건 "
-                 f"승률 {t['win_rate']}% | 기대값 {t['expectancy_krw']:+,}원/건 | "
-                 f"보유 {t['open_positions']}종목 | 마지막 진입 {t['days_since_entry']}일 전")
+        L.append(f"💰 트레이더   : 순손익 {_num(t.get('realized_krw'))}원 | "
+                 f"{_num(t.get('trades'), '.0f')}건 승률 {_num(t.get('win_rate'), '.1f')}% | "
+                 f"기대값 {_num(t.get('expectancy_krw'))}원/건 | "
+                 f"보유 {_num(t.get('open_positions'), '.0f')}종목 | "
+                 f"마지막 진입 {_num(t.get('days_since_entry'), '.1f')}일 전")
     if e.get("best_robust") is None:
         L.append("📈 모델엔지니어: 로버스트 측정값 없음")
     else:
-        d = e["delta"]
+        d = e["delta"] or 0.0
         mark = "신호" if d >= SIGNAL_DELTA else ("유지" if d >= -0.005 else "악화")
-        L.append(f"📈 모델엔지니어: 로버스트 {e['best_robust']:.4f}"
+        L.append(f"📈 모델엔지니어: 로버스트 {_num(e.get('best_robust'), '.4f')}"
                  f"±{e['best_robust_std'] if e['best_robust_std'] is not None else '?'}"
-                 f" ({e['best_exp']}) vs 기준선 {e['baseline']:.4f} → Δ{d:+.4f} [{mark}]"
-                 f" | 챔피언 단일분할 {e['champion_single']}")
+                 f" ({e['best_exp']}) vs 기준선 {_num(e.get('baseline'), '.4f')} → Δ{d:+.4f} [{mark}]"
+                 f" | 챔피언 단일분할 {_num(e.get('champion_single'))}")
     L.append(f"🔬 퀀트리서처: DQ {r['status'] or 'n/a'} | 살아있는 피처 "
-             f"{r['alive_features']:.0f} / 죽은 {r['dead_features']:.0f} | "
-             f"종목상수 {r['stock_constant_ratio']:.3f} | 뉴스신선도 "
-             f"{r['news_freshness_hours']:.2f}h")
+             f"{_num(r.get('alive_features'), '.0f')} / 죽은 {_num(r.get('dead_features'), '.0f')} | "
+             f"종목상수 {_num(r.get('stock_constant_ratio'), '.3f')} | 뉴스신선도 "
+             f"{_num(r.get('news_freshness_hours'), '.2f')}h")
     if st["needs_human"]:
         L.append("[사람 개입 필요]")
         L.extend("  - " + x for x in st["needs_human"])
@@ -314,23 +360,28 @@ def main() -> int:
 
     if a.stanza == "trader":
         s = trader_stanza()
-        print(f"[북극성·트레이더] 순손익 {s['realized_krw']:+,}원 | 기대값 {s['expectancy_krw']:+,}원/건 | "
-              f"승률 {s['win_rate']}% | 보유 {s['open_positions']}")
+        if s["realized_krw"] is None:
+            # 저널을 못 읽어도 여기서 죽지 않는다 — '판정 불가'를 명시하고 rc=0 으로 돌려준다.
+            print(f"[북극성·트레이더] 측정 불가 — {s['error'] or '저널 판독값 없음'} | 저널 {s['source']}")
+        else:
+            print(f"[북극성·트레이더] 순손익 {s['realized_krw']:+,}원 | 기대값 {_num(s['expectancy_krw'])}원/건 | "
+                  f"승률 {_num(s['win_rate'], '.1f')}% | 보유 {s['open_positions']}")
         for x in s["alerts"]:
             print(f"  ⚠ {x}")
         return 0
     if a.stanza == "engineer":
         s = engineer_stanza()
-        print(f"[북극성·엔지니어] 로버스트 {s['best_robust']} vs 기준선 {s['baseline']} "
-              f"(Δ{s['delta']}) | 무개선 {s['no_improve_cycles']}사이클"
+        print(f"[북극성·엔지니어] 로버스트 {_num(s.get('best_robust'), '.4f')} vs 기준선 "
+              f"{_num(s.get('baseline'), '.4f')} (Δ{s.get('delta')}) | 무개선 {s['no_improve_cycles']}사이클"
               f" (측정 {s.get('measured_cycles')}·무효 {s.get('invalid_cycles')})")
         for x in s["alerts"]:
             print(f"  ⚠ {x}")
         return 0
     if a.stanza == "researcher":
         s = researcher_stanza()
-        print(f"[북극성·리서처] DQ {s['status']} | 살아 {s['alive_features']:.0f}/죽은 {s['dead_features']:.0f} "
-              f"| 뉴스 {s['news_freshness_hours']:.2f}h")
+        print(f"[북극성·리서처] DQ {s['status']} | 살아 {_num(s.get('alive_features'), '.0f')}"
+              f"/죽은 {_num(s.get('dead_features'), '.0f')} "
+              f"| 뉴스 {_num(s.get('news_freshness_hours'), '.2f')}h")
         for x in s["alerts"]:
             print(f"  ⚠ {x}")
         return 0
