@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-26T11:30:00+09:00",
+  "updated_at": "2026-09-28T20:20:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -8,7 +8,8 @@
     "KIS 실전 호출 제한 준수: 1.5~3.0초 + 지터, 토큰 발급 분당 1회.",
     "운영 DB **스키마 변경**(컬럼 추가·테이블 변경)은 승인 필요. 새 테이블도 포함.",
     "check 는 DQ 메트릭 또는 SQL 한 줄로 **수치**를 낸다 — '잘 됐다'는 자기평가를 쓰지 않는다.",
-    "모델에 영향이 있는 발견은 affects_model=true 로 표시 → 사이클이 모델엔지니어 백로그로 넘긴다(협업)."
+    "모델에 영향이 있는 발견은 affects_model=true 로 표시 → 사이클이 모델엔지니어 백로그로 넘긴다(협업).",
+    "점진 수집(incremental) 항목은 러너의 '부분 완료' 종료코드를 `resumable_rc` 로 **선언**한다(예: kis_supply_extend_history 는 호출 상한 도달 시 exit 3 = '다음 실행에서 재개'). 선언이 없으면 rc!=0 이 failed 로 기록되고 next_item 은 pending 만 보므로 그 항목이 큐에서 빠져 점진 수집이 조용히 멈춘다."
   ],
   "items": [
     {
@@ -102,16 +103,24 @@
           "ts": "2026-09-28T18:09:37+09:00",
           "rc": 2,
           "detail": "R3: 343 >= 500 → 미달"
+        },
+        {
+          "ts": "2026-09-28T18:44:31+09:00",
+          "rc": 3,
+          "detail": "R3: 378 >= 500 → 미달"
         }
       ],
       "result": {
-        "detail": "R3: 343 >= 500 → 미달",
-        "check_value": 343.0,
-        "rc": 2,
-        "log": "data/reports/res_cycle/logs/res_R3_20260928-180936.log"
+        "detail": "R3: 378 >= 500 → 미달",
+        "check_value": 378.0,
+        "rc": 3,
+        "log": "data/reports/res_cycle/logs/res_R3_20260928-182520.log"
       },
-      "check_note": "[2026-09-28 18:09 리서처] **결함 1 — 래퍼 인자 형식**: 종전 명령은 `run_with_claim.py kis_supply_extend_history -- python3 ...`(위치인자)였는데 현재 래퍼 CLI 는 `--runner NAME --table TABLE -- cmd` 를 요구한다 → argparse 오류로 1초 만에 rc=2 종료(수급은 늘지 않음). 이 항목은 09-25 이후 교차 락·부하로 틱이 계속 대기해 **한 번도 실행되지 않았고**, 첫 실행에서 드러났다. | [2026-09-28 18:10 리서처] **결함 2 — check 가 구조적으로 통과 불가**: `kis_supply_extend_history.py` 의 `read_codes()` 는 `--stocks`/`--stocks-file` 이 없으면 **foreign_institutional 에 이미 있는 종목만** 대상으로 잡는다(실측: 완료 318 / 남음 0). 즉 이 명령으로는 종목 수가 343 에서 **영원히** 늘지 않아 check(distinct >= 500)가 '고쳐도 못 통과하는 check'였다. → 800종목 유니버스 파일을 만들어 `--stocks-file data/kis/supply_universe_800.txt` 로 주입했다(비ETF·ETN, 최근 90일 시세 보유, 시가총액 상위 800 — 2026-09-28 생성, 800코드 검증). 이제 check 는 도달 가능하다. | [2026-09-28 18:2x 리서처] **상태 재설정(failed → pending)**: 18:09 실행의 rc=2 '미달'은 커맨드 결함(래퍼 인자 형식·유니버스 미지정) 때문이었고 둘 다 수정했다. 또한 이 실행에서 드러난 래퍼 자체의 결함 2건도 수정: ① `run_with_claim.py` 커넥션 autocommit — 종전에는 COUNT(*) 트랜잭션이 자식 실행 내내 열려 있어 kis-collector 의 `ALTER TABLE foreign_institutional ADD COLUMN` 을 막고, 그 ALTER 가 락 큐 앞에 서서 러너 INSERT 를 다시 막았다(수급 러너 250초 무한 대기) ② `parse_claim` 총계 줄 우선 — 항목별 +N행 과 총계가 함께 찍혀 claimed 238(실제 120)로 이중 계상됐다. 회귀 테스트: tests/test_run_with_claim_parse.py(4건, 통과).",
-      "universe": "data/kis/supply_universe_800.txt (800코드)"
+      "check_note": "[2026-09-28 18:09 리서처] **결함 1 — 래퍼 인자 형식**: 종전 명령은 `run_with_claim.py kis_supply_extend_history -- python3 ...`(위치인자)였는데 현재 래퍼 CLI 는 `--runner NAME --table TABLE -- cmd` 를 요구한다 → argparse 오류로 1초 만에 rc=2 종료(수급은 늘지 않음). 이 항목은 09-25 이후 교차 락·부하로 틱이 계속 대기해 **한 번도 실행되지 않았고**, 첫 실행에서 드러났다. | [2026-09-28 18:10 리서처] **결함 2 — check 가 구조적으로 통과 불가**: `kis_supply_extend_history.py` 의 `read_codes()` 는 `--stocks`/`--stocks-file` 이 없으면 **foreign_institutional 에 이미 있는 종목만** 대상으로 잡는다(실측: 완료 318 / 남음 0). 즉 이 명령으로는 종목 수가 343 에서 **영원히** 늘지 않아 check(distinct >= 500)가 '고쳐도 못 통과하는 check'였다. → 800종목 유니버스 파일을 만들어 `--stocks-file data/kis/supply_universe_800.txt` 로 주입했다(비ETF·ETN, 최근 90일 시세 보유, 시가총액 상위 800 — 2026-09-28 생성, 800코드 검증). 이제 check 는 도달 가능하다. | [2026-09-28 18:2x 리서처] **상태 재설정(failed → pending)**: 18:09 실행의 rc=2 '미달'은 커맨드 결함(래퍼 인자 형식·유니버스 미지정) 때문이었고 둘 다 수정했다. 또한 이 실행에서 드러난 래퍼 자체의 결함 2건도 수정: ① `run_with_claim.py` 커넥션 autocommit — 종전에는 COUNT(*) 트랜잭션이 자식 실행 내내 열려 있어 kis-collector 의 `ALTER TABLE foreign_institutional ADD COLUMN` 을 막고, 그 ALTER 가 락 큐 앞에 서서 러너 INSERT 를 다시 막았다(수급 러너 250초 무한 대기) ② `parse_claim` 총계 줄 우선 — 항목별 +N행 과 총계가 함께 찍혀 claimed 238(실제 120)로 이중 계상됐다. 회귀 테스트: tests/test_run_with_claim_parse.py(4건, 통과). | [2026-09-28 20:05 리서처] **결함 3 — 러너의 '재개' 신호를 실패로 오분류(점진 수집 정지)**: 18:25 실행은 정상이었다 — 로그가 `실행당 호출 상한(400) 도달 — 중단, 다음 실행에서 재개`, `연장 완료: +11967행`, `자기신고: 소스 12000 / 저장 11967 / 신규 11967 (일치)` 로 끝났고 foreign_institutional 이 343→**378종목/100,160행**으로 늘었다. 그런데 러너는 상한 도달 시 **exit 3** 을 반환하고(`kis_supply_extend_history.py:229 return 3 if hit_limit else 0` = '다음 실행에서 재개'), 구동기는 `rc != 0 → status=failed` 로 적었다. `next_item()` 은 **pending 만** 후보로 보므로 R3 가 큐에서 영구히 빠졌다 → 이후 틱은 R3 를 다시 집지 않고 500종목 목표에 도달하지 못한 채 378 에서 조용히 정지한다. 수정: `researcher_cycle.status_after()` + 항목별 `resumable_rc` 선언(이 항목에 `resumable_rc: [3]`) — 선언된 코드만 pending(재개)으로 되돌리고, 선언 밖의 rc(1/2=크래시·인자오류)는 종전대로 failed 다(진짜 실패를 부분 완료로 오독하지 않는다). 회귀 9건: tests/test_researcher_cycle_resumable_rc.py.",
+      "universe": "data/kis/supply_universe_800.txt (800코드) — **data/kis 는 gitignore** 라 사라지면 재생성해야 한다. 재생성(실측 재현율 786/800=98.3%): docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT s.stock_code FROM stocks s JOIN market_data m ON m.stock_code=s.stock_code WHERE s.instrument_type='STOCK' GROUP BY s.stock_code HAVING COUNT(*)>=250 ORDER BY MAX(s.market_cap) DESC NULLS LAST LIMIT 800\" > data/kis/supply_universe_800.txt",
+      "resumable_rc": [
+        3
+      ]
     },
     {
       "id": "R4",

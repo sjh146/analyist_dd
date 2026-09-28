@@ -268,6 +268,38 @@ def ensure_artifact(item, run_log):
     return True, f"저작 완료({target}) — 구문검사 통과", info
 
 
+def _resumable_rc(item):
+    """러너가 '부분 완료 — 다음 실행에서 재개'를 알리는 종료코드(항목별 선언). 미선언이면 빈 집합."""
+    v = item.get("resumable_rc") or []
+    if isinstance(v, int):
+        v = [v]
+    return tuple(int(x) for x in v)
+
+
+def status_after(item, rc, passed):
+    """실행 결과(rc·check 통과) → 백로그 상태.
+
+    WHY(`resumable_rc`, 2026-09-28 실측): 수집 러너는 자기 호출 상한에 걸리면 **스스로 부분 완료**로
+    끝난다 — `kis_supply_extend_history.py` 는 hit_limit 시 `return 3`("호출 상한 도달 — 중단, 다음
+    실행에서 재개")이다. 그런데 `rc != 0 → failed` 로 적으면 `base.next_item()` 이 **pending 만**
+    후보로 보므로 그 항목은 큐에서 영구히 빠진다. 실측: R3 가 343→378종목으로 진행 중이던 실행
+    (신규 11,967행 적재·자기신고 일치)이 rc=3 이었다는 이유로 failed 가 되어, 이후 틱들이 R3 를
+    다시 집지 않았다(= 점진 수집이 조용히 정지). 그래서 항목이 `resumable_rc` 로 "이 종료코드는
+    재개 신호"라고 **선언**한 경우에만 pending 으로 되돌린다. 기본값을 넓히지 않는 이유: 진짜 실패
+    (러너 크래시 = rc 1/2)를 부분 완료로 오독하면 이번엔 실패가 조용해진다.
+    """
+    if item.get("kind") == "investigate":
+        return "done" if rc == 0 else "failed"
+    if rc == 0 and passed:
+        return "done"
+    if rc == 0:
+        # 수집형은 목표 미달이면 partial — 다음 사이클에 이어서 수집한다(점진 수집이 정상).
+        return "pending" if item.get("incremental") else "partial"
+    if item.get("incremental") and rc in _resumable_rc(item):
+        return "pending"
+    return "failed"
+
+
 def execute(item, force=False):
     os.makedirs(RES_RUNTIME, exist_ok=True)
     ok, why = base.guards(force)
@@ -334,15 +366,11 @@ def execute(item, force=False):
     for it in b["items"]:
         if it["id"] == item["id"]:
             it.setdefault("attempts", []).append({"ts": rec["ts"], "rc": rc, "detail": detail})
-            if item.get("kind") == "investigate":
-                it["status"] = "done" if rc == 0 else "failed"
-            elif rc == 0 and passed:
-                it["status"] = "done"
-            elif rc == 0:
-                # 수집형은 목표 미달이면 partial — 다음 사이클에 이어서 수집한다(점진 수집이 정상).
-                it["status"] = "pending" if item.get("incremental") else "partial"
-            else:
-                it["status"] = "failed"
+            new_status = status_after(item, rc, passed)
+            if new_status == "pending" and rc != 0:
+                log(f"{item['id']}: rc={rc} 는 러너가 선언한 재개 신호(resumable_rc) "
+                    f"→ status=pending(다음 사이클에서 이어서 수집)")
+            it["status"] = new_status
             it["result"] = {"detail": detail, "check_value": val, "rc": rc, "log": rec["log"]}
     tmp = RES_BACKLOG + ".tmp"
     json.dump(b, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
