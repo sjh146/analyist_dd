@@ -105,3 +105,39 @@ def test_dotenv_get_reads_repo_value():
     val = rc._dotenv_get("POSTGRES_PASSWORD")
     assert isinstance(val, str)
     assert val != "" and " " not in val.strip()
+
+
+# ── 서비스 자격증명 폴백 (실측 2026-09-29 04:00 R19: 'KIS_APP_KEY/KIS_APP_SECRET 미설정') ──
+def test_kis_credentials_filled_from_dotenv(monkeypatch):
+    """수집 러너는 API 키가 없으면 토큰 발급 전에 즉시 죽는다 — 비어 있으면 .env 에서 채운다."""
+    monkeypatch.delenv("KIS_APP_KEY", raising=False)
+    monkeypatch.delenv("KIS_APP_SECRET", raising=False)
+    monkeypatch.setattr(rc, "_dotenv_get",
+                        lambda k: {"KIS_APP_KEY": "k-from-env",
+                                   "KIS_APP_SECRET": "s-from-env"}.get(k, ""))
+    e = rc._host_db_env()
+    assert e["KIS_APP_KEY"] == "k-from-env"
+    assert e["KIS_APP_SECRET"] == "s-from-env"
+
+
+def test_service_credentials_filled_even_for_remote_host(monkeypatch):
+    """DB 자격증명과 달리 API 키는 **대상 호스트를 가리키지 않는다** → 원격 좌표여도 채운다.
+
+    (자격증명을 원격 DB 에 조용히 쓰는 사고와 무관하다: KIS/DART 키는 어디에 붙어도 같은 서비스다.)
+    """
+    monkeypatch.delenv("DART_API_KEY", raising=False)
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)   # 셸에 .env 를 source 한 상태로 돌려도 같게
+    monkeypatch.setenv("POSTGRES_HOST", "db.internal")
+    monkeypatch.setattr(rc, "_dotenv_get",
+                        lambda k: "dart-from-env" if k == "DART_API_KEY" else "pw-from-env")
+    e = rc._host_db_env()
+    assert e["DART_API_KEY"] == "dart-from-env"
+    assert e.get("POSTGRES_PASSWORD", "") == ""      # DB 자격증명은 여전히 원격에 주입 금지
+
+
+def test_operator_kis_key_is_not_overwritten(monkeypatch):
+    """운영자가 명시한 키를 .env 값으로 갈아치우지 않는다(키 교체는 .env 가 아니라 승인 사항)."""
+    monkeypatch.setenv("KIS_APP_KEY", "explicit-key")
+    monkeypatch.setattr(rc, "_dotenv_get", lambda k: "from-file")
+    assert rc._host_db_env()["KIS_APP_KEY"] == "explicit-key"
+

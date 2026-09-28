@@ -68,3 +68,23 @@ def test_resumable_rc_accepts_scalar_and_missing():
     assert rc._resumable_rc({}) == ()
     assert rc._resumable_rc({"resumable_rc": None}) == ()
     assert rc._resumable_rc({"resumable_rc": ["3", 5]}) == (3, 5)
+
+
+# ── 상시 감시(recurring) — 실측 2026-09-29 R19: 통과하면 감시가 사라진다 ────────────
+RECURRING = {"id": "R21", "kind": "collect", "recurring": True,
+             "incremental": True, "resumable_rc": [3]}
+
+
+def test_recurring_stays_pending_when_goal_met():
+    """목표 충족 = 종료가 아니다 — done 으로 적으면 다음 틱 후보(pending)에서 빠져 감시가 실명한다."""
+    assert rc.status_after(RECURRING, 0, True) == "pending"
+
+
+def test_recurring_still_fails_loudly():
+    """상시 감시라도 크래시(선언 밖 rc)는 failed — 감시 항목이 조용히 돌지 않게 한다."""
+    assert rc.status_after(RECURRING, 1, True) == "failed"
+
+
+def test_non_recurring_goal_met_is_still_done():
+    """기본값은 종전대로 done — recurring 선언이 없는 항목의 동작을 바꾸지 않는다."""
+    assert rc.status_after(COLLECT_INCR, 0, True) == "done"

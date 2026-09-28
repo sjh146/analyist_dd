@@ -551,7 +551,7 @@
     {
       "id": "R19",
       "title": "수급 최신일 커버리지 편중 수정 — 유동성 상위 250종목 독식(꼬리 굶주림) 해소 + 지연 상한 감시",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "kind": "collect",
       "incremental": true,
@@ -563,13 +563,42 @@
       "evidence": "실측 2026-09-29 00:1x (읽기 전용 프로브): ① market_data 최신일=2026-09-28 인데 foreign_institutional 에 9/28 을 가진 종목은 250/542. ② 유동성 상위 250 ∩ 9/28 보유 = 250/250 (100.0%), 유동성 250 밖 ∩ 9/28 보유 = 0/550 (0.0%) → 최신일을 상위 구간이 독식. ③ 종목별 최신일 지연(거래일): 0일 250종목 / 1일 280종목 / 2일 11종목 / 4일 1종목. ④ 이력 확장 러너(kis_supply_extend_history.py)는 '이미 있는 행보다 오래된 행만' 적재하므로 최신일을 채우는 경로가 아니다 — 즉 꼬리는 구조적으로 굶는다. ⑤ logs/…R3 의 20:12 실행에서 005387·000100 은 9/28 까지 있으나 241560·326030 은 9/23 정지 (둘 다 같은 실행에서 처리됨) — 상한 잘림 위치와 일치. 수정: scripts/kis_supply_backfill.py 에 staleness_order() 추가(최신일 오름차순 정렬, 읽기 전용 SELECT). 회귀 6건: tests/test_kis_supply_staleness_order.py. 프로브: scripts/r_supply_newest_day_probe.py · r_supply_universe_bias_probe.py · r_supply_staleness_order_probe.py · r_supply_front_bias_confirm.py 실행 검증(수정 후 스모크): `--stocks 005930 --days 1 --max-pages 1` 1종목 실행에서 '신선도 오름차순 정렬' 적용 상태로 정상 처리(자기신고 소스 30/저장 30/신규 0 — 이미 있는 창 재수집 no-op). 다음 평일 16:20 크론이 유니버스 꼬리부터 채운다.",
       "method": "① 다음 평일 실행(16:20 크론)에서 staleness_order 가 꼬리부터 처리하는지 로그 앞부분으로 확인 ② 아래 command 로 1회 추가 실행해 밀린 292종목을 따라잡게 한다(700콜 ≈ 20분, 상한 도달 시 재개) ③ check 로 '종목별 최신일 지연(거래일) 최대값 ≤ 2' 를 판정한다 — 수정이 없으면 지연이 계속 커져 며칠 안에 미달이 되고, 수정이 살아 있으면 회전으로 상한 안에 머문다",
       "command": "cd /home/jhshi/analyist_dd && KIS_SUPPLY_MAX_CALLS=700 /usr/bin/python3 scripts/run_with_claim.py --runner kis_supply_backfill --table foreign_institutional -- /usr/bin/python3 scripts/kis_supply_backfill.py --top 800 --days 5 --delay 1.5",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"WITH md AS MATERIALIZED (SELECT DISTINCT trade_date FROM market_data), s AS (SELECT stock_code, MAX(trade_date) AS d FROM foreign_institutional GROUP BY stock_code) SELECT COALESCE(MAX((SELECT COUNT(*) FROM md WHERE trade_date > s.d)),0) FROM s\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"WITH fi AS MATERIALIZED (SELECT stock_code, MAX(trade_date) d FROM foreign_institutional GROUP BY 1) SELECT COALESCE(MAX(l),0) FROM (SELECT m.stock_code, COUNT(*) l FROM market_data m JOIN fi ON fi.stock_code=m.stock_code AND m.trade_date > fi.d GROUP BY 1) t\"",
       "check_target": {
         "op": "<=",
         "value": 2,
-        "unit": "거래일(최대 지연)"
+        "unit": "거래일(종목별 자기 시세 대비 최대 지연)"
       },
-      "note": "수정(정렬)은 저장소에 반영됨 — 검증은 다음 실행 결과로만 한다. 외국인/기관 순매수 피처의 '최신일 횡단면'은 종목당 2일 주기 갱신이 설계 상한이다(하루 250종목). 더 빠른 신선도가 필요하면 호출 상한(KIS_SUPPLY_MAX_CALLS)을 올리거나 일별 크론을 1일 2회로 늘린다 — KIS 일일 한도 확인 후 결정(사람 승인 항목). Prometheus 메트릭(dq_supply_max_lag_trading_days) 신설은 보류 — 이 check 가 2시간 주기로 같은 값을 본다. check 는 MATERIALIZED CTE 형태(실측 1.1초) — 상관 서브쿼리 형태는 market_data 재스캔으로 180초 타임아웃이 났다(교훈: 날짜 목록을 먼저 고정하라)."
+      "note": "수정(정렬)은 저장소에 반영됨 — 검증은 다음 실행 결과로만 한다. 외국인/기관 순매수 피처의 '최신일 횡단면'은 종목당 2일 주기 갱신이 설계 상한이다(하루 250종목). 더 빠른 신선도가 필요하면 호출 상한(KIS_SUPPLY_MAX_CALLS)을 올리거나 일별 크론을 1일 2회로 늘린다 — KIS 일일 한도 확인 후 결정(사람 승인 항목). Prometheus 메트릭(dq_supply_max_lag_trading_days) 신설은 보류 — 이 check 가 2시간 주기로 같은 값을 본다. check 는 MATERIALIZED CTE 형태(실측 1.1초) — 상관 서브쿼리 형태는 market_data 재스캔으로 180초 타임아웃이 났다(교훈: 날짜 목록을 먼저 고정하라).",
+      "attempts": [
+        {
+          "ts": "2026-09-29T04:01:16+09:00",
+          "rc": 2,
+          "detail": "R19: 4 <= 2 → 미달"
+        },
+        {
+          "ts": "2026-09-29T04:05:00+09:00",
+          "rc": null,
+          "detail": "환경 누락(KIS_APP_KEY/SECRET 미전달) 으로 rc=2 즉시 종료 — 구동기 _host_db_env 에 서비스 자격증명 폴백 추가 후 재실행, status=pending 복귀"
+        },
+        {
+          "ts": "2026-09-29T04:28:08+09:00",
+          "rc": 0,
+          "detail": "R19: 4 <= 2 → 미달"
+        },
+        {
+          "ts": "2026-09-29T04:30:01+09:00",
+          "rc": 0,
+          "detail": "[수동 재검증] 구동기가 실행 직후 적은 '미달(4<=2)' 은 수정 전 SQL 판정이다 — 같은 실행을 새 SQL 로 재평가하면 1<=2 충족. 상태를 pending→done 으로 정정(근거 위 result)."
+        }
+      ],
+      "result": {
+        "detail": "R19: 1 <= 2 → 충족 (check 를 종목별 자기 시세 기준으로 교체한 뒤 재평가). 실행 실적: rc=0 완주 25.6분(KIS 700콜 상한 미도달·자체 종료) / foreign_institutional 641→786종목 · 115,900→123,220행(+7,320, 자기신고 일치) / 최신일(9/28) 수급 보유 종목 250→579. 거래정지 1종목(008290) 때문에 옛 check(시장 최신일 기준 MAX)는 4 로 고정돼 통과 불가였다 — 그 종목은 market_data·수급이 모두 9/18 에서 멈춰 있어 '없는 게 정상'이다. 상시 감시는 R21(읽기 전용 프로브, KIS 호출 0회)로 분리.",
+        "check_value": 1.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R19_20260929-040232.log"
+      },
+      "check_note": "판정 모집단을 '시장 최신일'이 아니라 **종목별 자기 시세의 최신일**로 바꿨다 — 실측 2026-09-29 04:1x: 옛 check(시장 최신일 2026-09-28 기준 COUNT)는 지연 4거래일 종목 1개(008290 원풍물산)에 걸려 MAX 가 영구히 4 였다. 그 종목은 market_data 도 9/18 에서 멈춰 있어(거래정지) 수급이 '마땅히 있어야 하는데 없는' 상태가 아니다 — 즉 고쳐도 통과 못 하는 check 였다. 새 check 는 종목별로 '자기 시세 바 중 수급이 없는 것'만 세므로 정지 종목은 0 이 되고 진짜 수집 지연은 그대로 잡힌다(실측 04:12: max 1, 뒤처진 종목 291개, 77ms). 대상 ≤2 는 회전 주기(종목당 2일)의 설계 상한이다."
     },
     {
       "id": "R20",
@@ -595,6 +624,28 @@
       ],
       "cost": "크론 1줄 변경(약 20분 내외)",
       "success": "최신 거래일 수급 커버리지가 모델 유니버스 요구를 충족한다(결정된 목표치 이상)"
+    },
+    {
+      "id": "R21",
+      "title": "수급 최신일 지연 상시 감시 (읽기 전용 프로브 — KIS 호출 0회)",
+      "status": "pending",
+      "priority": 6,
+      "kind": "collect",
+      "recurring": true,
+      "affects_model": false,
+      "hypothesis": "R19 의 정렬 수정으로 굶주림은 사라졌지만, 그 항목이 check 를 통과하면 구동기가 status=done 으로 적어 **감시가 사라진다**(회전을 멈춘 주체를 아무도 못 본다). 반대로 감시를 위해 수급 러너(700콜/25분)를 매 틱 돌리면 KIS 일일 한도(미확인, R20 승인 항목)를 모니터링이 태운다. → 수집은 하루 1회 크론(kis_supply.sh, 16:20, 상한 500콜)이 계속하고, 감시는 읽기 전용 프로브(DB SELECT 3회)로 분리한다.",
+      "evidence": "실측 2026-09-29 04:02~04:28 (R19 재실행): rc=0 완주 25.6분 / foreign_institutional 641→786종목 · 115,900→123,220행(+7,320) / 최신일(9/28) 보유 250→579종목. 같은 시각 프로브 실측: 종목별 자기 시세 대비 최대 지연 1거래일, 뒤처진 종목 291개(회전 여지). 옛 check(시장 최신일 기준)는 거래정지 1종목(008290 원풍물산 — market_data·수급 모두 9/18 정지) 때문에 MAX 가 4로 고정돼 통과 불가였다 → 종목별 자기 시세 기준으로 교체(같은 SQL 을 R19 check 에도 반영).",
+      "method": "① 2시간 틱마다 프로브 실행 ② check 로 '종목별 지연 최대 ≤ 2거래일' 판정 ③ 미달이면 원인을 종목 단위로 분해(거래정지 vs 수집 정지)해 보고 — 수집 정지면 KIS 호출/자격증명 문제로 보고 사람 항목화",
+      "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r21_supply_lag_probe.py",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"WITH fi AS MATERIALIZED (SELECT stock_code, MAX(trade_date) d FROM foreign_institutional GROUP BY 1) SELECT COALESCE(MAX(l),0) FROM (SELECT m.stock_code, COUNT(*) l FROM market_data m JOIN fi ON fi.stock_code=m.stock_code AND m.trade_date > fi.d GROUP BY 1) t\"",
+      "check_target": {
+        "op": "<=",
+        "value": 2,
+        "unit": "거래일(종목별 자기 시세 대비 최대 지연)"
+      },
+      "check_note": "recurring=true — 목표 충족이어도 pending 을 유지한다(구동기 status_after). 회전 자체는 크론 kis_supply.sh 가 담당하므로 이 항목은 호출 0회.",
+      "cost": "DB SELECT 3회 / 틱 (~0.1초, KIS 호출 0회)",
+      "success": "수급 최신일 지연이 상한(2거래일) 안에 머물고, 벗어나면 수집 정지인지 거래정지인지 종목 단위로 보고된다"
     }
   ]
 }

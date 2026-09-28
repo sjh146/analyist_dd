@@ -97,6 +97,19 @@ def _host_db_env():
                 val = _dotenv_get(key)
                 if val:
                     env[key] = val
+    # 서비스 자격증명(수집 API 키)도 같은 함정을 만든다 — 실측 2026-09-29 04:00 R19:
+    # `kis_supply_backfill.py` 가 `KIS_APP_KEY/KIS_APP_SECRET 미설정` 으로 즉시 종료(rc=2)하고
+    # 원장에는 rc=2 '미달'로만 남았다(명령·러너는 정상, **환경만** 비어 있었다 — 토큰 발급 전에 죽어
+    # 호출 0회). 백로그 command 가 `.env` 를 직접 source 하는 항목(R3)만 살아남는 구조라
+    # 항목마다 손으로 export 를 넣는 방식은 또 빠뜨린다.
+    # 좌표와 달리 이 키들은 **대상 호스트를 가리키지 않으므로**(어디에 붙어도 같은 서비스) 루프백
+    # 조건과 무관하게 비어 있을 때만 채운다 — 원격 DB 좌표 판정에는 관여하지 않는다.
+    for key in ("KIS_APP_KEY", "KIS_APP_SECRET", "KIS_BASE_URL", "KIS_ACCOUNT_NO",
+                "DART_API_KEY", "KRX_API_KEY", "ECOS_API_KEY"):
+        if not env.get(key):
+            val = _dotenv_get(key)
+            if val:
+                env[key] = val
     return env
 
 
@@ -292,6 +305,12 @@ def status_after(item, rc, passed):
     """
     if item.get("kind") == "investigate":
         return "done" if rc == 0 else "failed"
+    if rc == 0 and passed and item.get("recurring"):
+        # 상시 감시(recurring) 항목: 목표 충족은 **종료가 아니다**. done 으로 적으면 다음 틱부터
+        # 후보(pending)에서 빠져 감시가 조용히 사라진다 — 실측 2026-09-29: R19 가 '지연 상한 ≤2'를
+        # 충족하면 수급 회전을 멈춘 주체를 아무도 못 본다(회전 자체는 하루 1회 크론). 감시는
+        # 싼 읽기 전용 프로브로 돌리고(KIS 호출 0회) 이 항목은 pending 을 유지한다.
+        return "pending"
     if rc == 0 and passed:
         return "done"
     if rc == 0:
