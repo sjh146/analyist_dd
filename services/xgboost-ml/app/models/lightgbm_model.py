@@ -44,7 +44,8 @@ class LightGBMModel:
     def train(self, X_train: np.ndarray, y_train: np.ndarray,
               X_val: Optional[np.ndarray] = None,
               y_val: Optional[np.ndarray] = None,
-              feature_names: Optional[list] = None) -> Dict:
+              feature_names: Optional[list] = None,
+              sample_weight: Optional[np.ndarray] = None) -> Dict:
         """
         Train the LightGBM model.
 
@@ -54,12 +55,13 @@ class LightGBMModel:
             X_val: Validation features
             y_val: Validation labels
             feature_names: Optional list of feature names
+            sample_weight: 행별 학습 가중치(선택). None(기본) = 기존 동작 무변경.
 
         Returns:
             Training metrics
         """
         dtrain = lgb.Dataset(X_train, label=y_train,
-                             feature_name=feature_names)
+                             feature_name=feature_names, weight=sample_weight)
         evals = [dtrain]
         valid_names = ["train"]
 

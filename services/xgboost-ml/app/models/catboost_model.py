@@ -39,11 +39,14 @@ class CatBoostModel:
     def train(self, X_train: np.ndarray, y_train: np.ndarray,
               X_val: Optional[np.ndarray] = None,
               y_val: Optional[np.ndarray] = None,
-              feature_names: Optional[list] = None) -> Dict:
+              feature_names: Optional[list] = None,
+              sample_weight: Optional[np.ndarray] = None) -> Dict:
         if not _CATBOOST_AVAILABLE:
             raise ImportError("catboost is required. Install with: pip install catboost")
 
-        train_pool = Pool(X_train, label=y_train, feature_names=feature_names)
+        # sample_weight=None(기본) 이면 Pool 이 균등 가중(=기존 동작) 으로 만든다.
+        train_pool = Pool(X_train, label=y_train, feature_names=feature_names,
+                          weight=sample_weight)
         eval_pool = None
         if X_val is not None and y_val is not None:
             eval_pool = Pool(X_val, label=y_val, feature_names=feature_names)

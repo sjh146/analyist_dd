@@ -40,14 +40,18 @@ class EnsembleModel:
         self._is_trained = False
         self.val_weights: Dict[str, float] = {}
 
-    def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None):
+    def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None,
+              sample_weight=None):
+        """sample_weight: 행별 학습 가중치(선택). None(기본) 이면 기존과 완전히 동일하게
+        균등 가중으로 학습한다(프로덕션 경로 무변경 — 스윕 실험 전용 확장)."""
         metrics = {}
         self.val_weights = {}
 
         for name, model in zip(self.model_names, self.models):
             logger.info(f"Training {name}...")
             try:
-                m = model.train(X_train, y_train, X_val, y_val)
+                m = model.train(X_train, y_train, X_val, y_val,
+                                sample_weight=sample_weight)
                 if m:
                     for k, v in m.items():
                         metrics[f"{name}_{k}"] = v

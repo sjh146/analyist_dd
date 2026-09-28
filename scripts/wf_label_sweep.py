@@ -469,6 +469,66 @@ CONFIGS = [
      "desc": "edge 상위 15개 — 사전등록 arm"},
     {"id": "SEL_top20_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top20",
      "desc": "edge 상위 20개"},
+    # ── CG23 (2026-09-29): 표본 가중 축 — 기록상 0회 시험된 축 ────────────────────
+    # 왜: 33사이클의 모든 arm 은 표본을 **균등 가중**했다(변환·HP·앙상블·유니버스·라벨만 시험).
+    # 트레이더는 5일 보유 실현손익으로 평가받으므로 ①최근 표본에 가중(시간 감쇠)하거나
+    # ②|선행수익| 이 큰 표본에 가중하면 '돈이 되는' 표본에 집중할 수 있다.
+    # 설계(사전등록): panel_150u 를 30종목 **서로소** 5구간으로 나눠 구간 안에서 짝 비교한다
+    # (CG13 실측: 유니버스 교체만으로 폴드 평균이 Δ0.0287 움직인다 → 단일 arm 대 단일 대조군 금지).
+    # 3-arm: WDn = 가중 없음(원 경로) · WDu = 같은 가중 경로에 균등 가중(배관 통제, Δ≈0 이어야 함)
+    #        · WDw_h60 = 시간 감쇠 half-life 60거래일(사전등록 arm).
+    # ⚠ WDu 는 '가중 배관 자체가 AUC 를 바꾸지 않음'을 증명하는 통제다 — 이게 0 이 아니면
+    #    WDw 의 Δ 를 가중 효과로 귀속할 수 없다.
+    {"id": "WDn_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30],
+     "desc": "구간 [0:30) · 게이트 ON · 가중 없음(원 경로) — CG23 대조군"},
+    {"id": "WDu_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30], "weight": {"kind": "uniform"},
+     "desc": "구간 [0:30) · 게이트 ON · 균등 가중(가중 배관 통제, Δ≈0 기대)"},
+    {"id": "WDw_h60_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30], "weight": {"kind": "time_decay", "hl": 60},
+     "desc": "구간 [0:30) · 게이트 ON · 시간 감쇠 hl60 (사전등록 arm)"},
+    {"id": "WDn_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60],
+     "desc": "구간 [30:60) · 게이트 ON · 가중 없음(원 경로) — CG23 대조군"},
+    {"id": "WDu_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60], "weight": {"kind": "uniform"},
+     "desc": "구간 [30:60) · 게이트 ON · 균등 가중(가중 배관 통제, Δ≈0 기대)"},
+    {"id": "WDw_h60_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60], "weight": {"kind": "time_decay", "hl": 60},
+     "desc": "구간 [30:60) · 게이트 ON · 시간 감쇠 hl60 (사전등록 arm)"},
+    {"id": "WDn_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90],
+     "desc": "구간 [60:90) · 게이트 ON · 가중 없음(원 경로) — CG23 대조군"},
+    {"id": "WDu_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90], "weight": {"kind": "uniform"},
+     "desc": "구간 [60:90) · 게이트 ON · 균등 가중(가중 배관 통제, Δ≈0 기대)"},
+    {"id": "WDw_h60_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90], "weight": {"kind": "time_decay", "hl": 60},
+     "desc": "구간 [60:90) · 게이트 ON · 시간 감쇠 hl60 (사전등록 arm)"},
+    {"id": "WDn_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120],
+     "desc": "구간 [90:120) · 게이트 ON · 가중 없음(원 경로) — CG23 대조군"},
+    {"id": "WDu_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120], "weight": {"kind": "uniform"},
+     "desc": "구간 [90:120) · 게이트 ON · 균등 가중(가중 배관 통제, Δ≈0 기대)"},
+    {"id": "WDw_h60_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120], "weight": {"kind": "time_decay", "hl": 60},
+     "desc": "구간 [90:120) · 게이트 ON · 시간 감쇠 hl60 (사전등록 arm)"},
+    {"id": "WDn_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150],
+     "desc": "구간 [120:150) · 게이트 ON · 가중 없음(원 경로) — CG23 대조군"},
+    {"id": "WDu_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150], "weight": {"kind": "uniform"},
+     "desc": "구간 [120:150) · 게이트 ON · 균등 가중(가중 배관 통제, Δ≈0 기대)"},
+    {"id": "WDw_h60_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150], "weight": {"kind": "time_decay", "hl": 60},
+     "desc": "구간 [120:150) · 게이트 ON · 시간 감쇠 hl60 (사전등록 arm)"},
+    # 배관 통제(CG23 ④): 가중이 실제로 모델을 바꾸는지 확인용 — 절대값 비교가 아니라
+    # '같은 런에서 WDw ≠ WDu 임'을 보이기 위한 참조다.
+    {"id": "CO_core30_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_limit": 150,
+     "desc": "게이트 ON 대조군 · 150종목 전체(같은 런 기준점)"},
 ]
 
 
@@ -490,6 +550,116 @@ def transform_matrix(Xdf, dates, kind):
         sd = g.transform("std").replace(0.0, np.nan)
         return ((Xdf - mu) / sd).fillna(0.0).values
     raise ValueError(f"unknown transform: {kind}")
+
+
+def make_weights(spec, dates_tr, fwd_tr=None, day_pos=None, t0_pos=None):
+    """CG23 표본 가중 — 학습 행별 가중치 벡터(평균 1 정규화). None 이면 '가중 없음'.
+
+    spec=None            → None  (원 경로 그대로: sample_weight 를 아예 넘기지 않는다)
+    {"kind":"uniform"}   → 1.0 벡터 — **가중 배관 자체의 통제**(Δ≈0 이어야 귀속이 성립)
+    {"kind":"time_decay","hl":60} → 0.5 ** (경과 거래일 / hl). 가장 최근 학습일이 가중 1.
+    {"kind":"absret","clip":0.05} → |h일 선행수익| 기반(상한 clip). h5 보유에서 '크게 움직인'
+                                    표본에 집중하는 가설.
+
+    거래일 축을 쓰는 이유: 패널은 거래일만 있고 캘린더 결측(휴장)이 있어 달력일 기준 감쇠는
+    구간에 따라 다르게 깎인다. day_pos 는 폴드가 쓰는 dd(정렬된 날짜 목록)의 위치다.
+    """
+    if not spec:
+        return None
+    kind = str(spec.get("kind") or "").lower()
+    n = len(dates_tr)
+    if kind == "uniform":
+        w = np.ones(n, dtype=float)
+    elif kind == "time_decay":
+        hl = float(spec.get("hl") or 60.0)
+        if day_pos is None or t0_pos is None:
+            raise RuntimeError("time_decay 가중에 day_pos/t0_pos 가 필요하다")
+        _t0 = float(t0_pos)
+        pos = np.array([day_pos.get(str(d), _t0) for d in dates_tr], dtype=float)
+        age = np.maximum(_t0 - pos, 0.0)
+        w = 0.5 ** (age / hl)
+    elif kind == "absret":
+        if fwd_tr is None:
+            raise RuntimeError("absret 가중에 선행수익(_fwd) 이 필요하다")
+        a = np.abs(np.asarray(fwd_tr, dtype=float))
+        clip = float(spec.get("clip") or 0.05)
+        a = np.minimum(a, clip)
+        a = np.where(np.isfinite(a), a, np.nan)
+        med = float(np.nanmedian(a)) if np.isfinite(a).any() else 0.0
+        a = np.where(np.isfinite(a), a, med)
+        mx = float(a.max()) if a.size and a.max() > 0 else 1.0
+        w = 0.25 + 0.75 * (a / mx)      # 완전 0 가중은 행을 없애는 것과 같아 바닥을 둔다
+    else:
+        raise RuntimeError(f"unknown weight kind: {kind}")
+    if not np.all(np.isfinite(w)) or float(w.sum()) <= 0:
+        raise RuntimeError("가중치 계산 실패(비유한 또는 합 0)")
+    return w / w.mean()
+
+
+_orig_train_seed = ml.train_seed
+
+
+def train_seed_weighted(X_train, X_val, X_test, y_train, y_val, y_test, feature_names,
+                        out_dir, seed, lr, depth, n_estimators, allow_sentiment,
+                        scale_pos_weight, w=None):
+    """ml.train_seed 의 **가중 확장판**(CG23). w=None 이면 원본 함수를 그대로 호출한다.
+
+    왜 복제가 필요한가: train_seed 는 내부에서 oversample_balance(양성 복제 + 셔플)와
+    split_train_val(0.67 시간순) 을 거치는데, 이 두 함수는 가중치를 돌려주지 않는다.
+    가중치를 행과 함께 옮기려면 같은 순서(rng → choice → shuffle)를 그대로 재현해야 한다.
+    재현이 틀리면 '가중 효과'가 아니라 '다른 표본'을 재게 되므로, 회귀 테스트
+    (scripts/_sample_weight_test.py)로 균등 가중이 원 경로와 동일함을 먼저 증명한다.
+    """
+    if w is None:
+        return _orig_train_seed(X_train, X_val, X_test, y_train, y_val, y_test,
+                                feature_names, out_dir, seed, lr, depth, n_estimators,
+                                allow_sentiment, scale_pos_weight)
+    _tc = ml.tc                     # main() 이 몽키패치한 것과 같은 모듈 객체
+    curated = _tc.select_curated_features(feature_names, allow_sentiment)
+    if not curated:
+        raise RuntimeError("no curated features selected")
+    idx = [feature_names.index(f) for f in curated]
+    X_train_c = X_train[:, idx]
+    X_test_c = X_test[:, idx]
+
+    y = np.asarray(y_train).astype(int)
+    w = np.asarray(w, dtype=float).reshape(-1)
+    if len(w) != len(y):
+        raise RuntimeError(f"가중치 길이 불일치({len(w)} vs {len(y)}) — 행 순서가 어긋났다")
+
+    rng = np.random.default_rng(seed)
+    n_pos = int(y.sum())
+    n_neg = len(y) - n_pos
+    if n_pos > 0 and n_pos < n_neg:
+        pos_idx = np.where(y == 1)[0]
+        oversampled = rng.choice(pos_idx, size=n_neg - n_pos, replace=True)
+        balanced = np.concatenate([np.arange(len(y)), oversampled])
+        rng.shuffle(balanced)
+        X_bal, y_bal, w_bal = X_train_c[balanced], y[balanced], w[balanced]
+    else:
+        X_bal, y_bal, w_bal = X_train_c, y, w
+    cut = int(len(X_bal) * 0.67)
+    Xc_t, yc_t, wc_t = X_bal[:cut], y_bal[:cut], w_bal[:cut]
+    Xc_v, yc_v = X_bal[cut:], y_bal[cut:]
+
+    ensemble = ml.EnsembleModel(model_dir=out_dir)
+    _tc.apply_hyperparams(ensemble, lr, depth, n_estimators, seed)
+    if scale_pos_weight is not None:
+        for model in ensemble.models:
+            p = getattr(model, "params", None)
+            if p is not None and "scale_pos_weight" in p:
+                p["scale_pos_weight"] = float(scale_pos_weight)
+    ensemble.train(Xc_t, yc_t, Xc_v, yc_v, sample_weight=wc_t)
+
+    test_probs = ensemble.predict(X_test_c)
+    ens_auc = ml._safe_auc(y_test, test_probs)
+    model_aucs = {}
+    for name, model in zip(ensemble.model_names, ensemble.models):
+        try:
+            model_aucs[name] = ml._safe_auc(y_test, model.predict(X_test_c))
+        except Exception:
+            model_aucs[name] = 0.5
+    return ens_auc, model_aucs, curated, ensemble
 
 
 def main():
@@ -624,8 +794,11 @@ def main():
                     self.models = [self.models[i] for i in keep]
                     self.model_names = [self.model_names[i] for i in keep]
 
-            def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None):
-                _m = super().train(X_train, y_train, X_val, y_val, feature_names)
+            def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None,
+                      sample_weight=None):
+                # sample_weight 는 CG23(표본 가중) 전용 통로 — None(기본) 이면 기존과 동일.
+                _m = super().train(X_train, y_train, X_val, y_val,
+                                   feature_names=feature_names, sample_weight=sample_weight)
                 if _ens_cfg.get("equal_weights"):
                     self.val_weights = {n: 1.0 for n in self.model_names}
                 return _m
@@ -649,6 +822,9 @@ def main():
             print(f"--only 에 해당하는 실험 없음: {sorted(want)}", flush=True)
             return 1
     ml.log(f"실행 실험 {len(cfgs)}개: {[c['id'] for c in cfgs]}")
+    # CG23: absret 가중을 쓰는 config 가 있으면 선행수익(_fwd)을 항상 계산해야 한다
+    # (기본은 --dump-preds 일 때만 계산 — 기존 동작 무변경).
+    _need_fwd = any(str((c.get("weight") or {}).get("kind") or "") == "absret" for c in cfgs)
 
     for cfg in cfgs:
         exp_id = cfg["id"]
@@ -657,6 +833,7 @@ def main():
                "transform": cfg.get("transform"),
                "pool": cfg.get("pool"),
                "exclude_market_level": bool(cfg.get("exclude_market_level")),
+               "weight": cfg.get("weight"),
                "ts": ml.now_iso(), "status": "failed", "folds": {}}
         ml.log(f"=== {exp_id}: {cfg['desc']} ===")
         try:
@@ -667,7 +844,7 @@ def main():
             # 판정에는 쓰지 않는다(판정은 폴드 평균 AUC 만). 매매 KPI 는 '상위 k 바스켓의
             # 보유기간 수익률'이라 예측 확률과 함께 남겨야 사후에 계산할 수 있다.
             # 라벨과 같은 shift(-h) 정의를 쓴다(스무딩 라벨이어도 여기선 단순 선행수익).
-            if args.dump_preds:
+            if args.dump_preds or _need_fwd:
                 try:
                     d["_fwd"] = df.groupby("stock_code", sort=False)["price"].transform(
                         lambda s: s.shift(-int(cfg["horizon"])) / s - 1.0).values
@@ -748,6 +925,20 @@ def main():
                     continue
                 trd = tr["date"].astype(str).values
                 ted = te["date"].astype(str).values
+                # ── CG23 표본 가중: 폴드 학습행에 대한 가중치(행 순서 = tr 순서) ────────
+                # 여기서 계산하는 이유: purge 까지 끝난 tr 이 실제 학습행이고, 가중치는 그 행에
+                # 1:1 로 붙어야 한다. 날짜 위치(day_pos)는 폴드가 쓰는 dd 기준이다.
+                w_tr = None
+                if cfg.get("weight"):
+                    _dpos = {str(x): j for j, x in enumerate(dd)}
+                    w_tr = make_weights(
+                        cfg["weight"], trd,
+                        fwd_tr=(np.asarray(tr["_fwd"].values, dtype=float)
+                                if "_fwd" in tr.columns else None),
+                        day_pos=_dpos, t0_pos=_dpos.get(str(cut)))
+                    ml.log(f"  {exp_id} fold{i}: 가중 {cfg['weight']} — "
+                           f"min={w_tr.min():.4f} max={w_tr.max():.4f} "
+                           f"유니크={len(np.unique(np.round(w_tr, 6)))}")
                 tkind = cfg.get("transform")
                 Xtr = np.nan_to_num(
                     transform_matrix(tr[base_names], trd, tkind).astype(np.float32), nan=0.0)
@@ -851,11 +1042,11 @@ def main():
                 probs = []
                 n_eff_seen = set()
                 for seed in range(args.seeds):
-                    a, _m, _c, _e = ml.train_seed(
+                    a, _m, _c, _e = train_seed_weighted(
                         Xtr[:, idx], None, Xte[:, idx], ytr, None, yte, sel,
                         f"/app/app/models/wf/labelsweep_{exp_id}", seed,
                         recipe["lr"], recipe["depth"],
-                        recipe["n_estimators"], True, None)
+                        recipe["n_estimators"], True, None, w_tr)
                     aucs.append(float(a))
                     # 실효 피처 수 = train_seed 내부 curated 게이트를 통과한 개수.
                     # 선별 수와 다르면 그 실험은 '게이트 키홀'을 통해 측정된 것이다.
@@ -911,6 +1102,10 @@ def main():
                                             "n_market_level_excluded": n_mkt_excluded,
                             "n_label_ref_purged": n_ref_purged,
                                             "market_level_excluded_names": mkt_excluded_names,
+                                            "weight_stats": (None if w_tr is None else {
+                                                "min": float(w_tr.min()), "max": float(w_tr.max()),
+                                                "mean": float(w_tr.mean()),
+                                                "n_unique": int(len(np.unique(np.round(w_tr, 6))))}),
                                             "ens_pooled_auc": ens_pooled_auc,
                                             "daily_auc_mean": daily_auc_mean,
                                             "n_test_dates_scored": n_dates_scored,

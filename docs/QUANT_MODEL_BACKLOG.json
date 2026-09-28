@@ -4492,10 +4492,14 @@
     {
       "id": "CG23",
       "title": "표본 가중 축 — 시간 감쇠(half-life) 및 라벨 크기(|선행수익|) 가중 (기록상 0회 시험된 축)",
-      "status": "needs_setup",
-      "priority": 3,
+      "status": "pending",
+      "priority": 1,
       "affects_model": true,
-      "depends_on": "CG21/CG22(라벨 꼬리 판정) 종료 후",
+      "depends_on": [
+        "CG21",
+        "CG22",
+        "CG24 (라벨 꼬리 축 종료)"
+      ],
       "baseline": {
         "value": 0.5105,
         "source": "CG19 같은 런 게이트 ON 대조군 CO_core30_h5(panel_150u·5폴드×10시드)"
@@ -4527,20 +4531,68 @@
           "WDn_120_150"
         ]
       ],
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 5 --only WDw_h60_00_30,WDn_00_30,WDw_h60_30_60,WDn_30_60,WDw_h60_60_90,WDn_60_90,WDw_h60_90_120,WDn_90_120,WDw_h60_120_150,WDn_120_150'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 5 --only WDn_00_30,WDu_00_30,WDw_h60_00_30,WDn_30_60,WDu_30_60,WDw_h60_30_60,WDn_60_90,WDu_60_90,WDw_h60_60_90,WDn_90_120,WDu_90_120,WDw_h60_90_120,WDn_120_150,WDu_120_150,WDw_h60_120_150,CO_core30_150'",
       "check": "python3 scripts/model_engineer_cycle.py --status",
       "check_target": {
         "op": ">=",
         "value": 1
       },
       "metric": "wf_sweep_summary",
-      "est_minutes": 60,
-      "cost": "10 config×5폴드×5시드=250 cell → 유휴 ~20분·경쟁 시 ~60분. 컨테이너 timeout 3600. (구현 후 실측으로 갱신)",
-      "setup_needed": "① wf_label_sweep.py 에 sample_weight 옵션(half-life 기반 지수 감쇠 / |_fwd| 가중) 과 config 필드 추가 ② 학습 경로에 주입 지점 확인 — train_curated 의 앙상블 fit 에 sample_weight 를 넘길 수 있는지 먼저 확인하고, 불가하면 recipe_extra 처럼 스크립트 안에서만 몽키패치 ③ 구간별 config 생성 스크립트(_add_cg23.py, CG14/CG16 패턴) ④ 회귀 테스트: 가중 0(half-life 무한) 설정이 기존 균등 가중과 **비트 동일**한 결과를 내는지 확인(동일성 검정) — 이것이 없으면 '가중 때문'이라는 귀속이 무너진다.",
-      "success": "구간 짝 Δ 평균 ≥ +0.02 이고 양(+) 구간 ≥ 4/5 → 신호(그 뒤 라벨 크기 가중·hl120 확장). 짝 Δ 평균 < +0.02 또는 부호 뒤섞임 → '가중 축 아님'으로 닫고 다음 레버로.",
+      "est_minutes": 40,
+      "cost": "16 config×5폴드×5시드=400 cell. 회귀 테스트 실측 2초/cell(CG24 250 cell 8.5분) → 유휴 약 15분·경쟁 시 약 40분. 컨테이너 timeout 3600.",
+      "setup_needed": null,
+      "success": "구간 짝 Δ(WDw_h60 − WDn) 평균 ≥ +0.02 그리고 양(+) 구간 ≥ 4/5 → 신호. 미달이면 '표본 가중 축 소진'으로 기록하고 다음 레버로 이동한다.",
       "expected": "미지. 시간 감쇠는 표본을 줄이는 효과(오래된 행 가중↓)라 학습 표본이 작은 49종목 경로에서 이득이 제한적일 수 있다.",
       "caution": "① 가중 축은 **라벨 축과 곱셈으로 상호작용**한다 — 라벨 꼬리 q(CG21/CG22) 판정이 끝난 뒤, 같은 q 위에서만 비교해야 해석이 가능하다(그래서 depends_on 을 걸었다). ② 가중 도입은 표본 수를 바꾸지 않으므로 폴드 std 변화와 평균 상승을 분리해 보고하라(과거 CG8 교훈: 문턱 통과가 분산 축소 산물일 수 있다). ③ 구현 전에는 절대 이 항목을 pending 으로 올리지 말라 — command 의 config 이름이 아직 존재하지 않는다.",
-      "note": "2026-09-28 22:2x 신설. 등록 규약(재현 명령·대조군·성공 문턱) 충족. 미구현이라 needs_setup(구동기 건너뜀)."
+      "note": "2026-09-28 22:2x 신설. 등록 규약(재현 명령·대조군·성공 문턱) 충족. 미구현이라 needs_setup(구동기 건너뜀). | 준비 완료(2026-09-29 04:2x, 이 역할 직접 구현·검증): ① sample_weight 인자를 모델 3종 + EnsembleModel 에 추가(기본 None → 프로덕션 경로 무변경) ② wf_label_sweep 에 make_weights()(uniform/time_decay hl/absret) + train_seed_weighted()(w=None 이면 원본 ml.train_seed 그대로 호출) ③ config 16종을 CONFIGS 에 직접 등록(별도 _add_*.py 생성기 대신 — 기존 config 관례와 동일) ④ 회귀 테스트 `docker exec stock_xgboost_ml python /app/scripts/_sample_weight_test.py` → **11/11 PASS**: w=None 이 원본과 AUC 비트 동일 · **균등 가중(WDu) == 무가중(WDn) 폴드별 max|Δ|=0.000000000000** (가중 배관이 AUC 를 흔들지 않음 = WDw Δ 귀속 가능) · 시간감쇠 != 균등(max|Δ| 0.0108, 가중 min 0.690 max 1.412 유니크 63 = 가중이 실제로 모델에 도달). 판정은 구동기 `pairs`(WDw_h60_slice − WDn_slice, 5구간 짝 Δ 평균 ≥ +0.02 그리고 양(+) ≥ 4/5)로만 한다. WDu 는 배관 통제(Δ≈0 기대)이고, CO_core30_150 은 150종목 같은 런 기준점이다. ⚠ 서로소 구간 짝 설계인 이유: CG13 실측에서 유니버스 교체만으로 폴드 평균이 Δ0.0287 움직였다 — 단일 arm vs 단일 대조군 비교는 금지.",
+      "pairs_secondary": {
+        "plumbing_vs_weight": [
+          [
+            "WDw_h60_00_30",
+            "WDu_00_30"
+          ],
+          [
+            "WDw_h60_30_60",
+            "WDu_30_60"
+          ],
+          [
+            "WDw_h60_60_90",
+            "WDu_60_90"
+          ],
+          [
+            "WDw_h60_90_120",
+            "WDu_90_120"
+          ],
+          [
+            "WDw_h60_120_150",
+            "WDu_120_150"
+          ]
+        ],
+        "uniform_vs_none": [
+          [
+            "WDu_00_30",
+            "WDn_00_30"
+          ],
+          [
+            "WDu_30_60",
+            "WDn_30_60"
+          ],
+          [
+            "WDu_60_90",
+            "WDn_60_90"
+          ],
+          [
+            "WDu_90_120",
+            "WDn_90_120"
+          ],
+          [
+            "WDu_120_150",
+            "WDn_120_150"
+          ]
+        ],
+        "note": "배관 통제 — uniform_vs_none 의 Δ 가 0 이 아니면 귀속 불가"
+      },
+      "updated": "2026-09-29T04:30:00+09:00"
     },
     {
       "id": "CG24",

@@ -37,7 +37,8 @@ class XGBoostModel:
 
     def train(self, X_train: np.ndarray, y_train: np.ndarray,
               X_val: Optional[np.ndarray] = None,
-              y_val: Optional[np.ndarray] = None) -> Dict:
+              y_val: Optional[np.ndarray] = None,
+              sample_weight: Optional[np.ndarray] = None) -> Dict:
         """
         Train the XGBoost model.
         
@@ -46,11 +47,13 @@ class XGBoostModel:
             y_train: Training labels (0=down, 1=up)
             X_val: Validation features
             y_val: Validation labels
+            sample_weight: 행별 학습 가중치(선택). None(기본) 이면 기존과 동일하게
+                           균등 가중으로 학습한다 — 기존 호출 경로는 무변경.
         
         Returns:
             Training metrics
         """
-        dtrain = xgb.DMatrix(X_train, label=y_train)
+        dtrain = xgb.DMatrix(X_train, label=y_train, weight=sample_weight)
         evals = [(dtrain, "train")]
 
         if X_val is not None and y_val is not None:
