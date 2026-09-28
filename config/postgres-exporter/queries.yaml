@@ -370,7 +370,16 @@ dq_feature:
       -- 신선도/커버리지 규모 — R14(스냅샷 정체) 감시용. computed_at 이 피처별이므로
       -- "가장 오래된 피처가 언제 측정됐는가"가 진짜 신선도다.
       COUNT(*)::float AS feature_count,
-      (EXTRACT(EPOCH FROM (now() - MIN(computed_at))) / 86400.0)::float AS oldest_age_days
+      (EXTRACT(EPOCH FROM (now() - MIN(computed_at))) / 86400.0)::float AS oldest_age_days,
+      -- ⚠ 북극성 보정(실측 2026-09-28 16:xx): 계약 #6 은 "시장 전체 동일값 피처를 횡단면 모델
+      --   피처로 제안하지 않는다"인데, `feature_alive_count` 만 보면 그 위반이 **진척으로 보인다**.
+      --   R11 이 살린 거시 16개는 전부 cross_section_constant_ratio = 1.000 이라 날짜 내 변별력이 0
+      --   (살아 164 중 16개 = 9.8% 가 횡단면 무효). 그래서 시장레벨을 뺀 살아있는 수를 따로 노출한다.
+      --   ⚠ 순서 주의: postgres_exporter 는 SELECT 컬럼과 metrics 를 **순서로** 짝지으므로
+      --   새 컬럼은 SELECT 맨 끝 + metrics 맨 끝에 함께 넣어야 한다(중간 삽입 시 전부 밀린다).
+      COUNT(*) FILTER (WHERE nonzero_ratio > 0
+                         AND COALESCE(cross_section_constant_ratio, 0) < 0.99)::float
+        AS alive_xsec_count
     FROM feature_coverage
   metrics:
     - stock_constant_ratio:
@@ -397,3 +406,6 @@ dq_feature:
     - oldest_age_days:
         usage: "GAUGE"
         description: "가장 오래된 피처의 측정 나이(일) — R14 스냅샷 정체 감시"
+    - alive_xsec_count:
+        usage: "GAUGE"
+        description: "살아있으면서 횡단면 변별력이 있는 피처 수(시장레벨 제외) — 북극성 보정치"

@@ -111,6 +111,12 @@ SPECS = [
     ("news_analysis_freshness_rows_24h", "sum", None, None, "뉴스 24h 저장 행수"),
     ("feature_alive_count", "max", None, None, "살아있는 피처"),
     ("feature_dead_count", "max", None, None, "죽은 피처"),
+    # ⚠ 북극성 보정(2026-09-28 신설): `feature_alive_count` 는 계약 #6(시장 전체 동일값 피처는
+    #   횡단면 모델 피처로 제안 금지)을 위반한 피처도 '살아있다'로 센다 — R11 거시 16개가 그렇다
+    #   (실측: cross_section_constant_ratio = 1.000, 살아 164 중 26개가 시장레벨). 그래서
+    #   횡단면으로 실제 쓸 수 있는 수를 함께 본다(실측 138 = 164 − 26). 임계값은 두지 않는다
+    #   (정보용 — 인구가 늘면 함께 늘어난다). 문턱이 필요해지면 실측 기준선 위에 잡아라.
+    ("dq_feature_alive_xsec_count", "max", None, None, "횡단면 변별력 있는 살아있는 피처(시장레벨 제외)"),
 ]
 
 # 차트 라벨은 영문으로 쓴다 — 이 WSL 에는 한글 폰트가 없어 글리프가 전부 깨진다

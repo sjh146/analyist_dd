@@ -177,3 +177,61 @@
 ## [트레이더 환류 screener-attribution] [트레이더 환류] 스크리너별 실현 성과 — 어느 데이터가 기여했는지 확인 필요  (2026-09-28 13:59)
 - 근거: 스크리너별 실현: rank_momentum: 30건 -5,149원, : 2건 -9,090원
 - 리서처 백로그: `T17`
+
+## [리서처 R11] 거시 피처 16개 부활 (macro_indicators as-of 조인)  (2026-09-28 15:35)
+- 결과: [저작실패] 산출물 이미 존재(scripts/build_macro_features.py) — 저작 생략
+- 판정: 미달
+- 근거: feature_coverage: fx/oil/interest/cpi/ppi/yield/economic/cycle 계열 16개가 nonzero_ratio=0.
+- 엔지니어 백로그: `XR11` (command·대조군 기입 필요)
+
+## [엔지니어] 스윕 유니버스와 프로덕션 챔피언 유니버스의 교집합은 **9.5%** — 26사이클 무개선의 구조적 원인 후보 (2026-09-28 16:1x)
+- **실측(DB 전용, 패널 빌드 없음·`wf_wave.py --universe-report --limit 200`)**:
+  curated 경로(`train_curated._select_universe`, 지금까지 모든 스윕) = **KOSDAQ 200종목·KOSPI 0**,
+  prod 경로(`app.training.universe.select_training_universe`, 프로덕션 챔피언 학습기와 같은 함수)
+  = **KOSDAQ 141 + KOSPI 59**, 비주식 0 → **교집합 19/200 = 9.5%**.
+- **해석**: 지금까지의 모든 Δ 는 챔피언이 학습하는 종목 집합과 **90.5% 다른 종목**에서 측정됐다.
+  CG5(같은 config 49종목 +0.0227 → 150종목 −0.0109 부호 반전)·CG11(panel_150u 에서 전 성분 하회)과
+  정합한다 — 즉 '승격 관문에서 이득이 깎인다'가 아니라 **측정 표본 자체가 승격 조건을 대표하지
+  않는다**. 이것이 무개선 26사이클의 구조적 원인 후보 1순위다.
+- **배선(이 역할 소유 파일)**: `wf_wave.select_panel_codes` 신설 + `--universe prod|curated`·
+  `--universe-seed`·`--universe-report`·`--panel` 옵션, `wf_label_sweep` 에 전달. 기본값은 현행
+  유지(기준선 재현성 보존). `--universe prod` + 기본 패널 파일명은 **거부(rc=2)** — 기준선 패널
+  덮어쓰기로 대조군이 사라지는 사고를 막는다(실측 확인).
+- **다음**: CG10(panel_prod200.npz 200종목 빌드 ≈15시간) → CG9(생산 트레이너 옵션 + 후보 →
+  champion_promote --dry-run). 두 항목 모두 승격 실행이 아니라 **판정만** 한다.
+- **CG12 신설·즉시 실행**: 유니버스 크기 단조 추세(게이트 ON 대조군 25/49/75/100/150종목 + 우승
+  config 4수준, panel_150u in-run A/B) — 등록 기준선 0.5406 이 소유니버스 낙관 편향인지 검정.
+- **백로그 위생**: L5b·L5c(pending 인데 command 없음 → 매 틱 경고)를 needs_setup 으로 내리고
+  승인 필요 사유를 명시(팩터/전략 코드는 이 역할 소유가 아님).
+- **패널 진단(읽기 전용)**: panel_420_asofpatch 210컬럼 중 **전부 0 인 컬럼 10개**
+  (credit_balance_change·days_to_cover·disclosure_count_5d·etf_flow_5d·institution_ownership_pct·
+  margin_balance_change·sector_count·sector_momentum·short_interest_ratio·value_ncav).
+  거시/시장레벨 컬럼 19개(cpi_yoy·fx_*·interest_rate*·oil_*·ppi_yoy·yield_spread·krx_* 등)는 값이 있다
+  → XR11(거시 피처 부활)은 '패널에 없다'가 아니라 '횡단면 상수라 계약 #6상 그대로 투입 금지' 문제다.
+
+## [리서처 R11-후속] 거시 피처 16개는 전부 '시장레벨' — 계약 #6 저촉 (2026-09-28 16:07)
+- **실측 근거(SQL, feature_coverage 현재상태 테이블)**: R11 이 살린 16개 전부
+  `cross_section_constant_ratio = 1.000` — fx_usd_krw·fx_change_1m/3m·oil_wti·oil_change_1m/3m·
+  interest_rate·interest_rate_change_1m/3m·cpi_yoy·ppi_yoy·yield_spread·economic_event_count_7d·
+  economic_event_impact·cycle_up·cycle_down. 같은 날 **모든 종목이 같은 값**이다.
+- **수치**: 살아있는 피처 164 / 시장레벨(xsec>=0.99 & nonzero>0) 26 / **횡단면 변별력 있는 살아있는
+  피처 138**. R11 배치가 시장레벨 26개의 61.5%(16개)를 차지한다.
+  (grep 아님 — `SELECT COUNT(*) FILTER (...)` 로 직접 셈. 138 = 164 − 26 로 정확히 상보.)
+- **데이터 자체는 정상**: as-of 위반 0(`dq_asof_violation_rows=0`, 빌더 자체 SQL 대조 8일×6피처 위반 0),
+  null 0, 격자 3934종목×315일, 단위 확인. **결함은 값이 아니라 '쓸 수 있는 형태'다** —
+  계약 #6 에 따라 횡단면 모델 피처로 제안할 수 없다. 쓸 수 있는 유일한 형태는 시장/국면(regime) 시계열.
+- **왜 보고하나**: ① R11 의 check(`nonzero_ratio>0 인 피처 수 >= 3`)는 **시장레벨만 살아나도 '충족'**이라
+  계약 위반이 진척으로 원장에 기록된다 ② `feature_alive_count` 만 보면 이 16개가 북극성
+  (살아있는 피처 >= 죽은 피처)을 낙관 왜곡한다(실측: 164 중 9.8%).
+- **조치(이번 틱에 실행 완료)**:
+  ① 메트릭 신설 `dq_feature_alive_xsec_count`(시장레벨 제외 살아있는 피처 수, 실측 138)
+     — `config/postgres-exporter/queries.yaml`(dq_feature 쿼리 끝 + metrics 끝, **순서 짝** 주의),
+     exporter 재기동 후 Prometheus 에서 138 확인, 기존 dq_* 85개 전부 유지(총 86).
+  ② `scripts/dq_snapshot.py` SPECS + `scripts/quant_scoreboard.py` 북극성 줄에 반영 →
+     `[북극성·리서처] DQ ok | 살아 164 (횡단면 138)/죽은 35` (정보용, 임계값 없음).
+  ③ 엔지니어 백로그 `XR11` note 에 '횡단면 피처 제안 금지' 경고 + evidence 를 실수치로 교체.
+- **엔지니어 쪽 확인 필요(추정 아님, 실측)**: 최근 야간 스윕 요약(2026-09-28 07:12, 4개 arm)은
+  **전부 `exclude_market_level = False`** 로 실행됐다 — 제외 플래그가 켜져 있지 않다. 이 16개가
+  패널에 들어가면 날짜별 상수 = 시장 국면 프록시가 되어 횡단면 정보는 0 인데 폴드별 국면 암기
+  위험만 더한다. XR11 에서 제외 유지 여부를 확정해야 한다.
+- **회귀**: `tests/test_dq_snapshot_*.py`·`test_researcher_cycle_*.py` 36건 PASS.

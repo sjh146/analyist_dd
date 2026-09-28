@@ -255,7 +255,7 @@ def researcher_stanza() -> dict:
     """모델에 들어가는 데이터의 품질·커버리지. '모았다'가 아니라 '쓸 수 있게 됐다'를 본다."""
     st = {"role": "researcher", "north": "모델 학습 데이터의 품질·커버리지",
           "sample": None, "status": None, "warns": [], "breaches": [],
-          "alive_features": None, "dead_features": None,
+          "alive_features": None, "alive_xsec_features": None, "dead_features": None,
           "stock_constant_ratio": None, "news_freshness_hours": None,
           "rows_delivered": None, "source": DQ_GLOB, "alerts": []}
     files = sorted(glob.glob(DQ_GLOB))
@@ -275,6 +275,9 @@ def researcher_stanza() -> dict:
         return v
 
     st["alive_features"] = val("feature_alive_count")
+    # 횡단면 변별력이 있는 살아있는 피처(시장레벨 제외). 계약 #6 위반분이 '진척'으로 보이지 않게
+    # 북극성 줄에 함께 표시한다 — 없으면(구버전 스냅샷) 표시를 생략한다.
+    st["alive_xsec_features"] = val("dq_feature_alive_xsec_count")
     st["dead_features"] = val("feature_dead_count")
     st["stock_constant_ratio"] = val("dq_feature_stock_constant_ratio")
     st["news_freshness_hours"] = val("news_analysis_freshness_hours")
@@ -324,8 +327,10 @@ def fmt(st: dict, with_source: bool = True) -> str:
                  f"±{e['best_robust_std'] if e['best_robust_std'] is not None else '?'}"
                  f" ({e['best_exp']}) vs 기준선 {_num(e.get('baseline'), '.4f')} → Δ{d:+.4f} [{mark}]"
                  f" | 챔피언 단일분할 {_num(e.get('champion_single'))}")
+    _ax = r.get("alive_xsec_features")
+    _extra = f" (횡단면 {_num(_ax, '.0f')})" if isinstance(_ax, (int, float)) else ""
     L.append(f"🔬 퀀트리서처: DQ {r['status'] or 'n/a'} | 살아있는 피처 "
-             f"{_num(r.get('alive_features'), '.0f')} / 죽은 {_num(r.get('dead_features'), '.0f')} | "
+             f"{_num(r.get('alive_features'), '.0f')}{_extra} / 죽은 {_num(r.get('dead_features'), '.0f')} | "
              f"종목상수 {_num(r.get('stock_constant_ratio'), '.3f')} | 뉴스신선도 "
              f"{_num(r.get('news_freshness_hours'), '.2f')}h")
     if st["needs_human"]:
@@ -379,7 +384,9 @@ def main() -> int:
         return 0
     if a.stanza == "researcher":
         s = researcher_stanza()
-        print(f"[북극성·리서처] DQ {s['status']} | 살아 {_num(s.get('alive_features'), '.0f')}"
+        _ax = s.get("alive_xsec_features")
+        _extra = f" (횡단면 {_num(_ax, '.0f')})" if isinstance(_ax, (int, float)) else ""
+        print(f"[북극성·리서처] DQ {s['status']} | 살아 {_num(s.get('alive_features'), '.0f')}{_extra}"
               f"/죽은 {_num(s.get('dead_features'), '.0f')} "
               f"| 뉴스 {_num(s.get('news_freshness_hours'), '.2f')}h")
         for x in s["alerts"]:
