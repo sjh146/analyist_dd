@@ -180,6 +180,73 @@ CONFIGS = [
     {"id": "CO_rank_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "게이트 ON + rank + 스무딩 + depth1 — 생산경로에서 가진 방향 전부 결합"},
+    # ── CG12: 유니버스 크기 단조 추세 (2026-09-28 신설 · panel_150u 전용) ──────────
+    # 왜: **같은 프로토콜·게이트 ON** 인데 대조군 AUC 가 패널에 따라 0.5365(49종목, CG4) →
+    # 0.5101(150종목, CG11) 로 0.026 벌어진다. 등록 기준선 0.5406 은 49종목 값이고 프로덕션
+    # 챔피언은 200종목으로 학습된다 → '기준선 자체가 소유니버스 낙관 편향'이면 승격 프로토콜의
+    # +0.02 문턱은 생산 조건에서 도달 불가다(=26사이클 무개선의 구조적 원인 후보).
+    # codes_limit 은 **패널 순서(유동성 상위) 첫 N종목**이라 25⊂49⊂75⊂100⊂150 이 중첩
+    # 부분집합이고, 같은 패널·같은 행·같은 피처·같은 폴드에서 종목 수만 바뀐다.
+    # ⚠ 이건 교차패널 비교가 아니다 — U1(교차패널 Δ−0.0266)이 UN1(동일 패널 Δ+0.0071)에서
+    # 부호가 뒤집힌 전례 때문에 반드시 같은 패널 안에서 재야 한다.
+    {"id": "UNg_25", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_limit": 25,
+     "desc": "게이트 ON 대조군 · 유동성 상위 25종목 (중첩 부분집합 최소)"},
+    {"id": "UNg_49", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_limit": 49,
+     "desc": "게이트 ON 대조군 · 49종목 (등록 기준선과 같은 크기)"},
+    {"id": "UNg_75", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_limit": 75,
+     "desc": "게이트 ON 대조군 · 75종목"},
+    {"id": "UNg_100", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_limit": 100,
+     "desc": "게이트 ON 대조군 · 100종목"},
+    {"id": "UNg_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_limit": 150,
+     "desc": "게이트 ON 대조군 · 150종목 전체 (대조군 끝점)"},
+    # 우승 config(rank+스무딩+depth1)의 전이를 같은 추세 위에서 본다: CG11 은 150종목에서만
+    # 쟀다(−0.0109). '49종목에서만 이긴다'면 어느 크기에서 부호가 뒤집히는지가 승격 판단의 근거다.
+    {"id": "RSg_25", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_limit": 25,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "게이트 ON + rank + 스무딩 + depth1 · 25종목"},
+    {"id": "RSg_49", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_limit": 49,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "게이트 ON + rank + 스무딩 + depth1 · 49종목 (CG4 재현을 같은 패널에서)"},
+    {"id": "RSg_75", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_limit": 75,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "게이트 ON + rank + 스무딩 + depth1 · 75종목"},
+    {"id": "RSg_150", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "rank", "core_only": True, "codes_limit": 150,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "게이트 ON + rank + 스무딩 + depth1 · 150종목 (CG11 재측정·같은 런 짝)"},
+    # ── CG13: 유니버스 교체 노이즈 밴드 (서로소 부분집합, 2026-09-28 신설) ─────────
+    # 왜: 이 스택의 '신호'는 전부 유니버스를 바꾸면 뒤집혔다(U1 교차패널 Δ−0.0266 ↔ UN1 같은
+    # 패널 +0.0071 / CG5 150종목 부호 반전 / CG12: 49종목 크기에서도 집합이 다르면 우승 config 가
+    # −0.0287). 그런데 **같은 크기의 다른 종목 집합**이 만드는 AUC 분산 자체는 한 번도 측정된 적이
+    # 없다. panel_150u 를 30종목씩 **서로소** 5구간으로 잘라 같은 config·같은 폴드를 걸면, 그 산포가
+    # 곧 '유니버스 교체만으로 만들어지는 Δ' 다. 사전등록: 두 구간의 Δ 가 +0.02 를 넘으면 유니버스
+    # 교체만으로 사전문턱이 만들어진다는 뜻 → 과거 Δ≤0.03 은 해석 불가(순열검정 필요)로 규정한다.
+    {"id": "US_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30],
+     "desc": "게이트 ON 대조군 · 서로소 구간 [0:30)"},
+    {"id": "US_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60],
+     "desc": "게이트 ON 대조군 · 서로소 구간 [30:60)"},
+    {"id": "US_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90],
+     "desc": "게이트 ON 대조군 · 서로소 구간 [60:90)"},
+    {"id": "US_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120],
+     "desc": "게이트 ON 대조군 · 서로소 구간 [90:120)"},
+    {"id": "US_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150],
+     "desc": "게이트 ON 대조군 · 서로소 구간 [120:150)"},
+    {"id": "US_all150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_limit": 150,
+     "desc": "게이트 ON 대조군 · 150종목 전체(같은 런 기준점)"},
     # ── 데이터 축 A/B: 부활 이벤트 피처 가산효과 (2026-09-26, L3 준비) ────────────
     # panel_420_asofpatch_ev.npz 는 기준선 패널과 **행이 비트 동일**하고(13,609행·날짜·종목·
     # 가격 동일, 공유 210컬럼 최대 절대차 0.0) 뒤에 event_* 17개만 덧붙은 패널이다 →
@@ -318,6 +385,13 @@ def main():
     ap.add_argument("--min-value", type=float, default=None, help="일평균 거래대금 하한(원)")
     ap.add_argument("--order", default=None, choices=["code", "value"],
                     help="code(현행 알파벳순) | value(거래대금 상위)")
+    # ── 유니버스 경로 (2026-09-28 CG10 배선) ────────────────────────────────────
+    # prod = 프로덕션 챔피언 학습기와 같은 함수(app.training.universe.select_training_universe)
+    # 로 코드를 고른다 → 스윕 실측이 승격 조건을 대표하게 된다. 기본값(미지정)은 현행 유지.
+    ap.add_argument("--universe", default=None, choices=["curated", "prod"],
+                    help="curated(현행 기본) | prod(프로덕션 규칙 — --market/--since/--order 무시)")
+    ap.add_argument("--universe-seed", type=int, default=0,
+                    help="prod 유니버스 셔플 시드(프로덕션과 동일하게 0)")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--wait-for-panel", type=int, default=0,
@@ -362,8 +436,11 @@ def main():
         uni["order"] = args.order
     if uni:
         ml.log(f"universe 옵션: {uni}")
+    if args.universe:
+        ml.log(f"universe 경로: {args.universe} (seed={args.universe_seed})")
     df, names = W.build_panel(args.panel, args.limit, args.days, log=ml.log,
-                              end_date=args.end_date, **uni)
+                              end_date=args.end_date, universe=args.universe,
+                              universe_seed=args.universe_seed, **uni)
     base_names = [n for n in names if n in df.columns]
     all_dates = sorted(df["date"].astype(str).unique())
     ml.log(f"panel rows={len(df)} dates={len(all_dates)} ({all_dates[0]} ~ {all_dates[-1]})")
@@ -471,18 +548,27 @@ def main():
             # 부분집합을 만들면 두 arm 이 같은 날짜·같은 폴드·같은 피처가 된다.
             _cfp = cfg.get("codes_from_panel")
             _clim = int(cfg.get("codes_limit") or 0)
-            if _cfp or _clim:
-                if _clim:
+            _cslic = cfg.get("codes_slice")          # [start, stop) on the panel-ordered code list
+            if _cfp or _clim or _cslic:
+                if _cfp:
+                    _zp = np.load(_cfp, allow_pickle=True)
+                    keep, _src = {str(c) for c in _zp["codes"]}, os.path.basename(str(_cfp))
+                else:
+                    # 패널 순서(유니버스 정렬 순) 그대로의 고유 코드 목록.
+                    # codes_limit = 첫 N개(중첩 부분집합) · codes_slice = [a,b) 구간(서로소 부분집합).
+                    # 왜 둘 다 필요한가(2026-09-28 CG12/CG13): ① 크기 축은 중첩이어야 '종목 수 효과'가
+                    # 분리되고 ② 같은 크기의 **다른 종목 집합**이 만드는 AUC 분산은 서로소 부분집합으로만
+                    # 잴 수 있다(유니버스 교체만으로 사전문턱 +0.02 가 만들어지는지 검정).
                     _seen: list = []
                     for _c in d["stock_code"].astype(str):
                         if _c not in _seen:
                             _seen.append(_c)
-                            if len(_seen) >= _clim:
-                                break
-                    keep, _src = set(_seen), f"패널 순서 첫 {_clim}종목"
-                else:
-                    _zp = np.load(_cfp, allow_pickle=True)
-                    keep, _src = {str(c) for c in _zp["codes"]}, os.path.basename(str(_cfp))
+                    if _clim:
+                        keep, _src = set(_seen[:_clim]), f"패널 순서 첫 {_clim}종목"
+                    else:
+                        _a, _b = int(_cslic[0]), int(_cslic[1])
+                        keep = set(_seen[_a:_b])
+                        _src = f"패널 순서 [{_a}:{_b}) = {len(keep)}종목"
                 before = len(d)
                 d = d[d["stock_code"].astype(str).isin(keep)]
                 ml.log(f"  {exp_id}: 종목 필터 {before} → {len(d)} 행 ({len(keep)}종목: {_src})")

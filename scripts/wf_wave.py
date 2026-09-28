@@ -112,7 +112,38 @@ def dedupe_names(names):
     return out
 
 
-def build_panel(cache, limit, days, log=print, end_date=None, **universe):
+def select_panel_codes(pg, limit, universe="curated", universe_seed=0, log=print,
+                       **universe_opts):
+    """패널 유니버스 코드 선택 — 실험(curated) vs **프로덕션(prod)** 경로 정렬용.
+
+    왜(2026-09-28, CG10/CG9): 지금까지 모든 스윕은 `train_curated._select_universe`
+    (KOSDAQ·코드순·최소 50일)로 49~150종목을 골랐는데, **프로덕션 챔피언은
+    `app.training.universe.select_training_universe(limit=200, min_days=30, seed=0)`
+    = ETF/ETN 제외 + 최근 데이터 순 + seed 셔플** 로 200종목을 고른다. 유니버스가 다르면
+    스윕에서 잰 Δ 가 승격 조건을 대표하지 못한다(CG5: 같은 config 가 49종목 +0.0227 →
+    150종목 −0.0109 로 부호 반전).
+
+    universe:
+      "curated"(기본·현행) — tc._select_universe(limit, market/since/min_days/min_value/order)
+      "prod"               — 프로덕션 학습기와 **같은 함수**로 선택(옵션은 무시되고 로그로 알린다).
+                             ⚠ prod 는 KOSPI+KOSDAQ 혼합이므로 패널 파일명을 반드시 새로 써라
+                             (예: panel_prod200.npz) — 기존 패널을 덮으면 대조군이 사라진다.
+    """
+    if universe in (None, "curated"):
+        return tc._select_universe(pg, limit, **universe_opts)
+    if universe != "prod":
+        raise ValueError(f"unknown universe={universe!r} (curated|prod)")
+
+    from app.training.universe import select_training_universe
+    if universe_opts:
+        log(f"⚠ --universe prod: curated 옵션 {sorted(universe_opts)} 는 무시된다 "
+            f"(프로덕션 규칙 = ETF/ETN 제외·최근데이터순·min_days=30·seed={universe_seed})")
+    codes = select_training_universe(pg, limit=limit, min_days=30, seed=universe_seed)
+    return codes
+
+
+def build_panel(cache, limit, days, log=print, end_date=None, universe="curated",
+                universe_seed=0, **universe_opts):
     """패널 캐시를 만들거나 재사용한다.
 
     end_date: 빌드 구간의 끝 날짜(YYYY-MM-DD). 기본 None = 실행 시각(now).
@@ -122,8 +153,9 @@ def build_panel(cache, limit, days, log=print, end_date=None, **universe):
       고정해야 한다 — 안 그러면 매일 0% 에서 다시 시작해 영원히 완주하지 못한다(47%에서 두 번 소실).
       고정하면 재개가 실제로 이어지고, 구간이 같으므로 실험 프로토콜도 그대로다.
 
-    universe: `tc._select_universe` 로 전달되는 확장 옵션(market/since/min_days/min_value/order).
-    비우면 현행 기본값(KOSDAQ·코드순·최소 50일)이 그대로 쓰인다.
+    universe: "curated"(기본·현행) | "prod"(프로덕션 select_training_universe 와 동일 규칙).
+    나머지 universe_opts: `tc._select_universe` 로 전달되는 확장 옵션
+      (market/since/min_days/min_value/order). 비우면 현행 기본값(KOSDAQ·코드순·최소 50일).
     ⚠ 캐시는 **파일명으로만** 구분된다 → 유니버스를 바꾸면 반드시 새 파일명을 써라
       (예: --panel /app/app/models/wf/panel_500.npz). 기존 패널을 덮으면 대조군이 사라진다.
     """
@@ -145,8 +177,9 @@ def build_panel(cache, limit, days, log=print, end_date=None, **universe):
     sig_at_start = ml.FeaturePipeline._feature_code_sig()
     pg = ml.connect_pg()
     try:
-        codes = tc._select_universe(pg, limit, **universe)
-        log(f"universe: {len(codes)} 종목 (limit={limit})")
+        codes = select_panel_codes(pg, limit, universe=universe, universe_seed=universe_seed,
+                                   log=log, **universe_opts)
+        log(f"universe[{universe}]: {len(codes)} 종목 (limit={limit})")
         pipeline = ml.FeaturePipeline(pg_conn=pg)
         end = (datetime.strptime(end_date, "%Y-%m-%d") if end_date
                else datetime.now())
@@ -236,6 +269,49 @@ def make_labels(df, kind, horizon, q):
     return y.values
 
 
+def universe_report(limit=200, seed=0):
+    """유니버스 배선 검증 리포트 — **DB 조회만** 한다(패널 빌드 없음).
+
+    왜(2026-09-28, CG10 선행조건): 스윕 유니버스(curated: KOSDAQ·코드순·최소 50일)와 프로덕션
+    학습 유니버스(prod: ETF/ETN 제외·최근데이터순·200종목·seed 셔플)가 실제로 어떻게 다른지를
+    DB 수준에서 먼저 확인한다. 15시간짜리 패널 빌드를 띄우기 전에 'KOSPI 가 섞여 나오는가 ·
+    교집합이 얼마인가'를 수 초에 판정하는 것이 목적이다.
+    """
+    pg = ml.connect_pg()
+    out = {}
+    try:
+        for name in ("curated", "prod"):
+            codes = select_panel_codes(pg, limit, universe=name, universe_seed=seed, log=ml.log)
+            cur = pg.cursor()
+            cur.execute(
+                "SELECT market, COUNT(*) FROM stocks WHERE stock_code = ANY(%s) GROUP BY market",
+                (list(codes),))
+            mix = {m: int(c) for m, c in cur.fetchall()}
+            cur.execute(
+                "SELECT COUNT(*) FROM stocks WHERE stock_code = ANY(%s) AND instrument_type <> 'STOCK'",
+                (list(codes),))
+            non_stock = int(cur.fetchone()[0])
+            cur.close()
+            out[name] = {"n": len(codes), "market_mix": mix, "non_stock": non_stock,
+                         "codes": list(codes)}
+            ml.log(f"[{name}] n={len(codes)} 시장={mix} 비주식={non_stock}")
+    finally:
+        try:
+            pg.close()
+        except Exception:
+            pass
+
+    a = set(out["curated"]["codes"])
+    c = set(out["prod"]["codes"])
+    inter = a & c
+    ml.log(f"교집합 {len(inter)}/{limit} ({len(inter) / max(1, limit) * 100:.1f}%) "
+           f"· curated 전용 {len(a - c)} · prod 전용 {len(c - a)}")
+    out["overlap"] = {"n": len(inter), "ratio": round(len(inter) / max(1, limit), 4)}
+    out["kospi_in_prod"] = int(out["prod"]["market_mix"].get("KOSPI", 0))
+    print(json.dumps({k: v for k, v in out.items()}, ensure_ascii=False))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=420)
@@ -244,10 +320,31 @@ def main():
     ap.add_argument("--end-date", default=None,
                     help="빌드 구간 끝 날짜 YYYY-MM-DD (기본: 실행 시각)")
     ap.add_argument("--limit", type=int, default=50)
+    # ── 유니버스 경로 (2026-09-28 CG10 배선) ────────────────────────────────────
+    # curated(기본·현행 = train_curated._select_universe) vs prod(프로덕션 챔피언 학습기와
+    # **같은 함수** app.training.universe.select_training_universe: ETF/ETN 제외·최근데이터순·
+    # 200종목·seed 셔플). 기본값은 현행 유지 — 기존 패널·기준선의 재현성이 깨지면 안 된다.
+    ap.add_argument("--universe", default="curated", choices=["curated", "prod"],
+                    help="curated(현행 기본) | prod(프로덕션 200종목 규칙)")
+    ap.add_argument("--universe-seed", type=int, default=0,
+                    help="prod 유니버스 셔플 시드(프로덕션 학습기와 동일하게 0)")
+    ap.add_argument("--universe-report", action="store_true",
+                    help="패널을 빌드하지 않고 **유니버스 코드만** 조회해 보고(DB 전용 검증)")
+    # ── 캐시 파일명 (2026-09-28 CG10 배선) ──────────────────────────────────────
+    # 캐시는 **파일명으로만** 구분된다. 기본값은 현행(panel_{days}.npz)이지만, 유니버스를
+    # 바꾼 실행은 반드시 새 파일명을 써야 한다 — 안 그러면 기준선 패널을 덮어 **대조군이
+    # 사라진다**(과거 U1 계열에서 실제로 위험했던 지점). 그래서 prod + 기본 파일명은 거부한다.
+    ap.add_argument("--panel", default=None,
+                    help="패널 캐시 경로 (기본 /app/app/models/wf/panel_{days}.npz)")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
+
+    if args.universe_report:
+        # DB 조회만으로 유니버스 배선을 검증한다(패널 빌드 없이 수 초) — CG10 의 선행 조건.
+        ml.set_exp_log("wf_universe_report")
+        return universe_report(args.limit, args.universe_seed)
 
     if args.smoke:
         args.days, args.limit, args.folds, args.seeds = 90, 8, 2, 1
@@ -256,7 +353,13 @@ def main():
         summary_path = "/app/reports/overnight/wf_wave_smoke_summary.json"
         cfgs = [dict(CONFIGS[0], horizon=3, select="top10")]
     else:
-        cache = f"/app/app/models/wf/panel_{args.days}.npz"
+        cache = args.panel or f"/app/app/models/wf/panel_{args.days}.npz"
+        # prod 유니버스 + 기본 파일명 조합은 **기준선 패널 덮어쓰기** 사고를 낸다 → 거부.
+        if args.universe == "prod" and not args.panel:
+            print("거부: --universe prod 는 --panel 새 경로가 필수다 "
+                  "(기본값이면 기준선 패널을 덮어 대조군이 사라진다). "
+                  "예: --panel /app/app/models/wf/panel_prod200.npz")
+            return 2
         results_path = "/app/reports/overnight/wf_wave.jsonl"
         summary_path = "/app/reports/overnight/wf_wave_summary.json"
         cfgs = CONFIGS
@@ -265,7 +368,8 @@ def main():
     ml.log(f"wf_wave start KST={ml.now_kst().isoformat(timespec='seconds')} "
            f"days={args.days} limit={args.limit} folds={args.folds} seeds={args.seeds}")
     df, names = build_panel(cache, args.limit, args.days, log=ml.log,
-                            end_date=args.end_date)
+                            end_date=args.end_date, universe=args.universe,
+                            universe_seed=args.universe_seed)
     base_names = [n for n in names if n in df.columns]
     all_dates = sorted(df["date"].astype(str).unique())
     ml.log(f"panel rows={len(df)} dates={len(all_dates)} "
