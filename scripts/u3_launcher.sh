@@ -15,7 +15,7 @@ LOG=/home/jhshi/analyist_dd/data/reports/me_cycle/u3_launcher.log
 PANEL=/home/jhshi/analyist_dd/services/xgboost-ml/app/models/wf/panel_995.npz
 cd /home/jhshi/analyist_dd || exit 1
 
-echo "[$(date '+%F %T')] u3_launcher 시작 (pid $$) — 창 20:35~21:00, 종료 상한 08:40" >> "$LOG"
+echo "[$(date '+%F %T')] u3_launcher 시작 (pid $$) — 창 20:35~21:15, 종료 상한 08:55" >> "$LOG"
 while true; do
   if [ -f "$PANEL" ]; then
     echo "[$(date '+%F %T')] panel_995.npz 완성 — 런처 종료" >> "$LOG"
