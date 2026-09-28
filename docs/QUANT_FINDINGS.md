@@ -278,3 +278,25 @@
 - 결함 ①: `run_with_claim.py` 위치인자 형태 → 현재 CLI 는 `--runner/--table` 필요.
 - 결함 ②: 종목 유니버스 미지정 시 이미 수집된 종목만 대상 → 종목 수가 늘 수 없어 check(>=500)가 구조적으로 통과 불가였다(완료 318 / 남음 0 실측).
 - 조치: `data/kis/supply_universe_800.txt`(800코드) 주입 + 래퍼 인자 수정 후 재실행. XR3 는 재실행 성공 전까지 채우지 말 것.
+
+## [리서처 감사] check 결함 5건 — '미달'의 일부는 데이터가 아니라 판정이었다  (2026-09-29 06:25)
+- 계기: R10·R12 가 미달로 남아 있었는데 DB 를 직접 읽으면 값이 살아 있었다 → 백로그 **전수 감사기**
+  `scripts/r_check_audit.py` 신설(읽기 전용·구동기와 같은 `eval_check` 경로로 23개 항목 재판정).
+- 결함 ① **배치 스코프 필터**(R10·R11·R12): check 가 `computed_at=(SELECT MAX(computed_at))`
+  = '마지막 배치'를 요구했다. 9/28 06:38 거시 배치 16행이 MAX 를 차지하자 9/25 배치 소속 피처가
+  판정에서 빠져 **0(미달)** 로 읽혔다(실측 필터有 0 / 無 5). 필터 제거 후 실측 R10 5/5 · R11 5/5 · R12 5/5.
+- 결함 ② **R1 오배치 + 오류 마스킹**: check 가 `financial_statements.rcept_dt` 를 읽는데 그 테이블에
+  rcept_dt 컬럼이 없다 → `2>/dev/null || echo 0` 이 오류를 **0 으로 위장**(영구 미달). 실제 소재는
+  `disclosures`(212,861행 / 3,052종목 / rcept_dt 100%) → 3052 >= 100 충족.
+- 결함 ③ **R14 사각지대**: status=in_progress 는 `next_item()`(pending 만)에도 틱 경고 추출기
+  (pending·needs_approval·partial·failed)에도 걸리지 않아 잔여 작업이 **어떤 보고에도 안 나왔다**
+  → partial + `blocked_by`(엔지니어 exp_panel 재빌드 대기)로 전환.
+- 결함 ④ **R3 분모**: `COUNT(DISTINCT stock_code) FROM foreign_institutional` 은 유니버스 밖 코드를
+  포함(실측 892)해 유니버스 800 중 267종목이 비어도 통과한다 → 유니버스 분모 프로브
+  `scripts/r3_universe_coverage.py` 로 교체(파일 없으면 항목 정의로 SQL 재생성). 실측 2026-09-29 06:0x:
+  유니버스 800 ∩ 수급 533(미커버 267) — check_target 500 은 이미 충족.
+- **모델 영향**: '죽었다'로 보였던 R10·R12 피처는 **살아 있었다**. 단 R10 의 5개 중 `market_breadth`
+  는 xsec_const=1.000(계약 #6 위반 — 횡단면 부적격), `short_selling_ratio` 는 nz 0.0022(사실상 무효)이므로
+  엔지니어 인계 목록에 '유효 피처'로 세면 안 된다. R12 재무 비율은 `financial_ratio_features`
+  775,010행 / 2,569종목 / as-of 위반 0 으로 검증됐고, 격자가 9/23 에서 멈춰 있다(시장 최신일 9/28)
+  — 다음 실행이 그리드를 갱신한다.

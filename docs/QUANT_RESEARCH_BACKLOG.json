@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T00:14:18+09:00",
+  "updated_at": "2026-09-29T06:25:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -22,7 +22,7 @@
       "evidence": "① financial_statements 10,370행 적재됨(=DART 수집이 과거에 실제로 돌았다). ② DART 실호출 정상: status 000 / message 정상 / 54건, 응답에 rcept_dt(20260923 형식)와 stock_code 가 **둘 다 포함** → corp_code 매핑 없이 종목 조인 가능. ③ financial_statements 스키마에 rcept_dt 없음(\\d 확인). ④ sentiment_features.py:79 가 이미 disclosures(stock_code, rcept_dt DATE, report_nm) 계약을 요구하는데 테이블이 없다 → 그 기능이 죽어 있는 원인.",
       "method": "승인 후 ① DDL 적용 ② dart_financial_backfill.py 또는 financial_collector 로 공시 인덱스 백필(rcept_dt·rcept_no·report_nm) ③ company_features 의 공시 지연 가정(90/45일)을 실제 rcept_dt 로 교체 ④ as-of 재측정",
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/dart_financial_backfill.py --help'",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM financial_statements WHERE rcept_dt IS NOT NULL\" 2>/dev/null || echo 0",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM disclosures WHERE rcept_dt IS NOT NULL\"",
       "check_target": {
         "op": ">=",
         "value": 100
@@ -44,7 +44,8 @@
           "detail": "승인 후 실행: DDL 적용 + 백필 완주(신규 15,895행)"
         }
       ],
-      "incident": "1차 백필이 214페이지를 돌고 신규 945행뿐이었다(95% 중복). 원인: DART 는 total_count 를 넘는 page_no 에 마지막 페이지를 반복 반환. 수정: total_count 기반 종료 + 반복 감지(커밋 c509aa2)."
+      "incident": "1차 백필이 214페이지를 돌고 신규 945행뿐이었다(95% 중복). 원인: DART 는 total_count 를 넘는 page_no 에 마지막 페이지를 반복 반환. 수정: total_count 기반 종료 + 반복 감지(커밋 c509aa2).",
+      "check_note": " | [2026-09-29 06:25 리서처] **check 오배치 + 오류 마스킹 수리**: 종전 check 는 `financial_statements.rcept_dt` 를 읽었는데 그 테이블에 **rcept_dt 컬럼이 없다**(실측 `ERROR: column \"rcept_dt\" does not exist`) → 뒤의 `2>/dev/null || echo 0` 이 오류를 **0 으로 위장**해 check 가 영구 '미달 0'이었다(데이터는 정상). 접수일의 실제 소재는 `disclosures` 다 — 실측 212,861행 / 3,052종목 / rcept_dt 100%. 마스킹을 제거해 오류가 0 이 아니라 '수치 없음'으로 드러나게 했다(조용한 0 금지)."
     },
     {
       "id": "R2",
@@ -89,7 +90,7 @@
       "evidence": "DB 실측: foreign_institutional 343종목/87,895행. 유니버스 풀은 2,428종목(250일 이상 + 유동성 1억 이상). 150종목 실험군 0.5727 vs 49종목군 0.5400.",
       "method": "기존 러너 재사용(자기신고 필수): set -a && . ./.env && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 후 kis_supply_extend_history.py. 1.5~3초 간격이므로 300종목 ≈ 8~12시간 → 여러 사이클로 분할.",
       "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/run_with_claim.py --runner kis_supply_extend_history --table foreign_institutional -- /usr/bin/python3 scripts/kis_supply_extend_history.py --stocks-file data/kis/supply_universe_800.txt --target-days 250 --delay 2.0 --max-pages 12 --max-calls 400",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(DISTINCT stock_code) FROM foreign_institutional\"",
+      "check": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r3_universe_coverage.py",
       "check_target": {
         "op": ">=",
         "value": 500
@@ -121,7 +122,7 @@
         "rc": 3,
         "log": "data/reports/res_cycle/logs/res_R3_20260928-201257.log"
       },
-      "check_note": "[2026-09-28 18:09 리서처] **결함 1 — 래퍼 인자 형식**: 종전 명령은 `run_with_claim.py kis_supply_extend_history -- python3 ...`(위치인자)였는데 현재 래퍼 CLI 는 `--runner NAME --table TABLE -- cmd` 를 요구한다 → argparse 오류로 1초 만에 rc=2 종료(수급은 늘지 않음). 이 항목은 09-25 이후 교차 락·부하로 틱이 계속 대기해 **한 번도 실행되지 않았고**, 첫 실행에서 드러났다. | [2026-09-28 18:10 리서처] **결함 2 — check 가 구조적으로 통과 불가**: `kis_supply_extend_history.py` 의 `read_codes()` 는 `--stocks`/`--stocks-file` 이 없으면 **foreign_institutional 에 이미 있는 종목만** 대상으로 잡는다(실측: 완료 318 / 남음 0). 즉 이 명령으로는 종목 수가 343 에서 **영원히** 늘지 않아 check(distinct >= 500)가 '고쳐도 못 통과하는 check'였다. → 800종목 유니버스 파일을 만들어 `--stocks-file data/kis/supply_universe_800.txt` 로 주입했다(비ETF·ETN, 최근 90일 시세 보유, 시가총액 상위 800 — 2026-09-28 생성, 800코드 검증). 이제 check 는 도달 가능하다. | [2026-09-28 18:2x 리서처] **상태 재설정(failed → pending)**: 18:09 실행의 rc=2 '미달'은 커맨드 결함(래퍼 인자 형식·유니버스 미지정) 때문이었고 둘 다 수정했다. 또한 이 실행에서 드러난 래퍼 자체의 결함 2건도 수정: ① `run_with_claim.py` 커넥션 autocommit — 종전에는 COUNT(*) 트랜잭션이 자식 실행 내내 열려 있어 kis-collector 의 `ALTER TABLE foreign_institutional ADD COLUMN` 을 막고, 그 ALTER 가 락 큐 앞에 서서 러너 INSERT 를 다시 막았다(수급 러너 250초 무한 대기) ② `parse_claim` 총계 줄 우선 — 항목별 +N행 과 총계가 함께 찍혀 claimed 238(실제 120)로 이중 계상됐다. 회귀 테스트: tests/test_run_with_claim_parse.py(4건, 통과). | [2026-09-28 20:05 리서처] **결함 3 — 러너의 '재개' 신호를 실패로 오분류(점진 수집 정지)**: 18:25 실행은 정상이었다 — 로그가 `실행당 호출 상한(400) 도달 — 중단, 다음 실행에서 재개`, `연장 완료: +11967행`, `자기신고: 소스 12000 / 저장 11967 / 신규 11967 (일치)` 로 끝났고 foreign_institutional 이 343→**378종목/100,160행**으로 늘었다. 그런데 러너는 상한 도달 시 **exit 3** 을 반환하고(`kis_supply_extend_history.py:229 return 3 if hit_limit else 0` = '다음 실행에서 재개'), 구동기는 `rc != 0 → status=failed` 로 적었다. `next_item()` 은 **pending 만** 후보로 보므로 R3 가 큐에서 영구히 빠졌다 → 이후 틱은 R3 를 다시 집지 않고 500종목 목표에 도달하지 못한 채 378 에서 조용히 정지한다. 수정: `researcher_cycle.status_after()` + 항목별 `resumable_rc` 선언(이 항목에 `resumable_rc: [3]`) — 선언된 코드만 pending(재개)으로 되돌리고, 선언 밖의 rc(1/2=크래시·인자오류)는 종전대로 failed 다(진짜 실패를 부분 완료로 오독하지 않는다). 회귀 9건: tests/test_researcher_cycle_resumable_rc.py.",
+      "check_note": "[2026-09-28 18:09 리서처] **결함 1 — 래퍼 인자 형식**: 종전 명령은 `run_with_claim.py kis_supply_extend_history -- python3 ...`(위치인자)였는데 현재 래퍼 CLI 는 `--runner NAME --table TABLE -- cmd` 를 요구한다 → argparse 오류로 1초 만에 rc=2 종료(수급은 늘지 않음). 이 항목은 09-25 이후 교차 락·부하로 틱이 계속 대기해 **한 번도 실행되지 않았고**, 첫 실행에서 드러났다. | [2026-09-28 18:10 리서처] **결함 2 — check 가 구조적으로 통과 불가**: `kis_supply_extend_history.py` 의 `read_codes()` 는 `--stocks`/`--stocks-file` 이 없으면 **foreign_institutional 에 이미 있는 종목만** 대상으로 잡는다(실측: 완료 318 / 남음 0). 즉 이 명령으로는 종목 수가 343 에서 **영원히** 늘지 않아 check(distinct >= 500)가 '고쳐도 못 통과하는 check'였다. → 800종목 유니버스 파일을 만들어 `--stocks-file data/kis/supply_universe_800.txt` 로 주입했다(비ETF·ETN, 최근 90일 시세 보유, 시가총액 상위 800 — 2026-09-28 생성, 800코드 검증). 이제 check 는 도달 가능하다. | [2026-09-28 18:2x 리서처] **상태 재설정(failed → pending)**: 18:09 실행의 rc=2 '미달'은 커맨드 결함(래퍼 인자 형식·유니버스 미지정) 때문이었고 둘 다 수정했다. 또한 이 실행에서 드러난 래퍼 자체의 결함 2건도 수정: ① `run_with_claim.py` 커넥션 autocommit — 종전에는 COUNT(*) 트랜잭션이 자식 실행 내내 열려 있어 kis-collector 의 `ALTER TABLE foreign_institutional ADD COLUMN` 을 막고, 그 ALTER 가 락 큐 앞에 서서 러너 INSERT 를 다시 막았다(수급 러너 250초 무한 대기) ② `parse_claim` 총계 줄 우선 — 항목별 +N행 과 총계가 함께 찍혀 claimed 238(실제 120)로 이중 계상됐다. 회귀 테스트: tests/test_run_with_claim_parse.py(4건, 통과). | [2026-09-28 20:05 리서처] **결함 3 — 러너의 '재개' 신호를 실패로 오분류(점진 수집 정지)**: 18:25 실행은 정상이었다 — 로그가 `실행당 호출 상한(400) 도달 — 중단, 다음 실행에서 재개`, `연장 완료: +11967행`, `자기신고: 소스 12000 / 저장 11967 / 신규 11967 (일치)` 로 끝났고 foreign_institutional 이 343→**378종목/100,160행**으로 늘었다. 그런데 러너는 상한 도달 시 **exit 3** 을 반환하고(`kis_supply_extend_history.py:229 return 3 if hit_limit else 0` = '다음 실행에서 재개'), 구동기는 `rc != 0 → status=failed` 로 적었다. `next_item()` 은 **pending 만** 후보로 보므로 R3 가 큐에서 영구히 빠졌다 → 이후 틱은 R3 를 다시 집지 않고 500종목 목표에 도달하지 못한 채 378 에서 조용히 정지한다. 수정: `researcher_cycle.status_after()` + 항목별 `resumable_rc` 선언(이 항목에 `resumable_rc: [3]`) — 선언된 코드만 pending(재개)으로 되돌리고, 선언 밖의 rc(1/2=크래시·인자오류)는 종전대로 failed 다(진짜 실패를 부분 완료로 오독하지 않는다). 회귀 9건: tests/test_researcher_cycle_resumable_rc.py. | [2026-09-29 06:20 리서처] **결함 4 — check 분모가 '테이블 전체'였다(분모 정의가 곧 판정)**: 종전 check(`COUNT(DISTINCT stock_code) FROM foreign_institutional`)는 유니버스 밖 코드(과거 수집분)를 포함해 실측 892종목을 반환한다 → 유니버스 800 중 267종목이 통째로 비어 있어도 '>= 500 충족'으로 통과한다. 목표는 '모델 유니버스 커버리지'이므로 분모를 유니버스로 고정: `scripts/r3_universe_coverage.py`(읽기 전용·KIS 호출 0회·DB SELECT 3회, 파일이 없으면 항목 note 의 정의로 SQL 재생성 — 실측 재현율 786/800=98.3%, 스모크: 파일경로 533 / SQL경로 532). 실측 2026-09-29 06:0x: 유니버스 800 ∩ 수급 보유 533(미커버 267) / 테이블 전체 892종목 126,400행(최신일 9/28). 즉 check_target 500 은 이미 충족(533) — 남은 267종목 확대 여부는 R20(KIS 일일 호출 한도) 승인에 달렸다.",
       "universe": "data/kis/supply_universe_800.txt (800코드) — **data/kis 는 gitignore** 라 사라지면 재생성해야 한다. 재생성(실측 재현율 786/800=98.3%): docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT s.stock_code FROM stocks s JOIN market_data m ON m.stock_code=s.stock_code WHERE s.instrument_type='STOCK' GROUP BY s.stock_code HAVING COUNT(*)>=250 ORDER BY MAX(s.market_cap) DESC NULLS LAST LIMIT 800\" > data/kis/supply_universe_800.txt",
       "resumable_rc": [
         3
@@ -279,14 +280,14 @@
     {
       "id": "R10",
       "title": "수급·시장·모멘텀 피처 19개 부활 (보유 테이블만으로 계산)",
-      "status": "partial",
+      "status": "pending",
       "priority": 2,
       "affects_model": true,
       "hypothesis": "foreign_institutional 87,895행·krx_short_selling 2,393행·market_data 111만 행을 이미 보유하고도 누적/비율 피처가 없다. 수급·모멘텀은 가격 피처와 독립 신호다.",
       "evidence": "feature_coverage: institution_*·foreign_*·short_*·momentum_*·krx_*·market_* 계열 19개가 nonzero_ratio=0. 원천 테이블은 각각 수천~수십만 행 적재 완료(실측).",
       "method": "SQL/pandas 로 ① 기관·외국인 5일 누적 순매수 ② 공매도 비율·days_to_cover ③ 3/6/12개월 모멘텀·상대강도·breadth·등락비율·볼린저 위치를 종목×일자로 계산 후 피처 테이블 적재 → feature_coverage 재계산",
       "command": "/usr/bin/python3 scripts/build_supply_market_features.py",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('institution_net_buy_5d','foreign_net_buy_5d','short_selling_ratio','momentum_3_12m','market_breadth') AND nonzero_ratio > 0\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('institution_net_buy_5d','foreign_net_buy_5d','short_selling_ratio','momentum_3_12m','market_breadth') AND nonzero_ratio > 0\"",
       "check_target": {
         "op": ">=",
         "value": 3
@@ -301,7 +302,8 @@
         "timeout_s": 2400,
         "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
       },
-      "note": "| 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당. [2026-09-25 20:22 리서처 실측] 원천 적재는 성공했으나 feature_coverage 실측에서 19개 중 착시 15개·결측>0.90 8개가 전부 이 배치 소속(기존 180개는 0). 단 그 값은 464일 격자 기준이라 오분모일 수 있다 → R16(창 기준 재측정)이 선행 조건. 엔지니어에 넘길 때 '적재 완료'가 아니라 '창 기준 커버리지 실측치'를 동봉할 것.| [2026-09-25 21:35 리서처·R16 결과 반영] 창(250d) 기준으로도 쓸 수 있는 것은 3개뿐이다: momentum_3_12m·relative_strength·bb_position (각각 nz 0.235/0.968/0.963, uniq_med 62/169/169, xsec 0.633/0.000/0.000). adr·breadth·total_trading_value 는 xsec_const=1.000 이라 **횡단면 피처 금지**(시장 타이밍 전용). 수급 4종은 null 0.9163 = 격자 3,970종목 중 338종목만 값 보유이지만, 그 338종목 안에서는 nonzero 0.9370 이다 — 무효 판정이 아니라 **분모 문제**(R3 로 확장). 엔지니어에 넘길 목록은 이 3개(+수급은 유니버스 조건 명시)다."
+      "note": "| 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당. [2026-09-25 20:22 리서처 실측] 원천 적재는 성공했으나 feature_coverage 실측에서 19개 중 착시 15개·결측>0.90 8개가 전부 이 배치 소속(기존 180개는 0). 단 그 값은 464일 격자 기준이라 오분모일 수 있다 → R16(창 기준 재측정)이 선행 조건. 엔지니어에 넘길 때 '적재 완료'가 아니라 '창 기준 커버리지 실측치'를 동봉할 것.| [2026-09-25 21:35 리서처·R16 결과 반영] 창(250d) 기준으로도 쓸 수 있는 것은 3개뿐이다: momentum_3_12m·relative_strength·bb_position (각각 nz 0.235/0.968/0.963, uniq_med 62/169/169, xsec 0.633/0.000/0.000). adr·breadth·total_trading_value 는 xsec_const=1.000 이라 **횡단면 피처 금지**(시장 타이밍 전용). 수급 4종은 null 0.9163 = 격자 3,970종목 중 338종목만 값 보유이지만, 그 338종목 안에서는 nonzero 0.9370 이다 — 무효 판정이 아니라 **분모 문제**(R3 로 확장). 엔지니어에 넘길 목록은 이 3개(+수급은 유니버스 조건 명시)다.",
+      "check_note": " | [2026-09-29 06:20 리서처] **check 결함 수리 — 배치 스코프 필터**: `computed_at=(SELECT MAX(computed_at) FROM feature_coverage)` 는 '마지막 배치'를 뜻해, 9/28 06:38 거시 배치 16행이 MAX 를 차지하자 이 항목의 5개 피처(9/25 11:08 배치)가 판정에서 빠져 **0(미달)** 로 읽혔다(데이터는 그대로 — 실측 필터有 0 / 無 5). 필터를 제거해 피처 자체를 세도록 교체. 실측 5/5 nonzero: foreign_net_buy_5d 0.0754 · institution_net_buy_5d 0.0558 · market_breadth 0.9976(xsec_const=1.000) · momentum_3_12m 0.1401 · short_selling_ratio 0.0022. ⚠ '5개 nonzero'를 진척으로 읽지 마라 — market_breadth 는 계약 #6 위반(시장레벨, 횡단면 부적격)이고 short_selling_ratio 는 사실상 무효다(북극성은 alive_xsec). 상태 partial→pending 재투입(재빌드가 feature_coverage 배치도 갱신 → R14 혼합배치 완화)."
     },
     {
       "id": "R11",
@@ -313,7 +315,7 @@
       "evidence": "feature_coverage: fx/oil/interest/cpi/ppi/yield/economic/cycle 계열 16개가 nonzero_ratio=0.",
       "method": "발표일 기준 as-of 조인(룩어헤드 금지: 발표 지연 반영) + 변화율·스프레드 계산 후 적재. 주기: 일별 관측치와 월별 지표를 구분해 각각 전진 채움.",
       "command": "/usr/bin/python3 scripts/build_macro_features.py",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('fx_usd_krw','oil_wti','interest_rate','cpi_yoy','yield_spread') AND nonzero_ratio > 0\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('fx_usd_krw','oil_wti','interest_rate','cpi_yoy','yield_spread') AND nonzero_ratio > 0\"",
       "check_target": {
         "op": ">=",
         "value": 3
@@ -350,7 +352,8 @@
         "check_value": 5.0,
         "rc": 0,
         "log": "data/reports/res_cycle/logs/res_R11_20260928-153812.log"
-      }
+      },
+      "check_note": " | [2026-09-29 06:20 리서처] 같은 배치 스코프 필터(`computed_at=MAX`)를 제거(잠복 결함 — 현재는 값 동일: 필터有 5 / 無 5. 다른 배치가 MAX 를 차지하면 0 으로 뒤집히는 구조였다)."
     },
     {
       "id": "R12",
@@ -362,7 +365,7 @@
       "evidence": "feature_coverage: quality_* 9개·value_* 7개 + roe/per_current/pbr_current 가 nonzero_ratio=0. disclosures 백필로 rcept_dt 22,278행 확보(기간유형 구분 근거).",
       "method": "① rcept_dt 로 보고서 기간유형(사업/반기/분기) 구분 ② 비율 계산(ROA/ROE/부채비율/영업이익률/PER/PBR/PSR/EV-EBIT 등, 시가총액은 market_data 사용) ③ as-of 규율: 접수일 이후에만 값이 보이도록 조인",
       "command": "/usr/bin/python3 scripts/build_financial_ratio_features.py",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE computed_at=(SELECT MAX(computed_at) FROM feature_coverage) AND feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio > 0\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio > 0\"",
       "check_target": {
         "op": ">=",
         "value": 3
@@ -376,7 +379,8 @@
         "timeout_s": 2400,
         "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
       },
-      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
+      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당.",
+      "check_note": " | [2026-09-29 06:20 리서처] **check 결함 수리 + 산출물 실측**: 같은 배치 스코프 필터 때문에 9/25 11:42 배치의 19행이 판정에서 빠져 0(미달)로 읽혔다 → 필터 제거(피처 자체를 센다). 산출물은 **이미 존재**: `financial_ratio_features` 775,010행 / 2,569종목 / 2025-06-16~2026-09-23 · period_type annual 707,479행(2,555종목)·semi 67,531행(2,438종목) · as-of 위반 0(rcept_dt>trade_date 0, report_date>trade_date 0) · feature_coverage 19행 nonzero 0.208~0.718. 잔여: 격자가 9/23 에서 멈춰 있다(시장 최신일 9/28) — 다음 실행이 그리드를 갱신한다. 신선도는 dq_feature_oldest_age_days(실측 4.30)로 감시 중이며 현재 문턱 내(ok)."
     },
     {
       "id": "R13",
@@ -416,7 +420,7 @@
     {
       "id": "R14",
       "title": "feature_coverage 스냅샷 신선도 확보 (R9·R13 판정이 낡은 스냅샷에 묶여 있다)",
-      "status": "in_progress",
+      "status": "partial",
       "priority": 3,
       "affects_model": true,
       "kind": "investigate",
@@ -433,7 +437,8 @@
       "setup_needed": [],
       "cost": "1~2시간",
       "success": "feature_coverage 스냅샷이 26시간 이내로 갱신되고 event 피처가 반영되어 R9 check 가 >0 반환",
-      "result": "**부분 수리(2026-09-25 21:17)** — 근본원인 2개 중 하나를 없앴다. ① (수리) 이벤트 계열은 이제 빌더가 자기 coverage 를 갱신한다(`build_event_features.py --coverage-only` / 빌드 후 자동) → R9 가 낡은 값에 묶이지 않는다. ② (남음) 패널 경유 스냅샷 128행은 여전히 09-24 13:48~18:11 값이다. 실측 21:17: feature_coverage 199행 중 71행만 09-25 배치, 128행은 09-24 → **혼합 배치**(최신-최고령 26h). 원인: `feature_coverage_report.py` 는 exp_panel 캐시(2026-09-23 13:02 빌드, s200_d120)를 읽는데, 캐시가 낡으면 결과도 낡고, `--ignore-cache` 는 30종목/30일 축소 패널이라 **분모가 달라져** 덮어쓰면 판정이 뒤집힌다(그래서 자동 실행을 임의로 붙이지 않았다). 해소 경로: (a) 엔지니어가 exp_panel 캐시를 현재 DB 로 재빌드 → 내가 `feature_coverage_report.py` 1회 실행(동일 분모), 또는 (b) 각 빌더가 R10 방식으로 자기 피처 coverage 를 격자분모로 upsert(이벤트 계열은 완료, 나머지 계열 확대). ③ 감시: `dq_feature_oldest_age_days`(정보용)가 MIN(computed_at) 기준이라 최고령 피처를 본다."
+      "result": "**부분 수리(2026-09-25 21:17)** — 근본원인 2개 중 하나를 없앴다. ① (수리) 이벤트 계열은 이제 빌더가 자기 coverage 를 갱신한다(`build_event_features.py --coverage-only` / 빌드 후 자동) → R9 가 낡은 값에 묶이지 않는다. ② (남음) 패널 경유 스냅샷 128행은 여전히 09-24 13:48~18:11 값이다. 실측 21:17: feature_coverage 199행 중 71행만 09-25 배치, 128행은 09-24 → **혼합 배치**(최신-최고령 26h). 원인: `feature_coverage_report.py` 는 exp_panel 캐시(2026-09-23 13:02 빌드, s200_d120)를 읽는데, 캐시가 낡으면 결과도 낡고, `--ignore-cache` 는 30종목/30일 축소 패널이라 **분모가 달라져** 덮어쓰면 판정이 뒤집힌다(그래서 자동 실행을 임의로 붙이지 않았다). 해소 경로: (a) 엔지니어가 exp_panel 캐시를 현재 DB 로 재빌드 → 내가 `feature_coverage_report.py` 1회 실행(동일 분모), 또는 (b) 각 빌더가 R10 방식으로 자기 피처 coverage 를 격자분모로 upsert(이벤트 계열은 완료, 나머지 계열 확대). ③ 감시: `dq_feature_oldest_age_days`(정보용)가 MIN(computed_at) 기준이라 최고령 피처를 본다.",
+      "blocked_by": "엔지니어 exp_panel 캐시 재빌드 대기(현재 DB 기준) — 완료 후 리서처가 feature_coverage_report.py 를 동일 분모로 1회 실행해야 혼합 배치 128행이 해소된다. 실측 2026-09-29 06:2x: check=0 (혼합 배치 존재), 199행 중 128행이 9/24 배치."
     },
     {
       "id": "R15",
