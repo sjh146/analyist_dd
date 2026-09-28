@@ -32,6 +32,24 @@ while true; do
   if [ "$weekday" -ge 6 ] && [ "$hhmm" -ge 0300 ] && [ "$hhmm" -le 0800 ]; then in_window=1; fi
 
   if [ "$in_window" = "1" ]; then
+    # ── 피처 코드 프리즈 프리플라이트 (2026-09-29 실측) ─────────────────────────────
+    # 09-28 밤 빌드가 354분·32,576/32,576(100%)를 채운 뒤 "빌드 중 피처 코드 변경"으로 저장이
+    # 거부되어 전량 소실됐다(01:48 커밋 c4b431c 가 feature_pipeline.py·market_features.py 수정).
+    # 편집이 진행 중이면 시작해도 결과가 백지가 된다 → feature_engine/processors 최신 mtime 이
+    # 120분보다 최근이면 이번 주기는 건너뛴다(편집이 멈추면 다음 주기에 자동 착수).
+    newest=$(find services/xgboost-ml/app/feature_engine services/xgboost-ml/app/processors \
+             -name '*.py' -printf '%T@\n' 2>/dev/null | sort -n | tail -1 | cut -d. -f1)
+    if [ -n "$newest" ]; then
+      age_min=$(( ( $(date +%s) - newest ) / 60 ))
+      if [ "$age_min" -lt 120 ]; then
+        if [ "$last_skip_min" != "$age_min" ]; then
+          echo "[$(date '+%F %T')] 피처 코드가 ${age_min}분 전에 수정됨(<120분) — 프리즈 대기, 착수하지 않음" >> "$LOG"
+          last_skip_min=$age_min
+        fi
+        sleep 240
+        continue
+      fi
+    fi
     if pgrep -f "[w]f_label_sweep.py --panel /app/app/models/wf/panel_995" >/dev/null; then
       echo "[$(date '+%F %T')] 이미 빌드가 돌고 있다 — 대기" >> "$LOG"
     elif [ -f /home/jhshi/analyist_dd/data/reports/me_cycle/running.pid ]; then

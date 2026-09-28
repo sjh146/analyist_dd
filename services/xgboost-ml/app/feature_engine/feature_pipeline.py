@@ -427,6 +427,10 @@ class FeaturePipeline:
         processed0 = processed
         since_ck = 0
         for code in stock_codes:
+            # ⚠ 종목 배치마다 피처 코드 변경을 확인한다(실측 2026-09-29: 종전엔 빌드 끝에만 검사해
+            # 100% 채운 뒤 저장을 거부 → 밤 전량 소실). 이 호출은 try 밖에 있어야 한다 — inner 의
+            # `except Exception: continue` 안에 두면 조용히 삼켜져 무저장 빌드가 계속된다.
+            self._assert_code_unchanged(code_sig, processed, total_pairs, ck_rows, ck_meta)
             stock_dates = dates_by_stock.get(code, [])
             if not stock_dates:
                 continue
@@ -471,6 +475,33 @@ class FeaturePipeline:
                              for f in os.listdir(d) if f.endswith(".py")), 3)
         except Exception:
             return None
+
+    def _assert_code_unchanged(self, code_sig, processed, total_pairs,
+                               ck_rows=None, ck_meta=None):
+        """빌드 **중** 피처 코드가 바뀌면 그 자리에서 중단한다(오염 패널은 저장하지 않는다).
+
+        실측(2026-09-29 U3): 종전 검사는 빌드 **끝**(wf_wave.build_panel L209-218)에만 있어
+        354분·32,576/32,576(100%)을 다 채운 뒤 저장을 거부했다 → 하룻밤(5.9시간) 전량 소실.
+        09-27 에는 같은 원인으로 47% 지점 소실이 있었다. 검사를 종목 배치마다 돌리면 몇 분 안에
+        멈춰 남은 시간을 아낀다 — 오염 패널을 저장하지 않는다는 목적은 동일하다(앞부분 옛 코드·
+        뒷부분 새 코드가 섞이면 결측 패턴이 종목/기간과 상관돼 '종목 식별 증폭' 유사누수가 난다).
+        체크포인트도 버린다(meta.code_sig 가 이미 무효라 재개해도 어차피 "체크포인트 무시"된다).
+        """
+        if code_sig is None:
+            return
+        now_sig = self._feature_code_sig()
+        if now_sig is None or now_sig == code_sig:
+            return
+        for p in (ck_rows, ck_meta):
+            try:
+                if p:
+                    os.remove(p)
+            except OSError:
+                pass
+        raise RuntimeError(
+            f"빌드 중 피처 코드 변경 감지(code_sig {code_sig} → {now_sig}) — "
+            f"{processed}/{total_pairs} 페어에서 조기 중단(혼합 패널 저장 금지). "
+            f"피처 작업이 멈춘 뒤 다시 실행하라.")
 
     def _save_checkpoint(self, ck_rows, ck_meta, rows, done_keys, processed, total_pairs,
                          stock_codes, start_date, end_date, code_sig):

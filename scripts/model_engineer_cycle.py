@@ -405,14 +405,33 @@ def parse_wf_sweep(path, mtime_floor) -> dict:
     return {"finished_at": d.get("finished_at"), "config": d.get("config"), "per_exp": per}
 
 
-def failure_cause(rc, started=None):
+def failure_cause(rc, started=None, log_path=None):
     """실패 원인 추정. 137 이면 컨테이너가 **실행 중에** 재생성됐는지 실제로 확인해 적는다.
 
     실측(2026-09-27 TR3): StartedAt 을 실행 시작 시각과 비교하지 않고 무조건 "컨테이너 재생성
     (평일 20:00 evening_pipeline)"으로 단정해, **호스트 부팅(14:43) 이후 시작한 실행(14:54)** 의
     137 을 엉뚱한 원인으로 원장에 남겼다(실제는 수동 kill). StartedAt 이 실행 시작보다 이전이면
     재생성은 원인이 아니다 — 후보를 좁혀 적어야 다음 사람이 잘못된 복구를 하지 않는다.
+
+    rc=1 은 로그 꼬리에서 실제 예외 줄을 찾아 적는다(실측 2026-09-29 U3): 종전엔 "종료코드 1"
+    만 남아, 354분 빌드가 '빌드 중 피처 코드 변경 감지'로 조기 중단된 사실이 원장에서 보이지
+    않았다 → 원인 진단에 로그를 다시 열어야 했다.
     """
+    if rc == 1:
+        pat = ("빌드 중 피처 코드 변경", "체크포인트 무시", "RuntimeError", "Error", "Traceback")
+        tail = ""
+        try:
+            if log_path:
+                with open(log_path, encoding="utf-8", errors="replace") as f:
+                    tail = "".join(f.readlines()[-60:])
+        except OSError:
+            tail = ""
+        fatal = ""
+        for line in reversed([ln.strip() for ln in tail.splitlines() if ln.strip()]):
+            if any(p in line for p in pat):
+                fatal = line[:300]
+                break
+        return (f"종료코드 1 — {fatal}" if fatal else "종료코드 1(로그 꼬리에서 예외 줄 미발견)")
     if rc == 137:
         st = ""
         try:
@@ -567,11 +586,12 @@ def execute(item, force=False):
         proc = subprocess.run(item["command"], shell=True, stdout=lf,
                               stderr=subprocess.STDOUT, cwd=PROJ)
     rc = proc.returncode
+    cause = ""          # rc==0 이면 미설정 — 아래 재시도 분기가 참조하므로 초기화한다
 
     if rc != 0:
         # 실패한 실행에 성능 판정을 붙이지 않는다(설계원칙 6). 옛 요약을 읽어 Δ 를 만들면
         # 소실이 '노이즈(측정됨)'로 세어져 무개선 카운터·승격 판단이 오염된다.
-        cause = failure_cause(rc, started)
+        cause = failure_cause(rc, started, run_log)
         parsed = {"error": "실행 실패 — 측정값 없음", "rc": rc, "cause": cause,
                   "summary_mtime": os.path.getmtime(spath) if os.path.exists(spath) else None}
         verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
@@ -607,14 +627,19 @@ def execute(item, force=False):
                 "ts": rec["ts"], "rc": rc, "verdict": verdict, "detail": detail,
                 "log": rec["log"], "elapsed_min": rec["elapsed_min"],
             })
+            code_churn = rc == 1 and "피처 코드 변경" in cause
             if rc == 0:
                 it["status"] = "done"
-            elif rc in (137, 124) and len(it["attempts"]) < RETRY_MAX:
-                # 인프라 사고(컨테이너 재생성·타임아웃)는 가설의 결과가 아니다 →
-                # 체크포인트에서 재개하도록 pending 으로 되돌린다(최대 RETRY_MAX 회).
+            elif (rc in (137, 124) or code_churn) and len(it["attempts"]) < RETRY_MAX:
+                # 인프라 사고(컨테이너 재생성·타임아웃·빌드 중 피처 코드 변경)는 가설의 결과가 아니다
+                # → pending 으로 되돌려 다시 돌린다(최대 RETRY_MAX 회). 코드 변경 건은 이제
+                # feature_pipeline 이 조기 중단하므로 소실이 몇 분으로 줄고, 착수는 u3_launcher 의
+                # 프리플라이트(피처 코드 120분 안정)가 담당한다.
                 it["status"] = "pending"
+                resume = ("코드 프리즈 후 재빌드 — u3_launcher 프리플라이트가 피처 코드 120분 무편집 시 착수"
+                          if code_churn else "체크포인트 재개")
                 it["retry_note"] = (f"{rec['ts']} rc={rc} 소실 → 재시도 "
-                                    f"{len(it['attempts'])}/{RETRY_MAX} (체크포인트 재개)")
+                                    f"{len(it['attempts'])}/{RETRY_MAX} ({resume})")
             else:
                 it["status"] = "failed"
             it["result"] = {"verdict": verdict, "detail": detail, "delta": delta,
