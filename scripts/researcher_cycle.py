@@ -49,6 +49,26 @@ now_kst = base.now_kst
 log = base.log
 
 
+def _dotenv_get(key):
+    """저장소 `.env` 에서 키 하나를 읽는다(자식 프로세스 환경 보강용 폴백).
+
+    `.env` 는 컨테이너용이지만 **자격증명(POSTGRES_USER/PASSWORD/DB)은 호스트도 같은 DB** 이므로
+    호스트 좌표로 바꾼 뒤 비어 있는 값만 채우는 데는 안전하다. 값이 이미 있으면 절대 덮지 않는다.
+    """
+    try:
+        with open(os.path.join(PROJ, ".env"), encoding="utf-8") as fh:
+            for ln in fh:
+                ln = ln.strip()
+                if not ln or ln.startswith("#") or "=" not in ln:
+                    continue
+                k, _, v = ln.partition("=")
+                if k.strip() == key:
+                    return v.strip().strip('"').strip("'")
+    except OSError:
+        return ""
+    return ""
+
+
 def _host_db_env():
     """호스트에서 도는 사이클의 DB 좌표를 정규화한다(자식 프로세스에만 영향).
 
@@ -66,6 +86,17 @@ def _host_db_env():
         env["POSTGRES_HOST"] = "127.0.0.1"
     if env.get("POSTGRES_PORT", "") in ("", "5432"):
         env["POSTGRES_PORT"] = "5434"
+    # 좌표만 맞추고 자격증명을 비워 두면 'no password supplied' 로 죽는다 — 실측 2026-09-28 15:35
+    # R11(build_macro_features.py, 기본값 password="")이 그렇게 rc=1 '미달'로 기록됐다. 명령은
+    # 멀쩡했고 **환경만** 비어 있었다(R16 과 같은 함정의 다른 얼굴: 호스트/포트는 고쳤으나 자격증명을
+    # 빠뜨렸다). 루프백으로 확정된 경우에만, 그리고 비어 있는 값에만 `.env` 값을 채운다 —
+    # 원격 좌표(운영자 명시)에는 손대지 않는다(로컬 자격증명을 원격 DB 에 조용히 쓰는 사고 방지).
+    if env.get("POSTGRES_HOST") in ("127.0.0.1", "::1"):
+        for key in ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"):
+            if not env.get(key):
+                val = _dotenv_get(key)
+                if val:
+                    env[key] = val
     return env
 
 
@@ -155,6 +186,25 @@ def handoff(item, detail, verdict):
                 f"- 엔지니어 백로그: `{new_id}` (command·대조군 기입 필요)\n")
     log(f"협업: 엔지니어 백로그에 {new_id} 추가 + {os.path.relpath(FINDINGS, PROJ)} 기록")
     return new_id
+
+
+def _merge_authorship_detail(art_msg, art_info, detail):
+    """저작 단계 결과를 판정 문구에 합친다(**덮어쓰지 않는다**).
+
+    WHY(실측 2026-09-28 15:36 R11): 산출물이 이미 있어 저작을 건너뛴 실행은 info 에 `skipped` 만 있고
+    `exists` 키가 없어 else 로 떨어져 ① 라벨이 `[저작실패]` 로 잘못 찍히고 ② 그 문구가 check 판정
+    문구를 **통째로 대체**해 `5 >= 3 → 충족` 이라는 수치 근거가 사라졌다. 원장만 보면 성공이 실패로,
+    실패의 근거는 실종으로 보인다 — 자율 루프에서 판정 문구는 유일한 증거다.
+    """
+    if not (art_msg and art_info):
+        return detail
+    if art_info.get("skipped"):
+        tag = "생략"
+    elif art_info.get("exists"):
+        tag = ""
+    else:
+        tag = "실패"
+    return f"[저작{tag}] {art_msg} | {detail}"
 
 
 # ── 실행 ────────────────────────────────────────────────────────────────────
@@ -253,8 +303,7 @@ def execute(item, force=False):
     val, detail, passed = eval_check(item)
     # 저작 결과를 판정 문구에 합친다 — 저작 실패면 명령도 실패하므로 원인이 한 줄에 남아야 한다.
     # (⚠ eval_check 뒤에 합쳐야 한다: detail 은 그 호출이 만든다 — 앞에서 참조하면 NameError.)
-    if art_msg and art_info:
-        detail = f"[저작] {art_msg} | {detail}" if art_info.get("exists") else f"[저작실패] {art_msg}"
+    detail = _merge_authorship_detail(art_msg, art_info, detail)
     # kind="investigate" 는 수치 목표가 아니라 **증거 수집**이 목적이다(DART/KRX 소스 확인 등).
     # 이 경우 check_target 미달을 실패로 보지 않는다 — 조사가 돌았으면 완료다.
     if item.get("kind") == "investigate":

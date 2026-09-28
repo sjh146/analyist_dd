@@ -277,7 +277,7 @@
     {
       "id": "R11",
       "title": "거시 피처 16개 부활 (macro_indicators as-of 조인)",
-      "status": "pending",
+      "status": "done",
       "priority": 3,
       "affects_model": true,
       "hypothesis": "macro_indicators 6,261행(환율·금리·유가·CPI/PPI)을 보유하고도 조인 코드가 없어 거시 국면이 모델에 전혀 들어가지 않는다.",
@@ -298,7 +298,30 @@
         "timeout_s": 2400,
         "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
       },
-      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당."
+      "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당.",
+      "attempts": [
+        {
+          "ts": "2026-09-28T15:35:14+09:00",
+          "rc": 1,
+          "detail": "[저작실패] 산출물 이미 존재(scripts/build_macro_features.py) — 저작 생략"
+        },
+        {
+          "ts": "2026-09-28T15:36:49+09:00",
+          "rc": 0,
+          "detail": "[저작실패] 산출물 이미 존재(scripts/build_macro_features.py) — 저작 생략"
+        },
+        {
+          "ts": "2026-09-28T15:38:22+09:00",
+          "rc": 0,
+          "detail": "[저작생략] 산출물 이미 존재(scripts/build_macro_features.py) — 저작 생략 | R11: 5 >= 3 → 충족"
+        }
+      ],
+      "result": {
+        "detail": "[저작생략] 산출물 이미 존재(scripts/build_macro_features.py) — 저작 생략 | R11: 5 >= 3 → 충족",
+        "check_value": 5.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R11_20260928-153812.log"
+      }
     },
     {
       "id": "R12",

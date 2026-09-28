@@ -65,3 +65,43 @@ def test_parent_environ_not_mutated(monkeypatch):
     before = os.environ["POSTGRES_HOST"]
     rc._host_db_env()
     assert os.environ["POSTGRES_HOST"] == before
+
+
+# ── 자격증명 폴백 (실측 2026-09-28 15:35 R11: 'no password supplied') ──────────
+def test_credentials_filled_from_dotenv_when_loopback(monkeypatch):
+    """호스트 좌표로 확정되면 비어 있는 자격증명을 .env 에서 채운다.
+
+    실측: `scripts/build_macro_features.py` 는 기본값이 `password=""` 라, 좌표만 맞추고
+    비밀번호를 안 물려주면 rc=1 `fe_sendauth: no password supplied` 로 죽는다.
+    """
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
+    monkeypatch.delenv("POSTGRES_USER", raising=False)
+    monkeypatch.setenv("POSTGRES_HOST", "postgres")
+    monkeypatch.setattr(rc, "_dotenv_get",
+                        lambda k: {"POSTGRES_PASSWORD": "pw-from-env",
+                                   "POSTGRES_USER": "u-from-env"}.get(k, ""))
+    e = rc._host_db_env()
+    assert e["POSTGRES_PASSWORD"] == "pw-from-env"
+    assert e["POSTGRES_USER"] == "u-from-env"
+
+
+def test_credentials_not_filled_for_remote_host(monkeypatch):
+    """원격 좌표(운영자 명시)에는 로컬 자격증명을 주입하지 않는다."""
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
+    monkeypatch.setenv("POSTGRES_HOST", "db.internal")
+    monkeypatch.setattr(rc, "_dotenv_get", lambda k: "pw-from-env")
+    assert rc._host_db_env().get("POSTGRES_PASSWORD", "") == ""
+
+
+def test_operator_password_is_not_overwritten(monkeypatch):
+    monkeypatch.setenv("POSTGRES_HOST", "127.0.0.1")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "explicit")
+    monkeypatch.setattr(rc, "_dotenv_get", lambda k: "from-file")
+    assert rc._host_db_env()["POSTGRES_PASSWORD"] == "explicit"
+
+
+def test_dotenv_get_reads_repo_value():
+    """.env 폴백이 실제 저장소에서 동작하는지(값이 있으면 비어 있지 않음)."""
+    val = rc._dotenv_get("POSTGRES_PASSWORD")
+    assert isinstance(val, str)
+    assert val != "" and " " not in val.strip()
