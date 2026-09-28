@@ -529,6 +529,55 @@ CONFIGS = [
     {"id": "CO_core30_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_limit": 150,
      "desc": "게이트 ON 대조군 · 150종목 전체(같은 런 기준점)"},
+    # ── CG25 (2026-09-29): 피처 시간 변화율(Δ) 파생 축 ──────────────────────────
+    # 왜: 라벨(호라이즌·분위·스무딩·상대) · 변환(rank/z) · HP · 앙상블 · 유니버스 · 표본가중이
+    # 전부 소진됐고, **피처의 시간 변화율**은 한 번도 만들지 않았다. 패널 스크린 실측(2026-09-29,
+    # panel_150u 210피처): 시간가변 최고군 = 변동성·거래량비 계열, |IC| t 는 대부분 3 미만,
+    # 무정보 141/210 → '수준'이 이미 약하니 '기울기'가 남은 정보일 수 있다.
+    # 설계: 소스 6개를 **이름으로 사전 등록**(스크린에서 소스를 고르면 선택 누수)하고 Δ1·Δ5 를
+    # 추가한다(210 → 222컬럼). 같은 구간·같은 폴드에서 derived 유무만 다른 짝 비교(CG13 실측
+    # 유니버스 잡음 Δ0.0287 때문에 단일 arm 대 단일 대조군 비교는 금지).
+    # ⚠ Δ 는 종목별 과거 행만 쓰고(shift(+k)), 라벨 결측 제거 **전에** 계산한다.
+    {"id": "DDn_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30],
+     "desc": "구간 [0:30) · 게이트 ON · 파생 없음 — CG25 대조군"},
+    {"id": "DDd_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30],
+     "derived": {"sources": ["volatility_20d", "volatility_60d", "atr_pct", "volume_ratio_5",
+                             "rsi", "ma_position_20"], "lags": [1, 5]},
+     "desc": "구간 [0:30) · 게이트 ON + Δ1·Δ5 파생 12컬럼 (사전등록 arm)"},
+    {"id": "DDn_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60],
+     "desc": "구간 [30:60) · 게이트 ON · 파생 없음 — CG25 대조군"},
+    {"id": "DDd_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60],
+     "derived": {"sources": ["volatility_20d", "volatility_60d", "atr_pct", "volume_ratio_5",
+                             "rsi", "ma_position_20"], "lags": [1, 5]},
+     "desc": "구간 [30:60) · 게이트 ON + Δ1·Δ5 파생 12컬럼 (사전등록 arm)"},
+    {"id": "DDn_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90],
+     "desc": "구간 [60:90) · 게이트 ON · 파생 없음 — CG25 대조군"},
+    {"id": "DDd_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90],
+     "derived": {"sources": ["volatility_20d", "volatility_60d", "atr_pct", "volume_ratio_5",
+                             "rsi", "ma_position_20"], "lags": [1, 5]},
+     "desc": "구간 [60:90) · 게이트 ON + Δ1·Δ5 파생 12컬럼 (사전등록 arm)"},
+    {"id": "DDn_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120],
+     "desc": "구간 [90:120) · 게이트 ON · 파생 없음 — CG25 대조군"},
+    {"id": "DDd_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120],
+     "derived": {"sources": ["volatility_20d", "volatility_60d", "atr_pct", "volume_ratio_5",
+                             "rsi", "ma_position_20"], "lags": [1, 5]},
+     "desc": "구간 [90:120) · 게이트 ON + Δ1·Δ5 파생 12컬럼 (사전등록 arm)"},
+    {"id": "DDn_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150],
+     "desc": "구간 [120:150) · 게이트 ON · 파생 없음 — CG25 대조군"},
+    {"id": "DDd_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150],
+     "derived": {"sources": ["volatility_20d", "volatility_60d", "atr_pct", "volume_ratio_5",
+                             "rsi", "ma_position_20"], "lags": [1, 5]},
+     "desc": "구간 [120:150) · 게이트 ON + Δ1·Δ5 파생 12컬럼 (사전등록 arm)"},
 ]
 
 
@@ -660,6 +709,55 @@ def train_seed_weighted(X_train, X_val, X_test, y_train, y_val, y_test, feature_
         except Exception:
             model_aucs[name] = 0.5
     return ens_auc, model_aucs, curated, ensemble
+
+
+def add_derived(df, base_names, spec, log=None):
+    """CG25: 사전 등록된 소스 컬럼의 **시간 차분(Δk)** 을 파생 피처로 추가한다.
+
+    왜 이 축인가: 33사이클 동안 시험한 축은 라벨·변환·HP·유니버스·앙상블·표본가중이고,
+    **피처의 시간 변화율(모멘텀/변동성의 기울기)** 은 한 번도 만들지 않았다. 패널 스크린 실측
+    (2026-09-29, panel_150u 210피처)에서 시간가변 최고군이 변동성·거래량비 계열이고
+    |IC| t 가 대부분 3 미만이었다 → **수준(level)보다 변화율이 더 예측적일 수 있다**는 가설.
+
+    누수 방지:
+      · 소스는 이름으로 **사전 등록**한다(스크린 결과에서 소스를 고르면 선택 누수가 생긴다).
+      · 값은 종목별 **과거 k행**만 쓴다(shift(+k), 미래 참조 없음).
+      · 라벨 결측(NaN) 행을 지우기 **전에** 계산한다 — 라벨 NaN 은 중간 분위에도 생기므로
+        필터 후에 shift 하면 Δ1 이 실제로는 2일 차이가 된다(조용한 오정의).
+    반환: (파생 컬럼이 추가된 프레임, 확장된 이름 목록). 반환 프레임은 새 객체다.
+    """
+    srcs = [s for s in (spec.get("sources") or []) if s in base_names]
+    missing = [s for s in (spec.get("sources") or []) if s not in base_names]
+    if missing and log:
+        log(f"  파생: 소스 누락 {missing} (패널에 없음)")
+    if not srcs:
+        raise RuntimeError("derived.sources 가 패널 컬럼과 하나도 일치하지 않는다")
+    lags = [int(k) for k in (spec.get("lags") or [1, 5])]
+    if not lags:
+        raise RuntimeError("derived.lags 가 비었다")
+    # 위치 기반으로만 계산한다(중복 라벨 pandas 정렬 사고 방지 — 시장레벨 제외 주석 참고).
+    mat = df[base_names].values.astype(float)
+    if mat.shape[1] != len(base_names):
+        raise RuntimeError(
+            f"열 수 불일치({mat.shape[1]} vs {len(base_names)}) — 패널 중복 라벨로 매핑이 깨졌다")
+    pos = {n: i for i, n in enumerate(base_names)}
+    src_idx = [pos[s] for s in srcs]
+    grp = df["stock_code"].astype(str)
+    base_mat = df[base_names]
+    out = df.copy()
+    n_new = 0
+    for k in lags:
+        prev = base_mat.groupby(grp, sort=False).shift(k).values.astype(float)
+        diff = mat[:, src_idx] - prev[:, src_idx]
+        for j, s in enumerate(srcs):
+            name = f"d{k}_{s}"
+            if name in out.columns:
+                raise RuntimeError(f"파생 이름이 기존 컬럼과 충돌: {name}")
+            out[name] = diff[:, j]
+            n_new += 1
+    if log:
+        log(f"  파생 피처 {n_new}개 = Δ{lags} × {len(srcs)}소스 {srcs}")
+    return out, list(base_names) + [f"d{k}_{s}" for k in lags for s in srcs]
 
 
 def main():
@@ -839,6 +937,15 @@ def main():
         try:
             y = W.make_labels(df, cfg["kind"], cfg["horizon"], cfg["q"])
             d = df.copy()
+            # ── CG25 파생 피처(Δk): 라벨 결측 제거 **전에** 계산한다 ────────────────────
+            # 왜 전에: 분위 라벨은 중간 분위도 NaN 이라, 결측 제거 후 shift 하면 Δ1 이 실제로는
+            # 며칠 차이가 된다(조용한 오정의). 기본(bn=base_names)이면 기존 경로와 완전히 동일하다.
+            bn = base_names
+            dv_names: list = []
+            if cfg.get("derived"):
+                d, bn = add_derived(d, base_names, cfg["derived"], log=ml.log)
+                # 파생 이름 = 확장 목록의 꼬리. 선별·게이트에서 특별 취급하기 위해 들고 간다.
+                dv_names = [f for f in bn if f not in set(base_names)]
             d["_y"] = y
             # ── 실현 선행수익(진단·precision@k 전용, 2026-09-28 CG21) ────────────────
             # 판정에는 쓰지 않는다(판정은 폴드 평균 AUC 만). 매매 KPI 는 '상위 k 바스켓의
@@ -941,19 +1048,19 @@ def main():
                            f"유니크={len(np.unique(np.round(w_tr, 6)))}")
                 tkind = cfg.get("transform")
                 Xtr = np.nan_to_num(
-                    transform_matrix(tr[base_names], trd, tkind).astype(np.float32), nan=0.0)
+                    transform_matrix(tr[bn], trd, tkind).astype(np.float32), nan=0.0)
                 ytr = tr["_y"].values.astype(int)
                 Xte = np.nan_to_num(
-                    transform_matrix(te[base_names], ted, tkind).astype(np.float32), nan=0.0)
+                    transform_matrix(te[bn], ted, tkind).astype(np.float32), nan=0.0)
                 yte = te["_y"].values.astype(int)
                 # ── 하드 가드: 이름↔열 매핑이 깨지면 **즉시 실패**시킨다.
                 # 왜: 패널 피처명에 중복 라벨이 있으면(=있었다) `df[list]` 가 열을 부풀려
                 # (210→238) 선별 인덱스가 다른 열을 가리키고, 이름 기반 판정이 조용히 무효가 된다
                 # (실측 2026-09-25). 이름 수와 열 수가 다르면 그 실험은 보고할 수 없다.
-                if Xtr.shape[1] != len(base_names) or Xte.shape[1] != len(base_names):
+                if Xtr.shape[1] != len(bn) or Xte.shape[1] != len(bn):
                     raise RuntimeError(
                         f"피처 열 수 불일치(Xtr={Xtr.shape[1]}, Xte={Xte.shape[1]}, "
-                        f"names={len(base_names)}) — 패널 중복 라벨로 이름↔열 매핑이 깨졌다")
+                        f"names={len(bn)}) — 패널 중복 라벨로 이름↔열 매핑이 깨졌다")
                 cols = np.std(Xtr, axis=0) > 0
                 # ── 피처 풀 필터 (종목-상수 vs 시간가변) ─────────────────────────
                 # 실측: top30 을 지배하는 피처(net_income, op_margin, roa, debt_ratio…)가
@@ -961,7 +1068,7 @@ def main():
                 # 적용한 것이라면 룩어헤드이고, 측정 AUC 가 부풀려진다. 이 필터로 분리 측정한다.
                 pool = cfg.get("pool")
                 if pool in ("timevary", "const"):
-                    nun = tr[base_names].groupby(tr["stock_code"].values).nunique()
+                    nun = tr[bn].groupby(tr["stock_code"].values).nunique()
                     is_const = (nun.max(axis=0).values <= 1)
                     pool_mask = is_const if pool == "const" else ~is_const
                     cols = cols & pool_mask
@@ -979,7 +1086,7 @@ def main():
                     # rank_volatility_20d 가 제외되고 정작 시장레벨인 program_trading_ratio 는 남았다)
                     # → 위치 기반(numpy)으로만 계산하고, 합성 유니크 이름으로 프레임을 만든다.
                     try:
-                        _mat = tr[base_names].values.astype(float)
+                        _mat = tr[bn].values.astype(float)
                         _tmp = pd.DataFrame(
                             _mat, columns=[f"_f{j}" for j in range(_mat.shape[1])])
                         _tmp["_d"] = trd
@@ -998,9 +1105,9 @@ def main():
                         is_mkt = _rate >= 0.9
                     except Exception as e:      # 판정 실패 시 제외하지 않는다(측정은 계속)
                         ml.log(f"  {exp_id} fold{i}: 시장레벨 판정 실패({type(e).__name__}: {e}) — 제외 없음")
-                        is_mkt = np.zeros(len(base_names), dtype=bool)
+                        is_mkt = np.zeros(len(bn), dtype=bool)
                     n_mkt_excluded = int((cols & is_mkt).sum())
-                    mkt_excluded_names = [f for f, m in zip(base_names, cols & is_mkt) if m]
+                    mkt_excluded_names = [f for f, m in zip(bn, cols & is_mkt) if m]
                     cols = cols & ~is_mkt
                 # ── core48 게이트 정합: 선별을 **실제 모델 입력 후보 안에서** 수행 ──────
                 # train_seed 가 내부에서 CORE_FEATURES ∩ 선별 로 다시 거르므로(실측:
@@ -1009,7 +1116,15 @@ def main():
                     core_set = {str(f) for f in getattr(W.tc, "CORE_FEATURES", []) or []}
                     if not core_set:
                         raise RuntimeError("core_only 요청인데 CORE_FEATURES 를 읽지 못했다")
-                    cols = cols & np.array([f in core_set for f in base_names], dtype=bool)
+                    _pre_core = cols.copy()          # std>0 · pool · 시장레벨 제외를 이미 통과한 컬럼
+                    cols = cols & np.array([f in core_set for f in bn], dtype=bool)
+                    if dv_names:
+                        # CG25: 파생 피처는 core48 게이트에 없으므로 그대로 두면 전량 잘린다.
+                        # 이 실험은 '프로덕션 게이트를 켠 상태에서 파생을 **추가**하면 움직이는가'이므로
+                        # 파생만 게이트 밖으로 통과시킨다(실험 config 한정 · 프로덕션 무변경).
+                        # 단 앞선 필터(std=0 · pool · 시장레벨)를 통과한 파생만 되살린다.
+                        _dset0 = set(dv_names)
+                        cols = cols | (_pre_core & np.array([f in _dset0 for f in bn], dtype=bool))
                 # ── 특정 피처군 제외(A/B 가산효과 측정, 2026-09-26 신설) ──────────
                 # 왜: 같은 패널·같은 행에서 "이 피처군을 넣었을 때 vs 뺐을 때"를 재려면
                 # 컬럼 단위 제외가 필요하다. 패널 단위 비교는 스냅샷(구간·피처코드)이 달라
@@ -1020,18 +1135,35 @@ def main():
                 if xnames:
                     hit = np.array(
                         [any(n == b or (n.endswith("*") and b.startswith(n[:-1]))
-                             for n in xnames) for b in base_names], dtype=bool)
+                             for n in xnames) for b in bn], dtype=bool)
                     n_ex = int((cols & hit).sum())
-                    ex_kept = [f for f, m in zip(base_names, cols & hit) if m]
+                    ex_kept = [f for f, m in zip(bn, cols & hit) if m]
                     cols = cols & np.logical_not(hit)
                     ml.log(f"  {exp_id}: 피처군 제외 {n_ex}개 {ex_kept[:6]}")
                     if n_ex == 0:
                         raise RuntimeError(
                             f"exclude_names={xnames} 가 아무 컬럼도 제외하지 않았다 — "
                             "이름 표기가 틀렸다(측정 전에 실패시킨다)")
-                fn = [f for f, m in zip(base_names, cols) if m]
+                fn = [f for f, m in zip(bn, cols) if m]
                 Xtr, Xte = Xtr[:, cols], Xte[:, cols]
-                idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr)
+                # ── CG25 선별: 파생을 **선별 후보에서 빼고** top30 을 고른 뒤 강제로 덧붙인다 ──
+                # 왜: 파생을 후보에 넣으면 top30 이 다른 30개가 되어(선별 경쟁) '추가 정보'가 아니라
+                # '선별 교체'를 재게 된다. 후보에서 빼면 두 arm 의 edge top30 이 **동일 집합**이 되고
+                # 차이는 '파생 12컬럼을 더 쓰는가' 하나로 좁혀진다(용량 교란 최소화).
+                # ⚠ 파생이 선별에 0개 들어간 것을 '효과 없음'으로 오독하지 않도록 개수를 로그에 남긴다.
+                if dv_names:
+                    _dset = set(dv_names)
+                    _keep = [j for j, f in enumerate(fn) if f not in _dset]
+                    _idx_k, sel_desc = W.subset([fn[j] for j in _keep], cfg["select"],
+                                                Xtr[:, _keep], ytr)
+                    _der = [j for j, f in enumerate(fn) if f in _dset]
+                    if not _der:
+                        raise RuntimeError("파생 피처가 필터를 통과하지 못했다 — 측정 무효")
+                    idx = [_keep[j] for j in _idx_k] + _der
+                    sel_desc = f"{sel_desc} + Δ파생 {len(_der)}개(강제)"
+                    ml.log(f"  {exp_id}: 선별 {len(idx)}개 = edge top{len(_idx_k)} + Δ파생 {len(_der)}개")
+                else:
+                    idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr)
                 sel = [fn[j] for j in idx]
                 recipe = cfg.get("recipe") or W.BASE["recipe"]
                 _extra.clear()
