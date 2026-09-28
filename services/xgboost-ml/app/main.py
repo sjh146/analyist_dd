@@ -114,9 +114,22 @@ class XGBoostMLService:
                 logger.debug(f"Prediction failed for {stock['stock_code']}: {e}")
                 continue
 
-        # Store predictions
+        # Store predictions.  한 건의 저장 실패가 루프 전체를 중단시키면 안 된다
+        # (2026-09-28: Postgres 가 연결을 끊자 예외가 새어나가 그날 예측이 0행이 됐다).
+        saved = 0
+        failed = 0
         for pred in predictions:
-            self.pg_storage.save_prediction(pred)
+            if self.pg_storage.save_prediction(pred):
+                saved += 1
+            else:
+                failed += 1
+        if failed:
+            logger.warning(
+                "ml_predictions 저장: %s/%s 성공 (%s건 실패 — 재시도 후에도 실패한 건은 로그 참조)",
+                saved, len(predictions), failed,
+            )
+        else:
+            logger.info("ml_predictions 저장: %s/%s 성공", saved, len(predictions))
 
         # Publish high-confidence predictions
         top_predictions = sorted(

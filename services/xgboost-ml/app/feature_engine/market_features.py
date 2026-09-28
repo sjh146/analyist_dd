@@ -246,11 +246,18 @@ class MarketFeatures:
                     latest = float(rows[0][1]) if rows[0][1] else 0.0
                     prev = float(rows[5][1]) if rows[5][1] else 0.0
                     features["basis_change_5d"] = latest - prev
-
         except Exception as e:
             logger.debug(f"Derivatives features failed: {e}")
             if db_conn:
                 db_conn.rollback()
+        finally:
+            # 읽기 전용이라 즉시 트랜잭션을 닫는다(2026-09-28 실측: 정리 없이 반납된 연결이
+            # 21시간 idle in transaction 으로 남아 PgIdleInTransactionTooLong 알림이 났다).
+            if db_conn:
+                try:
+                    db_conn.rollback()
+                except Exception:
+                    pass
 
         return features
 

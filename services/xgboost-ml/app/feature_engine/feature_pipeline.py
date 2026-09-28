@@ -929,7 +929,15 @@ class FeaturePipeline:
                         features["basis_change_5d"] = latest - float(rows[5][0])
             except Exception:
                 logger.debug("basis unavailable; using 0.0")
-                self.pg_conn.rollback()
+            finally:
+                # 읽기 전용 — 즉시 트랜잭션을 닫는다.
+                # 왜(2026-09-28 실측): 이 경로가 commit/rollback 없이 커서만 닫아, 쓰기가 없는 빌드에서
+                # 연결이 `idle in transaction` 으로 남았다. 실측으로 그 연결 하나가 **21시간** 동안
+                # 스냅샷을 붙들고 있었고(PgIdleInTransactionTooLong 알림) autovacuum 을 막는다.
+                try:
+                    self.pg_conn.rollback()
+                except Exception:
+                    pass
 
         # ----- Additional technical features -----
 
