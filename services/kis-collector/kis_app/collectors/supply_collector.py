@@ -182,6 +182,14 @@ class SupplyCollector:
     def __init__(self, client, pg_conn):
         self._client = client
         self._conn = pg_conn
+        # _drop_untraded_dates 가 버린 행수(가시화용). WHY(2026-09-29 실측): 그 가드는
+        # market_data 에 '그 날짜 행'이 있어야 저장하는데, 수급 크론(16:20)이 일봉 적재(18:55~)
+        # 보다 먼저 돌면 **당일 수급이 통째로 여기서 떨어진다** — 로그에는 as-of 2026-09-29 가
+        # 찍히는데 DB 최신일은 9/28, 9/29 행 0건이었다. 종전엔 logger.info 라 크론 로그
+        # (tail stdout)에 남지 않아 완전 무음이었고, 원인이 '상장 전 패딩'(설계된 제거)인지
+        # '적재 순서'(결함)인지 구분할 수 없었다 → 러너가 수치로 찍는다.
+        self.last_dropped = 0
+        self.dropped_total = 0
 
     # ── 스키마 ─────────────────────────────────────────────────────────
     def ensure_tables(self):
@@ -257,9 +265,14 @@ class SupplyCollector:
             cur.close()
         kept = [p for p in payload if p[1] in traded]
         dropped = len(payload) - len(kept)
+        self.last_dropped = dropped
+        self.dropped_total += dropped
         if dropped:
-            logger.info("%s 상장 전 패딩 %d행 제외 (거래일 %d행만 저장)",
-                        stock_code, dropped, len(kept))
+            # 요청 구간의 최신일을 함께 남긴다 — 그 날짜가 market_data 최신일보다 뒤면
+            # '상장 전 패딩'이 아니라 적재 순서 결함이다(수급 먼저 / 일봉 나중).
+            latest = max((p[1] for p in payload), default=None)
+            logger.info("%s 상장 전 패딩 %d행 제외 (거래일 %d행만 저장, 요청 최신일 %s)",
+                        stock_code, dropped, len(kept), latest)
         return kept
 
     def collect_ownership(self, stock_code: str, trade_date, excd: str = "J") -> int:

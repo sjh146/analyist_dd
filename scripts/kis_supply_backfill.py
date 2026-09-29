@@ -214,6 +214,7 @@ def main():
     max_calls = int(os.environ.get("KIS_SUPPLY_MAX_CALLS", "500"))
     calls = 0
     ok = fail = nodata = flow_rows = own_rows = src_rows = 0
+    drop_rows = 0  # market_data 에 행이 없어 save_flows 가 버린 행수(적재 순서 결함 감시)
     quota_hit = False
 
     for idx, (code, name) in enumerate(todo, start=1):
@@ -227,6 +228,7 @@ def main():
             src_rows += len(rows)
             n = coll.save_flows(code, parse_investor_flow({"output": rows}))
             flow_rows += n
+            drop_rows += getattr(coll, "last_dropped", 0)
             if not rows:
                 nodata += 1
                 print(f"  [{idx}/{len(todo)}] {code} {name} — 수급 데이터 없음", flush=True)
@@ -240,8 +242,9 @@ def main():
             ok += 1
             save_done(ppath, code)
             if idx % 5 == 0 or idx == len(todo):
+                extra = f", 미거래일 제외 {drop_rows}행" if drop_rows else ""
                 print(f"  [{idx}/{len(todo)}] {code} {name}: 수급 {n}행, "
-                      f"지분율 {own}행 (as-of {stock_as_of})", flush=True)
+                      f"지분율 {own}행 (as-of {stock_as_of}){extra}", flush=True)
         except KisApiError as e:
             fail += 1
             print(f"  [{idx}/{len(todo)}] {code} {name} 실패: {e}", flush=True)
@@ -268,6 +271,11 @@ def main():
     print(f"  foreign_institutional: {fc}종목 {fr}행 ({fmin}~{fmax})", flush=True)
     print(f"  ownership:             {oc}종목 {orr}행 ({omin}~{omax}), "
           f"foreign_ownership_pct 값 있음 {ocov}행", flush=True)
+    if drop_rows:
+        # 무음 드롭 금지: 이 값이 크면 수급 크론이 일봉 적재보다 먼저 돌아 **당일 행이 전부
+        # 떨어졌다**는 뜻이다(실측 2026-09-29 16:20 — 로그 as-of 9/29 인데 DB 최신일 9/28).
+        print(f"  ⚠ 미거래일 제외 {drop_rows}행 — market_data 에 그 날짜 행이 없어 버려짐 "
+              f"(그날 일봉 적재 전에 돌면 당일 행이 여기로 떨어진다)", flush=True)
 
     # ── 자기신고: 러너가 "적재했다"고 믿는 수(flow_rows/own_rows)와 실제 델타를 함께 남긴다.
     # WHY: 2026-09-24 이 러너 계열이 파서 키 불일치로 +0행을 적재하고도 exit 0 으로 끝나

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T20:15:00+09:00",
+  "updated_at": "2026-09-29T21:19:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -383,14 +383,15 @@
       "evidence": "feature_coverage: quality_* 9개·value_* 7개 + roe/per_current/pbr_current 가 nonzero_ratio=0. disclosures 백필로 rcept_dt 22,278행 확보(기간유형 구분 근거).",
       "method": "① rcept_dt 로 보고서 기간유형(사업/반기/분기) 구분 ② 비율 계산(ROA/ROE/부채비율/영업이익률/PER/PBR/PSR/EV-EBIT 등, 시가총액은 market_data 사용) ③ as-of 규율: 접수일 이후에만 값이 보이도록 조인",
       "command": "/usr/bin/python3 scripts/build_financial_ratio_features.py",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COUNT(*) FROM feature_coverage WHERE feature_name IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio > 0\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"WITH g AS (SELECT MAX(trade_date) AS d FROM financial_ratio_features), m AS MATERIALIZED (SELECT DISTINCT trade_date FROM market_data WHERE trade_date > (SELECT d FROM g)) SELECT (SELECT count(*) FROM feature_coverage WHERE feature_name IN ('value_per','value_pbr','value_psr','value_pcr','value_ncav','value_ev_ebit','value_pfcr','quality_cp_to_assets','quality_op_to_equity','quality_roe','quality_roa','quality_f_score','quality_asset_growth','quality_debt_ratio_change','quality_op_growth','quality_earnings_volatility','roe','per_current','pbr_current') AND nonzero_ratio > 0) || '|' || (SELECT count(*) FROM m)\"",
       "check_target": {
-        "op": ">=",
-        "value": 3
+        "op": "<=",
+        "value": 1,
+        "unit": "거래일(재무비율 격자 최신일 지연)"
       },
       "setup_needed": [],
       "cost": "2~3시간(기간유형 구분 포함)",
-      "success": "19개 중 3개 이상 nonzero + dq_asof_violation_rows 0 유지",
+      "success": "19개 중 3개 이상 nonzero(실측 18) + dq_asof_violation_rows 0 유지 + 재무비율 격자 최신일이 시장 최신일 대비 1거래일 이내",
       "authoring": {
         "target": "scripts/build_financial_ratio_features.py",
         "instructions": "재무 비율 피처 생성기. 입력: financial_statements(10,370행) + disclosures(rcept_dt 로 기간유형 구분) + market_data(시가총액용 종가). 반드시 **rcept_dt 이후에만 값이 보이도록** as-of 조인하라(백필로 접수일 212,861행 확보됨). 연간/반기/분기 혼재를 기간유형으로 구분하고, 비율 계산: ROA, ROE, 부채비율 변화, 영업이익성장, 자산성장, PER, PBR, PSR, PCR, EV/EBIT, NCAV, PFCR. 출력 테이블 DDL 포함(20_*.sql). 클래스당 행이 1개 이상이면 성공.",
@@ -398,7 +399,13 @@
         "why": "자율 루프는 실행·판정만 가능 → 저작은 Claude Code 위임(2026-09-25 승인)"
       },
       "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당.",
-      "check_note": " | [2026-09-29 06:20 리서처] **check 결함 수리 + 산출물 실측**: 같은 배치 스코프 필터 때문에 9/25 11:42 배치의 19행이 판정에서 빠져 0(미달)로 읽혔다 → 필터 제거(피처 자체를 센다). 산출물은 **이미 존재**: `financial_ratio_features` 775,010행 / 2,569종목 / 2025-06-16~2026-09-23 · period_type annual 707,479행(2,555종목)·semi 67,531행(2,438종목) · as-of 위반 0(rcept_dt>trade_date 0, report_date>trade_date 0) · feature_coverage 19행 nonzero 0.208~0.718. 잔여: 격자가 9/23 에서 멈춰 있다(시장 최신일 9/28) — 다음 실행이 그리드를 갱신한다. 신선도는 dq_feature_oldest_age_days(실측 4.30)로 감시 중이며 현재 문턱 내(ok)."
+      "check_note": " | [2026-09-29 21:2x 리서처] **check 를 '부활'(이미 참) 에서 '격자 신선도' 로 교정.** 종전 check(`IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio>0`)는 실측 5 >= 3 으로 **이미 통과**였다 — 즉 이 항목의 남은 결함(격자가 시장 최신일보다 뒤처짐)을 하나도 검사하지 않았고, 통과 사실만 보고 status=done 으로 닫히면 격자 정지가 조용해진다('실패할 수 없는 check'). 부활 자체는 완료다: financial_ratio_features 775,010행 / 2,569종목 / 최신 2026-09-23 · as-of 위반 0 · feature_coverage 19개 중 **18개 nonzero**(value_ncav 만 0 — current_assets 컬럼 부재로 계산 불가, 원천 부재). 그래서 판정을 결함 자체로 바꿨다: **격자 최신일 지연(거래일) ≤ 1** — 같은 SQL 이 앞에 살아있는 피처 수(18)를 정보로 찍고 마지막 수치가 지연이라 구동기의 `nums[-1]` 판정이 지연을 집는다. 실측 2026-09-29 21:2x: `18|2` → 지연 2거래일(격자 9/23 · 시장 9/28·9/29) → **미달**(결함 있음 = 통과 못 함). 빌더 1회 실행이 격자를 갱신하면 0 이 되어 충족된다. ※ 격자 상시 신선도는 R14(패널 경유 feature_coverage 혼합 배치)와 dq_feature_oldest_age_days 가 이차로 감시한다.",
+      "result": {
+        "detail": "",
+        "check_value": 2,
+        "rc": null,
+        "log": ""
+      }
     },
     {
       "id": "R13",
@@ -650,17 +657,18 @@
       "evidence": "실측 2026-09-29 00:1x: foreign_institutional 9/28 보유 250종목 = 유동성 상위 250종목과 100% 일치(250/250), 그 밖은 0/550. 종목별 지연 분포 0일 250 / 1일 280 / 2일 11 / 4일 1. R19 정렬 수정 후에는 지연이 상한(≈2거래일) 안에 머문다 — 즉 '최신일 250종목' 자체는 호출 예산의 함수이지 결함이 아니다.",
       "method": "① 사용자 결정 필요: 회전 주기를 현행(2일)으로 둘지, KIS 일일 호출 한도 안에서 늘릴지 (1일 2회 크론 = 약 1,000콜/일, 또는 KIS_SUPPLY_MAX_CALLS 상향) ② 결정이 '확대'면 크론 시간표와 상한을 바꾸고 R19 check 를 지연 상한 1거래일로 강화",
       "command": "",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM foreign_institutional WHERE trade_date = (SELECT MAX(trade_date) FROM market_data)\"",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT COALESCE(MAX(c),0) FROM (SELECT trade_date, COUNT(*) c FROM foreign_institutional GROUP BY trade_date HAVING COUNT(*) >= 100 ORDER BY trade_date DESC LIMIT 1) t\"",
       "check_target": {
         "op": ">=",
         "value": 250,
-        "unit": "최신일 보유 종목수"
+        "unit": "최신 '채워진' 수급일의 보유 종목수"
       },
-      "check_note": "check 는 현행 회전 하한(250종목)만 본다. 확대 결정 시 목표를 500 으로 올린다.",
+      "check_note": " | [2026-09-29 21:2x 리서처] **판정 창 2회 교정 — '오늘도 실패하는' 문턱 → '가장 최근에 의미 있게 채워진 수급일'.** ① 종전 `trade_date = (SELECT MAX(trade_date) FROM market_data)` 실측 21:1x = **0종목**(시장 최신일 9/29 · 수급 최신일 9/28): 일봉은 당일 18:55 적재, 수급은 D+1 발행이라 18:55~ 다음 수급 크론 사이에는 **구조적으로 0** 이고 자정~18:55 사이엔 통과하는 '시각 의존' 판정이었다(마땅히 있을 수 없는 날짜를 요구하면 문턱이 아니라 잡음). ② 그렇다고 수급 자체의 MAX 날짜를 쓰면 **부분 수집일**(수동 1종목 실행·호출 상한 직전 중단)이 최신일이 되어 1종목으로 '미달'이 뜬다 → `HAVING COUNT(*) >= 100` 으로 부분일을 걸러낸 뒤 그 날의 횡단면 폭을 본다. 실측 2026-09-29 21:2x: **796종목**(목표 250 대비 3.2배 — R19 정렬 수정 효과). '회전 정지'는 이 check 가 아니라 R21(종목별 지연 ≤ 2거래일)이 잡는다: 두 항목은 다른 결함을 본다(횡단면 폭 vs 신선도). 덤으로 드러난 적재 순서 결함은 setup_needed 4번 참조.",
       "setup_needed": [
         "수급 신선도 상향 여부 결정 — 현행 유지(종목당 2일 회전) 권고, 모델이 최신일 횡단면을 쓰면 1일 2회로 확대",
         "필요 정보: KIS 앱키의 일일 호출 한도 — 미확인이라 확대 가능 폭을 제가 정할 수 없습니다(알려주시면 크론 조정)",
-        "수급 수집 범위 확대 여부 결정 — 모델 유니버스(R3 800) 중 220종목이 회전 유니버스(유동성 상위 800) 밖이라 수급 신선도가 일일 경로에 없습니다(실측 2026-09-29 20:0x: 그 220종목 최대 지연 2거래일·32종목 뒤처짐). 합집합 약 1,020종목으로 넓히려면 KIS 일일 호출 한도 확인이 필요합니다"
+        "수급 수집 범위 확대 여부 결정 — 모델 유니버스(R3 800) 중 220종목이 회전 유니버스(유동성 상위 800) 밖이라 수급 신선도가 일일 경로에 없습니다(실측 2026-09-29 20:0x: 그 220종목 최대 지연 2거래일·32종목 뒤처짐). 합집합 약 1,020종목으로 넓히려면 KIS 일일 호출 한도 확인이 필요합니다",
+        "**⏰ 적재 순서: 당일 수급이 버려진다** — KIS 수급 크론(16:20)이 일봉 적재(18:55~)보다 먼저 돌아 `save_flows._drop_untraded_dates` 가 당일 행을 전량 버립니다(그 가드는 'market_data 에 그 날짜 행이 있어야 저장' — 상장 전 패딩 제거용). 실측 2026-09-29 16:20 로그: 종목별 `as-of 2026-09-29` 인데 DB 9/29 행 **0건**(최신 9/28). 수급 크론을 일봉 적재 이후(예: 22:00)로 옮기거나 수급 러너가 당일분을 다음 실행에서 재수집하도록 명시하면 **당일 수급이 모델에 들어간다**(크론 파일 수정 = 사람 승인). 가시화는 이번 틱에 수리: 러너가 `미거래일 제외 N행` 을 수치로 찍는다(종전 logger.info 라 크론 로그에 0건)"
       ],
       "cost": "크론 1줄 변경(약 20분 내외)",
       "success": "최신 거래일 수급 커버리지가 모델 유니버스 요구를 충족한다(결정된 목표치 이상)"
@@ -686,6 +694,28 @@
       "check_note": "판정 모집단 = **회전 유니버스**(유동성 상위 800 — 크론 kis_supply.sh 가 실제로 담당하는 집합, kis_supply_backfill.liquidity_universe 와 같은 정의). 종전 check 는 foreign_institutional **테이블 전체**를 분모로 썼는데, 그 안에는 회전이 애초에 담당하지 않는 코드 238종목이 섞여 있어 회전이 완벽히 돌아도 지연이 자란다(실측 2026-09-29 20:0x: 전체 최대 3거래일 vs 회전 유니버스 최대 1거래일). 거래정지 종목은 종목별 자기 시세 기준으로 이미 제외된다. 모델 유니버스(R3 800)·전체 테이블 수치는 프로브가 정보 줄로 함께 찍는다(원인 분해용, 판정 제외). recurring=true — 목표 충족·미달·크래시 어느 경우에도 pending 을 유지한다(감시가 큐에서 사라지면 실명). 우선순위 6 은 의도적이다: 매 틱 pending 인 항목을 R3(3)·R12(4)보다 앞에 두면 점진 수집이 영구 굶주린다.",
       "cost": "DB SELECT 3회 / 틱 (~0.1초, KIS 호출 0회)",
       "success": "회전 유니버스의 수급 지연이 상한(2거래일) 안에 머물고, 벗어나면 수집 정지인지 거래정지인지 종목 단위로 보고된다(모델 유니버스·전체 수치는 정보 줄로 병기)"
+    },
+    {
+      "id": "R23",
+      "title": "크론 직행 수집 러너 자기신고 누락 보강 (무음 0행 적재 차단)",
+      "status": "pending",
+      "priority": 7,
+      "kind": "collect",
+      "incremental": true,
+      "affects_model": false,
+      "hypothesis": "자기신고가 없는 수집 경로에서는 '조용한 0행 적재'(2026-09-24 유형: 파서 키 불일치로 +0행을 적재하고도 exit 0 → 진행파일에 '완료')를 DQ 메트릭이 잡을 수 없다. 2시간 틱이 돌리는 수급·피처 빌더 4개만 자기신고를 남기고, 크론이 직접 돌리는 러너 7개는 흔적이 없다.",
+      "evidence": "실측 2026-09-29 21:2x: dq_runner_claim 48h = 4개 러너(kis_supply_backfill · kis_supply_extend_history · build_supply_market_features · build_macro_features). scripts/r23_claim_audit.py 실측: 자기신고 참조 0건인 크론 직행 수집 러너 **7개**(9개 경로) — 일봉 KRX(scripts/krx_daily.py) · KIS 일봉/분봉(services/kis-collector/kis_app/main.py) · KRX 지수·파생(scripts/krx_derivatives_collect.py) · KIS 공매도(scripts/kis_short_selling_backfill.py) · KIS 프로그램매매(scripts/kis_program_trading_collect.py) · 거시 ECOS/FRED(scripts/macro_backfill.py) · 데이터 갭 백필(scripts/data_gap.py).",
+      "method": "① 매 틱 재고조사(읽기 전용) ② 보강은 다음 사이클: 러너 내부에서 dq_claim.record_claim 을 부르는 방식(권장 — 크론 파일 수정 불필요, 자격증명·좌표 문제 없음) ③ 크론 래퍼에서 run_with_claim 으로 감싸는 방식은 크론 파일 수정이라 사람 승인 항목으로 올린다 ④ 보강 후 check 가 0 이 되어 done.",
+      "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r23_claim_audit.py",
+      "check": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r23_claim_audit.py",
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "미자기신고 수집 러너 수"
+      },
+      "check_note": "판정 수치는 **고유 러너 파일 수**(같은 러너가 여러 크론 경로에서 불려도 1로 센다 — 실측 누락 7개 러너 / 9개 경로). command 는 재고조사(읽기 전용, DB·KIS 호출 0회)이며 실제 보강은 저작 작업이라 틱이 하지 않는다 — 그래서 incremental:true 로 두어 보강 전까지 pending 을 유지하고 매 틱 미달을 보고한다(조용한 공전 금지). 우선순위 7 은 의도적: 점진 수집(R3)·격자 갱신(R12)보다 뒤에 둔다.",
+      "cost": "소스 스캔 9파일 (~0.05초, DB·KIS 호출 0회)",
+      "success": "크론이 직접 돌리는 DB 쓰기 수집 러너 전부가 (source, claimed, persisted) 3값을 남겨 dq_claim_parse_failure / dq_runner_claim 대조가 그 경로를 덮는다"
     }
   ]
 }
