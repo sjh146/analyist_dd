@@ -367,6 +367,10 @@ def next_item(backlog, force=False):
 def summary_path(kind):
     if kind == "wf_sweep_summary":
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_label_sweep_summary.json")
+    if kind == "champion_robust_eval":
+        # champion_robust_eval.py 는 컨테이너 cwd=/app 에서 --out /app/reports/... 로 쓴다
+        # (/app = services/xgboost-ml). CG31 이 이 metric 으로 돌아간다.
+        return os.path.join(PROJ, "services/xgboost-ml/reports/champion_robust_eval.json")
     raise ValueError(f"알 수 없는 metric: {kind}")
 
 
@@ -403,6 +407,57 @@ def parse_wf_sweep(path, mtime_floor) -> dict:
             "fold_win_rate": round(sum(1 for m in means if m > 0.5) / len(means), 3),
         }
     return {"finished_at": d.get("finished_at"), "config": d.get("config"), "per_exp": per}
+
+
+def parse_champion_robust(path, mtime_floor) -> dict:
+    """배포 챔피언 견고 AUC(champion_robust_eval.py) 요약을 per_exp 로 변환한다.
+
+    왜(실측 2026-09-29 16:19): CG31 을 `--start` 하면 summary_path 가 ValueError 로 rc=3 즉시
+    종료됐다(metric 파서 부재). 이 항목의 값은 **승격 게이트 기준선**이라 자동 경로로 돌아야 한다.
+
+    프로토콜: 창(fold)마다 날짜별 크로스섹션 AUC 의 평균 = 창 대표값 → 창 평균±std.
+    그래서 per_exp 의 각 항목이 '폴드'(=시간창)이고, mean/std/folds 를 wf_sweep 과 같은 키로
+    맞춰 준다(틱의 결과 출력·scoreboard 가 그대로 읽는다).
+    """
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            # 쓰는 중인 파일(부분 기록)을 읽으면 여기로 온다 → 틱이 크래시하지 않게 오류로 반환한다.
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    folds = [f for f in (d.get("folds") or []) if isinstance(f, dict)
+             and isinstance(f.get("auc_mean"), (int, float))]
+    if not folds:
+        return {"error": "folds 비어 있음(유효 창 없음)", "measured_at": d.get("measured_at")}
+    means = [float(f["auc_mean"]) for f in folds]
+    per = {}
+    for f, m in zip(folds, means):
+        per[f"WINDOW{f.get('fold')}"] = {
+            "desc": f"시간창 {f.get('window')} (날짜 {f.get('n_dates')}개)",
+            "folds": [round(m, 4)],
+            "mean": round(m, 4),
+            "std": round(float(f["auc_std"]), 4) if isinstance(f.get("auc_std"), (int, float)) else None,
+            "min": round(m, 4), "max": round(m, 4),
+            "fold_win_rate": round(1.0 if m > 0.5 else 0.0, 3),
+        }
+    return {
+        "measured_at": d.get("measured_at"), "model_dir": d.get("model_dir"),
+        "protocol": d.get("protocol"), "metric_name": d.get("metric"),
+        "robust_auc": d.get("robust_auc"),
+        "auc_std_across_folds": d.get("auc_std_across_folds"),
+        "fold_means": means,
+        "auc_pooled": d.get("auc_pooled"), "auc_per_date_mean": d.get("auc_per_date_mean"),
+        "rows_scored": d.get("rows_scored"), "dates_scored": d.get("dates_scored"),
+        "errors": (d.get("errors") or [])[:5],
+        "summary_mtime": mt,
+        "per_exp": per,
+    }
 
 
 def failure_cause(rc, started=None, log_path=None):
@@ -542,6 +597,30 @@ def judge_per(item, per_exp) -> tuple:
     return verdict, detail, delta
 
 
+def judge_champion_baseline(item, parsed) -> tuple:
+    """배포 챔피언 견고 AUC 실측의 판정 — arm 실험이 아니라 **기준선 실측**이다.
+
+    왜 judge_per 를 쓰지 않는가: 판정 대상이 '가설군 vs 대조군'이 아니라 **승격 게이트가
+    비교해야 할 정직한 기준선 숫자**다(하드룰 #1: 단일 분할 AUC 는 승격 기준선으로 쓰지 않는다).
+    arm/counterfactual 이 없으므로 judge_per 는 '기준선없음'이라는 무의미한 줄을 남긴다.
+    """
+    robust = parsed.get("robust_auc")
+    if not isinstance(robust, (int, float)):
+        return "판정불가", (parsed.get("error") or "robust_auc 없음 — 요약 확인 필요"), None
+    std = parsed.get("auc_std_across_folds")
+    means = parsed.get("fold_means") or []
+    detail = (f"워크포워드 견고 AUC {robust:.4f}"
+              + (f"±{std:.4f}" if isinstance(std, (int, float)) else "±?")
+              + f" (시간창 {len(means)}개 [{', '.join(f'{m:.4f}' for m in means)}])"
+              + f" · 풀링 {parsed.get('auc_pooled')} · 날짜별평균 {parsed.get('auc_per_date_mean')}"
+              + f" · 행 {parsed.get('rows_scored')}")
+    ref = ((item.get("baseline") or {}) if isinstance(item.get("baseline"), dict) else {}).get("value")
+    if isinstance(ref, (int, float)):
+        detail += (f" · 기존 승격 기준선 {float(ref):.4f}(단일분할) — 프로토콜이 달라 직접비교 금지"
+                   f" · 교체는 승인 대상")
+    return "기준선 실측", detail, None
+
+
 # ── 사이클 실행 ──────────────────────────────────────────────────────────────
 def execute(item, force=False):
     os.makedirs(RUNTIME, exist_ok=True)
@@ -598,14 +677,19 @@ def execute(item, force=False):
         per: dict = {}
     else:
         parsed = parse_wf_sweep(spath, mtime_floor) if item.get("metric") == "wf_sweep_summary" \
-            else {"error": f"parser 없음 (metric={item.get('metric')!r})"}
+            else (parse_champion_robust(spath, mtime_floor)
+                  if item.get("metric") == "champion_robust_eval"
+                  else {"error": f"parser 없음 (metric={item.get('metric')!r})"})
         # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
         # ⚠ 함정(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면, 가설군이 **진** 경우
         # winner == 대조군 이 되어 Δ 0.0000 "노이즈" 로 잘못 기록된다. 실제로는 h8 0.5068 vs
         # h5 0.5406 = Δ−0.0338 인데 원장에 Δ+0.0000 으로 남았다. 반드시 arm 기준으로 계산하라.
         _pe = parsed.get("per_exp")
         per = _pe if isinstance(_pe, dict) else {}
-        verdict, detail, delta = judge_per(item, per)
+        if item.get("metric") == "champion_robust_eval":
+            verdict, detail, delta = judge_champion_baseline(item, parsed)
+        else:
+            verdict, detail, delta = judge_per(item, per)
         if parsed.get("error") and not per:
             detail = parsed["error"]
 
@@ -685,6 +769,67 @@ def start_background(item_id, force=False):
             f"(로그 {os.path.relpath(logfile, PROJ)}). '실행 중'으로 기록하지 않는다")
         return 3
     log(f"백그라운드 시작: {item_id} pid={p.pid} (로그 {os.path.relpath(logfile, PROJ)})")
+    return 0
+
+
+def ingest(item_id, log_rel=None):
+    """구동기 **밖**에서 돌린 실행의 결과를 원장·백로그에 반영한다(자기신고 없이 요약 JSON 에서).
+
+    왜 필요한가(실측 2026-09-29): 세션과 함께 죽지 않게 `setsid` 로 분리해 띄운 장시간 실행
+    (예: 70분짜리 champion_robust_eval)은 execute() 를 거치지 않아 **원장에 기록이 남지 않는다**.
+    그렇다고 같은 CPU 비용을 다시 쓰는 재실행은 낭비이므로, 결과 파일을 파싱해 편입하는
+    정식 경로를 둔다. 판정 규칙은 execute() 와 동일하다(요약 JSON 직접 계산 · 로그 문구 금지).
+    mtime floor 는 0 — 실행 시작 시각을 모르는 외부 실행이라 '낡은 요약'과 구분할 수 없다.
+    대신 요약의 measured_at 을 기록에 남겨 사람이 시각을 검증할 수 있게 한다.
+    """
+    b = load_backlog()
+    it = next((i for i in b["items"] if i["id"] == item_id), None)
+    if not it:
+        log(f"백로그에 {item_id} 없음 — ingest 불가")
+        return 2
+    try:
+        spath = summary_path(it.get("metric") or "")
+    except ValueError as e:
+        log(f"ingest 불가: {e}")
+        return 2
+    parsed = (parse_champion_robust(spath, 0) if it.get("metric") == "champion_robust_eval"
+              else parse_wf_sweep(spath, 0) if it.get("metric") == "wf_sweep_summary"
+              else {"error": f"parser 없음 (metric={it.get('metric')!r})"})
+    per = parsed.get("per_exp") if isinstance(parsed.get("per_exp"), dict) else {}
+    if parsed.get("error") and not per:
+        log(f"ingest 실패: {parsed['error']} (파일 {os.path.relpath(spath, PROJ)})")
+        return 3
+    if it.get("metric") == "champion_robust_eval":
+        verdict, detail, delta = judge_champion_baseline(it, parsed)
+    else:
+        verdict, detail, delta = judge_per(it, per)
+    parsed["out_of_band"] = True
+    parsed["source"] = os.path.relpath(spath, PROJ)
+    parsed["note"] = "구동기 밖(setsid)에서 돌린 실행의 결과를 ingest 로 편입(요약 JSON 직접 파싱)"
+    rec = {
+        "ts": now_kst().isoformat(timespec="seconds"),
+        "id": it["id"], "title": it["title"],
+        "rc": 0, "elapsed_min": None,
+        "log": log_rel or "",
+        "metric": it.get("metric"), "parsed": parsed,
+        "verdict": verdict, "detail": detail, "reported": False,
+    }
+    append_ledger(rec)
+    for x in b["items"]:
+        if x["id"] == item_id:
+            x.setdefault("attempts", []).append({
+                "ts": rec["ts"], "rc": 0, "verdict": verdict, "detail": detail,
+                "log": log_rel or "", "elapsed_min": None, "ingested": True,
+            })
+            x["status"] = "done"
+            x["result"] = {"verdict": verdict, "detail": detail, "delta": delta,
+                           "per_exp": per or None, "rc": 0}
+    save_backlog(b)
+    log(f"ingest {item_id}: {verdict} — {detail}")
+    for name, v in per.items():
+        log(f"  {name}: {v.get('mean')} [{v.get('desc')}]")
+    log(f"원장 기록 완료(ts={rec['ts']}, reported=False → 다음 틱이 보고한다). "
+        f"측정 시각(요약) {parsed.get('measured_at')}")
     return 0
 
 
@@ -1007,6 +1152,9 @@ def main():
     ap.add_argument("--tick", action="store_true")
     ap.add_argument("--run")
     ap.add_argument("--start")
+    ap.add_argument("--ingest", metavar="ID",
+                    help="구동기 밖(setsid)에서 돌린 실행의 요약 JSON 을 원장·백로그에 편입")
+    ap.add_argument("--log", help="--ingest 와 함께 쓸 실행 로그 경로(상대경로, 선택)")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
 
@@ -1014,6 +1162,8 @@ def main():
         return status()
     if a.tick:
         return tick(a.force)
+    if a.ingest:
+        return ingest(a.ingest, a.log)
     if a.start:
         return start_background(a.start, a.force)
     if a.run:

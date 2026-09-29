@@ -666,16 +666,36 @@ CONFIGS = [
      "derived": {"sources": ["volatility_20d", "volatility_60d", "atr_pct", "volume_ratio_5",
                              "rsi", "ma_position_20"], "lags": [1, 5]},
      "desc": "구간 [120:150) · 게이트 ON + Δ1·Δ5 파생 12컬럼 (사전등록 arm)"},
+    # ── CG32(2026-09-29): 종목별 시계열 z-score — 마지막 남은 **배포 가능** 정규화 ─────────
+    # 왜: 게이트 ON 에서 사전문턱(+0.02)을 넘긴 유일한 조합(CO_rank_smooth_d1_h5 0.5592, CG8)은
+    # 횡단면 rank 를 포함해 **배포 불가**다 — 추론은 종목 1개·날짜 1개로 벡터를 만들어
+    # (app/inference/predictor.py) 그날 다른 종목 값이 필요하다. 반면 '자기 과거만' 쓰는
+    # 정규화(직전 20행 롤링 z-score)는 같은 경로에서 재현 가능하다(그 종목의 과거 행 조회).
+    # 정규화 축 자체는 기록상 횡단면만 시험됐다(rank Δ+0.0081~0.0107 · zscore 동류) → 시계열
+    # 정규화는 미측정이다. 대조군 = CO_core30_h5(같은 런·같은 행·같은 게이트) · 통제 =
+    # 횡단면 zscore(배포 불가 정규화) 로 '어느 정규화 축인가'까지 같은 런에서 분해한다.
+    {"id": "CO_core30_tsz_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "zscore_ts", "core_only": True,
+     "desc": "게이트 ON + 종목별 시계열 z-score(직전 20행, shift=1) — 배포 가능 정규화 arm"},
+    {"id": "CO_core30_csz_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "transform": "zscore", "core_only": True,
+     "desc": "게이트 ON + 날짜별 횡단면 z-score — '배포 불가 정규화' 통제(tsz 와 같은 런 비교)"},
 ]
 
 
-def transform_matrix(Xdf, dates, kind):
-    """피처 행렬의 **날짜별 횡단면 변환**.
+def transform_matrix(Xdf, dates, kind, codes=None):
+    """피처 행렬의 **날짜별 횡단면 변환**(rank/zscore) 또는 **종목별 시계열 변환**(zscore_ts).
 
     근거(실측): 패널 210피처 중 34개가 날짜 내 종목간 분산이 0(시장 전체 동일값)이다.
     또 스케일이 피처마다 제각각(원/비율/지수)이다. 날짜별 rank/z-score 로 바꾸면
     시장레벨 성분이 사라지고 종목간 비교 가능한 형태가 된다 — 이 스택에서 측정된 적 없다.
     각 조회일의 정보만 쓰므로(같은 날 다른 종목) 미래 정보 누수가 아니다.
+
+    zscore_ts(2026-09-29, CG32): 종목 **자기 과거**만 쓰는 롤링 z-score. 횡단면 rank/zscore 는
+    그날 **다른 종목**의 값이 필요해 단일 종목 스트리밍 추론 경로에서 재현 불가였지만,
+    자기 과거는 그 종목의 과거 행만 조회하면 되므로 배포 가능하다. level/추세를 종목별로
+    제거하고 '자기 역사 대비 오늘의 위치'만 남긴다. 창은 shift(1) 기준(직전 20행)이라
+    당일 값이 자기 기준을 오염시키지 않고 미래정보도 쓰지 않는다.
     """
     if kind in (None, "none"):
         return Xdf.values
@@ -686,6 +706,22 @@ def transform_matrix(Xdf, dates, kind):
         mu = g.transform("mean")
         sd = g.transform("std").replace(0.0, np.nan)
         return ((Xdf - mu) / sd).fillna(0.0).values
+    if kind == "zscore_ts":
+        if codes is None:
+            raise ValueError("zscore_ts 변환에는 codes 가 필요하다(종목별 시계열)")
+        _TS_WIN, _TS_MIN = 20, 10
+        df = Xdf.copy()
+        df["_c"] = list(map(str, codes))
+        df["_d"] = list(map(str, dates))
+        df = df.sort_values(["_c", "_d"], kind="mergesort")
+        cols = [c for c in df.columns if c not in ("_c", "_d")]
+        g = df.groupby("_c", sort=False)[cols]
+        mu = g.transform(lambda s: s.shift(1).rolling(_TS_WIN, min_periods=_TS_MIN).mean())
+        sd = g.transform(lambda s: s.shift(1).rolling(_TS_WIN, min_periods=_TS_MIN).std())
+        z = (df[cols] - mu) / sd.replace(0.0, np.nan)
+        # 과거가 _TS_MIN 행 미만인 구간(각 종목 초반)은 표준화 불가 → 0(중립)으로 둔다.
+        z = z.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        return df.assign(**{c: z[c] for c in cols})[cols].values
     raise ValueError(f"unknown transform: {kind}")
 
 
@@ -1153,10 +1189,12 @@ def main():
                            f"유니크={len(np.unique(np.round(w_tr, 6)))}")
                 tkind = cfg.get("transform")
                 Xtr = np.nan_to_num(
-                    transform_matrix(tr[bn], trd, tkind).astype(np.float32), nan=0.0)
+                    transform_matrix(tr[bn], trd, tkind, codes=tr["stock_code"].values)
+                    .astype(np.float32), nan=0.0)
                 ytr = tr["_y"].values.astype(int)
                 Xte = np.nan_to_num(
-                    transform_matrix(te[bn], ted, tkind).astype(np.float32), nan=0.0)
+                    transform_matrix(te[bn], ted, tkind, codes=te["stock_code"].values)
+                    .astype(np.float32), nan=0.0)
                 yte = te["_y"].values.astype(int)
                 # ── 하드 가드: 이름↔열 매핑이 깨지면 **즉시 실패**시킨다.
                 # 왜: 패널 피처명에 중복 라벨이 있으면(=있었다) `df[list]` 가 열을 부풀려
