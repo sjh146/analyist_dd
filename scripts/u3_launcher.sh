@@ -17,9 +17,23 @@ cd /home/jhshi/analyist_dd || exit 1
 
 echo "[$(date '+%F %T')] u3_launcher 시작 (pid $$) — 창 20:35~21:15, 종료 상한 08:55" >> "$LOG"
 while true; do
+  # 종료 조건 = 패널 완성 **AND** U3 스윕이 rc=0 으로 기록됨(교착 방지 수리 · 2026-09-29 실측).
+  #  종전 조건은 '패널 npz 존재'만 봤다. 그런데 패널은 빌드 **끝**에 저장되고 스윕은 그 **뒤**에
+  #  시작되므로, 개장 전 컨테이너 timeout(08:35:55)에 스윕이 잘려 죽는 밤에는 패널만 남고 결과가
+  #  없다 → 런처가 스스로 종료 → 틱은 est 1410분 때문에 ETA 가드로 U3 를 계속 건너뛴다(장시간
+  #  항목은 틱이 --force 를 못 쓴다) → **스윕을 아무도 시작하지 않는 교착**. 패널이 캐시되면
+  #  wf_wave.build_panel 이 `panel cache 재사용` 으로 즉시 넘어가 재실행 비용은 스윕뿐이므로,
+  #  런처는 살아남아 다음 창(20:35~21:15)에 그 스윕을 착수시켜야 한다.
   if [ -f "$PANEL" ]; then
-    echo "[$(date '+%F %T')] panel_995.npz 완성 — 런처 종료" >> "$LOG"
-    exit 0
+    u3_done=$(/usr/bin/python3 /home/jhshi/analyist_dd/scripts/u3_done_check.py 2>/dev/null)
+    if [ "$u3_done" = "1" ]; then
+      echo "[$(date '+%F %T')] panel_995.npz 완성 + U3 rc=0 기록 — 런처 종료" >> "$LOG"
+      exit 0
+    fi
+    if [ "$last_panel_phase" != "sweep" ]; then
+      echo "[$(date '+%F %T')] panel_995.npz 는 있으나 U3 rc=0 기록 없음 — 스윕 재착수 대기(런처 유지)" >> "$LOG"
+      last_panel_phase="sweep"
+    fi
   fi
   hhmm=$(date +%H%M)
   weekday=$(date +%u)

@@ -52,14 +52,25 @@ check("호스트 절대경로 유지", m.summary_path("champion_robust_eval", "-
 #     백로그 상태 변화인데도 빨간불이 켜지므로, 미완료(pending/backlog/needs_setup) 전체를 본다.)
 b = json.load(open(os.path.join(m.PROJ, "docs/QUANT_MODEL_BACKLOG.json")))
 n = 0
+skipped_no_cmd = []
 for it in b["items"]:
     if it.get("metric") == "champion_robust_eval" and it.get("status") in (
             "pending", "backlog", "needs_setup"):
+        # command 가 아직 없는 항목(미착수 설계 단계)은 '경로 미정'이지 회귀가 아니다.
+        # 실측(2026-09-29 22:5x): FS1 이 needs_setup(command=None)으로 등록되면서 이 검사가
+        # 빨간불을 켰다 — 검사 대상은 "실행 명령이 이미 있는데 기본 산출물을 덮는가"다.
+        # (지침: command 를 채울 때 `--out /app/reports/<item>.json` 을 반드시 넣어라.)
+        if not it.get("command"):
+            skipped_no_cmd.append(it["id"])
+            continue
         p = m.summary_path("champion_robust_eval", it.get("command"))
         n += 1
         check(f"{it['id']} 요약 경로 부모 존재", os.path.isdir(os.path.dirname(p)), True)
         check(f"{it['id']} 경로가 기본경로와 다름(산출물 보존)", p != DEFAULT, True)
 check("검사한 pending 항목 수", n >= 1, True)
+if skipped_no_cmd:
+    print(f"NOTE: 명령 미정(command=None)으로 건너뜀 — {', '.join(skipped_no_cmd)} "
+          f"(착수 시 --out 필수)")
 
 # 5) 알 수 없는 metric 은 ValueError
 try:

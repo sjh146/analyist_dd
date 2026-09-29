@@ -1066,10 +1066,27 @@ def launcher_alive():
     return False
 
 
+def u3_results_done() -> bool:
+    """U3 **스윕 결과**까지 끝났는가 — 패널 npz 존재만으로 '완료'라 하지 않는다.
+
+    패널 npz 는 빌드 끝에 저장되고 스윕(wf_label_sweep)은 그 **뒤**에 같은 프로세스에서 돈다.
+    그래서 npz 존재는 '빌드는 끝났다'일 뿐이고, 개장 전 컨테이너 timeout 에 스윕이 잘린 밤에는
+    결과가 없다(실측 2026-09-29: 빌드 ETA 08:34 vs timeout 08:35:55 = 여유 0). 이때 완료로
+    오독하면 런처를 폐기하고, 틱은 est 1410분 때문에 ETA 가드로 U3 를 계속 건너뛰므로
+    **스윕을 아무도 시작하지 않는 교착**이 된다. 완료 판정은 원장의 U3 rc=0 기록으로만 한다.
+    """
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from u3_done_check import u3_done
+        return bool(u3_done(LEDGER, "U3"))
+    except Exception:
+        return False
+
+
 def ensure_launcher(dry=False) -> str:
     """U3 런처를 살아 있게 유지한다. 반환: 사람이 읽을 상태 문자열."""
-    if os.path.exists(PANEL995):
-        return "U3 패널 완성 — 런처 불필요"
+    if os.path.exists(PANEL995) and u3_results_done():
+        return "U3 패널 완성 + 스윕 rc=0 — 런처 불필요"
     if launcher_alive():
         return "U3 런처 실행 중"
     if not os.path.exists(LAUNCHER):
