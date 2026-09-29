@@ -191,7 +191,9 @@ def engineer_stanza() -> dict:
     """로버스트(다중폴드 평균) AUC. 단일분할은 참고로만 병기한다."""
     st = {"role": "engineer", "north": "로버스트 AUC (다중폴드 평균)",
           "champion_single": None, "best_robust": None, "best_robust_std": None,
-          "best_exp": None, "baseline": BASELINE_ROBUST, "baseline_name": BASELINE_NAME,
+          "best_exp": None, "best_rec_id": None, "best_rec_ts": None,
+          "best_rec_verdict": None, "best_validated": None,
+          "baseline": BASELINE_ROBUST, "baseline_name": BASELINE_NAME,
           "delta": None, "last_verdict": None, "no_improve_cycles": 0,
           "no_improve_streak": 0, "last_improve": None,
           "source": f"{ME_LEDGER} + /app/app/models/champion/auc.txt", "alerts": []}
@@ -203,7 +205,14 @@ def engineer_stanza() -> dict:
         except (ValueError, IndexError):
             pass
 
+    # ⚠ 'best' 는 **전 이력의 모든 arm 중 최댓값**이다(max-over-arms) → 선택편향이 있고,
+    # 어떤 arm 이 노이즈로 판정된 실행에서 나왔는지도 함께 봐야 한다. 실측(2026-09-29 22:40):
+    # CG24(03:27, 판정 '노이즈' · 구간 짝 Δ+0.0176 3/5)의 arm Q5s_30_60 0.5720 이 최댓값이라
+    # 스코어보드가 Δ+0.0321 [신호] 로 표기했지만 **엔지니어의 판정은 노이즈**였다. 그대로 두면
+    # '검증된 신호'로 오독된다 → 출처(원장 id·ts·판정)를 함께 들고 다니고, 판정이 개선이 아닌
+    # 실행에서 온 최댓값은 [미검증 최고 arm] 으로 표기한다(0/신호로 위장하지 않는다).
     best, best_std, best_exp = None, None, None
+    best_rec = None
     for rec in _jsonl(ME_LEDGER):
         parsed = rec.get("parsed") or {}
         per = (parsed.get("per_exp") or {}) if isinstance(parsed, dict) else {}
@@ -213,11 +222,19 @@ def engineer_stanza() -> dict:
             mean = val.get("mean")
             if isinstance(mean, (int, float)) and (best is None or mean > best):
                 best, best_std, best_exp = float(mean), val.get("std"), exp
+                best_rec = rec
     if best is not None:
         st.update({"best_robust": round(best, 4),
                    "best_robust_std": round(float(best_std), 4) if isinstance(best_std, (int, float)) else None,
                    "best_exp": best_exp,
                    "delta": round(best - BASELINE_ROBUST, 4)})
+        if best_rec is not None:
+            verdict = str(best_rec.get("verdict") or "")
+            st.update({"best_rec_id": best_rec.get("id"),
+                       "best_rec_ts": best_rec.get("ts"),
+                       "best_rec_verdict": verdict,
+                       # 판정 문구가 개선('신호있음'·'신호 확인'·'신호')일 때만 검증된 신호로 본다.
+                       "best_validated": "신호" in verdict})
     recs = _jsonl(ME_LEDGER)
     if recs:
         st["last_verdict"] = recs[-1].get("verdict")
@@ -334,11 +351,23 @@ def fmt(st: dict, with_source: bool = True) -> str:
         L.append("📈 모델엔지니어: 로버스트 측정값 없음")
     else:
         d = e["delta"] or 0.0
-        mark = "신호" if d >= SIGNAL_DELTA else ("유지" if d >= -0.005 else "악화")
+        validated = e.get("best_validated", True)
+        if d >= SIGNAL_DELTA and validated:
+            mark = "신호"
+        elif d >= SIGNAL_DELTA:
+            # 최댓값이지만 그 실행의 판정은 개선이 아니다(노이즈/악화) → '신호'로 위장하지 않는다.
+            mark = "미검증 최고 arm"
+        else:
+            mark = "유지" if d >= -0.005 else "악화"
+        src = ""
+        if e.get("best_rec_id"):
+            src = f" · 출처 {e['best_rec_id']}"
+            if not validated:
+                src += f"({str(e.get('best_rec_ts') or '')[:16]} 판정 {e.get('best_rec_verdict') or '?'})"
         L.append(f"📈 모델엔지니어: 로버스트 {_num(e.get('best_robust'), '.4f')}"
                  f"±{e['best_robust_std'] if e['best_robust_std'] is not None else '?'}"
                  f" ({e['best_exp']}) vs 기준선 {_num(e.get('baseline'), '.4f')} → Δ{d:+.4f} [{mark}]"
-                 f" | 챔피언 단일분할 {_num(e.get('champion_single'))}")
+                 f" | 챔피언 단일분할 {_num(e.get('champion_single'))}{src}")
     _ax = r.get("alive_xsec_features")
     _extra = f" (횡단면 {_num(_ax, '.0f')})" if isinstance(_ax, (int, float)) else ""
     L.append(f"🔬 퀀트리서처: DQ {r['status'] or 'n/a'} | 살아있는 피처 "
