@@ -49,12 +49,15 @@ FROM news_event_extraction nee
 JOIN news_analysis na ON na.id = nee.article_id
 WHERE nee.stock_code = %s AND na.published_at >= %s
 UNION ALL
-SELECT 'na' AS kind, title, published_at, sentiment_score,
+SELECT 'na' AS kind, na.title, na.published_at, na.sentiment_score,
        NULL, NULL, NULL
-FROM news_analysis
-WHERE related_stock_codes::text LIKE %s
-  AND sentiment_score IS NOT NULL AND sentiment_score <= %s
-  AND published_at >= %s
+FROM news_analysis na
+WHERE na.sentiment_score IS NOT NULL AND na.sentiment_score <= %s
+  AND na.published_at >= %s
+  AND EXISTS (
+      SELECT 1 FROM news_event_extraction nee2
+      WHERE nee2.article_id = na.id AND nee2.stock_code = %s
+  )
 ORDER BY published_at DESC
 LIMIT 60
 """
@@ -86,8 +89,7 @@ def _score(value):
 
 
 def gate_code(cur, code: str, since) -> dict:
-    pattern = '%"' + code + '"%'
-    cur.execute(_QUERY, (code, since, pattern, SENTIMENT_FLOOR, since))
+    cur.execute(_QUERY, (code, since, SENTIMENT_FLOOR, since, code))
     rows = cur.fetchall()
     if not rows:
         return {"verdict": "unknown", "reasons": []}
