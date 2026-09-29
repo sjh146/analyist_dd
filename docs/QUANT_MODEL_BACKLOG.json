@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T17:34:35+09:00",
+  "updated_at": "2026-09-29T17:35:12+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -5923,6 +5923,34 @@
         },
         "rc": 0
       }
+    },
+    {
+      "id": "CG33",
+      "title": "챌린저를 챔피언과 **같은 다중창 프로토콜**로 평가 — 승격 근거 완성 (기준선 교체의 후속)",
+      "status": "needs_setup",
+      "priority": 3,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5302,
+        "source": "CG31 실측(배포 챔피언 워크포워드 견고 AUC, 5창×10일×80종목·h5 시장상대)"
+      },
+      "hypothesis": "CG31 실측으로 게이트 기준선의 결함이 확정됐다(기록 0.5513 단일분할 vs 챔피언 자체 워크포워드 0.5302 = −0.0211). 그런데 챌린저(스윕 최고 CO_d1_h5 0.5545)는 **다른 프로토콜**(폴드별 재학습 확장창)에서 측정된 값이라 챔피언과 직접 비교할 수 없다. 챌린저를 같은 champion_robust_eval 프로토콜로 재면 '교체가 실제로 개선인가'가 처음으로 숫자로 확정된다.",
+      "evidence": "CG31: 챔피언 0.5302±0.0553 [0.5399, 0.4763, 0.4580, 0.6013, 0.5754] · 풀링 0.5284 · 3/5 창이 기록 기준선 0.5513 미달 · 2창은 0.5 미만. 스윕 챌린저 CO_d1_h5 0.5545(게이트 ON·5폴드×10시드, CG8)/CO_smooth_d1_h5 0.5509(CG27·0.5365 대비 Δ+0.0144). 두 값은 프로토콜이 달라 '챌린저 > 챔피언'을 주장할 수 없다.",
+      "method": "① 챌린저 설정(게이트 ON·depth1·lr0.05, 필요하면 라벨 스무딩)을 **scratch 모델 디렉터리**로 학습( champion/ 를 건드리지 않는다 — 하드룰 #4) ② `python scripts/champion_robust_eval.py --model-dir <scratch> --folds 5 --dates-per-fold 10 --stocks 80` ③ 챔피언 0.5302 와 같은 프로토콜로 Δ 판정 ④ Δ ≥ +0.02 면 승격 검토(별도 승인), 미달이면 '교체 이득 없음'으로 기록.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 4200 python scripts/champion_robust_eval.py --model-dir <SCRATCH> --folds 5 --dates-per-fold 10 --stocks 80 --out /app/reports/challenger_robust_eval.json'",
+      "check": "docker exec stock_xgboost_ml cat /app/reports/challenger_robust_eval.json",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "champion_robust_eval",
+      "success": "챌린저 견고 AUC − 챔피언 0.5302 ≥ +0.02 (같은 프로토콜) → 승격 검토 대상. 미달이면 교체 보류.",
+      "expected": "미지 — 스윕 프로토콜(폴드별 재학습)과 이 프로토콜(단일 학습 후 창별 평가)은 다르므로 어느 쪽이든 정보가 된다.",
+      "cost": "학습(설정에 따라 10~40분) + 평가 ~70분 → 장시간 항목. 20:00 재생성 창을 넘기면 런처/U3 와 직렬화 필요.",
+      "est_minutes": 110,
+      "caution": "U3(20:35 시작 예정, 11.7h 상한)와 CPU 를 동시에 쓰지 말 것 — 직렬화는 구동기 락이 담당한다.",
+      "setup_needed": "scratch 로 학습하는 경로가 아직 확인되지 않았다 — 스윕(scripts/wf_label_sweep.py)은 폴드별로 ml.train_seed 로 학습할 뿐 '프로덕션 계약(173피처·앵상블 3모델)' 산출물을 쓰지 않는다. ① 프로덕션 학습 엔트리(app/training/train_curated.py 계열)를 찾아 **출력 디렉터리 인자**가 있는지 확인 ② 없으면 `--out-dir`(기본 champion/) 옵션을 추가(하드룰 #4: champion/ 직접 덮어쓰기 금지) ③ 스모크로 scratch 산출물 생성 확인 ④ 그 뒤 pending 승격.",
+      "note": "2026-09-29 17:35 신설 — CG31 로 '기준선이 단일분할이라 −0.0211 낙관'이 실측 확정됐고, CG32 로 배포 가능 정규화 축이 소진됐다(악화 Δ−0.0340). 승격 판단에 남은 공백은 '챌린저와 챔피언의 동일 프로토콜 비교' 하나다."
     }
   ]
 }
