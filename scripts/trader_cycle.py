@@ -39,7 +39,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import model_engineer_cycle as base  # noqa: E402  (공용 가드·원장·락 로직 재사용)
@@ -60,6 +60,7 @@ TRADER_WS_WSL = "/mnt/c/Users/jhshi/analyist_dd/trader-agent"
 JOURNAL = os.path.join(TRADER_WS_WSL, "journal/trade_journal.sqlite3")
 LOOP_STATE = os.path.join(TRADER_WS_WSL, "loop_state.json")
 RUNNER_LOG = os.path.join(TRADER_WS_WSL, "runner.log")
+BRIDGE_SUP_LOG = os.path.join(TRADER_WS_WSL, "bridge_sup.log")
 BRIDGE_URL = "http://127.0.0.1:8100"
 
 # 공용 헬퍼를 트레이더 경로로 재바인딩(가드·락·원장 로직을 복제하지 않는다).
@@ -465,6 +466,87 @@ def handoff_to_model(title: str, detail: str, *, key: str, priority=8):
     return new_id
 
 
+def feed_signal_lag_days() -> float | None:
+    """피드 후보의 `signal_date` 가 **가장 낡은 전략**의 경과일(일).
+
+    WHY: 계약 검사(feed_contract_check)는 파일 mtime/generated_at 만 본다. 그래서 발행물이
+    방금 쓰였어도 **후보의 근거 데이터가 낡으면 그대로 통과**한다. `close_price` 는 주문
+    지정가로 그대로 쓰이므로, 오래된 종가가 지정가가 되면 체결 확률·슬리피지가 통째로 틀어진다.
+    실측 2026-09-29 08:40 발행: close 20건 signal_date=2026-09-23(경과 6일, 시장 최신 거래일 9/28)
+    vs swing 20건 2026-09-28(경과 1일).
+    """
+    path = os.path.join(FEED_DIR, "screener_latest.json")
+    if not os.path.exists(path):
+        cands = sorted(glob.glob(os.path.join(FEED_DIR, "*.json")))
+        if not cands:
+            return None
+        path = cands[-1]
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    today = now_kst().date()
+    worst = None
+    blocks = doc.get("candidates") or {}
+    if not isinstance(blocks, dict):
+        return None
+    for _name, block in blocks.items():
+        items = block.get("items") if isinstance(block, dict) else block
+        if not isinstance(items, list):
+            continue
+        dates = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            try:
+                dates.append(datetime.strptime(str(it.get("signal_date") or ""), "%Y-%m-%d").date())
+            except ValueError:
+                pass
+        if not dates:
+            continue
+        lag = float((today - max(dates)).days)
+        worst = lag if worst is None else max(worst, lag)
+    return worst
+
+
+BRIDGE_RESTART_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] started bridge")
+
+
+def bridge_churn_peak_per_hour(window_h: float = 24.0) -> float | None:
+    """최근 `window_h` 시간 안에서 **시간당 브리지 재기동 최대치**를 센다.
+
+    WHY: 이 항목의 계약은 "시간당 재기동 <= 4회"인데, 처음 구현은 로그 **전체**의
+    `grep -c 'started bridge'` 였다(누적값). 누적값은 시간이 지날수록 커지기만 해서
+    **다시는 통과할 수 없는 check** 였다(2026-09-29 09:25 판정 214건 = 판정 불가).
+    지표 이름(`bridge_restarts_per_hour`)과 측정이 어긋난 것을 맞춘다 — 임계값(4)은 그대로다.
+    """
+    try:
+        with open(BRIDGE_SUP_LOG, encoding="utf-8", errors="replace") as f:
+            stamps = []
+            for line in f:
+                m = BRIDGE_RESTART_RE.match(line.strip())
+                if m:
+                    try:
+                        stamps.append(datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S"))
+                    except ValueError:
+                        pass
+    except OSError:
+        return None
+    if not stamps:
+        return 0.0
+    now = datetime.now()
+    cutoff = now - timedelta(hours=window_h)
+    recent = sorted(t for t in stamps if t >= cutoff)
+    if not recent:
+        return 0.0
+    best = 0
+    for i, t0 in enumerate(recent):
+        n = sum(1 for t in recent[i:] if (t - t0).total_seconds() <= 3600.0)
+        best = max(best, n)
+    return float(best)
+
+
 # ── 프로브 (백로그 항목의 check 가 읽는 수치) ───────────────────────────────
 def probe(name: str) -> float | None:
     m = measure()
@@ -484,6 +566,10 @@ def probe(name: str) -> float | None:
         return m.get("expectancy_krw")
     if name == "stale":
         return m.get("loop_stale_min")
+    if name == "bridge_churn":
+        return bridge_churn_peak_per_hour()
+    if name == "feed_signal_lag":
+        return feed_signal_lag_days()
     return None
 
 
@@ -495,6 +581,8 @@ PROBES = {
     "bridge": "브리지 connected(1=정상, None=판정 불가)",
     "expectancy": "건당 기대값(원)",
     "stale": "loop_state 갱신 지연(분). 장중 5분 초과면 감시 단절",
+    "bridge_churn": "최근 24시간 안 시간당 브리지 재기동 최대치(회). 4 초과면 감독 churn",
+    "feed_signal_lag": "피드 후보 signal_date 중 가장 낡은 전략의 경과일(일). 4 초과면 발행물이 낡은 데이터",
 }
 
 

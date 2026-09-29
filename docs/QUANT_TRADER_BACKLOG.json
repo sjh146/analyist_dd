@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-09-28T16:41:04+09:00",
+ "updated_at": "2026-09-29T09:45:00+09:00",
  "owner": "quant-trader",
  "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
  "rules": [
@@ -157,24 +157,62 @@
   {
    "id": "T6",
    "title": "브리지 감독 재기동 churn — 무백오프 90초 재기동",
-   "status": "pending",
+   "status": "failed",
    "priority": 6,
-   "command": "grep -c 'started bridge' /mnt/c/Users/jhshi/analyist_dd/trader-agent/bridge_sup.log",
-   "metric": "bridge_restarts_per_hour",
+   "command": "python3 scripts/trader_cycle.py --probe bridge_churn",
+   "metric": "bridge_restarts_peak_per_hour_24h",
    "check": {
     "op": "<=",
     "value": 4
    },
    "hypothesis": "Creon 미로그인 상태에서 감독이 90초마다 브리지를 죽였다 살린다(15:00~15:28 실측 12회). 로그인 진행 중 재기동이 겹치면 Creon COM 세션(DibServer)이 꼬여 '로그인해도 not_connected' 가 재발할 수 있다.",
-   "evidence": "2026-09-28 실측: bridge_sup.log 15:21:02~15:27:36 에 'started bridge' 5회(같은 날 15:00 이후 누적 12회), /health connected:false 지속.",
-   "success": "시간당 재기동 <= 4회 (지수 백오프 또는 '사람 로그인 대기' 상태로 정지)",
+   "evidence": "2026-09-28 실측(로그 재계산): 19:45:19~20:52:27 에 'started bridge' 41회(간격 ~99초) = 시간당 최대 37회. 15:00~15:28 에도 5회 이상. 2026-09-29 03:00 이후 재기동은 1회(03:00:17 half-dead)뿐이고, 09:27:10 'Creon not running' 때는 감독이 브리지를 건드리지 않고 대기(restarted after the next login)했다.",
+   "success": "최근 24시간 안 시간당 재기동 최대치 <= 4회 (지수 백오프 또는 '사람 로그인 대기' 상태로 정지)",
    "cost": "저",
-   "note": "감독 스크립트는 트레이더 소유(tools/supervise_bridge.*) — 백오프 도입은 코드 변경이라 승인 항목으로 올린다. 이 항목은 재기동 빈도를 수치로 감시한다.",
+   "note": "**측정 결함 수리(2026-09-29 09:4x, 트레이더)**: 원래 command 는 `grep -c 'started bridge' <로그 전체>` = **누적 카운트**라 시간이 갈수록 커지기만 해 **영원히 통과할 수 없는 check** 였다(지표 이름은 bridge_restarts_per_hour 인데 측정은 누적 — 이름과 측정 불일치). 임계값(시간당 4회)과 지표 정의는 그대로 두고 측정만 '최근 24시간 롤링 60분 최대치'로 맞췄다(`--probe bridge_churn` 신설). 감독 스크립트 백오프 도입은 코드 변경이라 여전히 승인 항목이다.",
    "provenance": {
-    "source": "trader_cycle 2026-09-28 15:2x",
-    "measured_at": "2026-09-28 15:29"
+    "source": "trader_cycle 2026-09-29 09:4x",
+    "measured_at": "2026-09-29 09:40"
    },
-   "result": null
+   "result": {
+    "ts": "2026-09-29T09:40:21+09:00",
+    "value": 37.0,
+    "check": "37.0 <= 4.0",
+    "verdict": "미달",
+    "rc": 0,
+    "stdout_tail": "37.0",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T7",
+   "title": "피드 후보 signal_date 신선도 — 낡은 종가가 지정가로 쓰이는가",
+   "status": "failed",
+   "priority": 7,
+   "command": "python3 scripts/trader_cycle.py --probe feed_signal_lag",
+   "metric": "feed_signal_lag_days",
+   "check": {
+    "op": "<=",
+    "value": 4
+   },
+   "hypothesis": "계약 검사(feed_contract_check)는 발행 파일의 mtime/generated_at 만 본다 → 발행이 방금이어도 후보의 근거 데이터가 낡으면 그대로 통과한다. `close_price` 는 **주문 지정가로 그대로** 쓰이므로 낡은 종가 = 낡은 지정가가 된다.",
+   "evidence": "2026-09-29 08:40 발행 실측: close 20건 signal_date=2026-09-23(경과 6일) vs swing 20건 2026-09-28(경과 1일). `close_price` 누락 0 · 코드 형식 위반 0 이라 기존 계약 검사로는 검출되지 않았다. 리서처 자체 발견('격자가 9/23 에서 멈춰 있다, 시장 최신일 9/28')과 같은 뿌리.",
+   "success": "피드 후보 signal_date 경과 <= 4일 (또는 계약 검사가 signal_date 를 직접 검증)",
+   "cost": "저",
+   "note": "트레이더 소유(피드 계약·게이트). 프로브 `--probe feed_signal_lag` 신설(2026-09-29). 근본 원인(close 스크리너 데이터 격자가 9/23 고정)은 리서처 소유 → 리서처 백로그 **R22** 로 환류.",
+   "provenance": {
+    "source": "trader_cycle 2026-09-29 09:4x",
+    "measured_at": "2026-09-29 09:41"
+   },
+   "result": {
+    "ts": "2026-09-29T09:41:16+09:00",
+    "value": 6.0,
+    "check": "6.0 <= 4.0",
+    "verdict": "미달",
+    "rc": 0,
+    "stdout_tail": "6.0",
+    "stderr_tail": ""
+   }
   }
  ]
 }

@@ -521,6 +521,22 @@
       "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다."
     },
     {
+      "id": "R22",
+      "title": "[트레이더 환류] close 스크리너 signal_date 가 9/23 에 고정 — 최신 거래일(9/28) 반영 필요",
+      "status": "backlog",
+      "priority": 7,
+      "from_trader": "feed-signal-lag",
+      "affects_model": true,
+      "hypothesis": "close 스크리너 산출물의 데이터 격자가 9/23 에 멈춰 있어 9/28(거래일) 종가가 후보에 반영되지 않았다. 발행 파이프라인은 정상(9/29 08:40 발행·계약 위반 0)이지만 내용이 낡았다.",
+      "command": null,
+      "metric": null,
+      "check": null,
+      "evidence": "트레이더 실측 2026-09-29 09:4x: data/feed/screener_latest.json close 20건 signal_date=2026-09-23(경과 6일) vs swing 20건 2026-09-28(경과 1일). `python3 scripts/trader_cycle.py --probe feed_signal_lag` = 6.0 (임계 4 초과) → 트레이더 백로그 T7 로 게이트 신설. close_price 는 주문 지정가로 그대로 쓰인다.",
+      "success": null,
+      "cost": null,
+      "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다."
+    },
+    {
       "id": "R17",
       "title": "커버리지 부족 원천 7개 확대 (공매도 30종목 · 섹터 결측 2,796종목 · SNS 250종목)",
       "status": "backlog",
