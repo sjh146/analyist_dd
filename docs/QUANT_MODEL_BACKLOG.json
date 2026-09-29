@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T19:26:00+09:00",
+  "updated_at": "2026-09-29T19:33:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -6054,7 +6054,7 @@
     {
       "id": "CG37",
       "title": "챔피언의 **자기 학습 라벨**(h=1 절대 방향)로 엄격 OOS 채점 — CG36 은 자기 과제가 아니었다",
-      "status": "pending",
+      "status": "done",
       "priority": 5,
       "affects_model": true,
       "baseline": {
@@ -6077,7 +6077,55 @@
       "expected": "미지 — 0.47~0.52 대역 예상. 어느 쪽이든 '다음 레버' 판정 근거가 닫힌다.",
       "cost": "CG36 실측 13.4분(같은 폴드·날짜). 컨테이너 timeout 1500s(25분) — 20:00 재생성 창 전에 종료.",
       "est_minutes": 15,
-      "note": "20:00 재생성 창 때문에 19:2x 착수분만 안전하다(종료 19:4x). 창을 넘기면 ETA 가드가 막고 다음 슬롯으로 미룬다."
+      "note": "20:00 재생성 창 때문에 19:2x 착수분만 안전하다(종료 19:4x). 창을 넘기면 ETA 가드가 막고 다음 슬롯으로 미룬다.",
+      "attempts": [
+        {
+          "ts": "2026-09-29T19:31:00+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.4410±0.0183 (시간창 3개 [0.4662, 0.4339, 0.4230]) · 풀링 0.466 · 날짜별평균 0.441 · 행 646 · 기존 승격 기준선 0.4719(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG37_20260929-191557.log",
+          "elapsed_min": 15.1
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.4410±0.0183 (시간창 3개 [0.4662, 0.4339, 0.4230]) · 풀링 0.466 · 날짜별평균 0.441 · 행 646 · 기존 승격 기준선 0.4719(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG38",
+      "title": "**학습 창 길이** 레버: 배포는 90일만 학습한다(스윕은 281~659일) — 같은 OOS 창에서 A/B",
+      "status": "backlog",
+      "priority": 2,
+      "affects_model": true,
+      "depends_on": [
+        "U3"
+      ],
+      "baseline": {
+        "value": 0.441,
+        "source": "CG37 실측: 배포 챔피언(90일 학습·200종목)의 자기 과제(h=1 절대 방향) OOS AUC 3창"
+      },
+      "arm": "retrain_champion --days 250 --end-date 2026-06-24 (컷오프 고정) → 같은 OOS 3창 채점",
+      "counterfactual": "retrain_champion --days 90 --end-date 2026-06-24 (같은 컷오프·같은 유니버스·같은 채점 창)",
+      "hypothesis": "프로토콜 간 격차의 주 원인은 **학습 창 길이**다. 스윕(폴드별 확장창 재학습)은 281~659거래일로 학습해 0.53~0.55 를 내는데, 배포 경로는 `--days 90`(≈62거래일)만 학습해 자기 과제 OOS 0.4410 이다. 같은 컷오프·같은 유니버스에서 학습 창만 90→250일로 늘리면 OOS 가 올라간다.",
+      "evidence": "CG34(배포 90일 학습 → h5 OOS 0.4914) · CG37(같은 모델 h1 절대 라벨 OOS 0.4410, 3/3 창 < 0.5) vs 스윕 CG26 게이트 ON core30 0.5363(281거래일 확장창 폴드별 재학습). 프로덕션 명령은 full_pipeline_dd.sh 의 `retrain_champion --days 90 --stock-limit 200`.",
+      "method": "① 컷오프를 OOS 창 시작 전(2026-06-24)으로 고정해 두 모델을 학습(--days 90 / --days 250, 같은 --stock-limit, scratch 디렉터리 — champion/ 무수정) ② 두 모델 모두 `champion_robust_eval --label-kind abs --horizon 1 --train-start <학습시작> --train-end 2026-06-24` 로 같은 창 채점 ③ 짝 Δ 를 폴드별로 보고. 창 길이 외 변인(유니버스·라벨·HP)을 고정해야 귀속이 된다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 20000 python -m app.training.retrain_champion --days 90 --end-date 2026-06-24 --stock-limit 200 --out-dir /app/app/models/scratch_w90 && OMP_NUM_THREADS=2 timeout 30000 python -m app.training.retrain_champion --days 250 --end-date 2026-06-24 --stock-limit 200 --out-dir /app/app/models/scratch_w250'",
+      "check": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/champion_robust_eval.py --label-kind abs --horizon 1 --folds 5 --dates-per-fold 3 --stocks 80 --train-start 2025-10-01 --train-end 2026-06-24 --model-dir app/models/scratch_w90 --out /app/reports/scratch_w90_oos.json && python scripts/champion_robust_eval.py --label-kind abs --horizon 1 --folds 5 --dates-per-fold 3 --stocks 80 --train-start 2025-10-01 --train-end 2026-06-24 --model-dir app/models/scratch_w250 --out /app/reports/scratch_w250_oos.json'",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "champion_robust_eval",
+      "est_minutes": 420,
+      "success": "w250 OOS AUC − w90 OOS AUC ≥ +0.02 (폴드 짝 승률 ≥ 2/3). 미달이면 '학습 창 길이는 레버가 아니다'로 종결하고 데이터 축(XR/L3)으로 이동.",
+      "expected": "w90 ≈ 0.44(재현), w250 은 미지 — 스윕 수준(0.53)에 근접하면 프로덕션 재학습 정책 변경이 최대 레버가 된다.",
+      "risk": "과거 컷오프 학습이므로 유니버스가 '현재 유동성 상위 200종목'으로 뽑히는 약한 미래정보 편향(패널 실험과 동일). 두 arm 이 같은 편향을 공유하므로 Δ 판정에는 영향이 작다.",
+      "note": "**지금 pending 으로 올리지 않는다** — 4~7시간 항목이라 20:35 U3 런처 창을 막으면 panel_995(2밤째)를 또 잃는다. U3 완료 후 pending 승격."
     }
   ]
 }
