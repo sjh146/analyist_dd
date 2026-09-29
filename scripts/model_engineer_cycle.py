@@ -184,6 +184,39 @@ def running_pid(exclude_self=True):
     return None
 
 
+def _is_holiday(dt) -> bool:
+    """휴장일인가(data/krx_holidays.json). 파일이 없거나 깨졌으면 '모름' -> False."""
+    try:
+        with open(HOLIDAY_PATH, encoding="utf-8") as f:
+            return dt.strftime("%Y-%m-%d") in {str(d) for d in json.load(f)}
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
+def next_market_open(now=None):
+    """다음 장 시작(평일 09:00 KST, 휴장일 제외) 시각. 8일 내에 없으면 None.
+
+    왜 필요한가(실측 2026-09-29): guards() 의 장중 가드는 **'시작'만** 막는다. est_minutes 가
+    큰 항목은 개장 직전(예: 07:00 시작 · est 420분 -> 종료 14:00)에 시작해도 통과해서 장 전체를
+    잡아먹는다. eta_blocks 가 재생성 창(평일 20:00)만 봤기 때문이다. 실측 전례: 2026-09-28
+    05:0x 에 U3(est 를 '남은 시간' 700 으로 잘못 채운 상태)가 05:0x 에 시작해 컨테이너 timeout 이
+    16:41 에 걸렸다 - 개장~마감을 통째로 점유.
+    """
+    n = now or now_kst()
+    for add in range(0, 8):
+        d = n + timedelta(days=add)
+        if d.weekday() >= 5:
+            continue
+        cand = d.replace(hour=MARKET_OPEN[0], minute=MARKET_OPEN[1],
+                         second=0, microsecond=0)
+        if cand <= n:
+            continue
+        if _is_holiday(cand):
+            continue
+        return cand
+    return None
+
+
 def market_hours(dt=None) -> bool:
     """평일 09:00~15:30 이면서 **휴장일이 아닐 때만** True.
 
@@ -285,8 +318,11 @@ def next_recreate(now=None):
 
 
 def eta_blocks(item) -> tuple:
-    """(막는가, 이유). est_minutes 가 재생성 창을 넘으면 시작하지 않는다.
+    """(막는가, 이유). est_minutes 로 예상한 **종료 시각**이 넘으면 시작하지 않는다.
 
+    ① 다음 컨테이너 재생성 창(평일 20:00) ② 다음 장 시작(평일 09:00, 휴장일 제외).
+    ②가 없으면 개장 직전(예: 07:00 · est 420분 → 종료 14:00)에 시작한 항목이 장 전체를
+    점유한다 — 장중 가드는 '시작'만 막기 때문이다(실측 전례 2026-09-28 05:0x U3).
     est_minutes 가 없으면 판단하지 않는다(보수적으로 막지는 않되, 긴 항목엔 반드시 채워라).
     """
     est = (item or {}).get("est_minutes")
@@ -298,6 +334,11 @@ def eta_blocks(item) -> tuple:
         return True, (f"예상 종료 {fin.strftime('%m-%d %H:%M')} 이 컨테이너 재생성 창"
                       f"({rec.strftime('%m-%d %H:%M')} 평일 저녁 파이프라인, docker compose up -d)"
                       f"을 넘음 — est_minutes={est} · 재생성 직후 틱에서 재시도")
+    mo = next_market_open()
+    if mo and fin > mo:
+        return True, (f"예상 종료 {fin.strftime('%m-%d %H:%M')} 이 다음 장 시작"
+                      f"({mo.strftime('%m-%d %H:%M')}) 을 넘음 — 장중엔 트레이더·피드가 CPU 우선"
+                      f" · est_minutes={est} · 마감(15:30) 후 틱에서 재시도")
     return False, ""
 
 
@@ -317,8 +358,12 @@ def guards(force=False, item=None) -> tuple:
     blocked, why = eta_blocks(item)
     if blocked and not force:
         return False, why
-    if market_hours() and not force:
-        return False, f"{market_note()} — 시작하지 않음 (--force 로 무시)"
+    # --force 로도 뚫지 않는다(2026-09-29 수리): 예전 술어는 `market_hours() and not force`
+    # 라서 --force 가 장중 가드를 그대로 통과했다 — 아래 load 가드 주석의 "장중은 force 로도
+    # 뚫지 않는다"와 코드가 어긋나 있었다. 장중엔 트레이더·피드가 CPU 우선이고 그건 사람이
+    # 즉흥적으로 넘길 판단이 아니다(런처도 20:35~21:00 창만 쓴다).
+    if market_hours():
+        return False, f"{market_note()} — 시작하지 않음 (--force 로도 차단)"
     l = load1()
     if l > LOAD_MAX:
         # 표현 주의: 예전 문구는 "다른 학습이 도는 중"이라고 단정했다. 실측(2026-09-25 17:00)

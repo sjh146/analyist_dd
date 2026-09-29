@@ -220,6 +220,16 @@ def main() -> None:
     ap.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     ap.add_argument("--val-frac", type=float, default=0.2)
     ap.add_argument("--n-estimators", type=int, default=500)
+    ap.add_argument("--checkpoint-path", default=None,
+                    help="부분 진척 체크포인트 경로(컨테이너에서 접근 가능한 절대경로). 주면 "
+                         "500페어마다 rows.pkl+meta.json 으로 저장하고, 종목목록·start/end·"
+                         "feature_engine 코드 mtime 이 같으면 다음 실행에서 이어받는다. "
+                         "왜: 200종목×90일(실측 12,029페어) 빌드는 1.26페어/s 로 2.65h 가 걸려 "
+                         "저녁 파이프라인 Phase 2 의 2h 캡(timeout 7200)에 매일 잘리고 **전량 "
+                         "소실**됐다(2026-09-24 exit=124 · 2026-09-29 동일). 체크포인트를 주면 "
+                         "재시도가 처음부터가 아니라 이어받기로 시작한다(단, --end-date 를 고정해야 "
+                         "키가 유지된다 — 매일 '오늘'로 밀리면 체크포인트도 매일 폐기된다). "
+                         "기본 None = 현행 동작(체크포인트 없음).")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -237,7 +247,8 @@ def main() -> None:
                  else end - timedelta(days=args.days))
         start_s, end_s = start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
         logger.info("학습 데이터 구간 %s ~ %s", start_s, end_s)
-        df = pipeline.build_training_features(stocks, start_s, end_s)
+        df = pipeline.build_training_features(stocks, start_s, end_s,
+                                               checkpoint_path=args.checkpoint_path)
         if df is None or len(df) < 500:
             logger.error("insufficient panel rows: %s", 0 if df is None else len(df))
             return

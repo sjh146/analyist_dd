@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T19:33:00+09:00",
+  "updated_at": "2026-09-29T22:12:28+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -1816,7 +1816,7 @@
         "rc": 1
       },
       "notes": "[2026-09-27 실측] 패널 빌드 0.42 pair/s × 32,626 pair = 21.6h 인데 timeout 43200s(12h) → 55% 지점 SIGKILL 구조. 체크포인트 500 pair 단위라 재개는 가능하지만 한 번에 완주하도록 90000s(25h) 로 정정. host 재부팅 후 첫 실행이라 유휴 시에는 더 빠를 수 있다.",
-      "note": " [2026-09-28 정정] ①구간 고정(--end-date 2026-09-27)을 넣어야 체크포인트가 이어진다(실측: 재개 processed=15000/32576 확인). ②크론 틱은 --force 를 못 쓰므로 U3 착수는 scripts/u3_launcher.sh(20:35~21:00 창)가 담당한다. ③ETA 가드 상한(est_minutes 700)이라 정상 틱도 21:00 이후엔 시작 가능. | 2026-09-28 05:2x 정정: est_minutes 700→1410(실측 0.38~0.42 페어/초 기준 21.6~23.5h). 이 값이어야 틱의 ETA 가드가 U3 를 건너뛰어(설계대로) 장중·저녁 창을 넘겨 시작하는 사고를 막고, 착수는 u3_launcher.sh(20:35~21:00)가 --force 로 담당한다. 런처 생존은 이제 틱이 매시간 ensure_launcher() 로 확인해 세션 종료로 죽었으면 setsid 로 재기동한다. | 2026-09-28 18:0x 사전검증(런처 착수 전): 실제 U3 명령을 timeout 170 으로 짧게 돌려 **체크포인트 재개 확인** — '체크포인트 재개: processed=15000/32576 (46.0%)'. 재개 키 3종 모두 일치(유니버스 50코드 동일·start 2024-01-06/end 2026-09-27 고정·code_sig 1790334858.601 동일), 체크포인트 저장은 tmp+os.replace 원자적(feature_pipeline L482-490) → 중단돼도 손상 없음. 따라서 20:35 런처 착수는 0% 재시작이 아니라 46% 이어받기로 시작한다. | 2026-09-29 원인 확정: 빌드 99.5%(32,576페어) 완료 후 01:48 커밋 c4b431c 로 code_sig 가 바뀌어 저장 거부 → 354분 전량 소실(체크포인트 폐기). 대책 3종: feature_pipeline 종목 배치별 조기 중단(실측 48/162 페어에서 중단, _code_churn_abort_test PASS), u3_launcher 프리플라이트(피처 코드 최신 mtime 120분 이내면 착수 안 함), 구동기 failure_cause rc=1 예외 줄 기록. → 착수 전제: 다른 역할이 services/xgboost-ml/app 을 편집하지 않는 밤(20:35~08:55)이 필요하다.",
+      "note": " [2026-09-28 정정] ①구간 고정(--end-date 2026-09-27)을 넣어야 체크포인트가 이어진다(실측: 재개 processed=15000/32576 확인). ②크론 틱은 --force 를 못 쓰므로 U3 착수는 scripts/u3_launcher.sh(20:35~21:00 창)가 담당한다. ③ETA 가드 상한(est_minutes 700)이라 정상 틱도 21:00 이후엔 시작 가능. | 2026-09-28 05:2x 정정: est_minutes 700→1410(실측 0.38~0.42 페어/초 기준 21.6~23.5h). 이 값이어야 틱의 ETA 가드가 U3 를 건너뛰어(설계대로) 장중·저녁 창을 넘겨 시작하는 사고를 막고, 착수는 u3_launcher.sh(20:35~21:00)가 --force 로 담당한다. 런처 생존은 이제 틱이 매시간 ensure_launcher() 로 확인해 세션 종료로 죽었으면 setsid 로 재기동한다. | 2026-09-28 18:0x 사전검증(런처 착수 전): 실제 U3 명령을 timeout 170 으로 짧게 돌려 **체크포인트 재개 확인** — '체크포인트 재개: processed=15000/32576 (46.0%)'. 재개 키 3종 모두 일치(유니버스 50코드 동일·start 2024-01-06/end 2026-09-27 고정·code_sig 1790334858.601 동일), 체크포인트 저장은 tmp+os.replace 원자적(feature_pipeline L482-490) → 중단돼도 손상 없음. 따라서 20:35 런처 착수는 0% 재시작이 아니라 46% 이어받기로 시작한다. | 2026-09-29 원인 확정: 빌드 99.5%(32,576페어) 완료 후 01:48 커밋 c4b431c 로 code_sig 가 바뀌어 저장 거부 → 354분 전량 소실(체크포인트 폐기). 대책 3종: feature_pipeline 종목 배치별 조기 중단(실측 48/162 페어에서 중단, _code_churn_abort_test PASS), u3_launcher 프리플라이트(피처 코드 최신 mtime 120분 이내면 착수 안 함), 구동기 failure_cause rc=1 예외 줄 기록. → 착수 전제: 다른 역할이 services/xgboost-ml/app 을 편집하지 않는 밤(20:35~08:55)이 필요하다. | 2026-09-29 22:0x 실측(재착수 2밤째): 20:35:55 런처 착수 → 4,000/32,576(12.3%) · 0.78 페어/s · ETA 08:1x. 컨테이너 `timeout 43200` 종료 08:35:55 → 여유 24분. 같은 4코어에서 저녁 파이프라인 Phase 2 가 동시에 패널을 굽는다(load1 7~8.5). 체크포인트 500페어 정상(rows.pkl 13:01 UTC 갱신). 코드_sig 위험: feature_engine/*.py mtime 이 착수 후 바뀌지 않았음(확인 2026-09-29 22:0x — app/training/*.py 편집은 code_sig 대상이 아니라 U3 에 무해).",
       "launcher": "scripts/u3_launcher.sh (nohup) — data/reports/me_cycle/u3_launcher.log"
     },
     {
@@ -5993,7 +5993,7 @@
       "hypothesis": "배포 챔피언이 학습구간 겹침 창에서 기록한 0.5883 은 **암기** 때문이다. 같은 아키텍처(xgboost+lgb+catboost 앙상블, 현행 레시피)를 컷오프를 과거(2026-05-20)로 고정해 학습하면, 같은 두 창(05-29~07-20·07-28~09-15)에서 0.5 근처로 떨어진다.",
       "evidence": "CG34: OOS 0.4914 vs 겹침 0.5883(오염 +0.0969) · 창4는 학습구간의 약 40%, 창5는 100%. retrain_champion 에 --end-date/--start-date 신설(meta 에 data_start/data_end 기록) · champion_robust_eval 에 --train-start/--train-end 신설(겹치는 창 자동 제외, 19/19 PASS).",
       "method": "① `retrain_champion --days 90 --end-date 2026-05-20 --stock-limit 200 --out-dir app/models/scratch_ctl_20260520`(champion/ 무수정 — 하드룰 #4) ② 같은 런에서 `champion_robust_eval --model-dir <scratch> --train-start 2026-02-19 --train-end 2026-05-20` → 창1(앞) + 창4·5(이후)가 OOS 로 채점된다 ③ 배포 챔피언의 같은 창 값(0.6013/0.5754)과 비교.",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 20000 python -m app.training.retrain_champion --days 90 --end-date 2026-05-20 --stock-limit 200 --out-dir /app/app/models/scratch_ctl_20260520 && OMP_NUM_THREADS=2 timeout 5400 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_ctl_20260520 --folds 5 --dates-per-fold 10 --stocks 80 --train-start 2026-02-19 --train-end 2026-05-20 --out /app/reports/ctl_clean_oos.json'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 20000 python -m app.training.retrain_champion --days 90 --end-date 2026-05-20 --stock-limit 200 --out-dir /app/app/models/scratch_ctl_20260520 --checkpoint-path /app/app/models/wf/cg35_ctl.ckpt && OMP_NUM_THREADS=2 timeout 5400 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_ctl_20260520 --folds 5 --dates-per-fold 10 --stocks 80 --train-start 2026-02-19 --train-end 2026-05-20 --out /app/reports/ctl_clean_oos.json'",
       "check": "docker exec stock_xgboost_ml cat /app/reports/ctl_clean_oos.json",
       "check_target": {
         "op": ">=",
@@ -6001,9 +6001,9 @@
       },
       "metric": "champion_robust_eval",
       "est_minutes": 260,
-      "success": "컷오프 모델의 창4·5 AUC 평균이 챔피언 0.5883 대비 −0.05 이상 낮게 나오면 '암기' 확정. 비슷하게 나오면 '최근 구간에서 모델이 실제로 낫다'는 뜻이므로 라벨 정렬·재학습 주기 레버가 열린다.",
+      "success": "컷오프 모델의 **OOS 창(학습 종료 2026-05-20 이후로 자동 판정된 창)** AUC 평균이 챔피언의 같은 창 0.5883 대비 −0.05 이상 낮으면 '암기' 확정. 창 수가 1개로 줄 수 있으니(창4는 학습구간과 겹쳐 제외) 판정 시 생존 창 수·날짜 수를 함께 보고한다. 비슷하게 나오면 최근 구간에서 실제로 낫다는 뜻",
       "expected": "컷오프 모델 창4·5 ≈ 0.50~0.54 (챔피언 0.5883 은 자기 학습구간 값이므로)",
-      "note": "**지금 pending 으로 올리지 않는다** — 평일 저녁 19:00 틱이 집어가면 20:35 U3 런처 창을 막아 995일 패널(2밤째)을 또 잃는다. panel_995.npz 완성(U3 done) 후 pending 승격.",
+      "note": "**지금 pending 으로 올리지 않는다** — 평일 저녁 19:00 틱이 집어가면 20:35 U3 런처 창을 막아 995일 패널(2밤째)을 또 잃는다. panel_995.npz 완성(U3 done) 후 pending 승격. | 2026-09-29 22:4x: command 에 --checkpoint-path 추가(2h 캡 소실 방지, end-date 고정이라 재개 가능). 승격은 CG38 뒤 — next_item 은 (priority,id) 순이므로 CG38(2) 이 먼저다.",
       "risk": "학습 3.2h + 평가 0.5h = 밤 한 창(20:35~09:00) 안에 들어간다. 유니버스는 '현재 유동성 상위 200종목'으로 뽑히므로 과거 구간 학습에 미래 정보가 섞이는 약한 편향이 있다(패널 실험도 동일)."
     },
     {
@@ -6099,7 +6099,7 @@
     {
       "id": "CG38",
       "title": "**학습 창 길이** 레버: 배포는 90일만 학습한다(스윕은 281~659일) — 같은 OOS 창에서 A/B",
-      "status": "backlog",
+      "status": "pending",
       "priority": 2,
       "affects_model": true,
       "depends_on": [
@@ -6110,11 +6110,11 @@
         "source": "CG37 실측: 배포 챔피언(90일 학습·200종목)의 자기 과제(h=1 절대 방향) OOS AUC 3창"
       },
       "arm": "retrain_champion --days 250 --end-date 2026-06-24 (컷오프 고정) → 같은 OOS 3창 채점",
-      "counterfactual": "retrain_champion --days 90 --end-date 2026-06-24 (같은 컷오프·같은 유니버스·같은 채점 창)",
+      "counterfactual": "retrain_champion --days 90 --end-date 2025-11-20 --stock-limit 60 (같은 컷오프·같은 종목·같은 채점 창)",
       "hypothesis": "프로토콜 간 격차의 주 원인은 **학습 창 길이**다. 스윕(폴드별 확장창 재학습)은 281~659거래일로 학습해 0.53~0.55 를 내는데, 배포 경로는 `--days 90`(≈62거래일)만 학습해 자기 과제 OOS 0.4410 이다. 같은 컷오프·같은 유니버스에서 학습 창만 90→250일로 늘리면 OOS 가 올라간다.",
       "evidence": "CG34(배포 90일 학습 → h5 OOS 0.4914) · CG37(같은 모델 h1 절대 라벨 OOS 0.4410, 3/3 창 < 0.5) vs 스윕 CG26 게이트 ON core30 0.5363(281거래일 확장창 폴드별 재학습). 프로덕션 명령은 full_pipeline_dd.sh 의 `retrain_champion --days 90 --stock-limit 200`.",
       "method": "① 컷오프를 OOS 창 시작 전(2026-06-24)으로 고정해 두 모델을 학습(--days 90 / --days 250, 같은 --stock-limit, scratch 디렉터리 — champion/ 무수정) ② 두 모델 모두 `champion_robust_eval --label-kind abs --horizon 1 --train-start <학습시작> --train-end 2026-06-24` 로 같은 창 채점 ③ 짝 Δ 를 폴드별로 보고. 창 길이 외 변인(유니버스·라벨·HP)을 고정해야 귀속이 된다.",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 20000 python -m app.training.retrain_champion --days 90 --end-date 2026-06-24 --stock-limit 200 --out-dir /app/app/models/scratch_w90 && OMP_NUM_THREADS=2 timeout 30000 python -m app.training.retrain_champion --days 250 --end-date 2026-06-24 --stock-limit 200 --out-dir /app/app/models/scratch_w250'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 10800 python -m app.training.retrain_champion --days 90 --end-date 2025-11-20 --stock-limit 60 --out-dir /app/app/models/scratch_w90 --checkpoint-path /app/app/models/wf/scr_w90.ckpt && OMP_NUM_THREADS=2 timeout 25200 python -m app.training.retrain_champion --days 250 --end-date 2025-11-20 --stock-limit 60 --out-dir /app/app/models/scratch_w250 --checkpoint-path /app/app/models/wf/scr_w250.ckpt && OMP_NUM_THREADS=2 timeout 2400 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_w250 --horizon 1 --label-kind abs --folds 3 --dates-per-fold 3 --stocks 80 --train-start 2025-03-15 --train-end 2025-11-20 --out /app/reports/cg38_w250_oos.json && OMP_NUM_THREADS=2 timeout 2400 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_w90 --horizon 1 --label-kind abs --folds 3 --dates-per-fold 3 --stocks 80 --train-start 2025-08-22 --train-end 2025-11-20 --out /app/reports/cg38_w90_oos.json'",
       "check": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/champion_robust_eval.py --label-kind abs --horizon 1 --folds 5 --dates-per-fold 3 --stocks 80 --train-start 2025-10-01 --train-end 2026-06-24 --model-dir app/models/scratch_w90 --out /app/reports/scratch_w90_oos.json && python scripts/champion_robust_eval.py --label-kind abs --horizon 1 --folds 5 --dates-per-fold 3 --stocks 80 --train-start 2025-10-01 --train-end 2026-06-24 --model-dir app/models/scratch_w250 --out /app/reports/scratch_w250_oos.json'",
       "check_target": {
         "op": ">=",
@@ -6122,10 +6122,27 @@
       },
       "metric": "champion_robust_eval",
       "est_minutes": 420,
-      "success": "w250 OOS AUC − w90 OOS AUC ≥ +0.02 (폴드 짝 승률 ≥ 2/3). 미달이면 '학습 창 길이는 레버가 아니다'로 종결하고 데이터 축(XR/L3)으로 이동.",
+      "success": "w250 견고 AUC − w90 견고 AUC ≥ +0.02 (같은 컷오프 2025-11-20·같은 60종목·같은 3창 채점, 창 짝 승률 ≥ 2/3). 미달이면 '학습 창 길이는 레버가 아니다'로 종결하고 데이터 축(XR/L3)으로 이동",
       "expected": "w90 ≈ 0.44(재현), w250 은 미지 — 스윕 수준(0.53)에 근접하면 프로덕션 재학습 정책 변경이 최대 레버가 된다.",
       "risk": "과거 컷오프 학습이므로 유니버스가 '현재 유동성 상위 200종목'으로 뽑히는 약한 미래정보 편향(패널 실험과 동일). 두 arm 이 같은 편향을 공유하므로 Δ 판정에는 영향이 작다.",
-      "note": "**지금 pending 으로 올리지 않는다** — 4~7시간 항목이라 20:35 U3 런처 창을 막으면 panel_995(2밤째)를 또 잃는다. U3 완료 후 pending 승격."
+      "note": "**2026-09-29 22:4x 개정(실행 가능 형태로 3건 수리 후 pending 승격)** — 원안은 ①평가 단계가 아예 없어 `metric=champion_robust_eval` 인데 그 요약을 만들지 않았다(구동기가 '요약 미갱신 → 실행실패'로 기록할 참이었고, 요약 경로가 기본 경로로 폴백돼 실제 챔피언 산출물을 덮을 위험도 있었다 — `_summary_path_test.py` 가 이 결함을 잡아냈다) ②w250 arm 이 200종목×172거래일 = 34,400 페어라 실측 0.75~1.26 페어/s 로 7.6~12.7h → 컨테이너 timeout 30000s(8.3h) 안에 못 들어간다 ③평가창이 학습구간과 겹치는 문제(CG34)를 고려하지 않아 OOS 창이 0~1개로 줄 뻔했다. 수리: 200→60종목(양 arm 동일 → 짝 비교라 유니버스 교란 없음), 컷오프를 h1 평가창 시작(2025-11-28) **앞**(2025-11-20)으로 옮겨 3창 전부 OOS, `--checkpoint-path` 신설(`retrain_champion.py` 에 `build_training_features(checkpoint_path=)` 배선 — 실측 2026-09-29, 미배선이라 매일 2h 캡에 전량 소실), 평가 2회를 명시적 `--out` 으로 분리. 잔여 한계: 표본 9날짜/646행(CG37 과 동일)이라 짝 검정력이 얇다 — 판정 시 창 수·날짜 수를 함께 보고할 것. | 원 메모: 2026-09-29 신설 — 배포(90일)와 스윕(281~659거래일)의 학습 창 격차가 '스윕 0.53~0.55 vs 배포 자기과제 OOS 0.4410' 의 유력 원인이다. U3 완료 전에는 pending 으로 올리지 말 것(저녁 런처 창을 막으면 panel_995 를 또 잃는다) — 2026-09-29 22:4x U3 가 체크포인트 재개로 밤새 도는 중이라 안전하다고 판단해 승격했다.",
+      "cost": "3.1~5.2h (14,040 페어: 60종목×(62+172)거래일 ÷ 실측 0.75~1.26 페어/s) + 평가 2×≈15분",
+      "attempts": 0
+    },
+    {
+      "id": "FS1",
+      "title": "피처 스토어(feature_store.feature_values) 부활 — 생산 재학습 비용을 분 단위로 (지금은 0행·미사용)",
+      "status": "needs_setup",
+      "priority": 1,
+      "hypothesis": "모델 입력 빌드 비용은 캐시가 없어서 매 창마다 전체 재계산이다. 코드에는 FeatureStore(app/feature_engine/feature_store.py, feature_store.feature_values 테이블, ON CONFLICT upsert)가 있고 FeaturePipeline 이 use_feature_store=True 일 때 load_batch/save_features 를 쓰지만 **호출자가 없다**(grep: tests·auto_retrain.py 뿐). 실측 2026-09-29 22:2x: feature_values **0행**(reltuples=-1). → 배포 재학습 12,029페어가 매일 2.65~4.5h 걸려 2h 캡에 매일 잘리고, 창 길이 A/B(CG38)도 수 시간/arm 이 된다.",
+      "evidence": "실측: `docker exec stock_postgres sh -c 'psql -U $POSTGRES_USER -d $POSTGRES_DB -Atc \"SELECT count(*) FROM feature_store.feature_values;\"'` = **0** · reltuples=-1(한 번도 analyze 안 됨) · retrain_champion 은 build_training_features(stocks, start, end) 를 checkpoint_path 없이 호출 (2026-09-29 수리로 --checkpoint-path 신설) · feature_pipeline.py L319-325 load_batch 는 stored 가 비어있지 않으면 그대로 반환 = **부분 커버리지를 완전한 패널로 오인**할 수 있다",
+      "command": null,
+      "metric": "champion_robust_eval",
+      "success": "① 동일 구간·동일 종목 재학습 2회차가 1회차의 1/10 이하 시간(스토어 적중) ② 스토어 경유 행 집합이 재계산 행 집합과 (stock,date) 키·피처값이 일치(교차검증 스크립트로 해시 비교) ③ 부분 커버리지면 스토어를 **거부**하고 재계산 경로로 폴백(로그에 근거를 남김)",
+      "expected": "저녁 파이프라인 Phase 2 가 2h 캡 안에 완주(후보 생성 재개) + 장시간 실험(CG38·CG35)이 분 단위로",
+      "cost": "구현 2~3h + 검증 1h (CPU 무거운 실행 없음 — 기존 패널/DB 로 검증 가능)",
+      "counterfactual": "스토어 미사용(현행) 경로",
+      "note": "필수 설계 요구(선구현 후사용): ① `load_batch` 가 요청 (stock,date) 전량을 덮지 않으면 **예외 또는 재계산**(부분 반환 금지 — 지금 코드는 부분도 그대로 반환한다) ② 무효화 키에 feature_engine code_sig + 원천 워터마크(가격·재무·공시 백필 시각) 포함 — 리서처가 과거 구간을 백필하면(R10·R17) 옛 값이 학습에 섞인다 ③ as-of 지연이 적용된 **출력**을 저장(원천이 아니라). 운영 DB 스키마 변경은 금지라 테이블이 없으면 만들지 말고 사용자 승인 항목으로 올릴 것 (feature_store 스키마는 이미 존재하므로 스키마 변경 없이 가능)."
     }
   ]
 }

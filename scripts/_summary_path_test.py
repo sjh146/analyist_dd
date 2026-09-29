@@ -46,11 +46,15 @@ check("--out= 형식", m.summary_path("champion_robust_eval", "x --out=/app/repo
 check("호스트 절대경로 유지", m.summary_path("champion_robust_eval", "--out /tmp/a.json"),
       "/tmp/a.json")
 
-# 4) 실제 백로그 항목: champion_robust_eval 을 쓰는 pending 항목의 경로가 유효한가
+# 4) 실제 백로그 항목: champion_robust_eval 을 쓰는 **미완료** 항목의 경로가 유효한가
+#    (2026-09-29 수리: 예전 필터는 status=="pending" 만 봤다 → 대기 항목이 하루만 없어도
+#     n=0 이 되어 '검사한 항목 수' 가 FAIL 로 뜨는 시각의존 테스트였다. 코드 회귀가 아니라
+#     백로그 상태 변화인데도 빨간불이 켜지므로, 미완료(pending/backlog/needs_setup) 전체를 본다.)
 b = json.load(open(os.path.join(m.PROJ, "docs/QUANT_MODEL_BACKLOG.json")))
 n = 0
 for it in b["items"]:
-    if it.get("metric") == "champion_robust_eval" and it.get("status") == "pending":
+    if it.get("metric") == "champion_robust_eval" and it.get("status") in (
+            "pending", "backlog", "needs_setup"):
         p = m.summary_path("champion_robust_eval", it.get("command"))
         n += 1
         check(f"{it['id']} 요약 경로 부모 존재", os.path.isdir(os.path.dirname(p)), True)
