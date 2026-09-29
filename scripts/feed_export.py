@@ -121,8 +121,50 @@ def load_prev_closes(codes, upto_date=None):
         conn.close()
 
 
-def build_items(screener, payload, prev_closes):
-    """스크리너 산출물 → 계약 형식 items (score 내림차순, 잘못된 항목 제외)."""
+def _signal_date(value, fallback=None):
+    """signal_date 를 date 로 파싱 (실패하면 fallback, 없으면 None)."""
+    for candidate in (value, fallback):
+        text = str(candidate or "").strip()
+        if not text:
+            continue
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+        except ValueError:
+            try:
+                return datetime.strptime(text[:10], "%Y-%m-%d").date()
+            except ValueError:
+                continue
+    return None
+
+
+def valid_until_for(screener, signal_date, publish_dt):
+    """후보 만료 시각(ISO-8601, KST) — 소비자가 후보별 신선도를 판단한다.
+
+    계약은 ``generated_at``(발행 시각)만 봤기 때문에, 산출물이 새것이어도
+    **종목별 신호가 며칠 전 것인지**는 소비자가 알 수 없었다
+    (실측 2026-09-29: close 후보 signal_date=09-23 인데 발행은 09-28 → 3거래일 지난
+    패턴이 신선한 것처럼 나갔다).
+
+    * close  : 발행일 15:30 KST — 그날 종가 진입창(14:50-15:25)까지만 유효
+    * swing  : signal_date + 5일 15:30 KST (모델 라벨 지평 h5 와 같은 길이)
+    """
+    if screener == "close":
+        base = publish_dt.replace(hour=15, minute=30, second=0, microsecond=0)
+    else:
+        anchor = _signal_date(signal_date) or publish_dt.date()
+        base = datetime.combine(anchor, datetime.min.time(), tzinfo=KST).replace(
+            hour=15, minute=30) + timedelta(days=5)
+    return base.isoformat(timespec="seconds")
+
+
+def build_items(screener, payload, prev_closes, publish_dt=None):
+    """스크리너 산출물 → 계약 형식 items (score 내림차순, 잘못된 항목 제외).
+
+    ``score`` 의 **의미**를 ``score_kind`` 로 함께 선언한다(계약 §5):
+    모델 확률(calibrated_prob)과 스크리너 점수(screener)는 스케일이 달라서
+    소비자의 R1 문턱이 한 값으로 판단하면 경로가 조용히 닫힌다.
+    """
+    publish_dt = publish_dt or datetime.now(KST)
     raw = payload.get("candidates") or []
     items, dropped = [], []
     for row in raw:
@@ -136,21 +178,31 @@ def build_items(screener, payload, prev_closes):
         if price is None or price <= 0:
             dropped.append((code, "가격 없음(게이트 6 차단 대상)"))
             continue
+        conf = None
         if screener == "swing":
             conf = _num(row.get("confidence"))
-            score = conf * 100.0 if conf is not None and 0 <= conf <= 1 else conf
+            if conf is not None and 0 <= conf <= 1:
+                score, score_kind = conf * 100.0, "calibrated_prob"
+            elif conf is not None:
+                # 확률 범위(0~1) 밖 값은 이미 점수 스케일로 온 것으로 본다.
+                score, score_kind = conf, "screener"
+            else:
+                score, score_kind = _num(row.get("score")), "screener"
         else:
-            score = _num(row.get("score"))
+            score, score_kind = _num(row.get("score")), "screener"
         if score is None:
             dropped.append((code, "score 없음(R1/게이트 6 판단 불가)"))
             continue
         score = max(0.0, min(100.0, score))
+        signal_date = row.get("signal_date") or payload.get("date") or ""
         item = {
             "stock_code": code,
             "stock_name": row.get("stock_name") or "",
             "close_price": str(int(round(price))),
             "score": round(score, 2),
-            "signal_date": row.get("signal_date") or payload.get("date") or "",
+            "score_kind": score_kind,
+            "signal_date": signal_date,
+            "valid_until": valid_until_for(screener, signal_date, publish_dt),
             "reason": (row.get("reason") or "").strip(),
         }
         if row.get("rank") is not None:
@@ -159,6 +211,11 @@ def build_items(screener, payload, prev_closes):
                       "ret_5d_pct", "day_change_pct", "expected_return", "confidence"):
             if row.get(extra) not in (None, ""):
                 item[extra] = row[extra]
+        # 모델 메타: 소비자가 사이징·청산에 쓸 수 있게 1급 필드로 올린다.
+        if conf is not None and 0 <= conf <= 1:
+            item["ml_prob"] = round(float(conf), 4)
+        if payload.get("auc") not in (None, ""):
+            item["ml_auc"] = payload.get("auc")
         items.append(item)
     items.sort(key=lambda x: x["score"], reverse=True)
     if dropped:
@@ -245,8 +302,29 @@ def main(argv=None):
     prev_closes = load_prev_closes(codes, upto)
 
     candidates = {}
+    publish_dt = datetime.now(KST)
     for key in ("close", "swing"):
-        items = build_items(key, payloads.get(key, {}), prev_closes) if key in payloads else []
+        items = (build_items(key, payloads.get(key, {}), prev_closes, publish_dt)
+                 if key in payloads else [])
+        # 후보별 신호 나이 가시화: 산출물 파일이 새것이어도 안에 든 신호는 며칠 전일 수
+        # 있다. 계약 v1.1 의 valid_until·signal_date 로 소비자가 차단하므로, 발행 시점에
+        # 로그로 남겨 "왜 매매가 없었는지"를 발행 기록만으로 추적할 수 있게 한다.
+        if items:
+            source_date = _signal_date(payloads.get(key, {}).get("date"))
+            ages = []
+            for it in items:
+                sd = _signal_date(it.get("signal_date"), source_date)
+                if sd is not None:
+                    ages.append((publish_dt.date() - sd).days)
+            if ages:
+                logger.info("[%s] signal_date %d~%d일 전 (발행일 %s, valid_until예: %s)",
+                            key, min(ages), max(ages), publish_dt.date(),
+                            items[0].get("valid_until"))
+                if max(ages) > 3:
+                    logger.warning(
+                        "[%s] 종목별 신호가 최대 %d일 전 — 소비자(루프)의 후보별 신선도 "
+                        "게이트가 이 후보를 차단한다. 스크리너가 signal_date 를 갱신하지 "
+                        "않는지 확인할 것.", key, max(ages))
         # 순위 기반 선별 (모델 확률이 0.5 근처에 몰려 절대 임계값이 무의미한 구간 대응):
         # 점수 내림차순 정렬 후 상위 N 만 발행한다. 스크리너가 이미 정렬해 주지만 여기서
         # 다시 보장한다(계약: trader-agent 는 순서를 신뢰하고 상위 N 을 집행).
@@ -286,7 +364,7 @@ def main(argv=None):
         candidates[key] = {"items": items}
 
     feed = {
-        "generated_at": datetime.now(KST).isoformat(timespec="seconds"),
+        "generated_at": publish_dt.isoformat(timespec="seconds"),
         "source": "analyist_dd",
         "candidates": candidates,
     }
