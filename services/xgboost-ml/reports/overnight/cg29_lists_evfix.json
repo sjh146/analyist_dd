@@ -1,0 +1,39 @@
+{
+ "panel": "/app/app/models/wf/panel_420_asofpatch_evfix.npz",
+ "arm": [
+  "disclosure_count_5d",
+  "event_stake_change_5d",
+  "event_exec_change_5d",
+  "event_realized_5d",
+  "event_contract_5d",
+  "event_treasury_5d",
+  "event_capital_increase_5d",
+  "event_delisting_5d",
+  "event_mna_5d",
+  "event_cb_bw_5d"
+ ],
+ "arm_coverage_pct": {
+  "disclosure_count_5d": 11.59,
+  "event_stake_change_5d": 4.9,
+  "event_exec_change_5d": 3.84,
+  "event_realized_5d": 1.85,
+  "event_contract_5d": 1.42,
+  "event_treasury_5d": 0.99,
+  "event_capital_increase_5d": 0.85,
+  "event_delisting_5d": 0.76,
+  "event_mna_5d": 0.73,
+  "event_cb_bw_5d": 0.51
+ },
+ "placebo": [
+  "sentiment_avg_db",
+  "sentiment_momentum",
+  "ma_position_20",
+  "institution_net_buy_5d",
+  "rank_volume_ratio_20",
+  "bb_position",
+  "volume_ratio_5",
+  "rsi",
+  "similar_stocks_return_std",
+  "rank_volume_ratio_5"
+ ]
+}

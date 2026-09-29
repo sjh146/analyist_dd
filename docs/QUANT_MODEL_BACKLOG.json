@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-09-29T07:16:12+09:00",
+ "updated_at": "2026-09-29T16:22:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -460,7 +460,7 @@
    "success": "① 이벤트 피처를 학습 패널에 연결 ② 확장창 다중 폴드 평균이 0.5406 대비 −0.02 이내(악화 없음) 또는 개선 ③ 단변량 edge 를 top30 선별 문턱(≈0.044)과 비교한 표 제출(문턱의 1/4 이하면 채택 금지)",
    "expected": "미지 — 커버리지가 문턱을 넘는 것은 2개뿐이고, 이벤트는 희소·불규칙이라 폴드에 고르게 깔리지 않을 수 있다. ‘커버리지 2.7배’가 ‘AUC 기여’를 뜻하지 않는다.",
    "cost": "패널 연결 30분 + 폴드 재측정 1시간",
-   "note": "리서처가 command 를 비워 둔 이유: 어떤 피처 조합·유니버스로 돌릴지는 엔지니어가 대조군과 함께 확정해야 한다(데이터 준비 전 잘못된 실험 방지). 참고 스크립트: scripts/build_event_features.py (--coverage-only 로 커버리지만 재계산 가능)."
+   "note": "리서처가 command 를 비워 둔 이유: 어떤 피처 조합·유니버스로 돌릴지는 엔지니어가 대조군과 함께 확정해야 한다(데이터 준비 전 잘못된 실험 방지). 참고 스크립트: scripts/build_event_features.py (--coverage-only 로 커버리지만 재계산 가능). | 2026-09-29 실측(엔지니어): **기본 패널(panel_420_asofpatch)의 event_* 컬럼은 2026-04 이전이 전량 0** 이다(event_exec_change_5d 월별 nonzero 2025-07~2026-03 = 0.0% → 2026-04~ 1.3~3.2%). 따라서 워크포워드 폴드 1~2 학습창에서는 이 피처군이 분산 0 으로 전량 탈락하고, EV1 등 과거 이벤트 측정은 '이벤트가 없는 구간'을 잰 셈이다. 백필본(ev 패널 뒤 17컬럼)은 전 구간 커버(1.5~8%)로 정상 → 패널 빌드의 이벤트 조인이 낡은 원천을 쓴 것으로 보인다(리서처 확인 필요). 교체 패널은 scripts/patch_panel_events_backfill.py 산출물 panel_420_asofpatch_evfix.npz(교체 외 컬럼 해시 동일). 단 교체 후에도 강제투입 Δ+0.0005 로 노이즈였다(CG29) — 이벤트 피처 '연결'은 정보량 문제로 남는다."
   },
   {
    "id": "XR16",
@@ -5680,6 +5680,141 @@
    "expected": "미지",
    "cost": null,
    "note": "트레이더가 요구한 자료 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다."
+  },
+  {
+   "id": "MT71",
+   "title": "[트레이더] 챔피언 실측 엣지 음수 — swing 켈리 사전확률 미발행(f*<=0)",
+   "status": "needs_setup",
+   "priority": 2,
+   "from_trader": "swing-measured-negative-edge",
+   "created_at": "2026-09-29T13:36:01+09:00",
+   "arm": null,
+   "counterfactual": null,
+   "baseline": null,
+   "command": "/usr/bin/python3 scripts/build_screener_stats.py --dry-run   # strategy_runs/backtest_pnl 워크포워드 재집계",
+   "metric": "walkforward_expectancy",
+   "hypothesis": "2026-09-29 실측: strategy_runs tool='backtest_pnl' 3개 워크포워드 창(n=123) → 승률 43.1%, b=1.172 → 축소 후 f*=-0.027 (<=0). 켈리 게이트는 f*<=0 이면 수량 0 이므로, 이 값을 발행하면 swing 신규 진입이 전면 차단된다 → scripts/build_screener_stats.py 는 발행을 건너뛰고 근거만 data/reports/screener_stats_measured.json 에 남기는 설계다. 즉 현재 사이징은 '가정값(p=0.55, b=1)'으로 돌고 있고, 측정값은 음수다.",
+   "evidence": "창별: w1 2026-06-29~07-27 p=0.532 aw=6.861 al=2.5 n=47 / w2 07-28~08-25 p=0.5 aw=4.633 al=4.833 n=34 / w3 08-26~09-23 p=0.262 aw=2.114 al=4.843 n=42 (cagr -83.4%, sharpe -5.73). 가장 최근 창이 특히 나쁘다 — 레짐 적응 실패 또는 과적합. 트레이더 쪽 부작용: 켈리 사전확률이 config 가정값으로 고정되고(피드 미발행), R1 확률 문턱(0.58)과 함께 swing 경로가 이중으로 닫힌다.",
+   "success": "확장창 walk-forward 다중 폴드 평균 기대값 > 0 (f* > 0) → screener_stats 발행 재개",
+   "expected": "미지 (모델 축 작업 필요)",
+   "cost": null,
+   "note": "MT70(피드 확률이 문턱 아래)과 별개다 — MT70 은 '문턱 대비 분포' 문제, MT71 은 '측정 엣지 자체가 음수' 문제. 리뷰보드가 우선순위를 정할 것."
+  },
+  {
+   "id": "XR10",
+   "title": "[리서처 R10] 수급·시장·모멘텀 피처 19개 부활 (보유 테이블만으로 계산)",
+   "status": "backlog",
+   "priority": 8,
+   "from_research": "R10",
+   "arm": null,
+   "counterfactual": null,
+   "baseline": null,
+   "command": null,
+   "metric": "wf_sweep_summary",
+   "hypothesis": "foreign_institutional 87,895행·krx_short_selling 2,393행·market_data 111만 행을 이미 보유하고도 누적/비율 피처가 없다. 수급·모멘텀은 가격 피처와 독립 신호다.",
+   "evidence": "리서처 R10 결과: [저작생략] 산출물 이미 존재(scripts/build_supply_market_features.py) — 저작 생략 | R10: 5 >= 3 → 충족",
+   "success": "19개 중 5개 이상 nonzero 확인 (한 계열씩 투입 후 로버스트 AUC 판정)",
+   "expected": "미지",
+   "cost": "계산·검증 1~2시간",
+   "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라."
+  },
+  {
+   "id": "CG29",
+   "title": "이벤트(공시) 피처군 강제투입 — 낡은 이벤트 컬럼을 백필본으로 교체(evfix 패널) 후 게이트 ON 3-arm",
+   "status": "done",
+   "priority": 2,
+   "affects_model": true,
+   "baseline": {
+    "value": 0.5363,
+    "source": "CG28 같은 런 게이트 ON 대조군 CO_core30_h5 (panel_420_asofpatch·5폴드×5시드)"
+   },
+   "arm": "CO_core30_ev10_h5",
+   "counterfactual": "CO_core30_h5 (같은 런 게이트 ON 대조군)",
+   "hypothesis": "게이트 ON 경로에서 조정 축은 CG27(천장 Δ+0.018)·CG28(기존 피처 재배치 Δ+0.0005)로 닫혔다. 남은 것은 '패널에 있으나 선별에 못 들어가는 신규 정보'인데 EV1(게이트 OFF A/B)은 event_* 36개가 top30 에 0개 들어가 두 arm 이 비트 동일했다 → 효과 없음이 아니라 후보 아님이다. 게다가 기본 패널의 이벤트 컬럼은 **2026-04 이전이 전량 0** 이라 워크포워드 폴드 1~2 에서는 std 필터로 전량 탈락한다(측정 자체가 불가). 백필본으로 교체한 패널에서 강제투입하면 이벤트 발생일 조건부 정보가 있는지 처음으로 측정된다.",
+   "evidence": "① 기본 패널 event_exec_change_5d 월별 nonzero: 2025-07~2026-03 전부 0.0% → 2026-04~ 1.3~3.2% (scripts/_cg29_diag.py) → 5폴드 fold1(≤2025-10-24)·fold2(≤2026-01-15) 학습창에서 16/16 컬럼 분산 0. ② 스모크 실측(2026-09-29 16:07): CO_core30_e16_h5(기본 패널) → RuntimeError '파생 피처가 필터를 통과하지 못했다 — 측정 무효' 로 실패(원인이 위 커버리지 결함). ③ 백필본(ev 패널 뒤 17컬럼) 커버리지는 전 구간(event_exec_change 1.5~8.2%, disclosure_count 2~25%) (scripts/_cg29_diag2.py). ④ 교체 패널 산출: scripts/patch_panel_events_backfill.py — 17컬럼 교체, 교체 외 컬럼 해시 동일(non_patched_identical_hash=true), 행·날짜·종목 정렬 일치. ⑤ 상방 기제: 단변량 pooled AUC 0.496~0.507(무정보)이지만 이벤트 발생일 IC t 는 ±2 이상 (event_patent −2.71·partnership −2.58·contract −2.49·realized +2.24). ⑥ 스모크(evfix·2폴드×1시드): ev10 0.5168(게이트통과 9~10/10) · pv10 0.5165(8~10/10) — 양 arm 정상 완주.",
+   "method": "같은 패널·같은 행·같은 폴드 3-arm(5폴드×5시드): ①CO_core30_h5 대조군 ②CO_core30_ev10_h5 = 백필 이벤트 10개(전체 nonzero ≥0.5%)를 top30 선별 후 강제 덧붙임 ③CO_core30_pv10_h5 = 비-event 무정보 10개 같은 방식(용량 교란 통제). 판정 = (ev10−core30) ≥ +0.02 **이고** (ev10−pv10) ≥ +0.02 이며 폴드 짝 부호 ≥4/5.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch_evfix.npz --folds 5 --seeds 5 --only CO_core30_h5,CO_core30_ev10_h5,CO_core30_pv10_h5'",
+   "check": "python3 scripts/model_engineer_cycle.py --status",
+   "check_target": {
+    "op": ">=",
+    "value": 1
+   },
+   "success": "(ev10 − core30) ≥ +0.02 이고 (ev10 − pv10) ≥ +0.02, 폴드 짝 부호 ≥4/5 → 데이터 축 후보 유지(승격은 별도). 미달이면 '패널 안 신규 정보' 축 전체를 닫고 남은 레버를 U3(창)·외부 수집으로 확정한다.",
+   "expected": "미지 — 단변량 edge 는 0(AUC 0.50), 기제는 이벤트일 조건부 정보뿐이라 문턱 미달 쪽에 무게.",
+   "cost": "3 config × 5폴드 × 5시드 = 75 cell (CG27 실측 1.8s/cell → 약 5분, timeout 1800s)",
+   "est_minutes": 8,
+   "metric": "wf_sweep_summary",
+   "caution": "evfix 패널은 scripts/patch_panel_events_backfill.py 산출물이다. **대조군 검증**: evfix 패널의 CO_core30_h5 는 기본 패널과 같은 0.5363 이 나와야 정상(이벤트 컬럼은 top30 선별에 안 들어간다) — 값이 다르면 패치 결함을 먼저 의심하라. 폴드별 gate_add 통과 개수는 로그에 남는다(예: fold1 ev 9/10 — 이벤트가 희소한 구간).",
+   "note": "2026-09-29 16:0x 신설. 계기: 16:00 틱이 '실행 가능한 pending 없음'(U3 은 ETA 가드로 차단)을 내서 규칙 4에 따라 다음 가설을 설계. 조정 축이 닫힌 뒤 남은 두 축(데이터·창) 중, 창은 U3(밤 런처)가 담당하므로 여기서는 '패널 안 신규 정보'를 닫는다. 부수 성과: **기본 패널의 이벤트 컬럼이 2026-04 이전 전량 0 인 결함**을 발견하고 백필본으로 교체한 evfix 패널을 만들었다(다른 컬럼 해시 동일) — 이 결함은 과거 모든 이벤트 관련 측정(EV1 등)에 영향. 리서처 확인 필요(공시 이벤트 조인의 커버리지 구간). | 2026-09-29 16:15 실측(5.1분, rc=0): 대조군 0.5363±0.0188(기본 패널과 폴드까지 동일 — evfix 패치가 이벤트 컬럼만 변경했음이 교차 검증됨) · ev10 0.5368±0.0179(Δ+0.0005, 폴드 짝 2/5, 동점 1) · placebo 0.5319±0.0143(Δ−0.0044) → 노이즈. 폴드별 gate_add 통과는 9~10/10(이벤트 희소 구간).",
+   "attempts": [
+    {
+     "ts": "2026-09-29T16:15:30+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "가설 CO_core30_ev10_h5 0.5368 vs 대조군 CO_core30_h5 0.5363 → Δ+0.0005 (최고: CO_core30_ev10_h5 0.5368)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG29_20260929-161023.log",
+     "elapsed_min": 5.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈 — Δ(arm−대조군) = +0.0005 < 사전문턱 +0.02 (폴드 짝 2/5 양수, 동점 1)",
+    "control": {
+     "mean": 0.5363,
+     "std": 0.0188,
+     "min": 0.5078,
+     "max": 0.5614
+    },
+    "arm_ev10": {
+     "mean": 0.5368,
+     "std": 0.0179,
+     "min": 0.5073,
+     "max": 0.558
+    },
+    "placebo_pv10": {
+     "mean": 0.5319,
+     "std": 0.0143,
+     "min": 0.5126,
+     "max": 0.5525
+    },
+    "fold_pairs_arm_minus_control": [
+     0.0045,
+     -0.0005,
+     -0.0034,
+     0.0023,
+     0.0
+    ],
+    "fold_pairs_placebo_minus_control": [
+     0.0006,
+     0.0048,
+     -0.0089,
+     -0.0229,
+     0.0046
+    ],
+    "delta_arm_minus_placebo": 0.0049,
+    "control_reproduced": true,
+    "conclusion": "백필 이벤트(공시) 10개를 게이트 ON 경로에 강제투입해도 대조군 대비 +0.0005 다. placebo(무정보 10개)는 용량 추가로 −0.0044 로 오히려 해롭다 → '패널 안 신규 정보' 축은 닫는다. 남은 레버는 U3(창 확장)와 외부 데이터 수집뿐이다. 부수: 대조군이 기본 패널과 비트 동일(0.5363, 폴드까지 일치)해 evfix 패치가 이벤트 컬럼만 건드렸음이 교차 검증됐다."
+   }
+  },
+  {
+   "id": "CG30",
+   "title": "시드 앙상블 축 종결 — 판정 지표(폴드별 시드 AUC 평균) vs 시드평균 확률 AUC 갭 실측",
+   "status": "done",
+   "priority": 9,
+   "affects_model": true,
+   "hypothesis": "판정 지표는 '폴드별 시드 AUC 의 평균'인데 배포되는 모델은 시드 앙상블 예측이다. 이 갭이 크면 지금까지의 '무개선' 판정이 배포 예측 성능을 과소평가한 것이므로 프로토콜을 바꿔야 한다.",
+   "method": "추가 학습 없이 기존 런의 per-fold `ens_pooled_auc`(=시드 평균 확률의 AUC, wf_label_sweep 이 이미 기록) 와 `folds[].mean` 을 비교. 스크립트: scripts/seed_ensemble_gap.py (0비용).",
+   "result": {
+    "n_runs": 112,
+    "gap_mean": 0.0009,
+    "gap_median": 0.001,
+    "gap_min": -0.0039,
+    "gap_max": 0.0057,
+    "verdict": "축 종결 — 시드 앙상블 이득은 최대 +0.0057 로 사전문턱 +0.02 의 1/3. 지표 과소평가 아님.",
+    "artifact": "reports/overnight/seed_ensemble_gap.json"
+   },
+   "note": "2026-09-29 16:0x 측정(신설 즉시 종결). 앙상블 축은 기록상 0회 시험이었고 '지표가 배포 예측을 과소평가한다'는 가설을 0비용으로 반증했다 — 다시 열지 말 것. (모델종류 앙상블 가중은 ens.equal_weights/skip 노브로 이미 시험 가능하나, 시드 앙상블 갭이 사실상 0 이라는 것은 다양성 기반 이득 자체가 작다는 뜻이다.)",
+   "counterfactual": "판정 지표 자체(wf_label_sweep folds[].mean)",
+   "metric": "wf_sweep_summary"
   }
  ]
 }

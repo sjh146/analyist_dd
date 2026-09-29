@@ -220,6 +220,79 @@ CONFIGS = [
     {"id": "CO_rank_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "게이트 ON + rank + 스무딩 + depth1 — 생산경로에서 가진 방향 전부 결합"},
+    # ── CG27(2026-09-29): 배포 가능한(추론 계약 무변경) 게이트 ON 최고 조합의 분해 ──
+    # 왜: CG8(panel_420_asofpatch·5폴드×10시드) 실측에서 ≥+0.02 를 낸 유일한 arm 은
+    # CO_rank_smooth_d1_h5 0.5592 였는데 **rank 변환이 들어 있다** → 추론 경로가 종목 단위
+    # 스트리밍(app/inference/predictor.py)이라 날짜별 횡단면 rank 를 만들 수 없어 배포 불가.
+    # 반면 라벨 스무딩(kind=smooth)과 depth1·lr0.05(recipe)는 학습 옵션일 뿐 **계약을 건드리지
+    # 않는다** → '스무딩 + depth1'(rank 없음)이 같은 런에서 ≥+0.02 를 내는지가 미측정으로 남았다.
+    # 측정된 성분(같은 패널·같은 런): CO_d1_h5 0.5545±0.0458(CG8) · CO_rank_smooth_d1_h5 0.5592±0.0075.
+    # 스무딩 단독(CO_smooth_h5)은 49종목 패널에서 **미측정**(150종목 CG11 에서만 −0.0022).
+    {"id": "CO_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "게이트 ON + 라벨 스무딩 + depth1·lr0.05 (rank 없음) — 추론 계약 무변경 배포 가능 후보"},
+    # ── CG28: 데이터 축(L3) — 패널에는 살아 있으나 게이트(core48) 밖인 '부활 후보' 11개 ──────
+    # 왜 여기서 재는가: CG27(2026-09-29)에서 조정 축(피처변환·HP·유니버스·라벨·가중·k)이
+    # 게이트 ON 천장 Δ+0.0180(<사전문턱 +0.02)로 닫혔다 → 남은 레버는 데이터 축뿐이다.
+    # 그런데 R13 이 '부활 가능'으로 분류한 11개(atr_pct · authenticity_avg · bayes_* 4개 ·
+    # quality_beta · quality_price_volatility_60d · similarity_std · twin_* 2개)는
+    # ① 패널 실측에서 값이 살아 있고(atr_pct |AUC−0.5|=0.0583 · bayes_volatility 0.0516 ·
+    #    quality_price_volatility_60d 0.0489 · bayes_momentum_1d IC t=−3.33)
+    # ② **CORE_FEATURES(48) ∩ 11 = 0** — 게이트 ON 경로에서는 선별 후보조차 아니다.
+    # 즉 "부활"이 아니라 "게이트 밖에 방치"가 실체다(그대로 두면 Δ+0.0000 이 나오는데, 그건
+    # 효과 없음이 아니라 후보 아님 — EV1 사고와 동형).
+    # 설계: 후보 집합은 core48 그대로 두고 선별 **후** 강제로 덧붙인다(CG25 Δk 와 동일) →
+    # 두 arm 의 top30 이 같은 집합이라 차이는 '11컬럼 사용' 하나로 좁혀진다.
+    # 용량 교란 통제(placebo): 무정보 11개를 같은 방식으로 덧붙이는 arm 을 함께 돌린다.
+    #   무정보 판정 근거 = 패널 스크린 |IC|<0.02 & |AUC−0.5|<0.02 (panel_screen_420asofpatch.json)
+    # 배포 가능성: 11개는 feature_engine 이 추론 경로에서도 계산한다(패널과 같은 파이프라인) →
+    # 추론 계약 변경 없음. 단 승격 시 게이트 목록(train_curated) 변경은 별도 승인 대상이다.
+    {"id": "CO_core30_g11_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "gate_add": ["atr_pct", "authenticity_avg", "bayes_gain_uncertainty", "bayes_momentum_1d",
+                  "bayes_momentum_5d", "bayes_volatility", "quality_beta",
+                  "quality_price_volatility_60d", "similarity_std", "twin_avg_correlation",
+                  "twin_count"],
+     "desc": "게이트 ON + 부활후보 11개 강제투입(core30 동일 top30 + 11컬럼) — 데이터 축 L3"},
+    {"id": "CO_core30_p11_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "gate_add": ["rsi", "bb_position", "target_ma_20", "ma_position_20", "return_20d",
+                  "momentum_1m_reverse", "volume_price_trend", "rank_return_5d", "target_ma_5",
+                  "atr", "ma_position_5"],
+     "desc": "게이트 ON + 무정보(placebo) 11개 강제투입 — 용량 교란 통제(같은 수·다른 정보량)"},
+    # ── CG29: 이벤트(공시) 피처군 강제투입 — '패널 안 신규 정보'의 마지막 후보 (2026-09-29 신설) ──
+    # 계기: CG27 로 조정 축(게이트 ON 천장 Δ+0.018)·CG28 로 '기존 피처 재배치'(Δ+0.0005)가 닫혔다.
+    # 남은 것은 '패널 안에 이미 있으나 선별에 안 들어가는 신규 정보'인데 EV1(게이트 OFF A/B)에서
+    # event_* 36개가 top30 선별에 0개 들어가 두 arm 이 비트 동일했다 → "효과 없음"이 아니라
+    # "후보 아님"이다. CG28 과 같은 프로토콜(강제투입 + placebo 용량통제)로 그 구분을 없앤다.
+    # ★ 실측으로 드러난 선행 결함(scripts/_cg29_diag*.py, patch_panel_events.py):
+    #   기본 패널(panel_420_asofpatch)의 event_* 컬럼은 **2026-04 이전이 전량 0** 이다
+    #   (event_exec_change_5d 월별 nonzero: 2025-07~2026-03 전부 0.0% → 2026-04~ 1.3~3.2%).
+    #   그래서 워크포워드 폴드 1~2(학습창 ≤2026-01)는 이 피처군을 std 필터에서 **전량 탈락**시킨다
+    #   (실측: 스모크에서 `파생 피처가 필터를 통과하지 못했다 — 측정 무효` RuntimeError).
+    #   백필본은 ev 패널 뒤 17컬럼에만 있었고 커버리지가 전 구간(1.5~8%)이다 →
+    #   panel_420_asofpatch_evfix.npz = 기본 패널의 event 컬럼만 백필본으로 교체
+    #   (다른 컬럼 해시 동일 증명: patch_panel_events_backfill.json non_patched_identical_hash=true,
+    #    재실행 시 출력 npz sha256 동일 = 결정적).
+    # arm/placebo 규칙(사전 등록): arm = 백필된 17개 중 전체 nonzero ≥0.5% 인 10개
+    #   (분산 0 컬럼은 학습창에서 어차피 탈락). placebo = 비-event 무정보 피처 같은 개수
+    #   (스크린 |AUC−0.5|·|IC| 최소군).
+    # 상방 기제: pooled AUC 는 0.496~0.507 이지만 **이벤트 발생일에 조건부 정보**가 있을 수 있다
+    #   (스크린 IC t: event_patent −2.71 · partnership −2.58 · contract −2.49 · realized +2.24).
+    # 배포 가능성: event 컬럼은 feature_engine 이 추론 경로에서도 계산한다(추론 계약 변경 없음).
+    {"id": "CO_core30_ev10_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "gate_add": ["disclosure_count_5d", "event_stake_change_5d", "event_exec_change_5d",
+                  "event_realized_5d", "event_contract_5d", "event_treasury_5d",
+                  "event_capital_increase_5d", "event_delisting_5d", "event_mna_5d",
+                  "event_cb_bw_5d"],
+     "desc": "게이트 ON + 백필 이벤트 10개 강제투입(core30 동일 top30 + 10컬럼) — CG29 데이터 축"},
+    {"id": "CO_core30_pv10_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "gate_add": ["sentiment_avg_db", "sentiment_momentum", "ma_position_20",
+                  "institution_net_buy_5d", "rank_volume_ratio_20", "bb_position",
+                  "volume_ratio_5", "rsi", "similar_stocks_return_std", "rank_volume_ratio_5"],
+     "desc": "게이트 ON + 무정보(placebo) 10개 강제투입 — 용량 교란 통제(같은 수·다른 정보량)"},
     # ── CG12: 유니버스 크기 단조 추세 (2026-09-28 신설 · panel_150u 전용) ──────────
     # 왜: **같은 프로토콜·게이트 ON** 인데 대조군 AUC 가 패널에 따라 0.5365(49종목, CG4) →
     # 0.5101(150종목, CG11) 로 0.026 벌어진다. 등록 기준선 0.5406 은 49종목 값이고 프로덕션
@@ -961,6 +1034,23 @@ def main():
                 d, bn = add_derived(d, base_names, cfg["derived"], log=ml.log)
                 # 파생 이름 = 확장 목록의 꼬리. 선별·게이트에서 특별 취급하기 위해 들고 간다.
                 dv_names = [f for f in bn if f not in set(base_names)]
+            # ── CG28 gate_add: 게이트(core48) **밖**의 기존 패널 피처를 게이트 ON 경로에 강제 투입 ──
+            # 왜: L3 '부활 가능' 11개(atr_pct·bayes_*·twin_* 등)는 패널에서 살아 있는데
+            # CORE_FEATURES(48) 에 **하나도 없다** → 게이트 ON 실험에서는 선별 후보조차 아니라
+            # '효과 0'과 '후보 아님'이 구분되지 않는다(실측: core48 ∩ 11 = 0).
+            # Δk(파생)와 동일 취급으로 후보 집합은 core48 그대로 두고 선별 **후에** 덧붙인다 →
+            # 두 arm 의 top30 이 같은 집합이 되어 차이가 '추가 정보' 하나로 좁혀진다.
+            ga_names: list = []
+            if cfg.get("gate_add"):
+                if not cfg.get("core_only"):
+                    raise RuntimeError("gate_add 는 게이트가 켜진 config(core_only)에서만 의미가 있다")
+                _want = [str(x) for x in cfg["gate_add"]]
+                _present = {str(x) for x in base_names}
+                _missing = [x for x in _want if x not in _present]
+                if _missing:
+                    raise RuntimeError(f"gate_add 이름이 패널에 없다: {_missing}")
+                ga_names = _want
+                dv_names = list(dv_names) + _want
             d["_y"] = y
             # ── 실현 선행수익(진단·precision@k 전용, 2026-09-28 CG21) ────────────────
             # 판정에는 쓰지 않는다(판정은 폴드 평균 AUC 만). 매매 KPI 는 '상위 k 바스켓의
@@ -1140,6 +1230,13 @@ def main():
                         # 단 앞선 필터(std=0 · pool · 시장레벨)를 통과한 파생만 되살린다.
                         _dset0 = set(dv_names)
                         cols = cols | (_pre_core & np.array([f in _dset0 for f in bn], dtype=bool))
+                        if ga_names:
+                            _gm = np.array([f in set(ga_names) for f in bn], dtype=bool)
+                            _kept = [f for f, m in zip(bn, cols & _gm) if m]
+                            ml.log(f"  {exp_id}: gate_add 통과 {len(_kept)}/{len(ga_names)}개 {_kept}")
+                            if len(_kept) < len(ga_names):
+                                ml.log(f"  {exp_id}: ⚠ gate_add 누락 "
+                                       f"{sorted(set(ga_names) - set(_kept))} — 사전필터(std·pool·시장레벨) 탈락")
                 # ── 특정 피처군 제외(A/B 가산효과 측정, 2026-09-26 신설) ──────────
                 # 왜: 같은 패널·같은 행에서 "이 피처군을 넣었을 때 vs 뺐을 때"를 재려면
                 # 컬럼 단위 제외가 필요하다. 패널 단위 비교는 스냅샷(구간·피처코드)이 달라
@@ -1176,7 +1273,8 @@ def main():
                         raise RuntimeError("파생 피처가 필터를 통과하지 못했다 — 측정 무효")
                     idx = [_keep[j] for j in _idx_k] + _der
                     sel_desc = f"{sel_desc} + Δ파생 {len(_der)}개(강제)"
-                    ml.log(f"  {exp_id}: 선별 {len(idx)}개 = edge top{len(_idx_k)} + Δ파생 {len(_der)}개")
+                    ml.log(f"  {exp_id}: 선별 {len(idx)}개 = edge top{len(_idx_k)} + Δ강제 {len(_der)}개"
+                           f"{' (gate_add 포함)' if ga_names else ''}")
                 else:
                     idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr)
                 sel = [fn[j] for j in idx]
