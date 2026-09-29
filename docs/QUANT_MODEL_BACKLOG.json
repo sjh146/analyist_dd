@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T17:35:12+09:00",
+  "updated_at": "2026-09-29T18:08:31+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -5927,7 +5927,7 @@
     {
       "id": "CG33",
       "title": "챌린저를 챔피언과 **같은 다중창 프로토콜**로 평가 — 승격 근거 완성 (기준선 교체의 후속)",
-      "status": "needs_setup",
+      "status": "backlog",
       "priority": 3,
       "affects_model": true,
       "baseline": {
@@ -5937,7 +5937,7 @@
       "hypothesis": "CG31 실측으로 게이트 기준선의 결함이 확정됐다(기록 0.5513 단일분할 vs 챔피언 자체 워크포워드 0.5302 = −0.0211). 그런데 챌린저(스윕 최고 CO_d1_h5 0.5545)는 **다른 프로토콜**(폴드별 재학습 확장창)에서 측정된 값이라 챔피언과 직접 비교할 수 없다. 챌린저를 같은 champion_robust_eval 프로토콜로 재면 '교체가 실제로 개선인가'가 처음으로 숫자로 확정된다.",
       "evidence": "CG31: 챔피언 0.5302±0.0553 [0.5399, 0.4763, 0.4580, 0.6013, 0.5754] · 풀링 0.5284 · 3/5 창이 기록 기준선 0.5513 미달 · 2창은 0.5 미만. 스윕 챌린저 CO_d1_h5 0.5545(게이트 ON·5폴드×10시드, CG8)/CO_smooth_d1_h5 0.5509(CG27·0.5365 대비 Δ+0.0144). 두 값은 프로토콜이 달라 '챌린저 > 챔피언'을 주장할 수 없다.",
       "method": "① 챌린저 설정(게이트 ON·depth1·lr0.05, 필요하면 라벨 스무딩)을 **scratch 모델 디렉터리**로 학습( champion/ 를 건드리지 않는다 — 하드룰 #4) ② `python scripts/champion_robust_eval.py --model-dir <scratch> --folds 5 --dates-per-fold 10 --stocks 80` ③ 챔피언 0.5302 와 같은 프로토콜로 Δ 판정 ④ Δ ≥ +0.02 면 승격 검토(별도 승인), 미달이면 '교체 이득 없음'으로 기록.",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 4200 python scripts/champion_robust_eval.py --model-dir <SCRATCH> --folds 5 --dates-per-fold 10 --stocks 80 --out /app/reports/challenger_robust_eval.json'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_challenger --folds 5 --dates-per-fold 10 --stocks 80 --train-start <학습시작일> --train-end <학습종료일> --out /app/reports/challenger_robust_eval.json'   # <학습시작일>·<학습종료일> 은 scratch 학습 meta 의 data_start/data_end",
       "check": "docker exec stock_xgboost_ml cat /app/reports/challenger_robust_eval.json",
       "check_target": {
         "op": ">=",
@@ -5949,8 +5949,89 @@
       "cost": "학습(설정에 따라 10~40분) + 평가 ~70분 → 장시간 항목. 20:00 재생성 창을 넘기면 런처/U3 와 직렬화 필요.",
       "est_minutes": 110,
       "caution": "U3(20:35 시작 예정, 11.7h 상한)와 CPU 를 동시에 쓰지 말 것 — 직렬화는 구동기 락이 담당한다.",
-      "setup_needed": "scratch 로 학습하는 경로가 아직 확인되지 않았다 — 스윕(scripts/wf_label_sweep.py)은 폴드별로 ml.train_seed 로 학습할 뿐 '프로덕션 계약(173피처·앵상블 3모델)' 산출물을 쓰지 않는다. ① 프로덕션 학습 엔트리(app/training/train_curated.py 계열)를 찾아 **출력 디렉터리 인자**가 있는지 확인 ② 없으면 `--out-dir`(기본 champion/) 옵션을 추가(하드룰 #4: champion/ 직접 덮어쓰기 금지) ③ 스모크로 scratch 산출물 생성 확인 ④ 그 뒤 pending 승격.",
-      "note": "2026-09-29 17:35 신설 — CG31 로 '기준선이 단일분할이라 −0.0211 낙관'이 실측 확정됐고, CG32 로 배포 가능 정규화 축이 소진됐다(악화 Δ−0.0340). 승격 판단에 남은 공백은 '챌린저와 챔피언의 동일 프로토콜 비교' 하나다."
+      "setup_needed": "남은 것: ① CG35 로 '고정 컷오프 + 엄격 OOS' 프로토콜을 먼저 검증(챔피언 0.5883 이 암기인지) ② 그 위에서 챌린저 설정을 정의 — 현재 배포 가능한 arm 중 프로토콜을 통과한 것이 없다(모든 arm 노이즈: CG26 k축·CG27 스무딩+depth1 +0.0144·CG28/29 데이터 축 +0.0005·CG32 정규화 악화). 즉 챌린저가 정의되기 전에는 이 항목을 pending 으로 올리지 말 것.",
+      "note": "2026-09-29 17:35 신설 — CG31 로 '기준선이 단일분할이라 −0.0211 낙관'이 실측 확정됐고, CG32 로 배포 가능 정규화 축이 소진됐다(악화 Δ−0.0340). 승격 판단에 남은 공백은 '챌린저와 챔피언의 동일 프로토콜 비교' 하나다. | 2026-09-29: CG34 로 프로토콜 결함(학습구간 겹침)이 실측됐고 코드로 차단됐다 — 챌린저 평가는 반드시 --train-start/--train-end 를 명시하라.",
+      "depends_on": [
+        "CG35"
+      ],
+      "setup_done": "2026-09-29 확인: retrain_champion.py 에 --out-dir(기존)·--end-date/--start-date(신설) + meta data_start/data_end 기록. champion_robust_eval.py 에 --train-start/--train-end 신설(겹치는 창 자동 제외, 테스트 19/19 PASS). 구동기 summary_path 도 커맨드의 --out 을 존중(9/9 PASS) → scratch 산출물을 같은 프로토콜로 평가하는 경로가 실제로 존재한다."
+    },
+    {
+      "id": "CG34",
+      "title": "배포 챔피언 견고 AUC 의 학습구간 오염 분해 — OOS 0.4914 vs 학습구간 겹침 0.5883",
+      "status": "done",
+      "priority": 1,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.5302,
+        "source": "CG31 실측(5창 전부 평균) — 오염된 값"
+      },
+      "hypothesis": "CG31 의 창평균 0.5302 는 배포 챔피언의 실제 OOS 성능이 아니다. 챔피언은 2026-06-25~09-23 을 학습했고(프로덕션 명령 --days 90), 평가창 5개 중 2개(창4 05-29~07-20·창5 07-28~09-15)가 그 구간과 겹친다 → 겹친 창만 부풀려져 있다.",
+      "evidence": "DB 실측: 같은 200종목 유니버스에서 06-25~09-23 = 12,600행 ≈ meta n_rows 12,629 · robust_auc.json 의 model_aucs(0.5492/0.5448/0.5185)가 training-result-20260923-151854.json 과 일치 → 배포 모델 = 09-23 학습본.",
+      "method": "재실행 없이 창 재집계(창은 서로 독립 표본 — 한 창을 채점하는 데 다른 창이 필요 없다). 검증 스크립트: scripts/_cg34_oos_decompose.py. 동시에 champion_robust_eval 에 --train-start/--train-end 를 신설해 다음부터 자동 배제(테스트 19/19 PASS: scripts/_robust_oos_test.py).",
+      "command": "python3 scripts/_cg34_oos_decompose.py",
+      "result": "학습구간 밖(창1~3) 0.4914±0.0351 [0.5399, 0.4763, 0.4580] — 3창 중 1창만 0.5 초과 · 학습구간 겹침(창4~5) 0.5883 [0.6013, 0.5754] · 오염 +0.0969",
+      "metric": "champion_robust_eval_oos",
+      "success": "분해 자체(완료) — 판정은 '오염이 존재한다'로 확정",
+      "conclusion": "배포 챔피언은 **학습구간 밖에서 동전 이하(0.4914)** 다. 따라서 ① 기록 승격 기준선 0.5513(단일분할 val) ② scoreboard 기준선 0.5406(49종목 arm) ③ CG31 0.5302(오염 평균) — 셋 다 배포 성능의 근거가 될 수 없다. 승격 게이트 기준선을 '엄격 OOS 다중창'으로 교체하는 것은 사용자 승인 대상이다.",
+      "closed_at": "2026-09-29T18:08:31+09:00",
+      "closed_by": "quant-model-engineer"
+    },
+    {
+      "id": "CG35",
+      "title": "고정 컷오프(2026-05-20) 클린 대조군 학습 + 엄격 OOS A/B — 챔피언의 0.5883 은 암기인가",
+      "status": "backlog",
+      "priority": 4,
+      "affects_model": true,
+      "depends_on": [
+        "U3"
+      ],
+      "baseline": {
+        "value": 0.5883,
+        "source": "CG34 분해: 배포 챔피언의 학습구간 겹침 창(창4·5) 성적"
+      },
+      "hypothesis": "배포 챔피언이 학습구간 겹침 창에서 기록한 0.5883 은 **암기** 때문이다. 같은 아키텍처(xgboost+lgb+catboost 앙상블, 현행 레시피)를 컷오프를 과거(2026-05-20)로 고정해 학습하면, 같은 두 창(05-29~07-20·07-28~09-15)에서 0.5 근처로 떨어진다.",
+      "evidence": "CG34: OOS 0.4914 vs 겹침 0.5883(오염 +0.0969) · 창4는 학습구간의 약 40%, 창5는 100%. retrain_champion 에 --end-date/--start-date 신설(meta 에 data_start/data_end 기록) · champion_robust_eval 에 --train-start/--train-end 신설(겹치는 창 자동 제외, 19/19 PASS).",
+      "method": "① `retrain_champion --days 90 --end-date 2026-05-20 --stock-limit 200 --out-dir app/models/scratch_ctl_20260520`(champion/ 무수정 — 하드룰 #4) ② 같은 런에서 `champion_robust_eval --model-dir <scratch> --train-start 2026-02-19 --train-end 2026-05-20` → 창1(앞) + 창4·5(이후)가 OOS 로 채점된다 ③ 배포 챔피언의 같은 창 값(0.6013/0.5754)과 비교.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 20000 python -m app.training.retrain_champion --days 90 --end-date 2026-05-20 --stock-limit 200 --out-dir /app/app/models/scratch_ctl_20260520 && OMP_NUM_THREADS=2 timeout 5400 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_ctl_20260520 --folds 5 --dates-per-fold 10 --stocks 80 --train-start 2026-02-19 --train-end 2026-05-20 --out /app/reports/ctl_clean_oos.json'",
+      "check": "docker exec stock_xgboost_ml cat /app/reports/ctl_clean_oos.json",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "champion_robust_eval",
+      "est_minutes": 260,
+      "success": "컷오프 모델의 창4·5 AUC 평균이 챔피언 0.5883 대비 −0.05 이상 낮게 나오면 '암기' 확정. 비슷하게 나오면 '최근 구간에서 모델이 실제로 낫다'는 뜻이므로 라벨 정렬·재학습 주기 레버가 열린다.",
+      "expected": "컷오프 모델 창4·5 ≈ 0.50~0.54 (챔피언 0.5883 은 자기 학습구간 값이므로)",
+      "note": "**지금 pending 으로 올리지 않는다** — 평일 저녁 19:00 틱이 집어가면 20:35 U3 런처 창을 막아 995일 패널(2밤째)을 또 잃는다. panel_995.npz 완성(U3 done) 후 pending 승격.",
+      "risk": "학습 3.2h + 평가 0.5h = 밤 한 창(20:35~09:00) 안에 들어간다. 유니버스는 '현재 유동성 상위 200종목'으로 뽑히므로 과거 구간 학습에 미래 정보가 섞이는 약한 편향이 있다(패널 실험도 동일)."
+    },
+    {
+      "id": "CG36",
+      "title": "배포 챔피언은 자기 학습 과제(h=1 방향)에서는 OOS 엣지가 있는가 — 짧은 슬롯(≈12분)",
+      "status": "pending",
+      "priority": 6,
+      "affects_model": true,
+      "baseline": {
+        "value": 0.4914,
+        "source": "CG34 실측: 배포 챔피언 학습구간 밖 다중창 AUC(h=5 시장상대 중앙값)"
+      },
+      "arm": "champion_robust_eval --horizon 1 (게이트·모델 무수정)",
+      "counterfactual": "같은 런 --horizon 5 (= 0.4914, CG34)",
+      "hypothesis": "챔피언은 h=1 '방향' 라벨로 학습됐는데 평가는 계속 h=5 시장상대 라벨로 해 왔다(과제 불일치). 자기 학습 과제(h=1)로 물으면 OOS 엣지가 살아난다 — 살아나면 '라벨 정렬'이 배포 가능한 레버이고, 0.5 근처면 모델 자체에 OOS 엣지가 없는 것이다.",
+      "evidence": "전 프로토콜이 h=5 시장상대 라벨(스윕·CG31·CG34). 챔피언 라벨은 `_create_labels` 의 1일 선행 종가 방향. 두 라벨이 다른 과제인데 같은 숫자(0.53/0.49)로 논의돼 왔다.",
+      "method": "같은 프로토콜·같은 OOS 창(창1~3, 학습구간 2026-06-25 이후 제외)에서 horizon 만 1로 바꾼다. 5폴드 × dates-per-fold 3 × 80종목 → 9 날짜표본 ≈ 12분. --write 없음(champion/ 무수정).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2700 python scripts/champion_robust_eval.py --horizon 1 --folds 5 --dates-per-fold 3 --stocks 80 --train-start 2026-06-25 --train-end 2026-09-23 --out /app/reports/champion_oos_h1.json'",
+      "check": "docker exec stock_xgboost_ml cat /app/reports/champion_oos_h1.json",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "champion_robust_eval",
+      "est_minutes": 30,
+      "success": "h=1 OOS AUC ≥ 0.52 → 과제 불일치가 병목(라벨 정렬 레버 열림, 배포 가능). 0.49~0.51 → 모델 자체에 OOS 엣지 없음 → 새 레버(데이터·유니버스) 승인 근거가 확정된다.",
+      "expected": "미지 — 어느 쪽이든 다음 수가 정해진다(둘 다 유효한 판정)",
+      "note": "CG34 로 창 배제 로직이 코드에 들어갔으므로 이 실행 자체가 신규 경로의 실전 검증이 된다."
     }
   ]
 }

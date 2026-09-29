@@ -364,14 +364,42 @@ def next_item(backlog, force=False):
 
 
 # ── 지표 파싱 (자기신고 금지 — 요약 JSON 에서 직접 계산) ───────────────────────
-def summary_path(kind):
+def summary_path(kind, command=None):
     if kind == "wf_sweep_summary":
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_label_sweep_summary.json")
     if kind == "champion_robust_eval":
         # champion_robust_eval.py 는 컨테이너 cwd=/app 에서 --out /app/reports/... 로 쓴다
         # (/app = services/xgboost-ml). CG31 이 이 metric 으로 돌아간다.
+        #
+        # 실측 함정(2026-09-29): 경로를 **고정**해 두면 여러 arm 을 서로 다른 --out 으로 돌릴 때
+        # 구동기가 항상 기본 경로만 보게 되어 '요약 미갱신 → 실행실패'로 오판한다(같은 파일을
+        # 덮어써 이전 기준선 산출물을 잃는 위험도 있다). 커맨드에 `--out <path>` 가 있으면
+        # 그 파일을 요약으로 쓴다.
+        out = _out_arg(command or "")
+        if out:
+            return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/champion_robust_eval.json")
     raise ValueError(f"알 수 없는 metric: {kind}")
+
+
+def _out_arg(command: str) -> str:
+    """커맨드에서 `--out <path>` 값을 뽑는다(없으면 빈 문자열)."""
+    parts = command.split()
+    for i, p in enumerate(parts):
+        if p == "--out" and i + 1 < len(parts):
+            return parts[i + 1].strip("'\"")
+        if p.startswith("--out="):
+            return p.split("=", 1)[1].strip("'\"")
+    return ""
+
+
+def _container_path_to_host(path: str) -> str:
+    """컨테이너 안 경로를 호스트 경로로 옮긴다(/app = services/xgboost-ml)."""
+    if path.startswith("/app/"):
+        return os.path.join(PROJ, "services/xgboost-ml", path[len("/app/"):])
+    if os.path.isabs(path):
+        return path
+    return os.path.join(PROJ, "services/xgboost-ml", path)
 
 
 def parse_wf_sweep(path, mtime_floor) -> dict:
@@ -643,7 +671,7 @@ def execute(item, force=False):
 
     # metric 이 없는 항목(예: 산출물 존재를 보는 항목)도 크래시 없이 '판정불가' 로 끝나야 한다.
     # 실측 2026-09-26: L4 는 metric 키가 없어 사후 처리에서 KeyError 로 죽을 수 있었다.
-    spath = summary_path(item.get("metric") or "")
+    spath = summary_path(item.get("metric") or "", item.get("command"))
     pre_mtime = os.path.getmtime(spath) if os.path.exists(spath) else 0.0
     # floor 에 **실행 시작 시각**을 포함한다: 파일 mtime 만 쓰면 갱신되지 않은 옛 요약이
     # 통과한다(설계원칙 4 함정, 실측 2026-09-25).
@@ -781,7 +809,7 @@ def ingest(item_id, log_rel=None):
         log(f"백로그에 {item_id} 없음 — ingest 불가")
         return 2
     try:
-        spath = summary_path(it.get("metric") or "")
+        spath = summary_path(it.get("metric") or "", it.get("command"))
     except ValueError as e:
         log(f"ingest 불가: {e}")
         return 2

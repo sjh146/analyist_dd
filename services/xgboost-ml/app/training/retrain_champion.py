@@ -100,6 +100,8 @@ def retrain_champion(
     val_frac: float = 0.2,
     n_estimators: int = 500,
     seed: int = 0,
+    data_start: Optional[str] = None,
+    data_end: Optional[str] = None,
 ) -> dict:
     """Core retrain (DB-free, testable): train 3 models on ONE canonical matrix.
 
@@ -191,6 +193,10 @@ def retrain_champion(
         "ensemble_auc": round(float(ens_auc), 4),
         "val_frac": val_frac,
         "seed": seed,
+        # 학습 데이터 구간 — champion_robust_eval 이 이 값으로 **학습구간과 겹치는 평가창을
+        # 자동 제외**한다(2026-09-29 실측: 겹친 창 0.5883 vs 학습구간 밖 0.4914).
+        "data_start": data_start,
+        "data_end": data_end,
     }
     meta_path = os.path.join(out_dir, f"training-result-{datetime.now():%Y%m%d-%H%M%S}.json")
     with open(meta_path, "w") as f:
@@ -205,6 +211,11 @@ def retrain_champion(
 def main() -> None:
     ap = argparse.ArgumentParser(description="Deterministic champion retrain")
     ap.add_argument("--days", type=int, default=120)
+    ap.add_argument("--end-date", default=None,
+                    help="학습 데이터 종료일(YYYY-MM-DD). 기본 None = 오늘(현행 동작). "
+                         "고정하면 같은 구간으로 대조군/챌린저를 학습해 A/B 가 성립한다")
+    ap.add_argument("--start-date", default=None,
+                    help="학습 데이터 시작일. 기본 None = end_date - days")
     ap.add_argument("--stock-limit", type=int, default=200)
     ap.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     ap.add_argument("--val-frac", type=float, default=0.2)
@@ -220,16 +231,19 @@ def main() -> None:
         stocks = _select_stocks(pg, args.stock_limit)
         logger.info("selected %d stocks", len(stocks))
         pipeline = FeaturePipeline(pg_conn=pg)
-        end = datetime.now()
-        start = end - timedelta(days=args.days)
-        df = pipeline.build_training_features(
-            stocks, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
-        )
+        end = (datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date
+               else datetime.now())
+        start = (datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date
+                 else end - timedelta(days=args.days))
+        start_s, end_s = start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+        logger.info("학습 데이터 구간 %s ~ %s", start_s, end_s)
+        df = pipeline.build_training_features(stocks, start_s, end_s)
         if df is None or len(df) < 500:
             logger.error("insufficient panel rows: %s", 0 if df is None else len(df))
             return
         meta = retrain_champion(df, out_dir=args.out_dir,
-                                val_frac=args.val_frac, n_estimators=args.n_estimators)
+                                val_frac=args.val_frac, n_estimators=args.n_estimators,
+                                data_start=start_s, data_end=end_s)
         print(json.dumps(meta, ensure_ascii=False, indent=2))
         print(f"CHAMPION -> {os.path.abspath(args.out_dir)}")
 

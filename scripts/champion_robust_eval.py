@@ -126,12 +126,61 @@ def forward_return(prices: list[tuple[str, float]], date: str, h: int) -> float 
     return prices[idx + h][1] / base - 1.0
 
 
+def _meta_range(model_dir: str) -> tuple[str | None, str | None]:
+    """모델 디렉터리의 최신 training-result-*.json 에서 **(학습 시작일, 종료일)** 을 읽는다.
+
+    왜(2026-09-29 실측): 배포 챔피언은 `retrain_champion --days 90` 로 2026-06-25~09-23 을
+    학습했는데, 평가창 5개 중 2개(05-29~07-20·07-28~09-15)가 **학습구간과 겹쳤다** →
+    창 평균 0.5302 가 오염됐다(겹친 창 0.5883 vs 학습구간 밖 0.4914). 창은 서로 독립
+    표본이라 겹치는 창만 버리면 재학습 없이 정직한 OOS 값을 얻는다.
+    retrain_champion 이 data_start/data_end 를 기록하기 시작한 뒤로는 자동으로 잡힌다.
+    """
+    try:
+        cands = [os.path.join(model_dir, f) for f in os.listdir(model_dir)
+                 if f.startswith("training-result-") and f.endswith(".json")]
+        if not cands:
+            return None, None
+        newest = max(cands, key=os.path.getmtime)
+        with open(newest) as f:
+            meta = json.load(f)
+        return (meta.get("data_start") or meta.get("start_date"),
+                meta.get("data_end") or meta.get("end_date"))
+    except Exception:
+        return None, None
+
+
+def _split_oos(windows: list[list[str]], train_start: str,
+               train_end: str | None = None) -> tuple[list[list[str]], list[list[str]]]:
+    """(채점 가능한 창, 학습구간과 겹쳐 제외한 창).
+
+    학습구간 [train_start, train_end] 과 **겹치지 않는** 창만 OOS 다:
+    창 전체가 학습 시작 이전이거나, 창 시작이 학습 종료 이후여야 한다.
+    (train_end 를 주지 않으면 '이전 창'만 인정 — 종료일을 모르면 미래 창을 안전하게 판정 불가)
+    """
+    def keep(w: list[str]) -> bool:
+        if not w:
+            return False
+        if w[-1] < train_start:
+            return True
+        return bool(train_end) and w[0] > train_end
+
+    return [w for w in windows if keep(w)], [w for w in windows if not keep(w)]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="배포 챔피언 견고 성능 측정(시간창 다중 분할)")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--dates-per-fold", type=int, default=10)
     ap.add_argument("--stocks", type=int, default=80)
     ap.add_argument("--horizon", type=int, default=5, help="라벨 호라이즌(거래일)")
+    ap.add_argument("--train-start", default=None,
+                    help="학습 데이터 **시작일**(YYYY-MM-DD). 학습구간과 겹치는 창은 AUC 가 "
+                         "부풀려지므로 제외한다. 미지정 시 model_dir 의 training-result-*.json "
+                         "data_start 로 자동 판정")
+    ap.add_argument("--train-end", default=None,
+                    help="학습 데이터 **종료일**(YYYY-MM-DD). 주면 학습 종료 **이후** 창(진짜 미래 "
+                         "구간)도 채점 대상에 포함된다 — 컷오프를 과거로 고정해 학습한 모델을 "
+                         "그 이후 창에서 평가할 때 필요하다. 미지정 시 meta 의 data_end")
     ap.add_argument("--model-dir", default="app/models/champion")
     ap.add_argument("--out", default="app/reports/champion_robust_eval.json")
     ap.add_argument("--write", action="store_true",
@@ -159,6 +208,27 @@ def main() -> int:
     chunk = max(1, len(dates_asc) // args.folds)
     windows = [dates_asc[i * chunk:(i + 1) * chunk] for i in range(args.folds)]
     windows = [w for w in windows if len(w) > args.horizon + 1]
+
+    # ── 학습구간 오염 차단 (2026-09-29 실측) ──────────────────────────────────────
+    # 배포 챔피언 창평균 0.5302 중 2개 창이 학습구간(2026-06-25~09-23)과 겹쳐 부풀려졌다
+    # (겹친 창 0.5883 vs 학습구간 밖 0.4914). 겹치는 창만 버리고 나머지를 채점한다.
+    windows_all = list(windows)
+    meta_start, meta_end = _meta_range(args.model_dir)
+    train_start = args.train_start or meta_start
+    train_end = args.train_end or meta_end
+    excluded: list[list[str]] = []
+    if train_start:
+        windows, excluded = _split_oos(windows_all, train_start, train_end)
+        logger.info("학습구간 %s ~ %s — 겹치는 창 %d개 제외, OOS 창 %d개 채점",
+                    train_start, train_end or "?", len(excluded), len(windows))
+        for w in excluded:
+            logger.info("  제외 창: %s ~ %s (학습구간과 겹침)", w[0] if w else "-", w[-1] if w else "-")
+        if not windows:
+            logger.error("학습구간 이전 창이 없습니다 — OOS 평가 불가 (기준선으로 쓸 수 없음)")
+            return 2
+    else:
+        logger.warning("학습구간 정보 없음(model_dir meta 에 data_start 없음) — 전 창 채점: "
+                       "겹침 가능성이 있으므로 --trained-through 로 학습 시작일을 명시하라")
 
     # 유동성 유니버스는 **폴드 창 전체**가 아니라 최근 120거래일 기준으로 뽑는다
     # (창 하나만 보면 n_days 조건을 만족하는 종목이 없어 유니버스가 빈다 — 실측 함정).
@@ -271,6 +341,12 @@ def main() -> int:
                      f"중앙값 라벨, 크로스섹션 AUC, purge={args.horizon}거래일"),
         "metric": "cross_sectional_auc_mean",
         "robust_auc": round(statistics.mean(fold_means), 4),
+        # 학습구간 오염 차단 기록 (2026-09-29): 창이 학습구간과 겹치면 AUC 가 부풀려진다
+        "train_start": train_start,
+        "train_end": train_end,
+        "oos_only": bool(train_start),
+        "windows_excluded": [[(w[0] if w else None), (w[-1] if w else None)] for w in excluded],
+        "n_windows_excluded": len(excluded),
         "auc_std_across_folds": round(statistics.pstdev(fold_means), 4) if len(fold_means) > 1 else None,
         "folds": fold_stats,
         "dates_scored": scored_dates,
@@ -303,6 +379,9 @@ def main() -> int:
                 "rows_scored": payload["rows_scored"],
                 "folds": [f["auc_mean"] for f in fold_stats],
                 "measured_at": payload["measured_at"],
+                "train_start": train_start,
+                "oos_only": bool(train_start),
+                "windows_excluded": payload["windows_excluded"],
                 "note": "정보용 워크포워드 견고성 기록 — 승격 기준선은 robust_auc.json",
             }, f, ensure_ascii=False, indent=2)
         logger.info("기준선 기록: %s", target)
