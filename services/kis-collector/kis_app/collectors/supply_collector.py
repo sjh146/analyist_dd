@@ -182,14 +182,19 @@ class SupplyCollector:
     def __init__(self, client, pg_conn):
         self._client = client
         self._conn = pg_conn
-        # _drop_untraded_dates 가 버린 행수(가시화용). WHY(2026-09-29 실측): 그 가드는
-        # market_data 에 '그 날짜 행'이 있어야 저장하는데, 수급 크론(16:20)이 일봉 적재(18:55~)
-        # 보다 먼저 돌면 **당일 수급이 통째로 여기서 떨어진다** — 로그에는 as-of 2026-09-29 가
-        # 찍히는데 DB 최신일은 9/28, 9/29 행 0건이었다. 종전엔 logger.info 라 크론 로그
-        # (tail stdout)에 남지 않아 완전 무음이었고, 원인이 '상장 전 패딩'(설계된 제거)인지
-        # '적재 순서'(결함)인지 구분할 수 없었다 → 러너가 수치로 찍는다.
+        # _drop_untraded_dates 가 버린 행수 / 보존한 행수(가시화용).
+        # WHY(2026-09-29 실측): 그 가드는 'market_data 에 그 날짜 행이 있어야 저장'이었는데,
+        # 수급 크론(16:20)이 일봉 적재(18:55~)보다 먼저 돌면 **당일 수급이 통째로 떨어졌다**
+        # — 로그에는 as-of 2026-09-29 가 찍히는데 DB 9/29 행 0건(최신 9/28), 실측 792/798종목
+        # 뒤처짐. 종전엔 logger.info 라 크론 로그(tail stdout)에 남지 않아 완전 무음이었다.
+        # 2026-09-29 22:0x 수리: 버리지 않고 **사유를 분리**한다 —
+        #   · 시장 전체에 그 날짜 일봉이 없음(아직 미적재) → **보존**(kept_unloaded)
+        #   · 시장은 거래했는데 이 종목 행이 없음(상장 전·거래정지) → 제거(dropped)
         self.last_dropped = 0
         self.dropped_total = 0
+        self.last_kept_unloaded = 0
+        self.kept_unloaded_total = 0
+        self._market_max = None  # 시장 일봉 마지막 적재일 캐시(인스턴스당 1회 조회)
 
     # ── 스키마 ─────────────────────────────────────────────────────────
     def ensure_tables(self):
@@ -218,8 +223,9 @@ class SupplyCollector:
         **상장 전 구간 패딩 제거**: KIS 이력 조회는 그 종목의 상장(또는 거래개시) 이전 날짜도
         날짜만 채운 all-zero 행으로 돌려준다(실측: 스카이랩스 386380 — market_data 는
         2026-09-04 부터인데 수급 응답은 2026-05-15 부터 0 행이 옴). 그대로 적재하면
-        커버리지가 부풀고 상장 직후 5일 평균이 0 으로 희석된다 → **market_data 에 그 날짜가
-        있는 행만** 저장한다(market_data 가 그 종목의 실제 거래일 판정 기준).
+        커버리지가 부풀고 상장 직후 5일 평균이 0 으로 희석된다 → **시장이 거래한 날인데 이
+        종목 행이 없는 경우만** 제거한다(``_drop_untraded_dates``). 시장 전체에도 그 날짜
+        일봉이 아직 없으면(일봉 적재 전 수집) **버리지 않고 저장**한다.
         """
         payload = [
             (str(stock_code), r.get("trade_date"), r.get("foreign_net_buy"),
@@ -246,7 +252,15 @@ class SupplyCollector:
             cur.close()
 
     def _drop_untraded_dates(self, stock_code: str, payload: List[tuple]) -> List[tuple]:
-        """market_data 에 없는 날짜(= 그 종목이 상장/거래되지 않은 날) 행을 제거."""
+        """저장하지 않을 날짜(= 그 종목이 상장/거래되지 않은 날) 행을 제거.
+
+        판정은 **시장 일봉의 마지막 적재일**과 비교한다(2026-09-29 수리):
+          · 날짜가 이 종목의 market_data 에 있음 → 저장
+          · 그 밖에 마지막 적재일 이하 → 제거(상장 전·거래정지·휴장)
+          · 마지막 적재일보다 **뒤** → **저장**(일봉 적재 전 수집 = 적재 순서)
+            종전 규칙은 이 경우까지 버려서 수급 크론(16:20)의 **당일 수급 전량이 소실**됐다
+            (실측 2026-09-29 16:20: as-of 9/29 로그 / DB 9/29 0행 → 792/798종목 1거래일 지연).
+        """
         dates = [p[1] for p in payload]
         cur = self._conn.cursor()
         try:
@@ -261,19 +275,48 @@ class SupplyCollector:
             # 돌려주는데 payload 의 trade_date 는 'YYYY-MM-DD' 문자열이라
             # ``'2026-08-12' in {date(2026,8,12)}`` 가 항상 False → 전량이 버려진다(실측: saved=0).
             traded = {r[0].isoformat() for r in cur.fetchall()}
+            market_max = self._market_max_date(cur)
         finally:
             cur.close()
-        kept = [p for p in payload if p[1] in traded]
+        kept: List[tuple] = []
+        kept_unloaded = 0
+        for p in payload:
+            d = p[1]
+            if d in traded:
+                kept.append(p)
+            elif market_max and d <= market_max:
+                continue  # 상장 전·거래정지·휴장(시장은 움직였는데 이 종목/그 날 일봉 없음)
+            else:
+                kept.append(p)  # 마지막 적재일 이후 = 일봉 미적재일 → 버리지 않는다
+                kept_unloaded += 1
         dropped = len(payload) - len(kept)
         self.last_dropped = dropped
         self.dropped_total += dropped
+        self.last_kept_unloaded = kept_unloaded
+        self.kept_unloaded_total += kept_unloaded
         if dropped:
-            # 요청 구간의 최신일을 함께 남긴다 — 그 날짜가 market_data 최신일보다 뒤면
-            # '상장 전 패딩'이 아니라 적재 순서 결함이다(수급 먼저 / 일봉 나중).
-            latest = max((p[1] for p in payload), default=None)
-            logger.info("%s 상장 전 패딩 %d행 제외 (거래일 %d행만 저장, 요청 최신일 %s)",
-                        stock_code, dropped, len(kept), latest)
+            logger.info("%s 상장 전/거래정지 %d행 제외 (거래일 %d행 저장)", stock_code, dropped, len(kept))
+        if kept_unloaded:
+            # 무음 금지: 이 수치가 >0 이면 '일봉 적재 전 수집'이다(= 당일 수급을 살렸다).
+            logger.warning("%s 일봉 미적재일 %d행 보존(버리지 않음 — 적재 순서)", stock_code, kept_unloaded)
         return kept
+
+    def _market_max_date(self, cur) -> str:
+        """시장 전체 일봉의 **마지막 적재일**(문자열) — 인스턴스당 1회 캐시.
+
+        판정 기준을 '그 날짜가 시장에 있는가'가 아니라 '**마지막 적재일보다 뒤인가**'로 잡는다.
+        종전 판정(그 날짜가 market_data 에 있는가)만 쓰면 휴장일(9/24·25 처럼 시장 자체가 쉬어
+        일봉이 아예 없는 날)도 '미적재'로 분류돼 **없는 날의 행이 저장**된다(실측 22:2x:
+        008290 프로브에서 휴장일 2행이 '보존'으로 잡힘). 마지막 적재일 이후만 보존하면 적재
+        순서 창(장 종료 후 수급 크론 ~ 일봉 적재)만 정확히 덮는다.
+        캐시는 **보수적**으로 동작한다: 실행 중 일봉 적재가 진행돼도 값이 갱신되지 않으므로
+        그 날짜는 '미적재'로 판정되어 **보존**된다(버리는 쪽이 아니다).
+        """
+        if self._market_max is None:
+            cur.execute("SELECT MAX(trade_date) FROM market_data")
+            row = cur.fetchone()
+            self._market_max = row[0].isoformat() if row and row[0] else ""
+        return self._market_max
 
     def collect_ownership(self, stock_code: str, trade_date, excd: str = "J") -> int:
         """현재가 1콜로 외국인 지분율 스냅샷을 받아 ``ownership`` 에 upsert.

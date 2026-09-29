@@ -214,7 +214,8 @@ def main():
     max_calls = int(os.environ.get("KIS_SUPPLY_MAX_CALLS", "500"))
     calls = 0
     ok = fail = nodata = flow_rows = own_rows = src_rows = 0
-    drop_rows = 0  # market_data 에 행이 없어 save_flows 가 버린 행수(적재 순서 결함 감시)
+    drop_rows = 0  # 시장은 거래했는데 이 종목 행이 없어 제외된 행수(상장 전·거래정지)
+    unloaded_rows = 0  # 시장에 그 날짜 일봉이 아직 없어 **보존**한 행수(적재 순서 — 버리지 않는다)
     quota_hit = False
 
     for idx, (code, name) in enumerate(todo, start=1):
@@ -229,6 +230,7 @@ def main():
             n = coll.save_flows(code, parse_investor_flow({"output": rows}))
             flow_rows += n
             drop_rows += getattr(coll, "last_dropped", 0)
+            unloaded_rows += getattr(coll, "last_kept_unloaded", 0)
             if not rows:
                 nodata += 1
                 print(f"  [{idx}/{len(todo)}] {code} {name} — 수급 데이터 없음", flush=True)
@@ -243,6 +245,8 @@ def main():
             save_done(ppath, code)
             if idx % 5 == 0 or idx == len(todo):
                 extra = f", 미거래일 제외 {drop_rows}행" if drop_rows else ""
+                if unloaded_rows:
+                    extra += f", 일봉 미적재일 보존 {unloaded_rows}행"
                 print(f"  [{idx}/{len(todo)}] {code} {name}: 수급 {n}행, "
                       f"지분율 {own}행 (as-of {stock_as_of}){extra}", flush=True)
         except KisApiError as e:
@@ -272,10 +276,14 @@ def main():
     print(f"  ownership:             {oc}종목 {orr}행 ({omin}~{omax}), "
           f"foreign_ownership_pct 값 있음 {ocov}행", flush=True)
     if drop_rows:
-        # 무음 드롭 금지: 이 값이 크면 수급 크론이 일봉 적재보다 먼저 돌아 **당일 행이 전부
-        # 떨어졌다**는 뜻이다(실측 2026-09-29 16:20 — 로그 as-of 9/29 인데 DB 최신일 9/28).
-        print(f"  ⚠ 미거래일 제외 {drop_rows}행 — market_data 에 그 날짜 행이 없어 버려짐 "
-              f"(그날 일봉 적재 전에 돌면 당일 행이 여기로 떨어진다)", flush=True)
+        # 이 값은 '상장 전·거래정지' 제외분이다(설계된 제거) — 적재 순서 결함과 구분된다.
+        print(f"  · 상장 전/거래정지 제외 {drop_rows}행 (시장은 거래했는데 이 종목 일봉 없음)",
+              flush=True)
+    if unloaded_rows:
+        # 2026-09-29 22:0x 수리: 종전에는 이 행들이 '미거래일 제외'로 **버려졌다**(당일 수급
+        # 전량 소실 — DB 9/29 0행, 792/798종목 1거래일 지연). 이제는 보존한다.
+        print(f"  ✔ 일봉 미적재일 보존 {unloaded_rows}행 — 당일 수급을 버리지 않았다"
+              f"(일봉 적재 전 수집)", flush=True)
 
     # ── 자기신고: 러너가 "적재했다"고 믿는 수(flow_rows/own_rows)와 실제 델타를 함께 남긴다.
     # WHY: 2026-09-24 이 러너 계열이 파서 키 불일치로 +0행을 적재하고도 exit 0 으로 끝나
