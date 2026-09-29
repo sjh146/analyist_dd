@@ -115,6 +115,50 @@ def _scalar(conn, sql, default=0):
         return default
 
 
+ARCHIVE_JOURNALS = sorted(glob.glob(os.path.join(TRADER_WS_WSL, "journal", "paper_*.sqlite3")))
+
+
+def _archive_stats() -> dict | None:
+    """은퇴한 모의 저널에서 청산 수·수수료·마지막 진입을 읽는다(출처 명시용).
+
+    실계좌 저널(`trade_journal.sqlite3`)은 2026-09-28 신설이라 청산 0건 → 수수료·회전
+    프로브가 n/a 가 된다. 모의 아카이브는 41건의 청산 이력을 갖고 있어 **수수료 반영 여부**와
+    **마지막 진입 경과일**을 판정할 수 있다. 값은 실계좌 성과와 섞지 않는다.
+    """
+    best = None
+    for src in ARCHIVE_JOURNALS:
+        tmp = tempfile.mkdtemp(prefix="tr_arch_")
+        try:
+            for suffix in ("", "-wal", "-shm"):
+                p = src + suffix
+                if os.path.exists(p):
+                    shutil.copyfile(p, os.path.join(tmp, os.path.basename(src) + suffix))
+            conn = sqlite3.connect(f"file:{os.path.join(tmp, os.path.basename(src))}?mode=ro", uri=True, timeout=10)
+            try:
+                closed = _scalar(conn, "select count(*) from trades where exit_ts is not null")
+                fees = _scalar(conn, "select coalesce(sum(fees),0) from trades")
+                row = conn.execute("select ts from trades order by ts desc limit 1").fetchone()
+                last = row[0] if row else None
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001
+            continue
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        if not last:
+            continue
+        age = None
+        try:
+            age = round((now_kst() - datetime.fromisoformat(last)).total_seconds() / 86400.0, 2)
+        except ValueError:
+            pass
+        cand = {"journal": os.path.basename(src), "closed": closed, "fees_sum": fees,
+                "last_entry_ts": last, "last_entry_age_days": age}
+        if best is None or (age or 1e9) < (best.get("last_entry_age_days") or 1e9):
+            best = cand
+    return best
+
+
 def measure() -> dict:
     """북극성 + 리스크 지표를 **산출물에서 직접** 읽는다(자기신고 금지)."""
     st = {
@@ -173,6 +217,12 @@ def measure() -> dict:
         finally:
             conn.close()
             shutil.rmtree(tmp if isinstance(tmp, str) and os.path.isdir(tmp) else "", ignore_errors=True)
+    # 실계좌 전환 직후처럼 **활성 저널이 비어 있으면** 회전·수수료 프로브가 'n/a' 로 죽어
+    # T1·T2 가 "측정 불가"로 계속 실패한다(2026-09-29 실측). 모의 아카이브에서 같은 수치를
+    # 읽어 값을 살리되 **출처를 명시**한다 — 북극성(순손익)은 실계좌 값만 쓴다.
+    st["archive"] = None
+    if not st.get("closed") and not st.get("last_entry_ts"):
+        st["archive"] = _archive_stats()
     st.update(loop_health())
     return st
 
@@ -312,14 +362,46 @@ def verify_model_handoff() -> dict:
 
 
 # ── 실행 계약 점검 (피드·한도·킬스위치) ─────────────────────────────────────
-FEED_REQUIRED = ("code", "name", "score", "screener")
+# 소비자(trader_core/feed.py::_parse_candidate)가 실제로 요구하는 필드.
+# WHY(2026-09-29): 종전 값 ("code","name","score","screener") 은 소비자 JSON 키와 달랐고
+# (실제 키는 stock_code/stock_name, screener 는 candidates 의 **키**), 무엇보다 블록 형태
+# 후보를 아예 못 봤다 → 아래 _feed_strategy_blocks 참고.
+FEED_REQUIRED = ("stock_code", "close_price", "score")
+FEED_CODE_RE = re.compile(r"^[0-9]{6}$")
+FEED_MAX_ERRORS = 40
+
+
+def _feed_strategy_blocks(doc: dict) -> list:
+    """피드 문서에서 (전략명, 후보 리스트) 쌍을 뽑는다 — 두 표현을 모두 지원한다.
+
+    WHY(2026-09-29 실측): 발행물은 `candidates: {close: {items: [...]}, swing: {items: [...]}}`
+    인데 점검기가 **최상위**에서만 `items`/`candidates` 를 찾고 리스트가 아니면 검사를
+    건너뛰었다(`entry["items"]=None`) → 후보 40건이 한 번도 검사되지 않은 채 "위반 0건"으로
+    보고됐다. **거짓 통과**다. 컨테이너가 dict 여도 `items` 를 꺼내 본다.
+    """
+    raw = doc.get("candidates")
+    if isinstance(raw, list):
+        return [("(flat)", raw)]
+    if not isinstance(raw, dict):
+        flat = doc.get("items") or doc.get("picks")
+        return [("(flat)", flat if isinstance(flat, list) else [])]
+    out = []
+    for name, container in raw.items():
+        if isinstance(container, list):
+            out.append((str(name), container))
+        elif isinstance(container, dict) and isinstance(container.get("items"), list):
+            out.append((str(name), container["items"]))
+        else:
+            out.append((str(name), None))  # 형식 위반 — 위반으로 기록된다
+    return out
 FEED_FRESH_DAYS = 3.0
 
 
 def feed_contract_check() -> dict:
     out = {"files": [], "violations": [], "max_age_days": None}
     for path in sorted(glob.glob(os.path.join(FEED_DIR, "*.json"))):
-        entry = {"file": os.path.relpath(path, PROJ), "items": None, "age_days": None, "errors": []}
+        entry = {"file": os.path.relpath(path, PROJ), "items": None, "age_days": None,
+                 "strategies": {}, "errors": []}
         try:
             with open(path, encoding="utf-8") as f:
                 d = json.load(f)
@@ -335,17 +417,37 @@ def feed_contract_check() -> dict:
                 out["max_age_days"] = max(out["max_age_days"] or 0, entry["age_days"])
             except ValueError:
                 entry["errors"].append("generated_at 파싱 실패")
-        items = d.get("items") or d.get("candidates") or d.get("picks") or []
-        entry["items"] = len(items) if isinstance(items, list) else None
-        if isinstance(items, list):
-            for it in items[:50]:
+        total = 0
+        for name, items in _feed_strategy_blocks(d):
+            if items is None:
+                entry["errors"].append(f"'{name}' 후보 컨테이너 형식 위반 (list 또는 {{items: [...]}} 아님)")
+                continue
+            entry["strategies"][name] = len(items)
+            total += len(items)
+            for it in items:
                 if not isinstance(it, dict):
+                    entry["errors"].append(f"'{name}' 후보가 객체가 아님")
                     continue
-                missing = [k for k in FEED_REQUIRED if k not in it]
-                if missing:
-                    entry["errors"].append(f"필수 필드 누락 {missing} (code={it.get('code')})")
+                code = str(it.get("stock_code") or "")
+                tag = f"'{name}' code={code or '?'}"
+                if not FEED_CODE_RE.match(code):
+                    entry["errors"].append(f"{tag}: stock_code 형식 위반(6자리 숫자, A 접두어 금지)")
+                try:
+                    px = float(it.get("close_price"))
+                except (TypeError, ValueError):
+                    px = 0.0
+                if px <= 0:
+                    entry["errors"].append(f"{tag}: close_price 누락/0 (주문 지정가로 쓰임)")
+                if it.get("score") is None:
+                    entry["errors"].append(f"{tag}: score 누락")
+                if str(it.get("score_kind") or "").strip() == "calibrated_prob" and it.get("ml_prob") is None:
+                    entry["errors"].append(f"{tag}: score_kind=calibrated_prob 인데 ml_prob 없음")
+                if len(entry["errors"]) >= FEED_MAX_ERRORS:
+                    break
+        entry["items"] = total
         if entry["errors"]:
-            out["violations"].append({"file": entry["file"], "errors": entry["errors"][:5]})
+            out["violations"].append({"file": entry["file"], "errors": entry["errors"][:5],
+                                      "errors_total": len(entry["errors"])})
         out["files"].append(entry)
     return out
 
@@ -551,9 +653,14 @@ def bridge_churn_peak_per_hour(window_h: float = 24.0) -> float | None:
 def probe(name: str) -> float | None:
     m = measure()
     if name == "fees":
-        return m.get("fees_sum")
+        v = m.get("fees_sum")
+        if (v in (None, 0)) and m.get("archive"):
+            return m["archive"].get("fees_sum")      # 출처: 모의 아카이브(아래 report 에 명시)
+        return v
     if name == "rotation":
         age = m.get("last_entry_age_days")
+        if age is None and m.get("archive"):
+            return m["archive"].get("last_entry_age_days")
         return age
     if name == "feed":
         return float(len(feed_contract_check()["violations"]))
