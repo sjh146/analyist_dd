@@ -410,14 +410,16 @@ def parse_wf_sweep(path, mtime_floor) -> dict:
 
 
 def parse_champion_robust(path, mtime_floor) -> dict:
-    """배포 챔피언 견고 AUC(champion_robust_eval.py) 요약을 per_exp 로 변환한다.
+    """배포 챔피언 견고 AUC(champion_robust_eval.py) 요약을 파싱한다.
 
     왜(실측 2026-09-29 16:19): CG31 을 `--start` 하면 summary_path 가 ValueError 로 rc=3 즉시
     종료됐다(metric 파서 부재). 이 항목의 값은 **승격 게이트 기준선**이라 자동 경로로 돌아야 한다.
 
-    프로토콜: 창(fold)마다 날짜별 크로스섹션 AUC 의 평균 = 창 대표값 → 창 평균±std.
-    그래서 per_exp 의 각 항목이 '폴드'(=시간창)이고, mean/std/folds 를 wf_sweep 과 같은 키로
-    맞춰 준다(틱의 결과 출력·scoreboard 가 그대로 읽는다).
+    ⚠ **per_exp 를 만들지 않는다**(실측 2026-09-29 17:27): scoreboard 의 best_robust 와 무개선
+    카운터는 원장의 `parsed.per_exp` 전체를 'arm 의 폴드 평균'으로 읽는다. 기준선 실측 기록에
+    창별 AUC 를 per_exp 로 넣었더니 창 4(0.6013)가 '최고 arm'으로 잡혀 **거짓 돌파**
+    ("로버스트 0.6013 · 직전 개선 CG31 · 무개선 0사이클")가 났다. 창별 값은 `windows` 로 따로
+    싣는다 — 표시에는 그대로 쓰이고 카운터·best 에는 관여하지 않는다.
     """
     if not os.path.exists(path):
         return {"error": "요약 파일 없음"}
@@ -435,28 +437,19 @@ def parse_champion_robust(path, mtime_floor) -> dict:
              and isinstance(f.get("auc_mean"), (int, float))]
     if not folds:
         return {"error": "folds 비어 있음(유효 창 없음)", "measured_at": d.get("measured_at")}
-    means = [float(f["auc_mean"]) for f in folds]
-    per = {}
-    for f, m in zip(folds, means):
-        per[f"WINDOW{f.get('fold')}"] = {
-            "desc": f"시간창 {f.get('window')} (날짜 {f.get('n_dates')}개)",
-            "folds": [round(m, 4)],
-            "mean": round(m, 4),
-            "std": round(float(f["auc_std"]), 4) if isinstance(f.get("auc_std"), (int, float)) else None,
-            "min": round(m, 4), "max": round(m, 4),
-            "fold_win_rate": round(1.0 if m > 0.5 else 0.0, 3),
-        }
     return {
         "measured_at": d.get("measured_at"), "model_dir": d.get("model_dir"),
         "protocol": d.get("protocol"), "metric_name": d.get("metric"),
         "robust_auc": d.get("robust_auc"),
         "auc_std_across_folds": d.get("auc_std_across_folds"),
-        "fold_means": means,
+        "fold_means": [float(f["auc_mean"]) for f in folds],
+        "windows": [{"fold": f.get("fold"), "window": f.get("window"),
+                     "n_dates": f.get("n_dates"), "auc_mean": f.get("auc_mean"),
+                     "auc_std": f.get("auc_std")} for f in folds],
         "auc_pooled": d.get("auc_pooled"), "auc_per_date_mean": d.get("auc_per_date_mean"),
         "rows_scored": d.get("rows_scored"), "dates_scored": d.get("dates_scored"),
         "errors": (d.get("errors") or [])[:5],
         "summary_mtime": mt,
-        "per_exp": per,
     }
 
 
@@ -826,6 +819,11 @@ def ingest(item_id, log_rel=None):
                            "per_exp": per or None, "rc": 0}
     save_backlog(b)
     log(f"ingest {item_id}: {verdict} — {detail}")
+    # 창별 값을 표시한다(per_exp 가 아니다 — 카운터·best_robust 오염 방지 위해 파서가 windows 로 싣는다).
+    for w in (parsed.get("windows") or []):
+        if not isinstance(w, dict):
+            continue
+        log(f"  창{w.get('fold')}: {w.get('auc_mean')} (std {w.get('auc_std')}) [{w.get('window')}]")
     for name, v in per.items():
         log(f"  {name}: {v.get('mean')} [{v.get('desc')}]")
     log(f"원장 기록 완료(ts={rec['ts']}, reported=False → 다음 틱이 보고한다). "

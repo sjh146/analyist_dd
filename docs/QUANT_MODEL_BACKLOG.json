@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T17:09:25+09:00",
+  "updated_at": "2026-09-29T17:34:35+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -5819,7 +5819,7 @@
     {
       "id": "CG31",
       "title": "배포 챔피언의 다중창 견고 AUC 실측 — 승격 기준선이 단일분할(0.5513)인 결함을 실측으로 교체",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "affects_model": true,
       "baseline": {
@@ -5843,13 +5843,31 @@
       "est_minutes": 75,
       "metric": "champion_robust_eval",
       "caution": "20:00 파이프라인 재생성 전에 끝나야 한다(timeout 4200s 로 강제). --write 금지(승격 기준선 파일 보호). U3 패널 빌드(런처 20:35 시작)와 겹치지 않는다.",
-      "note": "2026-09-29 16:2x 신설 — CG29/CG30 으로 패널 내 축이 모두 닫힌 뒤, 남은 승격 경로의 유일한 공백이 '챔피언 자체의 정직한 기준선'임을 확인하고 등록. 이 항목은 새 레버가 아니라 **승격 게이트의 기반 정비**다(하드룰 #1·#4). | 2026-09-29 16:19: 구동기 metric 미지원으로 --start rc=3 → pending→needs_setup 으로 내리고 수동 분리 실행(setsid)으로 전환. 결과는 17:35~18:00 경 도착 예정이며 다음 틱이 아니라 이 세션/다음 세션에서 직접 보고한다. | 2026-09-29 17:0x: **셋업 구현 완료** — ① summary_path('champion_robust_eval') → services/xgboost-ml/reports/champion_robust_eval.json ② parse_champion_robust() (창별 AUC → per_exp WINDOW1..n) ③ judge_champion_baseline() ('기준선 실측' 판정 — '기준선없음' 오판 제거) ④ `--ingest <ID> [--log <path>]` 신설(구동기 밖 setsid 실행 결과를 원장·백로그에 편입 — 같은 CPU 비용 재실행 방지). 검증: `python3 scripts/_champion_robust_parser_test.py` **18/18 PASS**(임시 PROJ 로 실제 원장 미오염 확인). 이번 실행(16:20 시작, setsid)은 끝나면 `python3 scripts/model_engineer_cycle.py --ingest CG31 --log data/reports/me_cycle/champion_robust_eval.log` 로 편입한다.",
-      "setup_needed": null
+      "note": "2026-09-29 16:2x 신설 — CG29/CG30 으로 패널 내 축이 모두 닫힌 뒤, 남은 승격 경로의 유일한 공백이 '챔피언 자체의 정직한 기준선'임을 확인하고 등록. 이 항목은 새 레버가 아니라 **승격 게이트의 기반 정비**다(하드룰 #1·#4). | 2026-09-29 16:19: 구동기 metric 미지원으로 --start rc=3 → pending→needs_setup 으로 내리고 수동 분리 실행(setsid)으로 전환. 결과는 17:35~18:00 경 도착 예정이며 다음 틱이 아니라 이 세션/다음 세션에서 직접 보고한다. | 2026-09-29 17:0x: **셋업 구현 완료** — ① summary_path('champion_robust_eval') → services/xgboost-ml/reports/champion_robust_eval.json ② parse_champion_robust() (창별 AUC → per_exp WINDOW1..n) ③ judge_champion_baseline() ('기준선 실측' 판정 — '기준선없음' 오판 제거) ④ `--ingest <ID> [--log <path>]` 신설(구동기 밖 setsid 실행 결과를 원장·백로그에 편입 — 같은 CPU 비용 재실행 방지). 검증: `python3 scripts/_champion_robust_parser_test.py` **18/18 PASS**(임시 PROJ 로 실제 원장 미오염 확인). 이번 실행(16:20 시작, setsid)은 끝나면 `python3 scripts/model_engineer_cycle.py --ingest CG31 --log data/reports/me_cycle/champion_robust_eval.log` 로 편입한다. | 2026-09-29 17:27 **실측 완료·편입**(out-of-band 실행을 `--ingest` 로 원장 반영). 결과: 챔피언 워크포워드 견고 AUC 0.5302±0.0553 vs 게이트 기준선 0.5513(단일분할) = −0.0211. 창별 0.4580~0.6013 로 창 변동이 크고 3/5 창이 기준선 미달. → ②승인 항목(기준선 교체)으로 올린다. 함정 기록: 창별 AUC 를 per_exp 로 넣으면 scoreboard 가 '최고 arm'으로 오독해 거짓 돌파를 만든다(수리 완료, 파서가 windows 로 싣는다).",
+      "setup_needed": null,
+      "attempts": [
+        {
+          "ts": "2026-09-29T17:27:26+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5302±0.0553 (시간창 5개 [0.5399, 0.4763, 0.4580, 0.6013, 0.5754]) · 풀링 0.5284 · 날짜별평균 0.5302 · 행 3755 · 기존 승격 기준선 0.5513(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+          "log": "data/reports/me_cycle/champion_robust_eval.log",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "배포 챔피언(app/models/champion, 2026-09-23 재학습·n_rows 12,629) 다중창 견고 AUC **0.5302±0.0553** (5창 [0.5399, 0.4763, 0.4580, 0.6013, 0.5754] · 풀링 0.5284 · 날짜별평균 0.5302 · 행 3,755 · 날짜 50 · errors 0). 게이트 기록 기준선 0.5513(단일 시간분할 ensemble_auc, 2026-09-24)보다 **−0.0211 낮다** — 기준선이 창 전반에서 재현되지 않는다(3/5 창 미달, 2창은 0.5 미만). 주의: 창 구간(2025-11~2026-09)이 챔피언 학습 기간과 겹쳐 **in-sample 평가**인데도 이 값이다(out-of-sample 이면 더 낮을 것).",
+        "delta": -0.0211,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG32",
       "title": "종목별 시계열 z-score(자기 과거 20행) — 마지막 배포 가능 정규화 축 (기록상 0회)",
-      "status": "pending",
+      "status": "done",
       "priority": 3,
       "affects_model": true,
       "baseline": {
@@ -5874,7 +5892,37 @@
       "est_minutes": 20,
       "caution": "평일 20:00 컨테이너 재생성 창(20:00~20:12)을 넘기지 말 것 — est 20분이므로 19:40 이후 시작 금지. 장중(09:00~15:30) 금지. wf_label_sweep.py 는 실행 중 프로세스에 이미 로드된 코드를 바꾸지 않으므로(스윕은 단발 프로세스) 편집 영향 없음.",
       "desc": "CG32 — 종목별 시계열 z-score(배포 가능 정규화) vs 횡단면 z-score(통제), 게이트 ON 3-arm",
-      "note": "2026-09-29 17:0x 신설 — CG27(조정 축 천장 +0.0180)·CG28(부활후보 11개 +0.0005)·CG29(이벤트 백필 +0.0005)·CG23(가중 −0.0003)·CG25(Δ 파생 +0.0031)·CG30(시드 앙상블 ≤+0.0057) 이후 남은 미측정 축은 ①데이터 축(L3 — R10 검증 결과 값이 0%대로 **아직 안 열림**) ②배포 가능한 정규화(이 항목) 뿐이다. 변환 구현: wf_label_sweep.transform_matrix 에 'zscore_ts' 분기 + 코드 전달(codes=) — 검증 12/12 PASS."
+      "note": "2026-09-29 17:0x 신설 — CG27(조정 축 천장 +0.0180)·CG28(부활후보 11개 +0.0005)·CG29(이벤트 백필 +0.0005)·CG23(가중 −0.0003)·CG25(Δ 파생 +0.0031)·CG30(시드 앙상블 ≤+0.0057) 이후 남은 미측정 축은 ①데이터 축(L3 — R10 검증 결과 값이 0%대로 **아직 안 열림**) ②배포 가능한 정규화(이 항목) 뿐이다. 변환 구현: wf_label_sweep.transform_matrix 에 'zscore_ts' 분기 + 코드 전달(codes=) — 검증 12/12 PASS. | 2026-09-29 17:31 판정: **악화 — 정규화 축 완전 종결**. 게이트 ON 에서 정규화는 어느 축이든 해롭다(횡단면 rank −0.0265 CG2 · 횡단면 zscore −0.0067 · 시계열 zscore −0.0340). 3.1분(75 cell, 유휴 load1≈1.2 → 2.5s/cell). → 배포 가능성 문제가 아니라 '정규화 자체'가 게이트 ON 경로에서 손해다(추론 계약 논의 불필요). 동시에 배포 가능 정규화 후보가 소진됐다 → 남은 레버는 데이터 축(원천 확보)뿐이다.",
+      "attempts": [
+        {
+          "ts": "2026-09-29T17:31:37+09:00",
+          "rc": 0,
+          "verdict": "악화",
+          "detail": "가설 CO_core30_tsz_h5 0.5023 vs 대조군 CO_core30_h5 0.5363 → Δ-0.0340 (최고: CO_core30_h5 0.5363)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG32_20260929-172833.log",
+          "elapsed_min": 3.1
+        }
+      ],
+      "result": {
+        "verdict": "악화",
+        "delta": -0.034,
+        "detail": "가설 CO_core30_tsz_h5 0.5023±0.0124 vs 대조군 CO_core30_h5 0.5363±0.0188 → Δ−0.0340 (5/5 폴드 악화). 통제 CO_core30_csz_h5 0.5296±0.0214(Δ−0.0067). tsz 폴드 [0.4967,0.4904,0.5061,0.4936,0.5248] — 5개 중 4개가 0.5 미만.",
+        "per_exp": {
+          "CO_core30_h5": {
+            "mean": 0.5363,
+            "std": 0.0188
+          },
+          "CO_core30_tsz_h5": {
+            "mean": 0.5023,
+            "std": 0.0124
+          },
+          "CO_core30_csz_h5": {
+            "mean": 0.5296,
+            "std": 0.0214
+          }
+        },
+        "rc": 0
+      }
     }
   ]
 }

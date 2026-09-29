@@ -66,12 +66,12 @@ except ValueError:
 parsed = m.parse_champion_robust(p, 0)
 check("robust_auc 파싱", parsed.get("robust_auc") == 0.5405, str(parsed.get("robust_auc")))
 check("파서 오류 없음", not parsed.get("error"), str(parsed.get("error")))
-check("창 5개 → WINDOW1..5", sorted(parsed["per_exp"]) == [f"WINDOW{i}" for i in range(1, 6)],
-      str(sorted(parsed["per_exp"])))
-check("창 폴드 값·std 유지",
-      parsed["per_exp"]["WINDOW1"]["mean"] == 0.5399 and parsed["per_exp"]["WINDOW1"]["std"] == 0.02)
-check("창 승률(0.5 초과 개수) 4/5",
-      sum(v["fold_win_rate"] for v in parsed["per_exp"].values()) == 4.0)
+check("창 5개 → windows 5건", len(parsed["windows"]) == 5, str(len(parsed.get("windows") or [])))
+check("★ per_exp 를 만들지 않는다(scoreboard 오염 방지)", "per_exp" not in parsed)
+check("창 값·std 유지",
+      parsed["windows"][0]["auc_mean"] == 0.5399 and parsed["windows"][0]["auc_std"] == 0.02)
+check("창 평균 목록 전달", parsed["fold_means"] == [0.5399, 0.4763, 0.5591, 0.5772, 0.55],
+      str(parsed.get("fold_means")))
 check("풀링·날짜별평균 전달", parsed.get("auc_pooled") == 0.5610 and parsed.get("auc_per_date_mean") == 0.5401)
 
 stale = m.parse_champion_robust(p, os.path.getmtime(p))
