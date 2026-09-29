@@ -258,9 +258,14 @@ def cmd_backfill():
         print("백필할 공실 없음")
         return 0
     # 실행 중인 수집기/파이프라인 확인 (분봉 23:00, 저녁 19:00 등)
+    # 자기매칭 주의: shell=True 로 pgrep 을 돌리면 **자기 명령줄**이 패턴에 걸려 항상
+    # "수집기 실행 중" 으로 보인다 → 백필이 영구히 건너뛰어진다(2026-09-29 위생점검 실측:
+    # 로그의 매칭 PID 가 `sh -c pgrep -af 'kis_app.main|evening_pipeline'` 자기 자신).
+    # 브래킷 트릭으로 패턴이 자기 자신을 매칭하지 않게 만든다.
     busy = subprocess.run(
-        "pgrep -af 'kis_app.main|evening_pipeline' || true", shell=True,
-        capture_output=True, text=True,
+        "pgrep -af 'kis_app[.]main|evening_pipeline[.]sh|[k]is_supply_backfill"
+        "|[k]is_minute|[k]is_short_program|[k]rx_offline|[d]aily_bars' || true",
+        shell=True, capture_output=True, text=True,
     ).stdout.strip()
     if busy:
         print("수집기 실행 중 — 백필 보류:\n{0}".format(busy[:300]))

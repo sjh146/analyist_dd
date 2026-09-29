@@ -53,6 +53,10 @@ run_psql() {
 
   log "Before: news_analysis=${news_before}, stock_sentiment=${sent_before}"
 
+  # 자식 행 먼저: news_event_extraction.article_id → news_analysis.id FK 가 NO ACTION 이라
+  # 부모만 지우면 매일 실패한다(2026-09-28~29 실측 "DELETE from news_analysis failed").
+  ev_deleted=$(run_psql "DELETE FROM news_event_extraction WHERE article_id IN (SELECT id FROM news_analysis WHERE published_at < NOW() - INTERVAL '${RETENTION_DAYS} days');") \
+    || die "DELETE from news_event_extraction failed"
   news_deleted=$(run_psql "DELETE FROM news_analysis WHERE published_at < NOW() - INTERVAL '${RETENTION_DAYS} days';") \
     || die "DELETE from news_analysis failed"
   sent_deleted=$(run_psql "DELETE FROM stock_sentiment WHERE analysis_date < NOW() - INTERVAL '${RETENTION_DAYS} days';") \
