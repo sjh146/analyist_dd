@@ -167,12 +167,31 @@ def _split_oos(windows: list[list[str]], train_start: str,
     return [w for w in windows if keep(w)], [w for w in windows if not keep(w)]
 
 
+def _make_labels(rets, kind: str = "rel"):
+    """라벨 생성 — kind='rel'(기본) = 시장상대 중앙값, kind='abs' = 절대 방향(r > 0).
+
+    왜 'abs' 가 필요한가 (2026-09-29 실측 CG36): 이 스크립트의 라벨은 **시장상대 중앙값**인데
+    배포 챔피언이 학습한 라벨은 **절대 1일 선행 종가 방향**이다(retrain_champion._create_labels
+    L44-58). 즉 CG34(h=5)·CG36(h=1)는 모두 '다른 과제' 점수이고, 챔피언의 자기 과제 OOS 는
+    아직 측정된 적이 없다. 같은 날짜·같은 모델·같은 피처에서 라벨만 바꾸면 그 값이 나온다.
+    기본값은 'rel' 이라 기존 호출·기록은 비트 동일하게 유지된다.
+    """
+    if kind == "abs":
+        return [1 if r > 0 else 0 for r in rets]
+    med = statistics.median(rets)
+    return [1 if r > med else 0 for r in rets]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="배포 챔피언 견고 성능 측정(시간창 다중 분할)")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--dates-per-fold", type=int, default=10)
     ap.add_argument("--stocks", type=int, default=80)
     ap.add_argument("--horizon", type=int, default=5, help="라벨 호라이즌(거래일)")
+    ap.add_argument("--label-kind", choices=("rel", "abs"), default="rel",
+                    help="라벨 종류. rel=시장상대 중앙값(기존 프로토콜·기본값), "
+                         "abs=절대 방향(r>0) — abs 는 배포 챔피언이 실제로 학습한 과제다"
+                         "(retrain_champion._create_labels: 1일 선행 종가 방향)")
     ap.add_argument("--train-start", default=None,
                     help="학습 데이터 **시작일**(YYYY-MM-DD). 학습구간과 겹치는 창은 AUC 가 "
                          "부풀려지므로 제외한다. 미지정 시 model_dir 의 training-result-*.json "
@@ -308,8 +327,11 @@ def main() -> int:
             if len(rets) < 10:
                 continue
 
-            median_ret = statistics.median(rets)
-            y = [1 if r > median_ret else 0 for r in rets]
+            y = _make_labels(rets, args.label_kind)
+            if len(set(y)) < 2:
+                # 전 종목 동일 라벨(예: 급등일 전부 상승) → AUC 정의 불가. 날짜만 세고 버린다.
+                logger.info("%s: 라벨 단일값 — AUC 정의 불가, 건너뜀", date)
+                continue
             a = auc(y, probs)
             if a == a:  # NaN 아님
                 w_aucs.append(a)
@@ -337,8 +359,10 @@ def main() -> int:
     fold_means = [f["auc_mean"] for f in fold_stats]
     payload = {
         "model_dir": args.model_dir,
-        "protocol": (f"{len(fold_stats)}-fold 연속 시간창, h={args.horizon} 시장상대 "
-                     f"중앙값 라벨, 크로스섹션 AUC, purge={args.horizon}거래일"),
+        "protocol": (f"{len(fold_stats)}-fold 연속 시간창, h={args.horizon} "
+                     f"{'시장상대 중앙값' if args.label_kind == 'rel' else '절대 방향(>0)'} 라벨, "
+                     f"크로스섹션 AUC, purge={args.horizon}거래일"),
+        "label_kind": args.label_kind,
         "metric": "cross_sectional_auc_mean",
         "robust_auc": round(statistics.mean(fold_means), 4),
         # 학습구간 오염 차단 기록 (2026-09-29): 창이 학습구간과 겹치면 AUC 가 부풀려진다
