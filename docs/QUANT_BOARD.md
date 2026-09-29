@@ -335,14 +335,15 @@ cd /home/jhshi/analyist_dd
   개시 전이라 성과가 아니다. **그런데 브로커에는 보유가 있다**: 09:26:19 `/balance` 실측 = 계좌 783247576 ·
   equity 529,966원 · 현금 14,725원 · 보유 **1종목 클로봇(466100) 23주, 매입 531,369원, 평가 -3.04%(-16,128원)**.
   저널 0건 vs 브로커 1건 = **저널-브로커 불일치(사람 확인 필요)**. 자금의 100%가 한 종목에 묶여
-  신규 진입 여력 없음(현금 14,725원 ≪ 노출한도 30% = 158,990원).
+  신규 진입 여력 없음(현금 14,725원 ≪ 노출한도 30% = 158,990원). 09:51 재실측도 동일(클로봇 23주 · 평가 -3.25%).
 - **실행 경로(개장 직후 실측)**: halt=False · 실패카운트 0 · phase=monitor · **갱신지연 1,120분**
   (마지막 사이클 9/28 14:45:59) · **매매 루프 프로세스 0개** · 예약작업 `trader-loop`·`trader-loop-sup` = **Disabled**
   → 개장 45분 경과 현재 무거래(실계좌 첫 거래일이 하루 더 미뤄짐).
-- **브리지 연결이 개장 직후 끊겼다**: 03:00~09:26:39 `/health` connected:true(감독 로그 "connected and answering
-  broker queries" 1,104회) → **09:27:10 "Creon not running"** → 09:28~ `/health` connected:false ·
-  `/quotes` not_connected · **09:44 현재 python.exe 0개 = 브리지 프로세스 없음**(09:41:54 감독 재기동 후
-  "Creon not running - waiting for the Creon login" 으로 **대기** — 재기동 churn 0, 올바른 동작).
+- **브리지 연결 단절 → 복구(개장 직후)**: 03:00~09:26:39 `/health` connected:true(감독 로그 "connected and answering
+  broker queries" 1,104회) → **09:27:10 "Creon not running"** → 09:28~09:43 `/health` connected:false ·
+  `/quotes` not_connected · python.exe 0개(감독은 "waiting for the Creon login" 으로 **대기** = 재기동 churn 0, 올바른 동작)
+  → **09:44:29 "Creon up and not updating - starting bridge" → 브리지 pid 13856 재기동 → `/health` connected:true 복구**.
+  09:51 재실측 `/balance`: equity **528,818원** · 매입 531,369원 · 평가 -3.25%(-17,276원) · 현금 14,725원.
 - **크레온 로그인 실패 흔적(신규, 추정)**: `C:\CREON\STARTER\ncstarter.log` 09:35~09:36 에
   `다운로드 오류 (NCFSYS, exitcode=-1)` · `다운로드 실패` 반복 + `프로젝트cp 의 서버를 사이보스플러스[시세/계좌조회전용]
   로 변경!` → 스타터 업데이트 단계 실패가 로그인을 막고 있을 가능성. 09:27:52 coStarter 기동 흔적 후 09:4x 현재 Creon 프로세스 없음(사람 확인).
