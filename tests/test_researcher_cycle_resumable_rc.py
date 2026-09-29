@@ -80,9 +80,16 @@ def test_recurring_stays_pending_when_goal_met():
     assert rc.status_after(RECURRING, 0, True) == "pending"
 
 
-def test_recurring_still_fails_loudly():
-    """상시 감시라도 크래시(선언 밖 rc)는 failed — 감시 항목이 조용히 돌지 않게 한다."""
-    assert rc.status_after(RECURRING, 1, True) == "failed"
+def test_recurring_crash_stays_pending_but_reported():
+    """2026-09-29 20:0x 변경: 크래시(선언 밖 rc)에도 failed 로 적지 않는다.
+
+    종전 이 자리는 `== "failed"` 였다("감시라도 크래시는 크게 남긴다"). 그런데 failed 는
+    `next_item()` 후보(pending)에서 빠지므로 **한 번의 일시 오류(DB 블립 등)가 감시를 영구히
+    죽인다** — 이 세션에서 반복 확인한 '조용한 실명' 패턴이다. 대신 구동기가 감시 항목의
+    rc≠0 을 틱마다 `✗ 실패 — 로그 확인 필요` 로 찍고, 원장에도 매 회차 남는다(정보 손실 0).
+    """
+    assert rc.status_after(RECURRING, 1, True) == "pending"
+    assert rc.status_after(RECURRING, 2, None) == "pending"
 
 
 def test_non_recurring_goal_met_is_still_done():

@@ -305,11 +305,13 @@ def status_after(item, rc, passed):
     """
     if item.get("kind") == "investigate":
         return "done" if rc == 0 else "failed"
-    if rc == 0 and passed and item.get("recurring"):
-        # 상시 감시(recurring) 항목: 목표 충족은 **종료가 아니다**. done 으로 적으면 다음 틱부터
-        # 후보(pending)에서 빠져 감시가 조용히 사라진다 — 실측 2026-09-29: R19 가 '지연 상한 ≤2'를
-        # 충족하면 수급 회전을 멈춘 주체를 아무도 못 본다(회전 자체는 하루 1회 크론). 감시는
-        # 싼 읽기 전용 프로브로 돌리고(KIS 호출 0회) 이 항목은 pending 을 유지한다.
+    if item.get("recurring"):
+        # 상시 감시(recurring) 항목은 **어떤 결과에서도 큐에서 사라지지 않는다** — 항상 pending.
+        # WHY(2026-09-29 실측): 종전에는 (rc=0 + 통과) 일 때만 pending 을 유지했고,
+        # · check 미달이면 아래 `partial`, · 러너 크래시(rc=1/2)면 `failed` 로 적혀
+        # **경보가 뜬 그 순간이 감시의 마지막 회차**가 됐다(가장 필요한 시점에 눈이 먼다).
+        # 감시 항목의 KPI 는 '한 번 통과'가 아니라 '계속 지켜봄'이다. 실패·미달은 원장(ledger)과
+        # 틱 보고가 매 회차 알리므로 상태로 표현할 필요가 없다(정보는 남고 감시는 살아 있다).
         return "pending"
     if rc == 0 and passed:
         return "done"
@@ -478,8 +480,11 @@ def tick(force=False):
                 print(f"  ⚠ [{i['id']}] 사람/승인 필요: {s}")
             if i.get("blocked_by"):
                 print(f"  ⛔ [{i['id']}] 차단: {i['blocked_by']}")
-            if i.get("status") == "failed":
-                print(f"  ✗ [{i['id']}] 실패 — 로그 확인 필요: {(i.get('result') or {}).get('log', '-')}")
+            res = i.get("result") if isinstance(i.get("result"), dict) else {}
+            # 상시 감시(recurring)는 크래시에도 status=pending 을 유지한다(감시가 일시 오류로
+            # 영구히 죽지 않게). 대신 실패가 조용해지지 않도록 여기서 rc≠0 을 직접 크게 찍는다.
+            if i.get("status") == "failed" or (i.get("recurring") and res.get("rc") not in (None, 0)):
+                print(f"  ✗ [{i['id']}] 실패 — 로그 확인 필요: {res.get('log', '-')}")
     if unreported:
         return 0
 
