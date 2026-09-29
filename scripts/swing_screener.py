@@ -9,6 +9,7 @@ to console table + CSV.
 import sys
 import os
 import argparse
+import json
 import logging
 from datetime import datetime
 
@@ -23,6 +24,13 @@ from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.models.ensemble_model import EnsembleModel
 from app.scoring.effective_score import EffectiveScore, load_effective_scorer, score_and_filter_candidates
 from app.uncertainty.gp_uncertainty import LOW_DIM_FEATURES
+
+# 전체 스코어 유니버스 덤프(피드 계약 v1.1 rank_pct 근거). scripts/ 는 컨테이너에
+# /opt/scripts 로 ro 마운트되므로 스크립트 실행 시 sys.path[0] 로 함께 잡힌다.
+try:
+    from screener_universe import dump_universe
+except ImportError:  # pragma: no cover - 컨테이너 밖에서 단독 실행될 때의 방어
+    dump_universe = None
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -40,6 +48,10 @@ def parse_args():
                         help='Include economic calendar impact in scoring')
     parser.add_argument('--output', type=str, default=None,
                         help='Output CSV path (default: data/ directory with date-based filename)')
+    parser.add_argument('--universe-output', type=str, default=None,
+                        help='전체 스코어 유니버스 덤프 경로(JSON). 피드 계약 v1.1 의 rank_pct 근거 — '
+                             'top20 CSV 만 남기면 소비자가 "이 후보가 모델 분포에서 상위 몇 %%인지"를 '
+                             '알 수 없다(2026-09-29).')
     return parser.parse_args()
 
 
@@ -437,6 +449,17 @@ def main():
         logger.info(f"CSV saved: {csv_path}")
 
     print(f"\nTotal screened: {len(stocks)}, Candidates: {len(candidates)}, Errors: {errors}")
+
+    # 전체 스코어 유니버스 덤프 (피드 계약 v1.1 rank_pct 근거).
+    # 왜: 지금까지는 top20 CSV 만 남아서, 발행측이 "이 후보가 모델 분포에서 상위 몇 %인지"를
+    # 계산할 수 없었다(백분위 문턱은 확률 절대값과 달리 분포 이동에 강건하다).
+    # 실패해도 스크리너 결과에는 영향이 없어야 한다(파이프라인 exit code 보호).
+    if getattr(args, "universe_output", None) and candidates and dump_universe is not None:
+        try:
+            path = dump_universe(candidates, args.universe_output, today)
+            logger.info(f"유니버스 덤프: {path} ({len(candidates)}종목)")
+        except Exception as _e:
+            logger.warning(f"유니버스 덤프 실패(무시): {_e}")
 
     # 2026-08: 실행 결과 이력 기록 (Grafana Quant Strategy Monitoring 대시보드용)
     try:

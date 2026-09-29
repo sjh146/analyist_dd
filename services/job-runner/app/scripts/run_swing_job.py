@@ -48,10 +48,16 @@ def main():
     if os.path.exists(out_csv):
         os.remove(out_csv)
 
+    # 전체 스코어 유니버스 덤프 경로(피드 계약 v1.1 rank_pct 근거). /app/reports 는
+    # 호스트 reports/ 로 마운트돼 있어 분석측이 바로 읽는다. 날짜는 payload 의 date 와 같게
+    # 맞춘다(컨테이너 로컬 날짜 = UTC 기준 → 08:30 KST 실행이면 전일).
+    universe_path = f"/app/reports/swing_universe_{date.today().isoformat()}.json"
+
     cmd = [
         sys.executable, screener,
         "--include-krx-data", "--include-economic-events",
         "--output", out_csv,
+        "--universe-output", universe_path,
     ]
     proc = subprocess.run(
         cmd, cwd="/opt/xgboost-ml",

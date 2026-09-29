@@ -26,6 +26,11 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# 유니버스 파일 형식은 스크리너와 이 발행측이 **같은 모듈**을 쓴다(형식 어긋남 방지).
+from screener_universe import load_scores, percentile_of  # noqa: E402
 try:
     from zoneinfo import ZoneInfo
 
@@ -121,6 +126,30 @@ def load_prev_closes(codes, upto_date=None):
         conn.close()
 
 
+UNIVERSE_TEMPLATES = {
+    # 스크리너 → 전체 스코어 유니버스 파일 경로 템플릿. 산출물이 있으면 후보별 rank_pct 를
+    # 계산해 보낸다(피드 계약 v1.1): 확률 절대값 문턱은 모델 분포가 이동하면 의미를 잃지만
+    # 백분위는 "모델 자체 순위에서 상위 몇 %"라 강건하다.
+    "swing": [
+        os.path.join(PROJ, "reports", "swing_universe_{date}.json"),
+    ],
+}
+
+
+def load_universe(screener, dates):
+    """스크리너 전체 스코어 유니버스 → {code: confidence}. 없으면 빈 dict(추정하지 않는다)."""
+    for template in UNIVERSE_TEMPLATES.get(screener, []):
+        for date in [d for d in dates if d]:
+            path = template.format(date=str(date)[:10])
+            if not os.path.exists(path):
+                continue
+            dist = load_scores(path)
+            if dist:
+                logger.info("[%s] 유니버스 %d종목 로드: %s", screener, len(dist), path)
+                return dist
+    return {}
+
+
 def _signal_date(value, fallback=None):
     """signal_date 를 date 로 파싱 (실패하면 fallback, 없으면 None)."""
     for candidate in (value, fallback):
@@ -157,14 +186,20 @@ def valid_until_for(screener, signal_date, publish_dt):
     return base.isoformat(timespec="seconds")
 
 
-def build_items(screener, payload, prev_closes, publish_dt=None):
+def build_items(screener, payload, prev_closes, publish_dt=None, universe=None,
+                score_mode="native"):
     """스크리너 산출물 → 계약 형식 items (score 내림차순, 잘못된 항목 제외).
 
     ``score`` 의 **의미**를 ``score_kind`` 로 함께 선언한다(계약 §5):
     모델 확률(calibrated_prob)과 스크리너 점수(screener)는 스케일이 달라서
     소비자의 R1 문턱이 한 값으로 판단하면 경로가 조용히 닫힌다.
+
+    ``universe`` ({code: confidence}) 가 주어지면 후보별 ``rank_pct``(모델 분포 내 백분위)와
+    ``universe_size`` 를 붙인다. ``score_mode="rank_pct"`` 면 ``score`` 자체를 백분위로 바꾼다
+    (소비자는 ``r1_min_avg_rank_pct`` 또는 기존 점수 문턱으로 판단 — 둘 다 0~100 스케일).
     """
     publish_dt = publish_dt or datetime.now(KST)
+    universe = universe or {}
     raw = payload.get("candidates") or []
     items, dropped = [], []
     for row in raw:
@@ -216,6 +251,16 @@ def build_items(screener, payload, prev_closes, publish_dt=None):
             item["ml_prob"] = round(float(conf), 4)
         if payload.get("auc") not in (None, ""):
             item["ml_auc"] = payload.get("auc")
+        # 백분위(모델 분포 내 상대 순위) — 유니버스 산출물이 있을 때만 계산한다.
+        if universe:
+            conf_for_rank = conf if (conf is not None and 0 <= conf <= 1) else score / 100.0
+            rank_pct = percentile_of(conf_for_rank, list(universe.values()))
+            if rank_pct is not None:
+                item["rank_pct"] = rank_pct
+                item["universe_size"] = len(universe)
+                if score_mode == "rank_pct":
+                    item["score"] = rank_pct
+                    item["score_kind"] = "rank_pct"
         items.append(item)
     items.sort(key=lambda x: x["score"], reverse=True)
     if dropped:
@@ -259,6 +304,10 @@ def main(argv=None):
                     help="swing 후보의 최소 confidence (기본 0.5). 모델이 하락 우위로 평가한"
                          " 종목(확률<0.5)을 매수하지 않도록 기본값에서 잘라낸다."
                          " 0 으로 두면 필터 없음.")
+    ap.add_argument("--swing-score-mode", choices=("native", "rank_pct"), default="native",
+                    help="swing 점수 스케일. native=확률×100(기본). rank_pct=모델 분포 내 "
+                         "백분위(0~100)로 바꿔 발행 — 문턱이 분포 이동에 강건해진다. "
+                         "reports/swing_universe_<date>.json 이 있을 때만 동작한다.")
     args = ap.parse_args(argv)
 
     sources = {"close": args.close, "swing": args.swing}
@@ -304,8 +353,15 @@ def main(argv=None):
     candidates = {}
     publish_dt = datetime.now(KST)
     for key in ("close", "swing"):
-        items = (build_items(key, payloads.get(key, {}), prev_closes, publish_dt)
+        payload = payloads.get(key, {})
+        universe = load_universe(key, [payload.get("date"), publish_dt.date().isoformat()])
+        mode = args.swing_score_mode if key == "swing" else "native"
+        items = (build_items(key, payload, prev_closes, publish_dt, universe, mode)
                  if key in payloads else [])
+        if universe:
+            ranked = sum(1 for item in items if item.get("rank_pct") is not None)
+            logger.info("[%s] rank_pct 부여 %d/%d건 (universe_size=%d, score_mode=%s)",
+                        key, ranked, len(items), len(universe), mode)
         # 후보별 신호 나이 가시화: 산출물 파일이 새것이어도 안에 든 신호는 며칠 전일 수
         # 있다. 계약 v1.1 의 valid_until·signal_date 로 소비자가 차단하므로, 발행 시점에
         # 로그로 남겨 "왜 매매가 없었는지"를 발행 기록만으로 추적할 수 있게 한다.

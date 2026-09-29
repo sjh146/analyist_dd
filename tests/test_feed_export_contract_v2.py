@@ -6,6 +6,7 @@
 그래서 발행 측이 `score_kind`(점수의 의미)와 `valid_until`(후보 만료), `ml_prob`(모델 확률)를
 명시한다 — 이 파일은 그 필드들이 실제로 나가는지 고정한다.
 """
+import json
 import os
 import sys
 from datetime import datetime, timedelta
@@ -109,3 +110,52 @@ def test_signal_date_helper_handles_iso_and_plain_dates():
     assert feed_export._signal_date("2026-09-28T05:40:10Z").isoformat() == "2026-09-28"
     assert feed_export._signal_date("", "2026-09-23") is not None
     assert feed_export._signal_date("garbage") is None
+
+
+# --------------------------------------------------------------------------- #
+# v1.1 후반: 백분위(rank_pct) — 모델 분포가 이동해도 문턱이 유지되게
+# --------------------------------------------------------------------------- #
+def test_items_get_rank_pct_when_universe_is_available():
+    universe = {"475830": 0.6245, "298380": 0.5804, "263750": 0.5598,
+                "098460": 0.5487, "178320": 0.5434}
+
+    items = feed_export.build_items("swing", _swing_payload(), PREV_CLOSES, PUBLISH,
+                                    universe=universe)
+
+    top = items[0]
+    assert top["universe_size"] == 5
+    # 0.6245 는 유니버스 5종목 중 최상위 → 백분위 90
+    assert top["rank_pct"] == pytest.approx(90.0)
+    assert top["score_kind"] == "calibrated_prob"  # native 모드에서는 점수 의미 그대로
+
+
+def test_items_have_no_rank_pct_without_universe():
+    items = feed_export.build_items("swing", _swing_payload(), PREV_CLOSES, PUBLISH)
+
+    assert "rank_pct" not in items[0]
+    assert "universe_size" not in items[0]
+
+
+def test_rank_pct_score_mode_replaces_score_and_declares_scale():
+    universe = {"475830": 0.6245, "298380": 0.5804, "263750": 0.5598}
+
+    items = feed_export.build_items("swing", _swing_payload(), PREV_CLOSES, PUBLISH,
+                                    universe=universe, score_mode="rank_pct")
+
+    top = items[0]
+    assert top["score_kind"] == "rank_pct"
+    assert top["score"] == top["rank_pct"]
+    assert top["ml_prob"] == pytest.approx(0.6245)  # 확률은 그대로 보존된다
+
+
+def test_load_universe_reads_the_screener_dump(tmp_path, monkeypatch):
+    day = "2026-09-28"
+    path = tmp_path / "swing_universe_{date}.json".format(date=day)
+    path.write_text(json.dumps({"date": day, "scored": 2, "scores": [
+        {"stock_code": "475830", "confidence": 0.62},
+        {"stock_code": "298380", "confidence": 0.58}]}), encoding="utf-8")
+    monkeypatch.setitem(feed_export.UNIVERSE_TEMPLATES, "swing",
+                        [str(tmp_path / "swing_universe_{date}.json")])
+
+    assert feed_export.load_universe("swing", [day]) == {"475830": 0.62, "298380": 0.58}
+    assert feed_export.load_universe("swing", ["2026-09-27"]) == {}
