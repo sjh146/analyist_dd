@@ -45,6 +45,9 @@ OUT_PATHS = [
     os.path.join(PROJ, "reports", "screener_stats.json"),
 ]
 KST_OFFSET = "+09:00"
+# meta 에 스크리너 이름이 없을 때의 귀속. 현재 tool='backtest_pnl' 워크포워드를 쓰는 것은
+# swing 챔피언 파이프라인뿐이다(meta: k=5, hold_days=5, threshold=0.55).
+DEFAULT_SCREENER = "swing"
 
 
 def _pg():
@@ -107,8 +110,15 @@ def collect_from_runs(cur):
         n = meta.get("n_trades") or 0
         if wr is None or not aw or not al or not n:
             continue  # b 를 알 수 없는 옛 기록 — 쓸 수 없다
-        agg = per.setdefault("close", {"w_sum": 0.0, "aw_sum": 0.0, "al_sum": 0.0,
-                                       "n": 0, "windows": 0, "last": None})
+        # 귀속: 어느 스크리너의 백테스트인가. 2026-09-29 수리 — 예전에는 무조건 "close" 로
+        # 넣어서 **swing 모델의 워크포워드 성과가 close 스크리너 통계로 발행**됐다
+        # (meta: k=5, hold_days=5, threshold=0.55 = swing 챔피언의 창). meta 에 이름이 있으면
+        # 그것을 쓰고, 없으면 swing 으로 둔다(현재 backtest_pnl 을 쓰는 것은 swing 파이프라인뿐).
+        name = str(meta.get("screener") or meta.get("strategy") or DEFAULT_SCREENER).strip()
+        if not name:
+            name = DEFAULT_SCREENER
+        agg = per.setdefault(name, {"w_sum": 0.0, "aw_sum": 0.0, "al_sum": 0.0,
+                                    "n": 0, "windows": 0, "last": None})
         agg["w_sum"] += float(wr) * n
         agg["aw_sum"] += float(aw) * n
         agg["al_sum"] += float(al) * n
