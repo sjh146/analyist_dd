@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T22:15:00+09:00",
+  "updated_at": "2026-09-30T18:05:07+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -83,7 +83,7 @@
     {
       "id": "R3",
       "title": "수급 이력 확장: foreign_institutional 343 → 800종목",
-      "status": "pending",
+      "status": "done",
       "priority": 3,
       "affects_model": true,
       "hypothesis": "모델 유니버스를 500종목으로 늘리려면 수급 피처 커버리지가 따라와야 한다(현재 343종목). 커버리지가 유니버스의 상한을 결정한다.",
@@ -119,13 +119,19 @@
           "ts": "2026-09-29T18:19:39+09:00",
           "rc": 3,
           "detail": "R3: 612 >= 500 → 충족"
+        },
+        {
+          "ts": "2026-09-30T06:01:23+09:00",
+          "rc": 1,
+          "detail": "R3: 612 >= 500 → 충족"
         }
       ],
       "result": {
-        "detail": "R3: 612 >= 500 → 충족",
+        "detail": "R3: 612 >= 500 → 충족 — 2026-09-30 15:36 재확인(읽기 전용): 유니버스 800종목 파일 대비 수급 보유 612 / 미커버 188 / foreign_institutional 전체 1,034종목 142,572행(최신일 2026-09-29). 06:01 실행의 rc=1 은 데이터 실패가 아니라 **DNS 전송 실패**(로그 말미: 'curl exit=6: Could not resolve host: openapi.koreainvestment.com' 6회 재시도 후 KisTransportError · KIS 호출 0회 · 신규 0행 · 1.1분 종료)이며 같은 날 15:36 실측 DNS 정상(210.107.75.32). 수치 목표 충족 + 남은 188종목 확장은 KIS 일일 호출 한도 미확인(R20 승인 항목)이라 여기서 닫는다. 전력: 9/29 18:19 rc=3(612 충족) → 9/30 06:01 rc=1(DNS) 로 'check=충족 / 상태=failed' 모순이 남아 매 틱 ✗ 실패로 보고되던 것을 교정.",
         "check_value": 612.0,
-        "rc": 3,
-        "log": "data/reports/res_cycle/logs/res_R3_20260929-180027.log"
+        "rc": 1,
+        "log": "data/reports/res_cycle/logs/res_R3_20260930-060017.log",
+        "closed_by": "researcher postclose tick 2026-09-30 15:36"
       },
       "check_note": "[2026-09-28 18:09 리서처] **결함 1 — 래퍼 인자 형식**: 종전 명령은 `run_with_claim.py kis_supply_extend_history -- python3 ...`(위치인자)였는데 현재 래퍼 CLI 는 `--runner NAME --table TABLE -- cmd` 를 요구한다 → argparse 오류로 1초 만에 rc=2 종료(수급은 늘지 않음). 이 항목은 09-25 이후 교차 락·부하로 틱이 계속 대기해 **한 번도 실행되지 않았고**, 첫 실행에서 드러났다. | [2026-09-28 18:10 리서처] **결함 2 — check 가 구조적으로 통과 불가**: `kis_supply_extend_history.py` 의 `read_codes()` 는 `--stocks`/`--stocks-file` 이 없으면 **foreign_institutional 에 이미 있는 종목만** 대상으로 잡는다(실측: 완료 318 / 남음 0). 즉 이 명령으로는 종목 수가 343 에서 **영원히** 늘지 않아 check(distinct >= 500)가 '고쳐도 못 통과하는 check'였다. → 800종목 유니버스 파일을 만들어 `--stocks-file data/kis/supply_universe_800.txt` 로 주입했다(비ETF·ETN, 최근 90일 시세 보유, 시가총액 상위 800 — 2026-09-28 생성, 800코드 검증). 이제 check 는 도달 가능하다. | [2026-09-28 18:2x 리서처] **상태 재설정(failed → pending)**: 18:09 실행의 rc=2 '미달'은 커맨드 결함(래퍼 인자 형식·유니버스 미지정) 때문이었고 둘 다 수정했다. 또한 이 실행에서 드러난 래퍼 자체의 결함 2건도 수정: ① `run_with_claim.py` 커넥션 autocommit — 종전에는 COUNT(*) 트랜잭션이 자식 실행 내내 열려 있어 kis-collector 의 `ALTER TABLE foreign_institutional ADD COLUMN` 을 막고, 그 ALTER 가 락 큐 앞에 서서 러너 INSERT 를 다시 막았다(수급 러너 250초 무한 대기) ② `parse_claim` 총계 줄 우선 — 항목별 +N행 과 총계가 함께 찍혀 claimed 238(실제 120)로 이중 계상됐다. 회귀 테스트: tests/test_run_with_claim_parse.py(4건, 통과). | [2026-09-28 20:05 리서처] **결함 3 — 러너의 '재개' 신호를 실패로 오분류(점진 수집 정지)**: 18:25 실행은 정상이었다 — 로그가 `실행당 호출 상한(400) 도달 — 중단, 다음 실행에서 재개`, `연장 완료: +11967행`, `자기신고: 소스 12000 / 저장 11967 / 신규 11967 (일치)` 로 끝났고 foreign_institutional 이 343→**378종목/100,160행**으로 늘었다. 그런데 러너는 상한 도달 시 **exit 3** 을 반환하고(`kis_supply_extend_history.py:229 return 3 if hit_limit else 0` = '다음 실행에서 재개'), 구동기는 `rc != 0 → status=failed` 로 적었다. `next_item()` 은 **pending 만** 후보로 보므로 R3 가 큐에서 영구히 빠졌다 → 이후 틱은 R3 를 다시 집지 않고 500종목 목표에 도달하지 못한 채 378 에서 조용히 정지한다. 수정: `researcher_cycle.status_after()` + 항목별 `resumable_rc` 선언(이 항목에 `resumable_rc: [3]`) — 선언된 코드만 pending(재개)으로 되돌리고, 선언 밖의 rc(1/2=크래시·인자오류)는 종전대로 failed 다(진짜 실패를 부분 완료로 오독하지 않는다). 회귀 9건: tests/test_researcher_cycle_resumable_rc.py. | [2026-09-29 06:20 리서처] **결함 4 — check 분모가 '테이블 전체'였다(분모 정의가 곧 판정)**: 종전 check(`COUNT(DISTINCT stock_code) FROM foreign_institutional`)는 유니버스 밖 코드(과거 수집분)를 포함해 실측 892종목을 반환한다 → 유니버스 800 중 267종목이 통째로 비어 있어도 '>= 500 충족'으로 통과한다. 목표는 '모델 유니버스 커버리지'이므로 분모를 유니버스로 고정: `scripts/r3_universe_coverage.py`(읽기 전용·KIS 호출 0회·DB SELECT 3회, 파일이 없으면 항목 note 의 정의로 SQL 재생성 — 실측 재현율 786/800=98.3%, 스모크: 파일경로 533 / SQL경로 532). 실측 2026-09-29 06:0x: 유니버스 800 ∩ 수급 보유 533(미커버 267) / 테이블 전체 892종목 126,400행(최신일 9/28). 즉 check_target 500 은 이미 충족(533) — 남은 267종목 확대 여부는 R20(KIS 일일 호출 한도) 승인에 달렸다.",
       "universe": "data/kis/supply_universe_800.txt (800코드) — **data/kis 는 gitignore** 라 사라지면 재생성해야 한다. 재생성(실측 재현율 786/800=98.3%): docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT s.stock_code FROM stocks s JOIN market_data m ON m.stock_code=s.stock_code WHERE s.instrument_type='STOCK' GROUP BY s.stock_code HAVING COUNT(*)>=250 ORDER BY MAX(s.market_cap) DESC NULLS LAST LIMIT 800\" > data/kis/supply_universe_800.txt",
@@ -376,7 +382,7 @@
     {
       "id": "R12",
       "title": "재무 비율 피처 19개 부활 (기간유형 구분 선행)",
-      "status": "pending",
+      "status": "done",
       "priority": 4,
       "affects_model": true,
       "hypothesis": "financial_statements 10,370행이 연간/반기 혼재로 growth 피처가 깨져 있고 ROA/ROE/부채비율/PER/PBR 등 기본 비율이 아예 없다. rcept_dt 확보로 구분 가능해졌다.",
@@ -401,11 +407,18 @@
       "note": " | 2026-09-25 19:52: command 를 저작 산출물 실행으로 교정(이전엔 feature_coverage 카운트만 실행해 생산이 일어나지 않았다). feature_coverage 스냅샷은 별도 재계산이 필요하다 — R14 가 그 연결을 담당.",
       "check_note": " | [2026-09-29 21:2x 리서처] **check 를 '부활'(이미 참) 에서 '격자 신선도' 로 교정.** 종전 check(`IN ('quality_roe','quality_roa','value_per','value_pbr','roe') AND nonzero_ratio>0`)는 실측 5 >= 3 으로 **이미 통과**였다 — 즉 이 항목의 남은 결함(격자가 시장 최신일보다 뒤처짐)을 하나도 검사하지 않았고, 통과 사실만 보고 status=done 으로 닫히면 격자 정지가 조용해진다('실패할 수 없는 check'). 부활 자체는 완료다: financial_ratio_features 775,010행 / 2,569종목 / 최신 2026-09-23 · as-of 위반 0 · feature_coverage 19개 중 **18개 nonzero**(value_ncav 만 0 — current_assets 컬럼 부재로 계산 불가, 원천 부재). 그래서 판정을 결함 자체로 바꿨다: **격자 최신일 지연(거래일) ≤ 1** — 같은 SQL 이 앞에 살아있는 피처 수(18)를 정보로 찍고 마지막 수치가 지연이라 구동기의 `nums[-1]` 판정이 지연을 집는다. 실측 2026-09-29 21:2x: `18|2` → 지연 2거래일(격자 9/23 · 시장 9/28·9/29) → **미달**(결함 있음 = 통과 못 함). 빌더 1회 실행이 격자를 갱신하면 0 이 되어 충족된다. ※ 격자 상시 신선도는 R14(패널 경유 feature_coverage 혼합 배치)와 dq_feature_oldest_age_days 가 이차로 감시한다.",
       "result": {
-        "detail": "",
-        "check_value": 2,
-        "rc": null,
-        "log": ""
-      }
+        "detail": "[저작생략] 산출물 이미 존재(scripts/build_financial_ratio_features.py) — 저작 생략 | R12: 0 <= 1 → 충족",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R12_20260930-160113.log"
+      },
+      "attempts": [
+        {
+          "ts": "2026-09-30T16:02:57+09:00",
+          "rc": 0,
+          "detail": "[저작생략] 산출물 이미 존재(scripts/build_financial_ratio_features.py) — 저작 생략 | R12: 0 <= 1 → 충족"
+        }
+      ]
     },
     {
       "id": "R13",
@@ -563,20 +576,28 @@
     },
     {
       "id": "R17",
-      "title": "커버리지 부족 원천 7개 확대 (공매도 30종목 · 섹터 결측 2,796종목 · SNS 250종목)",
-      "status": "backlog",
+      "title": "커버리지 부족 원천 3종 확대 (공매도 199종목 · 섹터 결측 2,796종목 · SNS 250종목 정체)",
+      "status": "needs_approval",
       "priority": 4,
       "affects_model": true,
       "kind": "collect",
       "incremental": true,
       "hypothesis": "죽은 35개는 단일 원인이 아니다 — 2026-09-28 실측 분해: 부활가능 11(원천 보유인데 파이프라인 값이 0) / 시장레벨 7(전 종목 동일값 → 계약 #6 로 횡단면 피처 부적격) / 커버리지부족 7(종목 축이 얇음) / 원천부재 10(테이블·컬럼 자체가 없음). 따라서 \"더 수집할 것\"과 \"버릴 것\"을 구분해야 한다. R17 은 그중 '커버리지부족 7개'를 담당한다.",
-      "evidence": "R13 실측 2026-09-28: krx_short_selling 2,393행·distinct stock 30 (2026-05-26~09-23) / stocks.sector 결측 2,796 / sns_post_features 14,576행·250종목·184일.",
+      "evidence": "R13 실측 2026-09-28: krx_short_selling 2,393행·distinct stock 30 (2026-05-26~09-23) / stocks.sector 결측 2,796 / sns_post_features 14,576행·250종목·184일. 재측정 2026-09-30 18:0x: 공매도 199종목·최신 9/29(개선) · 섹터 결측 2,796(불변) · SNS 250종목·최신 9/24(정체).",
       "method": "① 공매도는 kis_short_selling_backfill.py 로 종목 확대(기존 R4 와 병합) ② 섹터는 KIS 업종분류/ KRX 업종코드 수집 후 stocks.sector 채우기 ③ SNS 는 수집 대상 종목 상한 확인",
       "command": null,
-      "check": null,
-      "check_target": null,
-      "note": "R13 후속. command·check 는 다음 리서처 사이클에서 저작(호출 한도 확인 필요). check 는 '확대된 종목 수'를 마지막 수치로 출력해야 한다.",
-      "cost": "수집 수 시간 ~ 며칠(KIS 호출 한도)"
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT (CASE WHEN (SELECT COUNT(*) FROM stocks WHERE sector IS NULL OR sector='') > 1300 THEN 1 ELSE 0 END) + (CASE WHEN (SELECT COUNT(DISTINCT stock_code) FROM krx_short_selling) < 400 THEN 1 ELSE 0 END) + (CASE WHEN (SELECT MAX(trade_date) FROM sns_post_features) < CURRENT_DATE - 5 THEN 1 ELSE 0 END)\"",
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "미해결 원천 수(섹터 결측·공매도 커버리지·SNS 신선도)"
+      },
+      "note": "R13 후속. [2026-09-30 18:0x 리서처] status=backlog → **needs_approval** 로 올린다(북극성 정체 신고). 살아 164(횡단면 138)/죽은 35 가 2026-09-25 21:16 이후 불변인데, 죽은 35 의 분해는 원천부재 10(테이블 자체 없음: 신용잔고·ETF·테마) · 시장레벨 7(계약 #6 부적격) · 커버리지부족 7(R17 담당) · 부활가능 11(**원천 부재가 아니다** — exp_panel 에는 값이 살아 있고 엔지니어 CG28 강제투입 실측 Δ+0.0005 로 이득 없음이 이미 측정됨). → 수집으로 올릴 수 있는 여력은 사실상 커버리지부족 7 뿐이라 승인 항목으로 올린다. check 는 '미해결 원천 수' 3-조건 합(결함이 있으면 3, 모두 해소되면 0) — 실측 2026-09-30 18:0x = **3**(미달). command 는 아직 없다 → 승인 후 저작.",
+      "cost": "수집 수 시간 ~ 며칠(KIS 호출 한도)",
+      "setup_needed": [
+        "커버리지부족 원천 3종 확대 여부 결정 필요 — 실측 2026-09-30 18:0x: 공매도 krx_short_selling 199종목(최신 9/29) · stocks.sector 결측 2,796/4,340(64.4%) · sns_post_features 250종목(최신 9/24 — 5거래일 정체). 셋 다 KIS/KRX/SNS 호출을 늘려야 하는데 **KIS 일일 호출 한도가 미확인(R20)** 이라 확대하면 핵심 수급 신선도와 쿼터를 다툰다 → 한도 확인 또는 '현행 유지' 결정 필요",
+        "섹터 원천 경로 지정 필요 — KIS 업종분류 vs KRX 업종코드 중 승인된 경로를 지정해 주세요(R2 에서 KRX 투자자별 거래실적은 이 계정 미승인 401 이력)"
+      ]
     },
     {
       "id": "R18",
