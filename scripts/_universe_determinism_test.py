@@ -78,12 +78,24 @@ def main():
     cnt = Counter(r["latest"] for r in e1)
     top = cnt.most_common(3)
     print("[eligible] latest 동률 상위:", [(str(k), v) for k, v in top])
-    # 최대 동률 그룹이 limit*3 컷을 덮는가
     biggest = top[0][1] if top else 0
     print(f"[eligible] 최대 동률 그룹 {biggest}종목 vs top 컷(limit*3=180/600) → "
-          f"{'컷이 동률 그룹 내부를 자름(집합 비결정)' if biggest > 180 else '컷이 동률 그룹 밖'}")
+          f"{'컷이 동률 그룹 내부를 자름(집합 비결정 위험)' if biggest > 180 else '컷이 동률 그룹 밖'}")
 
-    print(f"\n{'ALL PASS (결정적)' if not fail else str(fail) + ' FAIL (비결정 확인)'}")
+    # 4) tie-break 무편향성 — 코드 알파벳순으로 깨면 picked 가 '코드 앞 N개'로 쏠린다.
+    #    eligible 안에서의 코드 순위(0=최소 코드) 평균이 한쪽 끝에 붙으면 알파벳 편향이다.
+    order = {r["code"]: i for i, r in enumerate(sorted(e1, key=lambda r: r["code"]))}
+    n_el = len(order)
+    for lim in (60, 200):
+        picked = select_training_universe(c, limit=lim, min_days=30, seed=0)
+        ranks = [order[c] / n_el for c in picked if c in order]
+        mean_rank = sum(ranks) / len(ranks)
+        tag = "PASS" if 0.25 <= mean_rank <= 0.75 else "FAIL"
+        if tag == "FAIL":
+            fail += 1
+        print(f"[unbiased] limit={lim} 평균 코드순위 {mean_rank:.3f} (0=알파벳 앞, 0.5=무편향) {tag}")
+
+    print(f"\n{'ALL PASS (결정적·무편향)' if not fail else str(fail) + ' FAIL (비결정/편향 확인)'}")
     sys.exit(1 if fail else 0)
 
 

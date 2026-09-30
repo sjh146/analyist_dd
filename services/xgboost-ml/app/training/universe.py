@@ -110,9 +110,14 @@ def select_training_universe(
     # 수리: ① 쿼리에 ORDER BY ② 정렬을 2단(코드 오름차순 → 최신일 내림차순)으로 분리해
     # latest 동률은 항상 코드로 깨진다. 의미(최신 데이터 우선 + seed 셔플)는 그대로다.
     eligible.sort(key=lambda r: r["code"])
+    rng = random.Random(seed)
+    # 동률(latest) 구간을 **seed 고정 랜덤**으로 깨라 — docstring 의 의도가 이것이다
+    # ("동률 구간은 seed 고정 랜덤으로 편향을 줄인다"). 코드 알파벳순으로 깨면 '코드 앞 N개'라는
+    # 과거 실측 편향(UNIVERSE_SQL ORDER BY stock_code LIMIT 50 → 알파벳 앞 50종목만 학습)을
+    # limit*3 컷 규모로 재도입하게 된다 — 무편향 tie-break 는 랜덤이되 결정적이어야 한다.
+    rng.shuffle(eligible)
     eligible.sort(key=lambda r: (r["latest"] is None, str(r["latest"])), reverse=True)
     top = eligible[: max(limit * 3, 30)]
-    rng = random.Random(seed)
     rng.shuffle(top)
     picked = [r["code"] for r in top[:limit]]
     logger.info("training universe: %d stocks (limit %d)", len(picked), limit)
