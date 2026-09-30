@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T13:28:23+09:00",
+  "updated_at": "2026-09-30T13:25:07+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -29,12 +29,12 @@
       "cost": "저",
       "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
       "result": {
-        "ts": "2026-09-29T11:26:02+09:00",
+        "ts": "2026-09-30T09:25:42+09:00",
         "value": 0.0,
         "check": "0.0 >= 1.0",
         "verdict": "미달",
         "rc": 0,
-        "stdout_tail": "0",
+        "stdout_tail": "0.0",
         "stderr_tail": ""
       },
       "impl": {
@@ -52,7 +52,7 @@
     {
       "id": "T2",
       "title": "회전 정지 감지 — 마지막 진입 경과일",
-      "status": "failed",
+      "status": "done",
       "priority": 2,
       "command": "python3 scripts/trader_cycle.py --probe rotation",
       "metric": "last_entry_age_days",
@@ -66,12 +66,12 @@
       "cost": "저",
       "note": "원인이 피드 신선도인지 실행 경로인지 구분해서 리서처/엔지니어로 환류한다.",
       "result": {
-        "ts": "2026-09-29T13:25:47+09:00",
-        "value": null,
-        "check": null,
-        "verdict": "수치 없음",
-        "rc": 1,
-        "stdout_tail": "NA",
+        "ts": "2026-09-30T11:25:40+09:00",
+        "value": 0.85,
+        "check": "0.85 <= 3.0",
+        "verdict": "충족",
+        "rc": 0,
+        "stdout_tail": "0.85",
         "stderr_tail": ""
       }
     },
@@ -144,19 +144,19 @@
       "cost": "저",
       "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
       "result": {
-        "ts": "2026-09-29T13:28:23+09:00",
-        "value": null,
-        "check": null,
-        "verdict": "수치 없음",
-        "rc": 1,
-        "stdout_tail": "NA",
+        "ts": "2026-09-30T13:25:07+09:00",
+        "value": -482.00056666666734,
+        "check": "-482.00056666666734 > 0.0",
+        "verdict": "미달",
+        "rc": 0,
+        "stdout_tail": "-482.00056666666734",
         "stderr_tail": ""
       }
     },
     {
       "id": "T6",
       "title": "브리지 감독 재기동 churn — 무백오프 90초 재기동",
-      "status": "failed",
+      "status": "pending",
       "priority": 6,
       "command": "python3 scripts/trader_cycle.py --probe bridge_churn",
       "metric": "bridge_restarts_peak_per_hour_24h",
@@ -186,7 +186,7 @@
     {
       "id": "T7",
       "title": "피드 후보 signal_date 신선도 — 낡은 종가가 지정가로 쓰이는가",
-      "status": "failed",
+      "status": "pending",
       "priority": 7,
       "command": "python3 scripts/trader_cycle.py --probe feed_signal_lag",
       "metric": "feed_signal_lag_days",
