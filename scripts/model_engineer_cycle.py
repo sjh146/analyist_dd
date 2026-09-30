@@ -717,6 +717,73 @@ def judge_promote_dryrun(item, parsed) -> tuple:
     return verdict, " · ".join(parts), None
 
 
+def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
+    """metric 이름으로 파서를 고른다(모르는 metric 은 예외 없이 오류 dict)."""
+    kind = item.get("metric")
+    if kind == "wf_sweep_summary":
+        return parse_wf_sweep(spath, mtime_floor)
+    if kind == "champion_robust_eval":
+        return parse_champion_robust(spath, mtime_floor)
+    if kind == "champion_promote_dryrun":
+        return parse_champion_promote_dryrun(spath, mtime_floor)
+    return {"error": f"parser 없음 (metric={kind!r})"}
+
+
+def judge_by_metric(item, parsed, per=None) -> tuple:
+    """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
+    kind = item.get("metric")
+    if kind == "champion_robust_eval":
+        return judge_champion_baseline(item, parsed)
+    if kind == "champion_promote_dryrun":
+        return judge_promote_dryrun(item, parsed)
+    p = per if per is not None else (parsed.get("per_exp") or {})
+    return judge_per(item, p)
+
+
+def rejudge_parser_gap() -> list:
+    """'parser 없음'으로 기록된 원장 항목을 **사후 재판정**한다(요약 JSON 재파싱).
+
+    왜(실측 2026-09-30 CG43): 백로그에 새 metric(champion_promote_dryrun)을 등록해 실행하면,
+    파서를 나중에 배선했을 때 **이미 돌고 있던 프로세스는 옛 모듈을 들고 있어** "parser 없음"으로
+    기록된다(rc=0 → 항목이 done 으로 닫힘) → 그 항목의 유일한 산출물인 게이트 판정이 사라진다.
+    같은 CPU 비용(수십 분~수 시간)을 재실행하는 대신, 요약 JSON 을 새 파서로 다시 읽어
+    기록만 교정한다(자기신고 금지 유지 — 여전히 요약 파일에서 계산한다).
+
+    대상은 `parsed.error` 에 'parser 없음' 이 있는 기록뿐이다(실행실패·측정값 있는 기록은
+    건드리지 않는다).
+    """
+    rows = load_ledger()
+    b = load_backlog()
+    fixed, changed = [], False
+    for r in rows:
+        pe = r.get("parsed")
+        if not isinstance(pe, dict) or "parser 없음" not in str(pe.get("error", "")):
+            continue
+        it = next((i for i in b["items"] if i.get("id") == r.get("id")), None)
+        if not it or not it.get("command"):
+            continue
+        parsed = parse_by_metric(it, summary_path(it.get("metric") or "", it.get("command")), 0.0)
+        if parsed.get("error"):
+            continue
+        verdict, detail, delta = judge_by_metric(it, parsed)
+        r["parsed"] = parsed
+        r["verdict"], r["detail"] = verdict, detail
+        r["rejudged"] = {"ts": now_kst().isoformat(timespec="seconds"),
+                         "note": "파서 사후 배선 — 요약 JSON 재파싱으로 판정 교정(재실행 아님)"}
+        changed = True
+        fixed.append((r.get("id"), verdict, detail))
+    if changed:
+        _rewrite_ledger(rows)
+        for it in b["items"]:
+            for iid, v, d in fixed:
+                if it.get("id") == iid and isinstance(it.get("result"), dict):
+                    it["result"].update({"verdict": v, "detail": d})
+        save_backlog(b)
+        for iid, v, d in fixed:
+            log(f"재판정(파서 사후 배선) {iid}: {v} — {d}")
+    return fixed
+
+
 def failure_cause(rc, started=None, log_path=None):
     """실패 원인 추정. 137 이면 컨테이너가 **실행 중에** 재생성됐는지 실제로 확인해 적는다.
 
@@ -947,24 +1014,14 @@ def execute(item, force=False):
         verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
         per: dict = {}
     else:
-        parsed = parse_wf_sweep(spath, mtime_floor) if item.get("metric") == "wf_sweep_summary" \
-            else (parse_champion_robust(spath, mtime_floor)
-                  if item.get("metric") == "champion_robust_eval"
-                  else (parse_champion_promote_dryrun(spath, mtime_floor)
-                        if item.get("metric") == "champion_promote_dryrun"
-                        else {"error": f"parser 없음 (metric={item.get('metric')!r})"}))
+        parsed = parse_by_metric(item, spath, mtime_floor)
         # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
         # ⚠ 함정(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면, 가설군이 **진** 경우
         # winner == 대조군 이 되어 Δ 0.0000 "노이즈" 로 잘못 기록된다. 실제로는 h8 0.5068 vs
         # h5 0.5406 = Δ−0.0338 인데 원장에 Δ+0.0000 으로 남았다. 반드시 arm 기준으로 계산하라.
         _pe = parsed.get("per_exp")
         per = _pe if isinstance(_pe, dict) else {}
-        if item.get("metric") == "champion_robust_eval":
-            verdict, detail, delta = judge_champion_baseline(item, parsed)
-        elif item.get("metric") == "champion_promote_dryrun":
-            verdict, detail, delta = judge_promote_dryrun(item, parsed)
-        else:
-            verdict, detail, delta = judge_per(item, per)
+        verdict, detail, delta = judge_by_metric(item, parsed, per)
         if parsed.get("error") and not per:
             detail = parsed["error"]
 
@@ -1069,21 +1126,12 @@ def ingest(item_id, log_rel=None):
     except ValueError as e:
         log(f"ingest 불가: {e}")
         return 2
-    parsed = (parse_champion_robust(spath, 0) if it.get("metric") == "champion_robust_eval"
-              else parse_wf_sweep(spath, 0) if it.get("metric") == "wf_sweep_summary"
-              else parse_champion_promote_dryrun(spath, 0)
-              if it.get("metric") == "champion_promote_dryrun"
-              else {"error": f"parser 없음 (metric={it.get('metric')!r})"})
+    parsed = parse_by_metric(it, spath, 0.0)
     per = parsed.get("per_exp") if isinstance(parsed.get("per_exp"), dict) else {}
     if parsed.get("error") and not per:
         log(f"ingest 실패: {parsed['error']} (파일 {os.path.relpath(spath, PROJ)})")
         return 3
-    if it.get("metric") == "champion_robust_eval":
-        verdict, detail, delta = judge_champion_baseline(it, parsed)
-    elif it.get("metric") == "champion_promote_dryrun":
-        verdict, detail, delta = judge_promote_dryrun(it, parsed)
-    else:
-        verdict, detail, delta = judge_per(it, per)
+    verdict, detail, delta = judge_by_metric(it, parsed, per)
     parsed["out_of_band"] = True
     parsed["source"] = os.path.relpath(spath, PROJ)
     parsed["note"] = "구동기 밖(setsid)에서 돌린 실행의 결과를 ingest 로 편입(요약 JSON 직접 파싱)"
@@ -1347,6 +1395,11 @@ def tick(force=False):
     # 같은 결과를 다시 출력한다(영구 소실 방지). 실측 2026-09-30: 제공자 불통 4시간 동안 U3 소실.
     for line in check_undelivered_reports():
         print(line)
+    # 파서가 없어 '판정불가(parser 없음)'로 남은 기록을 요약 JSON 재파싱으로 교정한다
+    # (실측 2026-09-30 CG43 — 실행 중 프로세스는 옛 모듈을 들고 돌므로 착수 후 배선한 파서가
+    #  반영되지 않는다. 재실행 없이 결과를 살린다).
+    for iid, verdict, detail in rejudge_parser_gap():
+        print(f"  재판정(파서 사후 배선): {iid} → {verdict} — {detail[:160]}")
     pid = running_pid()
     if pid:
         st = {}

@@ -117,9 +117,67 @@ src = open(MEC, encoding="utf-8").read()
 check("execute: gate_rc5 분기 존재", "gate_rc5 = not _p5.get(\"error\")" in src, True)
 check("execute: 백로그 상태가 rc=0 또는 gate_rc5 를 완료로 본다",
       "if rc == 0 or gate_rc5:" in src, True)
-check("execute: 판정 디스패치에 promote 포함",
-      "elif item.get(\"metric\") == \"champion_promote_dryrun\":" in src, True)
-check("ingest: promote 파서 배선", "else parse_champion_promote_dryrun(spath, 0)" in src, True)
+check("execute: parse_by_metric 디스패치 배선",
+      "parsed = parse_by_metric(item, spath, mtime_floor)" in src, True)
+check("execute: judge_by_metric 디스패치 배선",
+      "verdict, detail, delta = judge_by_metric(item, parsed, per)" in src, True)
+check("ingest: parse_by_metric 배선", "parsed = parse_by_metric(it, spath, 0.0)" in src, True)
+check("tick: rejudge_parser_gap 배선", "for iid, verdict, detail in rejudge_parser_gap():" in src, True)
+
+# ── 5) rejudge_parser_gap: 이미 돌고 있던 실행의 '판정불가' 기록을 교정 ──────────
+#    (실측 2026-09-30 CG43 — 착수 시점 모듈에 파서가 없어 기록이 'parser 없음'으로 남는다)
+work = tempfile.mkdtemp(prefix="rejudge_test_")
+pd = os.path.join(work, "pd.json")
+with open(pd, "w", encoding="utf-8") as f:
+    json.dump({"auc": 0.5461, "status": "kept_incumbent",
+               "reason": "candidate auc 0.5461 < floor 0.53",
+               "champion_auc_before": 0.5513, "champion_baseline": 0.5513,
+               "n_rows": 12600}, f)
+m.BACKLOG = os.path.join(work, "backlog.json")
+m.LEDGER = os.path.join(work, "ledger.jsonl")
+with open(m.BACKLOG, "w", encoding="utf-8") as f:
+    json.dump({"items": [
+        {"id": "CG99", "status": "done", "metric": "champion_promote_dryrun",
+         "command": f"docker exec x python -m app.training.champion_promote --dry-run "
+                    f"--summary-out {pd}",
+         "result": {"verdict": "판정불가", "detail": "parser 없음", "rc": 0}},
+        {"id": "CG98", "status": "failed", "metric": "wf_sweep_summary", "command": "x"},
+    ]}, f)
+with open(m.LEDGER, "w", encoding="utf-8") as f:
+    for r in [{"id": "CG99", "rc": 0, "metric": "champion_promote_dryrun",
+               "parsed": {"error": "parser 없음 (metric='champion_promote_dryrun')"},
+               "verdict": "판정불가", "detail": "", "reported": False},
+              {"id": "CG98", "rc": 1, "metric": "wf_sweep_summary",
+               "parsed": {"error": "실행 실패 — 측정값 없음"}, "verdict": "실행실패",
+               "reported": True}]:
+        f.write(json.dumps(r) + "\n")
+fixed = m.rejudge_parser_gap()
+check("rejudge: 교정 대상 1건", len(fixed), 1)
+led = m.load_ledger()
+check("rejudge: 판정 교체", led[0]["verdict"], "후보 생성·게이트 거부")
+check("rejudge: 근거(사유·AUC)가 detail 에 들어간다",
+      all(s in led[0]["detail"] for s in ("0.5461", "floor 0.53")), True)
+check("rejudge: per_exp 를 만들지 않는다", "per_exp" in (led[0]["parsed"] or {}), False)
+check("rejudge: reported 플래그 유지 → 다음 틱이 교정 결과를 보고", led[0].get("reported"), False)
+check("rejudge: 교정 흔적을 남긴다", "rejudged" in led[0], True)
+check("rejudge: 실행실패 기록은 손대지 않는다", led[1]["verdict"], "실행실패")
+check("rejudge: 백로그 result 갱신",
+      m.load_backlog()["items"][0]["result"]["verdict"], "후보 생성·게이트 거부")
+check("rejudge: 멱등(2회차 무변경)", m.rejudge_parser_gap(), [])
+
+# ── 6) parse_by_metric / judge_by_metric 디스패치 ─────────────────────────────
+check("디스패치: 모르는 metric → parser 없음 오류",
+      "parser 없음" in m.parse_by_metric({"metric": "없음"}, "/tmp/x", 0).get("error", ""), True)
+check("디스패치: promote metric 파서 선택",
+      m.parse_by_metric({"metric": "champion_promote_dryrun"}, pd, 0).get("status"),
+      "kept_incumbent")
+v, d, delta = m.judge_by_metric({"id": "CG99", "metric": "champion_promote_dryrun"},
+                                m.parse_champion_promote_dryrun(pd, 0))
+check("디스패치: promote 판정 선택", v, "후보 생성·게이트 거부")
+v, d, delta = m.judge_by_metric({"metric": "wf_sweep_summary", "arm": "A",
+                                 "counterfactual": "B"},
+                                {"per_exp": {"A": {"mean": 0.55}, "B": {"mean": 0.52}}})
+check("디스패치: arm 실험은 judge_per 경로", v, "신호있음")
 
 print(f"\n{PASS}/{PASS + FAIL} PASS")
 raise SystemExit(1 if FAIL else 0)
