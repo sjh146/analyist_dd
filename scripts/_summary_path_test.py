@@ -72,12 +72,16 @@ if skipped_no_cmd:
     print(f"NOTE: 명령 미정(command=None)으로 건너뜀 — {', '.join(skipped_no_cmd)} "
           f"(착수 시 --out 필수)")
 
-# 5) 알 수 없는 metric 은 ValueError
+# 5) 알 수 없는 metric(또는 metric 없음)은 **예외 없이 빈 경로** — 크래시 금지.
+#    왜(2026-09-30): 백로그의 metric 없는 항목(진단·준비)을 --start 하면 종전 ValueError 로
+#    원장 기록 없이 죽었다(설계원칙 4 위반). 이제는 "요약 없음 → 판정불가" 로 정직하게 끝난다.
 try:
-    m.summary_path("nope")
-    check("알 수 없는 metric", "no-raise", "ValueError")
-except ValueError:
-    check("알 수 없는 metric", "ValueError", "ValueError")
+    p_unknown = m.summary_path("nope")
+    check("알 수 없는 metric 은 빈 경로(크래시 금지)", p_unknown, "")
+    check("metric 없음도 빈 경로", m.summary_path(""), "")
+    check("빈 경로는 '요약 없음'으로 판정", os.path.exists(p_unknown), False)
+except Exception as e:
+    check("알 수 없는 metric 은 빈 경로(크래시 금지)", f"raised {type(e).__name__}", "")
 
 print(f"\n{PASS} PASS / {FAIL} FAIL")
 sys.exit(1 if FAIL else 0)

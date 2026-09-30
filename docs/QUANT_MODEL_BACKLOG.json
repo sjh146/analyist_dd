@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-29T22:12:28+09:00",
+  "updated_at": "2026-09-30T16:05:25+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -1748,7 +1748,7 @@
     {
       "id": "U3",
       "title": "확장 이력 패널(995일 창 = 659거래일) 재빌드 + 로버스트 재측정 — 기존 281거래일 창 대비 2.35배",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "affects_model": true,
       "baseline": {
@@ -1805,15 +1805,41 @@
           "log": "data/reports/me_cycle/logs/me_cycle_U3_20260928-203519.log",
           "elapsed_min": 354.4,
           "cause": "빌드 중 피처 코드 변경 → 혼합 패널 가드가 저장 거부(전량 소실)"
+        },
+        {
+          "ts": "2026-09-30T04:51:55+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 LS_quant_q30_h5 0.5557 vs 기록 기준선 0.5406 (L1/RB1 실측 · 49종목 · 5폴드×3시드 · 281거래일 창(2025-07-31~2026-09-23)) → Δ+0.0151 [대조군 기록 이 이 런에 없음 · 타 패널 대조라 증거 약함]",
+          "log": "data/reports/me_cycle/logs/me_cycle_U3_20260929-203552.log",
+          "elapsed_min": 496.0
         }
       ],
       "retry_note": "2026-09-29 rc=1 소실 → 재시도 4/5 (코드 프리즈 후 재빌드 — u3_launcher 프리플라이트가 피처 코드 120분 무편집일 때만 착수)",
       "result": {
-        "verdict": "실행실패",
-        "detail": "측정값 없음 — 종료코드 1",
-        "delta": null,
-        "per_exp": null,
-        "rc": 1
+        "verdict": "노이즈",
+        "detail": "가설 LS_quant_q30_h5 0.5557 vs 기록 기준선 0.5406 (L1/RB1 실측 · 49종목 · 5폴드×3시드 · 281거래일 창(2025-07-31~2026-09-23)) → Δ+0.0151 [대조군 기록 이 이 런에 없음 · 타 패널 대조라 증거 약함]",
+        "delta": 0.0151,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5879,
+              0.5788,
+              0.5232,
+              0.5246,
+              0.5639
+            ],
+            "mean": 0.5557,
+            "std": 0.0271,
+            "min": 0.5232,
+            "max": 0.5879,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
       },
       "notes": "[2026-09-27 실측] 패널 빌드 0.42 pair/s × 32,626 pair = 21.6h 인데 timeout 43200s(12h) → 55% 지점 SIGKILL 구조. 체크포인트 500 pair 단위라 재개는 가능하지만 한 번에 완주하도록 90000s(25h) 로 정정. host 재부팅 후 첫 실행이라 유휴 시에는 더 빠를 수 있다.",
       "note": " [2026-09-28 정정] ①구간 고정(--end-date 2026-09-27)을 넣어야 체크포인트가 이어진다(실측: 재개 processed=15000/32576 확인). ②크론 틱은 --force 를 못 쓰므로 U3 착수는 scripts/u3_launcher.sh(20:35~21:00 창)가 담당한다. ③ETA 가드 상한(est_minutes 700)이라 정상 틱도 21:00 이후엔 시작 가능. | 2026-09-28 05:2x 정정: est_minutes 700→1410(실측 0.38~0.42 페어/초 기준 21.6~23.5h). 이 값이어야 틱의 ETA 가드가 U3 를 건너뛰어(설계대로) 장중·저녁 창을 넘겨 시작하는 사고를 막고, 착수는 u3_launcher.sh(20:35~21:00)가 --force 로 담당한다. 런처 생존은 이제 틱이 매시간 ensure_launcher() 로 확인해 세션 종료로 죽었으면 setsid 로 재기동한다. | 2026-09-28 18:0x 사전검증(런처 착수 전): 실제 U3 명령을 timeout 170 으로 짧게 돌려 **체크포인트 재개 확인** — '체크포인트 재개: processed=15000/32576 (46.0%)'. 재개 키 3종 모두 일치(유니버스 50코드 동일·start 2024-01-06/end 2026-09-27 고정·code_sig 1790334858.601 동일), 체크포인트 저장은 tmp+os.replace 원자적(feature_pipeline L482-490) → 중단돼도 손상 없음. 따라서 20:35 런처 착수는 0% 재시작이 아니라 46% 이어받기로 시작한다. | 2026-09-29 원인 확정: 빌드 99.5%(32,576페어) 완료 후 01:48 커밋 c4b431c 로 code_sig 가 바뀌어 저장 거부 → 354분 전량 소실(체크포인트 폐기). 대책 3종: feature_pipeline 종목 배치별 조기 중단(실측 48/162 페어에서 중단, _code_churn_abort_test PASS), u3_launcher 프리플라이트(피처 코드 최신 mtime 120분 이내면 착수 안 함), 구동기 failure_cause rc=1 예외 줄 기록. → 착수 전제: 다른 역할이 services/xgboost-ml/app 을 편집하지 않는 밤(20:35~08:55)이 필요하다. | 2026-09-29 22:0x 실측(재착수 2밤째): 20:35:55 런처 착수 → 4,000/32,576(12.3%) · 0.78 페어/s · ETA 08:1x. 컨테이너 `timeout 43200` 종료 08:35:55 → 여유 24분. 같은 4코어에서 저녁 파이프라인 Phase 2 가 동시에 패널을 굽는다(load1 7~8.5). 체크포인트 500페어 정상(rows.pkl 13:01 UTC 갱신). 코드_sig 위험: feature_engine/*.py mtime 이 착수 후 바뀌지 않았음(확인 2026-09-29 22:0x — app/training/*.py 편집은 code_sig 대상이 아니라 U3 에 무해).",
@@ -1822,12 +1848,14 @@
     {
       "id": "U3b",
       "title": "창 효과 격리 — 같은 패널(panel_995)에서 281거래일 행만 잘라 A/B (동일 스냅샷·동일 피처, 창만 다름)",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 1,
       "affects_model": true,
       "baseline": {
-        "value": 0.5406,
-        "source": "314거래일 창 기록 기준선(U3b 대조군)"
+        "value": 0.5557,
+        "source": "U3 실측(같은 패널 계열 panel_995 · 659거래일 창 · 5폴드×3시드 · LS_quant_q30_h5)",
+        "note": "같은 패널 원본에서 **행만** 잘라낸 A/B — 교차패널 아님",
+        "same_panel": true
       },
       "hypothesis": "U3 에서 창이 늘어 AUC 가 변했다면, 그 변화가 정말 '창' 때문인지 확인한다. 피처·종목·코드가 동일하고 행 범위만 다르면 차이는 순수한 창 효과다(교차패널 비교의 혼입 제거).",
       "evidence": "실측: panel_420_asofpatch = 281거래일(2025-07-31~2026-09-23)·49종목·13,609행 (panel_subset.py 로 확인). U1 은 교차패널로 Δ−0.0266 으로 기록됐지만 같은 패널 안에서 행 집합만 바꾸면 Δ+0.0071(부호 반전)이었다 — 창 비교는 반드시 같은 스냅샷 안에서 해야 한다.",
@@ -1840,15 +1868,26 @@
       },
       "metric": "wf_sweep_summary",
       "arm": "LS_quant_q30_h5",
-      "counterfactual": "U3 실측(같은 패널·659거래일 창) — 원장의 U3 result.per_exp",
+      "counterfactual": "U3 실측 0.5557 (같은 패널·659거래일) — 원장 기록",
       "cost": "부분집합 생성 수 분 + 측정 ~10분",
       "success": "Δ(659 − 314)= +0.02 이상이면 창 효과 실재, |Δ|<0.02 면 '창은 레버가 아니다'로 닫는다",
       "depends_on": [
         "U3"
       ],
       "caution": "U3 완료 후 실행(U3 결과가 대조군). panel_995.npz 가 없으면 먼저 U3 를 돌려야 한다.",
-      "note": "2026-09-26: pending 으로 올렸다. next_item 정렬(priority,id)에서 'U3' < 'U3b' 이고 U3 이 도는 동안 틱은 '사이클 실행 중'으로 아무것도 시작하지 않으므로 안전하다. [2026-09-28] pending→needs_setup: panel_995.npz 가 없어 command 가 즉시 실패하고 재시도 카운터만 소모한다.",
-      "setup_needed": "panel_995.npz 부재(U3 패널 빌드가 47.3%에서 두 번 소실) — U3 완주 후 panel_subset.py 로 w281 부분집합을 만들 수 있다."
+      "note": "2026-09-26: pending 으로 올렸다. next_item 정렬(priority,id)에서 'U3' < 'U3b' 이고 U3 이 도는 동안 틱은 '사이클 실행 중'으로 아무것도 시작하지 않으므로 안전하다. [2026-09-28] pending→needs_setup: panel_995.npz 가 없어 command 가 즉시 실패하고 재시도 카운터만 소모한다.\n[2026-09-30T16:03:31+09:00] **셋업 완료**: panel_995_w281.npz 생성·검증 — src panel_995 (32,576행·213피처·50종목·661일 2024-01-08~2026-09-23) → dst panel_995_w281 (13,609행·213피처·49종목·281일 2025-07-31~2026-09-23). dst 행수·기간·종목이 기준선 패널(panel_420_asofpatch, 13,609행·281일·49종목)과 **동일**하다(피처 213 vs 210 차이만 남음). 명령: `docker exec stock_xgboost_ml python3 /app/scripts/panel_subset.py --src /app/app/models/wf/panel_995.npz --dst /app/app/models/wf/panel_995_w281.npz --since 2025-07-31`. 판정은 U3 실측 0.5557(같은 패널·659거래일) 대비 Δ — 두 값이 같은 패널 원본·같은 프로토콜이라 '창 효과'만 분리된다. | 2026-09-30 16:0x 셋업 해제(구 블로커: panel_995.npz 부재).\n[2026-09-30T16:11:42+09:00] 결과 해석: 창 길이 dose-response 실측(2026-09-30, 같은 panel_995 행 잘라내기·LS_quant_q30_h5·5폴드×3시드): 90일 0.5580±0.0556(2,481행) · 180일 0.5297±0.0496(5,156) · 281일 0.5271±0.0209(8,184) · 450일 0.5313±0.0294(13,246) · 659일 0.5557±0.0271(19,572) → **비단조**, 총폭 0.0309. → 이 Δ−0.0286 은 창 효과가 아니라 같은 패널·같은 설정에서도 나타나는 창 교체 잡음이다(U3d).",
+      "est_minutes": 15,
+      "attempts": [
+        {
+          "ts": "2026-09-30T16:05:25+09:00",
+          "rc": 0,
+          "verdict": "악화",
+          "detail": "가설 LS_quant_q30_h5 0.5271 vs 기록 기준선 0.5557 (U3 실측(같은 패널 계열 panel_995 · 659거래일 창 · 5폴드×3시드 · LS_quant_q30_h5)) → Δ-0.0286 [대조군 U3 이 이 런에 없음 · 타 패널 대조라 증거 약함]",
+          "log": "data/reports/me_cycle/logs/me_cycle_U3b_20260930-160415.log",
+          "elapsed_min": 1.2
+        }
+      ],
+      "result": "가설 LS_quant_q30_h5 0.5271±0.0209 [0.5001, 0.5202, 0.5641, 0.5300, 0.5212] (폴드승률 1.0) vs U3(같은 패널·659일) 0.5557 → Δ−0.0286. 단 U3d 의 5창 dose-response 가 비단조(총폭 0.0309)라 '창은 레버'로 읽으면 안 된다 — 잡음 분포의 한 점이다."
     },
     {
       "id": "L5b",
@@ -5980,7 +6019,7 @@
     {
       "id": "CG35",
       "title": "고정 컷오프(2026-05-20) 클린 대조군 학습 + 엄격 OOS A/B — 챔피언의 0.5883 은 암기인가",
-      "status": "backlog",
+      "status": "pending",
       "priority": 4,
       "affects_model": true,
       "depends_on": [
@@ -6003,7 +6042,7 @@
       "est_minutes": 260,
       "success": "컷오프 모델의 **OOS 창(학습 종료 2026-05-20 이후로 자동 판정된 창)** AUC 평균이 챔피언의 같은 창 0.5883 대비 −0.05 이상 낮으면 '암기' 확정. 창 수가 1개로 줄 수 있으니(창4는 학습구간과 겹쳐 제외) 판정 시 생존 창 수·날짜 수를 함께 보고한다. 비슷하게 나오면 최근 구간에서 실제로 낫다는 뜻",
       "expected": "컷오프 모델 창4·5 ≈ 0.50~0.54 (챔피언 0.5883 은 자기 학습구간 값이므로)",
-      "note": "**지금 pending 으로 올리지 않는다** — 평일 저녁 19:00 틱이 집어가면 20:35 U3 런처 창을 막아 995일 패널(2밤째)을 또 잃는다. panel_995.npz 완성(U3 done) 후 pending 승격. | 2026-09-29 22:4x: command 에 --checkpoint-path 추가(2h 캡 소실 방지, end-date 고정이라 재개 가능). 승격은 CG38 뒤 — next_item 은 (priority,id) 순이므로 CG38(2) 이 먼저다.",
+      "note": "**지금 pending 으로 올리지 않는다** — 평일 저녁 19:00 틱이 집어가면 20:35 U3 런처 창을 막아 995일 패널(2밤째)을 또 잃는다. panel_995.npz 완성(U3 done) 후 pending 승격. | 2026-09-29 22:4x: command 에 --checkpoint-path 추가(2h 캡 소실 방지, end-date 고정이라 재개 가능). 승격은 CG38 뒤 — next_item 은 (priority,id) 순이므로 CG38(2) 이 먼저다.\n[2026-09-30T16:11:42+09:00] depends_on U3(rc=0 완료) 해제 → pending 승격. 21:00 CG38(est 420분) 뒤 04:00 슬롯 폴백. ETA 가드: 260분이라 20:00 재생성 창을 넘는 시각(17~19시)엔 시작되지 않는다(정상).",
       "risk": "학습 3.2h + 평가 0.5h = 밤 한 창(20:35~09:00) 안에 들어간다. 유니버스는 '현재 유동성 상위 200종목'으로 뽑히므로 과거 구간 학습에 미래 정보가 섞이는 약한 편향이 있다(패널 실험도 동일)."
     },
     {
@@ -6143,6 +6182,70 @@
       "cost": "구현 2~3h + 검증 1h (CPU 무거운 실행 없음 — 기존 패널/DB 로 검증 가능)",
       "counterfactual": "스토어 미사용(현행) 경로",
       "note": "필수 설계 요구(선구현 후사용): ① `load_batch` 가 요청 (stock,date) 전량을 덮지 않으면 **예외 또는 재계산**(부분 반환 금지 — 지금 코드는 부분도 그대로 반환한다) ② 무효화 키에 feature_engine code_sig + 원천 워터마크(가격·재무·공시 백필 시각) 포함 — 리서처가 과거 구간을 백필하면(R10·R17) 옛 값이 학습에 섞인다 ③ as-of 지연이 적용된 **출력**을 저장(원천이 아니라). 운영 DB 스키마 변경은 금지라 테이블이 없으면 만들지 말고 사용자 승인 항목으로 올릴 것 (feature_store 스키마는 이미 존재하므로 스키마 변경 없이 가능). | 2026-09-29 22:1x 추가: **초기 대량 적재는 승인 대상** — 검증(스키마 존재·행수·부분커버리지 거부 로직)까지는 내가 구현하되, 수백만 행을 운영 DB 에 넣는 배치는 승인 후 실행한다(디스크·백업·pg 성능 영향). 그 전까지는 로컬 npz 캐시(패널 방식)로 검증 가능."
+    },
+    {
+      "id": "XR12",
+      "title": "[리서처 R12] 재무 비율 피처 19개 부활 (기간유형 구분 선행)",
+      "status": "backlog",
+      "priority": 8,
+      "from_research": "R12",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": null,
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "financial_statements 10,370행이 연간/반기 혼재로 growth 피처가 깨져 있고 ROA/ROE/부채비율/PER/PBR 등 기본 비율이 아예 없다. rcept_dt 확보로 구분 가능해졌다.",
+      "evidence": "리서처 R12 결과: [저작생략] 산출물 이미 존재(scripts/build_financial_ratio_features.py) — 저작 생략 | R12: 0 <= 1 → 충족",
+      "success": "19개 중 3개 이상 nonzero(실측 18) + dq_asof_violation_rows 0 유지 + 재무비율 격자 최신일이 시장 최신일 대비 1거래일 이내",
+      "expected": "미지",
+      "cost": "2~3시간(기간유형 구분 포함)",
+      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라."
+    },
+    {
+      "id": "U3c",
+      "title": "panel_995 자체 피처 스크린 — 659거래일 창에서 무정보/종목상수/시장레벨 비율 재측정 (L3 데이터 축 진단)",
+      "status": "done",
+      "priority": 3,
+      "affects_model": false,
+      "hypothesis": "창이 2.35배 늘어난 패널(panel_995, 213피처·661일)에서도 피처 정보량 구조가 동일한가(무정보 다수·최고 피처=종목상수 재무). 다르면 '창 길이'가 피처 유효성을 바꾼 것이고, 같으면 데이터 축(L3)의 후보는 지금 피처풀에 없다는 뜻이다.",
+      "evidence": "기준 패널(panel_420_asofpatch, 210피처) 스크린 실측: 누수 의심 0 · 종목상수 48 · 시장레벨 41 · **무정보 126/210** · 최고 피처 전부 종목상수 재무(quality_roa 0.5534 등), 시간가변 최고는 변동성군(|AUC−0.5|≈0.05). L3 는 이 진단 없이는 착수 근거가 없다.",
+      "method": "컨테이너에서 panel_feature_screen.py 를 panel_995.npz(659일)와 panel_995_w281.npz(281일)에 각각 돌려 무정보/종목상수/시장레벨 개수·최고 피처를 비교한다. 모델 학습 없음(단일피처 AUC·날짜별 IC 만) → CPU 경량.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u /app/scripts/panel_feature_screen.py --panel /app/app/models/wf/panel_995.npz --horizon 5 --q 0.30 --top 30 --out /app/reports/panel_screen_995.json && python -u /app/scripts/panel_feature_screen.py --panel /app/app/models/wf/panel_995_w281.npz --horizon 5 --q 0.30 --top 30 --out /app/reports/panel_screen_995_w281.json'",
+      "check": "docker exec stock_xgboost_ml ls -la /app/reports/panel_screen_995.json /app/reports/panel_screen_995_w281.json",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "cost": "수 분(패널 로드 + 피처별 AUC/IC)",
+      "success": "두 창의 무정보 피처 비율·종목상수 비율·최고 피처 목록을 숫자로 확보(판정 자체가 목적 — '개선' 아님). 결과는 L3 착수/보류 근거로 쓴다.",
+      "est_minutes": 3,
+      "metric": null,
+      "note": "[2026-09-30T16:11:42+09:00] 구동기 대신 세션에서 직접 실행(수 분) — 산출물 /app/reports/panel_screen_panel_995.json · panel_screen_panel_995_w281.json.",
+      "closed_at": "2026-09-30T16:11:42+09:00",
+      "closed_by": "quant-model-engineer",
+      "result": "panel_995(659일·213피처): 누수 의심 0 · 종목상수 46 · 시장레벨 62 · 무정보 127/213 · 최고 피처는 종목상수 재무(quality_roa 0.5483 · quality_score 0.5484 · net_income 0.5492), 시간가변 최고는 변동성군(|AUC−0.5|≈0.045~0.05) | panel_995_w281(281일): 누수 0 · 종목상수 46 · 시장레벨 53 · 무정보 126/213 · 최고 quality_roa 0.5534 · value_per 0.5454. → 창을 2.35배 늘려도 피처 정보량 구조가 동일(무정보 ~60%). 데이터 축(L3) 후보가 현 피처풀에는 없다는 진단이 재확인됐다."
+    },
+    {
+      "id": "U3d",
+      "title": "창 길이 dose-response — 같은 패널(panel_995)에서 90/180/281/450/659거래일 5창을 행만 잘라 측정",
+      "status": "done",
+      "priority": 2,
+      "affects_model": false,
+      "hypothesis": "패널의 날짜 커버리지(창)가 길수록 로버스트 AUC 가 오른다 — U3(659일 0.5557) vs U3b(281일 0.5271)의 Δ−0.0286 이 '창 효과'라면 창을 늘릴수록 단조 증가해야 한다(그러면 910일 패널 빌드에 밤을 쓸 근거가 생긴다).",
+      "evidence": "U3 0.5557(659일) vs U3b 0.5271(281일, 같은 패널·행만 부분집합) = Δ−0.0286.",
+      "method": "panel_subset.py 로 panel_995 에서 --since 를 2026-05-15/2025-12-30/2025-07-31/2024-11-19 로 잘라 npz 4개를 만들고(행만 다름·피처 213 동일), 각각 wf_label_sweep LS_quant_q30_h5 --folds 5 --seeds 3 (설정 동일·패널만 다름) 실행. 659일 값은 U3 원장 기록. 폴드 스킵 없음(5/5 측정).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && for n in 90 180 450; do python3 /app/scripts/panel_subset.py --src /app/app/models/wf/panel_995.npz --dst /app/app/models/wf/panel_995_w${n}.npz --since <since>; OMP_NUM_THREADS=2 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_995_w${n}.npz --folds 5 --seeds 3 --only LS_quant_q30_h5 --out /app/reports/overnight/wf995_w${n}.jsonl --summary-out /app/reports/overnight/wf995_w${n}_summary.json; done'  # since: 90d=2026-05-15 · 180d=2025-12-30 · 450d=2024-11-19",
+      "check": "docker exec stock_xgboost_ml cat /app/reports/overnight/wf995_w90_summary.json",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": null,
+      "result": "90일 0.5580±0.0556(2,481행·pooled 0.5580/날짜별 0.5586) · 180일 0.5297±0.0496(5,156) · 281일 0.5271±0.0209(8,184) · 450일 0.5313±0.0294(13,246) · 659일 0.5557±0.0271(19,572) · 5창 평균 0.5404 · **총폭 0.0309**(최고 90일·최저 281일, 비단조)",
+      "conclusion": "창(패널 날짜 커버리지)은 레버가 아니다 — 같은 패널·같은 설정·같은 프로토콜에서 행 구간만 바꿔도 0.5271~0.5580(폭 0.0309)이 나온다. 사전문턱 +0.02 의 1.5배가 '잡음'으로 재현된 셈이라 ① U3 의 Δ+0.0151(교차패널) ② U3b 의 Δ−0.0286(같은 패널) 둘 다 레버 증거가 아니다 ③ 더 긴 패널(910거래일 ≈ 11시간 빌드) 계획은 폐기(기대 이득 없음). 단 **학습 창 길이**(배포 경로 --days 90 vs 250)는 다른 변수이며 CG38 이 21:00 에 측정한다.",
+      "cost": "약 3분(스윕 3회)",
+      "closed_at": "2026-09-30T16:11:42+09:00",
+      "closed_by": "quant-model-engineer"
     }
   ]
 }

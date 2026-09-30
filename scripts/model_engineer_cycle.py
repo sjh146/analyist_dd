@@ -424,7 +424,14 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/champion_robust_eval.json")
-    raise ValueError(f"알 수 없는 metric: {kind}")
+    # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
+    # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
+    # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
+    # ① 원장 기록 없이 사라지고(설계원칙 4 위반) ② 틱이 그 항목을 영원히 집지 못하게 했다.
+    # 빈 경로면 "요약 없음 → 판정불가" 로 정직하게 끝난다(성능 주장 없음).
+    if kind:
+        log(f"경고: 알 수 없는 metric {kind!r} — 요약 경로 없음(판정불가로 기록)")
+    return ""
 
 
 def _out_arg(command: str) -> str:
@@ -640,9 +647,13 @@ def judge_per(item, per_exp) -> tuple:
         verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
         why = "자기대조(대조군이 다른 패널·다른 런)" if cf_name == arm \
             else f"대조군 {cf_name} 이 이 런에 없음"
+        # 증거 강도 문구는 **스냅샷 동일 여부**로 갈린다(실측 2026-09-30 U3b): 같은 패널 원본에서
+        # 행 구간만 잘라 비교하면(창 A/B) 교차패널 잡음이 없으므로 '타 패널 대조라 증거 약함'은
+        # 거짓이다. 백로그 baseline.same_panel=true 로 표시한 항목만 in-snapshot 문구를 쓴다.
+        strength = ("같은 패널 원본·행 구간만 다름(in-snapshot)" if base_rec.get("same_panel")
+                    else "타 패널 대조라 증거 약함")
         detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 기록 기준선 {base:.4f} "
-                  f"({base_rec.get('source', '출처미상')}) → Δ{delta:+.4f} [{why} · "
-                  f"타 패널 대조라 증거 약함]")
+                  f"({base_rec.get('source', '출처미상')}) → Δ{delta:+.4f} [{why} · {strength}]")
     elif cf_name in per and cf_name != arm:
         # arm 미지정: 대조군 **을 제외한** 최고 config 와 비교한다. 대조군이 이미 최고면
         # 비교 자체가 Δ0 이 되어 의미가 없다(함정 ① 과 같은 종류).
