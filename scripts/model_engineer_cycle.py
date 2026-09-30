@@ -949,6 +949,26 @@ def judge_champion_baseline(item, parsed) -> tuple:
     return "기준선 실측", detail, None
 
 
+def _attempts_list(it):
+    """백로그 항목의 `attempts` 를 리스트로 정규화해 돌려준다.
+
+    실측(2026-10-01 00:02 CG38): 항목이 `"attempts": 0`(정수)으로 등록돼 있어
+    `it.setdefault("attempts", []).append(...)` 가
+    `AttributeError: 'int' object has no attribute 'append'` 로 죽었다 — 그런데
+    원장 기록(append_ledger)은 그 **앞**에서 이미 끝난 뒤라, 겉으로는 '기록 없이 죽음'이
+    아니라 **원장엔 rc=0 이 있고 백로그는 pending** 인 반쪽 상태가 된다 → 다음 틱이 이미
+    끝난 46분짜리 실험을 다시 집어 든다(체크포인트 덕에 훈련은 재사용되지만 평가·판정 반복,
+    attempts 카운터 어긋남, 상태 보고 오염). 스키마가 int/list 로 갈려 있으므로 쓰기 직전에
+    여기서 정규화한다(None·0 → 빈 리스트, 그 밖의 값은 `attempts_legacy` 로 보존).
+    """
+    a = it.get("attempts")
+    if not isinstance(a, list):
+        it["attempts"] = []
+        if a not in (None, 0):
+            it["attempts_legacy"] = a
+    return it["attempts"]
+
+
 # ── 사이클 실행 ──────────────────────────────────────────────────────────────
 def execute(item, force=False):
     os.makedirs(RUNTIME, exist_ok=True)
@@ -1038,31 +1058,40 @@ def execute(item, force=False):
         rec["rc_note"] = "champion_promote rc=5 = 후보 무효(invalid_candidate) — 게이트 판정이므로 실행실패 아님"
     append_ledger(rec)
 
-    b = load_backlog()
-    for it in b["items"]:
-        if it["id"] == item["id"]:
-            it.setdefault("attempts", []).append({
-                "ts": rec["ts"], "rc": rc, "verdict": verdict, "detail": detail,
-                "log": rec["log"], "elapsed_min": rec["elapsed_min"],
-            })
-            code_churn = rc == 1 and "피처 코드 변경" in cause
-            if rc == 0 or gate_rc5:
-                it["status"] = "done"
-            elif (rc in (137, 124) or code_churn) and len(it["attempts"]) < RETRY_MAX:
-                # 인프라 사고(컨테이너 재생성·타임아웃·빌드 중 피처 코드 변경)는 가설의 결과가 아니다
-                # → pending 으로 되돌려 다시 돌린다(최대 RETRY_MAX 회). 코드 변경 건은 이제
-                # feature_pipeline 이 조기 중단하므로 소실이 몇 분으로 줄고, 착수는 u3_launcher 의
-                # 프리플라이트(피처 코드 120분 안정)가 담당한다.
-                it["status"] = "pending"
-                resume = ("코드 프리즈 후 재빌드 — u3_launcher 프리플라이트가 피처 코드 120분 무편집 시 착수"
-                          if code_churn else "체크포인트 재개")
-                it["retry_note"] = (f"{rec['ts']} rc={rc} 소실 → 재시도 "
-                                    f"{len(it['attempts'])}/{RETRY_MAX} ({resume})")
-            else:
-                it["status"] = "failed"
-            it["result"] = {"verdict": verdict, "detail": detail, "delta": delta,
-                            "per_exp": per or None, "rc": rc}
-    save_backlog(b)
+    # ── 백로그 갱신: 여기서 예외가 나도 원장 기록은 이미 남았다 ────────────────────
+    # 실측(2026-10-01 00:02 CG38): attempts 가 int 였던 항목에서 append 가 AttributeError 로
+    # 죽어 `--run` 프로세스가 통째로 사라졌고, 원장에는 rc=0 기록이 있는데 백로그는 pending 인
+    # 반쪽 상태가 됐다(다음 틱이 이미 끝난 실험을 재실행). 원인은 정규화로 고쳤지만, 앞으로
+    # 다른 예외가 나도 이 블록이 사이클 전체를 죽이지 않게 감싼다.
+    try:
+        b = load_backlog()
+        for it in b["items"]:
+            if it["id"] == item["id"]:
+                _attempts_list(it).append({
+                    "ts": rec["ts"], "rc": rc, "verdict": verdict, "detail": detail,
+                    "log": rec["log"], "elapsed_min": rec["elapsed_min"],
+                })
+                code_churn = rc == 1 and "피처 코드 변경" in cause
+                if rc == 0 or gate_rc5:
+                    it["status"] = "done"
+                elif (rc in (137, 124) or code_churn) and len(it["attempts"]) < RETRY_MAX:
+                    # 인프라 사고(컨테이너 재생성·타임아웃·빌드 중 피처 코드 변경)는 가설의 결과가 아니다
+                    # → pending 으로 되돌려 다시 돌린다(최대 RETRY_MAX 회). 코드 변경 건은 이제
+                    # feature_pipeline 이 조기 중단하므로 소실이 몇 분으로 줄고, 착수는 u3_launcher 의
+                    # 프리플라이트(피처 코드 120분 안정)가 담당한다.
+                    it["status"] = "pending"
+                    resume = ("코드 프리즈 후 재빌드 — u3_launcher 프리플라이트가 피처 코드 120분 무편집 시 착수"
+                              if code_churn else "체크포인트 재개")
+                    it["retry_note"] = (f"{rec['ts']} rc={rc} 소실 → 재시도 "
+                                        f"{len(it['attempts'])}/{RETRY_MAX} ({resume})")
+                else:
+                    it["status"] = "failed"
+                it["result"] = {"verdict": verdict, "detail": detail, "delta": delta,
+                                "per_exp": per or None, "rc": rc}
+        save_backlog(b)
+    except Exception as e:  # noqa: BLE001
+        log(f"경고: 백로그 갱신 실패({type(e).__name__}: {e}) — 원장 기록은 유지된다. "
+            f"{item['id']} 상태를 확인하라(반쪽 상태: 원장 O / 백로그 pending)")
     log(f"종료 rc={rc} 경과 {rec['elapsed_min']}분 → 판정: {verdict} {detail}")
     return 0
 
@@ -1146,7 +1175,7 @@ def ingest(item_id, log_rel=None):
     append_ledger(rec)
     for x in b["items"]:
         if x["id"] == item_id:
-            x.setdefault("attempts", []).append({
+            _attempts_list(x).append({
                 "ts": rec["ts"], "rc": 0, "verdict": verdict, "detail": detail,
                 "log": log_rel or "", "elapsed_min": None, "ingested": True,
             })
@@ -1286,7 +1315,7 @@ def _record_orphan(orphan, started):
     status = "?"
     for it in b["items"]:
         if it["id"] == orphan:
-            it.setdefault("attempts", []).append({
+            _attempts_list(it).append({
                 "ts": rec["ts"], "rc": 137, "verdict": "실행실패", "detail": rec["detail"],
                 "log": rec["log"], "elapsed_min": mins,
             })
