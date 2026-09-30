@@ -12,6 +12,9 @@
      = 라벨 q 가 다르면 상위 k 지표가 분모 때문에 뒤집힌다(비교 금지의 증거)
   ② --restrict-q 0.05 공통집합 = {A, F} → 두 arm 모두 prec 0.5 → Δprec 0.0000
   ③ 공통집합 크기 2 < k=3 → 측정 짝 없음(포화 감지)
+  ④ 동점 제외 부호검정(동점 4 → p=n/a) ⑤ JSON 산출물 스키마
+  ⑥ (회귀, 2026-09-28) min-pool 탈락 날짜는 건너뛴다 — 자체 후보집합 회귀 금지(F1)
+  ⑦ (회귀) --control 이 덤프에 없으면 rc=1 로 알린다 — 짝 비교의 조용한 소실 금지(F7)
 """
 import json
 import os
@@ -86,12 +89,32 @@ def main():
     except Exception as e:
         fails.append(f"⑤ json 산출물 검증 실패: {type(e).__name__}: {e}")
 
+    # ⑥ (F1 회귀, 2026-09-28 검토 채택) min-pool 탈락 날짜는 **건너뛴다** — 종전엔 keep=None 이
+    #    '제한 없음'과 구분되지 않아 각 arm 자체 후보집합으로 회귀했고 Δprec −0.5 가 나왔다.
+    jout2 = os.path.join(tmp, "out_drop.json")
+    rc, out = run([preds, "--k", "2", "--arm", "CO_q05_h5", "--control", "CO_core30_h5",
+                   "--restrict-q", "0.05", "--min-pool", "5", "--json-out", jout2])
+    if "k=2: 측정 짝 없음" not in out:
+        fails.append(f"⑥ min-pool 탈락일이 건너뛰어지지 않음(자체 후보집합 회귀)\n{out[-800:]}")
+    try:
+        d2 = json.load(open(jout2))
+        assert d2["paired"]["2"]["n_dates"] == 0, d2["paired"]
+        assert d2["skip_stats"]["dropped_min_pool"] == 4, d2["skip_stats"]
+        assert d2["min_pool"] == 5 and d2["ks"] == [2], d2
+    except Exception as e:
+        fails.append(f"⑥ 탈락 통계 검증 실패: {type(e).__name__}: {e}")
+
+    # ⑦ (F7 회귀) --control 오타는 조용히 짝 비교를 사라지게 하지 않고 rc=1 로 알린다
+    rc, out = run([preds, "--k", "2", "--arm", "CO_q05_h5", "--control", "CO_typo_h5"])
+    if rc != 1 or "--control CO_typo_h5 이 덤프에 없다" not in out:
+        fails.append(f"⑦ --control 오타 무경고 통과(rc={rc})\n{out[-800:]}")
+
     if fails:
         print("TOPk TEST FAIL")
         for f in fails:
             print(" -", f)
         return 1
-    print("TOPk TEST PASS (5/5)")
+    print("TOPk TEST PASS (7/7)")
     return 0
 
 

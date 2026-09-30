@@ -17,7 +17,7 @@ AUC 만으로 판정할 수 없다. 트레이더가 사는 것은 상위 k 뿐�
   - 표준출력은 자기신고다. 판정용 수치는 --json-out 파일로도 남겨 재검증 가능하게 한다.
 
 사용 예:
-  python3 scripts/topk_precision.py /app/scripts/_preds_CG21.jsonl \
+  python3 scripts/topk_precision.py scripts/_preds_CG21.jsonl \
       --k 3,5,10 --arm CO_q05_h5 --control CO_core30_h5 --restrict-q 0.05 \
       --json-out data/reports/me_cycle/topk_CG21.json
 """
@@ -96,6 +96,10 @@ def main():
         print(f"--arm {args.arm} 이 덤프에 없다. 있는 exp: {exps}")
         return 1
     arm = args.arm or exps[0]
+    if args.control and args.control not in exps:
+        print(f"--control {args.control} 이 덤프에 없다(짝 비교가 조용히 사라진다). "
+              f"있는 exp: {exps}")
+        return 1
     control = args.control if (args.control in exps) else None
 
     # index[(exp)][(fold,date)][code] = (y_true, y_pred, fwd_ret)
@@ -110,7 +114,10 @@ def main():
             continue
 
     # 공통 후보집합(선택): (fold,date) 별 fwd_ret 양쪽 꼬리만 유지
+    # skip_stats: 탈락/포화 사유를 **수치로 남긴다**(F5 — 생존 편향 검출). 탈락 날짜가 몇 개인지
+    # 남기지 않으면 하위 역할이 "275일 중 3일만 살아남았고 그 3일이 유리했는가"를 검증할 수 없다.
     kept_keys = defaultdict(lambda: defaultdict(set))
+    skip_stats = defaultdict(int)
     if args.restrict_q is not None:
         q = float(args.restrict_q)
         all_keys = set()
@@ -123,23 +130,40 @@ def main():
                     if fwd == fwd:      # NaN 제외
                         pool[code] = fwd
             if len(pool) < args.min_pool:
+                skip_stats["dropped_min_pool"] += 1
                 continue
             vals = list(pool.values())
             lo, hi = quantile(vals, q), quantile(vals, 1 - q)
             sel = {c for c, v in pool.items() if v <= lo or v >= hi}
             if not sel:
+                skip_stats["dropped_sel_empty"] += 1
                 continue
             for e in idx:
                 s = {c for c in idx[e].get(key, {}) if c in sel}
                 if s:
                     kept_keys[e][key] = s
+                else:
+                    skip_stats["arm_no_intersection"] += 1
 
     def basket(e, key, k):
         items = idx[e].get(key, {})
         keep = kept_keys[e].get(key) if args.restrict_q is not None else None
+        # F1(2026-09-28 검토 채택): restrict-q 인데 이 (exp,fold,date) 가 min-pool·빈 sel 로
+        # 탈락했으면 **건너뛴다**. 종전엔 keep=None 이 '제한 없음'과 구분되지 않아 각 arm 의
+        # 자체 후보집합으로 조용히 회귀했고, docstring 이 금지한 분모 불일치를 재도입했다.
+        if args.restrict_q is not None and keep is None:
+            skip_stats["dropped_arm_key"] += 1
+            return None
         cand = [(c, v) for c, v in items.items() if (keep is None or c in keep)]
         if len(cand) < k:
             return None
+        # F6: 상위 k 가 후보 전량이면 prec 는 양 arm 모두 base rate → Δ 는 구조적으로 0(포화).
+        #      설계상 이 셀은 **버리지 않고** '포화'로 표시만 한다 — 기존 자체검증 ③/⑤ 가
+        #      pool == k 를 'Δ+0.0000 · p=n/a' 로 드러내는 것을 기대값으로 고정했기 때문이다
+        #      (숨기면 '차이 없음'과 '포화'가 구분되지 않는다). k > pool 인 셀은 위의
+        #      `len(cand) < k` 에서 이미 측정 불가로 빠진다.
+        if args.restrict_q is not None and len(cand) == k:
+            skip_stats[f"saturated_k{k}"] += 1
         cand.sort(key=lambda x: -x[1][1])          # y_pred 내림차순
         top = cand[:k]
         prec = sum(1 for _, v in top if v[0] == 1) / float(k)
@@ -153,7 +177,12 @@ def main():
         pool_sizes = []
         for key in idx[e]:
             items = idx[e].get(key, {})
-            keep = kept_keys[e].get(key) if args.restrict_q is not None else None
+            if args.restrict_q is not None:
+                keep = kept_keys[e].get(key)
+                if keep is None:        # F1: 탈락 날짜는 후보수 통계를 오염시킨다 → 제외
+                    continue
+            else:
+                keep = None
             pool_sizes.append(sum(1 for c in items if (keep is None or c in keep)))
             for k in ks:
                 b = basket(e, key, k)
@@ -241,6 +270,14 @@ def main():
                 fs = "n/a"
             rm = f"{o['ret_mean']:+.4f}" if o["ret_mean"] is not None else "n/a"
             print(f"{e:16s} {k:3d} {pm:>8s} {fs:>20s} {rm:>10s} {o['n_dates']:7d}")
+    _sat = {k: skip_stats.get(f"saturated_k{k}", 0) for k in ks}
+    if any(_sat.values()):
+        print(f"  ⚠ 포화로 건너뛴 (exp,date) 셀 — 해석 금지 k: "
+              f"{ {k: v for k, v in _sat.items() if v} } "
+              f"(k >= 공통집합 크기: prec 가 base rate 로 고정돼 Δ=0 이 된다)")
+    _drop = {k: v for k, v in skip_stats.items() if k.startswith("dropped")}
+    if any(_drop.values()):
+        print(f"  ⚠ 탈락 (exp,date,사유): {_drop}")
     for e in exps:
         print(f"  후보 풀 중앙값 {e}: {per_exp[e]['pool_median']} "
               f"(k 가 이 값 이상이면 포화 — 그 k 의 Δ 는 해석하지 말 것)")
@@ -262,9 +299,13 @@ def main():
         _d = os.path.dirname(args.json_out)
         if _d:
             os.makedirs(_d, exist_ok=True)
+        _sat_json = {str(k): skip_stats.get(f"saturated_k{k}", 0) for k in ks}
         with open(args.json_out, "w") as f:
             json.dump({"preds": args.preds, "rows": len(rows), "exps": exps,
+                       "saturated_cells": _sat_json,
                        "restrict_q": args.restrict_q, "arm": arm, "control": control,
+                       "min_pool": args.min_pool, "ks": ks,
+                       "skip_stats": dict(skip_stats),
                        "per_exp": per_exp, "paired": paired}, f,
                       ensure_ascii=False, indent=2)
         print(f"\njson: {args.json_out}")
