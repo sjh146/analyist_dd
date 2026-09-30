@@ -58,6 +58,46 @@ def _create_labels(df: pd.DataFrame) -> np.ndarray:
     return labels
 
 
+def _create_labels_relative(df: pd.DataFrame, horizon: int = 5,
+                            smooth: bool = False) -> np.ndarray:
+    """**시장상대(중앙값)** h일 선행수익 라벨 — champion_robust_eval._make_labels(kind="rel") 과
+    같은 정의다(그날 횡단면 중앙값 대비 위=1 / 아래=0).
+
+    왜 추가하는가(2026-10-01, CG9 A단계):
+      * 배포 챔피언은 **절대 1일 선행 종가 방향**(h1)으로 학습됐는데 트레이더 보유기간은 5일이고,
+        승격·평가 경로(champion_robust_eval)의 라벨은 **h5 시장상대 중앙값**이다 → 학습 과제와
+        배포 목표가 다르다. 이 옵션은 그 격차를 닫는 유일한 배포 가능 레버다(추론 계약 무변경).
+      * 종목별 시계열 정렬은 호출자가 보장한다(df 는 이미 date 오름차순으로 정렬돼 있다).
+      * smooth=True 면 t→t+1..t+h 각 시점 수익률의 **평균**을 쓴다(5일 보유와 정합, 스윕 LB_smooth).
+      * 라벨이 없는 마지막 h일은 0 으로 둔다 — 기존 `_create_labels`(절대 h1)도 마지막 행을 0 으로
+        두는 것과 같은 관례이며, 평가 경로는 purge 로 그 구간을 제외한다.
+    """
+    labels = np.zeros(len(df), dtype=int)
+    if "stock_code" not in df.columns or "price" not in df.columns or "date" not in df.columns:
+        return labels
+    price = df["price"].to_numpy(dtype=np.float64)
+    fwd = np.full(len(df), np.nan, dtype=np.float64)
+    for _code, gidx in df.groupby("stock_code", sort=False).groups.items():
+        idx = np.asarray(gidx, dtype=int)
+        p = price[idx]
+        n = len(p)
+        vals = np.full(n, np.nan, dtype=np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            if smooth:
+                for j in range(n):
+                    ks = [k for k in range(1, horizon + 1) if j + k < n]
+                    if ks:
+                        vals[j] = float(np.mean([p[j + k] / p[j] - 1.0 for k in ks]))
+            else:
+                for j in range(n - horizon):
+                    vals[j] = p[j + horizon] / p[j] - 1.0
+        fwd[idx] = vals
+    med = pd.Series(fwd).groupby(df["date"].to_numpy()).transform("median").to_numpy()
+    ok = np.isfinite(fwd) & np.isfinite(med)
+    labels[ok] = (fwd[ok] > med[ok]).astype(int)
+    return labels
+
+
 def _add_cross_sectional_ranks(df: pd.DataFrame) -> pd.DataFrame:
     """Batch-level cross-sectional ranks, replicating
     FeaturePipeline.compute_cross_sectional_ranks / Trainer (trainer.py:107-118)."""
@@ -102,8 +142,18 @@ def retrain_champion(
     seed: int = 0,
     data_start: Optional[str] = None,
     data_end: Optional[str] = None,
+    label_kind: str = "h1_direction",
+    horizon: int = 5,
+    model_params: Optional[dict] = None,
 ) -> dict:
     """Core retrain (DB-free, testable): train 3 models on ONE canonical matrix.
+
+    label_kind(기본 "h1_direction" = **현행 동작 그대로**):
+      * "h1_direction" — 절대 1일 선행 종가 방향(기존 챔피언 라벨)
+      * "rel"          — h일 선행수익의 **시장상대 중앙값** 분할(평가 경로와 같은 정의)
+      * "rel_smooth"   — 위 + 1~h일 수익률 평균(보유기간 정합)
+    model_params(기본 None = 현행): {"max_depth":1,"learning_rate":0.05} 처럼 주면 각 모델의
+      params 사전에 **있는 키만** 덮어쓴다(스윕 recipe 의 depth·lr 을 생산 경로로 옮기는 통로).
 
     Returns a summary dict with per-model val AUC, ensemble AUC, feature count.
     """
@@ -113,7 +163,12 @@ def retrain_champion(
 
     df = _add_cross_sectional_ranks(df)
     df = df.sort_values("date").reset_index(drop=True)
-    y = _create_labels(df)
+    if label_kind == "h1_direction":
+        y = _create_labels(df)
+    elif label_kind in ("rel", "rel_smooth"):
+        y = _create_labels_relative(df, horizon=horizon, smooth=(label_kind == "rel_smooth"))
+    else:
+        raise ValueError(f"unknown label_kind: {label_kind!r}")
 
     # Canonical contract: the FULL sorted feature list, same order the screener
     # builds. Missing columns are 0-filled on BOTH sides (train + inference).
@@ -139,6 +194,12 @@ def retrain_champion(
     aucs: dict = {}
     saved: List[str] = []
     for name, model in models:
+        if model_params:
+            # 각 모델 params 에 **있는 키만** 덮어쓴다(없는 키는 조용히 무시 — 모델별 파라미터 이름이
+            # 다르기 때문: xgb/lgb=max_depth, catboost=depth). 기본 None 이면 현행과 비트 동일.
+            for _k, _v in model_params.items():
+                if _k in getattr(model, "params", {}):
+                    model.params[_k] = _v
         try:
             metrics = model.train(X_train, y_train, X_val, y_val)
             auc = 0.5
@@ -197,6 +258,11 @@ def retrain_champion(
         # 자동 제외**한다(2026-09-29 실측: 겹친 창 0.5883 vs 학습구간 밖 0.4914).
         "data_start": data_start,
         "data_end": data_end,
+        # 라벨 정의 기록(2026-10-01) — 같은 모델을 두고 '무엇으로 학습했는가'를 나중에 확인할 수
+        # 있어야 A/B 해석이 성립한다(CG36 교훈: 라벨 종류를 안 적어 두면 자기 과제 점수를 오독한다).
+        "label_kind": label_kind,
+        "horizon": int(horizon),
+        "model_params_override": dict(model_params) if model_params else None,
     }
     meta_path = os.path.join(out_dir, f"training-result-{datetime.now():%Y%m%d-%H%M%S}.json")
     with open(meta_path, "w") as f:
@@ -217,6 +283,16 @@ def main() -> None:
     ap.add_argument("--start-date", default=None,
                     help="학습 데이터 시작일. 기본 None = end_date - days")
     ap.add_argument("--stock-limit", type=int, default=200)
+    ap.add_argument("--label-kind", dest="label_kind",
+                    choices=("h1_direction", "rel", "rel_smooth"), default="h1_direction",
+                    help="학습 라벨 정의. 기본 h1_direction = 현행(절대 1일 선행 종가 방향). "
+                         "rel = h일 선행수익의 시장상대 중앙값(평가 경로 champion_robust_eval 과 "
+                         "같은 정의), rel_smooth = 위 + 1~h일 수익률 평균(5일 보유 정합).")
+    ap.add_argument("--horizon", type=int, default=5,
+                    help="rel/rel_smooth 라벨의 선행 거래일 수(기본 5 = 트레이더 보유기간)")
+    ap.add_argument("--model-params", dest="model_params", default=None,
+                    help='모델 params 덮어쓰기 JSON. 예: \'{"max_depth":1,"learning_rate":0.05}\'. '
+                         "각 모델 params 에 있는 키만 적용된다(기본 None = 현행).")
     ap.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     ap.add_argument("--val-frac", type=float, default=0.2)
     ap.add_argument("--n-estimators", type=int, default=500)
@@ -254,7 +330,10 @@ def main() -> None:
             return
         meta = retrain_champion(df, out_dir=args.out_dir,
                                 val_frac=args.val_frac, n_estimators=args.n_estimators,
-                                data_start=start_s, data_end=end_s)
+                                data_start=start_s, data_end=end_s,
+                                label_kind=args.label_kind, horizon=args.horizon,
+                                model_params=(json.loads(args.model_params)
+                                              if args.model_params else None))
         print(json.dumps(meta, ensure_ascii=False, indent=2))
         print(f"CHAMPION -> {os.path.abspath(args.out_dir)}")
 

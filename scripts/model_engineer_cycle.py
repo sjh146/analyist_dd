@@ -525,6 +525,17 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/ml_result.json")
+    if kind == "champion_seed_family":
+        # 다중 시드(유니버스) 짝 판정 집계(scripts/champion_seed_family_agg.py --agg-out). CG50/CG51.
+        # 왜 전용 metric 인가(실측 2026-10-01): 같은 모델·같은 창에서 유니버스 정체만 바꿔도
+        # 폴드평균이 0.5042~0.5439(std 0.0133)로 움직여 사전문턱 +0.02 가 1.50σ 였다(CG48/49)
+        # → 단일 유니버스 Δ 는 증거가 아니다. 시드 5개를 **짝으로** 비교해야 SE 0.006 으로 줄어
+        # 문턱이 3σ 위에 선다. 집계기가 만든 단일 JSON 을 이 metric 이 읽는다(--agg-out).
+        out = _arg(command or "", "--agg-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: champion_seed_family 인데 커맨드에 --agg-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -642,6 +653,74 @@ def parse_champion_robust(path, mtime_floor) -> dict:
     }
 
 
+def parse_champion_seed_family(path, mtime_floor) -> dict:
+    """다중 시드(유니버스) 짝 판정 집계(champion_seed_family_agg.py)를 파싱한다.
+
+    ⚠ per_exp 를 만들지 않는다 — scoreboard 는 원장의 per_exp 전체를 'arm 폴드 평균'으로 읽어
+    best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 시드별 값은 `seeds` 로 싣는다.
+
+    판정에 쓰는 값은 `paired`(짝 Δ 평균·SE·t·양(+) 시드 수) 하나뿐이다 — 이게 이 metric 의
+    존재 이유다: 단일 유니버스 Δ 는 유니버스 교체 잡음(σ 0.0133)과 구분되지 않는다(CG48/49).
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--agg-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    paired = d.get("paired") or {}
+    if not paired:
+        return {"error": "paired 없음(집계 실패)", "measured_at": d.get("measured_at")}
+    arms = d.get("arms") or {}
+    return {
+        "measured_at": d.get("measured_at"),
+        "protocol": d.get("protocol"),
+        "family": d.get("family"),
+        "arms": arms,
+        "robust_auc": (arms.get(paired.get("challenger_arm")) or {}).get("mean"),
+        "baseline_auc": (arms.get(paired.get("base_arm")) or {}).get("mean"),
+        "seeds": d.get("seeds"),
+        "paired": paired,
+        "threshold": paired.get("threshold", 0.02),
+        "summary_mtime": mt,
+    }
+
+
+def judge_seed_family(item, parsed) -> tuple:
+    """다중 시드 짝 판정 — 사전 등록 규칙: 시드 ≥3, 짝 Δ평균 ≥ +0.02, 양(+) 시드 = 전부.
+
+    왜 judge_champion_baseline 이 아닌가: 그 판정기는 창 하나(또는 한 arm)의 AUC 를
+    `counterfactual_value` 와 비교한다. 여기서는 **시드별 짝 Δ 분포**(평균·SE·부호)가 판정
+    대상이라 SE·t·양(+) 비율을 함께 싣는다(CG38 교훈: 문턱 초과만으로 신호라 쓰지 말고 t·SE 를
+    함께 보라 — 창 3개면 SE 0.08 대라 어떤 Δ 도 구분 불가).
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    p = parsed.get("paired") or {}
+    n = int(p.get("n") or 0)
+    thr = float(p.get("threshold", 0.02))
+    dm = p.get("delta_mean")
+    detail = (f"시드 {n}개 짝 Δ 평균 {dm:+.4f} (SE {p.get('se')} · t {p.get('t')} · "
+              f"양(+) {p.get('pos_seeds')}) · 대조군 {parsed.get('baseline_auc')} vs "
+              f"챌린저 {parsed.get('robust_auc')} · 문턱 {thr:+.2f}")
+    if n < 3:
+        return "판정불가", f"시드 수 부족({n}<3) — SE 과대. {detail}", dm
+    if dm is None:
+        return "판정불가", f"짝 Δ 없음. {detail}", None
+    if dm >= thr and float(p.get("pos_frac") or 0) == 1.0:
+        return "신호있음", f"{detail} → 양(+) 시드 전부 · 문턱 초과", dm
+    if dm >= thr:
+        return "노이즈", f"{detail} → 문턱 명목 초과이나 부호 불일치", dm
+    return "노이즈", f"{detail} → 문턱 미달", dm
+
+
 def parse_champion_promote_dryrun(path, mtime_floor) -> dict:
     """승격 게이트 dry-run 요약(champion_promote --summary-out)을 파싱한다.
 
@@ -726,6 +805,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_robust(spath, mtime_floor)
     if kind == "champion_promote_dryrun":
         return parse_champion_promote_dryrun(spath, mtime_floor)
+    if kind == "champion_seed_family":
+        return parse_champion_seed_family(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -736,6 +817,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_champion_baseline(item, parsed)
     if kind == "champion_promote_dryrun":
         return judge_promote_dryrun(item, parsed)
+    if kind == "champion_seed_family":
+        return judge_seed_family(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 

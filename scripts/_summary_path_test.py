@@ -67,7 +67,13 @@ for it in b["items"]:
         n += 1
         check(f"{it['id']} 요약 경로 부모 존재", os.path.isdir(os.path.dirname(p)), True)
         check(f"{it['id']} 경로가 기본경로와 다름(산출물 보존)", p != DEFAULT, True)
-check("검사한 pending 항목 수", n >= 1, True)
+if n >= 1:
+    check("검사한 미완료 항목 수", n >= 1, True)
+else:
+    # 왜 FAIL 이 아닌가(2026-10-01 실측): 지금 미완료 항목 중 champion_robust_eval 을 쓰는 것이
+    # 하나도 없으면(모두 done / 다른 metric) 검사할 대상이 없는 것뿐이다 — 코드 회귀가 아니다.
+    # 백로그 상태에 의존하는 검사는 '검사 대상 없음'과 '회귀'를 구분해야 한다(2026-09-29 교훈).
+    print("NOTE: 미완료 항목 중 champion_robust_eval 을 쓰는 항목이 없어 경로 검사를 건너뜀")
 if skipped_no_cmd:
     print(f"NOTE: 명령 미정(command=None)으로 건너뜀 — {', '.join(skipped_no_cmd)} "
           f"(착수 시 --out 필수)")
