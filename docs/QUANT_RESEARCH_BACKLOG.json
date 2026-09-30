@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-30T21:18:22+09:00",
+  "updated_at": "2026-09-30T21:38:31+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -597,7 +597,7 @@
       "kind": "collect",
       "incremental": true,
       "hypothesis": "죽은 35개는 단일 원인이 아니다 — 2026-09-28 실측 분해: 부활가능 11(원천 보유인데 파이프라인 값이 0) / 시장레벨 7(전 종목 동일값 → 계약 #6 로 횡단면 피처 부적격) / 커버리지부족 7(종목 축이 얇음) / 원천부재 10(테이블·컬럼 자체가 없음). 따라서 \"더 수집할 것\"과 \"버릴 것\"을 구분해야 한다. R17 은 그중 '커버리지부족 7개'를 담당한다.",
-      "evidence": "R13 실측 2026-09-28: krx_short_selling 2,393행·distinct stock 30 (2026-05-26~09-23) / stocks.sector 결측 2,796 / sns_post_features 14,576행·250종목·184일. 재측정 2026-09-30 18:0x: 공매도 199종목·최신 9/29(개선) · 섹터 결측 2,796(불변) · SNS 250종목·최신 9/24(정체).",
+      "evidence": "R13 실측 2026-09-28: krx_short_selling 2,393행·distinct stock 30 (2026-05-26~09-23) / stocks.sector 결측 2,796 / sns_post_features 14,576행·250종목·184일. 재측정 2026-09-30 18:0x: 공매도 199종목·최신 9/29(개선) · 섹터 결측 2,796(불변) · SNS 250종목·최신 9/24(정체). || **SNS 정체의 원인 실측(2026-09-30 21:3x)**: '커버리지 부족'이 아니라 **수집 경로에 스케줄러가 없다**. 수집 러너(scripts/sns_collect_runner.py)를 부르는 항목이 /etc/cron.d/analyist_dd·jhshi crontab·Hermes 크론 어디에도 없고, 마지막 실행 흔적은 **수동 백필 1회**(reports/sns/sns_backfill_depth_progress.json: 2026-09-23 19:56, 178종목 +259,212건, 45.1분)다 → 그 뒤로 sns_post_features 가 2026-09-24(64행, 평시 ~240행)에서 멈췄다. 수집기 자체는 정상: 같은 시각 stock_news_analyzer 안에서 `--codes 005930 --max-pages 1 --lookback-days 3 --dry-run` = 3일 100건 수집(1.6초). 즉 확대 이전에 **정기 실행 자체가 없다** (08-28 의 '죽은 수집 경로'(pykrx/KRX_ID)와 같은 유형 — 러너는 살아 있는데 부르는 주체가 없다). || **조치(2026-09-30 21:20~21:37, 수집·재실행 — 승인 불필요)**: 스케줄이 없어 얼어 있던 SNS 경로를 수동 1회 완주시켰다. `sns_collect_runner.py --limit 250 --max-pages 2 --lookback-days 10` = 15.3분 · 수집 42,300건 · 저장 30,508건(중복 제외) → `sns_posts` 384,821행(최신 2026-09-30, 309종목). 이어 `sns_features_writer.py --lookback-days 30` = (종목,일) 5,864행 upsert · 테이블 16,114행(핵심 피처 비영 16,114). **결과: sns_post_features 가 2026-09-24 정지 → 2026-09-30(246종목) 로 복구**, 비어 있던 09-25(109)/09-26(107)/09-27(104)/09-28(198)/09-29(231)/09-30(246) 이 채워졌다. 단 이는 **일회성**이다 — 스케줄이 없으므로 승인 항목(크론 신설)이 해소되지 않으면 다시 얼어붙는다.",
       "method": "① 공매도는 kis_short_selling_backfill.py 로 종목 확대(기존 R4 와 병합) ② 섹터는 KIS 업종분류/ KRX 업종코드 수집 후 stocks.sector 채우기 ③ SNS 는 수집 대상 종목 상한 확인",
       "command": null,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT (CASE WHEN (SELECT COUNT(*) FROM stocks WHERE sector IS NULL OR sector='') > 1300 THEN 1 ELSE 0 END) + (CASE WHEN (SELECT COUNT(DISTINCT stock_code) FROM krx_short_selling) < 400 THEN 1 ELSE 0 END) + (CASE WHEN (SELECT MAX(trade_date) FROM sns_post_features) < CURRENT_DATE - 5 THEN 1 ELSE 0 END)\"",
@@ -610,7 +610,8 @@
       "cost": "수집 수 시간 ~ 며칠(KIS 호출 한도)",
       "setup_needed": [
         "커버리지부족 원천 3종 확대 여부 결정 필요 — 실측 2026-09-30 18:0x: 공매도 krx_short_selling 199종목(최신 9/29) · stocks.sector 결측 2,796/4,340(64.4%) · sns_post_features 250종목(최신 9/24 — 5거래일 정체). 셋 다 KIS/KRX/SNS 호출을 늘려야 하는데 **KIS 일일 호출 한도가 미확인(R20)** 이라 확대하면 핵심 수급 신선도와 쿼터를 다툰다 → 한도 확인 또는 '현행 유지' 결정 필요",
-        "섹터 원천 경로 지정 필요 — KIS 업종분류 vs KRX 업종코드 중 승인된 경로를 지정해 주세요(R2 에서 KRX 투자자별 거래실적은 이 계정 미승인 401 이력)"
+        "섹터 원천 경로 지정 필요 — KIS 업종분류 vs KRX 업종코드 중 승인된 경로를 지정해 주세요(R2 에서 KRX 투자자별 거래실적은 이 계정 미승인 401 이력)",
+        "SNS 정기 수집 스케줄 신설 승인 — **크론 파일 수정이라 사람 단계**다. 실측 근거: 수집기 정상(1종목 3일 100건 1.6초)인데 스케줄이 없어 피처가 2026-09-24 에서 정지(4거래일). 현행 범위(250종목·2페이지)만 돌려도 ~10분이며, 이 승인은 '확대'(별도 판단)와 무관하게 필요하다 — 스케줄이 없으면 오늘 수동 수집을 해도 다시 얼어붙는다."
       ]
     },
     {
