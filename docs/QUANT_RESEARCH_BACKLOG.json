@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-30T20:02:17+09:00",
+  "updated_at": "2026-09-30T21:18:22+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -561,18 +561,32 @@
     {
       "id": "R22",
       "title": "[트레이더 환류] close 스크리너 signal_date 가 9/23 에 고정 — 최신 거래일(9/28) 반영 필요",
-      "status": "backlog",
+      "status": "done",
       "priority": 7,
       "from_trader": "feed-signal-lag",
       "affects_model": true,
       "hypothesis": "close 스크리너 산출물의 데이터 격자가 9/23 에 멈춰 있어 9/28(거래일) 종가가 후보에 반영되지 않았다. 발행 파이프라인은 정상(9/29 08:40 발행·계약 위반 0)이지만 내용이 낡았다.",
-      "command": null,
-      "metric": null,
-      "check": null,
+      "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/trader_cycle.py --probe feed_signal_lag",
+      "metric": "feed_signal_lag(일) — 피드 후보 signal_date 중 가장 낡은 전략의 경과일",
+      "check": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/trader_cycle.py --probe feed_signal_lag",
       "evidence": "트레이더 실측 2026-09-29 09:4x: data/feed/screener_latest.json close 20건 signal_date=2026-09-23(경과 6일) vs swing 20건 2026-09-28(경과 1일). `python3 scripts/trader_cycle.py --probe feed_signal_lag` = 6.0 (임계 4 초과) → 트레이더 백로그 T7 로 게이트 신설. close_price 는 주문 지정가로 그대로 쓰인다.",
-      "success": null,
+      "success": "close·swing 후보의 signal_date 경과일이 4일 이내로 유지되고, 넘으면 그 전략 경로가 차단되기 전에 틱이 보고한다",
       "cost": null,
-      "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다."
+      "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다.",
+      "check_target": {
+        "op": "<=",
+        "value": 4,
+        "unit": "일(경과일). 소비자 게이트 runner.config.candidate_max_age_days.close=4 와 같은 문턱"
+      },
+      "check_note": "판정은 **소비자(트레이더)의 프로브**를 그대로 쓴다 — 발행 시각(generated_at)이 아니라 후보의 근거 데이터가 얼마나 낡았는지를 재는 값이라 종전 계약 검사(파일 mtime)의 사각지대를 덮는다. 문턱 4 는 소비자 게이트와 동일: 4 를 넘으면 후보가 STALE 로 차단돼 그 전략 경로가 조용히 닫힌다(close_price 는 주문 지정가로 그대로 쓰이므로 낡은 종가는 낡은 지정가다).",
+      "result": "**해소(2026-09-30 21:2x 실측)** — close 스크리너 signal_date 가 **2026-09-29**(발행일 2026-09-30) 로 갱신됐다. 종전 6일 고정(09-23)이 아니라 정상 1일이다. 근거: ① 저장소 피드 직접 파싱 — close 20건 signal_date={'2026-09-29'}, swing 20건 {'2026-09-29'}, generated_at 2026-09-30T20:30:04+09:00. ② 트레이더 프로브 `--probe feed_signal_lag` = **1.0 ≤ 4 → 충족**. ③ 발행 로그 `cron_close_job.log`·`cron_feed_publish.log` 09-30 두 회차 모두 'signal_date 1~1일 전' 을 찍는다. 데이터 경로(close_job 14:40 → feed_publish 20:30)가 매 회차 갱신하므로 재발 감시만 남긴다 — check 를 항목에 넣어 다음 사이클부터 자동 판정.",
+      "attempts": [
+        {
+          "ts": "2026-09-30T21:2x:00+09:00",
+          "rc": 0,
+          "detail": "R22: 1.0 <= 4 → 충족"
+        }
+      ]
     },
     {
       "id": "R17",
@@ -703,17 +717,17 @@
       "recurring": true,
       "affects_model": false,
       "hypothesis": "R19 의 정렬 수정으로 굶주림은 사라졌지만, 그 항목이 check 를 통과하면 구동기가 status=done 으로 적어 **감시가 사라진다**(회전을 멈춘 주체를 아무도 못 본다). 반대로 감시를 위해 수급 러너(700콜/25분)를 매 틱 돌리면 KIS 일일 한도(미확인, R20 승인 항목)를 모니터링이 태운다. → 수집은 하루 1회 크론(kis_supply.sh, 16:20, 상한 500콜)이 계속하고, 감시는 읽기 전용 프로브(DB SELECT 3회)로 분리한다.",
-      "evidence": "실측 2026-09-29 04:02~04:28 (R19 재실행): rc=0 완주 25.6분 / foreign_institutional 641→786종목 · 115,900→123,220행(+7,320) / 최신일(9/28) 보유 250→579종목. 같은 시각 프로브 실측: 종목별 자기 시세 대비 최대 지연 1거래일, 뒤처진 종목 291개(회전 여지). 옛 check(시장 최신일 기준)는 거래정지 1종목(008290 원풍물산 — market_data·수급 모두 9/18 정지) 때문에 MAX 가 4로 고정돼 통과 불가였다 → 종목별 자기 시세 기준으로 교체(같은 SQL 을 R19 check 에도 반영). | 2026-09-29 20:0x 재측정(개정 프로브): 회전 유니버스 800종목 — 785종목 지연 0 / 15종목 지연 1 → 최대 1거래일(정상). 모델 유니버스(R3 800) 최대 2거래일/뒤처진 43개(그중 220종목은 회전 유니버스 밖). 테이블 전체 1,034종목 최대 3거래일/뒤처진 249개 — 판정에서 제외(회전 담당 밖). | [2026-09-29 22:0x 실측] 회전 유니버스 798종목: 최대 지연 **1거래일** / 뒤처진 **792개** / 수급 행 없음 6개. 모델 유니버스(R3) 최대 2거래일·뒤처진 611개 / 테이블 전체(1,034종목) 최대 3거래일·뒤처진 1,032개(판정 제외). check(MAX 지연 ≤ 2)는 충족이지만 **뒤처진 792개**라는 폭 정보가 함께 찍힌다 — 이 폭이 곧 '당일 수급 즉시 확보' 여부다(수집기 가드 수리 → 로스터 250종목이 D+0 로 바뀐다).",
+      "evidence": "실측 2026-09-29 04:02~04:28 (R19 재실행): rc=0 완주 25.6분 / foreign_institutional 641→786종목 · 115,900→123,220행(+7,320) / 최신일(9/28) 보유 250→579종목. 같은 시각 프로브 실측: 종목별 자기 시세 대비 최대 지연 1거래일, 뒤처진 종목 291개(회전 여지). 옛 check(시장 최신일 기준)는 거래정지 1종목(008290 원풍물산 — market_data·수급 모두 9/18 정지) 때문에 MAX 가 4로 고정돼 통과 불가였다 → 종목별 자기 시세 기준으로 교체(같은 SQL 을 R19 check 에도 반영). | 2026-09-29 20:0x 재측정(개정 프로브): 회전 유니버스 800종목 — 785종목 지연 0 / 15종목 지연 1 → 최대 1거래일(정상). 모델 유니버스(R3 800) 최대 2거래일/뒤처진 43개(그중 220종목은 회전 유니버스 밖). 테이블 전체 1,034종목 최대 3거래일/뒤처진 249개 — 판정에서 제외(회전 담당 밖). | [2026-09-29 22:0x 실측] 회전 유니버스 798종목: 최대 지연 **1거래일** / 뒤처진 **792개** / 수급 행 없음 6개. 모델 유니버스(R3) 최대 2거래일·뒤처진 611개 / 테이블 전체(1,034종목) 최대 3거래일·뒤처진 1,032개(판정 제외). check(MAX 지연 ≤ 2)는 충족이지만 **뒤처진 792개**라는 폭 정보가 함께 찍힌다 — 이 폭이 곧 '당일 수급 즉시 확보' 여부다(수집기 가드 수리 → 로스터 250종목이 D+0 로 바뀐다). | [2026-09-30 21:1x 실측 — 판정 기준 3차 수정] **같은 DB 상태가 다른 판정을 받았다**: 20:12 틱(시장 최신 09-29) 최대 지연 2 = 충족 → 21:13 틱(수급 142,996행·최신 09-29 **그대로**, 저녁 파이프라인이 09-30 일봉을 적재해 시장 최신일만 09-30) 최대 지연 3 = 미달. 수집 러너는 16:20 에 돌고 그 시각 KIS 가 준 최신일까지만 담으므로(실측 09-30 16:20 실행 as-of=09-29) 이 증가는 수집 결함이 아니라 **시계 차이**다 — 기준일(시장 최신일)이 수집 주기와 무관하게 밀리면 문턱이 아니라 잡음이 된다. → 판정 = max(① 회전 유니버스가 **실제로 도달한** 최신 수급일 기준 상대 지연, ② 시장 최신일−수급 최신일(T+1 정상=1)+1). 수정 후 실측: 시장 09-30 / 수급 도달 09-29 · 상대 최대 2 · 정지 신호 2 → 판정 **2 = 충족**(20:12 값과 동일해졌다). 회귀 7건 `tests/test_r21_supply_lag_probe.py`(문턱 경계·기준일 이동 무감·회전 둔화·수집 정지·수급 최신일 부재 fail-closed).",
       "method": "① 2시간 틱마다 프로브 실행 ② check 로 '종목별 지연 최대 ≤ 2거래일' 판정 ③ 미달이면 원인을 종목 단위로 분해(거래정지 vs 수집 정지)해 보고 — 수집 정지면 KIS 호출/자격증명 문제로 보고 사람 항목화",
       "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r21_supply_lag_probe.py",
       "check": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r21_supply_lag_probe.py",
       "check_target": {
         "op": "<=",
         "value": 2,
-        "unit": "거래일(종목별 자기 시세 대비 최대 지연)"
+        "unit": "거래일(회전 유니버스 상대 지연과 수집 정지 신호 중 큰 값)"
       },
-      "check_note": "판정 모집단 = **회전 유니버스**(유동성 상위 800 — 크론 kis_supply.sh 가 실제로 담당하는 집합, kis_supply_backfill.liquidity_universe 와 같은 정의). 종전 check 는 foreign_institutional **테이블 전체**를 분모로 썼는데, 그 안에는 회전이 애초에 담당하지 않는 코드 238종목이 섞여 있어 회전이 완벽히 돌아도 지연이 자란다(실측 2026-09-29 20:0x: 전체 최대 3거래일 vs 회전 유니버스 최대 1거래일). 거래정지 종목은 종목별 자기 시세 기준으로 이미 제외된다. 모델 유니버스(R3 800)·전체 테이블 수치는 프로브가 정보 줄로 함께 찍는다(원인 분해용, 판정 제외). recurring=true — 목표 충족·미달·크래시 어느 경우에도 pending 을 유지한다(감시가 큐에서 사라지면 실명). 우선순위 6 은 의도적이다: 매 틱 pending 인 항목을 R3(3)·R12(4)보다 앞에 두면 점진 수집이 영구 굶주린다.",
-      "cost": "DB SELECT 3회 / 틱 (~0.1초, KIS 호출 0회)",
+      "check_note": "판정 모집단 = **회전 유니버스**(유동성 상위 800 — 크론 kis_supply.sh 가 실제로 담당하는 집합, kis_supply_backfill.liquidity_universe 와 같은 정의). 종전 check 는 foreign_institutional **테이블 전체**를 분모로 썼는데, 그 안에는 회전이 애초에 담당하지 않는 코드 238종목이 섞여 있어 회전이 완벽히 돌아도 지연이 자란다(실측 2026-09-29 20:0x: 전체 최대 3거래일 vs 회전 유니버스 최대 1거래일). 거래정지 종목은 종목별 자기 시세 기준으로 이미 제외된다. 모델 유니버스(R3 800)·전체 테이블 수치는 프로브가 정보 줄로 함께 찍는다(원인 분해용, 판정 제외). recurring=true — 목표 충족·미달·크래시 어느 경우에도 pending 을 유지한다(감시가 큐에서 사라지면 실명). 우선순위 6 은 의도적이다: 매 틱 pending 인 항목을 R3(3)·R12(4)보다 앞에 두면 점진 수집이 영구 굶주린다. **판정 기준 3차 수정(2026-09-30)**: 기준일을 '시장 최신일'로 두면 저녁 일봉 적재만으로 판정이 2→3 으로 뒤집혔다(수급 데이터는 동일). 그래서 ① 상대 지연은 '회전 유니버스가 실제 도달한 최신 수급일' 기준으로 재고, ② 수집이 통째로 멈춘 경우는 '시장 최신일 − 수급 최신일 + 1' 로 따로 잡는다. 두 항의 max 가 판정값이며 정상 상태(T+1 수집·250종목/일 회전)에서 정확히 2 = 문턱과 만난다.",
+      "cost": "DB SELECT 5회 / 틱 (~2.6초, KIS 호출 0회)",
       "success": "회전 유니버스의 수급 지연이 상한(2거래일) 안에 머물고, 벗어나면 수집 정지인지 거래정지인지 종목 단위로 보고된다(모델 유니버스·전체 수치는 정보 줄로 병기)",
       "attempts": [
         {
@@ -738,7 +752,7 @@
       "incremental": true,
       "affects_model": false,
       "hypothesis": "자기신고가 없는 수집 경로에서는 '조용한 0행 적재'(2026-09-24 유형: 파서 키 불일치로 +0행을 적재하고도 exit 0 → 진행파일에 '완료')를 DQ 메트릭이 잡을 수 없다. 2시간 틱이 돌리는 수급·피처 빌더 4개만 자기신고를 남기고, 크론이 직접 돌리는 러너 7개는 흔적이 없다.",
-      "evidence": "실측 2026-09-29 21:2x: dq_runner_claim 48h = 4개 러너(kis_supply_backfill · kis_supply_extend_history · build_supply_market_features · build_macro_features). scripts/r23_claim_audit.py 실측: 자기신고 참조 0건인 크론 직행 수집 러너 **7개**(9개 경로) — 일봉 KRX(scripts/krx_daily.py) · KIS 일봉/분봉(services/kis-collector/kis_app/main.py) · KRX 지수·파생(scripts/krx_derivatives_collect.py) · KIS 공매도(scripts/kis_short_selling_backfill.py) · KIS 프로그램매매(scripts/kis_program_trading_collect.py) · 거시 ECOS/FRED(scripts/macro_backfill.py) · 데이터 갭 백필(scripts/data_gap.py).",
+      "evidence": "실측 2026-09-29 21:2x: dq_runner_claim 48h = 4개 러너(kis_supply_backfill · kis_supply_extend_history · build_supply_market_features · build_macro_features). scripts/r23_claim_audit.py 실측: 자기신고 참조 0건인 크론 직행 수집 러너 **7개**(9개 경로) — 일봉 KRX(scripts/krx_daily.py) · KIS 일봉/분봉(services/kis-collector/kis_app/main.py) · KRX 지수·파생(scripts/krx_derivatives_collect.py) · KIS 공매도(scripts/kis_short_selling_backfill.py) · KIS 프로그램매매(scripts/kis_program_trading_collect.py) · 거시 ECOS/FRED(scripts/macro_backfill.py) · 데이터 갭 백필(scripts/data_gap.py). | 재확인 2026-09-30 21:1x (scripts/r23_claim_audit.py): 동일하게 누락 **7개 러너(9개 경로)** — 일봉 KRX·KIS 일봉(정규/폴백)·KIS 분봉·KRX 지수·파생·KIS 공매도·KIS 프로그램매매·거시 ECOS/FRED·데이터 갭 백필. 보강 방식은 러너 내부 `dq_claim.record_claim`(권장 — 크론 파일 무수정, 9개 경로 전부 소유 파일) 이며 크론 래퍼(run_with_claim) 방식은 크론 파일 수정이라 사람 승인 항목이다. 다음 사이클에 저작한다.",
       "method": "① 매 틱 재고조사(읽기 전용) ② 보강은 다음 사이클: 러너 내부에서 dq_claim.record_claim 을 부르는 방식(권장 — 크론 파일 수정 불필요, 자격증명·좌표 문제 없음) ③ 크론 래퍼에서 run_with_claim 으로 감싸는 방식은 크론 파일 수정이라 사람 승인 항목으로 올린다 ④ 보강 후 check 가 0 이 되어 done.",
       "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r23_claim_audit.py",
       "check": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r23_claim_audit.py",
