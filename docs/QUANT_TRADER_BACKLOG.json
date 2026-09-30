@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-30T13:25:07+09:00",
+  "updated_at": "2026-10-01T08:26:38+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -156,7 +156,7 @@
     {
       "id": "T6",
       "title": "브리지 감독 재기동 churn — 무백오프 90초 재기동",
-      "status": "pending",
+      "status": "failed",
       "priority": 6,
       "command": "python3 scripts/trader_cycle.py --probe bridge_churn",
       "metric": "bridge_restarts_peak_per_hour_24h",
@@ -174,7 +174,7 @@
         "measured_at": "2026-09-29 09:40"
       },
       "result": {
-        "ts": "2026-09-29T09:40:21+09:00",
+        "ts": "2026-09-30T15:25:35+09:00",
         "value": 37.0,
         "check": "37.0 <= 4.0",
         "verdict": "미달",
@@ -186,7 +186,7 @@
     {
       "id": "T7",
       "title": "피드 후보 signal_date 신선도 — 낡은 종가가 지정가로 쓰이는가",
-      "status": "pending",
+      "status": "done",
       "priority": 7,
       "command": "python3 scripts/trader_cycle.py --probe feed_signal_lag",
       "metric": "feed_signal_lag_days",
@@ -204,12 +204,42 @@
         "measured_at": "2026-09-29 09:41"
       },
       "result": {
-        "ts": "2026-09-29T09:41:16+09:00",
-        "value": 6.0,
-        "check": "6.0 <= 4.0",
+        "ts": "2026-09-30T15:36:10+09:00",
+        "value": 1.0,
+        "check": "1.0 <= 4.0",
+        "verdict": "충족",
+        "rc": 0,
+        "stdout_tail": "1.0",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "id": "T8",
+      "title": "피드 지정가가 최신 종가와 벌어졌는가 (close_price 편차)",
+      "status": "failed",
+      "priority": 8,
+      "command": "python3 scripts/trader_cycle.py --probe feed_price_dev",
+      "metric": "feed_price_dev_pct",
+      "check": {
+        "op": "<=",
+        "value": 1.0
+      },
+      "hypothesis": "T7 은 `signal_date`(날짜)만 본다 → 날짜가 신선해도 **가격 자체가 낡은** 발행물을 통과시킨다. `close_price` 는 주문 지정가로 그대로 쓰이므로 편차가 곧 지정가 오차다.",
+      "evidence": "2026-10-01 08:22 발행분(휴장일) 실측: close 20건 중 **16건이 최신(09-30) 종가와 1% 초과** · 최대 **+10.55%**(462510 지정가 4,035 vs 09-30 종가 3,650) · 평균 +0.68%. 같은 발행물 swing 20건은 **전부 0.00%** — swing 산출물에 close_price 가 없어 발행측이 market_data 최신 종가로 채우기 때문. 즉 결측 보정 경로만 최신가를 쓰고 값이 있으면 낡은 값을 그대로 통과시키는 **비대칭**이다.",
+      "success": "피드 후보 close_price 의 최신 종가 대비 최대 절대편차 <= 1%",
+      "cost": "저(docker exec psql 1회, 약 13초)",
+      "note": "트레이더 소유(피드 계약·게이트). 프로브 `--probe feed_price_dev` 신설(2026-10-01). 수리 방향(발행측): close 후보도 결측 보정과 같은 경로로 최신 종가를 채우거나, 최소한 편차가 큰 후보를 차단/표시한다. 근본 원인(close 스크리너가 신호일 종가를 지정가로 고정)은 리서처 소유 → R22 후속.",
+      "provenance": {
+        "source": "trader_cycle(preopen 크론) 2026-10-01 08:2x",
+        "measured_at": "2026-10-01 08:2x"
+      },
+      "result": {
+        "ts": "2026-10-01T08:26:38+09:00",
+        "value": 10.547945205479458,
+        "check": "10.547945205479458 <= 1.0",
         "verdict": "미달",
         "rc": 0,
-        "stdout_tail": "6.0",
+        "stdout_tail": "10.547945205479458",
         "stderr_tail": ""
       }
     }

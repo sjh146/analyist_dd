@@ -612,6 +612,92 @@ def feed_signal_lag_days() -> float | None:
     return worst
 
 
+LATEST_CLOSE_SQL = (
+    "SELECT DISTINCT ON (stock_code) stock_code, close_price FROM market_data "
+    "WHERE stock_code IN ({codes}) ORDER BY stock_code, trade_date DESC"
+)
+
+
+def feed_price_dev_pct() -> float | None:
+    """피드 후보 `close_price` 가 **최신 종가**와 벌어진 최대 절대편차(%).
+
+    WHY (T7 의 사각지대): T7(`feed_signal_lag`)은 `signal_date` 라는 **날짜**만 본다. 날짜가
+    신선해도 **가격 자체가 낡은** 경우는 통과한다. `close_price` 는 주문 지정가로 그대로 쓰이므로
+    편차가 곧 지정가 오차다.
+    실측(2026-10-01 08:22 발행, 휴장일): close 20건 중 **16건이 최신(09-30) 종가와 1% 초과** ·
+    최대 **+10.55%**(462510 지정가 4,035 vs 09-30 종가 3,650). 같은 발행물의 swing 20건은
+    전부 0.00% — swing 산출물에 `close_price` 가 없어 발행측이 market_data 최신 종가로 채우기
+    때문이다. 즉 **결측 보정 경로만 최신가를 쓰고, 값이 있으면 낡은 값을 그대로 통과**시키는
+    비대칭이 원인이다(수리는 발행측 소관).
+    판정은 최대 절대편차 하나로 한다. DB 를 못 읽으면 None(판정 불가) — 0.0 을 돌려 '통과'로
+    위장하지 않는다.
+    """
+    path = os.path.join(FEED_DIR, "screener_latest.json")
+    if not os.path.exists(path):
+        cands = sorted(glob.glob(os.path.join(FEED_DIR, "*.json")))
+        if not cands:
+            return None
+        path = cands[-1]
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    blocks = doc.get("candidates") or {}
+    if not isinstance(blocks, dict):
+        return None
+    rows = []
+    codes = set()
+    for _name, block in blocks.items():
+        items = block.get("items") if isinstance(block, dict) else block
+        if not isinstance(items, list):
+            continue
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            code = str(it.get("stock_code") or "")
+            if not re.fullmatch(r"\d{6}", code):      # A 접두어·오염 코드는 DB 조회 제외
+                continue
+            try:
+                price = float(it.get("close_price"))
+            except (TypeError, ValueError):
+                continue
+            if price <= 0:
+                continue
+            rows.append((code, price))
+            codes.add(code)
+    if not rows:
+        return None
+    q = LATEST_CLOSE_SQL.format(codes=",".join("'{0}'".format(c) for c in sorted(codes)))
+    try:
+        p = subprocess.run(["docker", "exec", "stock_postgres", "psql", "-U", "stock_user",
+                            "-d", "stock_trading", "-tA", "-F", "|", "-c", q],
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if p.returncode != 0:
+        return None
+    latest = {}
+    for line in (p.stdout or "").splitlines():
+        parts = line.strip().split("|")
+        if len(parts) != 2:
+            continue
+        try:
+            latest[parts[0]] = float(parts[1])
+        except ValueError:
+            pass
+    if not latest:
+        return None
+    worst = None
+    for code, price in rows:
+        ref = latest.get(code)
+        if not ref or ref <= 0:
+            continue
+        dev = abs(price / ref - 1.0) * 100.0
+        worst = dev if worst is None else max(worst, dev)
+    return worst
+
+
 BRIDGE_RESTART_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] started bridge")
 
 
@@ -677,6 +763,8 @@ def probe(name: str) -> float | None:
         return bridge_churn_peak_per_hour()
     if name == "feed_signal_lag":
         return feed_signal_lag_days()
+    if name == "feed_price_dev":
+        return feed_price_dev_pct()
     return None
 
 
@@ -690,6 +778,7 @@ PROBES = {
     "stale": "loop_state 갱신 지연(분). 장중 5분 초과면 감시 단절",
     "bridge_churn": "최근 24시간 안 시간당 브리지 재기동 최대치(회). 4 초과면 감독 churn",
     "feed_signal_lag": "피드 후보 signal_date 중 가장 낡은 전략의 경과일(일). 4 초과면 발행물이 낡은 데이터",
+    "feed_price_dev": "피드 close_price 와 최신 종가의 최대 절대편차(%). 1 초과면 지정가가 시장과 벌어짐",
 }
 
 
