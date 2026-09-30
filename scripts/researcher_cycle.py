@@ -460,33 +460,87 @@ def _recent_recurring_ids(minutes=RECUR_COOLDOWN_MIN):
     return ids
 
 
+def _last_run_map():
+    """id → 원장상 마지막 실행 시각(KST 벽시계 · tzinfo 제거). 기록 없는 id 는 **키가 없다**(= 가장 오래 굶은 항목).
+
+    tzinfo 를 떼는 이유: 원장 ts 는 대개 `+09:00` aware 지만 과거 행·테스트 픽스처에 naive 가 섞이면
+    naive/aware 비교가 `TypeError` 로 후보 선정을 죽인다(모두 KST 벽시계라 절대시각 비교에 문제 없음).
+    """
+    out = {}
+    try:
+        rows = base.load_ledger()
+    except Exception:   # noqa: BLE001 — 원장이 깨져도 후보 선정을 죽이지 않는다
+        return out
+    for r in rows:
+        try:
+            ts = datetime.fromisoformat(str(r.get("ts"))).replace(tzinfo=None)
+        except (TypeError, ValueError):
+            continue
+        iid = r.get("id")
+        if not iid:
+            continue
+        if iid not in out or ts > out[iid]:
+            out[iid] = ts
+    return out
+
+
+def _stale_ids(cands, last):
+    """후보 중 '자기보다 더 오래(또는 한 번도) 실행되지 않은 다른 후보'가 있는 id 집합.
+
+    WHY(실측 2026-10-01 02:0x): 쿨다운은 **벽시계** 기준이라 그 사이 틱이 부하·교차 락 가드로
+    소비되면 양보가 발동할 틱 자체가 없어 만료돼 버린다 — 원장 실측 R21 2건(20:12·02:00) /
+    **R23 0건**(계속 pending, 읽기 전용 0.05초 항목인데도 굶었다). 실행 여부를 '몇 분 지났나'가
+    아니라 '다른 후보보다 더 최근에 돌았나'로 비교하면 막힌 틱이 몇 번 끼든 회전이 성립한다.
+    """
+    epoch = datetime(1970, 1, 1)
+    out = set()
+    for i in cands:
+        mine = last.get(i["id"], epoch)
+        for j in cands:
+            if j["id"] != i["id"] and last.get(j["id"], epoch) < mine:
+                out.add(i["id"])
+                break
+    return out
+
+
 def pick_item(b, force=False):
-    """다음 실행 항목 — `base.next_item()` 과 같되 **최근 실행된 상시 감시를 뒤로 미룬다**.
+    """다음 실행 항목 — `base.next_item()` 과 같되 **상시 감시를 회전에서 양보시킨다**.
+
+    양보 조건 2가지: ① 최근 `RECUR_COOLDOWN_MIN` 분 내 실행(벽시계 쿨다운) ② 다른 실행 가능
+    후보가 나보다 **더 오래** 굶었음(원장 기준 · 한 번도 실행 안 된 항목이 가장 오래됨).
+    ②가 없으면 앞 번호 상시 감시가 큐 전체를 굶긴다(실측 2026-10-01 02:0x: R21 2건/R23 0건).
 
     미룬 결과 실행할 항목이 없으면(큐에 감시밖에 없고 그마저 방금 돌았다면) 감시를 다시 집는다 —
-    회전이 감시를 죽이면 안 된다. force 는 종전대로 쿨다운을 무시한다(운영자 명시 실행).
+    회전이 감시를 죽이면 안 된다. force 는 종전대로 쿨다운·회전을 무시한다(운영자 명시 실행).
     """
-    recent = _recent_recurring_ids() if not force else set()
-    if recent:
-        pend = sorted([i for i in b["items"] if i.get("status") == "pending"],
-                      key=lambda i: (i.get("priority", 99), i["id"]))
-        yielded = []
-        for i in pend:
-            if i.get("recurring") and i["id"] in recent:
-                yielded.append(i["id"])
-                continue
-            if not i.get("command"):
-                continue
-            blocked, why = base.eta_blocks(i)
-            if blocked:
-                log(f"{i['id']}: ETA 가드로 건너뜀 — {why}")
-                continue
-            if yielded:
-                log(f"양보: 상시 감시 {', '.join(yielded)} 가 최근 {RECUR_COOLDOWN_MIN}분 내 실행 →"
-                    f" {i['id']} 를 먼저 집는다(감시 굶주림 방지)")
-            return i
+    if force:
+        return base.next_item(b, force)
+    recent = _recent_recurring_ids()
+    pend = sorted([i for i in b["items"] if i.get("status") == "pending"],
+                  key=lambda i: (i.get("priority", 99), i["id"]))
+    runnable, yielded = [], []
+    for i in pend:
+        if not i.get("command"):
+            continue
+        blocked, why = base.eta_blocks(i)
+        if blocked:
+            log(f"{i['id']}: ETA 가드로 건너뜀 — {why}")
+            continue
+        runnable.append(i)
+    stale = _stale_ids(runnable, _last_run_map()) if runnable else set()
+    runnable_ids = {i["id"] for i in runnable}
+    for i in pend:
+        if i["id"] not in runnable_ids:
+            continue
+        if i.get("recurring") and (i["id"] in recent or i["id"] in stale):
+            yielded.append(i["id"])
+            continue
         if yielded:
-            log(f"실행 가능한 다른 pending 없음 → 최근 실행된 상시 감시 {', '.join(yielded)} 재실행")
+            log(f"양보: 상시 감시 {', '.join(yielded)} — 최근 {RECUR_COOLDOWN_MIN}분 내 실행이거나"
+                f" 다른 후보가 더 오래 굶음 → {i['id']} 를 먼저 집는다(감시 굶주림 방지)")
+        return i
+    if yielded:
+        log(f"실행 가능한 다른 pending 없음 → 상시 감시 {', '.join(yielded)} 재실행")
     return base.next_item(b, force)
 
 

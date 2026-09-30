@@ -87,10 +87,36 @@ def test_recent_ids_survives_broken_ledger(monkeypatch):
     assert rc._recent_recurring_ids() == set()
 
 
-def test_no_recent_run_falls_through_to_base_order(monkeypatch):
-    """쿨다운 대상이 없으면 종전 순서(priority, id) 그대로 — 회귀 없음."""
+def test_no_run_history_falls_through_to_base_order(monkeypatch):
+    """원장에 실행 기록이 전혀 없으면(모두 '가장 오래됨') 종전 순서(priority, id) 그대로."""
     b = _backlog(_item("R21", 6, recurring=True), _item("R23", 7))
     monkeypatch.setattr(rc, "_recent_recurring_ids", lambda *a, **k: set())
+    monkeypatch.setattr(rc.base, "load_ledger", lambda *a, **k: [])
+    assert rc.pick_item(b)["id"] == "R21"
+
+
+def test_recurring_yields_when_other_pending_never_ran(monkeypatch):
+    """쿨다운이 만료돼도(벽시계) 한 번도 실행 안 된 pending 이 있으면 감시가 양보한다.
+
+    WHY(실측 2026-10-01 02:0x): R21 실행 20:12 → 02:00 틱(348분 = 쿨다운 300분 초과)에서
+    쿨다운이 만료돼 R21 을 다시 집었다. 그 사이 틱(22:00·00:00)은 부하·교차 락 가드로 소비돼
+    양보가 발동할 기회 자체가 없었다 → 원장 R21 2건 / R23 0건. 회전 비교는 벽시계가 아니라
+    '누가 더 오래 굶었나'(원장 기준)로 해야 막힌 틱에 면역이 된다.
+    """
+    b = _backlog(_item("R21", 6, recurring=True), _item("R23", 7))
+    rows = [{"id": "R21", "ts": (rc.now_kst() - timedelta(minutes=348)).isoformat()}]
+    monkeypatch.setattr(rc, "_recent_recurring_ids", lambda *a, **k: set())
+    monkeypatch.setattr(rc.base, "load_ledger", lambda *a, **k: rows)
+    assert rc.pick_item(b)["id"] == "R23"
+
+
+def test_recurring_runs_when_it_is_the_stalest(monkeypatch):
+    """반대 방향도 성립해야 한다 — 감시가 굶으면 안 된다(양보가 감시를 죽이지 않는다)."""
+    b = _backlog(_item("R21", 6, recurring=True), _item("R23", 7))
+    rows = [{"id": "R21", "ts": (rc.now_kst() - timedelta(minutes=600)).isoformat()},
+            {"id": "R23", "ts": (rc.now_kst() - timedelta(minutes=10)).isoformat()}]
+    monkeypatch.setattr(rc, "_recent_recurring_ids", lambda *a, **k: set())
+    monkeypatch.setattr(rc.base, "load_ledger", lambda *a, **k: rows)
     assert rc.pick_item(b)["id"] == "R21"
 
 
