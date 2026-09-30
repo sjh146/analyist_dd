@@ -216,6 +216,14 @@ def main() -> int:
                          "(CG13, 서로소 30종목 5구간) — 단일 유니버스의 짝 Δ +0.02 는 그 잡음보다 작아 "
                          "여러 시드에서 부호가 유지되는지 확인해야 승격 근거가 된다.")
     ap.add_argument("--out", default="app/reports/champion_robust_eval.json")
+    ap.add_argument("--dump-preds", dest="dump_preds", default=None,
+                    help="(선택) (fold,date,code) 별 확률·실현 선행수익 jsonl 을 이 경로에 쓴다. "
+                         "스키마는 topk_precision.py 가 읽는 exp/fold/date/code/y_true/y_pred/"
+                         "fwd_ret — 상위 k 정밀도·기대수익 집계용(CG54). 미지정이면 현행과 "
+                         "비트 동일(쓰지 않음).")
+    ap.add_argument("--dump-tag", dest="dump_tag", default=None,
+                    help="--dump-preds 의 exp 이름(기본 = model_dir 의 basename). 두 모델을 "
+                         "한 파일로 합칠 때 --arm/--control 이름으로 쓴다.")
     ap.add_argument("--write", action="store_true",
                     help="robust_walkforward.json 도 기록(정보용 견고성 지표). "
                          "승격 기준선 robust_auc.json 은 champion_promote 가 지표 동형으로 "
@@ -320,6 +328,12 @@ def main() -> int:
     pooled_y: list[int] = []
     pooled_p: list[float] = []
     errors = 0
+    # --dump-preds(선택, 2026-10-01 CG54): 상위 k 정밀도·실현수익 집계기(topk_precision.py)의
+    # 입력을 남긴다. 스키마는 topk_precision.load_rows 가 기대하는 exp/fold/date/code/
+    # y_true/y_pred/fwd_ret 다(sweep 의 --dump-preds 와 동일). 미지정이면 아무 것도 쓰지 않아
+    # 기존 동작과 비트 동일하다(AUC 는 라벨·확률만 쓰므로 이 배열은 계산에 영향을 주지 않는다).
+    dump_rows = [] if args.dump_preds else None
+    dump_tag = args.dump_tag or os.path.basename((args.model_dir or "").rstrip("/"))
 
     for fi, window in enumerate(windows):
         # purge: 창의 마지막 h 거래일은 미래 가격이 필요하므로 제외
@@ -373,6 +387,12 @@ def main() -> int:
                 # 전 종목 동일 라벨(예: 급등일 전부 상승) → AUC 정의 불가. 날짜만 세고 버린다.
                 logger.info("%s: 라벨 단일값 — AUC 정의 불가, 건너뜀", date)
                 continue
+            if dump_rows is not None:
+                for _c, _p, _r, _yi in zip(codes, probs, rets, y):
+                    dump_rows.append({"exp": dump_tag, "fold": fi + 1, "date": date,
+                                      "code": _c, "y_true": int(_yi),
+                                      "y_pred": round(float(_p), 6),
+                                      "fwd_ret": round(float(_r), 6)})
             a = auc(y, probs)
             if a == a:  # NaN 아님
                 w_aucs.append(a)
@@ -426,6 +446,13 @@ def main() -> int:
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    if args.dump_preds:
+        os.makedirs(os.path.dirname(args.dump_preds) or ".", exist_ok=True)
+        with open(args.dump_preds, "w", encoding="utf-8") as f:
+            for _row in dump_rows or []:
+                f.write(json.dumps(_row, ensure_ascii=False) + "\n")
+        logger.info("--dump-preds %d행 (exp=%s) → %s",
+                    len(dump_rows or []), dump_tag, args.dump_preds)
     logger.info("견고 AUC = %.4f (폴드 %s) → %s",
                 payload["robust_auc"], fold_means, args.out)
 

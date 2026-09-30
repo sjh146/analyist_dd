@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-01T05:09:55+09:00",
+  "updated_at": "2026-10-01T09:00:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -6287,7 +6287,8 @@
       "expected": "저녁 파이프라인 Phase 2 가 2h 캡 안에 완주(후보 생성 재개) + 장시간 실험(CG38·CG35)이 분 단위로",
       "cost": "구현 2~3h + 검증 1h (CPU 무거운 실행 없음 — 기존 패널/DB 로 검증 가능)",
       "counterfactual": "스토어 미사용(현행) 경로",
-      "note": "필수 설계 요구(선구현 후사용): ① `load_batch` 가 요청 (stock,date) 전량을 덮지 않으면 **예외 또는 재계산**(부분 반환 금지 — 지금 코드는 부분도 그대로 반환한다) ② 무효화 키에 feature_engine code_sig + 원천 워터마크(가격·재무·공시 백필 시각) 포함 — 리서처가 과거 구간을 백필하면(R10·R17) 옛 값이 학습에 섞인다 ③ as-of 지연이 적용된 **출력**을 저장(원천이 아니라). 운영 DB 스키마 변경은 금지라 테이블이 없으면 만들지 말고 사용자 승인 항목으로 올릴 것 (feature_store 스키마는 이미 존재하므로 스키마 변경 없이 가능). | 2026-09-29 22:1x 추가: **초기 대량 적재는 승인 대상** — 검증(스키마 존재·행수·부분커버리지 거부 로직)까지는 내가 구현하되, 수백만 행을 운영 DB 에 넣는 배치는 승인 후 실행한다(디스크·백업·pg 성능 영향). 그 전까지는 로컬 npz 캐시(패널 방식)로 검증 가능."
+      "note": "필수 설계 요구(선구현 후사용): ① `load_batch` 가 요청 (stock,date) 전량을 덮지 않으면 **예외 또는 재계산**(부분 반환 금지 — 지금 코드는 부분도 그대로 반환한다) ② 무효화 키에 feature_engine code_sig + 원천 워터마크(가격·재무·공시 백필 시각) 포함 — 리서처가 과거 구간을 백필하면(R10·R17) 옛 값이 학습에 섞인다 ③ as-of 지연이 적용된 **출력**을 저장(원천이 아니라). 운영 DB 스키마 변경은 금지라 테이블이 없으면 만들지 말고 사용자 승인 항목으로 올릴 것 (feature_store 스키마는 이미 존재하므로 스키마 변경 없이 가능). | 2026-09-29 22:1x 추가: **초기 대량 적재는 승인 대상** — 검증(스키마 존재·행수·부분커버리지 거부 로직)까지는 내가 구현하되, 수백만 행을 운영 DB 에 넣는 배치는 승인 후 실행한다(디스크·백업·pg 성능 영향). 그 전까지는 로컬 npz 캐시(패널 방식)로 검증 가능. | 2026-10-01 08:5x 갱신: AUC 축(라벨·HP·유니버스·창·가중·정규화·k·데이터 부활·수급·공매도)이 전부 닫혀 다음 레버는 '원천 확보' 승인뿐이므로, 승인 대기 동안 처리량을 늘리는 이 항목이 다음 세션의 자율 작업 1순위다(재학습 2.65h → 분 단위가 되면 승인 후 실험 속도가 바뀐다).",
+      "setup_needed": "승인 없이 지금 할 수 있는 것(다음 세션 착수): ① `FeatureStore.load_batch` 를 **엄격 모드**로 고친다 — 요청한 (stock,date) 전량을 덮지 않으면 부분 반환하지 말고 예외/재계산 폴백(현재 코드는 부분도 그대로 반환해 '부분 커버리지를 완전 패널로 오인'한다) ② 무효화 키에 feature_engine code_sig + 원천 워터마크(가격·재무·공시 백필 시각) 추가 ③ 로컬 npz 캐시로 검증(운영 DB 적재 없이): 같은 구간 2회 빌드에서 2회차 시간이 1/10 이하이고 (stock,date) 키·피처값 해시가 일치하는지 ④ 자체점검 스크립트(_feature_store_test.py, pytest 없음) 작성. 승인이 필요한 것: 운영 DB(feature_store.feature_values)로의 **초기 대량 적재**(수백만 행) — 디스크·백업·pg 성능 영향."
     },
     {
       "id": "XR12",
@@ -7277,7 +7278,7 @@
     {
       "id": "CG51",
       "title": "생산 경로 라벨 정합 후보 — h5 시장상대 라벨로 재학습한 챌린저 vs 배포 챔피언 (5시드 짝 재판정)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "affects_model": true,
       "depends_on": [
@@ -7297,31 +7298,192 @@
       "success": "시드 5개 짝 Δ 평균 ≥ +0.02 **그리고** 양(+) 시드 = 5/5 (SE ≤ 0.01). 미달이면 '학습 라벨 정의는 레버가 아니다'로 종결하고 depth1(CG52)·데이터 축으로 이동.",
       "metric": "champion_seed_family",
       "est_minutes": 150,
-      "result": null
+      "result": {
+        "verdict": "노이즈",
+        "detail": "시드 5개 짝 Δ 평균 +0.0158 (SE 0.0092 · t 1.71 · 양(+) 4/5) · 대조군 0.5121 vs 챌린저 0.5278 · 문턱 +0.02 → 문턱 미달",
+        "delta": 0.0158,
+        "per_exp": null,
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-10-01T06:30:02+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "시드 5개 짝 Δ 평균 +0.0158 (SE 0.0092 · t 1.71 · 양(+) 4/5) · 대조군 0.5121 vs 챌린저 0.5278 · 문턱 +0.02 → 문턱 미달",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG51_20261001-051000.log",
+          "elapsed_min": 80.0
+        }
+      ]
     },
     {
       "id": "CG52",
       "title": "라벨 정합 후보 심화 — h5 시장상대 **스무딩** 라벨 + depth1·lr0.05(배포 가능 조합) 재학습",
-      "status": "backlog",
+      "status": "done",
       "priority": 2,
       "affects_model": true,
       "depends_on": [
         "CG51"
       ],
       "baseline": {
-        "value": null,
-        "source": "CG51 채점 결과(rel h5 챌린저) — 나오면 그 값으로 교체"
+        "value": 0.5121,
+        "source": "CG51 champ 5시드 평균(app/reports/cg51_seed_family.json, 2026-10-01 06:30) — 0.5121±0.0063"
       },
       "arm": "retrain_champion --label-kind rel_smooth --horizon 5 --model-params '{\"max_depth\":1,\"learning_rate\":0.05}'",
-      "counterfactual": "CG51 의 rel h5 챌린저(스무딩·HP 없음) — 같은 런·같은 시드",
+      "counterfactual": "① 배포 챔피언(CG51 champ arm 5시드, app/reports/cg51_champ_s*.json) ② CG51 의 rel h5 챌린저(스무딩·HP 없음, app/reports/cg51_cand_s*.json) — 둘 다 같은 프로토콜·같은 시드 산출물을 재실행 없이 재사용(유니버스 결정성 수리 이후 실행분). 판정 대상 짝은 ①vs본 arm(agg 첫 두 arm), ②는 3번째 arm 으로 기록만.",
       "hypothesis": "스윕에서 살아남은 두 축(라벨 스무딩 Δ+0.0053 · depth1 Δ+0.0180)을 생산 경로 라벨 정합 위에 얹으면 개별 효과가 아니라 조합으로 문턱을 넘는다.",
       "evidence": "스윕 17사이클 최고는 rank 포함 조합뿐이었고(배포 불가), 배포 가능 성분(depth1·스무딩)의 단독 효과는 각각 문턱 미달이었다. 두 성분을 동시에 게이트 ON·생산 유니버스에서 잰 적은 없다.",
       "method": "CG51 과 동일 프로토콜(5시드 짝). 차이는 학습 라벨 스무딩 + 모델 params override 뿐 → 3-arm(챔피언·CG51챌린저·본 arm) 비교가 가능하다.",
-      "command": null,
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2400 python -u -m app.training.retrain_champion --days 90 --end-date 2026-09-30 --stock-limit 200 --label-kind rel_smooth --horizon 5 --model-params \"{\\\"max_depth\\\":1,\\\"learning_rate\\\":0.05}\" --out-dir app/models/cand_cg52 --checkpoint-path /app/app/models/wf/cg51.ckpt && for s in 0 1 2 3 4; do OMP_NUM_THREADS=2 timeout 1200 python -u scripts/champion_robust_eval.py --model-dir app/models/cand_cg52 --train-start 2026-07-02 --train-end 2026-09-30 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed $s --out app/reports/cg52_cand_s$s.json; done && python scripts/champion_seed_family_agg.py --agg-out app/reports/cg52_seed_family.json --arm champ app/reports/cg51_champ_s0.json app/reports/cg51_champ_s1.json app/reports/cg51_champ_s2.json app/reports/cg51_champ_s3.json app/reports/cg51_champ_s4.json --arm cg52 app/reports/cg52_cand_s0.json app/reports/cg52_cand_s1.json app/reports/cg52_cand_s2.json app/reports/cg52_cand_s3.json app/reports/cg52_cand_s4.json --arm cg51 app/reports/cg51_cand_s0.json app/reports/cg51_cand_s1.json app/reports/cg51_cand_s2.json app/reports/cg51_cand_s3.json app/reports/cg51_cand_s4.json'",
       "success": "CG51 챌린저 대비 짝 Δ ≥ +0.02, 양(+) 시드 5/5. 미달이면 조정 축 전체 종결 → 데이터 축 승인 요청.",
       "metric": "champion_seed_family",
-      "est_minutes": 150,
-      "result": null
+      "est_minutes": 45,
+      "result": {
+        "verdict": "노이즈",
+        "detail": "시드 5개 짝 Δ 평균 +0.0062 (SE 0.0084 · t 0.74 · 양(+) 3/5) · 대조군 0.5121 vs 챌린저 0.5183 · 문턱 +0.02 → 문턱 미달",
+        "delta": 0.0062,
+        "per_exp": null,
+        "rc": 0
+      },
+      "note": "2026-10-01 07:1x 셋업 완료(pending 승격). 준비 실측: ① `--label-kind rel_smooth` 와 `--model-params` 는 retrain_champion.py L167-171·L197-202 에 구현, choices 포함(L287). ② 체크포인트 재사용 — CG51 이 같은 명령(200종목·2026-07-02~09-30)으로 남긴 /app/app/models/wf/cg51.ckpt(meta processed=12000/12093 · code_sig 1790775150.961)는 현 feature_engine 최신 mtime 과 동일 → 93페어(≈15초)만 다시 하고 재개(31분 절약). ③ 비용 실측: champion_robust_eval 1회 4.6분(CG51 로그 measured_at 간격) ×5 = 23분 + 재개빌드/학습 ≈3분 → 총 ≈27분(est 45분은 여유 포함). ④ 챔피언 arm 재사용 근거: 같은 모델·창·`--universe-seed` 이고 유니버스 결정성 수리(2026-10-01 03:0x) 이후 실행분이라 재측정 불필요(23분 절약). ⑤ 추론 계약 무변경(라벨·HP 는 학습 옵션). 실패 시 체크포인트가 무시되면 빌드 31분 → 총 ≈57분이지만 컨테이너 timeout 2400s 가 그 전에 자른다. 판정: 짝 Δ평균 ≥ +0.02 **그리고** 양(+) 시드 5/5. 미달이면 조정 축(라벨·HP) 전체를 종결하고 데이터 축 승인 요청으로 넘어간다.",
+      "attempts": [
+        {
+          "ts": "2026-10-01T07:28:09+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "시드 5개 짝 Δ 평균 +0.0062 (SE 0.0084 · t 0.74 · 양(+) 3/5) · 대조군 0.5121 vs 챌린저 0.5183 · 문턱 +0.02 → 문턱 미달",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG52_20261001-070322.log",
+          "elapsed_min": 24.8
+        }
+      ]
+    },
+    {
+      "id": "CG53",
+      "title": "배포 가능 최선 후보(cand_cg51)의 10시드 짝 재판정 — CG51 의 Δ+0.0158(t 1.71)은 시드 부족인가",
+      "status": "done",
+      "priority": 1,
+      "affects_model": true,
+      "depends_on": [
+        "CG51",
+        "CG52"
+      ],
+      "baseline": {
+        "value": 0.5121,
+        "source": "CG51 champ 5시드 평균(app/reports/cg51_seed_family.json)"
+      },
+      "arm": "app/models/cand_cg51 (rel h5 시장상대 라벨로 재학습한 배포 가능 후보 — 추론 계약 무변경)",
+      "counterfactual": "app/models/champion (배포 챔피언) — 같은 시드·같은 창·같은 프로토콜",
+      "hypothesis": "CG51 의 짝 Δ(+0.0158, SE 0.0092, t 1.71, 양(+) 4/5)은 문턱 미달로 노이즈로 기록됐지만 SE 가 커서 '효과 크기 0' 과 구분되지 않는다. 시드를 5→10 으로 늘리면 SE 가 ≈0.0065 로 줄어 +0.02 를 3σ 로 판정할 수 있다 → 이 축을 '노이즈'로 종결할지 '신호'로 올릴지가 결정된다.",
+      "evidence": "CG51 실측(2026-10-01 06:30): champ 0.5121±0.0063[0.5042~0.5234] vs cand 0.5278±0.0154[0.5110~0.5527] · 짝 Δ [0.0195, 0.0015, 0.0217, 0.0485, −0.0124] · 창별로는 cand 가 3/3 창 0.5 초과, champ 는 2/3 창 0.5 미만. CG52(07:28) 스무딩·depth1 조합은 0.5183(−0.0095 vs cand, 5/5 시드 악화) → 조정 축은 닫히고 후보 자체의 우열만 남았다.",
+      "method": "CG51 과 동일 프로토콜에서 시드 5~9 를 추가 실행(양 arm 각 5회)하고, 기존 s0~s4 산출물과 합쳐 10시드 짝 집계(champion_seed_family_agg). 판정은 집계기가 낸 `paired`(평균·SE·t·양(+) 비율) 하나만 쓴다 — per_exp 는 만들지 않는다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && for s in 5 6 7 8 9; do OMP_NUM_THREADS=2 timeout 1200 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --train-start 2026-06-25 --train-end 2026-09-23 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed $s --out app/reports/cg51_champ_s$s.json && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/champion_robust_eval.py --model-dir app/models/cand_cg51 --train-start 2026-07-02 --train-end 2026-09-30 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed $s --out app/reports/cg51_cand_s$s.json; done && python scripts/champion_seed_family_agg.py --agg-out app/reports/cg51_seed_family_s10.json --arm champ app/reports/cg51_champ_s0.json app/reports/cg51_champ_s1.json app/reports/cg51_champ_s2.json app/reports/cg51_champ_s3.json app/reports/cg51_champ_s4.json app/reports/cg51_champ_s5.json app/reports/cg51_champ_s6.json app/reports/cg51_champ_s7.json app/reports/cg51_champ_s8.json app/reports/cg51_champ_s9.json --arm cand app/reports/cg51_cand_s0.json app/reports/cg51_cand_s1.json app/reports/cg51_cand_s2.json app/reports/cg51_cand_s3.json app/reports/cg51_cand_s4.json app/reports/cg51_cand_s5.json app/reports/cg51_cand_s6.json app/reports/cg51_cand_s7.json app/reports/cg51_cand_s8.json app/reports/cg51_cand_s9.json'",
+      "metric": "champion_seed_family",
+      "success": "10시드 짝 Δ 평균 ≥ +0.02 **그리고** 양(+) 10/10 (SE ≈0.0065 → 약 3σ) → 신호. 그 외는 '노이즈'로 적고 라벨 정합 축을 최종 종결한다.",
+      "est_minutes": 60,
+      "cost": "eval 10회 × 실측 4.6분 ≈ 46분 + 집계(기존 s0~s4 산출물 재사용으로 20회 → 10회)",
+      "note": "실측 근거로 서술: champion_robust_eval 1회 = 4.6분(CG51 로그 measured_at 간격 10개). 기존 5시드 산출물(app/reports/cg51_{champ,cand}_s0..4.json)은 같은 코드·같은 창·같은 `--universe-seed` 라 재사용한다(유니버스 결정성 수리 2026-10-01 03:0x 이후 산출). 승격은 하지 않는다 — 신호가 나오면 champion_promote --dry-run + 사용자 승인 절차로 넘긴다. ⚠ 창 한계: 남는 OOS 창은 전부 학습구간 **이전**(2025-12~2026-05)이라 '암기 제거'는 보장하지만 전방 워크포워드 검증은 아니다(CG45 교훈). | 2026-10-01 08:23 실측 마감: 짝 Δ +0.0133(SE 0.0052 · t 2.54 · 양(+) 8/10 · 부호검정 p=0.055) → 사전문턱 +0.02 미달로 '노이즈' 유지. 해석: 배포 챔피언보다 일관되게 낫지만(t 2.5) 문턱의 2/3 수준 → 승격 후보 아님. 라벨 정합 축 종결.",
+      "attempts": [
+        {
+          "ts": "2026-10-01T08:23:42+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "시드 10개 짝 Δ 평균 +0.0133 (SE 0.0052 · t 2.54 · 양(+) 8/10) · 대조군 0.5139 vs 챌린저 0.5272 · 문턱 +0.02 → 문턱 미달",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG53_20261001-073601.log",
+          "elapsed_min": 47.7
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "시드 10개 짝 Δ 평균 +0.0133 (SE 0.0052 · t 2.54 · 양(+) 8/10) · 대조군 0.5139 vs 챌린저 0.5272 · 문턱 +0.02 → 문턱 미달 · 10시드: champ 0.5139±0.0063 vs cand 0.5272±0.0124 · t 2.54 · 부호검정 p=0.055 · champ 창3 0.4938(<0.5) vs cand 3/3창 >0.5",
+        "delta": 0.0133,
+        "per_exp": null,
+        "rc": 0,
+        "delta_samples": [
+          0.0195,
+          0.0015,
+          0.0217,
+          0.0485,
+          -0.0124,
+          -0.0072,
+          0.0071,
+          0.0121,
+          0.0193,
+          0.0228
+        ]
+      }
+    },
+    {
+      "id": "CG54",
+      "title": "배포 후보의 경제적 실질성 — cand_cg51 vs 챔피언 top-k 정밀도·실현수익 짝 평가 (공통 후보집합)",
+      "status": "done",
+      "priority": 1,
+      "affects_model": false,
+      "depends_on": [
+        "CG51",
+        "CG53"
+      ],
+      "baseline": {
+        "value": 0.5139,
+        "source": "CG53 배포 챔피언 10시드 폴드평균(짝 Δ +0.0133 · t 2.54 · 8/10)"
+      },
+      "arm": "app/models/cand_cg51 (rel h5 라벨 재학습 후보)",
+      "counterfactual": "app/models/champion (배포 챔피언)",
+      "hypothesis": "CG53 실측: 후보가 챔피언보다 AUC 가 일관되게 +0.0133 높지만(t 2.54) 사전문턱 +0.02 미달이다. AUC 는 순위 지표이므로 '문턱 미달'이 '돈이 안 된다'를 뜻하지 않는다 → 트레이더가 실제로 쓰는 k=3·5 상위 선택에서 정밀도·실현수익이 챔피언보다 나은지 재야 승격/교체 판단의 근거가 된다(CG21 교훈: AUC 문턱과 실질성은 별개이며, 서로 다른 라벨의 arm 은 **공통 후보집합**에서만 비교 가능).",
+      "evidence": "CG53(2026-10-01 08:23, 10시드): champ 0.5139±0.0063 [창3 0.4938<0.5] vs cand 0.5272±0.0124 [3/3 창 >0.5] · 짝 Δ +0.0133(SE 0.0052 · t 2.54 · 양(+) 8/10 · 부호검정 p=0.055). 트레이더 쪽 실측(MT71)은 챔피언 엣지가 음수라고 보고한다 — 즉 어느 모델을 쓰는지가 실제 손익에 걸려 있다. 도구는 이미 있다: scripts/topk_precision.py(--k · --restrict-q · --min-pool · --json-out, _topk_precision_test.py 5/5 PASS) + wf_label_sweep --dump-preds.",
+      "method": "① champion_robust_eval 에 `--dump-preds <path>` 를 추가한다(현재 없음 — sweep 에만 있다). (fold,date,code) 별 확률·실현 선행수익 jsonl 을 쓰고, 기존 score 경로와 비트 동일해야 한다(옵션 미지정 시 현행 동작). ② 챔피언·후보를 **같은 창·같은 표본(같은 --universe-seed)** 으로 돌려 두 jsonl 을 만든다. ③ topk_precision.py 로 k=3·5(공통 후보집합 = 양쪽 꼬리 교집합, --restrict-q) 정밀도·실현수익 차이와 부호검정(동점 제외)을 낸다. ④ 구동기 배선: metric `topk_precision` 을 parse_by_metric/judge_by_metric 에 같은 커밋에서 추가한다(2026-09-30 CG43 교훈 — 실행 전에 배선하지 않으면 rc=0 으로 done 이 되면서 판정이 소실된다).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --train-start 2026-06-25 --train-end 2026-09-23 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed 0 --dump-tag champion --dump-preds app/reports/cg54_preds_champ.jsonl --out app/reports/cg54_champ.json && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/champion_robust_eval.py --model-dir app/models/cand_cg51 --train-start 2026-07-02 --train-end 2026-09-30 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed 0 --dump-tag cand_cg51 --dump-preds app/reports/cg54_preds_cand.jsonl --out app/reports/cg54_cand.json && cat app/reports/cg54_preds_champ.jsonl app/reports/cg54_preds_cand.jsonl > app/reports/cg54_preds.jsonl && python scripts/topk_precision.py app/reports/cg54_preds.jsonl --k 3,5 --arm cand_cg51 --control champion --json-out app/reports/cg54_topk.json'",
+      "metric": "topk_precision",
+      "success": "k=3·5 둘 다 Δ정밀도 ≥ +0.05 이고 부호검정 p < 0.05 (공통 후보집합) → '실질성 있음' 으로 기록하고 승격 검토(사용자 승인)로 올린다. k=10 은 후보 풀 포화로 해석 금지. 미달이면 'AUC +0.0133 은 경제적 실질성 없음'으로 종결한다.",
+      "est_minutes": 15,
+      "cost": "구현 1h(--dump-preds + 구동기 파서) + 실행 30분(같은 창 2회 채점)",
+      "setup_needed": [
+        "① --dump-preds 구현 — 완료(2026-10-01 08:34, 검증: 같은 커맨드 재실행 시 요약 비트 동일 robust_auc 0.5192 · 폴드 동일 · jsonl 1,770행/스키마 완전)",
+        "② 구동기 metric 'topk_precision' 배선 — 완료(2026-10-01 08:36, summary_path/parse/judge 3곳 + scripts/_topk_metric_test.py 12/12 PASS + 기존 회귀 7종 PASS)",
+        "③ 잔여: 없음(착수 가능)"
+      ],
+      "note": "2026-10-01 08:3x 셋업 완료(pending). 설계 메모: ① **한 시드(0)** 로 두 모델을 같은 창·같은 표본에서 돌린다 — 시드를 여러 개 넣으면 topk_precision 의 (fold,date) 키가 시드 간 충돌해 뒤 시드가 앞 시드를 덮어쓴다(조용한 오염). 더 많은 표본이 필요하면 `--dates-per-fold` 를 늘려라(시드 추가 금지). ② `--restrict-q` 를 쓰지 않는다 — 두 arm 의 라벨 정의가 같아 후보집합이 이미 공통이고, q=0.05 를 걸면 셀당 후보가 ~6개로 줄어 k=3·5 가 포화한다(CG21 은 라벨 q 가 달라 필수였다). ③ `--stocks 60`·폴드 5·날짜 10 → (fold,date) 셀 50개, 셀당 후보 ~60개 → k=3·5 비포화. ④ 비용 실측: champion_robust_eval 1회 4.6~6.2분(오늘 CG53 실측) ×2 + 집계(초) ≈ 13분 → est_minutes 15(개장 전 종료 판정용). ⑤ 판정: k=3·5 둘 다 Δ정밀도 ≥ +0.05 이고 부호검정 p<0.05 → '실질성 있음'. ⚠ 이 값은 AUC 가 아니므로 스코어보드 무개선 카운터와 무관하다(per_exp 미생성). | 2026-10-01 08:47 실측 마감(9.6분): k=3 Δprec −0.0556(p 0.83·양수 10/22) · k=5 Δprec −0.0000(p 0.52) → 노이즈. AUC 우위(+0.0133)가 top-k 실질성으로 전이되지 않는다 → cand_cg51 승격 검토 종결.",
+      "attempts": [
+        {
+          "ts": "2026-10-01T08:47:57+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm cand_cg51 vs 대조군 champion · k=3 Δprec -0.0556 (p 0.832 · 양수 10/22 동점제외 · 동점 8) · Δfwd_ret -0.0118 · k=5 Δprec -0.0000 (p 0.523 · 양수 13/22 동점제외 · 동점 8) · Δfwd_ret +0.0001 · 공통 후보집합 restrict_q=None · Δ정밀도 사전문턱 +0.05 · 부호검정 p<0.05 → 사전등록 미충족",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG54_20261001-083819.log",
+          "elapsed_min": 9.6
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm cand_cg51 vs 대조군 champion · k=3 Δprec -0.0556 (p 0.832 · 양수 10/22 동점제외 · 동점 8) · Δfwd_ret -0.0118 · k=5 Δprec -0.0000 (p 0.523 · 양수 13/22 동점제외 · 동점 8) · Δfwd_ret +0.0001 · 공통 후보집합 restrict_q=None · Δ정밀도 사전문턱 +0.05 · 부호검정 p<0.05 → 사전등록 미충족",
+        "delta": -0.05555555555555553,
+        "per_exp": null,
+        "rc": 0,
+        "topk_detail": {
+          "arm": "cand_cg51",
+          "control": "champion",
+          "ks": [
+            3,
+            5
+          ],
+          "restrict_q": null,
+          "n_cells": 30,
+          "n_eff_sign_k3": 22,
+          "ties_k3": 8,
+          "k3": {
+            "prec_delta": -0.0556,
+            "p": 0.832,
+            "pos": "10/22",
+            "ret_delta": -0.0118
+          },
+          "k5": {
+            "prec_delta": -0.0,
+            "p": 0.523,
+            "pos": "13/22",
+            "ret_delta": 0.0001
+          },
+          "verdict": "노이즈 — k=3 Δprec −0.0556(p 0.83) · k=5 Δprec −0.0000(p 0.52). CG53 의 AUC 우위(+0.0133·t 2.54)는 상위 k 선택의 정밀도·실현수익으로 이어지지 않는다(오히려 k=3 은 음수). 승격 후보 아님."
+        }
+      }
     }
   ]
 }

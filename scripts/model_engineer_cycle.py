@@ -536,6 +536,17 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: champion_seed_family 인데 커맨드에 --agg-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "topk_precision":
+        # 상위 k 정밀도·실현수익 짝 집계(scripts/topk_precision.py --json-out). CG54.
+        # 왜 전용 metric 인가(2026-10-01): AUC 는 순위 지표라 '사전문턱 미달'이 '돈이 안 된다'를
+        # 뜻하지 않는다(CG53: Δ+0.0133·t 2.54 로 후보가 챔피언보다 일관되게 높지만 문턱 미달).
+        # 트레이더가 실제로 사는 것은 상위 k 뿐이므로 정밀도·실현수익으로 승격/교체를 판단한다.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — k별 통계는 `kstats` 로 싣는다.
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: topk_precision 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -807,7 +818,88 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_promote_dryrun(spath, mtime_floor)
     if kind == "champion_seed_family":
         return parse_champion_seed_family(spath, mtime_floor)
+    if kind == "topk_precision":
+        return parse_topk_precision(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
+
+
+def parse_topk_precision(path, mtime_floor) -> dict:
+    """상위 k 정밀도·실현수익 짝 집계(scripts/topk_precision.py --json-out)를 파싱한다.
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장의 per_exp 전체를 'arm 폴드 평균(AUC)'으로
+    읽어 best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 여기 값은 정밀도/수익이라
+    키 이름을 `kstats` 로 분리해 스코어보드가 AUC 로 오독하지 않게 한다.
+
+    판정에 쓰는 것은 `paired`(k별 Δ정밀도·부호검정 p) + `control` 존재 여부다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    paired = d.get("paired") or {}
+    if not paired:
+        return {"error": "paired 없음(집계 실패)", "summary_mtime": mt}
+    return {
+        "arm": d.get("arm"), "control": d.get("control"),
+        "restrict_q": d.get("restrict_q"), "min_pool": d.get("min_pool"),
+        "ks": d.get("ks"), "rows": d.get("rows"), "exps": d.get("exps"),
+        "skip_stats": d.get("skip_stats") or {},
+        "saturated_cells": d.get("saturated_cells") or {},
+        "paired": paired,
+        "kstats": d.get("per_exp") or {},     # ⚠ per_exp 키로 올리지 않는다(위 주석)
+        "summary_mtime": mt,
+    }
+
+
+def judge_topk_precision(item, parsed) -> tuple:
+    """상위 k 정밀도 짝 판정 — 사전 등록: k=3 **과** k=5 둘 다 Δ정밀도 ≥ +0.05 **이고** 부호검정 p < 0.05.
+
+    왜 두 k 인가: k 하나만 보면 다중비교로 우연한 유의가 나온다(CG21 실측: k=3 Δ+0.0800 p=2.7e-5
+    인데 k=5 는 Δ+0.0178 p=0.228 였다). k=10 은 공통 후보집합(≈15행/일)에서 포화하므로 해석 금지
+    — 포화 셀(saturated_cells)이 있으면 그 k 는 판정에서 제외하고 detail 에 남긴다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    paired = parsed.get("paired") or {}
+    arm, ctl = parsed.get("arm"), parsed.get("control")
+    if not ctl:
+        return "판정불가", (f"대조군 없음(control=None) — 짝 비교가 성립하지 않는다(arm={arm}). "
+                           f"두 모델을 한 덤프에 넣고 --arm/--control 로 지정하라"), None
+    sat = parsed.get("saturated_cells") or {}
+    parts, ok_all, first = [], True, None
+    for k in ("3", "5"):
+        p = paired.get(k)
+        if not isinstance(p, dict):
+            return "판정불가", f"k={k} 통계 없음 (paired keys={list(paired)})", None
+        dm, pv = p.get("prec_delta_mean"), p.get("prec_sign_p")
+        dret = p.get("ret_delta_mean")
+        if first is None:
+            first = dm
+        good = (isinstance(dm, (int, float)) and isinstance(pv, (int, float))
+                and dm >= 0.05 and pv < 0.05 and not sat.get(k))
+        ok_all = ok_all and good
+        parts.append(
+            f"k={k} Δprec {dm:+.4f} (p {pv:.3g} · 양수 {p.get('prec_delta_pos')}/"
+            f"{p.get('n_eff_sign')} 동점제외 · 동점 {p.get('ties')}) · Δfwd_ret "
+            f"{dret:+.4f}" if isinstance(dm, (int, float)) and isinstance(pv, (int, float))
+            and isinstance(dret, (int, float)) else f"k={k} 통계 결측")
+        if sat.get(k):
+            parts[-1] += f" · ⚠포화({sat[k]}셀) — 판정 제외"
+    detail = (f"arm {arm} vs 대조군 {ctl} · " + " · ".join(parts)
+              + f" · 공통 후보집합 restrict_q={parsed.get('restrict_q')}"
+              + f" · Δ정밀도 사전문턱 +0.05 · 부호검정 p<0.05")
+    if ok_all:
+        return "신호있음", detail + " → k=3·5 둘 다 충족(실질성 있음)", first
+    return "노이즈", detail + " → 사전등록 미충족", first
 
 
 def judge_by_metric(item, parsed, per=None) -> tuple:
@@ -819,6 +911,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_promote_dryrun(item, parsed)
     if kind == "champion_seed_family":
         return judge_seed_family(item, parsed)
+    if kind == "topk_precision":
+        return judge_topk_precision(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 
