@@ -117,7 +117,7 @@ def main() -> int:
         out["canonical_features"] = len(canonical)
 
         per_col: dict[str, list[float]] = {c: [] for c in RANK_COLS}
-        zero_filled: dict[str, int] = {}
+        zero_ratios: list[float] = []
         for date in dates:
             feats_by_code = {}
             for code in sorted(set(uni) | set(sample)):
@@ -128,10 +128,13 @@ def main() -> int:
                     continue
                 if f and f.get("feature_count", 0) >= 10:
                     feats_by_code[code] = f
-            for code, f in feats_by_code.items():
-                for name in canonical:      # canonical 에 있으나 값이 없는(0으로 채워지는) 피처 수
-                    if name not in f or float(f.get(name) or 0.0) == 0.0:
-                        zero_filled[code] = zero_filled.get(code, 0) + 1
+            # 추론 벡터에서 0으로 채워지는 피처 비율 — (종목, 날짜) 셀마다 세어 평균낸다.
+            # 왜: 과거 'canonical 에 있으나 항상 0.0 인 피처 20개' 사고가 있었다(학습↔추론 어긋남).
+            # ⚠ 종목별 누적 카운트를 그대로 비율로 쓰면 안 된다(날짜 수만큼 부풀려진다).
+            for _code, f in feats_by_code.items():
+                nz = sum(1 for name in canonical
+                         if name not in f or float(f.get(name) or 0.0) == 0.0)
+                zero_ratios.append(nz / len(canonical))
 
             inter = [c for c in sample if c in feats_by_code]
             full = [c for c in feats_by_code if c not in inter] + inter
@@ -169,10 +172,9 @@ def main() -> int:
             [v for vals in per_col.values() for v in vals]), 4)
             if any(per_col.values()) else None)
         # 추론 벡터에서 0으로 채워지는 피처 비율(과거 '항상 0인 20개' 사고의 재발 감시)
-        if zero_filled:
-            n_feat = len(canonical)
-            out["zero_fill_ratio_mean"] = round(
-                statistics.fmean([v / n_feat for v in zero_filled.values()]), 4)
+        if zero_ratios:
+            out["zero_fill_ratio_mean"] = round(statistics.fmean(zero_ratios), 4)
+            out["zero_fill_cells"] = len(zero_ratios)
         os.makedirs(os.path.dirname(args.out), exist_ok=True)
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(out, f, ensure_ascii=False, indent=2)

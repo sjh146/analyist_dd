@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-30T17:12:06+09:00",
+  "updated_at": "2026-09-30T17:33:32+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -6267,7 +6267,7 @@
       "est_minutes": 4,
       "metric": null,
       "note": "[2026-09-30T17:2x] 구동기 대신 세션에서 직접 실행(수 분).",
-      "result": "① 표본 구성(실측 2026-09-30): 학습 유니버스 200종목(ETF/ETN·파생 제외, 시장=KOSPI/KOSDAQ, instrument_type=STOCK) vs 평가 표본 80종목(유동성 상위) → **ETF/ETN/레버리지 26개**(KODEX 200·KODEX 레버리지·TIGER 200·KODEX 반도체·단일종목 레버리지 등) · **교집합 5종목**(009150 삼성전기·403870 HPSP·475150 SK이터닉스·298040 효성중공업·000250 삼천당제약). 표본은 대형주+ETF, 학습은 소형주 중심. ② rank_* 재척도(2026-09-29 1일, 표본 80/전체 276): mean|Δ| = return_5d 0.0726 · return_20d 0.0218 · volatility_20d 0.1096 · volume_ratio_5 0.0756 · ma_position_5 0.1087 · volume_ratio_20 0.1370 → **전체 평균 0.0875**. → 배포 OOS 0.44 계열 수치는 '자기 과제 성적'이 아니라 **다른 도메인 채점**이며, rank 축 불일치가 추가로 얹혀 있다.",
+      "result": "① 표본 구성(실측 2026-09-30): 학습 유니버스 200종목(select_training_universe — ETF/ETN·파생 제외, instrument_type=STOCK) vs 평가 표본 80종목(유동성 상위) → **ETF/ETN/레버리지 26개**(KODEX 200·KODEX 레버리지·TIGER 200·KODEX 반도체·단일종목 레버리지 등) · **교집합 5종목**(009150·403870·475150·298040·000250). 표본은 대형주+ETF, 학습은 소형주 200종목 — 도메인이 다르다. ② rank_* 재척도(rank_universe_check, 3거래일 2026-09-23/28/29 · 표본 80 × 3일 = 240셀 · 199피처): mean|Δ| volume_ratio_20 0.1126(51% 종목이 0.1 초과) · volatility_20d 0.1054(57%) · ma_position_5 0.1039(49%) · volume_ratio_5 0.0740(31%) · return_5d 0.0675(25%) · return_20d 0.0248(0%) → **전체 평균 0.0814**. ③ 추론 경로에서 0으로 채워지는 피처 비율(같은 825셀): **평균 44.3%**(199피처 중 약 88개가 0). → 배포 OOS 0.44 계열 수치는 '자기 과제 성적'이 아니라 **다른 도메인 채점**이며 rank 축 불일치·희소 입력이 추가로 얹혀 있다. 산출물: services/xgboost-ml/reports/rank_universe_check_d3.json.",
       "closed_at": "2026-09-30T17:12:06+09:00",
       "closed_by": "quant-model-engineer"
     },
