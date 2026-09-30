@@ -591,8 +591,14 @@ class FeaturePipeline:
 
         # 3. market_breadth: fraction of advancing stocks on the same date
         # (advancers / total). Requires the stock_prices table; fallback 0.0.
-        features["market_breadth"] = 0.0
-        if self.pg_conn is not None:
+        # 날짜 전용(시장 전체 상승종목 비율) → **날짜별 1회 캐시**.
+        # 왜: 페어마다 재계산하면 stock_prices 14일 창을 매번 스캔한다. 실측(2026-09-30 SQL 프로파일,
+        # 60페어) **521ms/호출 × 60 = 31.3s = 전체 SQL exec 시간의 42%**. 값은 date 만의 함수라
+        # 캐시가 결과를 바꾸지 않는다(_get_market_return 과 동일 패턴). 실패도 0.0 으로 캐시해
+        # 매 페어 예외+rollback 왕복을 없앤다.
+        _mb_key = ("market_breadth", str(date))
+        features["market_breadth"] = self._cache.get(_mb_key, 0.0)
+        if _mb_key not in self._cache and self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
                 cur.execute("""
@@ -615,6 +621,7 @@ class FeaturePipeline:
             except Exception:
                 logger.debug("market_breadth unavailable; using 0.0")
                 self.pg_conn.rollback()
+            self._cache[_mb_key] = features["market_breadth"]
 
         # ----- Volatility / Risk features -----
 
@@ -864,8 +871,11 @@ class FeaturePipeline:
                 self.pg_conn.rollback()
 
         # krx_advance_decline_ratio: 실제 ADR (상승종목 / 하락종목)
-        features["krx_advance_decline_ratio"] = 0.0
-        if self.pg_conn is not None:
+        # 날짜 전용(시장 전체 ADR) → **날짜별 1회 캐시**. 실측(2026-09-30 SQL 프로파일, 60페어)
+        # **470ms/호출 × 60 = 28.2s = 전체 SQL exec 시간의 38%**(market_breadth 와 합쳐 79%).
+        _adr_key = ("krx_adr", str(date))
+        features["krx_advance_decline_ratio"] = self._cache.get(_adr_key, 0.0)
+        if _adr_key not in self._cache and self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
                 cur.execute("""
@@ -890,6 +900,7 @@ class FeaturePipeline:
             except Exception:
                 logger.debug("krx_advance_decline_ratio unavailable; using 0.0")
                 self.pg_conn.rollback()
+            self._cache[_adr_key] = features["krx_advance_decline_ratio"]
 
         # ----- KRX Derivatives features -----
 

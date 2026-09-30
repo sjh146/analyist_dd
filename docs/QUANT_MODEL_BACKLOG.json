@@ -6153,7 +6153,7 @@
       "hypothesis": "프로토콜 간 격차의 주 원인은 **학습 창 길이**다. 스윕(폴드별 확장창 재학습)은 281~659거래일로 학습해 0.53~0.55 를 내는데, 배포 경로는 `--days 90`(≈62거래일)만 학습해 자기 과제 OOS 0.4410 이다. 같은 컷오프·같은 유니버스에서 학습 창만 90→250일로 늘리면 OOS 가 올라간다.",
       "evidence": "CG34(배포 90일 학습 → h5 OOS 0.4914) · CG37(같은 모델 h1 절대 라벨 OOS 0.4410, 3/3 창 < 0.5) vs 스윕 CG26 게이트 ON core30 0.5363(281거래일 확장창 폴드별 재학습). 프로덕션 명령은 full_pipeline_dd.sh 의 `retrain_champion --days 90 --stock-limit 200`.",
       "method": "① 컷오프를 OOS 창 시작 전(2026-06-24)으로 고정해 두 모델을 학습(--days 90 / --days 250, 같은 --stock-limit, scratch 디렉터리 — champion/ 무수정) ② 두 모델 모두 `champion_robust_eval --label-kind abs --horizon 1 --train-start <학습시작> --train-end 2026-06-24` 로 같은 창 채점 ③ 짝 Δ 를 폴드별로 보고. 창 길이 외 변인(유니버스·라벨·HP)을 고정해야 귀속이 된다.",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 7200 python -m app.training.retrain_champion --days 90 --end-date 2025-11-20 --stock-limit 60 --out-dir /app/app/models/scratch_w90 --checkpoint-path /app/app/models/wf/scr_w90.ckpt && OMP_NUM_THREADS=2 timeout 16200 python -m app.training.retrain_champion --days 250 --end-date 2025-11-20 --stock-limit 60 --out-dir /app/app/models/scratch_w250 --checkpoint-path /app/app/models/wf/scr_w250.ckpt && OMP_NUM_THREADS=2 timeout 1500 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_w250 --horizon 1 --label-kind abs --folds 3 --dates-per-fold 3 --stocks 80 --train-start 2025-03-15 --train-end 2025-11-20 --out /app/reports/cg38_w250_oos.json && OMP_NUM_THREADS=2 timeout 1500 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_w90 --horizon 1 --label-kind abs --folds 3 --dates-per-fold 3 --stocks 80 --train-start 2025-08-22 --train-end 2025-11-20 --out /app/reports/cg38_w90_oos.json'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 10800 python -m app.training.retrain_champion --days 90 --end-date 2025-11-20 --stock-limit 60 --out-dir /app/app/models/scratch_w90 --checkpoint-path /app/app/models/wf/scr_w90.ckpt && OMP_NUM_THREADS=2 timeout 21600 python -m app.training.retrain_champion --days 250 --end-date 2025-11-20 --stock-limit 60 --out-dir /app/app/models/scratch_w250 --checkpoint-path /app/app/models/wf/scr_w250.ckpt && OMP_NUM_THREADS=2 timeout 2700 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_w250 --horizon 1 --label-kind abs --folds 3 --dates-per-fold 3 --stocks 80 --train-start 2025-03-15 --train-end 2025-11-20 --out /app/reports/cg38_w250_oos.json && OMP_NUM_THREADS=2 timeout 2700 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_w90 --horizon 1 --label-kind abs --folds 3 --dates-per-fold 3 --stocks 80 --train-start 2025-08-22 --train-end 2025-11-20 --out /app/reports/cg38_w90_oos.json'",
       "check": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/champion_robust_eval.py --label-kind abs --horizon 1 --folds 5 --dates-per-fold 3 --stocks 80 --train-start 2025-10-01 --train-end 2026-06-24 --model-dir app/models/scratch_w90 --out /app/reports/scratch_w90_oos.json && python scripts/champion_robust_eval.py --label-kind abs --horizon 1 --folds 5 --dates-per-fold 3 --stocks 80 --train-start 2025-10-01 --train-end 2026-06-24 --model-dir app/models/scratch_w250 --out /app/reports/scratch_w250_oos.json'",
       "check_target": {
         "op": ">=",
@@ -6164,7 +6164,7 @@
       "success": "w250 견고 AUC − w90 견고 AUC ≥ +0.02 (같은 컷오프 2025-11-20·같은 60종목·같은 3창 채점, 창 짝 승률 ≥ 2/3). 미달이면 '학습 창 길이는 레버가 아니다'로 종결하고 데이터 축(XR/L3)으로 이동",
       "expected": "w90 ≈ 0.44(재현), w250 은 미지 — 스윕 수준(0.53)에 근접하면 프로덕션 재학습 정책 변경이 최대 레버가 된다.",
       "risk": "과거 컷오프 학습이므로 유니버스가 '현재 유동성 상위 200종목'으로 뽑히는 약한 미래정보 편향(패널 실험과 동일). 두 arm 이 같은 편향을 공유하므로 Δ 판정에는 영향이 작다.",
-      "note": "**2026-09-29 22:4x 개정(실행 가능 형태로 3건 수리 후 pending 승격)** — 원안은 ①평가 단계가 아예 없어 `metric=champion_robust_eval` 인데 그 요약을 만들지 않았다(구동기가 '요약 미갱신 → 실행실패'로 기록할 참이었고, 요약 경로가 기본 경로로 폴백돼 실제 챔피언 산출물을 덮을 위험도 있었다 — `_summary_path_test.py` 가 이 결함을 잡아냈다) ②w250 arm 이 200종목×172거래일 = 34,400 페어라 실측 0.75~1.26 페어/s 로 7.6~12.7h → 컨테이너 timeout 30000s(8.3h) 안에 못 들어간다 ③평가창이 학습구간과 겹치는 문제(CG34)를 고려하지 않아 OOS 창이 0~1개로 줄 뻔했다. 수리: 200→60종목(양 arm 동일 → 짝 비교라 유니버스 교란 없음), 컷오프를 h1 평가창 시작(2025-11-28) **앞**(2025-11-20)으로 옮겨 3창 전부 OOS, `--checkpoint-path` 신설(`retrain_champion.py` 에 `build_training_features(checkpoint_path=)` 배선 — 실측 2026-09-29, 미배선이라 매일 2h 캡에 전량 소실), 평가 2회를 명시적 `--out` 으로 분리. 잔여 한계: 표본 9날짜/646행(CG37 과 동일)이라 짝 검정력이 얇다 — 판정 시 창 수·날짜 수를 함께 보고할 것. | 원 메모: 2026-09-29 신설 — 배포(90일)와 스윕(281~659거래일)의 학습 창 격차가 '스윕 0.53~0.55 vs 배포 자기과제 OOS 0.4410' 의 유력 원인이다. U3 완료 전에는 pending 으로 올리지 말 것(저녁 런처 창을 막으면 panel_995 를 또 잃는다) — 2026-09-29 22:4x U3 가 체크포인트 재개로 밤새 도는 중이라 안전하다고 판단해 승격했다.",
+      "note": "**2026-09-29 22:4x 개정(실행 가능 형태로 3건 수리 후 pending 승격)** — 원안은 ①평가 단계가 아예 없어 `metric=champion_robust_eval` 인데 그 요약을 만들지 않았다(구동기가 '요약 미갱신 → 실행실패'로 기록할 참이었고, 요약 경로가 기본 경로로 폴백돼 실제 챔피언 산출물을 덮을 위험도 있었다 — `_summary_path_test.py` 가 이 결함을 잡아냈다) ②w250 arm 이 200종목×172거래일 = 34,400 페어라 실측 0.75~1.26 페어/s 로 7.6~12.7h → 컨테이너 timeout 30000s(8.3h) 안에 못 들어간다 ③평가창이 학습구간과 겹치는 문제(CG34)를 고려하지 않아 OOS 창이 0~1개로 줄 뻔했다. 수리: 200→60종목(양 arm 동일 → 짝 비교라 유니버스 교란 없음), 컷오프를 h1 평가창 시작(2025-11-28) **앞**(2025-11-20)으로 옮겨 3창 전부 OOS, `--checkpoint-path` 신설(`retrain_champion.py` 에 `build_training_features(checkpoint_path=)` 배선 — 실측 2026-09-29, 미배선이라 매일 2h 캡에 전량 소실), 평가 2회를 명시적 `--out` 으로 분리. 잔여 한계: 표본 9날짜/646행(CG37 과 동일)이라 짝 검정력이 얇다 — 판정 시 창 수·날짜 수를 함께 보고할 것. | 원 메모: 2026-09-29 신설 — 배포(90일)와 스윕(281~659거래일)의 학습 창 격차가 '스윕 0.53~0.55 vs 배포 자기과제 OOS 0.4410' 의 유력 원인이다. U3 완료 전에는 pending 으로 올리지 말 것(저녁 런처 창을 막으면 panel_995 를 또 잃는다) — 2026-09-29 22:4x U3 가 체크포인트 재개로 밤새 도는 중이라 안전하다고 판단해 승격했다.\n2026-09-30 타임아웃 정합(엔지니어): 실측 피처 빌드 1.25 pair/s → w90 3,630페어≈48분 · w250 10,200페어≈136분 · 평가 2회≈30분 = 합계 ≈3.8h(경쟁 시 2배). 그래서 내부 timeout 을 w90 10800s(3h) · w250 21600s(6h) · 평가 2700s(45분)로 올렸다(종전 7200/16200/1500 은 경쟁 구간에서 그대로 SIGKILL 될 값). est_minutes 440(7.3h) 은 총 소요 추정치로 유지 — 22:45 착수 시 05:05 종료로 개장(09:00) 전이다.",
       "cost": "3.1~5.2h (14,040 페어: 60종목×(62+172)거래일 ÷ 실측 0.75~1.26 페어/s) + 평가 2×≈15분 — 2026-09-30 21:0x 수리: 컨테이너 timeout 합(3h+7h+40분+40분=11h40m)이 est 440분을 넘어 '야간 완주' 보증이 거짓이었다 → 2h+4.5h+25분+25분(=7h20m ≤ est)으로 잘라 est 가 최악 소요를 실제로 덮게 맞췄다. 실측 pair/s: 09-29 0.72(경쟁) · 09-30 1.25(비교적 유휴) — 이후 착수 시 첫 진행률 로그로 재실측할 것.",
       "attempts": 0
     },
@@ -6424,6 +6424,56 @@
       "expected": "abs h1 이 rel h5 보다 뚜렷이 낮으면(≈0.47 이하) 라벨 정의가 격차의 주 원인, 비슷하면(≥0.52) 창·프로토콜 효과가 원인.",
       "note": "진단 항목 — 성공 조건은 모델 개선이 아니라 '0.44 와 0.54 중 어느 쪽이 배포 모델의 정직한 OOS 인가'의 귀속이다. 기본 --out 경로(champion_robust_eval.json)는 건드리지 않는다. 구동기는 첫 --out(cg41_rel_h5)만 판정에 쓰므로 짝 Δ 는 두 JSON 을 직접 비교해 계산하라.",
       "risk": "없음 — champion/ 무수정·추론 계약 무변경. CPU 4코어 직렬화는 구동기 lock 이 담당."
-    }
+    },
+    {
+      "id": "CG42",
+      "title": "피처 빌드 처리량 3.16x — 날짜 전용 피처(market_breadth·krx ADR) 날짜별 캐시 (배포 재학습 예산 문제의 근본 원인 제거)",
+      "status": "done",
+      "priority": 2,
+      "affects_model": false,
+      "depends_on": [],
+      "baseline": null,
+      "arm": null,
+      "counterfactual": "동일 페어 집합에서 원본 코드(git HEAD)로 측정한 0.721 s/pair (1.39 pair/s)",
+      "hypothesis": "200종목×90일 재학습의 피처 빌드가 1.25 pair/s 인 것은 페어당 48회 DB 왕복(N+1) 때문이며, 그중 date 만의 함수인 시장레벨 피처 2개(market_breadth 521ms/호출, krx ADR 470ms/호출)가 SQL 시간의 79% 를 차지한다. 날짜별로 1회만 계산하면 값이 동일한 채 수 배 빨라진다.",
+      "evidence": "cProfile: `cursor.execute` 71.1s / 전체 82.9s (86%) · 2,888 호출 = 48/페어(60페어). SQL 프로파일(패치 전, 60페어): market_breadth 31.26s(60호출, 521ms) · krx_advance_decline_ratio 28.20s(60호출, 470ms) · pgvector 유사도 7.64s(127ms) · 재무 피어 백분위 0.94s. 값 동등성: 85 공통페어 × 199 피처 → 차이 0. 속도 A/B(같은 50페어, 같은 시각·같은 기계): 원본 36.03s(1.39 pair/s) → 패치 11.40s(4.39 pair/s) = 3.16x.",
+      "method": "services/xgboost-ml/app/feature_engine/feature_pipeline.py 의 두 블록(L592-601 market_breadth · L869-877 krx_adr)에 `self._cache[(\"market_breadth\"|\"krx_adr\", date)]` 날짜 캐시 추가(_get_market_return 과 동일 패턴). 실패도 0.0 으로 캐시해 예외+rollback 왕복 제거. SQL 본문·as-of 의미 무변경.",
+      "command": null,
+      "check": "값 동등성(85 공통페어 × 199 피처 diffs=0) + pair/s 3배 이상",
+      "check_target": "diffs == 0 and pair/s >= 3.0",
+      "metric": null,
+      "est_minutes": 25,
+      "success": "값 변화 0 · pair/s 1.39 → 4.39(3.16x). 부수 효과: 저녁 파이프라인 200종목×90일 빌드가 161분 → 약 50분(무경쟁)·약 90분(경쟁) 으로 줄어 12600s 예산에 여유가 생긴다.",
+      "expected": "3~5배 (실측 3.16x)",
+      "risk": "낮음 — 값이 date 만의 함수라 캐시가 결과를 바꾸지 않음(동등성 실측). 실패 시 캐시된 0.0 이 그 날짜 전체에 적용되나 종전에도 실패=0.0 이었다.",
+      "note": "검증 스크립트는 컨테이너 /tmp/feat_timing.py(고정 종목·날짜 50페어 타이밍)·/tmp/equivalence_check.py(피클 비교). 남은 후보(미적용, 우선순위 순): ①pgvector 유사도 종목별 캐시(127ms×60 → 종목당 1회, 약 10%) ②유사종목 return_5d 10회 → ANY() 배치 1회 ③종목별 시계열 프리로드(수급·ownership·short·margin·credit) ④disclosures EXISTS 프로브 프로세스 캐시.",
+      "attempts": []
+    },
+  {
+    "id": "CG43",
+    "title": "저녁 파이프라인 예산 수리 검증 — 수리된 예산(12600s)으로 200종목×90일 챌린저를 실제로 완주시키고 승격 게이트 dry-run 판정",
+    "status": "pending",
+    "priority": 1,
+    "affects_model": true,
+    "depends_on": [
+      "CG42"
+    ],
+    "baseline": "champion/robust_auc.json 0.5513(2026-09-24 결정) · auc.txt 0.551318",
+    "arm": "예산 12600s(3.5h) + CG42 처리량 수리(3.16x) 로 같은 재학습",
+    "counterfactual": "현행 파이프라인 예산 timeout 7200(2시간) — 실측 09-24·25·28·29·30 5회 연속 exit=124 로 후보가 만들어지지 않았다(승격 심사 자체가 열리지 않음)",
+    "hypothesis": "09-30 수리(예산 7200→12600s) + CG42 처리량 수리(1.39→4.39 pair/s)를 적용하면 200종목×90일 재학습이 예산 안에 완주해 승격 후보가 실제로 만들어진다. 빌드는 약 50분(무경쟁)~90분(경쟁)이면 끝난다(수리 전 실측 161분).",
+    "evidence": "수리 전: 빌드 161분(1.22~1.25 pair/s, 12,101페어) > 예산 120분 → 매일 124. 수리 후: 같은 50페어 A/B 1.39 → 4.39 pair/s(3.16x) → 추정 50~90분. 12600s 예산 대비 1.4~2.8배 여유.",
+    "method": "파이프라인과 동일한 재학습·게이트 인자를 --dry-run 으로 한 번에 실행. champion/ 은 건드리지 않는다(승격은 dry-run 통과 후 별도 판단).",
+    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 12600 python -u -m app.training.retrain_champion --days 90 --stock-limit 200 --end-date 2026-09-30 --out-dir app/models/champion_cand --checkpoint-path /app/app/models/wf/cg43_cand.ckpt && python -m app.training.champion_promote --candidate app/models/champion_cand --champion app/models/champion --min-auc 0.53 --min-improvement 0.0 --legacy-baseline-cap 0.53 --max-std 0.05 --dry-run --summary-out /app/app/reports/cg43_promote_dryrun.json'",
+    "check": "rc==0 AND champion_cand/training-result-*.json 존재 AND cg43_promote_dryrun.json 의 status 존재",
+    "check_target": "rc == 0",
+    "metric": "champion_promote_dryrun",
+    "est_minutes": 150,
+    "success": "예산 안에서 후보 완성 + dry-run status 를 기록. status=would_promote 면 승격 판단 근거가 생기고, 거부면 게이트가 왜 막는지(reason)가 기록된다.",
+    "expected": "rc=0 · 후보 생성 · dry-run status 기록(예상: 기준선 0.5513 이 높아 reject 가능 — 그 경우에도 '예산이 더는 병목이 아니다'가 증명된다)",
+    "risk": "낮음 — dry-run 이라 champion/ 무수정. CPU 4코어 직렬화는 구동기 lock 이 담당. 체크포인트를 줘서 중단 시 이어받기 가능.",
+    "note": "이 항목의 목적은 성능 개선이 아니라 **생산 경로가 실제로 후보를 만드는가**의 검증이다. 성공 판정을 AUC 로 잡지 말 것 — AUC 판단은 dry-run 결과와 별도 기준선 프로토콜로 한다.",
+    "attempts": []
+  }
   ]
 }

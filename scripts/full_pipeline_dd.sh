@@ -302,18 +302,25 @@ CAND_DIR="app/models/champion_cand"
 CHAMP_DIR="app/models/champion"
 # 낡은 후보가 남아 있으면 재학습 실패 시 그대로 승격되어 버린다 → 먼저 비운다
 docker exec stock_xgboost_ml sh -c "rm -rf /app/$CAND_DIR" >> "$LOG_FILE" 2>&1
+# 2026-09-30 실측(엔지니어): 종전 예산 `timeout 7200` 은 **매일 124 로 죽고 있었다** — 09-24·25·28·29
+#   4회 연속 `챌린저 학습 타임아웃(2시간)`·`exit=124` 로 후보가 만들어지지 않아 승격 심사 자체가 열리지
+#   않았고(챔피언 0.551318 2026-09-24 이후 동결), 밤마다 2시간을 태우고 버렸다. 실측 속도는
+#   200종목×90일 = 12,101 페어에 **1.25 pair/s** (09-30 20:45 시작 → 47.9%(5,800페어)에서 22:45 SIGTERM)
+#   → 피처 빌드만 161분 + 학습 수 분 = 약 **170분** = 종전 7200s(120분)의 1.4배.
+#   → 12600s(3.5h)로 올린다. 다시 조정할 때는 `12,101 ÷ 실측 pair/s` 로 계산하고, 빌드는
+#   `Build progress: N/12101 stock-date pairs ... N.NN pair/s` 줄에서 매일 실측할 수 있다.
 # 학습 규모: 최근 데이터 우선 200종목 × 90일(≈1.2만 패널행).
 #   실측 피처 빌드 속도 = 종목-일 쌍당 약 0.45초(199피처 + Neo4j + SNS/매크로 as-of).
 #   → 200종목×120일(16,080쌍)은 약 2시간이 걸려 **30분 타임아웃(구 1800s)에서는 후보가
 #   완성되지 않아 승격 심사가 아예 열리지 않았다**(실측 2026-09-24: exit=124, 30분에 4,000쌍).
 #   그래서 기간을 90일로 줄이고 예산을 2시간으로 올린다. 늘릴 때는 둘을 함께 조정할 것.
-docker exec stock_xgboost_ml timeout 7200 sh -c \
+docker exec stock_xgboost_ml timeout 12600 sh -c \
     "cd /app && python -m app.training.retrain_champion --days 90 --stock-limit 200 --out-dir $CAND_DIR" \
     >> "$LOG_FILE" 2>&1 < /dev/null
 RC=$?
 if [ "$RC" -ne 0 ]; then
     if [ "$RC" -eq 124 ]; then
-        echo "  챌린저 학습 타임아웃(2시간) — 피처 빌드가 예산을 초과. --days/--stock-limit 또는 timeout 조정 필요"
+        echo "  챌린저 학습 타임아웃(3.5시간) — 피처 빌드가 예산을 초과. --days/--stock-limit 또는 timeout 조정 필요"
     fi
     echo "  챌린저 학습 실패(exit=$RC) — 챔피언 유지, 승격 생략"
 else
