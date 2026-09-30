@@ -92,3 +92,14 @@ def test_no_recent_run_falls_through_to_base_order(monkeypatch):
     b = _backlog(_item("R21", 6, recurring=True), _item("R23", 7))
     monkeypatch.setattr(rc, "_recent_recurring_ids", lambda *a, **k: set())
     assert rc.pick_item(b)["id"] == "R21"
+
+
+def test_cooldown_covers_more_than_one_tick():
+    """쿨다운은 틱 간격(120분)보다 충분히 길어야 한다.
+
+    WHY(실측 2026-09-30 22:0x): 180분(=1.5틱)이면 '결과 보고 틱이 시작 기회를 삼키는' 구조나
+    '부하 가드로 시작이 막히는' 구조에서 다음 시작 틱에 쿨다운이 이미 만료돼 양보가 발동하지
+    않는다(R21 이 다시 뽑혀 R23 이 영구 pending). 최소 2틱(240분)을 경계로 고정한다.
+    """
+    assert rc.RECUR_COOLDOWN_MIN >= 240, (
+        "쿨다운이 2틱 미만이면 막힌 틱 하나에 양보가 무효화된다")
