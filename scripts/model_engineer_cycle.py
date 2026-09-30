@@ -516,6 +516,15 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/champion_robust_eval.json")
+    if kind == "champion_promote_dryrun":
+        # 승격 게이트 dry-run(champion_promote --summary-out) 요약. CG43 이 이 metric 으로 돈다.
+        # 실측(2026-09-30 22:34): 이 metric 이 등록돼 있지 않아 구동기가 "parser 없음 →
+        # 판정불가" 로 기록할 참이었다 — rc=0 이면 백로그가 done 으로 닫히면서 **게이트 판정
+        # (status·사유·후보 AUC)이 원장에서 통째로 사라진다**(항목의 유일한 산출물인데도).
+        out = _arg(command or "", "--summary-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/ml_result.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -528,11 +537,19 @@ def summary_path(kind, command=None):
 
 def _out_arg(command: str) -> str:
     """커맨드에서 `--out <path>` 값을 뽑는다(없으면 빈 문자열)."""
-    parts = command.split()
+    return _arg(command, "--out")
+
+
+def _arg(command: str, flag: str) -> str:
+    """커맨드 문자열에서 `--flag <값>` 또는 `--flag=<값>` 을 뽑는다(없으면 빈 문자열).
+
+    `--out`·`--summary-out` 처럼 산출물 경로를 지정하는 플래그를 요약 경로로 쓰기 위한 것.
+    """
+    parts = (command or "").split()
     for i, p in enumerate(parts):
-        if p == "--out" and i + 1 < len(parts):
+        if p == flag and i + 1 < len(parts):
             return parts[i + 1].strip("'\"")
-        if p.startswith("--out="):
+        if p.startswith(flag + "="):
             return p.split("=", 1)[1].strip("'\"")
     return ""
 
@@ -623,6 +640,81 @@ def parse_champion_robust(path, mtime_floor) -> dict:
         "errors": (d.get("errors") or [])[:5],
         "summary_mtime": mt,
     }
+
+
+def parse_champion_promote_dryrun(path, mtime_floor) -> dict:
+    """승격 게이트 dry-run 요약(champion_promote --summary-out)을 파싱한다.
+
+    왜(실측 2026-09-30 22:34 CG43): 이 스택의 생산 경로는 저녁 파이프라인에서
+    `retrain_champion --days 90 --stock-limit 200` 뒤 `champion_promote --dry-run` 을 돌리는데,
+    게이트가 내린 **판정 자체**(status·사유·후보 AUC·기준선)가 이 JSON 의 유일한 산출물이다.
+    metric 파서가 없으면 rc=0 일 때 "parser 없음"으로 기록되고 항목이 done 으로 닫혀
+    판정이 영구 소실된다.
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장의 per_exp 전체를 'arm 의 폴드 평균'으로
+    읽어 best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 후보 AUC 는 단일 학습의
+    인샘플 값이라 arm 폴드 평균이 아니므로 최상위 키로만 싣는다.
+    """
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if not d.get("status"):
+        return {"error": "status 키가 없음(게이트 판정 아님)", "summary_mtime": mt}
+    return {
+        "status": d.get("status"),
+        "promoted": d.get("promoted"),
+        "reason": d.get("reason"),
+        "candidate_auc": d.get("auc"),
+        "candidate_metric": d.get("candidate_metric"),
+        "champion_auc_before": d.get("champion_auc_before"),
+        "champion_baseline": d.get("champion_baseline"),
+        "champion_baseline_source": d.get("champion_baseline_source"),
+        "model_aucs": d.get("model_aucs"),
+        "n_rows": d.get("n_rows"), "n_features": d.get("n_features"),
+        "up_rate": d.get("up_rate"), "retrained_at": d.get("retrained_at"),
+        "decided_at": d.get("decided_at"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_promote_dryrun(item, parsed) -> tuple:
+    """승격 게이트 dry-run 의 판정 — **성능 판정이 아니라 생산 경로 검증**이다.
+
+    왜 judge_per 를 쓰지 않는가: 이 항목(CG43)의 성공 조건은 "예산 안에서 후보가 만들어지고
+    게이트 판정이 기록되는가"다. per_exp 가 없어 judge_per 는 '판정불가'만 돌려준다.
+    AUC 는 후보의 **인샘플** 값이라 승격·기준선 판단에 쓰지 않는다(하드룰 #1).
+    """
+    if parsed.get("error"):
+        return "판정불가", parsed["error"], None
+    st = parsed.get("status")
+    parts = [f"dry-run status={st}"]
+    for k, label, fmt in (("candidate_auc", "후보 AUC", "{:.4f}"),
+                          ("champion_auc_before", "챔피언", "{:.4f}"),
+                          ("champion_baseline", "기준선", "{}")):
+        v = parsed.get(k)
+        if isinstance(v, (int, float)):
+            parts.append(f"{label} {fmt.format(v) if fmt == '{:.4f}' else v}")
+    if parsed.get("champion_baseline_source"):
+        parts.append(f"기준선 출처 {parsed['champion_baseline_source']}")
+    if parsed.get("n_rows") is not None:
+        parts.append(f"학습행 {parsed['n_rows']}")
+    if parsed.get("up_rate") is not None:
+        parts.append(f"양성률 {parsed['up_rate']}")
+    if parsed.get("reason"):
+        parts.append(f"사유: {parsed['reason']}")
+    verdict = {"would_promote": "게이트 통과(승격후보 생성)",
+               "kept_incumbent": "후보 생성·게이트 거부",
+               "promoted": "승격됨(비-dry-run)",
+               "invalid_candidate": "후보 무효"}.get(st, "판정불가")
+    return verdict, " · ".join(parts), None
 
 
 def failure_cause(rc, started=None, log_path=None):
@@ -836,7 +928,17 @@ def execute(item, force=False):
     rc = proc.returncode
     cause = ""          # rc==0 이면 미설정 — 아래 재시도 분기가 참조하므로 초기화한다
 
-    if rc != 0:
+    # ── rc=5 예외(champion_promote) ─────────────────────────────────────────────
+    # champion_promote.py 는 후보가 무효(invalid_candidate)일 때 **5** 를 돌려준다. 이건 인프라
+    # 실패가 아니라 **게이트가 내린 판정**이다(실측 2026-09-30 CG43: 항목의 유일한 산출물이
+    # 그 판정인데 rc!=0 이면 '실행실패·측정값 없음'으로 지워진다). 요약이 실제로 갱신됐을 때만
+    # 완료로 다루고, 요약이 없으면 종전대로 실패로 기록한다.
+    gate_rc5 = False
+    if rc == 5 and item.get("metric") == "champion_promote_dryrun":
+        _p5 = parse_champion_promote_dryrun(spath, mtime_floor)
+        gate_rc5 = not _p5.get("error")
+
+    if rc != 0 and not gate_rc5:
         # 실패한 실행에 성능 판정을 붙이지 않는다(설계원칙 6). 옛 요약을 읽어 Δ 를 만들면
         # 소실이 '노이즈(측정됨)'로 세어져 무개선 카운터·승격 판단이 오염된다.
         cause = failure_cause(rc, started, run_log)
@@ -848,7 +950,9 @@ def execute(item, force=False):
         parsed = parse_wf_sweep(spath, mtime_floor) if item.get("metric") == "wf_sweep_summary" \
             else (parse_champion_robust(spath, mtime_floor)
                   if item.get("metric") == "champion_robust_eval"
-                  else {"error": f"parser 없음 (metric={item.get('metric')!r})"})
+                  else (parse_champion_promote_dryrun(spath, mtime_floor)
+                        if item.get("metric") == "champion_promote_dryrun"
+                        else {"error": f"parser 없음 (metric={item.get('metric')!r})"}))
         # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
         # ⚠ 함정(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면, 가설군이 **진** 경우
         # winner == 대조군 이 되어 Δ 0.0000 "노이즈" 로 잘못 기록된다. 실제로는 h8 0.5068 vs
@@ -857,6 +961,8 @@ def execute(item, force=False):
         per = _pe if isinstance(_pe, dict) else {}
         if item.get("metric") == "champion_robust_eval":
             verdict, detail, delta = judge_champion_baseline(item, parsed)
+        elif item.get("metric") == "champion_promote_dryrun":
+            verdict, detail, delta = judge_promote_dryrun(item, parsed)
         else:
             verdict, detail, delta = judge_per(item, per)
         if parsed.get("error") and not per:
@@ -871,6 +977,8 @@ def execute(item, force=False):
         "verdict": verdict, "detail": detail,
         "reported": False,
     }
+    if gate_rc5:
+        rec["rc_note"] = "champion_promote rc=5 = 후보 무효(invalid_candidate) — 게이트 판정이므로 실행실패 아님"
     append_ledger(rec)
 
     b = load_backlog()
@@ -881,7 +989,7 @@ def execute(item, force=False):
                 "log": rec["log"], "elapsed_min": rec["elapsed_min"],
             })
             code_churn = rc == 1 and "피처 코드 변경" in cause
-            if rc == 0:
+            if rc == 0 or gate_rc5:
                 it["status"] = "done"
             elif (rc in (137, 124) or code_churn) and len(it["attempts"]) < RETRY_MAX:
                 # 인프라 사고(컨테이너 재생성·타임아웃·빌드 중 피처 코드 변경)는 가설의 결과가 아니다
@@ -963,6 +1071,8 @@ def ingest(item_id, log_rel=None):
         return 2
     parsed = (parse_champion_robust(spath, 0) if it.get("metric") == "champion_robust_eval"
               else parse_wf_sweep(spath, 0) if it.get("metric") == "wf_sweep_summary"
+              else parse_champion_promote_dryrun(spath, 0)
+              if it.get("metric") == "champion_promote_dryrun"
               else {"error": f"parser 없음 (metric={it.get('metric')!r})"})
     per = parsed.get("per_exp") if isinstance(parsed.get("per_exp"), dict) else {}
     if parsed.get("error") and not per:
@@ -970,6 +1080,8 @@ def ingest(item_id, log_rel=None):
         return 3
     if it.get("metric") == "champion_robust_eval":
         verdict, detail, delta = judge_champion_baseline(it, parsed)
+    elif it.get("metric") == "champion_promote_dryrun":
+        verdict, detail, delta = judge_promote_dryrun(it, parsed)
     else:
         verdict, detail, delta = judge_per(it, per)
     parsed["out_of_band"] = True
