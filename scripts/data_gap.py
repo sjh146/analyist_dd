@@ -178,9 +178,17 @@ def find_gaps(probe=True):
                 save_holidays(holidays)
                 print("휴장 기록: {0} (KIS no_data)".format(d))
                 continue
-            if not exists or d == today_s:
+            if not exists:
                 # 데이터 자체가 아직 없음(예: 당일 장중) — 공실 아님
                 continue
+        if d == today_s:
+            # 당일은 **공실로 세지 않는다** (probe 유무와 무관).
+            # 실측 2026-10-01 04:19: 백필 경로는 find_gaps(probe=False) 를 쓰는데 종전에는
+            # 당일 제외가 probe 분기 안에만 있어, 04:15 크론이 **당일을 공실로 판정**했다
+            # → KIS 일봉을 장 개시 전에 3,700종목 돌려 평탄·거래량 0 봉을 적재
+            #   (market_data_freshness_days = -1, 수급 지연 판정 2 → 3 오탐 미달).
+            # 당일 봉은 마감 후 공식 경로(18:55 daily_bars / 20:00 파이프라인)가 넣는다.
+            continue
         gaps.append((d, n))
     gaps.sort()  # 오래된 날짜부터 백필
     return gaps, holidays

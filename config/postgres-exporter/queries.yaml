@@ -7,6 +7,7 @@ market_data_freshness:
   query: |
     SELECT (CURRENT_DATE - MAX(trade_date))::float AS days
     FROM market_data
+    WHERE COALESCE(volume, 0) > 0
   metrics:
     - days:
         usage: "GAUGE"

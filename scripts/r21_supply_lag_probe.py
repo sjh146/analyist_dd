@@ -104,6 +104,7 @@ FROM (
     LEFT JOIN fi ON fi.stock_code = u.code
     LEFT JOIN market_data m ON m.stock_code = u.code
          AND m.trade_date > fi.d AND m.trade_date <= %s
+         AND COALESCE(m.volume, 0) > 0
     GROUP BY 1, 2
 ) t
 """
@@ -112,7 +113,9 @@ FROM (
 ANCHOR_SQL = "SELECT MAX(trade_date) FROM foreign_institutional WHERE stock_code = ANY(%s)"
 
 # ② 절대 정지 신호 — 시장 최신일이 수급 최신일보다 몇 거래일 앞서 있는가(시장 전체 거래일 기준).
-ABS_GAP_SQL = "SELECT COUNT(DISTINCT trade_date) FROM market_data WHERE trade_date > %s"
+#    거래량 0 봉(미완성 당일 스냅샷)은 시장 거래일로 세지 않는다.
+ABS_GAP_SQL = ("SELECT COUNT(DISTINCT trade_date) FROM market_data "
+               "WHERE trade_date > %s AND COALESCE(volume, 0) > 0")
 
 # 정보용: 테이블 전체(회전 담당 밖 코드 포함)를 '시장 최신일' 기준으로 센 값.
 TABLE_LAG_SQL = """
@@ -124,6 +127,7 @@ FROM (
     SELECT m.stock_code, COUNT(*) AS l
     FROM market_data m
     JOIN fi ON fi.stock_code = m.stock_code AND m.trade_date > fi.d
+         AND COALESCE(m.volume, 0) > 0
     GROUP BY 1
 ) t
 """
@@ -170,7 +174,11 @@ def main():
         return 1
     try:
         cur = conn.cursor()
-        cur.execute("SELECT MAX(trade_date) FROM market_data")
+        # '시장 최신일'은 **마감된 봉** 기준 — 거래량 0 인 당일 미완성 봉(장 개시 전 KIS
+        # 스냅샷)을 기준일로 삼으면 수급 지연이 하루 부풀어 판정이 뒤집힌다.
+        # 실측 2026-10-01 06:0x: 미완성 10/01 봉 525행(전부 거래량 0·평탄 OHLC) 때문에
+        # 시장 최신일이 09-30 → 10-01 로 밀려 판정 2(통과) → 3(미달) 로 바뀌었다.
+        cur.execute("SELECT MAX(trade_date) FROM market_data WHERE COALESCE(volume, 0) > 0")
         market_max = cur.fetchone()[0]
         cur.execute(ROTATION_SQL, (60, 800))
         rotation = sorted({r[0] for r in cur.fetchall()})

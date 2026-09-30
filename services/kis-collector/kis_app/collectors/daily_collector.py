@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 
-from kis_app.utils import to_date, to_float, to_int
+from kis_app.utils import is_unfinished_daily_bar, to_date, to_float, to_int
 
 logger = logging.getLogger("kis_collector.daily")
 
@@ -76,13 +76,21 @@ class DailyCollector:
         if limit is not None:
             universe = universe[: int(limit)]
 
-        summary = {"ok": 0, "no_data": 0, "fail": 0, "total": len(universe)}
+        summary = {"ok": 0, "no_data": 0, "fail": 0, "total": len(universe),
+                   "unfinished": 0}
         for idx, (code, market) in enumerate(universe, start=1):
             excd = market_to_excd(market)
             try:
                 resp = self._client.get_daily_chart(
                     code, excd, target_date, target_date, count=DEFAULT_FID_CNT)
                 rows = parse_daily_bars(resp, target_date=target_date)
+                # 미완성 봉(장 개시 전·장중 당일 봉, 미래 날짜)은 적재하지 않는다.
+                # KIS 는 장 개시 전 당일 조회에 '전일 종가 = 시/고/저/종가, 거래량 0' 인
+                # 스냅샷을 돌려준다 — 그대로 넣으면 신선도·지연 판정이 오염된다(utils 참조).
+                if rows:
+                    finished = [r for r in rows if not is_unfinished_daily_bar(r["trade_date"])]
+                    summary["unfinished"] += len(rows) - len(finished)
+                    rows = finished
                 if rows:
                     saved = self._storage.save_market_data(code, rows)
                     summary["ok"] += 1

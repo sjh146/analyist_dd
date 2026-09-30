@@ -327,7 +327,8 @@ class TestDailyCollector:
             ("000660", "J", "20260825", "20260825", 5),
         ]
         assert storage.saved == [("005930", 1), ("000660", 1)]
-        assert summary == {"ok": 2, "no_data": 0, "fail": 0, "total": 2, "quota_hit": False}
+        assert summary == {"ok": 2, "no_data": 0, "fail": 0, "total": 2, "quota_hit": False,
+                           "unfinished": 0}
 
     def test_limit_truncates_universe(self):
         class FakeClient:
