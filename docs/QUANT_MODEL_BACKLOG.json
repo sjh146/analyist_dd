@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-01T03:15:06+09:00",
+  "updated_at": "2026-10-01T03:32:35+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -6838,7 +6838,7 @@
     {
       "id": "CG46",
       "title": "유니버스 결정성 수리 검증 — 같은 모델 2회 반복으로 프로토콜 잡음 바닥 재측정 + 챌린저 짝 Δ (수리 후 첫 결정적 측정)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "affects_model": true,
       "depends_on": [
@@ -6864,7 +6864,84 @@
       "cost": "3 arm × 약 4.6분 ≈ 14분 (컨테이너 timeout 3600s/arm)",
       "success": "|챔피언A − 챔피언B| ≤ 0.005 (수리 전 0.0173) → 프로토콜 잡음 바닥이 문턱 아래로 내려갔다. 그 위에서 챌린저 짝 Δ 를 확정한다. 0.005 초과면 비결정 요인이 다른 곳(날짜 샘플링·DB 스냅샷)에도 남아 있다.",
       "expected": "잡음 바닥 ≤ 0.005 · 챌린저 Δ 는 0 근처(수리 전 −0.0066 과 같은 방향 예상)",
-      "note": "판정은 첫 --out(챔피언 A)만 잡힌다 → 세 JSON 을 직접 파싱해 `parsed.paired`·`parsed.counterfactual_arm` 에 실어라(per_exp 금지 — 스코어보드 오독). 수리 대상 파일: services/xgboost-ml/app/training/universe.py(이 역할 소유). 부작용: 생산 재학습의 200종목 선택이 이제 **재현 가능**해진다 — 과거 학습분과는 종목이 달라질 수 있으므로 수리 이전 AUC 수치와 직접 비교하지 말 것."
+      "note": "판정은 첫 --out(챔피언 A)만 잡힌다 → 세 JSON 을 직접 파싱해 `parsed.paired`·`parsed.counterfactual_arm` 에 실어라(per_exp 금지 — 스코어보드 오독). 수리 대상 파일: services/xgboost-ml/app/training/universe.py(이 역할 소유). 부작용: 생산 재학습의 200종목 선택이 이제 **재현 가능**해진다 — 과거 학습분과는 종목이 달라질 수 있으므로 수리 이전 AUC 수치와 직접 비교하지 말 것. | 2026-10-01 03:32 실측: 잡음 바닥 0.0173 → **0.0000**(같은 모델 2회 비트 동일) — 수리 성공. 그 위에서 챌린저 짝 Δ +0.0226(3/3 창 양(+), p≈0.07). 단일 유니버스라 CG47(시드 3개)로 견고성 검증 필요.",
+      "attempts": [
+        {
+          "ts": "2026-10-01T03:32:35+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.4935±0.0268 (시간창 3개 [0.4732, 0.5314, 0.4758]) · 풀링 0.4979 · 날짜별평균 0.4935 · 행 1800 · 기존 승격 기준선 0.5336(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG46_20261001-031649.log",
+          "elapsed_min": 15.8
+        }
+      ],
+      "result": {
+        "verdict": "짝 신호(문턱 초과·3창 한계)",
+        "detail": "챔피언(결정적 유니버스 seed0) 0.4935±0.0268 [0.4732, 0.5314, 0.4758] — **2회 실행 비트 동일**(수리 전 같은 모델 재측정 산포 +0.0173 → 0.0000) · 챌린저(champion_cand) 0.5161±0.0182 [0.5057, 0.5417, 0.5008] → 같은 런 짝 Δ+0.0226(창별 [+0.0325, +0.0103, +0.0250] · 3/3 양(+)) — 사전문턱 +0.02 초과. 단 3창이라 t=3.47·df=2·p≈0.07 로 통계적 확정은 아니고, 유니버스 정체만 바꿔도 Δ0.0287 이 움직이므로(CG13) CG47(시드 3개 짝 설계)로 견고성을 검증해야 승격 근거가 된다.",
+        "delta": 0.0226,
+        "paired": {
+          "delta_same_run": 0.0226,
+          "champion_auc": 0.4935,
+          "champion_auc_repeat": 0.4935,
+          "challenger_auc": 0.5161,
+          "paired_folds": [
+            0.0325,
+            0.0103,
+            0.025
+          ],
+          "pos_windows": "3/3",
+          "noise_floor_before_fix": 0.0173,
+          "noise_floor_after_fix": 0.0,
+          "note": "수리 전 같은 모델 재측정 산포(+0.0173, 유니버스 비결정)가 사라져 문턱 +0.02 가 처음으로 잡음 위에 섰다. 그 위에서 나온 챌린저 우위 +0.0226 은 창 3개뿐이라 확정 불가 → CG47."
+        },
+        "counterfactual_arm": {
+          "model_dir": "app/models/champion",
+          "robust_auc": 0.4935,
+          "fold_means": [
+            0.4732,
+            0.5314,
+            0.4758
+          ],
+          "auc_pooled": 0.4979,
+          "rows_scored": 1800,
+          "repeat_robust_auc": 0.4935,
+          "universe_overlap_train200": 21
+        },
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG47",
+      "title": "시드 3개 × (챔피언·챌린저) 짝 설계 — 챌린저 우위(+0.0226)가 유니버스 정체를 넘어 견고한가",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "depends_on": [
+        "CG46",
+        "CG13"
+      ],
+      "baseline": {
+        "value": 0.4935,
+        "source": "CG46 실측 — 결정적 유니버스(seed0)에서 챔피언 견고 AUC 2회 비트 동일(0.4935). **수리 후 첫 기준선**이며 수리 전 값(0.5163/0.5336)과는 종목 집합이 달라 비교 금지"
+      },
+      "hypothesis": "생산 경로 재학습 후보(champion_cand)가 챔피언보다 낫다는 CG46 의 짝 Δ +0.0226 은 단일 유니버스 관측이다. 유니버스 정체만 바꿔도 Δ0.0287 이 움직이므로(CG13), 시드 3개(사실상 서로소 유니버스)에서 부호와 크기가 유지되어야만 '진짜 우위'다.",
+      "evidence": "① CG46: 챔피언 0.4935±0.0268 [0.4732,0.5314,0.4758] 2회 비트 동일 · 챌린저 0.5161±0.0182 [0.5057,0.5417,0.5008] → 짝 Δ +0.0226(창별 [+0.0325,+0.0103,+0.0250], 3/3 양(+)) · 3창이라 t=3.47·df=2 로 p≈0.07(문턱은 넘지만 통계적 확정은 아님). ② CG33(수리 전·비결정 유니버스): 같은 두 모델이 Δ−0.0066 — 부호가 뒤집혔다 = 유니버스 선택이 지배. ③ --universe-seed 프로브: seed0 vs seed1 교집합 1종목 · seed0 vs seed2 0종목 · 같은 seed 재현. ④ CG13: 서로소 30종목 5구간 폴드 평균 0.5204→0.4917(총폭 0.0287, 거의 단조) = 유니버스 정체 잡음.",
+      "method": "한 커맨드에서 6-arm 연속 실행 — seed 0/1/2 × (챔피언, 챌린저). 모델·창·라벨·종목수를 고정하고 유니버스만 시드로 바꾼다. 판정 = 시드별 짝 Δ=(챌린저−챔피언) 의 평균·부호 일관성·최악값.",
+      "arm": "champion_cand (생산 경로 200종목·90일·2026-07-02~09-30)",
+      "counterfactual": "배포 챔피언(app/models/champion) — 같은 시드·같은 창",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --train-start 2026-06-25 --train-end 2026-09-23 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed 0 --out app/reports/cg47_s0_champ.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --train-start 2026-07-02 --train-end 2026-09-30 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed 0 --out app/reports/cg47_s0_cand.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --train-start 2026-06-25 --train-end 2026-09-23 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed 1 --out app/reports/cg47_s1_champ.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --train-start 2026-07-02 --train-end 2026-09-30 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed 1 --out app/reports/cg47_s1_cand.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --train-start 2026-06-25 --train-end 2026-09-23 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed 2 --out app/reports/cg47_s2_champ.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --train-start 2026-07-02 --train-end 2026-09-30 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --universe-seed 2 --out app/reports/cg47_s2_cand.json'",
+      "check": "python3 scripts/cg47_pairs_report.py",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "champion_robust_eval",
+      "est_minutes": 35,
+      "cost": "6 arm × 약 4.6분 ≈ 28분 (컨테이너 timeout 3600s/arm)",
+      "success": "시드 3개 짝 Δ 평균 ≥ +0.02 **그리고** 양(+) 시드 ≥ 3/3 → 챌린저 우위가 유니버스에 견고 → 승격 검토(별도 승인·dry-run 부터). 부호 뒤섞임이면 '유니버스 정체 잡음'으로 닫고, +0.02 문턱이 이 스택의 검출 한계 이하라는 결론을 게이트 개편 승인 근거로 쓴다.",
+      "expected": "미지 — CG46 +0.0226 vs CG33 −0.0066 이 갈렸으므로 어느 쪽이든 정보가 크다.",
+      "note": "판정은 첫 --out(챔피언 seed0)만 잡힌다 → `python3 scripts/cg47_pairs_report.py` 로 6개 JSON 을 파싱해 짝 Δ 를 계산하고 원장 `parsed.paired` 에 실어라(per_exp 금지 — 스코어보드 오독). 6창(3시드×3창)이라 짝 Δ 의 SE 를 함께 보고하라 — 3창만으로는 p≈0.07 로 확정 불가(CG38 교훈)."
     }
   ]
 }

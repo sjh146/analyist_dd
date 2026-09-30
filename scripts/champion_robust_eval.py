@@ -209,6 +209,12 @@ def main() -> int:
                          "교집합이 **5종목**뿐이었다 → '배포 챔피언 자기 과제 OOS 0.4410' 은 자기 "
                          "과제가 아니라 **다른 도메인 채점**이었다. 이 축은 A/B 로만 비교하고 "
                          "기본값(기준선 산출)은 승인 없이 바꾸지 않는다.")
+    ap.add_argument("--universe-seed", type=int, default=0,
+                    help="--universe training 일 때 select_training_universe 의 시드(기본 0 = 현행). "
+                         "같은 크기의 **서로 다른 결정적 유니버스**를 뽑아 짝(pairs) 설계에 쓴다. "
+                         "왜(실측 2026-10-01 CG46): 유니버스 정체만 바꿔도 폴드 평균이 Δ0.0287 움직인다"
+                         "(CG13, 서로소 30종목 5구간) — 단일 유니버스의 짝 Δ +0.02 는 그 잡음보다 작아 "
+                         "여러 시드에서 부호가 유지되는지 확인해야 승격 근거가 된다.")
     ap.add_argument("--out", default="app/reports/champion_robust_eval.json")
     ap.add_argument("--write", action="store_true",
                     help="robust_walkforward.json 도 기록(정보용 견고성 지표). "
@@ -268,8 +274,10 @@ def main() -> int:
         logger.info("표본 유니버스 %d종목(유동성 상위 — 현행 프로토콜)", len(universe))
     else:
         from app.training.universe import select_training_universe
-        universe = select_training_universe(conn, limit=args.stocks, min_days=30, seed=0)
-        logger.info("표본 유니버스 %d종목(학습 경로와 동형 — ETF/ETN·파생 제외)", len(universe))
+        universe = select_training_universe(conn, limit=args.stocks, min_days=30,
+                                            seed=args.universe_seed)
+        logger.info("표본 유니버스 %d종목(학습 경로와 동형 — ETF/ETN·파생 제외, seed=%d)",
+                    len(universe), args.universe_seed)
     if not universe:
         logger.error("유니버스가 비었습니다")
         return 2
@@ -278,6 +286,8 @@ def main() -> int:
     # 실측(2026-09-30): 유동성 상위 80종목 중 26개가 ETF/ETN/레버리지, 학습 유니버스(200)와의
     # 교집합 5종목 → 그 OOS 0.4410 을 '자기 과제 성적'으로 읽으면 안 된다.
     universe_info = {"mode": args.universe, "n": len(universe)}
+    if args.universe == "training":
+        universe_info["seed"] = args.universe_seed
     try:
         from app.training.universe import is_etf_etn, select_training_universe as _stu
         with conn.cursor() as cur:
