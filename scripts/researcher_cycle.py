@@ -23,7 +23,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import model_engineer_cycle as base  # noqa: E402
@@ -421,6 +421,69 @@ def north_star(role):
         return ""
 
 
+# 상시 감시(recurring)의 재실행 간격 하한(분). 틱은 2시간 간격이므로 180 이면
+# '다음 틱은 양보, 그다음 틱은 실행'이 되어 감시는 살고 큐는 회전한다.
+RECUR_COOLDOWN_MIN = 180
+
+
+def _recent_recurring_ids(minutes=RECUR_COOLDOWN_MIN):
+    """최근 <minutes> 분 안에 **실행을 마친** 항목 id 집합.
+
+    WHY(실측 2026-09-30 20:0x): recurring 항목은 `status_after()` 가 어떤 결과에서도
+    status=pending 을 유지한다(경보가 뜬 순간 감시가 죽지 않게 하는 **의도된** 설계 —
+    tests/test_researcher_cycle_recurring.py). 그런데 구동기는 `base.next_item()` 으로
+    (priority, id) **정렬만** 하므로, 상시 감시가 다른 pending 보다 앞 번호면 매 틱 그 항목만
+    뽑혀 **큐 전체가 굶는다**. 실측: R21(prio 6, recurring, KIS 0회 프로브) vs R23(prio 7) —
+    원장에 R21 실행 기록 0건·R23 은 영구 pending 이었다(그 전엔 R3·R12(prio 3·4)가 앞에 있어
+    가려졌을 뿐, 그들이 done 이 되는 순간 드러난다).
+    → 상시 감시는 **순서를 양보**한다: 최근 실행된 항목은 이번 틱 후보에서 뒤로 미룬다.
+    """
+    cutoff = now_kst() - timedelta(minutes=minutes)
+    ids = set()
+    try:
+        rows = base.load_ledger()
+    except Exception:   # noqa: BLE001 — 원장이 깨져도 감시·수집을 죽이지 않는다
+        return ids
+    for r in rows:
+        try:
+            ts = datetime.fromisoformat(str(r.get("ts")))
+        except (TypeError, ValueError):
+            continue
+        if ts >= cutoff and r.get("id"):
+            ids.add(r["id"])
+    return ids
+
+
+def pick_item(b, force=False):
+    """다음 실행 항목 — `base.next_item()` 과 같되 **최근 실행된 상시 감시를 뒤로 미룬다**.
+
+    미룬 결과 실행할 항목이 없으면(큐에 감시밖에 없고 그마저 방금 돌았다면) 감시를 다시 집는다 —
+    회전이 감시를 죽이면 안 된다. force 는 종전대로 쿨다운을 무시한다(운영자 명시 실행).
+    """
+    recent = _recent_recurring_ids() if not force else set()
+    if recent:
+        pend = sorted([i for i in b["items"] if i.get("status") == "pending"],
+                      key=lambda i: (i.get("priority", 99), i["id"]))
+        yielded = []
+        for i in pend:
+            if i.get("recurring") and i["id"] in recent:
+                yielded.append(i["id"])
+                continue
+            if not i.get("command"):
+                continue
+            blocked, why = base.eta_blocks(i)
+            if blocked:
+                log(f"{i['id']}: ETA 가드로 건너뜀 — {why}")
+                continue
+            if yielded:
+                log(f"양보: 상시 감시 {', '.join(yielded)} 가 최근 {RECUR_COOLDOWN_MIN}분 내 실행 →"
+                    f" {i['id']} 를 먼저 집는다(감시 굶주림 방지)")
+            return i
+        if yielded:
+            log(f"실행 가능한 다른 pending 없음 → 최근 실행된 상시 감시 {', '.join(yielded)} 재실행")
+    return base.next_item(b, force)
+
+
 def tick(force=False):
     pid = base.running_pid()
     if pid:
@@ -492,7 +555,7 @@ def tick(force=False):
     if not ok:
         print(f"대기: {why}")
         return 0
-    nxt = base.next_item(b)
+    nxt = pick_item(b, force)
     if not nxt:
         print("실행 가능한 pending 없음 → setup_needed 해소 또는 새 항목 설계가 필요하다.")
         return 0
