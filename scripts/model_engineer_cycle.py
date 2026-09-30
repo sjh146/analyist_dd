@@ -931,6 +931,13 @@ def judge_champion_baseline(item, parsed) -> tuple:
     왜 judge_per 를 쓰지 않는가: 판정 대상이 '가설군 vs 대조군'이 아니라 **승격 게이트가
     비교해야 할 정직한 기준선 숫자**다(하드룰 #1: 단일 분할 AUC 는 승격 기준선으로 쓰지 않는다).
     arm/counterfactual 이 없으므로 judge_per 는 '기준선없음'이라는 무의미한 줄을 남긴다.
+
+    단, **같은 champion_robust_eval 프로토콜로 다른 모델을 잰 항목**(챌린저 vs 챔피언)은 짝 비교가
+    성립한다 → 항목에 `counterfactual_value`(같은 프로토콜·같은 창의 대조값)를 주면
+    Δ = robust − counterfactual_value 를 계산해 '짝 신호/짝 노이즈'로 판정하고 Δ 를 원장에 싣는다.
+    왜(실측 2026-10-01 CG33): 승격 판단에 남은 마지막 공백이 '챌린저를 챔피언과 같은 창에서 재는 것'
+    이었는데, 그 값(0.5163 = CG45)은 단일분할 값이 아니라서 종전 문구('기존 승격 기준선 x(단일분할)')를
+    붙이면 보고가 거짓이 된다. 대조값이 명시된 항목만 짝 경로로 보낸다(다른 항목 동작 불변).
     """
     robust = parsed.get("robust_auc")
     if not isinstance(robust, (int, float)):
@@ -942,6 +949,13 @@ def judge_champion_baseline(item, parsed) -> tuple:
               + f" (시간창 {len(means)}개 [{', '.join(f'{m:.4f}' for m in means)}])"
               + f" · 풀링 {parsed.get('auc_pooled')} · 날짜별평균 {parsed.get('auc_per_date_mean')}"
               + f" · 행 {parsed.get('rows_scored')}")
+    cf_val = item.get("counterfactual_value")
+    if isinstance(cf_val, (int, float)):
+        delta = float(robust) - float(cf_val)
+        cf_name = item.get("counterfactual") or "대조"
+        detail += (f" · 같은 프로토콜 대조({cf_name}) {float(cf_val):.4f} → Δ{delta:+.4f}"
+                   f" — 문턱 +0.02 미달이면 노이즈로 읽어라")
+        return ("짝 신호" if delta >= 0.02 else "짝 노이즈"), detail, delta
     ref = ((item.get("baseline") or {}) if isinstance(item.get("baseline"), dict) else {}).get("value")
     if isinstance(ref, (int, float)):
         detail += (f" · 기존 승격 기준선 {float(ref):.4f}(단일분할) — 프로토콜이 달라 직접비교 금지"

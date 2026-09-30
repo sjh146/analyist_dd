@@ -49,6 +49,7 @@ def _fetch_eligible(pg, date_from: str, min_days: int) -> List[dict]:
           AND s.instrument_type = 'STOCK'
         GROUP BY s.stock_code, s.stock_name, s.market
         HAVING COUNT(md.trade_date) >= %s
+        ORDER BY s.stock_code
         """,
         (date_from, min_days),
     )
@@ -100,7 +101,16 @@ def select_training_universe(
     """
     date_from = date_from or _default_date_from()
     eligible = _fetch_eligible(pg, date_from, min_days)
-    eligible.sort(key=lambda r: (r["latest"] is None, r["latest"]), reverse=True)
+    # 결정성(2026-10-01 실측 수리): 종전에는 ORDER BY 없이 `sort(key=latest)` 를 썼는데
+    # 실측상 2,655종목 중 **2,543종목이 같은 latest(최근 거래일)** 라 동률 그룹이 top 컷
+    # (limit*3=180/600)보다 커서, `eligible[:limit*3]` 이 동률 내부를 잘랐다 → SQL 반환 순서
+    # (실행마다 달라짐)가 유니버스를 정했다. 실측: 같은 커넥션 4회 실행에서 limit=60 교집합
+    # [60, 52, 57, 54] · limit=200 [200, 184, 181, 171]. 그래서 같은 모델·같은 창·같은 프로토콜의
+    # 견고 AUC 가 0.5163 → 0.5336 으로 재측정마다 0.017 흔들렸다(+0.02 문턱이 잡음 안에 있었다).
+    # 수리: ① 쿼리에 ORDER BY ② 정렬을 2단(코드 오름차순 → 최신일 내림차순)으로 분리해
+    # latest 동률은 항상 코드로 깨진다. 의미(최신 데이터 우선 + seed 셔플)는 그대로다.
+    eligible.sort(key=lambda r: r["code"])
+    eligible.sort(key=lambda r: (r["latest"] is None, str(r["latest"])), reverse=True)
     top = eligible[: max(limit * 3, 30)]
     rng = random.Random(seed)
     rng.shuffle(top)

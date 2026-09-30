@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-01T00:05:35+09:00",
+  "updated_at": "2026-10-01T03:15:06+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -5966,34 +5966,78 @@
     {
       "id": "CG33",
       "title": "챌린저를 챔피언과 **같은 다중창 프로토콜**로 평가 — 승격 근거 완성 (기준선 교체의 후속)",
-      "status": "backlog",
-      "priority": 3,
+      "status": "done",
+      "priority": 1,
       "affects_model": true,
       "baseline": {
-        "value": 0.5302,
-        "source": "CG31 실측(배포 챔피언 워크포워드 견고 AUC, 5창×10일×80종목·h5 시장상대)"
+        "value": 0.5163,
+        "source": "CG45 실측 — 같은 프로토콜(학습도메인 정합 유니버스·겹침 창 제외·rel h5·5폴드×10일·60종목)의 배포 챔피언 OOS 견고 AUC"
       },
       "hypothesis": "CG31 실측으로 게이트 기준선의 결함이 확정됐다(기록 0.5513 단일분할 vs 챔피언 자체 워크포워드 0.5302 = −0.0211). 그런데 챌린저(스윕 최고 CO_d1_h5 0.5545)는 **다른 프로토콜**(폴드별 재학습 확장창)에서 측정된 값이라 챔피언과 직접 비교할 수 없다. 챌린저를 같은 champion_robust_eval 프로토콜로 재면 '교체가 실제로 개선인가'가 처음으로 숫자로 확정된다.",
       "evidence": "CG31: 챔피언 0.5302±0.0553 [0.5399, 0.4763, 0.4580, 0.6013, 0.5754] · 풀링 0.5284 · 3/5 창이 기록 기준선 0.5513 미달 · 2창은 0.5 미만. 스윕 챌린저 CO_d1_h5 0.5545(게이트 ON·5폴드×10시드, CG8)/CO_smooth_d1_h5 0.5509(CG27·0.5365 대비 Δ+0.0144). 두 값은 프로토콜이 달라 '챌린저 > 챔피언'을 주장할 수 없다.",
       "method": "① 챌린저 설정(게이트 ON·depth1·lr0.05, 필요하면 라벨 스무딩)을 **scratch 모델 디렉터리**로 학습( champion/ 를 건드리지 않는다 — 하드룰 #4) ② `python scripts/champion_robust_eval.py --model-dir <scratch> --folds 5 --dates-per-fold 10 --stocks 80` ③ 챔피언 0.5302 와 같은 프로토콜로 Δ 판정 ④ Δ ≥ +0.02 면 승격 검토(별도 승인), 미달이면 '교체 이득 없음'으로 기록.",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python scripts/champion_robust_eval.py --model-dir /app/app/models/scratch_challenger --folds 5 --dates-per-fold 10 --stocks 80 --train-start <학습시작일> --train-end <학습종료일> --out /app/reports/challenger_robust_eval.json'   # <학습시작일>·<학습종료일> 은 scratch 학습 meta 의 data_start/data_end",
-      "check": "docker exec stock_xgboost_ml cat /app/reports/challenger_robust_eval.json",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --train-start 2026-07-02 --train-end 2026-09-30 --out app/reports/cg33_challenger_oos.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --train-start 2026-06-25 --train-end 2026-09-23 --out app/reports/cg33_champion_recheck.json'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
       "check_target": {
         "op": ">=",
         "value": 1
       },
       "metric": "champion_robust_eval",
-      "success": "챌린저 견고 AUC − 챔피언 0.5302 ≥ +0.02 (같은 프로토콜) → 승격 검토 대상. 미달이면 교체 보류.",
+      "success": "챌린저 견고 AUC − 챔피언 0.5163 ≥ +0.02 (같은 프로토콜·같은 3창) → 승격 검토 대상. 미달이면 '현 생산 경로 재학습은 챔피언보다 낫지 않다'로 기록하고 기준선 교체 승인 근거에만 쓴다.",
       "expected": "미지 — 스윕 프로토콜(폴드별 재학습)과 이 프로토콜(단일 학습 후 창별 평가)은 다르므로 어느 쪽이든 정보가 된다.",
-      "cost": "학습(설정에 따라 10~40분) + 평가 ~70분 → 장시간 항목. 20:00 재생성 창을 넘기면 런처/U3 와 직렬화 필요.",
-      "est_minutes": 110,
+      "cost": "약 10분 (CG45 실측 4.6분/arm × 2 arm) — 컨테이너 timeout 3600s/arm",
+      "est_minutes": 15,
       "caution": "U3(20:35 시작 예정, 11.7h 상한)와 CPU 를 동시에 쓰지 말 것 — 직렬화는 구동기 락이 담당한다.",
-      "setup_needed": "남은 것: ① CG35 로 '고정 컷오프 + 엄격 OOS' 프로토콜을 먼저 검증(챔피언 0.5883 이 암기인지) ② 그 위에서 챌린저 설정을 정의 — 현재 배포 가능한 arm 중 프로토콜을 통과한 것이 없다(모든 arm 노이즈: CG26 k축·CG27 스무딩+depth1 +0.0144·CG28/29 데이터 축 +0.0005·CG32 정규화 악화). 즉 챌린저가 정의되기 전에는 이 항목을 pending 으로 올리지 말 것.",
-      "note": "2026-09-29 17:35 신설 — CG31 로 '기준선이 단일분할이라 −0.0211 낙관'이 실측 확정됐고, CG32 로 배포 가능 정규화 축이 소진됐다(악화 Δ−0.0340). 승격 판단에 남은 공백은 '챌린저와 챔피언의 동일 프로토콜 비교' 하나다. | 2026-09-29: CG34 로 프로토콜 결함(학습구간 겹침)이 실측됐고 코드로 차단됐다 — 챌린저 평가는 반드시 --train-start/--train-end 를 명시하라.",
+      "setup_needed": null,
+      "note": "2026-10-01 03:0x 갱신 — CG33 을 backlog → **pending** 으로 승격(CG45 가 기준선을 만들었으므로 '챌린저가 정의되기 전에는 pending 으로 올리지 말라'는 setup_needed 조건이 해소됐다). 챌린저 = CG43 이 만든 생산 경로 후보 champion_cand(200종목·90일·2026-07-02~09-30·인샘플 0.5434). 같은 런 2-arm(챌린저 → 챔피언 재측정)으로 창을 고정한다. 두 arm 의 OOS 창은 w1 2025-12-01~2026-01-21 · w2 2026-01-29~2026-03-24 · w3 2026-04-01~2026-05-21 3개로 동일해야 한다(각 모델의 학습구간과 겹치는 w4·w5 는 자동 제외). ⚠ 판정은 첫 --out(챌린저)만 잡히므로 챔피언 재측정 파일 services/xgboost-ml/app/reports/cg33_champion_recheck.json 을 열어 **창이 같고 값이 0.5163 과 일치하는지** 직접 확인하라 — 다르면 창 드리프트이므로 짝 Δ 를 재측정 값 기준으로 다시 계산한다. 한계: 3창이라 SE 가 0.08 대 → 이 짝 Δ 는 승격 '확정'용이 아니라 게이트 방향 판정용이다(CG38 교훈). 또 모든 창이 두 모델의 학습구간 **이전**(2025-12~2026-05)이다 — 학습이 최신 데이터까지라 학습구간 이후의 진짜 전방 창이 DB 에 아직 없다. 그 한계를 보고에 명시할 것. | 2026-10-01 03:15 실측 결과: 챌린저 0.5270 vs 같은 런 챔피언 0.5336 = Δ−0.0066 → 챌린저 우위 없음(게이트가 챔피언을 유지한 결론 자체는 OOS 로도 뒤집히지 않는다 — 다만 게이트의 근거(인샘플 비교)는 여전히 무효). 부수 발견: 같은 모델 재측정 산포 +0.0173 = 유니버스 비결정 → CG46 으로 수리 후 재측정.",
       "depends_on": [
         "CG35"
       ],
-      "setup_done": "2026-09-29 확인: retrain_champion.py 에 --out-dir(기존)·--end-date/--start-date(신설) + meta data_start/data_end 기록. champion_robust_eval.py 에 --train-start/--train-end 신설(겹치는 창 자동 제외, 테스트 19/19 PASS). 구동기 summary_path 도 커맨드의 --out 을 존중(9/9 PASS) → scratch 산출물을 같은 프로토콜로 평가하는 경로가 실제로 존재한다."
+      "setup_done": "2026-09-29 확인: retrain_champion.py 에 --out-dir(기존)·--end-date/--start-date(신설) + meta data_start/data_end 기록. champion_robust_eval.py 에 --train-start/--train-end 신설(겹치는 창 자동 제외, 테스트 19/19 PASS). 구동기 summary_path 도 커맨드의 --out 을 존중(9/9 PASS) → scratch 산출물을 같은 프로토콜로 평가하는 경로가 실제로 존재한다.",
+      "arm": "champion_cand (생산 경로 재학습 후보 · 200종목·90일·2026-07-02~09-30 · 인샘플 ensemble_auc 0.5434)",
+      "counterfactual": "배포 챔피언(app/models/champion) — 같은 런 재측정, CG45 실측 0.5163",
+      "counterfactual_value": 0.5163,
+      "setup_cleared": "2026-10-01 03:0x — 챌린저(champion_cand)·프로토콜(CG45)·판정기(짝 경로 신설, _judge_baseline_paired_test 14/14 PASS) 모두 준비됨",
+      "attempts": [
+        {
+          "ts": "2026-10-01T03:15:06+09:00",
+          "rc": 0,
+          "verdict": "짝 노이즈",
+          "detail": "워크포워드 견고 AUC 0.5270±0.0257 (시간창 3개 [0.5074, 0.5633, 0.5103]) · 풀링 0.5342 · 날짜별평균 0.527 · 행 1800 · 같은 프로토콜 대조(배포 챔피언(app/models/champion) — 같은 런 재측정, CG45 실측 0.5163) 0.5163 → Δ+0.0107 — 문턱 +0.02 미달이면 노이즈로 읽어라",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG33_20261001-030508.log",
+          "elapsed_min": 10.0
+        }
+      ],
+      "result": {
+        "verdict": "짝 노이즈(챌린저 우위 없음)",
+        "detail": "챌린저(champion_cand·생산 경로 200종목·90일) 견고 AUC 0.5270±0.0257 (시간창 3개 [0.5074, 0.5633, 0.5103] · 풀링 0.5342 · 날짜별평균 0.5270) · 같은 런 챔피언 재측정 0.5336±0.0185 [0.5199, 0.5212, 0.5597] → Δ-0.0066 (문턱 +0.02 미달 = 노이즈, 챌린저 우위 없음). ⚠ 같은 모델 재측정 산포 +0.0173(CG45 0.5163 → 본 런 0.5336): 수리 전 유니버스 비결정(표본 교집합 22 vs 25)이 원인 — 이 산포가 사전문턱 +0.02 안에 있었다.",
+        "delta": -0.0066,
+        "paired": {
+          "delta_same_run": -0.0066,
+          "challenger_auc": 0.527,
+          "champion_same_run_auc": 0.5336,
+          "delta_vs_cg45_value": 0.0107,
+          "same_model_rerun_spread": 0.0173,
+          "cg45_auc": 0.5163,
+          "note": "CG45 0.5163 과 본 런 0.5336 은 같은 모델·같은 창·같은 프로토콜인데도 +0.0173 달랐다 — 원인은 select_training_universe 비결정(수리 완료, _universe_determinism_test ALL PASS). 따라서 'CG45 대비 Δ' 는 유니버스가 다른 값과의 비교라 무효이고, 판정은 같은 런의 챌린저 vs 챔피언(Δ−0.0066)만 쓴다."
+        },
+        "counterfactual_arm": {
+          "model_dir": "app/models/champion",
+          "robust_auc": 0.5336,
+          "auc_std_across_folds": 0.0185,
+          "fold_means": [
+            0.5199,
+            0.5212,
+            0.5597
+          ],
+          "auc_pooled": 0.5335,
+          "auc_per_date_mean": 0.5336,
+          "rows_scored": 1800,
+          "overlap_train200": 25
+        },
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG34",
@@ -6019,7 +6063,7 @@
     {
       "id": "CG35",
       "title": "고정 컷오프(2026-05-20) 클린 대조군 학습 + 엄격 OOS A/B — 챔피언의 0.5883 은 암기인가",
-      "status": "pending",
+      "status": "done",
       "priority": 4,
       "affects_model": true,
       "depends_on": [
@@ -6043,7 +6087,24 @@
       "success": "컷오프 모델의 **OOS 창(학습 종료 2026-05-20 이후로 자동 판정된 창)** AUC 평균이 챔피언의 같은 창 0.5883 대비 −0.05 이상 낮으면 '암기' 확정. 창 수가 1개로 줄 수 있으니(창4는 학습구간과 겹쳐 제외) 판정 시 생존 창 수·날짜 수를 함께 보고한다. 비슷하게 나오면 최근 구간에서 실제로 낫다는 뜻",
       "expected": "컷오프 모델 창4·5 ≈ 0.50~0.54 (챔피언 0.5883 은 자기 학습구간 값이므로)",
       "note": "**지금 pending 으로 올리지 않는다** — 평일 저녁 19:00 틱이 집어가면 20:35 U3 런처 창을 막아 995일 패널(2밤째)을 또 잃는다. panel_995.npz 완성(U3 done) 후 pending 승격. | 2026-09-29 22:4x: command 에 --checkpoint-path 추가(2h 캡 소실 방지, end-date 고정이라 재개 가능). 승격은 CG38 뒤 — next_item 은 (priority,id) 순이므로 CG38(2) 이 먼저다.\n[2026-09-30T16:11:42+09:00] depends_on U3(rc=0 완료) 해제 → pending 승격. 21:00 CG38(est 420분) 뒤 04:00 슬롯 폴백. ETA 가드: 260분이라 20:00 재생성 창을 넘는 시각(17~19시)엔 시작되지 않는다(정상).",
-      "risk": "학습 3.2h + 평가 0.5h = 밤 한 창(20:35~09:00) 안에 들어간다. 유니버스는 '현재 유동성 상위 200종목'으로 뽑히므로 과거 구간 학습에 미래 정보가 섞이는 약한 편향이 있다(패널 실험도 동일)."
+      "risk": "학습 3.2h + 평가 0.5h = 밤 한 창(20:35~09:00) 안에 들어간다. 유니버스는 '현재 유동성 상위 200종목'으로 뽑히므로 과거 구간 학습에 미래 정보가 섞이는 약한 편향이 있다(패널 실험도 동일).",
+      "attempts": [
+        {
+          "ts": "2026-10-01T01:38:49+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5145±0.0385 (시간창 3개 [0.4994, 0.4768, 0.5673]) · 풀링 0.5072 · 날짜별평균 0.5145 · 행 2310 · 기존 승격 기준선 0.5883(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG35_20261001-010212.log",
+          "elapsed_min": 36.6
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5145±0.0385 (시간창 3개 [0.4994, 0.4768, 0.5673]) · 풀링 0.5072 · 날짜별평균 0.5145 · 행 2310 · 기존 승격 기준선 0.5883(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG36",
@@ -6440,7 +6501,7 @@
     {
       "id": "CG41",
       "title": "라벨 정의 격차 격리 — CG40 과 같은 3창·같은 유니버스에서 라벨만 rel h5 → abs h1 로 바꾸면 배포 챔피언 AUC 가 0.44 대로 떨어지는가",
-      "status": "pending",
+      "status": "done",
       "priority": 3,
       "affects_model": false,
       "depends_on": [
@@ -6467,8 +6528,85 @@
       "metric": "champion_robust_eval",
       "success": "짝 Δ(abs h1 − rel h5) 를 창별로 보고한다. |Δ|<0.02 면 라벨 정의는 무관 → CG34/36/37 의 '0.44/0.49' 를 배포 모델 성능으로 인용하지 말고 프로토콜·창 효과로 재분류. Δ ≤ −0.05 면 라벨 정의가 원인 → 배포 경로와 같은 라벨로 승격 후보를 재평가.",
       "expected": "abs h1 이 rel h5 보다 뚜렷이 낮으면(≈0.47 이하) 라벨 정의가 격차의 주 원인, 비슷하면(≥0.52) 창·프로토콜 효과가 원인.",
-      "note": "진단 항목 — 성공 조건은 모델 개선이 아니라 '0.44 와 0.54 중 어느 쪽이 배포 모델의 정직한 OOS 인가'의 귀속이다. 기본 --out 경로(champion_robust_eval.json)는 건드리지 않는다. 구동기는 첫 --out(cg41_rel_h5)만 판정에 쓰므로 짝 Δ 는 두 JSON 을 직접 비교해 계산하라.",
-      "risk": "없음 — champion/ 무수정·추론 계약 무변경. CPU 4코어 직렬화는 구동기 lock 이 담당."
+      "note": "진단 항목 — 성공 조건은 모델 개선이 아니라 '0.44 와 0.54 중 어느 쪽이 배포 모델의 정직한 OOS 인가'의 귀속이다. 기본 --out 경로(champion_robust_eval.json)는 건드리지 않는다. 구동기는 첫 --out(cg41_rel_h5)만 판정에 쓰므로 짝 Δ 는 두 JSON 을 직접 비교해 계산하라. | 2026-10-01 01:0x 엔지니어: 커맨드에 --out 두 개 → 구동기는 첫 arm(rel h5)만 기록했다. 두 JSON(services/xgboost-ml/app/reports/cg41_rel_h5.json·cg41_abs_h1.json)을 직접 파싱해 짝 Δ 를 원장 parsed.paired 에 넣었다 — 두 팔의 purge 차이(5 vs 1거래일)로 창 끝이 4일씩 다르다는 한계는 함께 보고할 것.",
+      "risk": "없음 — champion/ 무수정·추론 계약 무변경. CPU 4코어 직렬화는 구동기 lock 이 담당.",
+      "attempts": [
+        {
+          "ts": "2026-10-01T00:16:51+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5385±0.0368 (시간창 3개 [0.5229, 0.5033, 0.5894]) · 풀링 0.5309 · 날짜별평균 0.5386 · 행 1684 · 기존 승격 기준선 0.5392(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG41_20261001-000545.log",
+          "elapsed_min": 11.1
+        }
+      ],
+      "result": {
+        "verdict": "라벨 정의 무관 (짝Δ -0.0119 · SE 0.0214 · 양(+) 1/3)",
+        "detail": "워크포워드 견고 AUC 0.5385±0.0368 (시간창 3개 [0.5229, 0.5033, 0.5894]) · 풀링 0.5309 · 날짜별평균 0.5386 · 행 1684 · 기존 승격 기준선 0.5392(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+        "delta": -0.0119,
+        "per_exp": null,
+        "rc": 0,
+        "paired": {
+          "windows_rel": [
+            [
+              "2025-12-01",
+              "2026-03-04"
+            ],
+            [
+              "2026-03-12",
+              "2026-06-10"
+            ],
+            [
+              "2026-06-18",
+              "2026-09-14"
+            ]
+          ],
+          "windows_abs": [
+            [
+              "2025-12-01",
+              "2026-03-10"
+            ],
+            [
+              "2026-03-12",
+              "2026-06-16"
+            ],
+            [
+              "2026-06-18",
+              "2026-09-18"
+            ]
+          ],
+          "per_window_delta": [
+            -0.0427,
+            -0.0222,
+            0.0292
+          ],
+          "mean_delta": -0.0119,
+          "std": 0.037,
+          "se": 0.0214,
+          "positive_windows": "1/3",
+          "threshold": 0.02,
+          "pooled_delta": 0.0206,
+          "perdate_delta": -0.0104,
+          "verdict": "|Δ|<0.02 · 창 부호 1/3 → 라벨 정의 무관(프로토콜·창 효과)"
+        },
+        "counterfactual_arm": {
+          "model_dir": "app/models/champion",
+          "protocol": "3-fold 연속 시간창, h=1 절대 방향(>0) 라벨, 크로스섹션 AUC, purge=1거래일",
+          "robust_auc": 0.5266,
+          "auc_std_across_folds": 0.065,
+          "fold_means": [
+            0.4802,
+            0.4811,
+            0.6186
+          ],
+          "auc_pooled": 0.5515,
+          "auc_per_date_mean": 0.5282,
+          "rows_scored": 1631,
+          "dates_scored": 29,
+          "source": "services/xgboost-ml/app/reports/cg41_abs_h1.json",
+          "note": "구동기 판정은 첫 --out(rel h5)만 읽는다 — 대조군 arm 은 이 키로 보존(_out_arg 첫 반환 함정, CG38/CG40 과 동일)"
+        }
+      }
     },
     {
       "id": "CG42",
@@ -6535,6 +6673,198 @@
         "per_exp": null,
         "rc": 0
       }
+    },
+    {
+      "id": "CG44",
+      "title": "선별 크기 곡선의 하한 — '최강 단일 축 하나'로 등록 기준선(+0.02)을 넘는가 (top1/top3/top5 vs top30, 같은 런)",
+      "status": "done",
+      "priority": 1,
+      "affects_model": true,
+      "depends_on": [],
+      "baseline": {
+        "value": 0.5406,
+        "source": "등록 기준선 LS_quant_q30_h5 (게이트 OFF·panel_420_asofpatch·5폴드)"
+      },
+      "arm": "S1_top1_h5 / S3_top3_h5 / S5_top5_h5",
+      "counterfactual": "LS_quant_q30_h5 (같은 런·같은 패널·게이트 OFF 대조군 = 등록 기준선 설정)",
+      "hypothesis": "풀 안 최강 피처 하나만 쓰는 모델이 30피처 앙상블보다 낫다. 패널 스크린(panel_995, 656일)의 최강 피처 풀링 edge 는 bayes_volatility |AUC-0.5|=0.0800(IC -0.0650, t -7.34) · rank_volatility_20d 0.0749 · atr_pct 0.0739 로 게이트 ON 앙상블 실측 0.5363 보다 크다. 즉 '풀에 신호가 있다'와 '모델이 그걸 못 쓴다'가 동시에 관측된다 — 선별 크기를 1까지 내리면 두 관측 중 어느 쪽이 맞는지 갈린다.",
+      "evidence": "① 패널 스크린 2026-09-30(panel_995·panel_995_w281, 213피처): 누수 0 · 종목상수 46 · 시장레벨 62 · 무정보 127, 최강은 전부 시간가변 변동성군(위 수치) — 종목상수 재무(quality_roa 0.5483)보다 edge 가 크다. ② 선별 크기 곡선은 top10 에서 멈춰 있다(SEL1·게이트 OFF): top10 0.5364 · top15 0.5343 · top20 0.5345 · top30 0.5414. ③ 게이트 ON 곡선(CG26): core30 0.5363 · core20 0.5337 · core15 0.5296 · core48 0.5263. ④ 스모크(2026-10-01 02:0x, 2폴드×1시드, 49종목 패널): S1_top1 0.5474±0.0057 > S5_top5 0.5222 > S3_top3 0.5177 — 하한이 오히려 높게 나와 본 측정이 필요하다.",
+      "method": "같은 패널(panel_420_asofpatch)·같은 행·같은 폴드·같은 런 4-arm: LS_quant_q30_h5(대조군) · S1_top1_h5 · S3_top3_h5 · S5_top5_h5, 5폴드×5시드. 선별만 다르므로 유니버스 교체 잡음(CG13 ±0.0287)이 섞이지 않는다. 판정 = arm mean - 대조군 mean ≥ +0.02 이고 폴드 짝 양(+) ≥4/5. 3-arm 중 최고값 선택 편향을 피하려면 top1 을 사전등록 arm 으로 본다(스모크 근거).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,S1_top1_h5,S3_top3_h5,S5_top5_h5 --out /app/reports/overnight/cg44_top1.jsonl'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "wf_sweep_summary",
+      "est_minutes": 20,
+      "success": "top1(사전등록 arm) - LS_quant_q30_h5 ≥ +0.02 (폴드 짝 양(+) ≥4/5) → '최강 단일 축이 30피처 앙상블을 이긴다' → 다음 실험은 단일 피처 모델의 게이트 ON·생산 유니버스 재현. 미달이면 '풀링 edge 는 OOS 에서 살아남지 않는다'로 닫고, 데이터 축(부활 피처)에 남은 희망이 없다는 근거로 사용자 승인 항목에 올린다.",
+      "expected": "미지 — 스모크(2폴드×1시드)는 top1 0.5474 로 대조군 근처/약간 위였고 top3/top5 는 0.52 대였다. 피처 1개 모델은 과적합 여지가 없어 분산이 작을 수 있다(스모크 std 0.0057).",
+      "risk": "top1 피처는 폴드마다 달라진다(학습 구간 edge 최상위) → '단일 피처가 좋다'가 아니라 '그때 최강 피처가 좋다'일 수 있다. 승격 판단에는 폴드별 선택 피처 목록(로그의 selected_features)을 함께 보고한다.",
+      "note": "2026-10-01 02:0x 신설 — CG35(클린 대조군 OOS 0.5145) 완료 직후 pending 0 상태에서 백로그 규약(재현 명령·대조군·성공 문헌)을 채워 등록. wf_label_sweep.py CONFIGS 에 S1_top1_h5·S3_top3_h5·S5_top5_h5 추가(select=top1/3/5 는 subset() 이 이미 지원 — 코드 변경은 config 3줄뿐). 스모크 검증: 2폴드×1시드 정상 완주(위 ④).",
+      "attempts": [
+        {
+          "ts": "2026-10-01T02:08:20+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "[arm 미지정] LS_quant_q30_h5 제외 최고 S5_top5_h5 0.5340 vs LS_quant_q30_h5 0.5414 → Δ-0.0074",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG44_20261001-020617.log",
+          "elapsed_min": 2.1
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "[arm 미지정] LS_quant_q30_h5 제외 최고 S5_top5_h5 0.5340 vs LS_quant_q30_h5 0.5414 → Δ-0.0074",
+        "delta": -0.0074,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5233,
+              0.5201,
+              0.5606,
+              0.5926,
+              0.5103
+            ],
+            "mean": 0.5414,
+            "std": 0.0308,
+            "min": 0.5103,
+            "max": 0.5926,
+            "fold_win_rate": 1.0
+          },
+          "S1_top1_h5": {
+            "desc": "train 폴드 edge 최상위 **1개 피처만** — 선별 크기 곡선 하한(풀링 최강축 = OOS 최강축인가)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4656,
+              0.541,
+              0.5761,
+              0.5657,
+              0.5185
+            ],
+            "mean": 0.5334,
+            "std": 0.0393,
+            "min": 0.4656,
+            "max": 0.5761,
+            "fold_win_rate": 0.8
+          },
+          "S3_top3_h5": {
+            "desc": "train 폴드 edge 상위 3개 — 하한 근처(중복 피처 제거 효과 포함)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4854,
+              0.5103,
+              0.5714,
+              0.5595,
+              0.5414
+            ],
+            "mean": 0.5336,
+            "std": 0.0317,
+            "min": 0.4854,
+            "max": 0.5714,
+            "fold_win_rate": 0.8
+          },
+          "S5_top5_h5": {
+            "desc": "train 폴드 edge 상위 5개 — top10(0.5364)과 top1 사이 중간점",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4878,
+              0.526,
+              0.5697,
+              0.5529,
+              0.5334
+            ],
+            "mean": 0.534,
+            "std": 0.0277,
+            "min": 0.4878,
+            "max": 0.5697,
+            "fold_win_rate": 0.8
+          }
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG45",
+      "title": "배포 챔피언의 정직한 OOS 기준선 확정 — 학습도메인 정합 유니버스(ETF/ETN 제외)+겹침 창 자동 제외+h5 시장상대, 5창×10일",
+      "status": "done",
+      "priority": 1,
+      "affects_model": true,
+      "depends_on": [],
+      "baseline": {
+        "value": 0.5513,
+        "source": "승격 게이트 기록 기준선(robust_auc.json, 단일 시간분할 ensemble_auc) — 프로토콜 불일치로 교체 후보"
+      },
+      "arm": "배포 챔피언(app/models/champion) — 프로토콜만 교정(재학습 없음)",
+      "counterfactual": "없음(기준선 실측 항목) — 종전 값들과의 비교는 프로토콜 명시 하에만",
+      "hypothesis": "승격 게이트가 쓰는 기준선 0.5513 은 단일 시간분할 값이고, 지금까지의 배포 OOS 값(0.4410/0.4914/0.5385/0.5448)은 창 집합·라벨 종류·종목수·폴드수·유니버스가 제각각이라 서로 비교할 수 없다. 연구소유 규약(같은 프로토콜)에 맞춘 단일 기준선을 확정하면 ①승격 판정이 정직해지고 ②이후 모든 arm 을 같은 자로 잴 수 있다.",
+      "evidence": "① CG34: 학습구간과 겹친 창 0.5883 vs 학습구간 밖 3창 0.4914 = 오염 +0.0969. ② CG36/37: 같은 모델이 라벨 종류만 바꿔 0.4719 → 0.4410. ③ CG38/40: 유니버스·학습창을 바꾸면 0.4679~0.5448. ④ CG39: 종전 평가 표본(유동성 상위 80)에 ETF/ETN 26개·학습유니버스 교집합 5종목 — 도메인 오염. ⑤ CG41: 같은 3창·같은 유니버스에서 라벨 rel h5 vs abs h1 짝Δ −0.0119(라벨 정의 자체는 병목 아님). ⑥ CG35(오늘 02:00): 클린 대조군 3창 OOS 0.5145±0.0385.",
+      "method": "champion_robust_eval 을 ①--universe training(학습 유니버스 정합, ETF/ETN 제외) ②--train-start/--train-end 2026-06-25~09-23(겹치는 창 자동 제외) ③--label-kind rel --horizon 5(배포·트레이더 보유기간 정합) ④5폴드×10일 로 실행. 재학습 없음(같은 모델·같은 창을 '자'만 바꿔 잰다). 산출 = 창별 AUC·평균±std·폴드 승률·windows_excluded.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 5400 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --train-start 2026-06-25 --train-end 2026-09-23 --out app/reports/cg45_baseline_trainuni.json'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "champion_robust_eval",
+      "est_minutes": 30,
+      "success": "요약 JSON 이 갱신되고 windows_excluded 에 학습구간 겹침 창이 실제로 기록되며 창 수 ≥3 → 이 값을 '배포 기준선 후보'로 사용자 승인 항목에 올린다(교체 실행은 승인 대상). 창이 3개 미만이면 승격 판정에는 쓰지 않는다(SE 0.08 대 → 어떤 Δ 도 구분 불가, CG38 교훈).",
+      "expected": "미지. 종전 같은 조건(CG40 학습동형·3창·10일)은 0.5448±0.0523 이었다 — 창을 5개로 늘리고 겹침을 제외하면 std 가 줄고 평균은 0.50~0.55 사이로 예상.",
+      "risk": "창 집합이 바뀌면 값이 또 달라진다(0.10 폭 실측) → 이 항목의 목적은 '값을 낮추는 것'이 아니라 '프로토콜을 하나로 고정하는 것'이다. 값 자체를 성능 주장으로 쓰지 말고, 이후 모든 arm 이 같은 프로토콜을 쓰게 만드는 데 쓴다.",
+      "note": "2026-10-01 02:1x 신설 — CG44(선별 크기 하한, Δ−0.0074 노이즈)로 조정 축이 하한까지 닫힌 직후. 9사이클 연속 +0.02 미달 상태에서 '새 레버'를 요청하려면 먼저 기준선이 정직해야 한다(사용자 승인 항목 ②-a 의 실측 준비). 기본 --out(app/reports/champion_robust_eval.json)은 건드리지 않는다.",
+      "attempts": [
+        {
+          "ts": "2026-10-01T02:15:10+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5163±0.0340 (시간창 3개 [0.4691, 0.5320, 0.5479]) · 풀링 0.519 · 날짜별평균 0.5163 · 행 1800 · 기존 승격 기준선 0.5513(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG45_20261001-021037.log",
+          "elapsed_min": 4.6
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5163±0.0340 (시간창 3개 [0.4691, 0.5320, 0.5479]) · 풀링 0.519 · 날짜별평균 0.5163 · 행 1800 · 기존 승격 기준선 0.5513(단일분할) — 프로토콜이 달라 직접비교 금지 · 교체는 승인 대상",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG46",
+      "title": "유니버스 결정성 수리 검증 — 같은 모델 2회 반복으로 프로토콜 잡음 바닥 재측정 + 챌린저 짝 Δ (수리 후 첫 결정적 측정)",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": true,
+      "depends_on": [
+        "CG33"
+      ],
+      "baseline": {
+        "value": 0.5336,
+        "source": "CG33 같은 런 챔피언 재측정(수리 **전** 비결정 유니버스) — 수리 후 값은 이 항목이 새로 정한다"
+      },
+      "hypothesis": "지금까지의 모든 AUC 비교(48사이클)는 **실행마다 다른 종목 집합**을 채점해 왔다. select_training_universe 가 latest 동률(2,543/2,655종목)에서 SQL 반환 순서에 의존했기 때문이다. 수리 후에는 같은 모델·같은 창의 두 번 채점이 사실상 동일해야 하며(|Δ| ≤ 0.005), 그러면 비로소 +0.02 문턱이 잡음 위에 선다.",
+      "evidence": "① 결정성 프로브(수리 전): 같은 커넥션 4회 limit=60 교집합 [60,52,57,54] · limit=200 [200,184,181,171] · 새 커넥션 3회 [48,53,48] · eligible 두 번 조회 순서 상이. ② 같은 모델 재측정 산포 +0.0173 (CG45 0.5163 [0.4691,0.5320,0.5479] → CG33 0.5336 [0.5199,0.5212,0.5597], 창·프로토콜 동일, 표본 교집합 22 vs 25). ③ 수리 후 프로브 ALL PASS(4회·3회 전부 교집합 100%). ④ 이 산포는 사전문턱 +0.02 와 같은 크기다 — 즉 지금까지의 '노이즈' 판정 상당수가 저전력 설계였다.",
+      "method": "같은 커맨드에서 3-arm 연속 실행(챔피언 A · 챔피언 B · 챌린저). 하나의 프로세스 시퀀스로 돌려 창·유니버스·DB 스냅샷을 고정한다. ① |챔피언A − 챔피언B| 로 잡음 바닥을 실측 ② 챌린저 − 챔피언A 짝 Δ 로 승격 방향 재판정 ③ 세 JSON 의 universe.overlap_train200 이 동일한지(= 수리 효과) 확인.",
+      "arm": "champion_cand (생산 경로 재학습 후보 · 200종목·90일·2026-07-02~09-30)",
+      "counterfactual": "배포 챔피언(app/models/champion) 같은 런 · 같은 결정적 유니버스",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --train-start 2026-06-25 --train-end 2026-09-23 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --out app/reports/cg46_champ_a.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --train-start 2026-06-25 --train-end 2026-09-23 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --out app/reports/cg46_champ_b.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --train-start 2026-07-02 --train-end 2026-09-30 --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --out app/reports/cg46_challenger.json'",
+      "check": "python3 scripts/model_engineer_cycle.py --status",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "metric": "champion_robust_eval",
+      "est_minutes": 20,
+      "cost": "3 arm × 약 4.6분 ≈ 14분 (컨테이너 timeout 3600s/arm)",
+      "success": "|챔피언A − 챔피언B| ≤ 0.005 (수리 전 0.0173) → 프로토콜 잡음 바닥이 문턱 아래로 내려갔다. 그 위에서 챌린저 짝 Δ 를 확정한다. 0.005 초과면 비결정 요인이 다른 곳(날짜 샘플링·DB 스냅샷)에도 남아 있다.",
+      "expected": "잡음 바닥 ≤ 0.005 · 챌린저 Δ 는 0 근처(수리 전 −0.0066 과 같은 방향 예상)",
+      "note": "판정은 첫 --out(챔피언 A)만 잡힌다 → 세 JSON 을 직접 파싱해 `parsed.paired`·`parsed.counterfactual_arm` 에 실어라(per_exp 금지 — 스코어보드 오독). 수리 대상 파일: services/xgboost-ml/app/training/universe.py(이 역할 소유). 부작용: 생산 재학습의 200종목 선택이 이제 **재현 가능**해진다 — 과거 학습분과는 종목이 달라질 수 있으므로 수리 이전 AUC 수치와 직접 비교하지 말 것."
     }
   ]
 }
