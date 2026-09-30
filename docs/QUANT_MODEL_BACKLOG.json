@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-30T17:33:32+09:00",
+  "updated_at": "2026-09-30T19:04:05+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -6274,7 +6274,7 @@
     {
       "id": "CG40",
       "title": "표본 유니버스 A/B — 같은 모델·같은 폴드·같은 날짜에서 '학습동형 유니버스' vs '유동성 유니버스' (배포 OOS 0.44 는 도메인 불일치 산물인가)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "affects_model": false,
       "depends_on": [
@@ -6299,7 +6299,131 @@
       "success": "두 arm 의 폴드별 AUC 와 표본 구성(n_etf_etn·overlap_train200)을 숫자로 확보하고 짝 Δ 를 보고한다. 성공 조건(=모델 개선)이 아니라 **진단**이다 — Δ 가 크면 배포 OOS 계열(CG31/34/36/37)의 해석을 '도메인 불일치만큼 내려서' 다시 써야 한다.",
       "est_minutes": 70,
       "metric": "champion_robust_eval",
-      "note": "판정 집계는 **첫 --out(학습동형 arm)** 만 잡힌다(`_out_arg` 는 첫 --out 을 반환) — 두 번째 arm(현행 프로토콜)은 services/xgboost-ml/reports/champion_robust_eval_liq60.json 으로 비교할 것. 기본값(--universe liquidity)은 그대로라 이 A/B 는 **기준선 산출물(champion_robust_eval.json)을 건드리지 않는다**(기준선 교체는 승인 대상)."
+      "note": "판정 집계는 **첫 --out(학습동형 arm)** 만 잡힌다(`_out_arg` 는 첫 --out 을 반환) — 두 번째 arm(현행 프로토콜)은 services/xgboost-ml/reports/champion_robust_eval_liq60.json 으로 비교할 것. 기본값(--universe liquidity)은 그대로라 이 A/B 는 **기준선 산출물(champion_robust_eval.json)을 건드리지 않는다**(기준선 교체는 승인 대상).",
+      "attempts": [
+        {
+          "ts": "2026-09-30T18:31:25+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5448±0.0523 (시간창 3개 [0.4710, 0.5779, 0.5856]) · 풀링 0.5443 · 날짜별평균 0.5448 · 행 1800",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG40_20260930-173343.log",
+          "elapsed_min": 57.7
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5448±0.0523 (시간창 3개 [0.4710, 0.5779, 0.5856]) · 풀링 0.5443 · 날짜별평균 0.5448 · 행 1800 | 세션 짝분석: 학습동형 0.5448 vs 유동성 0.5392 → Δ+0.0056(평균)/+0.0129(풀링) 로 사전문턱 +0.02 미달",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0,
+        "ab": {
+          "arm_training_universe": {
+            "universe": {
+              "mode": "training",
+              "n": 60,
+              "n_etf_etn": 0,
+              "overlap_train200": 23
+            },
+            "robust_auc": 0.5448,
+            "std": 0.0523,
+            "folds": [
+              0.471,
+              0.5779,
+              0.5856
+            ],
+            "pooled": 0.5443,
+            "rows": 1800,
+            "windows": [
+              [
+                "2025-12-01",
+                "2026-03-04"
+              ],
+              [
+                "2026-03-12",
+                "2026-06-10"
+              ],
+              [
+                "2026-06-18",
+                "2026-09-14"
+              ]
+            ]
+          },
+          "arm_liquidity_universe": {
+            "universe": {
+              "mode": "liquidity",
+              "n": 60,
+              "n_etf_etn": 26,
+              "overlap_train200": 4
+            },
+            "robust_auc": 0.5392,
+            "std": 0.0363,
+            "folds": [
+              0.5231,
+              0.505,
+              0.5894
+            ],
+            "pooled": 0.5314,
+            "rows": 1684,
+            "windows": [
+              [
+                "2025-12-01",
+                "2026-03-04"
+              ],
+              [
+                "2026-03-12",
+                "2026-06-10"
+              ],
+              [
+                "2026-06-18",
+                "2026-09-14"
+              ]
+            ]
+          },
+          "delta_fold_mean": 0.0056,
+          "delta_pooled": 0.0129,
+          "paired_by_window": [
+            -0.0521,
+            0.0729,
+            -0.0038
+          ],
+          "protocol": "3-fold · h=5 시장상대 중앙값 라벨 · stocks 60 · dates/fold 10 · purge 5거래일 · 같은 창(2025-12-01~2026-09-14)",
+          "note": "폴드별 3창 순서: 12-01~03-04 / 03-12~06-10 / 06-18~09-14. 3번째 창은 배포 챔피언 학습구간(2026-06-25~09-23)과 겹침(인샘플) — 창별 0.5856/0.5894 는 CG34 가 '암기' 의심으로 지목한 겹침창 0.5883 과 일치한다."
+        },
+        "session_verdict": "노이즈 — 유니버스 불일치는 배포 OOS 격차의 원인 아님(축 종결)"
+      }
+    },
+    {
+      "id": "CG41",
+      "title": "라벨 정의 격차 격리 — CG40 과 같은 3창·같은 유니버스에서 라벨만 rel h5 → abs h1 로 바꾸면 배포 챔피언 AUC 가 0.44 대로 떨어지는가",
+      "status": "pending",
+      "priority": 3,
+      "affects_model": false,
+      "depends_on": [
+        "CG40",
+        "CG37"
+      ],
+      "baseline": {
+        "value": 0.5392,
+        "source": "CG40 liq60 arm 실측(2026-09-30, rel h5, 3창 [0.5231,0.5050,0.5894], 풀링 0.5314, 60종목·3폴드)"
+      },
+      "arm": "champion_robust_eval --universe liquidity --folds 3 --dates-per-fold 10 --stocks 60 --label-kind abs --horizon 1",
+      "counterfactual": "champion_robust_eval --universe liquidity --folds 3 --dates-per-fold 10 --stocks 60 --label-kind rel --horizon 5 (CG40 liq60 arm 과 동일 설정 — 같은 커맨드에서 연속 실행해 창 고정)",
+      "hypothesis": "배포 챔피언의 'OOS AUC' 는 프로토콜·라벨 정의에 따라 0.44~0.54 로 0.10 폭으로 흔들린다. CG37(절대 h1·5폴드·80종목·창 2026-05-27 까지) 0.4410 과 CG40(시장상대 h5·3폴드·60종목·창 2026-09-14 까지) 0.5392 중 격차의 주 원인은 **라벨 정의**(절대 방향 vs 시장상대 중앙값)다.",
+      "evidence": "CG40 실측(2026-09-30 18:31): 학습동형 0.5448±0.0523 · 유동성 0.5392±0.0363 — 같은 모델·같은 창에서 유니버스만 교체하면 Δ+0.0056/+0.0129 로 문턱 미달. CG37 0.4410(abs h1) · CG34 0.4914(겹침 제외 3창) · 기록 기준선 0.5406.",
+      "method": "한 커맨드에서 두 arm 을 연속 실행(CG40 과 동일 방식 — 시각이 밀리면 창이 달라져 짝이 깨진다). 유니버스·폴드·종목수·날짜를 전부 고정하고 라벨만 바꾼다. 두 JSON 에 label_kind·universe·windows 가 기록된다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/champion_robust_eval.py --universe liquidity --folds 3 --dates-per-fold 10 --stocks 60 --label-kind rel --horizon 5 --out app/reports/cg41_rel_h5.json && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/champion_robust_eval.py --universe liquidity --folds 3 --dates-per-fold 10 --stocks 60 --label-kind abs --horizon 1 --out app/reports/cg41_abs_h1.json'",
+      "check": "docker exec stock_xgboost_ml sh -c 'cat /app/app/reports/cg41_rel_h5.json /app/app/reports/cg41_abs_h1.json'",
+      "check_target": {
+        "op": ">=",
+        "value": 2
+      },
+      "cost": "약 60분(CG40 실측 57.7분 = 2 arm × 1,800행)",
+      "est_minutes": 70,
+      "metric": "champion_robust_eval",
+      "success": "짝 Δ(abs h1 − rel h5) 를 창별로 보고한다. |Δ|<0.02 면 라벨 정의는 무관 → CG34/36/37 의 '0.44/0.49' 를 배포 모델 성능으로 인용하지 말고 프로토콜·창 효과로 재분류. Δ ≤ −0.05 면 라벨 정의가 원인 → 배포 경로와 같은 라벨로 승격 후보를 재평가.",
+      "expected": "abs h1 이 rel h5 보다 뚜렷이 낮으면(≈0.47 이하) 라벨 정의가 격차의 주 원인, 비슷하면(≥0.52) 창·프로토콜 효과가 원인.",
+      "note": "진단 항목 — 성공 조건은 모델 개선이 아니라 '0.44 와 0.54 중 어느 쪽이 배포 모델의 정직한 OOS 인가'의 귀속이다. 기본 --out 경로(champion_robust_eval.json)는 건드리지 않는다. 구동기는 첫 --out(cg41_rel_h5)만 판정에 쓰므로 짝 Δ 는 두 JSON 을 직접 비교해 계산하라.",
+      "risk": "없음 — champion/ 무수정·추론 계약 무변경. CPU 4코어 직렬화는 구동기 lock 이 담당."
     }
   ]
 }
