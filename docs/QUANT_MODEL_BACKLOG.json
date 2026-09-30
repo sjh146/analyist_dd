@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-30T16:05:25+09:00",
+  "updated_at": "2026-09-30T17:12:06+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -6246,6 +6246,60 @@
       "cost": "약 3분(스윕 3회)",
       "closed_at": "2026-09-30T16:11:42+09:00",
       "closed_by": "quant-model-engineer"
+    },
+    {
+      "id": "CG39",
+      "title": "배포 평가 표본의 도메인 오염 진단 — 유동성 상위 80종목 중 ETF/ETN 26개·학습유니버스 교집합 5종목 (배포 OOS 0.44 의 정체)",
+      "status": "done",
+      "priority": 1,
+      "affects_model": false,
+      "hypothesis": "배포 챔피언의 '자기 과제 OOS 0.4410'(CG37)은 모델 성능이 아니라 **평가 표본의 도메인 불일치** 때문일 수 있다. champion_robust_eval 의 표본은 '유동성 상위 80종목'인데 그 안에 ETF/ETN/레버리지가 섞이고(학습 경로 select_training_universe 는 ETF/ETN·파생을 제외하고 instrument_type='STOCK' 만 쓴다), canonical 199피처 중 6개(rank_*)는 학습 시 200종목 유니버스·평가 시 80종목 표본 기준으로 **재척도**된다.",
+      "evidence": "CG37 실측 OOS 0.4410(3/3 창 < 0.5) · CG36 0.4719 · CG34 학습구간 밖 3창 0.4914 — 모두 champion_robust_eval 로 측정됐다. 약한 신호라면 0.49~0.51 이 나온다: 0.44 는 '다른 분포를 채점했다'는 신호다.",
+      "method": "① DB 조회로 학습 유니버스(select_training_universe 200)와 평가 표본(UNIVERSE_SQL 유동성 상위 80)의 구성·교집합·ETF 수를 센다 ② scripts/rank_universe_check.py 로 같은 날·같은 종목의 rank_* 를 '표본 랭크' vs '유니버스 랭크' 두 방식으로 계산해 평균 절대차를 잰다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/rank_universe_check.py --dates 1 --out /app/reports/rank_universe_check.json'",
+      "check": "docker exec stock_xgboost_ml cat /app/reports/rank_universe_check.json",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "cost": "수 분(종목 260 × 1일 피처 빌드)",
+      "success": "표본 구성(ETF 수·교집합)과 rank_* 불일치 크기를 숫자로 확보 — 판정 자체가 목적('개선' 아님). 결과는 배포 OOS 수치의 해석 근거가 된다.",
+      "est_minutes": 4,
+      "metric": null,
+      "note": "[2026-09-30T17:2x] 구동기 대신 세션에서 직접 실행(수 분).",
+      "result": "① 표본 구성(실측 2026-09-30): 학습 유니버스 200종목(ETF/ETN·파생 제외, 시장=KOSPI/KOSDAQ, instrument_type=STOCK) vs 평가 표본 80종목(유동성 상위) → **ETF/ETN/레버리지 26개**(KODEX 200·KODEX 레버리지·TIGER 200·KODEX 반도체·단일종목 레버리지 등) · **교집합 5종목**(009150 삼성전기·403870 HPSP·475150 SK이터닉스·298040 효성중공업·000250 삼천당제약). 표본은 대형주+ETF, 학습은 소형주 중심. ② rank_* 재척도(2026-09-29 1일, 표본 80/전체 276): mean|Δ| = return_5d 0.0726 · return_20d 0.0218 · volatility_20d 0.1096 · volume_ratio_5 0.0756 · ma_position_5 0.1087 · volume_ratio_20 0.1370 → **전체 평균 0.0875**. → 배포 OOS 0.44 계열 수치는 '자기 과제 성적'이 아니라 **다른 도메인 채점**이며, rank 축 불일치가 추가로 얹혀 있다.",
+      "closed_at": "2026-09-30T17:12:06+09:00",
+      "closed_by": "quant-model-engineer"
+    },
+    {
+      "id": "CG40",
+      "title": "표본 유니버스 A/B — 같은 모델·같은 폴드·같은 날짜에서 '학습동형 유니버스' vs '유동성 유니버스' (배포 OOS 0.44 는 도메인 불일치 산물인가)",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": false,
+      "depends_on": [
+        "CG39"
+      ],
+      "baseline": {
+        "value": null,
+        "source": "CG37 의 0.4410 은 표본 80종목·folds 5·dates 10 에서 측정 — 본 A/B 는 folds 3·dates 10·stocks 60 으로 두 arm 을 **같은 조건**에서 재측정해 짝 비교한다"
+      },
+      "arm": "champion_robust_eval --universe training(select_training_universe 60종목, ETF/ETN·파생 제외) --folds 3 --dates-per-fold 10 --stocks 60",
+      "counterfactual": "--universe liquidity(유동성 상위 60종목) — 같은 폴드·같은 날짜·같은 종목 수(현행 프로토콜)",
+      "hypothesis": "배포 챔피언 OOS 가 0.5 미만인 주 원인은 표본 유니버스 불일치다(CG39: 표본 80종목 중 ETF/ETN 26개·학습유니버스 교집합 5종목·rank mean|Δ| 0.0875). 유니버스만 학습 경로와 동형으로 바꾸면 같은 모델의 채점 AUC 가 올라간다.",
+      "evidence": "CG39 실측(표본 구성·랭크 불일치) · CG37 0.4410 · CG34 0.4914 — 세 수치 모두 유동성 표본에서 나왔다.",
+      "method": "같은 날짜 목록·같은 폴드 분할·같은 종목 수(60)에서 --universe 만 바꿔 두 번 채점한다(한 커맨드로 연속 실행 — 시각이 밀리면 창이 달라져 짝이 깨진다). 두 결과 JSON 에 universe{mode,n,n_etf_etn,overlap_train200} 이 기록된다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/champion_robust_eval.py --universe training --folds 3 --dates-per-fold 10 --stocks 60 --out app/reports/champion_robust_eval_trainuni.json && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/champion_robust_eval.py --universe liquidity --folds 3 --dates-per-fold 10 --stocks 60 --out app/reports/champion_robust_eval_liq60.json'",
+      "check": "docker exec stock_xgboost_ml sh -c 'cat /app/reports/champion_robust_eval_trainuni.json && cat /app/reports/champion_robust_eval_liq60.json'",
+      "check_target": {
+        "op": ">=",
+        "value": 2
+      },
+      "cost": "약 30분 × 2 arm(60종목 × 3폴드 × 10날짜 = 1,800 빌드/arm)",
+      "success": "두 arm 의 폴드별 AUC 와 표본 구성(n_etf_etn·overlap_train200)을 숫자로 확보하고 짝 Δ 를 보고한다. 성공 조건(=모델 개선)이 아니라 **진단**이다 — Δ 가 크면 배포 OOS 계열(CG31/34/36/37)의 해석을 '도메인 불일치만큼 내려서' 다시 써야 한다.",
+      "est_minutes": 70,
+      "metric": "champion_robust_eval",
+      "note": "판정 집계는 **첫 --out(학습동형 arm)** 만 잡힌다(`_out_arg` 는 첫 --out 을 반환) — 두 번째 arm(현행 프로토콜)은 services/xgboost-ml/reports/champion_robust_eval_liq60.json 으로 비교할 것. 기본값(--universe liquidity)은 그대로라 이 A/B 는 **기준선 산출물(champion_robust_eval.json)을 건드리지 않는다**(기준선 교체는 승인 대상)."
     }
   ]
 }

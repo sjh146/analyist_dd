@@ -57,6 +57,19 @@ LOGDIR = os.path.join(PROJ, "data/reports/me_cycle/logs")   # 호스트 사용�
 PIDFILE = os.path.join(RUNTIME, "running.pid")
 LOCKFILE = os.path.join(RUNTIME, "cycle.lock")
 STATE = os.path.join(RUNTIME, "state.json")
+# ── 미전달 보고 복구용: Hermes 크론 실행 기록 ────────────────────────────────
+# 실측(2026-09-30): 이 잡의 04:00·05:00·06:00·07:00 틱이 전부
+# `RuntimeError: Hermes can't reach the model provider` 로 실패했다. 틱 스크립트 자체는 돌았으므로
+# 04:51 에 끝난 U3 결과의 원장 `reported` 플래그는 켜졌지만 **사용자에게는 전달되지 않았다**
+# (executions.db 의 delivery_outcome='failed'). 원장 플래그만 믿으면 결과가 영구 소실된다.
+# → reported 로 표시할 때 `reported_at` 을 함께 남기고, 다음 틱이 그 시각에 대응하는 크론 실행의
+#   전달 결과를 executions.db 에서 확인해 실패였으면 플래그를 되돌린다(재보고 경로).
+HERMES_EXEC_DB = os.path.expanduser(
+    os.environ.get("ME_EXEC_DB", "~/.hermes/cron/executions.db"))
+JOBID_FILE = os.path.join(RUNTIME, "cron_job_id.txt")
+DEFAULT_JOB_ID = "d4070d508732"        # quant-model-engineer-overnight
+REPORT_EARLY_SEC = 300                  # 보고 처리 시각과 실행 시작 시각의 허용 선행 오차
+REPORT_WINDOW_SEC = 3600                # 한 실행이 소비한 기록으로 보는 사후 창
 KST = timezone(timedelta(hours=9))
 CONTAINER = "stock_xgboost_ml"
 LOAD_MAX = float(os.environ.get("ME_LOAD_MAX", "3.5"))
@@ -118,6 +131,85 @@ def append_ledger(rec):
     os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
     with open(LEDGER, "a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+# ── 미전달 보고 감지(크론 실행 DB) ──────────────────────────────────────────
+def cron_job_id():
+    """이 틱을 돌리는 크론 잡 id. 환경변수 → 파일 → 기본값 순으로 찾는다."""
+    jid = (os.environ.get("ME_CRON_JOB_ID") or os.environ.get("HERMES_CRON_JOB_ID") or "").strip()
+    if jid:
+        return jid
+    try:
+        with open(JOBID_FILE, encoding="utf-8") as f:
+            jid = f.read().strip()
+        if jid:
+            return jid
+    except OSError:
+        pass
+    return DEFAULT_JOB_ID
+
+
+def _parse_ts(s):
+    try:
+        return datetime.fromisoformat(str(s))
+    except (TypeError, ValueError):
+        return None
+
+
+def _exec_history(job_id, limit=60):
+    """executions.db(읽기 전용)에서 최근 실행의 (started_at, status, delivery_outcome)."""
+    import sqlite3
+    con = sqlite3.connect(f"file:{HERMES_EXEC_DB}?mode=ro", uri=True)
+    try:
+        cur = con.execute(
+            "select started_at, status, delivery_outcome from executions "
+            "where job_id=? order by started_at desc limit ?", (job_id, limit))
+        return [tuple(r) for r in cur.fetchall()]
+    finally:
+        con.close()
+
+
+def check_undelivered_reports():
+    """직전 크론 실행이 **전달 실패**했으면 그 실행이 보고 처리한 기록을 미보고로 되돌린다.
+
+    실측(2026-09-30): 모델 제공자 불통으로 04:00~07:00 틱이 실패하면서 U3 결과가 조용히
+    사라졌다. `reported` 플래그는 "틱이 출력했다"는 뜻일 뿐 "사용자가 받았다"가 아니다.
+    크론 실행 DB 를 못 읽으면 **아무것도 바꾸지 않고** NOTE 만 남긴다(잘못 되돌리면 중복 보고).
+    """
+    led = load_ledger()
+    cand = [r for r in led if r.get("reported") and r.get("reported_at")]
+    if not cand:
+        return []
+    try:
+        hist = _exec_history(cron_job_id())
+    except Exception as e:      # sqlite3 부재·DB 이동·스키마 변경 — 본업을 막지 않는다
+        return [f"NOTE: 미전달 감지 불가({type(e).__name__}: {e}) — 원장 플래그는 유지"]
+    bad, changed = [], False
+    for started, _status, outcome in hist:
+        st = _parse_ts(started)
+        if st is None or outcome not in ("failed", "unknown"):
+            continue
+        hit = []
+        for r in cand:
+            rt = _parse_ts(r.get("reported_at"))
+            if rt is None:
+                continue
+            dt = (rt - st).total_seconds()
+            if -REPORT_EARLY_SEC <= dt <= REPORT_WINDOW_SEC:
+                hit.append(r)
+        if not hit:
+            continue
+        for r in hit:
+            r["reported"] = False
+            r.pop("reported_at", None)
+        changed = True
+        bad.append(f"{str(started)[:16]} 실행({outcome}) 이 소비한 기록: "
+                   + ", ".join(r.get("id", "?") for r in hit))
+    if changed:
+        _rewrite_ledger(led)
+        return ["=== ⚠ 이전 틱 결과가 사용자에게 전달되지 않았다(크론 실행 실패/미확정)"
+                " → 이번 보고에 포함하라:"] + [f"    {b}" for b in bad]
+    return []
 
 
 # ── 가드 ────────────────────────────────────────────────────────────────────
@@ -1024,6 +1116,8 @@ def _record_orphan(orphan, started):
         "verdict": "실행실패",
         "detail": detail + note,
         "reported": True,      # 이 줄에서 이미 사람에게 보고했다(중복 보고 방지)
+        # 미전달 감지용: 이 시각에 대응하는 크론 실행이 전달 실패면 다음 틱이 되돌려 재보고한다.
+        "reported_at": now_kst().isoformat(timespec="seconds"),
     }
     append_ledger(rec)
 
@@ -1116,11 +1210,31 @@ def ensure_launcher(dry=False) -> str:
     return "U3 런처 (재)기동 — 20:35~21:00 창에 U3 착수"
 
 
+def _print_results(rows):
+    """원장 기록을 틱 stdout 으로 출력한다(자기신고 금지 — 요약 JSON 에서 계산된 값만)."""
+    for r in rows:
+        print(f"=== 결과 도착: {r['id']} — {r['title']}")
+        print(f"  rc={r['rc']} 경과 {r['elapsed_min']}분 판정={r['verdict']}")
+        print(f"  근거: {r['detail']}")
+        per: dict = (r.get("parsed") or {}).get("per_exp") or {}
+        for name, v in per.items():
+            # 표시용 통계는 없을 수 있다(정정·부분 기록) → .get 으로 읽어 절대 죽지 않게 한다.
+            # 실측 2026-09-25: 정정 스크립트가 std 를 빼고 써서 tick 이 KeyError 로 죽었다.
+            print(f"    {name}: 폴드 평균 {v.get('mean')} std {v.get('std', '-')} "
+                  f"(min {v.get('min', '-')} max {v.get('max', '-')}) "
+                  f"폴드승률 {v.get('fold_win_rate', '-')} {v.get('folds', [])}")
+        print(f"  로그: {r['log']}")
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
         print(ns)
     print(f"  런처: {ensure_launcher()}")
+    # 이전 틱이 '보고 처리'했지만 크론 실행이 전달 실패한 기록을 되돌린다 → 아래 unreported 블록이
+    # 같은 결과를 다시 출력한다(영구 소실 방지). 실측 2026-09-30: 제공자 불통 4시간 동안 U3 소실.
+    for line in check_undelivered_reports():
+        print(line)
     pid = running_pid()
     if pid:
         st = {}
@@ -1177,20 +1291,13 @@ def tick(force=False):
     led = load_ledger()
     unreported = [r for r in led if not r.get("reported")]
     if unreported:
+        _print_results(unreported)
+        # 보고 처리 표시(같은 결과를 매 틱 반복 보고하지 않는다). reported_at 은 **미전달 감지용**이다:
+        # 이 시각에 대응하는 크론 실행이 전달 실패면 다음 틱이 플래그를 되돌려 재보고한다.
+        stamp = now_kst().isoformat(timespec="seconds")
         for r in unreported:
-            print(f"=== 결과 도착: {r['id']} — {r['title']}")
-            print(f"  rc={r['rc']} 경과 {r['elapsed_min']}분 판정={r['verdict']}")
-            print(f"  근거: {r['detail']}")
-            per: dict = (r.get("parsed") or {}).get("per_exp") or {}
-            for name, v in per.items():
-                # 표시용 통계는 없을 수 있다(정정·부분 기록) → .get 으로 읽어 절대 죽지 않게 한다.
-                # 실측 2026-09-25: 정정 스크립트가 std 를 빼고 써서 tick 이 KeyError 로 죽었다.
-                print(f"    {name}: 폴드 평균 {v.get('mean')} std {v.get('std', '-')} "
-                      f"(min {v.get('min', '-')} max {v.get('max', '-')}) "
-                      f"폴드승률 {v.get('fold_win_rate', '-')} {v.get('folds', [])}")
-            print(f"  로그: {r['log']}")
-            # 보고 처리 표시(같은 결과를 매 틱 반복 보고하지 않는다)
             r["reported"] = True
+            r["reported_at"] = stamp
         _rewrite_ledger(led)
         b = load_backlog()
         p = [i for i in b["items"] if i.get("status") == "pending"]

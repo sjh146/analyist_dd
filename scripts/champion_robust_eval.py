@@ -201,6 +201,14 @@ def main() -> int:
                          "구간)도 채점 대상에 포함된다 — 컷오프를 과거로 고정해 학습한 모델을 "
                          "그 이후 창에서 평가할 때 필요하다. 미지정 시 meta 의 data_end")
     ap.add_argument("--model-dir", default="app/models/champion")
+    ap.add_argument("--universe", choices=("liquidity", "training"), default="liquidity",
+                    help="표본 유니버스 선택. liquidity=유동성 상위(현행 프로토콜·기본값), "
+                         "training=select_training_universe(학습 경로와 동형 — ETF/ETN·파생 제외). "
+                         "왜(실측 2026-09-30): 유동성 상위 표본 80종목 중 **26개가 ETF/ETN/레버리지**"
+                         "(KODEX 200·KODEX 레버리지·TIGER 200 등)이고 학습 유니버스(200종목)와의 "
+                         "교집합이 **5종목**뿐이었다 → '배포 챔피언 자기 과제 OOS 0.4410' 은 자기 "
+                         "과제가 아니라 **다른 도메인 채점**이었다. 이 축은 A/B 로만 비교하고 "
+                         "기본값(기준선 산출)은 승인 없이 바꾸지 않는다.")
     ap.add_argument("--out", default="app/reports/champion_robust_eval.json")
     ap.add_argument("--write", action="store_true",
                     help="robust_walkforward.json 도 기록(정보용 견고성 지표). "
@@ -253,13 +261,36 @@ def main() -> int:
     # (창 하나만 보면 n_days 조건을 만족하는 종목이 없어 유니버스가 빈다 — 실측 함정).
     univ_start = dates_asc[max(0, len(dates_asc) - 120)]
     univ_end = dates_asc[-1]
-    with conn.cursor() as cur:
-        cur.execute(UNIVERSE_SQL, {"start": univ_start, "end": univ_end, "limit": args.stocks})
-        universe = [r[0] for r in cur.fetchall()]
-    logger.info("표본 유니버스 %d종목(유동성 상위)", len(universe))
+    if args.universe == "liquidity":
+        with conn.cursor() as cur:
+            cur.execute(UNIVERSE_SQL, {"start": univ_start, "end": univ_end, "limit": args.stocks})
+            universe = [r[0] for r in cur.fetchall()]
+        logger.info("표본 유니버스 %d종목(유동성 상위 — 현행 프로토콜)", len(universe))
+    else:
+        from app.training.universe import select_training_universe
+        universe = select_training_universe(conn, limit=args.stocks, min_days=30, seed=0)
+        logger.info("표본 유니버스 %d종목(학습 경로와 동형 — ETF/ETN·파생 제외)", len(universe))
     if not universe:
         logger.error("유니버스가 비었습니다")
         return 2
+
+    # 표본 구성 로깅 — 결과 파일에 '무엇을 채점했는가'가 남아야 해석을 틀리지 않는다.
+    # 실측(2026-09-30): 유동성 상위 80종목 중 26개가 ETF/ETN/레버리지, 학습 유니버스(200)와의
+    # 교집합 5종목 → 그 OOS 0.4410 을 '자기 과제 성적'으로 읽으면 안 된다.
+    universe_info = {"mode": args.universe, "n": len(universe)}
+    try:
+        from app.training.universe import is_etf_etn, select_training_universe as _stu
+        with conn.cursor() as cur:
+            cur.execute("SELECT stock_code, stock_name FROM stocks WHERE stock_code = ANY(%s)",
+                        (universe,))
+            _names = {c: (n or "") for c, n in cur.fetchall()}
+        _train_uni = set(_stu(conn, limit=200, min_days=30, seed=0))
+        universe_info["n_etf_etn"] = sum(1 for c in universe if is_etf_etn(_names.get(c)))
+        universe_info["overlap_train200"] = len(set(universe) & _train_uni)
+        logger.info("표본 구성: %d종목 · ETF/ETN/파생 %d개 · 학습유니버스(200) 교집합 %d",
+                    len(universe), universe_info["n_etf_etn"], universe_info["overlap_train200"])
+    except Exception as e:      # 로깅 실패가 평가를 막지 않는다
+        logger.warning("표본 구성 로깅 실패(무시): %s: %s", type(e).__name__, e)
 
     pipeline = FeaturePipeline(pg_conn=conn)
     ensemble = EnsembleModel(model_dir=args.model_dir)
@@ -363,6 +394,7 @@ def main() -> int:
                      f"{'시장상대 중앙값' if args.label_kind == 'rel' else '절대 방향(>0)'} 라벨, "
                      f"크로스섹션 AUC, purge={args.horizon}거래일"),
         "label_kind": args.label_kind,
+        "universe": universe_info,          # 무엇을 채점했는가(모드·ETF 수·학습유니버스 교집합)
         "metric": "cross_sectional_auc_mean",
         "robust_auc": round(statistics.mean(fold_means), 4),
         # 학습구간 오염 차단 기록 (2026-09-29): 창이 학습구간과 겹치면 AUC 가 부풀려진다

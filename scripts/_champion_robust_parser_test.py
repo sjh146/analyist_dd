@@ -53,15 +53,17 @@ payload = {
 with open(p, "w", encoding="utf-8") as f:
     json.dump(payload, f)
 
-check("summary_path 매핑(champion_robust_eval)",
+check("요약 경로 매핑(champion_robust_eval)",
       m.summary_path("champion_robust_eval").endswith("services/xgboost-ml/reports/champion_robust_eval.json"))
 check("기존 wf_sweep 매핑 회귀 없음",
       m.summary_path("wf_sweep_summary").endswith("reports/overnight/wf_label_sweep_summary.json"))
+# 계약(2026-09-30 개정): 알 수 없는/없는 metric 은 **예외 없이 빈 경로** — 진단·준비 항목을
+# --start 하면 종전 ValueError 가 guards 통과 직후 크래시를 내 원장 기록 없이 사라졌다(설계원칙 4 위반).
 try:
-    m.summary_path("nope")
-    check("알 수 없는 metric → ValueError", False)
-except ValueError:
-    check("알 수 없는 metric → ValueError", True)
+    unknown = m.summary_path("nope")
+    check("알 수 없는 metric → 빈 경로(크래시 금지)", unknown == "", f"got {unknown!r}")
+except Exception as e:
+    check("알 수 없는 metric → 빈 경로(크래시 금지)", False, f"raised {type(e).__name__}: {e}")
 
 parsed = m.parse_champion_robust(p, 0)
 check("robust_auc 파싱", parsed.get("robust_auc") == 0.5405, str(parsed.get("robust_auc")))
