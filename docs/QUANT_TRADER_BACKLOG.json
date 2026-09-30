@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-01T08:26:38+09:00",
+  "updated_at": "2026-10-01T08:30:00+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -242,6 +242,25 @@
         "stdout_tail": "10.547945205479458",
         "stderr_tail": ""
       }
+    },
+    {
+      "id": "T9",
+      "title": "휴장일 가드 — trader-agent 이 KRX 휴장 달력을 모른다 (실주문 경로)",
+      "status": "backlog",
+      "priority": 9,
+      "command": null,
+      "metric": null,
+      "check": null,
+      "hypothesis": "감독(`tools/supervise_loop.ps1`)은 **벽시계 요일**(Sat/Sun 제외)만 보고, 엔진의 `trader_core/engine.py:market_is_open()` 도 `now.weekday() >= 5` 만 본다 → **KRX 휴장일이면 루프가 '장중'으로 판단**하고 후보를 주문 경로에 태운다.",
+      "evidence": "2026-10-01 은 KRX 휴장일이다(국군의 날 임시공휴일) — 근거 3중: ① `data/krx_holidays.json` 에 `2026-10-01` 포함 ② `reports/cron_data_gap_report.log` 2026-10-01 07:50 \"휴장 기록: 2026-10-01 (KIS no_data)\" ③ market_data 최신 거래일 2026-09-30. 그런데 trader-agent 워크스페이스에 휴장 달력 파일이 **없고**(`find -iname '*holiday*'` = 0건), `profiles.py` 주석도 \"exchange holidays are not modelled\" 로 명시한다. 오늘 실주문 위험은 0이었다 — 브리지가 내려가 있어(`cmd.exe curl /health` rc=7) 감독이 루프를 아예 못 띄웠다. 즉 **운이지 설계가 아니다**(브리지가 살아 있으면 휴장일 09:00 에 루프가 기동한다).",
+      "success": "휴장일에는 `market_is_open()` 이 False 를 돌려주고 감독도 루프를 시작하지 않는다 (krx_holidays.json 연동 + 단위 테스트)",
+      "cost": "중(실주문 경로 — 페이퍼 검증 필요)",
+      "note": "**승인 필요**(실주문 경로 변경 · 게이트 6: 페이퍼 검증 없는 변경 금지 · live-order-path-safety 스킬 선행). 사용자 승인 시 절차: ① 휴장 목록을 읽는 `is_trading_day()` 추가(하드코딩 대신 analyist_dd `data/krx_holidays.json` 을 동기화해 읽기) ② `market_is_open()`·감독 스크립트가 이를 함께 보게 수정 ③ 페이퍼 모드에서 휴장일 1회 실행해 `market_open=false`·주문 0건 확인 ④ 그 뒤 live 반영 + main 푸시.",
+      "provenance": {
+        "source": "trader_cycle(preopen 크론) 2026-10-01 08:2x",
+        "measured_at": "2026-10-01 08:2x"
+      },
+      "result": null
     }
   ]
 }
