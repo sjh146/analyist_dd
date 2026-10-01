@@ -1,0 +1,73 @@
+{
+  "measured_at": "2026-10-01T21:18:20.472090",
+  "signal_dates": [
+    "2026-05-26",
+    "2026-09-30"
+  ],
+  "n_signal_days": 87,
+  "n_rows": 1736,
+  "entry_assumption": "발굴일 종가 매수(실제 14:50-15:29 근사) → 다음 거래일 시가 매도",
+  "all_candidates": {
+    "n": 1736,
+    "win_rate": 46.3,
+    "avg": 1.376,
+    "median": 0.0,
+    "p10": -3.43,
+    "p90": 8.02,
+    "min": -24.91,
+    "max": 30.0
+  },
+  "gate_open_days_only": {
+    "n": 0
+  },
+  "gate_blocked_days_only": {
+    "n": 1736,
+    "win_rate": 46.3,
+    "avg": 1.376,
+    "median": 0.0,
+    "p10": -3.43,
+    "p90": 8.02,
+    "min": -24.91,
+    "max": 30.0
+  },
+  "by_gate_reason": {
+    "r1_fail_heat_ok": {
+      "n": 60,
+      "win_rate": 25.0,
+      "avg": -0.676,
+      "median": -0.641,
+      "p10": -3.54,
+      "p90": 2.81,
+      "min": -24.91,
+      "max": 13.71
+    },
+    "r1_ok_heat_fail": {
+      "n": 758,
+      "win_rate": 49.2,
+      "avg": 1.856,
+      "median": 0.0,
+      "p10": -2.89,
+      "p90": 9.38,
+      "min": -19.24,
+      "max": 30.0
+    },
+    "both_fail": {
+      "n": 918,
+      "win_rate": 45.3,
+      "avg": 1.113,
+      "median": 0.0,
+      "p10": -3.95,
+      "p90": 7.04,
+      "min": -22.43,
+      "max": 30.0
+    }
+  },
+  "days": {
+    "total": 87,
+    "gate_open": 0,
+    "r1_ok": 38,
+    "heat_ok": 3
+  },
+  "avg_daychg_top10_mean": 19.99,
+  "avg_score_top10_mean": 87.25
+}
