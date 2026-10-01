@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-01T09:45:00+09:00",
+  "updated_at": "2026-10-01T16:19:30.627766+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -825,6 +825,21 @@
       ],
       "note": "트레이더가 오프사이클 실측(2026-10-01 09:3x)에서 발견해 환류. 원인 소유 = 리서처(`scripts/data_gap.py`). 같은 계열 수리(당일 공실 오판)가 06:11 커밋(`44e737d`)에서 한 번 이뤄졌지만 **휴장 기록 경로는 남아 있다**. || **[수리 완료 2026-10-01 15:4x — 리서처]** 실측 결함 2건을 닫았다: ① 당일은 장 마감(15:40) **이후**에만 휴장 확정(`HOLIDAY_CONFIRM_HHMM`) ② 기록 전 KIS 국내휴장일조회(CTCA0903R)로 교차확인 — `opnd_yn/tr_day_yn == 'Y'` 면 기록 거부, **판별 불가(None)도 기록하지 않는다**(오탐이 실제 손해: 거래일이 캘린더에 굳으면 수집·감시·실험 창이 통째로 꺼진다). 자가치유: 캘린더에 굳은 '오늘'이 KIS 기준 거래일이면 다음 실행에서 제거. 회귀 8건 `tests/test_data_gap_holiday_guard.py` + 구동기 비수치 check_target 회귀 3건 `tests/test_researcher_cycle_check_target_guard.py`.",
       "check_note": "check 는 수치를 **마지막에 하나만** 출력해야 한다(구동기 eval_check 규약). 종전 check_target 값이 서술 문자열 `opnd_yn == 'Y'` 이어서 float() ValueError 로 실행이 죽었다(2026-10-01 15:35 실측 — 명령은 돌았는데 원장 기록 전에 프로세스 소실). 지금은 읽기전용 프로브가 결함 수(0=통과)를 내고, 구동기는 비수치 target 을 '판정불가'로 처리한다."
+    },
+    {
+      "id": "R25",
+      "title": "DART 공시 정기 러너 부재 — disclosures 가 수동 백필 후 정지 (09-23 → 10-01 실측)",
+      "status": "needs_approval",
+      "priority": 3,
+      "kind": "collect",
+      "incremental": true,
+      "affects_model": true,
+      "hypothesis": "disclosures 는 재무 피처의 공시 지연을 '가정(90/45일)' 대신 실제 접수일로 계산하는 원천인데, 이를 채우는 경로가 수동 백필(scripts/dart_disclosure_backfill.py) 하나뿐이다. 정기 스케줄이 없으면 표가 조용히 멈추고 DQ 지표에도 드러나지 않는다.",
+      "evidence": "실측 2026-10-01 16:1x: disclosures max(rcept_dt)=2026-09-23 · 212,861행에서 정지(09-24~10-01 결손; 09-23 333행/일 → 이후 0행). 원인: 백필 스크립트를 부르는 항목이 /etc/cron.d/analyist_dd · jhshi crontab · Hermes 크론 어디에도 없다(수동 실행만). 네트워크는 원인이 아님 — DART list.json 도달 200(direct·proxy 동일)·DART_API_KEY 설정됨. 서비스 내 DartCollector(services/news-analyzer/app/collectors/dart_collector.py)는 이를 import 하는 코드가 레포에 0곳 = 미배선 죽은 코드. 조치(2026-10-01 이 세션): 백필 2회 실행 → 타입 A 110행 + B/D/E/I 1,413행 삽입, 테이블 212,861→214,384, max(rcept_dt)=2026-10-01 확인.",
+      "method": "DART list.json 월 창 백필(1.5s + 0.3~0.8s 지터). 하루 1회 최근 2개월 창 + 유형 B,D,E,I 면 콜 ~20회.",
+      "needs": "크론 등록 승인 1건(스케줄 신설) — /etc/cron.d/analyist_dd 에 평일 18:10 한 줄(타입 B,D,E,I, --max-calls 200) + 분기형 A 는 주 1회. 크론 수정은 사람 단계이므로 needs_approval 로 올린다.",
+      "if_blocked": "방치하면 새 공시가 재무 피처의 기간 구분·공시 지연에 안 들어가고, 회계기간 혼재(연간/반기) 결함이 되살아난다.",
+      "registered_by": "operator-session 2026-10-01 (사용자 지시: 데이터 공백 규명)"
     }
   ]
 }
