@@ -79,6 +79,12 @@ from kis_app.client.kis_client import (  # noqa: E402
     KisApiError, KisClient, KisTransportError,
 )
 
+try:  # 자기신고(R23) — 배선 실패가 수집을 깨지 않도록 방어적으로 import
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from dq_claim import claim_start, claim_finish  # noqa: E402
+except Exception:  # noqa: BLE001
+    claim_start = claim_finish = None
+
 SHORT_SALE_PATH = "/uapi/domestic-stock/v1/quotations/daily-short-sale"
 SHORT_SALE_TR_ID = "FHPST04830000"
 
@@ -188,7 +194,12 @@ def universe(conn, limit: int):
 
 
 def fetch_one(client, code, start, end):
-    """1종목 = 1콜. 응답 output2(거래일 내림차순) → 오름차순 정렬."""
+    """1종목 = 1콜. 응답 output2(거래일 내림차순) → 오름차순 정렬.
+
+    반환: (파서가 만든 행 리스트, API 원시 행수). 두 값을 모두 돌려주는 이유(R23): 파서 키가
+    어긋나면 raw>0 인데 out==0 이 되고, 그때만 `dq_claim_parse_failure`(=source>0 AND claimed==0)
+    가 진짜 실패로 울린다(2026-09-24 유형). 원시 행수를 안 세면 이 경로는 조용해진다.
+    """
     params = {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": code,
               "FID_INPUT_DATE_1": start, "FID_INPUT_DATE_2": end}
     data = client._request(SHORT_SALE_PATH, SHORT_SALE_TR_ID, params)
@@ -209,7 +220,7 @@ def fetch_one(client, code, start, end):
             num(r.get("ssts_vol_rlim"), float) or 0.0,
         ))
     out.sort(key=lambda t: t[0])
-    return out
+    return out, len(rows)
 
 
 def main():
@@ -275,6 +286,10 @@ def main():
     ok_stocks = 0
     failed = []
     skipped = 0
+    recv_rows = 0       # API 원시 행수(파서 키 불일치 감지용, R23)
+    if claim_start:
+        claim_start("kis_short_selling_backfill", "krx_short_selling",
+                    note=f"{start_s}~{end_s} targets={len(targets)}")
     cur = conn.cursor()
 
     for code, name in targets:
@@ -290,7 +305,8 @@ def main():
             time.sleep(args.delay + random.uniform(0, args.jitter))
         calls += 1
         try:
-            rows = fetch_one(client, code, start_s, end_s)
+            rows, raw_n = fetch_one(client, code, start_s, end_s)
+            recv_rows += raw_n
         except KisApiError as e:
             if e.credential_error:
                 log.error("KIS 자격증명 거부(%s: %s) — 재시도 없이 즉시 종료",
@@ -337,6 +353,12 @@ def main():
              cnt, codes, mn, mx, withtv)
     for c, m in failed[:10]:
         log.info("  실패 %s: %s", c, m)
+    if claim_finish and calls:
+        # 자기신고(R23): source=API 원시 행, claimed=적재한 행(파서산), persisted=테이블 델타.
+        # 실패 종목이 있어도 남긴다 — 부분 실행도 흔적이 있어야 한다.
+        claim_finish("kis_short_selling_backfill", source_rows=recv_rows,
+                     claimed_rows=total_rows,
+                     note=f"ok={ok_stocks} skip={skipped} fail={len(failed)} calls={calls}")
     if failed:
         return 3
     return 0

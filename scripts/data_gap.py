@@ -18,6 +18,12 @@ import subprocess
 import sys
 from datetime import date, datetime, time, timedelta
 
+try:  # 자기신고(R23) — 배선 실패가 수집을 깨지 않도록 방어적으로 import
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from dq_claim import claim_start, claim_finish  # noqa: E402
+except Exception:  # noqa: BLE001
+    claim_start = claim_finish = None
+
 PROJ = "/home/dduckbeagy/analyist_dd"
 HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
 LOCK_PATH = "/tmp/data_gap_backfill.lock"
@@ -333,6 +339,11 @@ def cmd_backfill():
         return 0
     target = gaps[0][0].replace("-", "")
     open(LOCK_PATH, "w").write(target)
+    if claim_start:
+        # 자기신고(R23): 이 러너는 파서가 없다 — 자식(kis_app/krx_daily)이 자기신고를 남기고,
+        # 여기서는 '위임 실행 1회'의 실적재 델타를 남긴다(persisted 는 헬퍼가 계산).
+        claim_start("data_gap_backfill", "market_data",
+                    note=f"date={target} gaps={len(gaps)}")
     try:
         print("백필 시작: {0} ({1} 공실 대기)".format(target, len(gaps)))
         env = dict(os.environ)
@@ -365,6 +376,9 @@ def cmd_backfill():
         print("\n".join(tail))
         n = pg_count(target)
         print("백필 완료 {0}: 적재 {1}종목 (exit={2})".format(target, n, r.returncode))
+        if claim_finish:
+            claim_finish("data_gap_backfill", source_rows=n, claimed_rows=n,
+                         note=f"date={target} exit={r.returncode} child=kis_app|krx_daily")
     finally:
         os.remove(LOCK_PATH)
     return 0

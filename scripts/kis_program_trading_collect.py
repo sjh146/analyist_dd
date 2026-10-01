@@ -45,6 +45,12 @@ from urllib.parse import urlencode
 
 import psycopg2
 
+try:  # 자기신고(R23) — 배선 실패가 수집을 깨지 않도록 방어적으로 import
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from dq_claim import claim_start, claim_finish  # noqa: E402
+except Exception:  # noqa: BLE001
+    claim_start = claim_finish = None
+
 PROJ = os.environ.get("PROJ_DIR", "/home/jhshi/analyist_dd")
 TOKEN_PATH = os.path.join(PROJ, os.environ.get("KIS_TOKEN_PATH", "data/kis/token_cache.json"))
 
@@ -196,6 +202,10 @@ def main():
     token = get_token(appkey, appsecret, base_url)
     conn = psycopg2.connect(**PG)
     rows_written = 0
+    recv_rows = 0        # 파서가 날짜 유효로 본 응답 행수(R23 — 이 값이 >0 인데 적재 0 이면 키 불일치)
+    if claim_start:
+        claim_start("kis_program_trading_collect", "krx_program_trading",
+                    note=f"{start}~{end} markets={','.join(m for m, _ in mkts)}")
     try:
         for market, cls in mkts:
             for w_from, w_to in windows:
@@ -209,6 +219,7 @@ def main():
                     ds = str(r.get("stck_bsop_date") or "").strip()
                     if len(ds) != 8 or not ds.isdigit():
                         continue
+                    recv_rows += 1
                     d = datetime.strptime(ds, "%Y%m%d").date()
                     buy = num(r.get("whol_smtn_shnu_tr_pbmn"))
                     sell = num(r.get("whol_smtn_seln_tr_pbmn"))
@@ -245,6 +256,10 @@ def main():
     finally:
         conn.close()
     print(f"완료: {rows_written}행", flush=True)
+    if claim_finish and (rows_written or recv_rows):
+        # 자기신고(R23): source=날짜 유효 응답 행, claimed=적재 행(파서산), persisted=델타.
+        claim_finish("kis_program_trading_collect", source_rows=recv_rows,
+                     claimed_rows=rows_written, note=f"windows={len(windows)} mkts={len(mkts)}")
     return 0
 
 

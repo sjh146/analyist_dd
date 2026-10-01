@@ -14,6 +14,17 @@ import logging
 import sys
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
+
+try:  # 자기신고(R23) — 배선 실패가 수집을 깨지 않도록 방어적으로 import
+    _here = Path(__file__).resolve()
+    for _up in _here.parents:                     # 리포 루트를 찾아 scripts/ 를 sys.path 에 넣는다
+        if (_up / "scripts" / "dq_claim.py").is_file():
+            sys.path.insert(0, str(_up / "scripts"))
+            break
+    from dq_claim import claim_start, claim_finish  # noqa: E402
+except Exception:  # noqa: BLE001
+    claim_start = claim_finish = None
 
 from kis_app.client.kis_client import KisApiError, KisClient
 from kis_app.collectors.daily_collector import DailyCollector
@@ -108,11 +119,33 @@ def main(argv=None):
 
     results = {}
     if args.job in ("daily", "all"):
+        _claiming = claim_start is not None and not config.KIS_DRY_RUN
+        if _claiming:
+            claim_start("kis_app.main:daily", "market_data", note=f"date={target}")
         results["daily"] = DailyCollector(client, storage).collect(
             target, limit=args.limit, universe=universe)
+        if _claiming:
+            _s = results["daily"]
+            # source = 응답 원시 행, claimed = 파서가 만든 행(미완성 봉 제외분 포함 — 정책 필터이지
+            # 파싱 실패가 아니다), persisted = market_data 델타(헬퍼 계산).
+            claim_finish(
+                "kis_app.main:daily", source_rows=_s.get("recv", 0),
+                claimed_rows=_s.get("bars", 0) + _s.get("unfinished", 0),
+                note=(f"ok={_s.get('ok')} no_data={_s.get('no_data')} "
+                      f"fail={_s.get('fail')} unfinished={_s.get('unfinished')}"))
     if args.job in ("minute", "all"):
+        _claiming = claim_start is not None and not config.KIS_DRY_RUN
+        if _claiming:
+            claim_start("kis_app.main:minute", "minute_bars", note=f"date={target}")
         results["minute"] = MinuteCollector(client, storage).collect(
             target, limit=args.limit, universe=universe)
+        if _claiming:
+            _s = results["minute"]
+            # 분봉은 수집기가 '원시 페이지 행수'를 노출하지 않는다 → source 는 비워 둔다
+            # (추정값을 넣으면 gap·parse_failure 지표가 거짓말을 한다).
+            claim_finish("kis_app.main:minute", claimed_rows=_s.get("bars", 0),
+                         note=(f"ok={_s.get('ok')} no_data={_s.get('no_data')} "
+                               f"fail={_s.get('fail')} source=미분리"))
 
     print("\n" + "=" * 60)
     print(f"KIS 수집 완료 (job={args.job}, date={target}, "

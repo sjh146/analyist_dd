@@ -45,6 +45,12 @@ from datetime import date, datetime, timedelta
 
 import psycopg2
 
+try:  # 자기신고(R23) — 배선 실패가 수집을 깨지 않도록 방어적으로 import
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from dq_claim import claim_start, claim_finish  # noqa: E402
+except Exception:  # noqa: BLE001
+    claim_start = claim_finish = None
+
 PROJ = os.environ.get("PROJ_DIR", "/home/jhshi/analyist_dd")
 HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
 PROGRESS_DIR = os.path.join(PROJ, "data", "krx")
@@ -290,6 +296,10 @@ def main():
     base = resolve_base(key)
     conn = psycopg2.connect(**PG)
     n_days = n_deriv = n_skip = 0
+    recv_total = 0      # 소스(API)가 준 선물 행수 — 적재가 일어난 날짜만 센다(휴장/미반영 제외, R23)
+    if claim_start:
+        claim_start("krx_derivatives_collect", "krx_derivatives",
+                    note=f"{start}~{end}")
     try:
         for d in dates:
             basdd = d.strftime("%Y%m%d")
@@ -314,6 +324,7 @@ def main():
 
             cur = conn.cursor()
             cur.executemany(UPSERT_DERIV, d_rows)
+            recv_total += len(fut_rows)
 
             k200 = next((r for r in d_rows if r[8] == "KOSPI200"), None)
             if k200:
@@ -343,6 +354,10 @@ def main():
         conn.close()
 
     print(f"완료: {n_days}영업일, {n_deriv}행, 스킵 {n_skip}일", flush=True)
+    if claim_finish and n_days:
+        # 자기신고(R23): source=선물 응답 행, claimed=파서(build_rows)가 만든 행.
+        claim_finish("krx_derivatives_collect", source_rows=recv_total, claimed_rows=n_deriv,
+                     note=f"days={n_days} skip={n_skip}")
     return 0
 
 

@@ -62,6 +62,12 @@ import urllib.request
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+try:  # 자기신고(R23) — 배선 실패가 수집을 깨지 않도록 방어적으로 import
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from dq_claim import claim_start, claim_finish  # noqa: E402
+except Exception:  # noqa: BLE001
+    claim_start = claim_finish = None
+
 UA = "analyist-dd-macro-backfill/1.0 (+https://fred.stlouisfed.org)"
 FRED_BASE_URL = os.environ.get("FRED_BASE_URL", "https://fred.stlouisfed.org").rstrip("/")
 ECOS_BASE_URL = os.environ.get("ECOS_BASE_URL", "https://ecos.bok.or.kr/api")
@@ -389,6 +395,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         log("no series fetched; nothing to write")
         return 2
 
+    src_obs = sum(len(v) for v in series.values())
+    if claim_start:
+        claim_start("macro_backfill", "macro_indicators",
+                    note=f"{start}~{end} source={args.source}")
     with connect(cfg) as conn:
         written = upsert(conn, series)
         log(f"upserted {written} rows (idempotent on UNIQUE(indicator_name, date))")
@@ -396,6 +406,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         log(f"table now: {sum(r[1] for r in rows)} rows / {len(rows)} indicator names")
         for name, cnt, lo, hi in rows:
             log(f"  {name:14s} {cnt:5d} rows  {lo} .. {hi}")
+    if claim_finish:
+        # 자기신고(R23): source=소스에서 받은 관측치 수, claimed=upsert 한 행수(파서산),
+        # persisted=macro_indicators 델타(헬퍼 계산). 재수집 창의 gap 은 정상이다.
+        claim_finish("macro_backfill", source_rows=src_obs, claimed_rows=written,
+                     note=f"indicators={len(series)} failures={len(failures)}")
     return 0
 
 

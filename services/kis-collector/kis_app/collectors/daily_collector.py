@@ -77,12 +77,19 @@ class DailyCollector:
             universe = universe[: int(limit)]
 
         summary = {"ok": 0, "no_data": 0, "fail": 0, "total": len(universe),
-                   "unfinished": 0}
+                   "unfinished": 0,
+                   # 자기신고(R23)용 집계: recv=응답 원시 행, bars=실제 upsert 한 행.
+                   # 두 값을 모두 세야 '응답은 왔는데 파서가 0행' (2026-09-24 유형)을 잡는다.
+                   "recv": 0, "bars": 0}
         for idx, (code, market) in enumerate(universe, start=1):
             excd = market_to_excd(market)
             try:
                 resp = self._client.get_daily_chart(
                     code, excd, target_date, target_date, count=DEFAULT_FID_CNT)
+                raw = resp.get("output2") if isinstance(resp, dict) else None
+                if raw is None and isinstance(resp, dict):
+                    raw = resp.get("output")
+                summary["recv"] += len(raw) if isinstance(raw, list) else 0
                 rows = parse_daily_bars(resp, target_date=target_date)
                 # 미완성 봉(장 개시 전·장중 당일 봉, 미래 날짜)은 적재하지 않는다.
                 # KIS 는 장 개시 전 당일 조회에 '전일 종가 = 시/고/저/종가, 거래량 0' 인
@@ -94,6 +101,7 @@ class DailyCollector:
                 if rows:
                     saved = self._storage.save_market_data(code, rows)
                     summary["ok"] += 1
+                    summary["bars"] += saved
                     logger.info("[%d/%d] %s(%s) 일봉 %d행 저장",
                                 idx, len(universe), code, excd, saved)
                 else:

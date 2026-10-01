@@ -33,6 +33,12 @@ from datetime import date, datetime, timedelta
 
 import psycopg2
 
+try:  # 자기신고(R23) — 배선 실패가 수집을 깨지 않도록 방어적으로 import
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from dq_claim import claim_start, claim_finish  # noqa: E402
+except Exception:  # noqa: BLE001
+    claim_start = claim_finish = None
+
 PROJ = os.environ.get("PROJ_DIR", "/home/dduckbeagy/analyist_dd")
 HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
 STATE_PATH = os.path.join(PROJ, "data", "krx", "rate_state.json")
@@ -282,6 +288,12 @@ def main():
         calls = 0
         days_ok = days_holiday = 0
         rows_total = 0
+        # 소스(API)가 준 '유효 코드' 행수. 적재가 일어난 날짜만 센다 — KRX 가 아직 발행하지
+        # 않은 날짜는 이 러너가 휴장으로 분류하므로(day_rows 비어 있음) 소스 수신으로 세면
+        # 거짓 parse_failure 가 된다.
+        recv_total = 0
+        if claim_start:
+            claim_start("krx_daily", "market_data", note=f"{start}~{end}")
         try:
             for d in dates:
                 basdd = d.strftime("%Y%m%d")
@@ -291,6 +303,7 @@ def main():
                     print(f"호출 상한({MAX_CALLS}) 도달 — 중단, 다음 실행에서 이어서", flush=True)
                     break
                 day_rows, day_empty = [], 0
+                day_recv = 0
                 for m in markets:
                     batches = fetch_day(base, key, MARKETS[m], basdd)
                     calls += 1
@@ -299,6 +312,7 @@ def main():
                         close = num(r.get("TDD_CLSPRC"))
                         if not code or not code.isdigit():
                             continue
+                        day_recv += 1
                         if close is None:          # 휴장/거래정지 행
                             day_empty += 1
                             continue
@@ -318,6 +332,7 @@ def main():
                     if not day_rows and batches is not None and day_empty > 0:
                         pass
                 if day_rows:
+                    recv_total += day_recv
                     cur = conn.cursor()
                     cur.executemany(UPSERT_MD, day_rows)
                     conn.commit()
@@ -348,6 +363,11 @@ def main():
         cur.close()
         print(f"완료: {days_ok}영업일 적재, 휴장 {days_holiday}일, {rows_total}행 upsert, 호출 {calls}회", flush=True)
         print(f"DB(구간): {dd}일 {n}행 ({mn} ~ {mx})", flush=True)
+        if claim_finish and calls:
+            # 자기신고(R23): source=API 유효행, claimed=파서가 만든 행(가격 있는 행),
+            # persisted=market_data 델타(헬퍼가 계산). 재실행 창의 gap 은 정상이다.
+            claim_finish("krx_daily", source_rows=recv_total, claimed_rows=rows_total,
+                         note=f"calls={calls} days_ok={days_ok} holiday={days_holiday}")
         return 0
     finally:
         conn.close()
