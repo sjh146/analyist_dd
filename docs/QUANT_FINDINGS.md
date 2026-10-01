@@ -454,3 +454,38 @@
   check 가 cosmetically 통과한다(‘테이블을 덮어써야 통과하는 check’ 함정). 그래서 재실행하지 않았다.
 - **해소 경로(엔지니어 소유)**: exp_panel 캐시를 현재 DB 로 재빌드 → 리서처가 같은 분모로 1회 실행.
   `XR14` 항목은 아직 엔지니어 백로그에 없다(R14 가 partial 이라 구동기의 자동 인계를 타지 못했다).
+
+## [리서처 R25] DART 공시 정기 러너 — 스케줄 확인 완료(10-01), 신선도 상시 감시  (2026-10-02 00:01)
+- 결과: R25: 0 <= 0 → 충족
+- 판정: 충족
+- 근거: 실측 2026-10-01 16:1x: disclosures max(rcept_dt)=2026-09-23 · 212,861행에서 정지(09-24~10-01 결손; 09-23 333행/일 → 이후 0행). 원인: 백필 스크립트를 부르는 항목이 /etc/cron.d/analyist_dd · jhshi crontab · Hermes 크론 어디에도 없다(수동 실행만). 네트워크는 원인이 아님 — DART list.json 도달 200(direct·proxy 동일)·DART_API_KEY 설정됨. 서비스 내 DartCollector(services/news-analyzer/app/collectors/dart_collector.py)는 이를 import 하는 코드가 레포에 0곳 = 미배선 죽은 코드. 조치(2026-10-01 이 세션): 백필 2회 실행 → 타입 A 110행 + B/D/E/I 1,413행 삽입, 테이블 212,861→214,384, max(rcept_dt)=2026-10-01 확인.
+- 엔지니어 백로그: `XR25` (command·대조군 기입 필요)
+
+## [모델엔지니어 CG63] 재무 as-of 누수 전수 수리 — 팩터·품질 점수 경로가 date 를 받지 않았다  (2026-10-02 07:1x)
+
+- **발견(누수 게이트 ②·③ 동시 위반)**: `factor_features.FactorFeatures.get_all_factors` 와
+  `scorer.QualityScorer.get_f_score` 는 **date 인자가 아예 없어** `financial_statements` 를
+  `ORDER BY report_date DESC LIMIT n` 으로 읽었다 → 과거 행에도 빌드 시점 최신 보고서가 들어간다
+  (최대 10개월 룩어헤드). 2026-09-25 의 `patch_panel_asof.py` 는 **company_features 컬럼만** 교체했고,
+  팩터·품질 컬럼은 패치 밖이었다.
+- **실측(신규 `scripts/_panel_leak_probe.py`)**: 종목당 유니크값(중앙)이 **1 = 종목 상수**인 컬럼 —
+  `value_per` `value_pbr` `value_psr` `value_pcr` `value_ncav` `quality_roa` `quality_f_score`
+  `quality_asset_growth` `quality_score`. panel_420_asofpatch · panel_150u · panel_995 전부 동일.
+  같은 패널에서 company_features 컬럼은 3~5(패치됨) → 대비가 명확하다.
+- **패널 스크린과의 연결**: 최고 단일피처 AUC 3개가 정확히 이 컬럼들(quality_roa 0.5534 ·
+  quality_score 0.5507 · value_per 0.5454)이고, 선별(edge top30)이 누수 컬럼을 학습에 넣었다.
+- **e2e 실측(`scripts/_asof_pipeline_smoke.py`, 종목 000020 = 보고서 4건 2023-12~2026-06)**:
+  수리 전에는 2023-01-02 행에도 2026-06-30 보고서 값이 들어갔다. 수리 후 같은 행은
+  value_per 10.7863 → 0.0 · value_psr 1.0179 → 0.0 · quality_roa 0.9884 → 0.0 ·
+  quality_score 0.75 → 0.5 (그 시점엔 어떤 보고서도 알 수 없음). `date=None` 경로는 10/10 컬럼이
+  최신일과 동일 → **추론 경로 무영향**.
+- **수리**: `asof_report_predicate()`(연간 90일·그 밖 45일 — company_features 와 같은 규칙) 신설 +
+  5개 getter 로 date 전파 + 시총을 `cap_now × close(date)/close_now` 로 환산 + scorer 에 date 추가 +
+  `feature_pipeline` 이 두 호출에 date 전달. `patch_panel_asof.py --also-factors` 로 기존 패널의
+  팩터·품질 컬럼만 재계산(스모크: value_psr/value_ev_ebit 유니크 1→8, quality_score 1→2).
+- **검증**: `_asof_financials_test.py` **17/17 PASS**(SQL 계약 · 지연 산술 · 라이브 단조성 ·
+  '최초 보고서 시점엔 아무 행도 안 나옴' · 시총 환산) · `_asof_pipeline_smoke.py` OK ·
+  기존 회귀 30종 PASS. 커밋 ef0a3d0 이후.
+- **모델 영향**: **큼** — 지금까지의 모든 AUC(등록 기준선 0.5406 · 최고 arm 0.5727 · CG1~CG62)는
+  누수 컬럼이 선별에 들어간 패널 위의 값이다. 재측정은 `CG64`(수리 패널 3-arm) → 이동폭이 +0.02 이상이면
+  **기준선 재등록(사람 승인)** 이 필요하다. 남은 한계: quality_score 의 market_cap 항목 1/8 은 현재값 근사 유지.

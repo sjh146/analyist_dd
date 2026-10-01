@@ -139,7 +139,11 @@ class FeaturePipeline:
                 close_arr = close_s.values if hasattr(close_s, 'values') else np.array(close_s)
                 features.update(self.bayes_factors.compute(close_arr))
 
-        features.update(self.factors.get_all_factors(stock_code, market_df, self.pg_conn))
+        # 시점정합(as-of): 재무 보고서는 공시 지연(연간 90일/그 밖 45일)을 적용하고 시총은
+        # 그 날짜 종가로 환산한다. date 를 주지 않으면 빌드 시점 최신 스냅샷이 모든 과거 행에
+        # 들어가 종목 상수 피처가 되고(누수 게이트 ②·③) 패널이 재현 불가가 된다(2026-10-02 실측).
+        features.update(self.factors.get_all_factors(stock_code, market_df, self.pg_conn,
+                                                     date=str(date)))
 
         features.update(self.company.get_all_features(stock_code, self.pg_conn, str(date)))
 
@@ -165,8 +169,8 @@ class FeaturePipeline:
         sentiment = self._get_stock_sentiment(stock_code, date)
         features.update(sentiment)
 
-        # Quality score (F-Score from financial data, 0~1)
-        features["quality_score"] = self.scorer.get_f_score(stock_code, self.pg_conn)
+        # Quality score (F-Score from financial data, 0~1) — as-of 기준일을 넘긴다(위와 같은 이유).
+        features["quality_score"] = self.scorer.get_f_score(stock_code, self.pg_conn, date=str(date))
 
         features.update(self.macro.get_all_features(self.pg_conn, str(date)))
 

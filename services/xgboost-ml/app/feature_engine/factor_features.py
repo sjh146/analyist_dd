@@ -23,26 +23,86 @@ _MARKET_RET_CACHE: Dict[str, dict] = {"series": None}
 # financial_statements 컬럼 프로브 캐시 (NCAV 등 조건부 피처용)
 _FIN_COL_CACHE: Dict[str, Optional[set]] = {"cols": None}
 
+# 재무 보고서의 **시점정합(as-of) 지연** — company_features.get_financial_features 와 같은 규칙.
+# 두 경로가 다른 지연을 쓰면 같은 (종목·날짜) 행에서 서로 다른 보고서를 참조해 패널이 비정합해진다.
+# report_date 는 기간 **말일**이라 실제 공시는 그보다 늦다(공시일 컬럼 부재) → 연간 90일,
+# 그 밖(분기·반기) 45일의 보수적 지연을 적용한다(늦게 잡는 쪽이 안전: 미래정보 차단).
+ASOF_ANNUAL_DELAY_DAYS = 90
+ASOF_DELAY_DAYS = 45
+
+
+def asof_report_predicate(alias: str = "") -> str:
+    """``report_date + 지연 <= %s::date`` SQL 술어(연간/그 밖 자동 분기). 파라미터 1개를 소비한다."""
+    col = f"{alias}report_date" if alias else "report_date"
+    return (
+        f"{col} + (CASE WHEN {col} = date_trunc('year', {col})::date "
+        f"THEN INTERVAL '{ASOF_ANNUAL_DELAY_DAYS} days' "
+        f"ELSE INTERVAL '{ASOF_DELAY_DAYS} days' END) <= %s::date"
+    )
+
 
 class FactorFeatures:
-    def get_all_factors(self, stock_code: str, market_df, pg_conn=None) -> Dict:
+    def get_all_factors(self, stock_code: str, market_df, pg_conn=None, date=None) -> Dict:
+        """밸류·퀄리티·모멘텀 팩터 피처.
+
+        ``date`` (YYYY-MM-DD, 선택): **시점정합 기준일**. 주면 모든 재무 조회가 그 시점에
+        알 수 있었던 보고서만 쓰고, 시총도 그 날짜 종가로 환산한다.
+        주지 않으면 종전 동작(빌드 시점의 최신 스냅샷) — 기본값이므로 기존 호출부는 무변경.
+
+        왜(2026-10-02 실측): 종전에는 date 인자가 아예 없어 `financial_statements` 를
+        `ORDER BY report_date DESC LIMIT n` 으로 읽었다 → 과거 행에도 **빌드 시점 최신 보고서**가
+        들어갔다(최대 10개월 룩어헤드, panel_420_asofpatch 실측: value_per·quality_roa·quality_f_score·
+        quality_asset_growth·value_pbr·value_psr·value_pcr 이 종목당 유니크값 1 = 종목 상수).
+        그 결과 종목상수 피처가 top30 선별을 지배했고(패널 스크린 최고 AUC 3개가 정확히 이 컬럼들:
+        quality_roa 0.5534 · quality_score 0.5507 · value_per 0.5454) 패널이 빌드 시점에 따라
+        달라져 재현도 불가능했다. 누수 게이트 위반 조건 ②(종목 상수 피처가 선별 지배)·③(as-of 위반).
+        """
         features = {}
 
-        market_cap = self._get_market_cap(stock_code, pg_conn)
-        fin_latest, fin_prev = self._get_financials(stock_code, pg_conn)
-        annual, annual_prev = self._get_annual_financials(stock_code, pg_conn)
+        market_cap = self._get_market_cap(stock_code, pg_conn, date=date, market_df=market_df)
+        fin_latest, fin_prev = self._get_financials(stock_code, pg_conn, date=date)
+        annual, annual_prev = self._get_annual_financials(stock_code, pg_conn, date=date)
         # 유동자산/유동부채 컬럼이 아직 없으면 None → value_ncav 는 0.0 유지.
-        ca, cl = self._get_current_items(stock_code, pg_conn)
+        ca, cl = self._get_current_items(stock_code, pg_conn, date=date)
 
         features.update(self._value_factors(market_cap, fin_latest, fin_prev, annual, annual_prev,
                                             ca, cl))
         features.update(self._quality_factors(market_cap, fin_latest, fin_prev, pg_conn, stock_code,
-                                              market_df, annual, annual_prev))
+                                              market_df, annual, annual_prev, date=date))
         features.update(self._momentum_factors(fin_latest, fin_prev, market_df))
 
         return features
 
-    def _get_market_cap(self, stock_code: str, pg_conn) -> float:
+    def _close_asof(self, market_df, date) -> float:
+        """``date`` 이하 마지막 종가(없으면 0.0). 시총 as-of 환산에 쓴다."""
+        if market_df is None:
+            return 0.0
+        try:
+            close = self._get_close(market_df)
+            if close is None or len(close) == 0:
+                return 0.0
+            try:
+                td = market_df["trade_date"] if "trade_date" in market_df else None
+            except Exception:
+                td = None
+            if td is not None:
+                cutoff = str(date)[:10]
+                mask = [str(v)[:10] <= cutoff for v in list(td)]
+                if any(mask):
+                    return float(list(close)[max(i for i, m in enumerate(mask) if m)])
+                return 0.0
+            return float(list(close)[-1])
+        except Exception:
+            return 0.0
+
+    def _get_market_cap(self, stock_code: str, pg_conn, date=None, market_df=None) -> float:
+        """시가총액. ``date`` 를 주면 **그 날짜 기준**으로 환산한다(상장주식수 근사 고정).
+
+        실측(2026-10-02): `stocks.market_cap` 은 현재값 단일 행이라 그대로 쓰면 과거 행에
+        미래 시총이 들어간다(누수). `cap(date) ≈ cap_now × close(date)/close_now` 로 근사하면
+        주식수 변동(증자·감자)만 오차로 남고 시점 누수는 사라진다. `date` 가 없으면 종전과
+        동일하게 현재값을 그대로 돌려준다(추론 경로 = 오늘이라 결과 동일).
+        """
         if pg_conn is None:
             return 0.0
         try:
@@ -50,27 +110,55 @@ class FactorFeatures:
             cur.execute("SELECT market_cap FROM stocks WHERE stock_code = %s", (stock_code,))
             row = cur.fetchone()
             cur.close()
-            return float(row[0]) if row and row[0] else 0.0
+            cap_now = float(row[0]) if row and row[0] else 0.0
+            if cap_now <= 0 or not date:
+                return cap_now
+            close_asof = self._close_asof(market_df, date)
+            if close_asof <= 0:
+                return cap_now
+            cur = pg_conn.cursor()
+            cur.execute("""
+                SELECT close_price FROM market_data
+                WHERE stock_code = %s
+                ORDER BY trade_date DESC LIMIT 1
+            """, (stock_code,))
+            row = cur.fetchone()
+            cur.close()
+            close_now = float(row[0]) if row and row[0] else 0.0
+            if close_now <= 0:
+                return cap_now
+            return cap_now * (close_asof / close_now)
         except Exception as e:
             logger.debug(f"market_cap failed for {stock_code}: {e}")
             return 0.0
 
-    def _get_financials(self, stock_code: str, pg_conn):
+    def _get_financials(self, stock_code: str, pg_conn, date=None):
         latest = {}
         prev = {}
         if pg_conn is None:
             return latest, prev
         try:
             cur = pg_conn.cursor()
-            cur.execute("""
-                SELECT report_date, revenue, operating_profit, net_income,
-                       total_assets, total_equity, per, pbr, roe, debt_ratio,
-                       operating_cash_flow, total_debt, gross_profit
-                FROM financial_statements
-                WHERE stock_code = %s
-                ORDER BY report_date DESC
-                LIMIT 4
-            """, (stock_code,))
+            if date:
+                cur.execute(f"""
+                    SELECT report_date, revenue, operating_profit, net_income,
+                           total_assets, total_equity, per, pbr, roe, debt_ratio,
+                           operating_cash_flow, total_debt, gross_profit
+                    FROM financial_statements
+                    WHERE stock_code = %s AND {asof_report_predicate()}
+                    ORDER BY report_date DESC
+                    LIMIT 4
+                """, (stock_code, date))
+            else:
+                cur.execute("""
+                    SELECT report_date, revenue, operating_profit, net_income,
+                           total_assets, total_equity, per, pbr, roe, debt_ratio,
+                           operating_cash_flow, total_debt, gross_profit
+                    FROM financial_statements
+                    WHERE stock_code = %s
+                    ORDER BY report_date DESC
+                    LIMIT 4
+                """, (stock_code,))
             rows = cur.fetchall()
             cur.close()
             cols = FIN_COLUMNS
@@ -95,12 +183,14 @@ class FactorFeatures:
                 pg_conn.rollback()
         return latest, prev
 
-    def _get_annual_financials(self, stock_code: str, pg_conn):
+    def _get_annual_financials(self, stock_code: str, pg_conn, date=None):
         """가장 최근 **연간(12월 결산)** 행과 그 직전 연간 행.
 
         WHY: 반기(2026-06-30) 행과 연간(2025-12-31) 행을 그대로 비교하면 현금흐름
         비율이 최대 2배 왜곡된다(실측 삼성전자 revenue 171.5조 vs 333.6조).
         현금흐름 기반 비율(PCR/PFCR/CP-to-assets)은 연간 행으로만 계산한다.
+
+        ``date`` 를 주면 그 시점에 알 수 있었던 연간 행만 쓴다(as-of).
         """
         annual = {}
         annual_prev = {}
@@ -108,15 +198,27 @@ class FactorFeatures:
             return annual, annual_prev
         try:
             cur = pg_conn.cursor()
-            cur.execute("""
-                SELECT report_date, revenue, operating_profit, net_income,
-                       total_assets, total_equity, per, pbr, roe, debt_ratio,
-                       operating_cash_flow, total_debt, gross_profit
-                FROM financial_statements
-                WHERE stock_code = %s AND EXTRACT(MONTH FROM report_date) = 12
-                ORDER BY report_date DESC
-                LIMIT 2
-            """, (stock_code,))
+            if date:
+                cur.execute(f"""
+                    SELECT report_date, revenue, operating_profit, net_income,
+                           total_assets, total_equity, per, pbr, roe, debt_ratio,
+                           operating_cash_flow, total_debt, gross_profit
+                    FROM financial_statements
+                    WHERE stock_code = %s AND EXTRACT(MONTH FROM report_date) = 12
+                      AND {asof_report_predicate()}
+                    ORDER BY report_date DESC
+                    LIMIT 2
+                """, (stock_code, date))
+            else:
+                cur.execute("""
+                    SELECT report_date, revenue, operating_profit, net_income,
+                           total_assets, total_equity, per, pbr, roe, debt_ratio,
+                           operating_cash_flow, total_debt, gross_profit
+                    FROM financial_statements
+                    WHERE stock_code = %s AND EXTRACT(MONTH FROM report_date) = 12
+                    ORDER BY report_date DESC
+                    LIMIT 2
+                """, (stock_code,))
             rows = cur.fetchall()
             cur.close()
             for i, row in enumerate(rows):
@@ -134,7 +236,7 @@ class FactorFeatures:
                 pg_conn.rollback()
         return annual, annual_prev
 
-    def _get_current_items(self, stock_code: str, pg_conn):
+    def _get_current_items(self, stock_code: str, pg_conn, date=None):
         """(current_assets, current_liabilities) — 컬럼이 없으면 (None, None).
 
         NCAV(= 유동자산 − 총부채) 계산에 필요한 컬럼. 현재 financial_statements 에는
@@ -162,10 +264,17 @@ class FactorFeatures:
                 c for c in ("current_assets", "current_liabilities") if c in cols
             )
             cur = pg_conn.cursor()
-            cur.execute(f"""
-                SELECT {picks} FROM financial_statements
-                WHERE stock_code = %s ORDER BY report_date DESC LIMIT 1
-            """, (stock_code,))
+            if date:
+                cur.execute(f"""
+                    SELECT {picks} FROM financial_statements
+                    WHERE stock_code = %s AND {asof_report_predicate()}
+                    ORDER BY report_date DESC LIMIT 1
+                """, (stock_code, date))
+            else:
+                cur.execute(f"""
+                    SELECT {picks} FROM financial_statements
+                    WHERE stock_code = %s ORDER BY report_date DESC LIMIT 1
+                """, (stock_code,))
             row = cur.fetchone()
             cur.close()
             if not row:
@@ -180,18 +289,27 @@ class FactorFeatures:
                 pg_conn.rollback()
             return None, None
 
-    def _get_earnings_history(self, stock_code: str, pg_conn):
+    def _get_earnings_history(self, stock_code: str, pg_conn, date=None):
         values = []
         if pg_conn is None:
             return values
         try:
             cur = pg_conn.cursor()
-            cur.execute("""
-                SELECT net_income FROM financial_statements
-                WHERE stock_code = %s AND net_income IS NOT NULL
-                ORDER BY report_date DESC
-                LIMIT 8
-            """, (stock_code,))
+            if date:
+                cur.execute(f"""
+                    SELECT net_income FROM financial_statements
+                    WHERE stock_code = %s AND net_income IS NOT NULL
+                      AND {asof_report_predicate()}
+                    ORDER BY report_date DESC
+                    LIMIT 8
+                """, (stock_code, date))
+            else:
+                cur.execute("""
+                    SELECT net_income FROM financial_statements
+                    WHERE stock_code = %s AND net_income IS NOT NULL
+                    ORDER BY report_date DESC
+                    LIMIT 8
+                """, (stock_code,))
             rows = cur.fetchall()
             cur.close()
             values = [float(r[0]) for r in rows if r[0] is not None]
@@ -246,6 +364,7 @@ class FactorFeatures:
     def _quality_factors(
         self, market_cap: float, latest: Dict, prev: Dict, pg_conn, stock_code: str,
         market_df=None, annual: Optional[Dict] = None, annual_prev: Optional[Dict] = None,
+        date=None,
     ) -> Dict:
         annual = annual or {}
         op = latest.get("operating_profit", 0.0)
@@ -278,7 +397,7 @@ class FactorFeatures:
             f_score += 1
 
         earnings_vol = 0.0
-        earnings_hist = self._get_earnings_history(stock_code, pg_conn)
+        earnings_hist = self._get_earnings_history(stock_code, pg_conn, date=date)
         if len(earnings_hist) >= 3:
             earnings_vol = float(np.std(earnings_hist))
 

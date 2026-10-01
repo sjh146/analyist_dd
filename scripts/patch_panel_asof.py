@@ -42,6 +42,10 @@ def main() -> int:
     ap.add_argument("--in", dest="src", required=True)
     ap.add_argument("--out", dest="dst", required=True)
     ap.add_argument("--every", type=int, default=1500, help="진행 로그 주기(행)")
+    ap.add_argument("--also-factors", dest="also_factors", action="store_true",
+                    help="FactorFeatures(value_*/quality_*)·QualityScorer(quality_score) 컬럼도 "
+                         "as-of 로 교체한다(2026-10-02 누수 발견분 — 이들은 패치 없이 남아 있었다)")
+    ap.add_argument("--limit", type=int, default=0, help="앞 N행만 처리(스모크 테스트용, 0=전체)")
     args = ap.parse_args()
 
     z = np.load(args.src, allow_pickle=True)
@@ -56,6 +60,39 @@ def main() -> int:
 
     conn = _pg_connect()
     cf = CompanyFeatures()
+    # 2026-10-02: 재무 as-of 누수의 **나머지 절반**(팩터·품질 점수)도 함께 교체할 수 있다.
+    # 실측: company_features 컬럼만 패치된 panel_420_asofpatch 에서 value_per·value_pbr·value_psr·
+    # value_pcr·value_ncav·quality_roa·quality_f_score·quality_asset_growth·quality_score 가
+    # 여전히 종목당 유니크값 1(= 빌드 시점 최신 재무)이었다.
+    ff = qs = None
+    price_cache: dict = {}
+    if args.also_factors:
+        import pandas as pd
+        from app.feature_engine.factor_features import FactorFeatures
+        from app.feature_engine.scorer import QualityScorer
+        ff, qs = FactorFeatures(), QualityScorer()
+
+        def market_df_for(code: str, date: str):
+            """그 종목의 date 이하 시세(최대 400행) — FactorFeatures 가 요구하는 형태."""
+            if code not in price_cache:
+                c2 = conn.cursor()
+                c2.execute("""
+                    SELECT trade_date::text, open_price, high_price, low_price,
+                           close_price, volume
+                    FROM market_data WHERE stock_code = %s ORDER BY trade_date
+                """, (code,))
+                price_cache[code] = pd.DataFrame(
+                    c2.fetchall(),
+                    columns=["trade_date", "open_price", "high_price", "low_price",
+                             "close_price", "volume"],
+                )
+                c2.close()
+            df = price_cache[code]
+            return df[df["trade_date"] <= str(date)[:10]].tail(400).reset_index(drop=True)
+    else:
+        def market_df_for(code: str, date: str):  # noqa: ARG001
+            return None
+
     # 기준선: 교체 전 컬럼별 종목당 유니크값 개수 (룩어헤드 = 종목 상수)
     def stock_const_counts(arr):
         out = {}
@@ -70,10 +107,15 @@ def main() -> int:
     before_const = stock_const_counts(X)
     before = X.copy()
 
+    n_rows = X.shape[0] if not args.limit else min(args.limit, X.shape[0])
     touched = Counter()
     changed_cells = 0
-    for i in range(X.shape[0]):
-        feats = cf.get_financial_features(codes[i], conn, date=dates[i])
+    for i in range(n_rows):
+        feats = dict(cf.get_financial_features(codes[i], conn, date=dates[i]))
+        if args.also_factors:
+            feats.update(ff.get_all_factors(codes[i], market_df_for(codes[i], dates[i]), conn,
+                                            date=str(dates[i])))
+            feats["quality_score"] = qs.get_f_score(codes[i], conn, date=str(dates[i]))
         for k, v in feats.items():
             j = idx.get(k)
             if j is None:
