@@ -1719,6 +1719,52 @@ def _print_results(rows):
         print(f"  로그: {r['log']}")
 
 
+HANDOFF_KEYS = ("from_research", "from_trader", "handoff_from")
+
+
+def handoff_items(backlog):
+    """역할 간 핸드오프로 넘어온 항목(XR*/from_*)을 고른다 — **아직 실행 큐에 없는 것만**.
+
+    왜 필요한가(실측 2026-10-01): 리서처가 넘긴 12건이 `status="backlog"` 로 들어오는데
+    구동기의 next_item 은 `pending` 만 본다 → 승격 장치가 없으면 영원히 안 돈다.
+    트레이더 보고의 `handoffs_unfilled 13/16` 이 이 사각지대의 숫자다.
+    """
+    out = []
+    for i in backlog.get("items", []):
+        if i.get("status") not in ("backlog", "needs_setup"):
+            continue
+        iid = str(i.get("id", ""))
+        if iid.startswith("XR") or any(k in i for k in HANDOFF_KEYS):
+            out.append(i)
+    # 우선순위 → id 숫자 순으로 결정적으로 소비한다(파일 순서에 의존하면 승격 순서가 흔들린다).
+    def _key(it):
+        iid = str(it.get("id", "XR999"))
+        num = "".join(ch for ch in iid if ch.isdigit())
+        return (int(it.get("priority", 99)), int(num) if num else 999)
+    out.sort(key=_key)
+    return out
+
+
+def promote_handoffs(backlog, limit=1):
+    """핸드오프 대기 항목을 실행 큐로 승격한다(틱당 최대 limit 건).
+
+    command 가 있으면 `pending`(바로 실행), 없으면 `needs_setup`(규칙 6 — 구동기가 셋업을
+    구현해 pending 으로 올린다). 한 틱에 하나씩만 올려 실행 큐를 뒤엎지 않는다. 멱등:
+    이미 pending 인 항목은 건드리지 않는다.
+    """
+    changed = []
+    for i in handoff_items(backlog):
+        if i.get("status") != "backlog":
+            continue
+        i["status"] = "pending" if i.get("command") else "needs_setup"
+        i["promoted_from"] = "handoff"
+        i["promoted_at"] = now_kst().isoformat(timespec="seconds")
+        changed.append((i["id"], i["status"]))
+        if len(changed) >= limit:
+            break
+    return changed
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
@@ -1733,6 +1779,18 @@ def tick(force=False):
     #  반영되지 않는다. 재실행 없이 결과를 살린다).
     for iid, verdict, detail in rejudge_parser_gap():
         print(f"  재판정(파서 사후 배선): {iid} → {verdict} — {detail[:160]}")
+    # ── 핸드오프 소비(실측 2026-10-01): 다른 역할이 넘긴 항목은 `backlog` 로 들어오는데
+    #    next_item 은 `pending` 만 본다 → 승격 장치가 없으면 영원히 안 돈다(트레이더가 보고한
+    #    handoffs_unfilled 13/16 의 정체). 틱당 1건씩 큐에 올리고 남은 수를 항상 보고한다.
+    _hb = load_backlog()
+    _promoted = promote_handoffs(_hb)
+    if _promoted:
+        save_backlog(_hb)
+        for _iid, _st in _promoted:
+            print(f"  핸드오프 승격: {_iid} → {_st}")
+    _left = len(handoff_items(_hb))
+    if _left:
+        print(f"  핸드오프 대기(실행 전) {_left}건 — 매 틱 1건씩 큐로 올린다")
     pid = running_pid()
     if pid:
         st = {}
@@ -1810,7 +1868,24 @@ def tick(force=False):
         return 0
     it = next_item(load_backlog(), force)
     if not it:
-        print("백로그에 실행 가능한 pending 항목 없음 → 새 가설을 설계해 backlog/needs_setup 로 추가하라.")
+        # 규칙 6 을 **기계적으로** 만든다: 예전엔 "새 가설을 설계하라" 한 줄만 찍혀서 틱 에이전트가
+        # needs_setup·핸드오프를 찾아 헤매거나 그냥 넘어갔다(실측 2026-10-01: 남은 핸드오프 12건).
+        b = load_backlog()
+        setup = [i for i in b["items"] if i.get("status") == "needs_setup"]
+        setup.sort(key=lambda i: (i.get("priority", 99), str(i.get("id"))))
+        print("백로그에 실행 가능한 pending 항목 없음 → 셋업을 구현해 pending 으로 승격하라(규칙 6).")
+        for i in setup[:4]:
+            print(f"  · {i['id']} (prio {i.get('priority')}) {i['title']}")
+            if i.get("setup_needed"):
+                print(f"    setup_needed: {str(i['setup_needed'])[:280]}")
+            if i.get("note"):
+                print(f"    note: {str(i['note'])[:200]}")
+        if not setup:
+            print("  · 셋업 대기 항목도 없음 → 새 가설을 docs/QUANT_MODEL_BACKLOG.json 에 등록하라"
+                  "(command·counterfactual·success·est_minutes 를 반드시 채운다).")
+        else:
+            print("  → 구현이 끝나면 그 항목을 pending 으로 바꾸고 command·counterfactual·success·"
+                  "est_minutes 를 채워라(그러면 다음 틱이 착수한다).")
         return 0
     start_background(it["id"], force)
     print(f"시작: {it['id']} — {it['title']} (기대 {it.get('expected')}, 비용 {it.get('cost')})")
@@ -1860,10 +1935,21 @@ def main():
                     help="구동기 밖(setsid)에서 돌린 실행의 요약 JSON 을 원장·백로그에 편입")
     ap.add_argument("--log", help="--ingest 와 함께 쓸 실행 로그 경로(상대경로, 선택)")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--promote-handoffs", type=int, default=None, metavar="N",
+                    help="핸드오프(다른 역할이 넘긴 XR*) 항목 N건을 실행 큐로 승격하고 종료")
     a = ap.parse_args()
 
     if a.status:
         return status()
+    if a.promote_handoffs is not None:
+        b = load_backlog()
+        pr = promote_handoffs(b, limit=max(1, a.promote_handoffs))
+        if pr:
+            save_backlog(b)
+        for iid, st in pr:
+            print(f"{iid} → {st}")
+        print(f"남은 핸드오프(실행 전) {len(handoff_items(b))}건")
+        return 0
     if a.tick:
         return tick(a.force)
     if a.ingest:
