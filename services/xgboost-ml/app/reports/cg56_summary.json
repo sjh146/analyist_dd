@@ -1,0 +1,148 @@
+{
+  "measured_at": "2026-10-01T10:06:59.400536+00:00",
+  "model_dir": "blend(rank-avg)=champion+cand",
+  "protocol": "rank-avg blend of two label-diverse models · same run/seed/windows · 3창 · 10시드 (champion_robust_eval --dump-preds)",
+  "metric_name": "blend_auc",
+  "robust_auc": 0.524612,
+  "auc_std_across_folds": 0.013349,
+  "fold_means": [
+    0.531158,
+    0.505107,
+    0.541372,
+    0.535998,
+    0.52055,
+    0.51905,
+    0.537285,
+    0.52028,
+    0.532598,
+    0.502717
+  ],
+  "windows": [
+    {
+      "seed": 0,
+      "n_windows": 3,
+      "rows": 1797,
+      "champ": 0.522284,
+      "cand": 0.525197,
+      "blend": 0.531158
+    },
+    {
+      "seed": 1,
+      "n_windows": 3,
+      "rows": 1767,
+      "champ": 0.511727,
+      "cand": 0.497941,
+      "blend": 0.505107
+    },
+    {
+      "seed": 2,
+      "n_windows": 3,
+      "rows": 1800,
+      "champ": 0.5423,
+      "cand": 0.520504,
+      "blend": 0.541372
+    },
+    {
+      "seed": 3,
+      "n_windows": 3,
+      "rows": 1790,
+      "champ": 0.509028,
+      "cand": 0.555579,
+      "blend": 0.535998
+    },
+    {
+      "seed": 4,
+      "n_windows": 3,
+      "rows": 1770,
+      "champ": 0.522597,
+      "cand": 0.511036,
+      "blend": 0.52055
+    },
+    {
+      "seed": 5,
+      "n_windows": 3,
+      "rows": 1770,
+      "champ": 0.517564,
+      "cand": 0.51042,
+      "blend": 0.51905
+    },
+    {
+      "seed": 6,
+      "n_windows": 3,
+      "rows": 1800,
+      "champ": 0.52462,
+      "cand": 0.532654,
+      "blend": 0.537285
+    },
+    {
+      "seed": 7,
+      "n_windows": 3,
+      "rows": 1800,
+      "champ": 0.511446,
+      "cand": 0.524515,
+      "blend": 0.52028
+    },
+    {
+      "seed": 8,
+      "n_windows": 3,
+      "rows": 1740,
+      "champ": 0.51129,
+      "cand": 0.536962,
+      "blend": 0.532598
+    },
+    {
+      "seed": 9,
+      "n_windows": 3,
+      "rows": 720,
+      "champ": 0.500957,
+      "cand": 0.501901,
+      "blend": 0.502717
+    }
+  ],
+  "auc_pooled": null,
+  "auc_per_date_mean": null,
+  "rows_scored": 16754,
+  "dates_scored": null,
+  "errors": [],
+  "n_seeds": 10,
+  "n_windows": 3,
+  "champ_mean": 0.517381,
+  "cand_mean": 0.521671,
+  "paired": {
+    "delta_blend_minus_champ_mean": 0.00723,
+    "se": 0.003383,
+    "t": 2.137,
+    "pos_seeds": "7/10",
+    "samples": [
+      0.008874,
+      -0.006619,
+      -0.000928,
+      0.026971,
+      -0.002047,
+      0.001487,
+      0.012665,
+      0.008833,
+      0.021308,
+      0.00176
+    ],
+    "delta_blend_minus_cand_mean": 0.002941,
+    "se_vs_cand": 0.003405,
+    "pos_seeds_vs_cand": "7/10",
+    "threshold": 0.02,
+    "note": "창 수·시드 수가 부족하면 판정 불가로 읽어라 — 3창 10시드 SE 0.005 수준은 CG53 실측 기준. 배포에는 추론 경로 변경(두 모델 확률 평균) 승인이 필요하다."
+  },
+  "arms": {
+    "champ": {
+      "model": "champion",
+      "mean": 0.517381
+    },
+    "cand": {
+      "model": "cand",
+      "mean": 0.521671
+    },
+    "blend": {
+      "method": "rank-avg within (fold,date)",
+      "mean": 0.524612
+    }
+  }
+}

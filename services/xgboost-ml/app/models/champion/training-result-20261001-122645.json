@@ -1,0 +1,21 @@
+{
+  "retrained_at": "2026-10-01T12:26:45",
+  "n_rows": 12053,
+  "n_train": 9642,
+  "n_val": 2411,
+  "up_rate": 0.4597,
+  "n_features": 199,
+  "model_aucs": {
+    "xgboost": 0.5236,
+    "lightgbm": 0.5663,
+    "catboost": 0.5262
+  },
+  "ensemble_auc": 0.5548,
+  "val_frac": 0.2,
+  "seed": 0,
+  "data_start": "2026-07-03",
+  "data_end": "2026-10-01",
+  "label_kind": "h1_direction",
+  "horizon": 5,
+  "model_params_override": null
+}
