@@ -62,6 +62,44 @@ def _default_date_from(days: int = 60) -> str:
     return (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
 
+def _fetch_liquid(pg, date_from: str, min_days: int, window_days: int = 60) -> List[dict]:
+    """일평균 거래대금(close×volume) 상위 종목 — **결정적** 정렬(대금 DESC, 코드 ASC).
+
+    왜 거래대금인가: 스크리너·트레이더가 실제로 다루는 후보는 거래대금이 큰 종목이다. 학습 표본을
+    서빙 대상 분포에 정렬하면 ① 커버리지(SNS·뉴스) 교집합이 올라가고 ② 표본당 정보량이 커진다.
+
+    컬럼 실측(2026-10-01): market_data 의 거래대금 컬럼은 `trading_value` 인데 최근 60일 153,604행 중
+    107,522행(70%)만 채워져 있다 → `COALESCE(trading_value, close_price*volume)` 로 100% 커버한다.
+    (컬럼명은 `close_price` 다 — `close` 아님. 오타로 실행하면 UndefinedColumn 으로 즉시 죽는다.)
+
+    정렬에 임의성을 남기지 않는 이유(2026-10-01 실측): 종전 recency 경로는 동률 그룹 안에서
+    SQL 반환 순서가 유니버스를 정해 같은 모델 AUC 가 0.017 흔들렸다. 여기서는 두 번째 키까지
+    고정해 4회 호출 교집합이 100% 임을 테스트로 증명한다(scripts/_universe_mode_test.py).
+    """
+    cur = pg.cursor()
+    cur.execute(
+        """
+        SELECT s.stock_code, s.stock_name, s.market,
+               COUNT(md.trade_date) AS n_days,
+               AVG(COALESCE(md.trading_value,
+                            COALESCE(md.close_price, 0) * COALESCE(md.volume, 0))) AS avg_value
+        FROM stocks s
+        JOIN market_data md ON s.stock_code = md.stock_code AND md.trade_date >= %s
+        WHERE s.market IN ('KOSPI', 'KOSDAQ')
+          AND s.instrument_type = 'STOCK'
+        GROUP BY s.stock_code, s.stock_name, s.market
+        HAVING COUNT(md.trade_date) >= %s
+        ORDER BY avg_value DESC, s.stock_code ASC
+        """,
+        (date_from, min_days),
+    )
+    rows = [{"code": r[0], "name": r[1], "market": r[2], "n_days": r[3],
+             "avg_value": float(r[4] or 0.0)} for r in cur.fetchall()]
+    cur.close()
+    # ETF/ETN/파생 제외는 종목명 패턴으로만(거래대금이 큰 ETF 가 상위를 차지하는 것을 막는다).
+    return [r for r in rows if not is_etf_etn(r["name"]) and r["avg_value"] > 0]
+
+
 def select_backtest_universe(
     pg,
     n_kospi: int = 30,
@@ -94,12 +132,24 @@ def select_training_universe(
     min_days: int = 30,
     seed: int = 0,
     date_from: Optional[str] = None,
+    mode: str = "recency",
 ) -> List[str]:
-    """재학습용 유니버스 — ETF/ETN 제외 + 최근 데이터 순 (limit) + seed 셔플.
+    """재학습용 유니버스 — ETF/ETN 제외 + (mode) 선택.
 
-    최신 데이터를 우선하되 동률 구간은 seed 고정 랜덤으로 편향을 줄인다.
+    mode="recency"(기본, 현행 동작 비트 동일): 최신 데이터 순 (limit) + seed 셔플.
+    mode="liquidity"(2026-10-01 CG57): 최근 구간 일평균 거래대금(close×volume) 상위 limit.
+        왜: 현행 recency 는 실측상 **무작위 표본**이다(2,543/2,655종목이 같은 latest 라 동률
+        그룹이 top 컷보다 크다) → 학습 표본이 실제 서빙 대상(스크리너 후보 = 거래대금 큰 종목)과
+        어긋나고, 신규 원천(SNS·뉴스)과의 교집합도 9.5% 에 머문다. 유동성 정렬은 **결정적**
+        (ORDER BY avg_value DESC, code ASC)이므로 짝 비교의 표본이 재현된다.
     """
     date_from = date_from or _default_date_from()
+    if mode == "liquidity":
+        picked = [r["code"] for r in _fetch_liquid(pg, date_from, min_days)][:limit]
+        logger.info("training universe(liquidity): %d stocks (limit %d)", len(picked), limit)
+        return picked
+    if mode != "recency":
+        raise ValueError(f"unknown universe mode: {mode!r} (recency|liquidity)")
     eligible = _fetch_eligible(pg, date_from, min_days)
     # 결정성(2026-10-01 실측 수리): 종전에는 ORDER BY 없이 `sort(key=latest)` 를 썼는데
     # 실측상 2,655종목 중 **2,543종목이 같은 latest(최근 거래일)** 라 동률 그룹이 top 컷

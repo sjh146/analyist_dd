@@ -127,11 +127,14 @@ def _pg_connect():
     )
 
 
-def _select_stocks(pg, limit: int) -> List[str]:
-    """재학습 유니버스 — ETF/ETN 제외 + 최근 데이터 우선 (universe.py 참조)."""
+def _select_stocks(pg, limit: int, mode: str = "recency") -> List[str]:
+    """재학습 유니버스 — ETF/ETN 제외 + (mode) 선택 (universe.py 참조).
+
+    mode 기본 "recency" = 현행 동작 비트 동일. "liquidity" 는 CG57 실험용(일평균 거래대금 상위).
+    """
     from app.training.universe import select_training_universe
 
-    return select_training_universe(pg, limit=limit, min_days=30, seed=0)
+    return select_training_universe(pg, limit=limit, min_days=30, seed=0, mode=mode)
 
 
 def retrain_champion(
@@ -283,6 +286,11 @@ def main() -> None:
     ap.add_argument("--start-date", default=None,
                     help="학습 데이터 시작일. 기본 None = end_date - days")
     ap.add_argument("--stock-limit", type=int, default=200)
+    ap.add_argument("--universe-mode", dest="universe_mode",
+                    choices=("recency", "liquidity"), default="recency",
+                    help="학습 표본 선택 방식. 기본 recency = 현행(최신 데이터 우선 + 시드 셔플, "
+                         "실측상 무작위 표본). liquidity = 최근 60일 일평균 거래대금 상위 "
+                         "(결정적 정렬 — 짝 비교용). 어느 모드든 ETF/ETN 은 제외된다.")
     ap.add_argument("--label-kind", dest="label_kind",
                     choices=("h1_direction", "rel", "rel_smooth"), default="h1_direction",
                     help="학습 라벨 정의. 기본 h1_direction = 현행(절대 1일 선행 종가 방향). "
@@ -314,7 +322,7 @@ def main() -> None:
 
     pg = _pg_connect()
     try:
-        stocks = _select_stocks(pg, args.stock_limit)
+        stocks = _select_stocks(pg, args.stock_limit, args.universe_mode)
         logger.info("selected %d stocks", len(stocks))
         pipeline = FeaturePipeline(pg_conn=pg)
         end = (datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date

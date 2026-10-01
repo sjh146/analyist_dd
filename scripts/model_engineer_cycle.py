@@ -547,6 +547,18 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: topk_precision 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "blend_eval":
+        # 라벨 다양성 앙상블(scripts/blend_eval.py --out). CG56.
+        # 왜 전용 metric 인가(실측 2026-10-01): 요약 스키마가 champion_robust_eval 과 **다르다**
+        # (`folds` 없이 `fold_means`/`windows`/`paired`) — 그 metric 이름을 재사용하면 파서가
+        # "folds 비어 있음(유효 창 없음)" 으로 판정불가를 내고 rc=0 으로 항목이 done 으로 닫혀
+        # 항목의 유일한 산출물(짝 Δ)이 원장에서 사라진다(CG43 과 같은 함정).
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 시드별 값은 `seeds` 로 싣는다.
+        out = _out_arg(command or "")
+        if out:
+            return _container_path_to_host(out)
+        log("경고: blend_eval 인데 커맨드에 --out 이 없다 → 요약 없음(판정불가)")
+        return ""
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -820,6 +832,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_seed_family(spath, mtime_floor)
     if kind == "topk_precision":
         return parse_topk_precision(spath, mtime_floor)
+    if kind == "blend_eval":
+        return parse_blend_eval(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -902,9 +916,80 @@ def judge_topk_precision(item, parsed) -> tuple:
     return "노이즈", detail + " → 사전등록 미충족", first
 
 
+def parse_blend_eval(path, mtime_floor) -> dict:
+    """라벨 다양성 앙상블(scripts/blend_eval.py --out) 짝 집계를 파싱한다.
+
+    ⚠ per_exp 를 만들지 않는다 — scoreboard 는 원장 per_exp 전체를 'arm 폴드 평균(AUC)' 로 읽어
+    best_robust·무개선 카운터를 만든다(실측 2026-09-29 CG31 사고). 시드별 값은 `seeds` 로 싣는다.
+
+    판정에 쓰는 값은 `paired`(blend−champ 짝 Δ 평균·SE·t·양(+) 시드 수) 하나뿐이다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    paired = d.get("paired") or {}
+    if not paired:
+        return {"error": "paired 없음(집계 실패)", "measured_at": d.get("measured_at")}
+    arms = d.get("arms") or {}
+    return {
+        "measured_at": d.get("measured_at"), "protocol": d.get("protocol"),
+        "metric_name": d.get("metric_name"),
+        "robust_auc": d.get("robust_auc"),                 # 결합 arm 의 시드평균
+        "auc_std_across_folds": d.get("auc_std_across_folds"),
+        "fold_means": d.get("fold_means"),                 # 시드별 결합 AUC(창=시드)
+        "blend_mean": (arms.get("blend") or {}).get("mean"),
+        "champ_mean": d.get("champ_mean"), "cand_mean": d.get("cand_mean"),
+        "seeds": d.get("windows"), "n_seeds": d.get("n_seeds"),
+        "n_windows": d.get("n_windows"), "rows_scored": d.get("rows_scored"),
+        "paired": paired, "threshold": paired.get("threshold", 0.02),
+        "errors": (d.get("errors") or [])[:5],
+        "summary_mtime": mt,
+    }
+
+
+def judge_blend_eval(item, parsed) -> tuple:
+    """모델 결합(rank-avg) 판정 — 사전 등록: in-run 짝 Δ(blend−champ) ≥ +0.02 **그리고** 양(+) 시드 ≥ 80%.
+
+    왜 in-run 짝인가(실측 2026-10-01 CG55): 같은 모델·같은 시드는 비트 동일(Δ 0)이지만 **창 구성만**
+    바꿔도 폭이 +0.0261 로 사전문턱을 넘는다 → 단일 런 절대값 비교는 판정이 아니다. 같은 런에서 두 arm
+    을 짝지은 Δ 만이 검출력(10시드 SE≈0.005 → +0.02 = 3.8σ)을 갖는다.
+    """
+    d = parsed.get("paired") or {}
+    delta = d.get("delta_blend_minus_champ_mean")
+    if not isinstance(delta, (int, float)):
+        return "판정불가", (parsed.get("error") or "paired.delta 없음 — 요약 확인 필요"), None
+    pos = str(d.get("pos_seeds") or "0/0")
+    try:
+        a, b = pos.split("/")
+        pos_ratio = (float(a) / float(b)) if float(b) else 0.0
+    except Exception:
+        pos_ratio = 0.0
+    thr = float(parsed.get("threshold", 0.02) or 0.02)
+    detail = (f"결합(rank-avg) 시드평균 {parsed.get('robust_auc')}±{parsed.get('auc_std_across_folds')}"
+              f" · 챔피언(같은 런) {parsed.get('champ_mean')} · 후보 {parsed.get('cand_mean')}"
+              f" · 짝 Δ(blend−champ) {float(delta):+.4f}(SE {d.get('se')} · t {d.get('t')} · 양(+) {pos})"
+              f" · Δ(blend−cand) {d.get('delta_blend_minus_cand_mean')}(양(+) {d.get('pos_seeds_vs_cand')})"
+              f" · 창 {parsed.get('n_windows')} · 시드 {parsed.get('n_seeds')} · 문턱 +{thr}")
+    if float(delta) >= thr and pos_ratio >= 0.8:
+        return "짝 신호", detail + " → 사전등록 충족(승격 아님 — 두 모델 추론 계약 변경은 승인 대상)", float(delta)
+    return "짝 노이즈", detail + f" → 사전등록 미충족(양(+) 비율 {pos_ratio:.2f}, 기준 0.80)", float(delta)
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
+    if kind == "blend_eval":
+        return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":
         return judge_champion_baseline(item, parsed)
     if kind == "champion_promote_dryrun":
