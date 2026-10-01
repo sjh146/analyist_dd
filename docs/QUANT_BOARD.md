@@ -1253,3 +1253,26 @@ cd /home/jhshi/analyist_dd
 - **미해결**: ① 오늘 진입 0(무진입 2.0일) ② close 경로 이중 상한 = 사실상 폐쇄(파라미터 = 승인 항목)
   ③ T1·T5·T6·T8 failed ④ 켈리 사전확률 미기록(측정 엣지 음수) ⑤ day-close 는 15:40(장 마감+10분)에 확정 —
   보유 0 이므로 equity 평탄으로 마감될 것.
+
+### 트레이더 (2026-10-01 15:2x 마감 5분 전 틱 — 변동 없음, 15:40 day-close 확정 대기)
+
+- **15:25:14 사이클(마지막 개장 사이클)**: `market_open=true` · phase `monitor` · `blocked_screeners=2` ·
+  차단 사유 4줄이 15:1x 와 **동일**(`R1 close 87.8<88.0` / `R1 swing 0.549<0.58` / `PRE close 20→0` / `PRE swing 15→0`)
+  → **오늘 close·swing 진입 0 은 결정적**(발행물이 14:40 에 고정, R1 평균이 15:30 전에 바뀌지 않음). `last_summary` 는 09-30(pnl -1,056) 그대로.
+- **브로커 15:27 실측**: `/health` `{"ok":true,"connected":true}` · `/balance` 계좌 783247576 · equity **526,243 = cash 526,243**
+  (개시 526,243) · `/positions` **0건** → **오늘 자본 변동 0원**(무거래). 15:40 day-close 요약이 equity 평탄으로 확정될 것(추정).
+- **북극성**: 실현 **-1,446원** / 청산 3건(전부 close) / 승률 33.3% / 기대값 -482원/건 / 보유 0 / 수수료 0원(T1 미해결).
+  마지막 진입 09-29 15:03 = **2.0일 무진입**(경고선 3일 미도달).
+- **계약2 미비 = fold_win_rate · promote_dryrun**(원장 72행, 최근 5행 기준). 실측 원인 2갈래:
+  ① `promote_dryrun` 은 **정직한 미비** — 오늘 실험 CG49~CG54 가 전부 문턱 미달(Δ +0.0158/+0.0062/+0.0133 < +0.02 · CG54 Δprec -0.0556)이라
+  승격 dry-run 이 실제로 일어나지 않았다(거짓 경보 아님). ② `fold_win_rate` 는 **표기 불일치** — 원장에 "양(+) 4/5 · 3/5 · 8/10" 로 적혀
+  있는데 검사기는 `win_rate`/`폴드 승률` 문자열만 본다 → 검사기 문자열 의존(트레이더 소유) + 표기 미표준화(엔지니어 소유).
+- **champion AUC `None` 재확인 = 트레이더 경로 버그(⑤① 미착수)**: 컨테이너 `stock_xgboost_ml:/app/app/models/champion/auc.txt`
+  = **0.551318** 실존(실측)인데 트레이더는 호스트 경로 2개(`models/champion/auc.txt` 등)만 읽어 `promoted_auc=None`.
+- **피드 계약**: 위반 **0건** · 14:40:11 발행(경과 45분) · close 20건 `score_kind=screener` 82.4~90.0 · swing 15건 `calibrated_prob`
+  50.41~65.58 · `signal_date=2026-09-30`(close `valid_until` 10-01T15:30 / swing 10-05T15:30) · `close_price` 누락 **0** · 6자리 코드.
+- **켈리 사전확률 미발행 유지**: `screener_stats_measured.json` swing 3창 n=123 p=0.431 b=1.172 → f*=-0.0267 ≤ 0 → 파일 미기록(올바름).
+- **사람 단계**: ③ 없음(단 "08:2x preopen 크론 LLM 장애 시 로그인 안내 누락" 구조 리스크 유지) → ② 승인 대기 7건 유지
+  (우선 ②-1 핸드오프 10건 저작 · ②-2 close 선별/HEAT 결정 · ②-3 T6 · ②-4 T1) → ① 진행 중: 트레이더 T1/T5/T6/T8 failed 4건, T9/T10 backlog 2건.
+- **미해결**: ① 오늘 진입 0(무진입 2.0일) ② close 경로 이중 상한(R1 88.0 + HEAT +15%) = 사실상 폐쇄(파라미터 = 승인) ③ 켈리 미기록
+  ④ 계약2 표기·경로 2건 ⑤ 15:40 day-close 는 아직 `closed:false`(보유 0 → equity 평탄 예상).
