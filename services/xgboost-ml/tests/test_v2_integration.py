@@ -117,8 +117,11 @@ class TestFeatureStoreIntegration:
         from app.feature_engine.feature_store import FeatureStore
 
         store = FeatureStore(pg_conn=mock_conn)
+        # FS1(2026-10-01) 계약: strict 모드에서는 기대 (stock,date) 전량을 덮는다는 증명이
+        # 있어야 제공한다. 여기서는 mock 이 3키 중 2키만 돌려주므로 allow_partial 로 옛 동작을
+        # 명시적으로 요청한다(부분 반환은 opt-in 이다).
         df = store.load_batch(
-            ["005930", "000660"], "2024-06-01", "2024-06-02"
+            ["005930", "000660"], "2024-06-01", "2024-06-02", allow_partial=True
         )
 
         assert isinstance(df, pd.DataFrame)

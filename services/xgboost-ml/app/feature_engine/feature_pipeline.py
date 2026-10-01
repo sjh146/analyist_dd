@@ -34,7 +34,9 @@ logger = logging.getLogger(__name__)
 class FeaturePipeline:
     """Builds complete feature sets from market, company, sentiment, macro, graph, and vector data."""
 
-    def __init__(self, pg_conn=None, neo4j_conn=None, use_feature_store=False, feature_store: Optional[FeatureStore] = None):
+    def __init__(self, pg_conn=None, neo4j_conn=None, use_feature_store=False,
+                 feature_store: Optional[FeatureStore] = None,
+                 feature_store_manifest: Optional[str] = None):
         self.market = MarketFeatures()
         self.factors = FactorFeatures()
         self.company = CompanyFeatures()
@@ -55,7 +57,11 @@ class FeaturePipeline:
         self._cache = {}
         self._cache_ttl = 3600
         self.use_feature_store = use_feature_store
-        self.feature_store = feature_store or (FeatureStore(pg_conn=self.pg_conn) if use_feature_store else None)
+        # feature_store: 완전성이 증명될 때만 쓰인다(FS1). manifest_path 는 코드 서명·원천
+        # 워터마크를 담는 로컬 사이드카 — 운영 DB 스키마 변경 없이 무효화 키를 갖는 방법이다.
+        self.feature_store = feature_store or (
+            FeatureStore(pg_conn=self.pg_conn, manifest_path=feature_store_manifest)
+            if use_feature_store else None)
 
     def build_features(
         self, stock_code: str, date: str = None,
@@ -304,7 +310,7 @@ class FeaturePipeline:
     def build_training_features(
         self, stock_codes: List[str], start_date: str, end_date: str,
         checkpoint_path: Optional[str] = None, checkpoint_every: int = 500,
-        resume: bool = True,
+        resume: bool = True, feature_store_manifest: Optional[str] = None,
     ) -> pd.DataFrame:
         """Build feature matrix for model training across multiple stocks and dates.
 
@@ -317,12 +323,13 @@ class FeaturePipeline:
         피처 코드가 바뀌면 옛 행과 새 행이 섞이는 것을 막는다.
         """
         if self.use_feature_store and self.feature_store is not None:
-            try:
-                stored = self.feature_store.load_batch(stock_codes, start_date, end_date)
-                if not stored.empty:
-                    return stored
-            except Exception:
-                logger.exception("FeatureStore batch load failed; falling back to per-stock compute")
+            # ⚠ FS1(2026-10-01): 완전성 증명 없이는 스토어를 쓰지 않는다. 예전엔 여기서
+            # load_batch 를 그냥 호출하고 '비어있지 않으면' 반환했는데, ① 실제 테이블 컬럼명은
+            # `value` 라서 SQL 이 죽었고 ② 요청 (stock,date)의 일부만 있으면 학습 표본이
+            # 조용히 줄어드는 부분 커버리지가 통과했다. 이제는 **기대 키 집합을 먼저 만든 뒤**
+            # (아래 dates_by_stock) load_batch 에 넘겨 전량 커버일 때만 반환한다.
+            if feature_store_manifest:
+                self.feature_store.manifest_path = feature_store_manifest
 
         rows = []
 
@@ -352,6 +359,22 @@ class FeaturePipeline:
                 dates_by_stock = {}
         else:
             dates_by_stock = {}
+
+        # ── FeatureStore 적중 시도 (전량 커버 + 매니페스트 일치일 때만) ──────────────
+        if self.use_feature_store and self.feature_store is not None:
+            expected = {(str(c), str(d)[:10])
+                        for c, ds in dates_by_stock.items() for d in ds}
+            try:
+                stored = self.feature_store.load_batch(
+                    stock_codes, start_date, end_date, expected_keys=expected)
+                if not stored.empty:
+                    logger.info(f"FeatureStore 적중: {len(stored)}행 (재계산 생략) "
+                                f"keys={len(expected)}")
+                    return stored
+                logger.info(f"FeatureStore 미적중({len(expected)}키) — 재계산 경로로: "
+                            f"{getattr(self.feature_store, 'last_refusal', None)}")
+            except Exception:
+                logger.exception("FeatureStore batch load failed; falling back to per-stock compute")
 
         # Pre-load market data for all stocks (batch)
         market_data_by_stock = {}
