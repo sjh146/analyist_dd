@@ -16,13 +16,17 @@ import os
 import re
 import subprocess
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 PROJ = "/home/dduckbeagy/analyist_dd"
 HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
 LOCK_PATH = "/tmp/data_gap_backfill.lock"
 GAP_THRESHOLD = 1000  # 정상 적재 ≈ 3,942종목; 이 미만이면 공실/부분 수집
 LOOKBACK_DAYS = 10    # 점검 기간(달력일)
+# 휴장 확정 시각(당일): 장 마감 15:30 + 정산 여유. 이 시각 이전에는 **당일을 휴장으로 확정하지 않는다**.
+# WHY(실측 2026-10-01 07:50): 장 개시 전에는 당일 일봉이 아직 없어 KIS 프로브가 no_data 를 돌려주고,
+# 그 값이 그대로 휴장으로 기록됐다 → 캘린더에 거래일(10-01)이 휴장으로 들어가 수집·감시·실험 창이 꺼졌다.
+HOLIDAY_CONFIRM_HHMM = (15, 40)
 EXPECTED_FULL = 3900  # (참고용 로그)
 
 _db_host = os.environ.get("POSTGRES_HOST", "127.0.0.1")
@@ -129,6 +133,45 @@ def probe_krx(trade_date):
         return True, False
     return False, False
 
+def holiday_confirmable(d):
+    """당일 휴장을 확정해도 되는 시각인가 — 과거일은 항상 True, 당일은 장 마감 후에만 True.
+
+    WHY: cron report(07:50)는 장 개시 전에 돌므로 당일 일봉 공실은 '아직 안 나온 것'이지 휴장이 아니다.
+    """
+    return d != date.today().isoformat() or datetime.now() >= datetime.combine(date.today(), time(*HOLIDAY_CONFIRM_HHMM))
+
+
+def kis_is_trading_day(d):
+    """KIS 국내휴장일조회(CTCA0903R): True=거래일 / False=휴장 / None=판별불가.
+
+    판별불가일 때 **휴장으로 단정하지 않는다**(오탐이 실제 손해 — 거래일을 휴장으로 굳히면
+    백필·실험·감시가 통째로 건너뛰어진다). 휴장이면 다음 회차의 과거일 경로가 정상 기록한다.
+    """
+    import urllib.request
+    try:
+        env = {}
+        with open(os.path.join(PROJ, ".env"), encoding="utf-8") as f:
+            for ln in f:
+                if "=" in ln and not ln.strip().startswith("#"):
+                    k, v = ln.strip().split("=", 1)
+                    env[k] = v.strip().strip("'\"")
+        with open(os.path.join(PROJ, "data", "kis", "token_cache.json"), encoding="utf-8") as f:
+            tok = json.load(f)["access_token"]
+        q = "BASS_DT=" + d.replace("-", "") + "&CTX_AREA_NK100=&CTX_AREA_FK100="
+        req = urllib.request.Request(
+            env["KIS_BASE_URL"].rstrip("/") + "/uapi/domestic-stock/v1/quotations/chk-holiday?" + q,
+            headers={"authorization": "Bearer " + tok, "appkey": env["KIS_APP_KEY"],
+                     "appsecret": env["KIS_APP_SECRET"], "tr_id": "CTCA0903R",
+                     "custtype": "P", "content-type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            out = json.loads(r.read())["output"][0]
+        return out.get("opnd_yn") == "Y" or out.get("tr_day_yn") == "Y"
+    except Exception as exc:  # noqa: BLE001 - 판별 실패는 '휴장'이 아니다(오탐 방지)
+        print("KIS 휴장일조회 판별 불가({0}): {1}".format(d, exc))
+        return None
+
+
 
 def expected_dates():
     """최근 LOOKBACK_DAYS+1 달력일 중 평일(월~금) 목록 (문자열 YYYY-MM-DD). **당일 포함.**
@@ -156,6 +199,11 @@ def find_gaps(probe=True):
     """
     holidays = load_holidays()
     today_s = date.today().isoformat()
+    # 자가치유: 오탐으로 캘린더에 굳은 '오늘'을 KIS 교차확인으로 걷어낸다(1콜, 캘린더에 있을 때만).
+    if today_s in holidays and kis_is_trading_day(today_s):
+        holidays.discard(today_s)
+        save_holidays(holidays)
+        print("휴장 캘린더 정정: {0} 제거 (KIS 국내휴장일조회 = 거래일)".format(today_s))
     gaps = []
     for d in expected_dates():
         if d in holidays:
@@ -174,6 +222,11 @@ def find_gaps(probe=True):
                 print("KIS 프로브 판별 불가 → KRX 프로브로 대체: {0}".format(d))
                 exists, no_data = probe_krx(d)
             if no_data:
+                if d == today_s and not (holiday_confirmable(d) and kis_is_trading_day(d) is False):
+                    # 당일은 ① 장 마감 전이거나 ② KIS 휴장일조회가 거래일/판별불가면 기록하지 않는다.
+                    # (R24 실측 2026-10-01: 장 개시 전 no_data 를 휴장으로 적어 거래일이 캘린더에 들어갔다.)
+                    print("휴장 기록 보류: {0} (당일 — 마감 전 또는 KIS 교차확인 미통과)".format(d))
+                    continue
                 holidays.add(d)
                 save_holidays(holidays)
                 print("휴장 기록: {0} (KIS no_data)".format(d))

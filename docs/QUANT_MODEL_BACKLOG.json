@@ -7484,6 +7484,24 @@
           "verdict": "노이즈 — k=3 Δprec −0.0556(p 0.83) · k=5 Δprec −0.0000(p 0.52). CG53 의 AUC 우위(+0.0133·t 2.54)는 상위 k 선택의 정밀도·실현수익으로 이어지지 않는다(오히려 k=3 은 음수). 승격 후보 아님."
         }
       }
+    },
+    {
+      "id": "XR24",
+      "title": "[리서처 R24] [트레이더 환류] data_gap '당일 휴장' 오탐 — 거래일을 휴장 캘린더에 기록 (2026-10-01 실측)",
+      "status": "backlog",
+      "priority": 8,
+      "from_research": "R24",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": null,
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "`scripts/data_gap.py` 의 당일 휴장 판정은 KIS 일봉 부재를 휴장으로 단정한다. 그런데 **장 개시 전에는 어떤 거래일도 KIS 일봉이 없다**(no_data) → 매 거래일 아침 오탐이 가능하고, 그 값이 `data/krx_holidays.json`(리서처·엔지니어 구동기의 휴장 판단 소스)에 기록되면 실제 거래일의 수집·감시·실험 창을 건너뛴다.",
+      "evidence": "리서처 R24 결과: R24: 0 <= 0 → 충족",
+      "success": "① 당일 휴장 판정을 **장 마감(15:40 KST) 이후**에만 확정한다 ② 캘린더에 쓰기 전 KIS `CTCA0903R` 로 교차확인한다 ③ 회귀: 캘린더가 거래일을 휴장으로 담으면 실패(감시는 트레이더 T10).",
+      "expected": "미지",
+      "cost": "저(KIS 1콜, 약 1초)",
+      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라."
     }
   ]
 }

@@ -151,7 +151,15 @@ def eval_check(item):
     if not nums:
         return None, f"check 출력에 수치 없음: {(p.stdout or '').strip()[:80]}", None
     val = float(nums[-1])
-    op, tval = tgt.get("op", ">="), float(tgt.get("value", 0))
+    # ⚠ check_target.value 가 수치가 아니면(예: "opnd_yn == 'Y'" 같은 서술 문자열) 종전에는 float() 이
+    #   ValueError 로 **스크립트를 통째로 죽였다** — 명령은 실행됐는데 원장 기록 전에 프로세스가 사라져
+    #   '기록 없이 죽었다'(R24 실측 2026-10-01 15:35)가 되고 그 틱의 판정이 통째로 소실된다.
+    #   구동기는 어떤 항목 정의에도 죽지 않고 '판정불가'로 정직하게 남아야 한다.
+    try:
+        op, tval = tgt.get("op", ">="), float(tgt.get("value", 0))
+    except (TypeError, ValueError):
+        return val, (f"{item['id']}: check_target 값이 수치가 아님({tgt.get('value')!r}) → 판정불가 "
+                     f"— check 는 수치 하나를 마지막에 출력해야 한다"), None
     ok = {">=": val >= tval, ">": val > tval, "==": val == tval, "<=": val <= tval}.get(op, False)
     return val, f"{item['id']}: {val:g} {op} {tval:g} → {'충족' if ok else '미달'}", ok
 
