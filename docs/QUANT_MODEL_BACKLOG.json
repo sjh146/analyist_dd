@@ -7569,6 +7569,56 @@
      "app/reports/cg55_alt10.json"
     ]
    }
+  },
+  {
+   "id": "CG56",
+   "title": "라벨 다양성 앙상블 — 절대 h1 챔피언 + 시장상대 h5 후보의 rank-평균 결합 (10시드 짝)",
+   "status": "pending",
+   "priority": 2,
+   "affects_model": true,
+   "arm": "blend(rank-avg) = champion(절대 h1 방향) + cand_cg51(시장상대 h5) — 같은 런·같은 시드·같은 창에서 preds 덤프 후 (fold,date) 내 순위평균",
+   "counterfactual": "app/models/champion (절대 h1) — 같은 런·같은 시드·같은 창(5폴드×10일·60종목·training 유니버스)",
+   "counterfactual_value": 0.5139,
+   "baseline": {
+    "value": 0.5139,
+    "source": "CG53 챔피언 10시드 평균(app/reports/cg51_champ_s0..9.json, 2026-10-01 08:23) — 같은 창 구성·같은 유니버스 함수·같은 라벨(rel h5)"
+   },
+   "hypothesis": "조정 축(피처변환·HP·유니버스·창·가중·정규화·k·q·부활 데이터·학습창 길이)이 전부 사전문턱 +0.02 미달로 닫혔다. 남은 미시험 축은 **서로 다른 라벨로 학습한 두 모델의 결합**이다. 두 모델은 같은 피처풀을 쓰지만 오차가 완전히 겹치지 않으므로(CG53: champ 0.5139±0.0063 vs cand 0.5272±0.0124, 10시드 짝 Δ+0.0133) 순위평균 결합이 분산을 줄여 문턱을 넘을 수 있는가를 묻는다.",
+   "evidence": "① CG53 실측(2026-10-01 08:23, 10시드 짝): champ 0.5139 vs cand_cg51 0.5272 → Δ+0.0133 · SE 0.0052 · t 2.54 · 양(+) 8/10 · 부호검정 p=0.055 — 문턱 미달이지만 두 모델의 순위가 동일하지 않다는 증거. ② CG55 실측: 같은 모델·같은 시드는 비트 동일(반복성 0) → 짝 설계의 잡음 바닥은 0 이고, 단일 런 비교(창 구성 교체)만 +0.0261 로 문턱을 넘는다 → 판정은 반드시 같은 런 짝으로. ③ CG30: 시드 앙상블 이득 최대 +0.0057(축 종결) — 이 항목은 시드가 아니라 **라벨 종류가 다른 두 모델**의 결합이므로 다른 축이다.",
+   "method": "scripts/cg56_run.sh 가 시드 0..9 각각에서 champion·cand_cg51 을 같은 인자(--train-start 2026-06-25 --train-end 2026-09-30 = 두 모델 학습구간의 합집합, --folds 5 --dates-per-fold 10 --stocks 60 --label-kind rel --horizon 5)로 평가하며 --dump-preds 로 예측을 남기고, scripts/blend_eval.py 가 (fold,date) 내 순위평균 결합 AUC 를 계산해 in-run 짝 Δ(blend−champ, blend−cand)를 낸다. 요약은 champion_robust_eval 스키마로 기록된다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 5400 sh scripts/cg56_run.sh --out app/reports/cg56_summary.json'",
+   "metric": "champion_robust_eval",
+   "success": "in-run 짝 Δ(blend − champ, 같은 런 10시드) ≥ +0.02 **그리고** 양(+) 시드 ≥ 8/10 (SE ≈0.005 → 약 3σ). 미달이면 '모델 결합' 축도 닫고, 남은 레버는 원천 확보뿐임을 보고한다.",
+   "expected": "미지 — 두 모델 순위 상관이 높으면 이득 없음(그 경우 축 종결)",
+   "cost": "20회 평가 × 약 2.4분 ≈ 50~60분 (학습 없음 — 평가만)",
+   "est_minutes": 60,
+   "note": "① 첫 --out 만 구동기가 판정에 읽으므로 시드별 --out 은 셸 래퍼 안에 뒀다(CG55 재발 방지). ② 판정의 정본은 요약 JSON 의 `paired` 블록(같은 런 챔피언 평균 대비)이고, 구동기의 Δ 는 등록 대조값 0.5139(CG53) 대비다. ③ **배포 제약**: 두 모델 확률을 평균하려면 추론 경로(app/inference/predictor.py = 단일 모델 디렉터리) 변경이 필요하다 → 신호가 나와도 승격 후보가 아니라 **승인 요청**이다. ④ 순위평균은 확률 스케일이 다른 두 모델(절대 h1 vs 시장상대 h5)을 그대로 평균하면 지배당하므로 필수 선택이다.",
+   "created_at": "2026-10-01T18:20:00+09:00"
+  },
+  {
+   "id": "CG57",
+   "title": "학습 유니버스 정렬 A/B — 현행(최신일+시드 랜덤 200종목) vs 유동성 상위 200종목 (같은 창·같은 짝 프로토콜)",
+   "status": "backlog",
+   "priority": 5,
+   "affects_model": true,
+   "arm": "retrain_champion --stock-limit 200 --universe-mode liquidity (유동성 상위 200) → app/models/cand_cg57",
+   "counterfactual": "현행 생산 유니버스(select_training_universe: 최신 거래일 우선 + 시드 셔플 랜덤 200) 로 같은 창을 학습한 후보 = app/models/cand_cg51/champion 계열",
+   "hypothesis": "현재 생산 학습 유니버스는 `select_training_universe` 가 최신 거래일(2,543/2,655 종목이 동일 latest) 안에서 **시드 고정 랜덤 200종목**을 뽑는다 → 실질적으로 시장의 무작위 표본이다. 그런데 (a) 모델이 실제로 쓰이는 대상(스크리너가 뽑는 후보)과 학습 표본이 어긋나 있고 (b) 부분 커버리지 원천(SNS 309종목·뉴스 191종목)과의 교집합이 무작위 수준(9.5%)에 머문다. 유동성 상위 200으로 학습 표본을 정렬하면 ① 배포 대상과 분포가 맞고 ② 신규 원천 커버리지가 올라가며 ③ 표본당 정보량(거래대금 큰 종목)이 커진다 — 짝 프로토콜로 Δ 를 잰다.",
+   "evidence": "실측(2026-10-01 17:0x): 특성상 무작위 표본이다 — `_fetch_eligible` 후 `eligible.sort(code)` → `rng.shuffle` → `sort(latest desc)` → `top[:limit*3]` → `rng.shuffle` → `[:limit]`. 동률 latest 가 2,543종목이라 사실상 랜덤 추출. 실측 교집합: 생산 유니버스 200 ∩ SNS 309 = **19종목(9.5%)** · window 2026-06-25~09-23 에서 SNS 행 1,098(19종목·63거래일 중 91일) = 페어 커버리지 **8.7%** · 뉴스는 5종목·119행. 패널 대조: panel_995(50종목) ∩ SNS = **4종목** → 종목 불일치가 원인임을 확인(panel_150u 는 135/150 교집합). 즉 원천의 edge 유무를 재기 전에 '커버리지 정렬'이 선행 조건이다.",
+   "method": "app/training/universe.py 에 `--universe-mode {recency,liquidity}`(기본 recency = 현행 동작 비트 동일) 를 추가하고, liquidity 는 최근 60일 일평균 거래대금(close×volume, market_data) 상위 limit 종목으로 결정적으로 뽑는다. 그 뒤 같은 창(90일)·같은 라벨(rel h5)로 두 후보를 학습해 champion_robust_eval 5폴드×10일·60종목·유니버스 시드 5개 짝으로 Δ 를 잰다(단일 런 비교 금지 — CG55).",
+   "command": null,
+   "metric": "champion_robust_eval",
+   "success": "같은 시드 5개 짝 Δ ≥ +0.02 **그리고** 양(+) 시드 5/5 (SE ≈0.007). 미달이면 '학습 유니버스 구성' 축도 닫고 원천 확보 승인으로만 남긴다.",
+   "expected": "미지 — CG40(평가 유니버스 교체)은 Δ+0.0056 노이즈였지만 이 항목은 **학습 표본** 교체다(다른 축).",
+   "cost": "구현 30분 + 후보 학습 2.65h/arm × 2arm(체크포인트 재사용 시 평가만 20분) — feature_store 활성화(FS1 승인) 후면 분 단위",
+   "est_minutes": 400,
+   "setup_needed": [
+    "universe.py 에 liquidity 모드 추가(기본값 현행 유지 = recency) + 회귀 테스트(같은 시드 4회 호출 교집합 100%)",
+    "후보 학습 2회(recency/liquidity) — 20:00 컨테이너 재생성 창을 넘기지 않도록 --end-date 고정 + 체크포인트 경로 지정",
+    "feature_store 활성화(FS1) 가 승인되면 이 항목의 비용이 400분 → 20분으로 내려간다(우선순위 조정 근거)"
+   ],
+   "note": "2026-10-01 17:0x 등록. ⚠ 이 항목은 '유동성 정렬'이 곧 '평가 유니버스 교체'와 다르다는 전제에 선다 — CG40 은 평가 쪽 교체(노이즈)였고 이 항목은 학습 표본 쪽이다. 등록 시점의 근거: 신규 원천(SNS/뉴스)이 현행 유니버스에서 9.5% 커버리지라 원천 edge 를 잴 수 없다.",
+   "created_at": "2026-10-01T17:12:00+09:00"
   }
  ]
 }
