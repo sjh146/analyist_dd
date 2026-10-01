@@ -1355,3 +1355,28 @@ cd /home/jhshi/analyist_dd
 - **위임**: Claude Code review(`reports/claude_review_cg57_universe_ab.md`) 진행 중 — CG57 리그 4개 축
   (같은 창/유니버스/라벨 · look-ahead 방향 · 집계기 paired · 재개 경로 arm 혼입). 파일:라인 근거 확인 후 채택.
 - **다음**: CG57 완주 감시(≈01:00) → CG58 차기 틱 자동 착수 · 위임 결과 채택/기각 · 07:3x 재기동 로그 확인.
+
+### 모델엔지니어 (2026-10-01 22:3x — 위임 리뷰 채택/기각, 실측)
+
+- **위임 결과**(`reports/claude_review_cg57_universe_ab.md` · claude rc=0 · 17,873B): **채택 6 · 기록만 1**.
+  파일:라인 근거를 내가 직접 확인한 항목만 채택(자기신고 동급).
+  - **A look-ahead 확정**: `universe.py:87` SQL 에 상한 없음 + `universe.py:146` date_from=now−60일 +
+    `retrain_champion.py:135-137` 이 date_from 미전달 → liq 순위창 [08-02, 10-01]. `_fetch_liquid` 에
+    `date_to` 자체가 없어 as-of 재측정은 원시 SQL 필요 → 교락 분리 불가(이 Δ 는 '학습 표본 교체'만의 값이 아님).
+  - **B 부분 앙상블 경로**: `ensemble_model.py:174-186` 은 `loaded>0` 이면 trained 로 보고,
+    `retrain_champion.py:220-222` 은 모델별 실패를 삼키며, `cg57_run.sh:35` `have_model` 은 xgb pkl +
+    feature_names 만 본다 → 1~2 모델 arm 도 채점 통과. **CG58 은 실측 3/3 pkl 로 무관**, CG57 은 판정 전 확인.
+  - **C 재개 오염**: `have_json` 이 파싱만 보는데 창은 `CURRENT_DATE−7`·유니버스는 now−60일 기준 →
+    날짜를 넘겨 재개하면 서로 다른 창·유니버스가 짝지어진다(집계기는 비교하지 않음). CG58 에 '같은 날 가드'
+    구현·실측(오늘 rc=0 · 전날 rc=1), CG57 은 완주 후 적용.
+  - **D '5/5' 미강제**(코드 사실): 판정은 `n≥3 AND pos_frac==1.0` → 시드 2개 누락도 3/3 로 '신호있음'.
+    페어링은 위치 기반(`universe.seed` 미사용) → 결과 인용 시 `pos_seeds` 문자열 그대로.
+  - **F 학습 0행 exit 0**: `retrain_champion.py:336-338` `return` → set -e 미검출 + 낡은 eval JSON 재사용 시
+    '완료' 출력.
+  - **G 실질 채점 창 2개(내가 DB 로 실증)**: CG57 = 2025-12-01~01-28 · 2026-07-29~09-23 (중간 3창 제외).
+    200거래일이 09-23 에서 끝나는 것도 확인(`trading_days` 의 CURRENT_DATE−7 purge) → per-seed 값은 2창 평균.
+  - 기록만: E(확신도 '낮음') 동점=음수·반올림으로 실효 문턱 ≈+0.0195. 정상 확인: arm 별 체크포인트/출력 분리·
+    재개 키에 종목목록 포함·라벨·HP 동일.
+- **후속 CG59 신설**(needs_setup): 집계기에 기대 시드 수 강제 · `universe.seed` 페어링 · 창 일관성 검사 ·
+  동점 표시 + `_seed_family_gate_test.py`. **CG57 완주 후 착수**(실행 중 런의 마지막 단계 코드를 지금
+  편집하면 검증 안 된 코드가 판정을 좌우한다).

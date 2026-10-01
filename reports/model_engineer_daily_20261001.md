@@ -63,3 +63,38 @@
 - Claude Code review 진행 중: `reports/claude_review_cg57_universe_ab.md`
   (CG57 리그의 ① 같은 창·유니버스·라벨 여부 ② look-ahead 방향·교락 ③ 집계기 paired 정확성 ④ 재개 경로
   arm 혼입). 결과는 파일:라인 근거 확인 후에만 채택하고 확신도 '낮음'은 채택하지 않는다(자기신고 동급).
+
+## 9. 위임 결과 (Claude Code review — 채택 6 · 기록만 1 · 정상확인)
+파일 `reports/claude_review_cg57_universe_ab.md`(17,873B · backend=claude rc=0). **파일:라인 근거를 내가 직접
+열어 확인한 항목만 채택**했다(자기신고 동급 취급).
+
+**채택(내가 코드로 재확인 완료)**
+- **A(높음) look-ahead 확정**: `universe.py:87` SQL 은 `md.trade_date >= %s` 로 **상한이 없고**,
+  `universe.py:146` `date_from = date_from or _default_date_from()`(now−60일), `retrain_champion.py:135-137`
+  은 date_from 을 아예 전달하지 않는다 → liq arm 순위창 = [2026-08-02, 2026-10-01]. `_fetch_liquid` 에
+  `date_to` 파라미터 자체가 없어(내가 확인) as-of 재측정은 원시 SQL 로만 가능. '학습 표본 교체' 효과와
+  분리 불가 → 이 Δ 는 그 축만의 측정이 아니다.
+- **B(경로 확정·발생 조건부) 부분 앙상블**: `ensemble_model.py:174-186` `if loaded > 0: _is_trained = True`
+  (모델 수 검증 없음) + `retrain_champion.py:220-222` 모델별 실패를 삼킴(마지막에 `if not saved: raise`) +
+  `cg57_run.sh:35` `have_model` 은 xgboost pkl + feature_names 만 확인 → 1~2 모델 arm 도 채점 게이트를 통과.
+  **CG58 은 실측 3/3 pkl 로 위험 없음** · CG57 은 판정 전 pkl 수 확인 필요(항목 note 에 지시 추가).
+- **C(경로 확정·발생 조건부) 재개 시 낡은 JSON 재사용**: `cg57_run.sh:34,55` `have_json` 은 파싱만 확인하는데
+  창은 `CURRENT_DATE−7` 기준(=오늘 09-23 에서 끝남), 유니버스는 now−60일 기준 → 날짜가 바뀌면 같은 파일명이
+  **다른 스코어보드**다. 집계기는 measured_at·창을 비교하지 않는다(코드 확인). → CG58 에 '같은 날 가드' 구현·
+  실측(오늘 산출 rc=0 · 전날 산출 rc=1), CG57 은 완주 후 적용(CG59).
+- **D(코드 사실) 사전등록 '5/5' 는 강제되지 않는다**: `champion_seed_family_agg.py` 판정 = `n≥3 AND
+  pos_frac==1.0` → 시드 2개가 빠져도 **3/3 로 '신호있음'**이 출력된다. 페어링은 **위치 기반**(loaded
+  `universe.seed` 를 쓰지 않음). 결과 인용 시 `pos_seeds` 문자열을 그대로 쓰기로 했다.
+- **F(중간) 학습 0행이 exit 0**: `retrain_champion.py:336-338` `if df is None or len(df) < 500: return` 은
+  종료코드 0 → set -e 가 못 잡고, 낡은 eval JSON 이 남아 있으면 모델 없는 arm 으로 '완료'가 출력된다.
+- **G(중간 → 내가 실증) 실질 채점 창 = 2개**(CG57): DB 계산으로 확정 — 2025-12-01~2026-01-28 ·
+  2026-07-29~2026-09-23 유지, 중간 3창은 학습구간[03-26, 06-24] 과 겹쳐 제외. 200거래일이 09-23 에서
+  끝나는 것도 확인(`trading_dates` 의 CURRENT_DATE−7 purge). per-seed 값은 2창 평균이라 노이즈가 크다.
+
+**기록만(채택 안 함)**: E(확신도 낮음) 동점=음수 취급·4자리 반올림으로 실효 문턱 ≈+0.0195.
+**정상 확인(리뷰도 문제 없음)**: 학습 체크포인트·출력 경로의 arm 분리(`cg57_run.sh:39,47`) ·
+체크포인트 재개 키에 종목목록 포함(`feature_pipeline.py:427-430`) · 두 arm 의 라벨·HP 동일.
+
+**후속**: `CG59` 신설(needs_setup) — 집계기에 ①기대 시드 수 강제 ②`universe.seed` 페어링 ③창 일관성 검사
+④동점 표시 + `_seed_family_gate_test.py`. **CG57 완주 후 착수**(실행 중인 런의 마지막 단계 코드를 지금
+편집하면 검증 안 된 코드가 6시간 런의 판정을 좌우한다).

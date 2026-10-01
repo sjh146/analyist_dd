@@ -7640,7 +7640,7 @@
    "cost": "구현·검증 완료(_universe_mode_test.py 12/12) + 학습 2arm × 실측 2.65h/arm ≈ 5.3h + 평가 10회 × ≈5분 ≈ 50분 → 총 ≈6.2h (est 400분 = 6.7h, 컨테이너 timeout 28800s=8h)",
    "est_minutes": 400,
    "setup_needed": [],
-   "note": "2026-10-01 17:0x 등록. ⚠ 이 항목은 '유동성 정렬'이 곧 '평가 유니버스 교체'와 다르다는 전제에 선다 — CG40 은 평가 쪽 교체(노이즈)였고 이 항목은 학습 표본 쪽이다. 등록 시점의 근거: 신규 원천(SNS/뉴스)이 현행 유니버스에서 9.5% 커버리지라 원천 edge 를 잴 수 없다. || 2026-10-01 19:5x 셋업 완료·pending 승격: ① `select_training_universe(mode=…)` 구현(기본 recency = 현행 비트 동일, `--universe-mode` CLI 배선) ② 검증 `docker exec stock_xgboost_ml python /app/scripts/_universe_mode_test.py` 12/12 PASS — 기본값 회귀·같은/새 커넥션 4/3회 교집합 100%·정렬 실체(중앙 거래대금 liq 473.6억 vs rec 3.9억·교집합 14/200)·ETF 0·미지 mode ValueError. 컬럼 실측: `trading_value` 70% 커버 → COALESCE(trading_value, close_price*volume). ③ **구성 효과 교란 차단**: 평가의 `--universe training --universe-seed s` 는 모델과 무관하게 결정되므로 두 arm 이 같은 60종목을 채점한다(패널 순서=유동성 정렬 문제와 다른 축 — 이건 '학습 표본' 교체다). ④ 학습구간을 2026-03-26~06-24 로 고정해 창5(07-29~09-23)를 **전방 OOS** 로 남긴다(CG45 의 '전방 창 부재' 완화). ⑤ 재개 배선: 학습은 체크포인트+pkl 존재, 평가는 JSON 파싱 성공 시 건너뜀(CG56 rc=124 재발 방지).",
+   "note": "2026-10-01 17:0x 등록. ⚠ 이 항목은 '유동성 정렬'이 곧 '평가 유니버스 교체'와 다르다는 전제에 선다 — CG40 은 평가 쪽 교체(노이즈)였고 이 항목은 학습 표본 쪽이다. 등록 시점의 근거: 신규 원천(SNS/뉴스)이 현행 유니버스에서 9.5% 커버리지라 원천 edge 를 잴 수 없다. || 2026-10-01 19:5x 셋업 완료·pending 승격: ① `select_training_universe(mode=…)` 구현(기본 recency = 현행 비트 동일, `--universe-mode` CLI 배선) ② 검증 `docker exec stock_xgboost_ml python /app/scripts/_universe_mode_test.py` 12/12 PASS — 기본값 회귀·같은/새 커넥션 4/3회 교집합 100%·정렬 실체(중앙 거래대금 liq 473.6억 vs rec 3.9억·교집합 14/200)·ETF 0·미지 mode ValueError. 컬럼 실측: `trading_value` 70% 커버 → COALESCE(trading_value, close_price*volume). ③ **구성 효과 교란 차단**: 평가의 `--universe training --universe-seed s` 는 모델과 무관하게 결정되므로 두 arm 이 같은 60종목을 채점한다(패널 순서=유동성 정렬 문제와 다른 축 — 이건 '학습 표본' 교체다). ④ 학습구간을 2026-03-26~06-24 로 고정해 창5(07-29~09-23)를 **전방 OOS** 로 남긴다(CG45 의 '전방 창 부재' 완화). ⑤ 재개 배선: 학습은 체크포인트+pkl 존재, 평가는 JSON 파싱 성공 시 건너뜀(CG56 rc=124 재발 방지). || 2026-10-01 22:3x 위임 리뷰(Claude, reports/claude_review_cg57_universe_ab.md) 채택분 — ① **실질 채점 창은 2개**(내가 DB 로 실증: 2025-12-01~2026-01-28 · 2026-07-29~2026-09-23; 중간 3창은 학습구간 [03-26,06-24] 과 겹쳐 제외 — trading_dates 가 CURRENT_DATE−7 기준이라 200거래일이 2026-09-23 에서 끝난다) → per-seed 값은 2창 평균이라 노이즈가 크다(시드 5개의 짝 Δ 자체는 유효). ② **평가 유니버스는 liq arm 의 학습 유니버스가 아니다**: --universe training 은 mode 를 전달하지 않아 항상 recency(60종목) → 두 arm 이 같은 종목을 채점한다(공정하지만, 유동성 학습 모델을 무작위 60종목에서 평가하므로 배포 가치를 과소평가할 수 있다). ③ look-ahead 는 리뷰도 '확정(높음)' — `md.trade_date >= %s` 에 상한이 없고 `_fetch_liquid` 에 date_to 파라미터가 아예 없어 as-of 재측정은 API 로 불가(원시 SQL 필요). 교락 분리 불가 → 이 Δ 는 '학습 표본 교체' 효과만의 측정이 아니다. ④ **재개 주의**: `have_json` 이 파싱만 확인하므로 날짜를 넘겨 재개하면 서로 다른 창·유니버스로 채점된 JSON 이 짝지어진다(집계기는 measured_at·창을 비교하지 않는다). 날짜가 바뀌어 재개해야 하면 이전 날 `app/reports/cg57_*.json` 을 **삭제하고 전 시드 재평가**하라(부분 재사용 금지). ⑤ 부분 앙상블 위험: `have_model` 은 xgboost pkl + feature_names 만 확인하므로 arm 이 1~2 모델로 채점될 수 있다 → 판정 전에 `ls app/models/cand_cg57_*/*_model.pkl | wc -l` 이 양쪽 3 인지 확인하라. ⑥ 집계기 문턱은 '5/5 강제'가 아니다(코드: n≥3 AND pos_frac==1.0) → 결과의 pos_seeds 문자열을 그대로 인용하라.",
    "created_at": "2026-10-01T17:12:00+09:00",
    "baseline": {
     "value": null,
@@ -7665,7 +7665,21 @@
    "expected": "미지 — 사전 확률은 '노이즈'(Δ 가 잡음 바닥의 1/7)",
    "cost": "평가 10회 × 실측 5.1분 ≈ 51분 (스모크 실측: 소형 설정 14초, JSON 스키마 정상) + 집계 수초 → est 70분, 컨테이너 timeout 5400s",
    "est_minutes": 70,
-   "note": "2026-10-01 22:1x 등록(일일 잡). ① 남는 OOS 창은 학습구간 **이전**(2025-11~2026-05)뿐이다 — DB 마지막 거래일이 10-01 이라 전방 창이 없다(보고 시 명시). ② 재개 지원: 기존 cg58_*_s*.json 이 파싱되면 건너뛴다. ③ 결과는 승격을 되돌리는 권한이 없다 — 게이트가 권위이며, 이 항목은 '게이트 vs 우리 프로토콜 정합성' 측정이다."
+   "note": "2026-10-01 22:1x 등록(일일 잡). ① 남는 OOS 창은 학습구간 **이전**(2025-11~2026-05)뿐이다 — DB 마지막 거래일이 10-01 이라 전방 창이 없다(보고 시 명시). ② 재개 지원: 기존 cg58_*_s*.json 이 파싱되면 건너뛴다. ③ 결과는 승격을 되돌리는 권한이 없다 — 게이트가 권위이며, 이 항목은 '게이트 vs 우리 프로토콜 정합성' 측정이다. || 2026-10-01 22:3x 위임 리뷰 반영 — ① 유지 창 3개 실증(2025-12-01~2026-01-28 · 01-29~03-31 · 04-01~05-29; 06-01 이후 2창 제외). ② `have_json` 에 '같은 날 산출만 재사용' 가드를 넣었다(창·유니버스가 실행일에 의존 → 다른 날 JSON 재사용은 Δ 오염; 실측 검증: 오늘 산출 rc=0 · 전날 산출 rc=1). ③ 앙상블 완전성 실측: 두 arm 모두 pkl 3개(xgb·lgb·cat) → 부분 앙상블 채점 아님. ④ seed 간 교집합 실측 0~3종목(서로소) → 짝은 같은 seed 안에서만 성립(집계기의 위치 기반 페어링이 이 런에서는 안전한 이유)."
+  },
+  {
+   "id": "CG59",
+   "title": "판정 집계기 하드닝 — 기대 시드 수 강제·시드 정체 페어링·폴드/창 일관성 검사 (위임 리뷰 후속)",
+   "status": "needs_setup",
+   "priority": 3,
+   "affects_model": false,
+   "setup_needed": "scripts/champion_seed_family_agg.py 수정: ① `--expect-seeds N`(기본 0=off) → n<N 이면 '판정불가(기대 시드 수 미달)' ② 두 arm 의 JSON 을 위치가 아니라 `universe.seed` 로 페어링(없으면 위치+경고) ③ 두 arm 의 `folds[].window` 목록이 다르면 '판정불가(창 불일치)' ④ 동점(Δ=0) 개수를 출력·판정 문구에 포함(현행 strict `d>0` 유지) ⑤ 폴드 수 불일치 시 '판정불가'. 테스트 `scripts/_seed_family_gate_test.py`(합성 JSON 5종: 동점 1개 → 노이즈 강등 / 3시드 + --expect-seeds 5 → 판정불가 / 창 불일치 → 판정불가 / 정상 5/5 → 신호있음 / 시드 순서 뒤바뀜 → 페어링 오류 없음) — PASS/FAIL 출력 + sys.exit(1 if FAIL) 형식(이 스택에 pytest 없음). 부수: CG57 완주 후 `scripts/cg57_run.sh` 의 have_json 에도 '같은 날 가드'(cg58_run.sh 와 동일) 적용.",
+   "command": "",
+   "success": "`_seed_family_gate_test.py` 전부 PASS + 기존 집계 산출(cg51/cg52/cg56 summary) 재집계 결과가 수치 동일(회귀 0).",
+   "expected": "판정 문구가 '5/5'를 강제하지 않는다는 사실이 사라지고, 시드 누락·순서 오류·창 불일치가 조용히 통과하지 못한다.",
+   "est_minutes": 25,
+   "cost": "코드 수정 + 테스트 25분(CPU 미사용 — 순수 파이썬)",
+   "note": "2026-10-01 22:3x 등록. 위임 리뷰(Claude) 발견 D(게이트가 5/5 를 강제하지 않음)·E(동점=음수·4자리 반올림으로 실효 문턱 +0.0195, 확신도 '낮음' — 기록만)·F(학습 0행 시 exit 0 → 낡은 eval JSON 재사용으로 '완료' 출력)·C(재개 시 낡은 JSON 재사용)의 후속. ⚠ CG57 이 아직 실행 중이라 `champion_seed_family_agg.py` 를 지금 편집하지 않았다 — 실행 중인 런의 마지막 단계(집계)가 새 코드로 돌면 검증되지 않은 코드가 6시간 런의 판정을 좌우한다. CG57 완주 후 착수."
   }
  ]
 }
