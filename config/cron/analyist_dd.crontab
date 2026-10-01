@@ -23,3 +23,15 @@ CRON_TZ=Asia/Seoul
 40 14 * * 1-5 root /home/jhshi/cron/close_job.sh >> /home/dduckbeagy/analyist_dd/reports/cron_close_job.log 2>&1
 # 평일 20:30 — 저녁 파이프라인(20:00) 후 스윙 피드 재발행 (다음날 아침용)
 30 20 * * 1-5 root /home/jhshi/cron/feed_publish.sh >> /home/dduckbeagy/analyist_dd/reports/cron_feed_publish.log 2>&1
+
+# --- 2026-09-28 추가: 죽은 수집 경로 대체 (pykrx/KRX_ID 미설정 → OpenAPI + KIS) ---
+20 16 * * 1-5 root /home/jhshi/cron/kis_supply.sh >> /home/dduckbeagy/analyist_dd/reports/cron_kis_supply.log 2>&1
+30 19 * * 1-5 root /home/jhshi/cron/kis_short_program.sh >> /home/dduckbeagy/analyist_dd/reports/cron_kis_short_program.log 2>&1
+40 19 * * 1-5 root /home/jhshi/cron/krx_offline.sh >> /home/dduckbeagy/analyist_dd/reports/cron_krx_offline.log 2>&1
+50 19 * * 1-5 root /home/jhshi/cron/macro_daily.sh >> /home/dduckbeagy/analyist_dd/reports/cron_macro_daily.log 2>&1
+
+# --- 2026-10-01 추가 (R25): DART 공시 인덱스(disclosures) 백필 ---
+# 09-23 이후 '정기 러너 부재'로 정지했던 경로. 러너가 dq_claim 자기신고를 남긴다.
+# daily = 이번 달 창 + 유형 B,D,E,I (실측 12초/5콜) · 토요일 = 3개월 창 누락 안전망.
+10 18 * * 1-5 root /home/jhshi/cron/dart_disclosures.sh >> /home/dduckbeagy/analyist_dd/reports/cron_dart_disclosures.log 2>&1
+10 18 * * 6 root /home/jhshi/cron/dart_disclosures.sh --regular >> /home/dduckbeagy/analyist_dd/reports/cron_dart_disclosures_regular.log 2>&1
