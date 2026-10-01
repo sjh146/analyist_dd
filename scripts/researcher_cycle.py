@@ -552,6 +552,32 @@ def pick_item(b, force=False):
     return base.next_item(b, force)
 
 
+def _as_text_list(v):
+    """setup_needed/needs 는 list·str 이 섞여 들어온다(백로그 관례).
+
+    문자열을 그대로 for 로 돌리면 **문자 단위로 쪼개져** 보고가 오염된다 → 읽는 쪽에서 분기한다.
+    """
+    if isinstance(v, str):
+        return [v] if v.strip() else []
+    if isinstance(v, (list, tuple)):
+        return [str(x) for x in v if str(x).strip()]
+    return []
+
+
+def approval_asks(item):
+    """그 항목이 사용자에게 요구하는 승인·사람 단계 문구(중복 제거).
+
+    WHY(2026-10-01 실측): 틱 보고는 `setup_needed` 만 읽었다. R25 는 승인 요청을 `needs`
+    (문자열)에 적어 등록돼 있어 status=needs_approval 인데도 **어떤 틱 보고에도 안 올라왔다**
+    — '백로그에서 자동 추출이라 누락이 없다'는 전제가 필드명 하나로 깨진다. 둘 다 읽는다.
+    """
+    out = _as_text_list(item.get("setup_needed"))
+    for s in _as_text_list(item.get("needs")):
+        if s not in out:
+            out.append(s)
+    return out
+
+
 def tick(force=False):
     pid = base.running_pid()
     if pid:
@@ -607,7 +633,7 @@ def tick(force=False):
     # 승인/사람 단계는 **백로그에서 자동으로 끌어올린다** — 보고에서 빠뜨리지 않기 위한 장치다.
     for i in sorted(b["items"], key=lambda x: x.get("priority", 99)):
         if i.get("status") in ("pending", "needs_approval", "partial", "failed"):
-            for s in (i.get("setup_needed") or []):
+            for s in approval_asks(i):
                 print(f"  ⚠ [{i['id']}] 사람/승인 필요: {s}")
             if i.get("blocked_by"):
                 print(f"  ⛔ [{i['id']}] 차단: {i['blocked_by']}")
