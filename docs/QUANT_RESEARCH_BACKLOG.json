@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-01T21:19:45.455531+09:00",
+  "updated_at": "2026-10-01T21:27:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -828,8 +828,8 @@
     },
     {
       "id": "R25",
-      "title": "DART 공시 정기 러너 부재 — disclosures 가 수동 백필 후 정지 (09-23 → 10-01 실측)",
-      "status": "needs_approval",
+      "title": "DART 공시 정기 러너 — 스케줄 확인 완료(10-01), 신선도 상시 감시",
+      "status": "pending",
       "priority": 3,
       "kind": "collect",
       "incremental": true,
@@ -837,9 +837,18 @@
       "hypothesis": "disclosures 는 재무 피처의 공시 지연을 '가정(90/45일)' 대신 실제 접수일로 계산하는 원천인데, 이를 채우는 경로가 수동 백필(scripts/dart_disclosure_backfill.py) 하나뿐이다. 정기 스케줄이 없으면 표가 조용히 멈추고 DQ 지표에도 드러나지 않는다.",
       "evidence": "실측 2026-10-01 16:1x: disclosures max(rcept_dt)=2026-09-23 · 212,861행에서 정지(09-24~10-01 결손; 09-23 333행/일 → 이후 0행). 원인: 백필 스크립트를 부르는 항목이 /etc/cron.d/analyist_dd · jhshi crontab · Hermes 크론 어디에도 없다(수동 실행만). 네트워크는 원인이 아님 — DART list.json 도달 200(direct·proxy 동일)·DART_API_KEY 설정됨. 서비스 내 DartCollector(services/news-analyzer/app/collectors/dart_collector.py)는 이를 import 하는 코드가 레포에 0곳 = 미배선 죽은 코드. 조치(2026-10-01 이 세션): 백필 2회 실행 → 타입 A 110행 + B/D/E/I 1,413행 삽입, 테이블 212,861→214,384, max(rcept_dt)=2026-10-01 확인.",
       "method": "DART list.json 월 창 백필(1.5s + 0.3~0.8s 지터). 하루 1회 최근 2개월 창 + 유형 B,D,E,I 면 콜 ~20회.",
-      "needs": "크론 등록 승인 1건(스케줄 신설) — /etc/cron.d/analyist_dd 에 평일 18:10 한 줄(타입 B,D,E,I, --max-calls 200) + 분기형 A 는 주 1회. 크론 수정은 사람 단계이므로 needs_approval 로 올린다.",
+      "needs": null,
       "if_blocked": "방치하면 새 공시가 재무 피처의 기간 구분·공시 지연에 안 들어가고, 회계기간 혼재(연간/반기) 결함이 되살아난다.",
-      "registered_by": "operator-session 2026-10-01 (사용자 지시: 데이터 공백 규명)"
+      "registered_by": "operator-session 2026-10-01 (사용자 지시: 데이터 공백 규명)",
+      "result": "**해소(2026-10-01 21:1x 실측) — 스케줄이 존재하고 오늘 실제로 돌았다.** ① `/etc/cron.d/analyist_dd` L33-37: `# --- 2026-10-01 추가 (R25): DART 공시 인덱스(disclosures) 백필 ---` + 평일 18:10 `dart_disclosures.sh`(mode=daily, B/D/E/I) + 토 18:10 `--regular`(분기형 A) — 요청한 설계와 일치. 래퍼 `/home/jhshi/cron/dart_disclosures.sh`(mtime 10-01 17:09, 런타임 크론 mtime 17:10). ② 실측 로그 `reports/cron_dart_disclosures.log`(18:10:03~18:10:17): 콜 5 / 소스 307행 / 적재시도 297 / 실제 삽입 36 / 테이블 델타 36. ③ 테이블 `disclosures` 214,493행 · max(rcept_dt)=**2026-10-01**(종전 정지일 09-23). → 사람 승인 요청(needs)을 result 로 이관하고 **재발 감시 check 를 붙여 상시 항목으로 전환**한다 — 크론 줄이 사라지면 공시 표가 다시 조용히 멈추는데 DQ 지표에는 드러나지 않는다. check = 평일(월~금)에만 max(rcept_dt) 가 7일 이내(주말은 판정 대상 없음 → 통과). 회귀 없음(순수 조회).",
+      "recurring": true,
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "공시 접수일 신선도 미달(평일 기준)"
+      },
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\""
     },
     {
       "id": "R26",
@@ -854,6 +863,27 @@
       "needs": "발행 리스트 계약 변경(소비자=트레이더 피드)이므로 승인 필요. 승인 시 구현 범위: ①상한가 제외 필터(기본 ON) ②그 사실을 리스트 메타(제외 건수)에 기록 ③회귀 테스트(상한가 종목이 후보에 없음을 검증).",
       "if_blocked": "방치하면 close 경로는 '체결 불가 신호 + HEAT 전면 차단' 상태로 계속 죽어 있고, 리스트를 소비하는 다른 용도(수동 매매 참고)에서도 상한가 추격 신호를 계속 내보낸다.",
       "registered_by": "operator-session 2026-10-01 (사용자 지시: close 경로 게이트 비용 측정)"
+    },
+    {
+      "id": "R27",
+      "title": "자기신고 '배선'이 아니라 '실제 행'으로 판정 — 배선만 되고 침묵하는 크론 러너 차단 (R23 후속) — R26 은 운영자 세션 항목이 선점",
+      "status": "pending",
+      "priority": 7,
+      "kind": "collect",
+      "recurring": true,
+      "affects_model": false,
+      "hypothesis": "R23 의 판정은 소스에 'dq_claim' 문자열이 있으면 통과하는 **텍스트 휴리스틱**이다 — 배선만 해도 0 이 된다. 배선은 됐는데 실제로 자기신고 행을 안 남기는 러너는 여전히 '조용한 0행 적재' 사각지대다.",
+      "evidence": "실측 2026-10-01 21:1x: 휴리스틱 rc=0(누락 0개) 인데 `dq_runner_claim` 을 세면 크론이 실제로 돌리는 9개 러너 중 **kis_app.main:minute · data_gap_backfill 2개가 14일 내 행 0건** — 마지막 크론 실행(분봉 09-30 23:00 · data_gap 10-01 06:10)이 배선 커밋 `0534c97`(10-01 16:x) **이전**이라 아직 관측 기회가 없었다. kis_app.main 은 `--job daily --date 20260925 --limit 3` 멱등 재실행으로 `[claim] kis_app.main:daily -> market_data source=0 claimed=0 persisted=0` 줄과 행 생성을 실증(휴장일이라 no_data=3 — 원시행 0을 세지 않음). 검증 행은 삭제했다.",
+      "method": "크론이 실제로 돌리는 러너(래퍼→러너 자기신고 이름)를 고정하고, `dq_runner_claim` 의 14일 내 행 존재로 판정한다. 소스 문자열 휴리스틱은 보조 신호로만 둔다(그것만으로 '통과'를 근거 삼지 않는다).",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM (VALUES ('krx_daily'),('krx_derivatives_collect'),('kis_short_selling_backfill'),('kis_program_trading_collect'),('macro_backfill'),('kis_supply_backfill'),('dart_disclosure_backfill'),('kis_app.main:minute'),('data_gap_backfill')) v(r) WHERE NOT EXISTS (SELECT 1 FROM dq_runner_claim c WHERE c.runner=v.r AND c.run_at > now() - interval '14 days')\"",
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "14일 내 자기신고 행이 없는 '크론 직행' 러너 수"
+      },
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM (VALUES ('krx_daily'),('krx_derivatives_collect'),('kis_short_selling_backfill'),('kis_program_trading_collect'),('macro_backfill'),('kis_supply_backfill'),('dart_disclosure_backfill'),('kis_app.main:minute'),('data_gap_backfill')) v(r) WHERE NOT EXISTS (SELECT 1 FROM dq_runner_claim c WHERE c.runner=v.r AND c.run_at > now() - interval '14 days')\"",
+      "if_blocked": "배선만 되고 행이 없으면 그 러너의 적재량을 아무도 대조하지 못한다 — 2026-09-24 유형(파서 키 불일치로 +0행 적재·exit 0·진행파일에 '완료')이 다시 조용해진다.",
+      "expected": "정상 시 0 — 각 러너의 크론 실행 직후 자기신고 행이 남는다."
     }
   ]
 }
