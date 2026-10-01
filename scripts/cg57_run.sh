@@ -67,7 +67,7 @@ for s in $SEEDS; do
 done
 
 echo "=== 집계(rec=대조군, liq=챌린저) ==="
-python scripts/champion_seed_family_agg.py --agg-out "$AGG" \
+python scripts/champion_seed_family_agg.py --agg-out "$AGG" --expect-seeds 5 \
   --arm rec app/reports/cg57_rec_s0.json app/reports/cg57_rec_s1.json \
             app/reports/cg57_rec_s2.json app/reports/cg57_rec_s3.json app/reports/cg57_rec_s4.json \
   --arm liq app/reports/cg57_liq_s0.json app/reports/cg57_liq_s1.json \

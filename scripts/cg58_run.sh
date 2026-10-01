@@ -70,7 +70,7 @@ for s in $SEEDS; do
 done
 
 echo "=== 집계(prev=대조군, new=챌린저) ==="
-python scripts/champion_seed_family_agg.py --agg-out "$AGG" \
+python scripts/champion_seed_family_agg.py --agg-out "$AGG" --expect-seeds 5 \
   --arm prev app/reports/cg58_prev_s0.json app/reports/cg58_prev_s1.json \
              app/reports/cg58_prev_s2.json app/reports/cg58_prev_s3.json app/reports/cg58_prev_s4.json \
   --arm new  app/reports/cg58_new_s0.json  app/reports/cg58_new_s1.json \

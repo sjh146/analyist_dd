@@ -744,11 +744,25 @@ def judge_seed_family(item, parsed) -> tuple:
     n = int(p.get("n") or 0)
     thr = float(p.get("threshold", 0.02))
     dm = p.get("delta_mean")
-    detail = (f"시드 {n}개 짝 Δ 평균 {dm:+.4f} (SE {p.get('se')} · t {p.get('t')} · "
-              f"양(+) {p.get('pos_seeds')}) · 대조군 {parsed.get('baseline_auc')} vs "
+    ties = int(p.get("n_ties") or 0)
+    tie_note = f" · 동점 {ties}" if ties else ""
+    dm_s = f"{dm:+.4f}" if isinstance(dm, (int, float)) else "None"
+    detail = (f"시드 {n}개 짝 Δ 평균 {dm_s} (SE {p.get('se')} · t {p.get('t')} · "
+              f"양(+) {p.get('pos_seeds')}{tie_note}) · 대조군 {parsed.get('baseline_auc')} vs "
               f"챌린저 {parsed.get('robust_auc')} · 문턱 {thr:+.2f}")
+    # 2026-10-02(CG59) 하드닝: 두 arm 이 다른 창/폴드 수에서 채점됐다면 Δ 자체가 무의미하다
+    # (실측 CG24: 얇은 라벨 arm 이 '표본 부족'으로 2/5 폴드만 측정돼도 판정 요약에는 안 드러났다).
+    if p.get("window_mismatch"):
+        return "판정불가", f"두 arm 의 채점 창이 다름(Δ 무의미) — {p['window_mismatch'][0]}", dm
+    if p.get("fold_mismatch"):
+        return "판정불가", f"두 arm 의 폴드 수가 다름(Δ 무의미) — {p['fold_mismatch'][0]}", dm
     if n < 3:
         return "판정불가", f"시드 수 부족({n}<3) — SE 과대. {detail}", dm
+    # 기대 시드 수: 항목 커맨드에 `--expect-seeds N` 이 있으면 그 수를 강제한다.
+    # WHY: 시드 하나가 중단으로 빠지면 '3/3 신호있음'이 조용히 성립한다(집계기는 통과시킨다).
+    exp = _arg((item or {}).get("command") or "", "--expect-seeds")
+    if exp.strip().isdigit() and n < int(exp):
+        return "판정불가", f"기대 시드 수 미달({n}<{exp.strip()}) — arm 완주 후 재집계. {detail}", dm
     if dm is None:
         return "판정불가", f"짝 Δ 없음. {detail}", None
     if dm >= thr and float(p.get("pos_frac") or 0) == 1.0:
