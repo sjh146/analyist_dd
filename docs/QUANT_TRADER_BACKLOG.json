@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-01T08:30:00+09:00",
+  "updated_at": "2026-10-01T09:40:00+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -29,7 +29,7 @@
       "cost": "저",
       "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
       "result": {
-        "ts": "2026-09-30T09:25:42+09:00",
+        "ts": "2026-10-01T09:26:13+09:00",
         "value": 0.0,
         "check": "0.0 >= 1.0",
         "verdict": "미달",
@@ -130,7 +130,7 @@
     {
       "id": "T5",
       "title": "건당 기대값 흑자 전환",
-      "status": "failed",
+      "status": "pending",
       "priority": 5,
       "command": "python3 scripts/trader_cycle.py --probe expectancy",
       "metric": "expectancy_krw",
@@ -156,7 +156,7 @@
     {
       "id": "T6",
       "title": "브리지 감독 재기동 churn — 무백오프 90초 재기동",
-      "status": "failed",
+      "status": "pending",
       "priority": 6,
       "command": "python3 scripts/trader_cycle.py --probe bridge_churn",
       "metric": "bridge_restarts_peak_per_hour_24h",
@@ -252,7 +252,7 @@
       "metric": null,
       "check": null,
       "hypothesis": "감독(`tools/supervise_loop.ps1`)은 **벽시계 요일**(Sat/Sun 제외)만 보고, 엔진의 `trader_core/engine.py:market_is_open()` 도 `now.weekday() >= 5` 만 본다 → **KRX 휴장일이면 루프가 '장중'으로 판단**하고 후보를 주문 경로에 태운다.",
-      "evidence": "2026-10-01 은 KRX 휴장일이다(국군의 날 임시공휴일) — 근거 3중: ① `data/krx_holidays.json` 에 `2026-10-01` 포함 ② `reports/cron_data_gap_report.log` 2026-10-01 07:50 \"휴장 기록: 2026-10-01 (KIS no_data)\" ③ market_data 최신 거래일 2026-09-30. 그런데 trader-agent 워크스페이스에 휴장 달력 파일이 **없고**(`find -iname '*holiday*'` = 0건), `profiles.py` 주석도 \"exchange holidays are not modelled\" 로 명시한다. 오늘 실주문 위험은 0이었다 — 브리지가 내려가 있어(`cmd.exe curl /health` rc=7) 감독이 루프를 아예 못 띄웠다. 즉 **운이지 설계가 아니다**(브리지가 살아 있으면 휴장일 09:00 에 루프가 기동한다).",
+      "evidence": "2026-10-01 은 **휴장일이 아니었다(정정 — 거래일)**. KIS 국내휴장일조회 `CTCA0903R` 09:30 실호출: `BASS_DT=20261001` → `bzdy_yn=Y`·`tr_day_yn=Y`·`opnd_yn=Y`(20261003=N) · 실시간 005930 `acml_vol` 1,727,775(09:29)→1,854,805(09:30:45) = 약 2분간 +127,030주 · `data/krx_holidays.json`(26항목)에 10-01 없음. 종전 근거 ①(캘린더에 10-01 포함)은 07:50~08:53 사이에만 존재했고 08:53:23 워킹트리에서 삭제됐다(커밋 없음). 근거 ②(`cron_data_gap_report.log` 07:50 '휴장 기록')는 **data_gap 의 당일 오탐**이다 — 장 개시 전에는 어떤 거래일도 KIS 일봉이 없어 no_data 다 → R24 로 환류. 결함 자체는 유효하다: 감독(`tools/supervise_loop.ps1`)은 벽시계 요일만, 엔진 `trader_core/engine.py:market_is_open()` 도 `now.weekday() >= 5` 만 본다 → **평일 휴장일 2026-10-05(월)·10-09(금) (개천절 대체·한글날)** 에는 루프가 '장중'으로 판단한다(trader-agent 워크스페이스에 휴장 달력 파일 0건, `profiles.py` 주석도 'exchange holidays are not modelled'). 실주문 위험은 오늘도 0이었다 — 브리지가 내려가 있어(`cmd.exe curl /health` rc=7) 감독이 루프를 못 띄웠다. 즉 **운이지 설계가 아니다**.",
       "success": "휴장일에는 `market_is_open()` 이 False 를 돌려주고 감독도 루프를 시작하지 않는다 (krx_holidays.json 연동 + 단위 테스트)",
       "cost": "중(실주문 경로 — 페이퍼 검증 필요)",
       "note": "**승인 필요**(실주문 경로 변경 · 게이트 6: 페이퍼 검증 없는 변경 금지 · live-order-path-safety 스킬 선행). 사용자 승인 시 절차: ① 휴장 목록을 읽는 `is_trading_day()` 추가(하드코딩 대신 analyist_dd `data/krx_holidays.json` 을 동기화해 읽기) ② `market_is_open()`·감독 스크립트가 이를 함께 보게 수정 ③ 페이퍼 모드에서 휴장일 1회 실행해 `market_open=false`·주문 0건 확인 ④ 그 뒤 live 반영 + main 푸시.",
@@ -261,6 +261,24 @@
         "measured_at": "2026-10-01 08:2x"
       },
       "result": null
+    },
+    {
+      "id": "T10",
+      "title": "휴장 캘린더 오탐 — 오늘이 거래일인데 캘린더에 휴장으로 기록됐는가",
+      "status": "backlog",
+      "priority": 10,
+      "command": null,
+      "metric": null,
+      "check": null,
+      "hypothesis": "`scripts/data_gap.py` 는 **당일 장 개시 전** KIS 일봉 부재를 '휴장'으로 판정해 `data/krx_holidays.json` 에 기록한다. 그 파일은 리서처·엔지니어 구동기의 휴장 판단 소스다(`krx_derivatives_collect`·`dq_snapshot`·`model_engineer_cycle.market_hours/_is_holiday`) → 오탐이 남으면 **실제 거래일의 수집·감시·실험 창을 건너뛴다**.",
+      "evidence": "2026-10-01 07:50 `cron_data_gap_report.log` = `휴장 기록: 2026-10-01 (KIS no_data)` → 파일에 기록 → T9 등록 커밋(08:28)이 그 값을 '휴장일' 근거로 인용 → 08:53:23 워킹트리에서 삭제(커밋 없음·작성자 미상). KIS `CTCA0903R` 실측 `opnd_yn=Y` · 실시간 체결 +127,030주(2분) = **거래일**.",
+      "success": "당일 휴장 판정은 **장 마감(15:40 KST) 이후**에만 확정하고, 캘린더 기록 전 KIS `CTCA0903R`(개장일 조회)로 교차확인한다. 감시: 매 틱 `오늘 ∈ 캘린더 휴장` 인데 KIS `opnd_yn=Y` 면 미달로 보고한다.",
+      "cost": "저(KIS 1콜)",
+      "note": "원인 소유 = **리서처**(`scripts/data_gap.py`). 트레이더는 감시 프로브만 제안한다. 리서처 백로그 **R24** 등록.",
+      "provenance": {
+        "source": "trader_cycle 오프사이클 실측 2026-10-01 09:3x",
+        "measured_at": "2026-10-01 09:3x"
+      }
     }
   ]
 }

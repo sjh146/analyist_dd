@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-09-30T21:38:31+09:00",
+  "updated_at": "2026-10-01T09:45:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -737,13 +737,18 @@
           "ts": "2026-09-30T20:12:34+09:00",
           "rc": 0,
           "detail": "R21: 2 <= 2 → 충족"
+        },
+        {
+          "ts": "2026-10-01T02:00:29+09:00",
+          "rc": 0,
+          "detail": "R21: 2 <= 2 → 충족"
         }
       ],
       "result": {
         "detail": "R21: 2 <= 2 → 충족",
         "check_value": 2.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R21_20260930-201230.log"
+        "log": "data/reports/res_cycle/logs/res_R21_20261001-020026.log"
       }
     },
     {
@@ -767,6 +772,31 @@
       "check_note": "판정 수치는 **고유 러너 파일 수**(같은 러너가 여러 크론 경로에서 불려도 1로 센다 — 실측 누락 7개 러너 / 9개 경로). command 는 재고조사(읽기 전용, DB·KIS 호출 0회)이며 실제 보강은 저작 작업이라 틱이 하지 않는다 — 그래서 incremental:true 로 두어 보강 전까지 pending 을 유지하고 매 틱 미달을 보고한다(조용한 공전 금지). 우선순위 7 은 의도적: 점진 수집(R3)·격자 갱신(R12)보다 뒤에 둔다.",
       "cost": "소스 스캔 9파일 (~0.05초, DB·KIS 호출 0회)",
       "success": "크론이 직접 돌리는 DB 쓰기 수집 러너 전부가 (source, claimed, persisted) 3값을 남겨 dq_claim_parse_failure / dq_runner_claim 대조가 그 경로를 덮는다"
+    },
+    {
+      "id": "R24",
+      "title": "[트레이더 환류] data_gap '당일 휴장' 오탐 — 거래일을 휴장 캘린더에 기록 (2026-10-01 실측)",
+      "status": "pending",
+      "priority": 4,
+      "from_trader": "holiday-false-positive",
+      "affects_model": true,
+      "hypothesis": "`scripts/data_gap.py` 의 당일 휴장 판정은 KIS 일봉 부재를 휴장으로 단정한다. 그런데 **장 개시 전에는 어떤 거래일도 KIS 일봉이 없다**(no_data) → 매 거래일 아침 오탐이 가능하고, 그 값이 `data/krx_holidays.json`(리서처·엔지니어 구동기의 휴장 판단 소스)에 기록되면 실제 거래일의 수집·감시·실험 창을 건너뛴다.",
+      "evidence": "2026-10-01(거래일) 07:50 `cron_data_gap_report.log` = `휴장 기록: 2026-10-01 (KIS no_data)` → 캘린더 파일에 10-01 기록(07:50~08:53) → 트레이더 T9 등록 커밋(08:28)이 이 값을 '휴장일' 근거 ①로 인용 → **08:53:23 워킹트리에서 삭제(커밋 없음·작성자 미상)**. 실측 반증: KIS `CTCA0903R` `opnd_yn=Y`(개장일) · 005930 `acml_vol` 1,727,775(09:29)→1,854,805(09:30:45) = +127,030주/2분 · 캘린더 26항목에 10-01 없음.",
+      "method": "KIS 국내휴장일조회(CTCA0903R)로 당일 개장일 여부를 조회해 캘린더 기록과 대조한다.",
+      "command": "python3 -c \"import json,urllib.request as R,datetime as D;e=dict(l.strip().split('=',1) for l in open('/home/jhshi/analyist_dd/.env') if '=' in l and not l.startswith('#'));t=json.load(open('/home/jhshi/analyist_dd/data/kis/token_cache.json'))['access_token'];d=D.date.today().strftime('%Y%m%d');q='BASS_DT='+d+'&CTX_AREA_NK100=&CTX_AREA_FK100=';r=R.urlopen(R.Request(e['KIS_BASE_URL'].rstrip('/')+'/uapi/domestic-stock/v1/quotations/chk-holiday?'+q,headers={'authorization':'Bearer '+t,'appkey':e['KIS_APP_KEY'],'appsecret':e['KIS_APP_SECRET'],'tr_id':'CTCA0903R','custtype':'P','content-type':'application/json'}),timeout=15);print(json.loads(r.read())['output'][0])\"",
+      "check": "cd /home/jhshi/analyist_dd && python3 -c \"import json,urllib.request as R,datetime as D;e=dict(l.strip().split('=',1) for l in open('/home/jhshi/analyist_dd/.env') if '=' in l and not l.startswith('#'));t=json.load(open('/home/jhshi/analyist_dd/data/kis/token_cache.json'))['access_token'];d=D.date.today().strftime('%Y%m%d');q='BASS_DT='+d+'&CTX_AREA_NK100=&CTX_AREA_FK100=';r=R.urlopen(R.Request(e['KIS_BASE_URL'].rstrip('/')+'/uapi/domestic-stock/v1/quotations/chk-holiday?'+q,headers={'authorization':'Bearer '+t,'appkey':e['KIS_APP_KEY'],'appsecret':e['KIS_APP_SECRET'],'tr_id':'CTCA0903R','custtype':'P','content-type':'application/json'}),timeout=15);print(json.loads(r.read())['output'][0])\"",
+      "check_target": {
+        "op": "==",
+        "value": "opnd_yn == 'Y'",
+        "unit": "당일이 거래일인데 캘린더에 휴장으로 기록된 건수 0"
+      },
+      "setup_needed": null,
+      "success": "① 당일 휴장 판정을 **장 마감(15:40 KST) 이후**에만 확정한다 ② 캘린더에 쓰기 전 KIS `CTCA0903R` 로 교차확인한다 ③ 회귀: 캘린더가 거래일을 휴장으로 담으면 실패(감시는 트레이더 T10).",
+      "cost": "저(KIS 1콜, 약 1초)",
+      "proposed_sql": null,
+      "result": null,
+      "attempts": [],
+      "note": "트레이더가 오프사이클 실측(2026-10-01 09:3x)에서 발견해 환류. 원인 소유 = 리서처(`scripts/data_gap.py`). 같은 계열 수리(당일 공실 오판)가 06:11 커밋(`44e737d`)에서 한 번 이뤄졌지만 **휴장 기록 경로는 남아 있다**."
     }
   ]
 }
