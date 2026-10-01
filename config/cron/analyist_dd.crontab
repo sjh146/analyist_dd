@@ -35,3 +35,8 @@ CRON_TZ=Asia/Seoul
 # daily = 이번 달 창 + 유형 B,D,E,I (실측 12초/5콜) · 토요일 = 3개월 창 누락 안전망.
 10 18 * * 1-5 root /home/jhshi/cron/dart_disclosures.sh >> /home/dduckbeagy/analyist_dd/reports/cron_dart_disclosures.log 2>&1
 10 18 * * 6 root /home/jhshi/cron/dart_disclosures.sh --regular >> /home/dduckbeagy/analyist_dd/reports/cron_dart_disclosures_regular.log 2>&1
+
+# --- 2026-10-02 추가 (헌장 §6): swing 경로 표본 축적 프로브 ---
+# close 경로는 3개월 실측으로 종결(기대값 음수), swing 은 표본 부족으로 판정 보류 →
+# 하루 1회 프로브로 청산 표본을 쌓는다(60~70초/회, 읽기 전용).
+20 18 * * 1-5 root /home/jhshi/cron/swing_path_probe.sh >> /home/dduckbeagy/analyist_dd/reports/cron_swing_probe.log 2>&1
