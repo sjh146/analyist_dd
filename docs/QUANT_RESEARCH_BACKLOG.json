@@ -758,6 +758,9 @@
       "priority": 7,
       "kind": "collect",
       "incremental": true,
+      "resumable_rc": [
+        2
+      ],
       "affects_model": false,
       "hypothesis": "자기신고가 없는 수집 경로에서는 '조용한 0행 적재'(2026-09-24 유형: 파서 키 불일치로 +0행을 적재하고도 exit 0 → 진행파일에 '완료')를 DQ 메트릭이 잡을 수 없다. 2시간 틱이 돌리는 수급·피처 빌더 4개만 자기신고를 남기고, 크론이 직접 돌리는 러너 7개는 흔적이 없다.",
       "evidence": "실측 2026-09-29 21:2x: dq_runner_claim 48h = 4개 러너(kis_supply_backfill · kis_supply_extend_history · build_supply_market_features · build_macro_features). scripts/r23_claim_audit.py 실측: 자기신고 참조 0건인 크론 직행 수집 러너 **7개**(9개 경로) — 일봉 KRX(scripts/krx_daily.py) · KIS 일봉/분봉(services/kis-collector/kis_app/main.py) · KRX 지수·파생(scripts/krx_derivatives_collect.py) · KIS 공매도(scripts/kis_short_selling_backfill.py) · KIS 프로그램매매(scripts/kis_program_trading_collect.py) · 거시 ECOS/FRED(scripts/macro_backfill.py) · 데이터 갭 백필(scripts/data_gap.py). | 재확인 2026-09-30 21:1x (scripts/r23_claim_audit.py): 동일하게 누락 **7개 러너(9개 경로)** — 일봉 KRX·KIS 일봉(정규/폴백)·KIS 분봉·KRX 지수·파생·KIS 공매도·KIS 프로그램매매·거시 ECOS/FRED·데이터 갭 백필. 보강 방식은 러너 내부 `dq_claim.record_claim`(권장 — 크론 파일 무수정, 9개 경로 전부 소유 파일) 이며 크론 래퍼(run_with_claim) 방식은 크론 파일 수정이라 사람 승인 항목이다. 다음 사이클에 저작한다.",
@@ -769,9 +772,22 @@
         "value": 0,
         "unit": "미자기신고 수집 러너 수"
       },
-      "check_note": "판정 수치는 **고유 러너 파일 수**(같은 러너가 여러 크론 경로에서 불려도 1로 센다 — 실측 누락 7개 러너 / 9개 경로). command 는 재고조사(읽기 전용, DB·KIS 호출 0회)이며 실제 보강은 저작 작업이라 틱이 하지 않는다 — 그래서 incremental:true 로 두어 보강 전까지 pending 을 유지하고 매 틱 미달을 보고한다(조용한 공전 금지). 우선순위 7 은 의도적: 점진 수집(R3)·격자 갱신(R12)보다 뒤에 둔다.",
+      "check_note": "판정 수치는 **고유 러너 파일 수**(같은 러너가 여러 크론 경로에서 불려도 1로 센다 — 실측 누락 7개 러너 / 9개 경로). command 는 재고조사(읽기 전용, DB·KIS 호출 0회)이며 실제 보강은 저작 작업이라 틱이 하지 않는다 — 그래서 incremental:true 로 두어 보강 전까지 pending 을 유지하고 매 틱 미달을 보고한다(조용한 공전 금지). 우선순위 7 은 의도적: 점진 수집(R3)·격자 갱신(R12)보다 뒤에 둔다. `resumable_rc:[2]` 는 감사 스크립트의 '결함 발견' 종료코드(0=통과) 선언이다 — 2026-10-01 16:00 실측: 선언이 없으면 rc=2 가 `failed` 로 적혀 `incremental:true` 의도와 달리 큐에서 이탈했다(`status_after` 는 rc==0 일 때만 incremental 을 pending 으로 본다).",
       "cost": "소스 스캔 9파일 (~0.05초, DB·KIS 호출 0회)",
-      "success": "크론이 직접 돌리는 DB 쓰기 수집 러너 전부가 (source, claimed, persisted) 3값을 남겨 dq_claim_parse_failure / dq_runner_claim 대조가 그 경로를 덮는다"
+      "success": "크론이 직접 돌리는 DB 쓰기 수집 러너 전부가 (source, claimed, persisted) 3값을 남겨 dq_claim_parse_failure / dq_runner_claim 대조가 그 경로를 덮는다",
+      "attempts": [
+        {
+          "ts": "2026-10-01T16:00:52+09:00",
+          "rc": 2,
+          "detail": "R23: 7 <= 0 → 미달"
+        }
+      ],
+      "result": {
+        "detail": "R23: 7 <= 0 → 미달",
+        "check_value": 7.0,
+        "rc": 2,
+        "log": "data/reports/res_cycle/logs/res_R23_20261001-160052.log"
+      }
     },
     {
       "id": "R24",
