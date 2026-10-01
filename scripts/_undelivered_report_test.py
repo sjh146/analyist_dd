@@ -7,14 +7,20 @@
 원장 플래그만 믿으면 결과가 영구 소실된다 → 다음 틱이 executions.db 로 전달 결과를 확인해
 그 실행이 소비한 기록을 미보고로 되돌려야 한다.
 
-검증 항목(시나리오 6종):
+검증 항목(시나리오 12종):
   1) 전달 성공(delivered)  → 플래그 유지
   2) 전달 실패(failed)     → 플래그 되돌림 + 경고 메시지
   3) 결과 미확정(unknown)  → 플래그 되돌림
-  4) reported_at 없는 옛 기록 → 건드리지 않는다(감지 대상 아님)
+  4) reported_at 없는 옛 기록 → 손대지 않는다(창 밖)
   5) executions.db 없음    → NOTE 만, 플래그 유지(중복 보고 방지)
   6) 실행 진행 중(outcome None, status running) → 판정 보류, 플래그 유지
   7) 창 밖(reported_at 이 실패 실행보다 3시간 뒤) → 건드리지 않는다
+  8) 여러 건 혼합: 실패 실행이 소비한 것만 되돌린다
+  9) [2026-10-01 실측 추가] status='failed'·outcome=NULL('Interrupted by shutdown') → 되돌림
+     종전 감지기는 outcome 만 봐서 이 형태(=호스트/세션 종료로 중단)를 통째로 건너뛰었다.
+  10) status='failed'·outcome='delivered' → 되돌리지 않는다(전달된 결과 보호)
+  11) reported_at 없음 + ts 가 창 안 → ts 로 대체 판정해 되돌림(수동 표시 경로 구제)
+  12) 되돌림 대상이라도 실행이 lookback(6h)보다 오래됐으면 손대지 않는다(옛 상태 재보고 방지)
 
 사용: python3 scripts/_undelivered_report_test.py
 """
@@ -66,11 +72,14 @@ def rec(rid, reported_at, reported=True):
             "reported": reported, **({"reported_at": reported_at} if reported_at else {})}
 
 
-def run(m, tmp, rows, ledger_rows):
+def run(m, tmp, rows, ledger_rows, lookback=10 ** 6, ts=None):
     led, db = make_env(tmp, rows, ledger_rows)
     m.LEDGER = led
     m.HERMES_EXEC_DB = db
     m.cron_job_id = lambda: "testjob"
+    m.UNDELIVERED_LOOKBACK_HOURS = lookback
+    if ts:
+        m.now_kst = ts
     msgs = m.check_undelivered_reports()
     out = [json.loads(l) for l in open(led, encoding="utf-8") if l.strip()]
     return msgs, out
@@ -110,10 +119,10 @@ def main():
                         [rec("CG38", "2026-09-30T05:00:05+09:00")])
         check("3) unknown → 되돌림(CG38 소실 방지)", bool(msgs) and out[0]["reported"] is False)
 
-    # 4) reported_at 없는 옛 기록
+    # 4) reported_at 없는 옛 기록(ts 도 창 밖) → 손대지 않음
     with tempfile.TemporaryDirectory() as tmp:
         msgs, out = run(m, tmp, [("testjob", BASE, "failed", "failed")], [rec("OLD", None)])
-        check("4) reported_at 없음 → 손대지 않음", not msgs and out[0]["reported"] is True)
+        check("4) reported_at 없음 + ts 창 밖 → 손대지 않음", not msgs and out[0]["reported"] is True)
 
     # 5) DB 없음 → NOTE, 플래그 유지
     with tempfile.TemporaryDirectory() as tmp:
@@ -143,6 +152,43 @@ def main():
         by = {r["id"]: r for r in out}
         check("8) 배치 중 실패분만 되돌림", by["A"]["reported"] is False
               and by["B"]["reported"] is False and by["C"]["reported"] is True)
+
+    # 9) 실제 사고 형태: status='failed'·outcome=NULL ('Interrupted by shutdown before terminal completion')
+    #    실측 2026-10-01 18:00·19:00 틱. 종전 코드는 outcome 만 봐서 이 형태를 통째로 건너뛰었다.
+    with tempfile.TemporaryDirectory() as tmp:
+        msgs, out = run(m, tmp, [("testjob", BASE, "failed", None)],
+                        [rec("CG56", "2026-09-30T05:00:10+09:00")])
+        check("9) status=failed·outcome NULL(중단) → 되돌림", bool(msgs) and out[0]["reported"] is False,
+              f"msgs={msgs} reported={out[0]['reported']}")
+
+    # 10) status='failed' 라도 전달은 됐다면 보호한다(중복 보고 방지)
+    with tempfile.TemporaryDirectory() as tmp:
+        msgs, out = run(m, tmp, [("testjob", BASE, "failed", "delivered")],
+                        [rec("CG56", "2026-09-30T05:00:10+09:00")])
+        check("10) failed+delivered → 유지", not msgs and out[0]["reported"] is True)
+
+    # 11) reported_at 이 없어도 ts 가 창 안이면 구제한다(세션이 플래그만 수동으로 켠 경로)
+    with tempfile.TemporaryDirectory() as tmp:
+        r = rec("MANUAL", None)
+        r["ts"] = "2026-09-30T05:00:20+09:00"
+        msgs, out = run(m, tmp, [("testjob", BASE, "failed", None)], [r])
+        check("11) reported_at 없음 + ts 창 안 → 되돌림", bool(msgs) and out[0]["reported"] is False,
+              f"msgs={msgs} reported={out[0]['reported']}")
+
+    # 12) 되돌림 대상이라도 실행이 lookback 보다 오래됐으면 손대지 않는다(옛 상태 재보고 방지)
+    with tempfile.TemporaryDirectory() as tmp:
+        late = lambda: datetime(2026, 10, 1, 5, 0, 0, tzinfo=KST)     # 24시간 뒤
+        msgs, out = run(m, tmp, [("testjob", BASE, "failed", None)],
+                        [rec("CG56", "2026-09-30T05:00:10+09:00")], lookback=6, ts=late)
+        check("12) lookback(6h) 초과 실행 → 유지", not msgs and out[0]["reported"] is True,
+              f"msgs={msgs}")
+
+    # 12b) 같은 조건에서 now 가 5시간 뒤면 lookback 안 → 되돌림
+    with tempfile.TemporaryDirectory() as tmp:
+        near = lambda: datetime(2026, 9, 30, 10, 0, 0, tzinfo=KST)
+        msgs, out = run(m, tmp, [("testjob", BASE, "failed", None)],
+                        [rec("CG56", "2026-09-30T05:00:10+09:00")], lookback=6, ts=near)
+        check("12b) lookback(6h) 안 실행 → 되돌림", bool(msgs) and out[0]["reported"] is False)
 
     print(f"=== {'ALL PASS' if not FAILS else str(len(FAILS)) + ' FAIL'} ===")
     return 1 if FAILS else 0

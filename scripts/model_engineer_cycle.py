@@ -70,6 +70,9 @@ JOBID_FILE = os.path.join(RUNTIME, "cron_job_id.txt")
 DEFAULT_JOB_ID = "d4070d508732"        # quant-model-engineer-overnight
 REPORT_EARLY_SEC = 300                  # 보고 처리 시각과 실행 시작 시각의 허용 선행 오차
 REPORT_WINDOW_SEC = 3600                # 한 실행이 소비한 기록으로 보는 사후 창
+# 미전달 감지의 시간 상한. 이보다 오래된 실패 실행은 되돌리지 않는다 — 밤사이 틱 6회분이라
+# 재보고 기회는 충분하고, 그보다 오래된 실패를 되살리면 이미 지나간 상태의 결과를 다시 뿌리게 된다.
+UNDELIVERED_LOOKBACK_HOURS = 6
 KST = timezone(timedelta(hours=9))
 CONTAINER = "stock_xgboost_ml"
 LOAD_MAX = float(os.environ.get("ME_LOAD_MAX", "3.5"))
@@ -177,21 +180,32 @@ def check_undelivered_reports():
     크론 실행 DB 를 못 읽으면 **아무것도 바꾸지 않고** NOTE 만 남긴다(잘못 되돌리면 중복 보고).
     """
     led = load_ledger()
-    cand = [r for r in led if r.get("reported") and r.get("reported_at")]
+    # reported_at 이 없으면 ts 로 대체한다 — 세션이 원장 플래그만 수동으로 켠 기록도 감지 대상에 넣기
+    # 위해서다(실측 2026-10-01 19:07 CG56: reported=True·reported_at=None 으로 남아 감지기 사각지대).
+    cand = [r for r in led if r.get("reported") and (r.get("reported_at") or r.get("ts"))]
     if not cand:
         return []
     try:
         hist = _exec_history(cron_job_id())
     except Exception as e:      # sqlite3 부재·DB 이동·스키마 변경 — 본업을 막지 않는다
         return [f"NOTE: 미전달 감지 불가({type(e).__name__}: {e}) — 원장 플래그는 유지"]
+    floor = now_kst() - timedelta(hours=UNDELIVERED_LOOKBACK_HOURS)
     bad, changed = [], False
-    for started, _status, outcome in hist:
+    for started, status, outcome in hist:
         st = _parse_ts(started)
-        if st is None or outcome not in ("failed", "unknown"):
+        if st is None or st < floor:
+            continue
+        # 미전달 판정에 **status 축**을 추가한다. 종전엔 delivery_outcome in (failed, unknown) 만
+        # 봤는데, 호스트/세션 종료로 중단된 실행은 delivery_outcome=NULL 이다(실측 2026-10-01:
+        # 18:00·19:00 틱이 'Interrupted by shutdown', status=failed·outcome=NULL → 감지기가 못 잡아
+        # CG56 결과가 조용히 소실될 참이었다). 진행 중(running)은 종전대로 보류한다.
+        undelivered = (outcome in ("failed", "unknown")
+                       or (status in ("failed", "unknown") and outcome != "delivered"))
+        if not undelivered:
             continue
         hit = []
         for r in cand:
-            rt = _parse_ts(r.get("reported_at"))
+            rt = _parse_ts(r.get("reported_at") or r.get("ts"))
             if rt is None:
                 continue
             dt = (rt - st).total_seconds()
@@ -203,7 +217,7 @@ def check_undelivered_reports():
             r["reported"] = False
             r.pop("reported_at", None)
         changed = True
-        bad.append(f"{str(started)[:16]} 실행({outcome}) 이 소비한 기록: "
+        bad.append(f"{str(started)[:16]} 실행({outcome or status}) 이 소비한 기록: "
                    + ", ".join(r.get("id", "?") for r in hit))
     if changed:
         _rewrite_ledger(led)
