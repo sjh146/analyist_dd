@@ -1524,3 +1524,25 @@ T6 '코드 작성·푸시' 승인(09-30 18:16 `bd086a3` 로 이미 커밋·푸�
 - **사람 단계**: ③ **Creon PLUS 재로그인**(`ncstarter.log` 최종 `사인온 성공` = **10-01 16:22**, 이후 신규 0건 · DibServer 중복 확인 후 1회)
   → ② 승인 ⓐ close 처분(R1 88.0 + HEAT 이중 상한) ⓑ T8 지정가 산식 ⓒ T1 수수료 기록 ⓓ T6 임계 재정의 ⓔ R26 상한가 제외
   → ① 진행 중: 피드 계약 감시·환류(본 틱, MT116).
+
+### 트레이더 (2026-10-02 11:2x 장중 틱 — 🔧 실행 경로 복구(사람 로그인 11:19) · 진입은 여전히 0 예상, 실측)
+
+- **🔧 신규(본 틱) — 주문 경로 복구**: `ncstarter.log` **`사인온 성공` = 10-02 11:19**(EUC-KR 실측, 60줄 · 이전 10-01 16:22)
+  → `bridge_sup.log` 11:18:45 "Creon updater running → bridge stays down" → 11:19:47 "Creon up and not updating - starting bridge pid 12612"
+  → 11:20:19 "bridge connected and answering broker queries" · `loop_sup.log` **11:20:20 started loop pid 10104** → 11:21:20 "loop running".
+  브리지 `/health` **`connected:true`** · `/balance` 계좌 **783247576** · equity/cash **526,243원** · 보유 0 · `/orders`·`/positions` 빈 목록.
+  → 09:3x 틱의 "오늘 주문 경로 전면 차단" **해소**(감독 자동 기동, 수동 브리지 기동 불필요). ③ 사람 단계(Creon 로그인) **완료**.
+- **실행 경로(11:25 실측)**: halt=False · 실패카운트 0 · phase=`monitor`(갱신 5.0분) · **브리지 True** · 루프 명령 `--loop --live --yes --feed 8090/screener_latest.json`.
+  피드 서버(8090) http **200** · 뉴스게이트(8082) http **400**(=응답함, fail-closed 아님) → **경로 이상 없음**.
+- **진입은 여전히 0 예상(3거래일 연속 무진입)**: close top10(점수순) 평균 **87.760 < 88.0**(R1) **동시에** 평균 `day_change_pct`
+  **+15.279% > +15.0%**(HEAT 상한) → runner.config `r1_min_avg_score.close=88.0` · `r1_max_avg_pct=15.0` 실측 대조. swing 후보 **0건**(MT116).
+  마지막 진입 09-29 15:03 · 자본 526,243원 **전액 현금** → **자금 회전 정지**.
+- **피드 계약**: 위반 **0건**(파일 1개 · 최대 경과 0.03일) · `generated_at` 10-02T08:40:04+09:00 · close 20건 `close_price` 누락 0 · 6자리 코드·중복 0 ·
+  close `valid_until`=10-02T15:30(오늘 창 커버) · 단 `signal_date` **09-30**(2일 전, T8 미해결).
+- **북극성**: 실현 **-1,446원** · 청산 3건 · 승률 **33.3%** · 기대값 **-482원/건** · 보유 0 · 수수료 **0원**(T1) — 변화 없음.
+  스크리너별: close 3건 -1,446원 · swing 0건(`data/reports/trader_fill_stats.json` 10-01 16:40).
+- **백로그 프로브**: T5 **미달**(-482 > 0) · T1 failed · T2 done · T6/T7 pending. **핸드오프** 총 19 · 미채택 **16**(24h 초과: MT70 70.0h, MT116 2.0h).
+  **계약2**: 폴드 통계·purge·승격 dry-run 확인 · **champion AUC None** 유지(미비).
+- **사람 단계**: ③ Creon 로그인 = **완료**(11:19) → ② 승인 ⓐ close 처분(R1 88.0 + HEAT +15% 이중 상한, 3일 연속 무진입)
+  ⓑ T8 지정가 산식 ⓒ T1 수수료 기록 ⓓ T6 임계 재정의 ⓔ R26 상한가 제외 → ① 진행 중: 피드 감시·환류(본 틱 신설 없음).
+  **다음 검증**: 13:25 틱(monitor 유지 예상) · 15:25 틱(진입 0 확정 = 3거래일 연속).
