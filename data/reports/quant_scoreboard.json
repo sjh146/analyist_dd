@@ -1,5 +1,5 @@
 {
-  "ts": "2026-10-01T22:40:26+09:00",
+  "ts": "2026-10-02T22:41:12+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
@@ -12,16 +12,17 @@
     "expectancy_krw": -482,
     "avg_return_pct": -1.52,
     "open_positions": 0,
-    "days_since_entry": 2.3,
+    "days_since_entry": 3.3,
     "alerts": [
-      "순손익 마이너스 -1,446원 — 기대값 -482원/건"
+      "순손익 마이너스 -1,446원 — 기대값 -482원/건",
+      "신규 진입 3.3일 없음 (보유 0종목) — 돈이 도는 회전이 멈춤"
     ],
     "error": null
   },
   "engineer": {
     "role": "engineer",
     "north": "로버스트 AUC (다중폴드 평균)",
-    "champion_single": 0.554776,
+    "champion_single": 0.551318,
     "best_robust": 0.5727,
     "best_robust_std": 0.076,
     "best_exp": "Q5s_30_60",
@@ -32,24 +33,24 @@
     "baseline": 0.5406,
     "baseline_name": "LS_quant_q30_h5 (h5·분위0.3·top30)",
     "delta": 0.0321,
-    "last_verdict": "짝 노이즈",
-    "no_improve_cycles": 45,
-    "no_improve_streak": 10,
+    "last_verdict": "게이트 통과(승격후보 생성) — 단 OOS 짝 실측은 회귀",
+    "no_improve_cycles": 47,
+    "no_improve_streak": 12,
     "last_improve": {
       "ts": "2026-09-29T03:27:41+09:00",
       "id": "CG24"
     },
     "source": "/home/jhshi/analyist_dd/data/reports/model_engineer_ledger.jsonl + /app/app/models/champion/auc.txt",
     "alerts": [
-      "로버스트 AUC 가 10사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
+      "로버스트 AUC 가 12사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
     ],
-    "measured_cycles": 48,
-    "invalid_cycles": 28
+    "measured_cycles": 50,
+    "invalid_cycles": 35
   },
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20261001-220039.json",
+    "sample": "dq_20261002-220007.json",
     "status": "ok",
     "warns": [],
     "breaches": [],
@@ -57,13 +58,14 @@
     "alive_xsec_features": 138.0,
     "dead_features": 35.0,
     "stock_constant_ratio": 0.3353658536585366,
-    "news_freshness_hours": 0.44814477,
-    "rows_delivered": 2471386.0,
+    "news_freshness_hours": 0.00020840194444444443,
+    "rows_delivered": 2475110.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
     "alerts": []
   },
   "needs_human": [
     "[trader] 순손익 마이너스 -1,446원 — 기대값 -482원/건",
-    "[engineer] 로버스트 AUC 가 10사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
+    "[trader] 신규 진입 3.3일 없음 (보유 0종목) — 돈이 도는 회전이 멈춤",
+    "[engineer] 로버스트 AUC 가 12사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
   ]
 }
