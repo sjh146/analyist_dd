@@ -1,0 +1,71 @@
+{
+ "ts": "2026-10-02T12:07:01",
+ "mode": "measure",
+ "issues": [
+  {
+   "check": "live_score_path_closed",
+   "detail": "스윙 배치 raw_fallback (up=0/20, max=None) — 0.55 초과 신호 0건이면 소비자가 배치를 거부한다. 재현: scripts/_swing_ensemble_weight_probe.py"
+  },
+  {
+   "check": "submodel_auc_spread",
+   "detail": "서브모델 AUC 격차 0.0307 > 0.02 — 배포는 균등평균(val_weights 미복원), 검증값은 가중평균이라 라이브 스코어가 검증값과 다르다 {'xgboost': 0.5492, 'lightgbm': 0.5448, 'catboost': 0.5185}"
+  }
+ ],
+ "info": {
+  "champion": {
+   "dir": "/home/jhshi/analyist_dd/services/xgboost-ml/app/models/champion",
+   "auc": 0.551318,
+   "robust": {
+    "robust_auc": 0.5513,
+    "metric": "ensemble_auc",
+    "auc_std": null,
+    "protocol": "ensemble_auc on candidate val split (n_rows=12629)",
+    "model_aucs": {
+     "xgboost": 0.5492,
+     "lightgbm": 0.5448,
+     "catboost": 0.5185
+    },
+    "recorded_at": "2026-10-02T02:44:20",
+    "replaced_baseline": 0.5548,
+    "replaced_source": "robust_auc.json"
+   },
+   "n_features": 173,
+   "backups": [
+    "champion_prev_20260924-224249",
+    "champion_prev_20261001-122646",
+    "champion_prev_20261002-024420"
+   ]
+  },
+  "live_scores": {
+   "close": {
+    "n": 20,
+    "max": 90.0,
+    "median": 85.9,
+    "score_kind": [
+     "screener"
+    ],
+    "generated_at": "2026-10-02T08:40:04+09:00",
+    "batch_type": null
+   },
+   "swing": {
+    "n": 0,
+    "max": null,
+    "median": null,
+    "score_kind": [],
+    "generated_at": "2026-10-02T08:40:04+09:00",
+    "artifact": "swing_candidates_20261002_083004.csv",
+    "batch_type": "raw_fallback",
+    "up": 0,
+    "total": 20,
+    "auc": "0.554776"
+   }
+  },
+  "prev_aucs": {
+   "champion_prev_20261002-024420": 0.5548,
+   "champion_prev_20261001-122646": 0.5513
+  },
+  "submodel_auc_spread": 0.0307,
+  "universe_determinism": "미검증 — 컨테이너에서 docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_universe_determinism_test.py"
+ },
+ "status": "issues"
+}

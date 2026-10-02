@@ -148,8 +148,8 @@ v1 의 5개 중 실제로 필요했던 것은 3개였고, 나머지는 **우리 
 
 | 단계 | 내용 | 산출물 | 예상 |
 |---|---|---|---|
-| P0 | 스킬 재편(개명 3·통합 1·삭제 1·신규 1) | `~/.hermes/skills/quant/*` 5개 | 40분 |
-| P1 | 게이트 스크립트 4개: `audit_protocol_lock.py` · `audit_path_daily.py` · `audit_measure.py` · `audit_safety.py` (+ 회귀 테스트) | `scripts/audit_*.py` | 반나절 |
+| P0 | **완료** — 스킬 재편(개명 3·통합 1·삭제 1·신규 1): `quant-council` · `quant-protocol-lock` · `quant-auditor` · `quant-safety` · `quant-release` | `~/.hermes/skills/quant/*` 5개 | 완료 |
+| P1 | **완료** — 게이트 스크립트 4개 + 스모크 테스트(`ALL PASS`): `audit_protocol_lock` · `audit_path_daily` · `audit_measure` · `audit_safety` | `scripts/audit_*.py` · `scripts/_audit_smoke_test.py` | 완료 |
 | P2 | 릴리스 도구: `tools/release_precheck.py` · `tools/release_champion.sh`(동결→백업→dry-run→적용→검증→롤백) | `tools/release_*` | 2시간 |
 | P3 | 크론 배선(승인): 평일 08:25·14:45·15:50·15:55 (4틱, 모두 읽기 전용) | Hermes 크론 | 30분 |
 | P4 | 첫 전략회의(금 16:00) — 안건: MT116 회고·게이트 0.02·swing 복구 확인 | `docs/council/2026-10-02.md` | 1시간 |

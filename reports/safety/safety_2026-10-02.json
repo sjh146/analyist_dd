@@ -1,0 +1,34 @@
+{
+ "ts": "2026-10-02T12:07:02",
+ "mode": "safety",
+ "alerts": [
+  {
+   "check": "fees_unbooked",
+   "detail": "청산 3건인데 fees 합=0 — 수수료 백필(tools/backfill_fees.py) 미실행"
+  }
+ ],
+ "human_steps": [],
+ "info": {
+  "bridge_health": {
+   "ok": true,
+   "connected": true,
+   "ts": 1790910422.5517092
+  },
+  "balance_ok": true,
+  "positions": 0,
+  "orders": 0,
+  "processes": {
+   "bridge": 1,
+   "loop": 1
+  },
+  "limits": {},
+  "kill_switch_file": false,
+  "journal": {
+   "n": 3,
+   "open": 0,
+   "fees_sum": 0.0,
+   "pnl_sum": -1446.001700000002
+  }
+ },
+ "status": "alerts"
+}
