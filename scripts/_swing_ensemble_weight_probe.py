@@ -34,6 +34,11 @@ MODEL_DIRS = [
     ("champion_prev_20261001-122646(직전 배포)", "/app/app/models/champion_prev_20261001-122646"),
     ("cand_cg51(배포가능 후보)", "/app/app/models/cand_cg51"),
 ]
+# 릴리스 사전검사(tools/release_precheck.py --with-probe)가 후보/챔피언 쌍을 넘길 때 사용:
+#   PROBE_MODEL_DIRS='[["candidate","/app/app/models/champion_cand"],["champion","/app/app/models/champion"]]'
+_env_dirs = os.environ.get("PROBE_MODEL_DIRS")
+if _env_dirs:
+    MODEL_DIRS = [(str(a), str(b)) for a, b in json.loads(_env_dirs)]
 
 
 def weights_from(dirpath, names):
@@ -75,6 +80,7 @@ def main():
     pipeline.compute_cross_sectional_ranks(feats)
     codes = list(feats.keys())
     print(f"[build] 피처 {len(codes)} 종목 완료 {time.time() - t0:.0f}s", flush=True)
+    summary = {}
 
     for label, d in MODEL_DIRS:
         print(f"\n=== {label}  [{d}]", flush=True)
@@ -98,6 +104,8 @@ def main():
 
         deployed = np.asarray(ens.predict(X), dtype=float).ravel()   # 균등 평균 (배포 경로)
         print(stats(deployed, "DEPLOYED(균등평균)"), flush=True)
+        summary[label] = {"n": int(len(deployed)), "deployed_max": float(deployed.max()),
+                          "deployed_gt_conf": int((deployed > CONF_TS).sum())}
         if wts and len(probs) == len(wts):
             num = sum(probs[n] * w for n, w in wts.items())
             den = sum(wts.values())
@@ -112,6 +120,7 @@ def main():
             r = np.corrcoef(deployed, weighted)[0, 1]
             print(f"    상관(순위 유사도)={r:.4f}", flush=True)
     pg.close()
+    print("PROBE_SUMMARY " + json.dumps(summary, ensure_ascii=False), flush=True)
     print(f"\n[done] {time.time() - t0:.0f}s", flush=True)
 
 

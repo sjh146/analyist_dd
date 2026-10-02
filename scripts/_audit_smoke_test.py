@@ -33,6 +33,17 @@ def check(name, cond, note=""):
 
 
 def main():
+    # P2 릴리스 도구: 구문 검사 + 사전검사 실행(판정은 PASS/BLOCK 둘 다 허용)
+    print("[tools/release_champion.sh]")
+    r = subprocess.run(["bash", "-n", os.path.join(REPO, "tools/release_champion.sh")],
+                       capture_output=True, text=True, timeout=60)
+    check("구문", r.returncode == 0, r.stderr.strip()[:80])
+    print("[tools/release_precheck.py]")
+    r = subprocess.run([sys.executable, os.path.join(REPO, "tools/release_precheck.py"),
+                        "--target", "champion"], capture_output=True, text=True, timeout=420, cwd=REPO)
+    check("종료코드(0 PASS/2 BLOCK)", r.returncode in (0, 2), f"rc={r.returncode}")
+    check("산출 JSON", bool(glob.glob(os.path.join(REPO, "reports/releases/precheck_*.json"))))
+
     for script, pat, keys in CASES:
         print(f"[{os.path.basename(script)}]")
         r = subprocess.run([sys.executable, os.path.join(REPO, script)],
