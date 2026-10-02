@@ -1,0 +1,123 @@
+{
+ "created": "2026-10-02T22:08:43.413790+09:00",
+ "item": "CG9b (CG9 challenger production-gate verdict)",
+ "gate_dry_run": {
+  "auc": 0.6173,
+  "candidate_metric": "ensemble_auc",
+  "promoted": false,
+  "status": "would_promote",
+  "reason": "dry-run: incumbent left untouched",
+  "champion_auc_before": 0.5513,
+  "champion_baseline": 0.5513,
+  "champion_baseline_source": "robust_auc.json",
+  "champion_auc_after": null,
+  "model_aucs": {
+   "xgboost": 0.6153,
+   "lightgbm": 0.6319,
+   "catboost": 0.6005
+  },
+  "n_rows": 12072,
+  "n_features": 199,
+  "up_rate": 0.4907,
+  "retrained_at": "2026-10-02T12:41:25",
+  "decided_at": "2026-10-02T13:01:51"
+ },
+ "oos_paired": {
+  "arm": {
+   "dir": "app/models/challenger_cg9",
+   "recipe": "rel_smooth h5 + depth1 lr0.05",
+   "n_features": 199,
+   "train": "2026-07-03~2026-10-01",
+   "robust_auc": 0.4624,
+   "std": 0.03,
+   "folds": [
+    [
+     [
+      "2025-12-01",
+      "2026-01-21"
+     ],
+     0.4399
+    ],
+    [
+     [
+      "2026-01-29",
+      "2026-03-24"
+     ],
+     0.5047
+    ],
+    [
+     [
+      "2026-04-01",
+      "2026-05-21"
+     ],
+     0.4425
+    ]
+   ]
+  },
+  "control": {
+   "dir": "app/models/champion_cand",
+   "recipe": "h1_direction + default HP",
+   "n_features": 199,
+   "train": "2026-07-04~2026-10-02",
+   "robust_auc": 0.5091,
+   "std": 0.0159,
+   "folds": [
+    [
+     [
+      "2025-12-01",
+      "2026-01-21"
+     ],
+     0.4866
+    ],
+    [
+     [
+      "2026-01-29",
+      "2026-03-24"
+     ],
+     0.5194
+    ],
+    [
+     [
+      "2026-04-01",
+      "2026-05-21"
+     ],
+     0.5213
+    ]
+   ]
+  },
+  "protocol": "3-fold 연속 시간창, h=5 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=5거래일",
+  "rows_scored": 2155,
+  "dates_scored": 30,
+  "windows_excluded": [
+   [
+    "2026-06-01",
+    "2026-07-28"
+   ],
+   [
+    "2026-07-29",
+    "2026-09-23"
+   ]
+  ],
+  "fold_deltas": [
+   -0.0467,
+   -0.0147,
+   -0.0788
+  ],
+  "mean_delta": -0.0467,
+  "fold_wins": 0,
+  "n_folds": 3,
+  "note": "두 모델의 학습구간(2026-07~10) 이전 창만 남긴 순수 OOS · 같은 런·같은 행·같은 프로토콜"
+ },
+ "live_score_probe": {
+  "tool": "scripts/_swing_ensemble_weight_probe.py (read-only, 178s, KOSDAQ 300종목)",
+  "candidate_gt_0.55": 128,
+  "champion_gt_0.55": 12,
+  "n": 300,
+  "candidate_deployed_max": 0.6426,
+  "champion_deployed_max": 0.6406,
+  "candidate_deployed_median": 0.5447,
+  "champion_deployed_median": 0.4243,
+  "note": "후보 스코어 분포가 위로 이동 → 소비자 R1 문턱(0.55) 무력화 방향. MT116(신호 0건)과 다른 실패 모드."
+ },
+ "decision": "PROMOTION NOT EXECUTED — gate would_promote is contradicted by same-run OOS paired Δ -0.0467 (0/3 folds); champion final promotion is human-required."
+}
