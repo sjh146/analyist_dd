@@ -58,11 +58,13 @@ fi
 
 echo
 echo "=== 4. 에이전트 보고서 ==="
-find . -maxdepth 3 -name "agent_*.md" -newer .git/HEAD -print 2>/dev/null | while read -r r; do
+FOUND=0
+for r in $(find . -maxdepth 3 -name "agent_*.md" 2>/dev/null); do
+  FOUND=1
   printf "  %s (%s bytes)\n" "$r" "$(wc -c < "$r")"
-  sed -n '1,12p' "$r" | sed 's/^/    /'
+  sed -n '1,10p' "$r" | sed 's/^/    /'
 done
-[ -z "$(find . -maxdepth 3 -name 'agent_*.md' 2>/dev/null)" ] && { echo "★ 보고서(agent_*.md) 없음"; FAIL=1; }
+[ "$FOUND" -eq 0 ] && { echo "★ 보고서(agent_*.md) 없음"; FAIL=1; }
 
 echo
 if [ "$FAIL" -eq 0 ]; then echo "VERDICT: PASS(병합 검토 가능)"; else echo "VERDICT: FAIL(병합 보류)"; fi
