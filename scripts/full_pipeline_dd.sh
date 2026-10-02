@@ -348,6 +348,9 @@ else
         --legacy-baseline-cap 0.53 --max-std 0.05 \
         --summary-out app/reports/ml_result.json >> "$LOG_FILE" 2>&1 < /dev/null
 fi
+# MT117(트레이더 환류): 챔피언 교체/롤백을 릴리스 로그에 남긴다 — 실패해도 파이프라인은 계속한다.
+# (2026-10-02 롤백이 어디에도 기록되지 않아 트레이더가 디렉터리 mtime 으로 역추적해야 했다.)
+python3 scripts/log_champion_swap.py >> "$LOG_FILE" 2>&1 || true
 AUC=$(docker exec stock_xgboost_ml sh -c "cat /app/$CHAMP_DIR/auc.txt" 2>/dev/null | tr -d '\n ')
 echo "Best AUC: ${AUC:-N/A} (live champion)"
 docker cp stock_xgboost_ml:/app/app/reports/ml_result.json ./reports/ml_result.json 2>/dev/null

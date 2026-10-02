@@ -1,0 +1,1 @@
+{"ts": "2026-10-02T15:25:44+09:00", "champion_auc": "0.551318", "prev_dir": "champion_prev_20261002-024420", "prev_auc": "0.554776", "robust": {"robust_auc": 0.5513, "recorded_at": "2026-10-02T02:44:20", "replaced_baseline": 0.5548, "replaced_source": "robust_auc.json"}, "model_aucs": {"xgboost": 0.5492, "lightgbm": 0.5448, "catboost": 0.5185}, "n_features": 173}

@@ -1,5 +1,5 @@
 {
- "ts": "2026-10-02T12:07:01",
+ "ts": "2026-10-02T14:58:15",
  "mode": "measure",
  "issues": [
   {
@@ -40,11 +40,11 @@
    "close": {
     "n": 20,
     "max": 90.0,
-    "median": 85.9,
+    "median": 88.0,
     "score_kind": [
      "screener"
     ],
-    "generated_at": "2026-10-02T08:40:04+09:00",
+    "generated_at": "2026-10-02T14:40:11+09:00",
     "batch_type": null
    },
    "swing": {
@@ -52,7 +52,7 @@
     "max": null,
     "median": null,
     "score_kind": [],
-    "generated_at": "2026-10-02T08:40:04+09:00",
+    "generated_at": "2026-10-02T14:40:11+09:00",
     "artifact": "swing_candidates_20261002_083004.csv",
     "batch_type": "raw_fallback",
     "up": 0,

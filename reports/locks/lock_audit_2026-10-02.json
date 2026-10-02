@@ -1,5 +1,5 @@
 {
- "ts": "2026-10-02T12:07:01",
+ "ts": "2026-10-02T14:58:15",
  "mode": "protocol_lock",
  "violations": [
   {
@@ -21,30 +21,18 @@
    "detail": "누락 필드: ['counterfactual', 'success', 'est_minutes']"
   },
   {
-   "check": "lock_fields_missing",
-   "backlog": "docs/QUANT_TRADER_BACKLOG.json",
-   "id": "T6",
-   "detail": "누락 필드: ['counterfactual', 'est_minutes']"
-  },
-  {
-   "check": "lock_fields_missing",
-   "backlog": "docs/QUANT_TRADER_BACKLOG.json",
-   "id": "T8",
-   "detail": "누락 필드: ['counterfactual', 'est_minutes']"
-  },
-  {
    "check": "handoffs_unconsumed",
-   "detail": "핸드오프 미소비 16/19 (기준 2026-10-02T11:25:21+09:00) — 소비 계획을 역할에 배정해야 한다"
+   "detail": "핸드오프 미소비 16/19 (기준 2026-10-02T13:33:25+09:00) — 소비 계획을 역할에 배정해야 한다"
   }
  ],
  "queue": {
   "handoffs_total": 19,
   "handoffs_unfilled": 16,
-  "ts": "2026-10-02T11:25:21+09:00"
+  "ts": "2026-10-02T13:33:25+09:00"
  },
  "info": {
-  "items_checked": 6,
-  "needs_setup": 16,
+  "items_checked": 4,
+  "needs_setup": 17,
   "pipeline_min_improvement": [
    "0.02"
   ],

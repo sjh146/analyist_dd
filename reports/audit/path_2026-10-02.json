@@ -1,5 +1,5 @@
 {
- "ts": "2026-10-02T12:07:01",
+ "ts": "2026-10-02T14:58:07",
  "mode": "path",
  "issues": [
   {
@@ -19,13 +19,13 @@
    "closed": false
   },
   "last_cycle": {
-   "ts": "2026-10-02T12:05:33.537848+09:00",
+   "ts": "2026-10-02T14:57:45.371297+09:00",
    "phase": "monitor",
    "plans": 0,
    "acted": 0,
    "exits": 0,
    "reasons": [
-    "R1 block close: r1: avg score 87.8 < 88.0",
+    "HEAT block close: heat: avg +17.0% > +15.0%",
     "PRE filter close: 20 -> 0 (stale/blocked 20, window 0, price 0)"
    ],
    "blocked_screeners": 1
@@ -33,20 +33,23 @@
   "bridge_health": {
    "ok": true,
    "connected": true,
-   "ts": 1790910420.9876342
+   "ts": 1790920688.6489906
   },
   "positions": {
-   "ok": true,
-   "positions": [],
-   "ts": 1790910421.5539968
+   "ok": false,
+   "error": {
+    "code": "request_failed",
+    "message": "BlockRequest returned 4: ",
+    "action": "wait_for_request_slot_and_retry"
+   }
   },
   "orders_n": 0,
   "feed": {
    "service": "analyist-dd-feed",
    "file": "/home/jhshi/analyist_dd/data/feed/screener_latest.json",
    "exists": true,
-   "generated_at": "2026-10-02T08:40:04+09:00",
-   "age_seconds": 12418.2,
+   "generated_at": "2026-10-02T14:40:11+09:00",
+   "age_seconds": 1084.1,
    "items": {
     "close": 20,
     "swing": 0

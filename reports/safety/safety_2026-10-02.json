@@ -1,5 +1,5 @@
 {
- "ts": "2026-10-02T12:07:02",
+ "ts": "2026-10-02T14:58:05",
  "mode": "safety",
  "alerts": [
   {
@@ -12,7 +12,7 @@
   "bridge_health": {
    "ok": true,
    "connected": true,
-   "ts": 1790910422.5517092
+   "ts": 1790920685.6829255
   },
   "balance_ok": true,
   "positions": 0,
