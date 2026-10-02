@@ -109,12 +109,24 @@ def main():
         if k in cfg and abs(float(cfg[k]) - float(v)) > 1e-9:
             rec["alerts"].append({"check": "limit_mismatch",
                                   "detail": f"{k}: 설정 {cfg[k]} vs 기대 {v}"})
-    # 3) 세션 생존 (창 전 사람 단계)
+    # 3) 세션 생존 (창 전 사람 단계) — 청산창 마감 시각과 **실측 비용**을 함께 알린다.
+    #    WHY(2026-10-02 실측): close 프로파일의 청산 창은 익일 09:00-09:10 뿐이고, 09-30 에는
+    #    루프가 09:19 에 기동해 3건이 창 밖(09:26)에서 청산됐다 → 시가 대비 −1,814원 = 그날 실현손실 전액.
+    #    '로그인 필요'만 알리면 데드라인이 안 보인다 → 몇 시까지인지·놓치면 얼마인지 같이 쓴다.
+    cost_note = ("놓치면 청산이 창 밖으로 밀려 시가보다 낮게 팔린다 — 실측 2026-09-30: 3건 합계 "
+                 "−1,814원(포지션당 약 −0.5%)")
+    deadline = "09:10(청산창 09:00-09:10 마감)"
     connected = bool(isinstance(hp, dict) and hp.get("connected"))
     if not connected:
-        rec["human_steps"].append("Creon PLUS 로그인 후 브리지·루프 기동 (감독기가 1~2분 내 자동 기동)")
+        rec["human_steps"].append(
+            f"Creon PLUS 로그인 후 브리지·루프 기동 — **{deadline}까지**"
+            f"(감독기가 1~2분 내 자동 기동). {cost_note}")
     elif not (isinstance(bal, dict) and bal.get("ok")):
         rec["human_steps"].append("브리지 /health ok 인데 /balance 실패(반쪽 세션) — 재로그인 필요할 수 있음")
+    # 3b) 보유가 있는데 루프 프로세스가 없으면 청산창을 놓칠 수 있다 — 사람이 개입할 창을 명시
+    if proc.get("loop", 0) == 0 and npos:
+        rec["human_steps"].append(
+            f"보유 {npos}종목인데 run_market_loop.py 없음 — {deadline}까지 기동 필요. {cost_note}")
     # 4) 프로세스 2개
     if proc.get("loop", 0) == 0:
         rec["alerts"].append({"check": "loop_process_missing",
