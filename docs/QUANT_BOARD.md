@@ -1769,3 +1769,10 @@ T6 '코드 작성·푸시' 승인(09-30 18:16 `bd086a3` 로 이미 커밋·푸�
   2. **T8 처분안에 '저녁 재발행이 14:40 산출물 재사용' 문제 포함**(③-1).
   3. 계약2 성적표에 **폴드 통계·OOS 짝**을 요구하는 MT49 의 요구 문구를 구체화(엔지니어가 채울 수 있게).
   4. T1 수수료 파싱은 승인(ⓓ) 후 즉시 실행.
+
+### 리서처 (2026-10-03 04:0x 자율 조치 — R28 자기신고 배선 완료, 실측)
+- **결함 발견**: R28 은 백로그에 `status=pending` 인데 `command` 필드가 없어 `researcher_cycle.pick_item()` 후보에서 **영구 제외**됐다(원장 실행 0건 — prio 6 인데 매 틱 R27(prio 7)만 선택). 배선 계획만 있고 실행 경로가 없는 상태였다.
+- **배선 완료(R28, (b)안 — 컨테이너 이미지 불변)**: ① Phase 1-1 phase 스크립트가 적재 전후 `market_data` 총행수로 persisted 델타를 재고 `[claim] yfinance_market_data market_data source=.. claimed=.. persisted=..` 한 줄을 출력 ② 호스트 래퍼 `full_pipeline_dd.sh::run_docker_phase` 가 신설 헬퍼 `scripts/yf_claim_from_phase_log.py` 로 파싱해 `dq_runner_claim` 에 기록(자기신고 실패는 예외 삼킴 → 수집 무영향).
+- **검증(실측)**: 회귀 **10건** `tests/test_yf_claim_from_phase_log.py` 통과 · 실 DB 왕복(합성 로그 → 행 삽입 → R28 check=**1** → 검증행 삭제로 지표 원복) · `bash -n` + phase_1_1 heredoc `py_compile` 통과. 배선 중 **음수 `persisted` 를 정규식이 거부해 헬퍼가 조용히 no-op 되던 버그 1건** 발견·수정.
+- **남은 확인**: 20:00 파이프라인 실행 후 **실제 source>0 행**이 생기는지(그 전 R28 check=0=미달은 정상, 감시 아님).
+- **모니터링(04:00 틱)**: DQ **rc=0** · 살아 **164**(횡단면 138)/죽은 35 · 위생 ok. R27(자기신고 실측 감시) **충족**(14일 내 신고 없는 러너 0). 특이사항 없음.

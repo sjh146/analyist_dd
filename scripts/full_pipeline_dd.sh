@@ -37,6 +37,13 @@ run_docker_phase() {
     docker exec "$container" timeout "$timeout" python3 "$script" >> "$phase_log" 2>&1 < /dev/null
     local rc=$?
     if [ -f "$phase_log" ]; then
+        # 자기신고 배선(R28, 2026-10-03): 컨테이너 **내부** phase 는 scripts/dq_claim.py 가 없어
+        # 러너 내부 배선(claim_start/claim_finish)이 불가능하다 → phase 가 '[claim] runner table
+        # source=.. claimed=.. persisted=..' 한 줄을 찍으면 호스트가 대신 기록한다. grep 로 먼저
+        # 걸러 다른 단계(claim 줄 없음)에는 비용·부작용이 없다. 헬퍼는 예외를 삼키고 exit 0 이다.
+        if grep -q '^\[claim\] ' "$phase_log" 2>/dev/null; then
+            /usr/bin/python3 scripts/yf_claim_from_phase_log.py "$phase_log" 2>&1 || true
+        fi
         cat "$phase_log" >> "$LOG_FILE"
         rm -f "$phase_log"
     fi
@@ -146,6 +153,7 @@ for stock in stocks:
 # Price collection only (skip fundamentals to avoid rate limit)
 pc = PriceCollector()
 df = pc.collect_all(stocks)
+n_recv = len(df)  # 소스(API) 수신 원시 행수 — 자기신고 source. 파서 실패를 오탐 없이 잡는 기준값.
 if df.empty:
     logger.warning('No data collected')
 else:
@@ -182,15 +190,38 @@ else:
             close_price = EXCLUDED.close_price,
             volume = EXCLUDED.volume""" if yf_overwrite else "ON CONFLICT (stock_code, trade_date) DO NOTHING"
     logger.info('market_data 적재 모드: %s', '덮어쓰기(OVERWRITE=1)' if yf_overwrite else '빈 자리만 채우기(DO NOTHING)')
+    # 자기신고(R28, 2026-10-03): 적재 전후 market_data 총행수로 **실제 삽입 델타(persisted)** 를 잰다.
+    # claimed = 파서가 만든 행수(len(rows)), source = API 수신(n_recv). 셋을 모두 남겨야 멱등 재실행
+    # (claimed>0·inserted=0)을 parse_failure 로 오탐하지 않는다.
+    try:
+        cur.execute('SELECT COUNT(*) FROM market_data'); md_before = int(cur.fetchone()[0])
+    except Exception:
+        md_before = None
     execute_values(cur, f"""
         INSERT INTO market_data (stock_code, trade_date, open_price, high_price, low_price, close_price, volume)
         VALUES %s
         {conflict}
     """, rows, page_size=1000)
     pg.commit()
+    md_after = None
+    if md_before is not None:
+        try:
+            cur.execute('SELECT COUNT(*) FROM market_data'); md_after = int(cur.fetchone()[0])
+        except Exception:
+            md_after = None
+    persisted = (md_after - md_before) if (md_before is not None and md_after is not None) else None
     cur.close()
     pg.close()
     logger.info(f'Daily collection complete. Processed {len(stocks)} stocks.')
+    # 자기신고 한 줄 — 호스트 래퍼(full_pipeline_dd.sh::run_docker_phase)가 파싱해 dq_runner_claim 에
+    # 기록한다. 컨테이너엔 dq_claim.py 가 없어 러너 내부 배선이 불가능하므로 이 경로가 유일하다.
+    # 예외를 삼켜 수집을 깨지 않는다. source>0 AND claimed==0 이면 parse_failure 로 잡힌다.
+    try:
+        if n_recv > 0:
+            print('[claim] yfinance_market_data market_data source=%s claimed=%s persisted=%s'
+                  % (n_recv, len(rows), '-' if persisted is None else persisted), flush=True)
+    except Exception as e:
+        print('[claim] emit failed: %s: %s' % (type(e).__name__, e), file=sys.stderr)
 print('yfinance DONE')
 PYEOF
 run_docker_phase stock_yfinance_collector /tmp/phase_1_1.py 3600
