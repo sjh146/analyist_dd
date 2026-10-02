@@ -100,6 +100,30 @@ def _read_live_score_gate(candidate_dir: str) -> Dict:
                                f"{str(token.get('detail'))[:80]})", "token": token}
 
 
+def _read_robust_oos(candidate_dir: str):
+    """후보의 **다중 폴드 OOS 지표**(`robust_oos.json`)가 있으면 읽는다.
+
+    WHY (2026-10-02 실측, `scripts/model_metric_protocol_audit.py`): 8개 모델을 같은 조건에서
+    채점했더니 단일 분할 val AUC 와 다중 폴드 크로스섹션 AUC 의 순위 상관이 **스피어만 −0.81**
+    (= 거의 반대 순위)이었다. 즉 지금 게이트가 쓰는 단일 분할 숫자로 승격하면 **OOS 최악을 고른다**.
+    실증: CG9 단일분할 0.6173(2위)/다중폴드 0.4624(7위), scratch_ctl 단일분할 0.4159(꼴찌)/
+    다중폴드 0.5199(1위). 그래서 '다중 폴드 지표가 있으면 그것으로 비교'하는 길을 열어 둔다.
+    기본은 종전 동작(단일 분할)이고, `PROMOTE_REQUIRE_ROBUST=1` 로 정책을 켠다.
+    """
+    path = os.path.join(candidate_dir, "robust_oos.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        val = float(data.get("robust_auc"))
+        return {"value": val, "metric": str(data.get("metric") or "robust_auc"),
+                "protocol": str(data.get("protocol") or "")[:120],
+                "source": os.path.basename(path)}
+    except (OSError, ValueError, TypeError):
+        return None
+
+
 def _latest_training_result(candidate_dir: str) -> Optional[str]:
     paths = sorted(glob.glob(os.path.join(candidate_dir, "training-result-*.json")))
     return paths[-1] if paths else None
@@ -211,6 +235,20 @@ def promote(
     # 후보 지표: 다중 시드 평균(auc_mean) 우선, 없으면 단일 시드 ensemble_auc.
     cand_auc = float(meta.get("auc_mean") or meta.get("ensemble_auc") or 0.0)
     cand_metric = "auc_mean" if meta.get("auc_mean") is not None else "ensemble_auc"
+    # 다중 폴드 OOS 지표(있으면) — 정책/관측에 쓴다.
+    robust_oos = _read_robust_oos(candidate_dir)
+    if robust_oos:
+        result["candidate_robust_oos"] = robust_oos
+    want_robust = os.environ.get("PROMOTE_REQUIRE_ROBUST", "0") == "1"
+    if want_robust:
+        if robust_oos is None:
+            result["status"] = "kept_incumbent"
+            result["reason"] = ("다중 폴드 OOS 지표(robust_oos.json)가 없다 — "
+                                "단일 분할 AUC 는 OOS 순위와 반대(스피어만 −0.81)라 비교 근거가 못 된다. "
+                                "scripts/model_metric_protocol_audit.py 로 먼저 측정하라")
+            logger.warning("promote skipped: %s", result["reason"])
+            return result
+        cand_auc, cand_metric = robust_oos["value"], robust_oos["metric"]
     baseline = _champion_baseline(champion_dir, legacy_baseline_cap)
     champ_auc = float(baseline["value"])
     # 라이브 스코어 게이트 상태는 항상 결과에 남긴다(승격 여부와 무관하게 관측 가능하게).

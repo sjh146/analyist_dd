@@ -118,3 +118,52 @@ def test_enforce_zero_bypasses(dirs, monkeypatch):
     monkeypatch.setenv("PROMOTE_LIVE_SCORE_ENFORCE", "0")
     res = cp.promote(cand, champ, min_auc=0.53, min_improvement=0.02)
     assert res["promoted"] is True, res
+
+
+# ── 다중 폴드 OOS 지표 정책 (실측 2026-10-02: 단일분할 ↔ 다중폴드 스피어만 −0.81) ──
+
+def _robust_oos(cand, auc, metric="robust_auc"):
+    with open(os.path.join(cand, "robust_oos.json"), "w", encoding="utf-8") as f:
+        json.dump({"robust_auc": auc, "metric": metric,
+                   "protocol": "3-fold 연속 시간창, h=5 시장상대 중앙값, 크로스섹션 AUC"}, f)
+
+
+def test_robust_oos_reported_by_default(dirs):
+    """기본 정책(단일 분할)에서는 관측만 하고, OOS 값이 결과에 실린다."""
+    cand, champ, token = dirs
+    _token(token, "champion_cand", "passed")
+    _robust_oos(cand, 0.4624)
+    res = cp.promote(cand, champ, min_auc=0.53, min_improvement=0.02)
+    assert res["promoted"] is True, res                      # 단일 분할 0.60 > 0.5513+0.02
+    assert res["candidate_robust_oos"]["value"] == 0.4624, res
+
+
+def test_require_robust_blocks_when_oos_is_worse(dirs, monkeypatch):
+    """REQUIRE_ROBUST=1 이면 OOS 로 비교한다 — CG9 유형(단일 0.62·OOS 0.46)은 거부된다."""
+    cand, champ, token = dirs
+    _token(token, "champion_cand", "passed")
+    _robust_oos(cand, 0.4624)
+    monkeypatch.setenv("PROMOTE_REQUIRE_ROBUST", "1")
+    res = cp.promote(cand, champ, min_auc=0.53, min_improvement=0.02)
+    assert res["promoted"] is False and res["status"] == "kept_incumbent", res
+    assert "robust_auc" in res["reason"] or "0.4624" in res["reason"], res
+
+
+def test_require_robust_blocks_when_oos_missing(dirs, monkeypatch):
+    """증거 없는 승격 금지 — OOS 지표가 없으면 승격하지 않는다."""
+    cand, champ, token = dirs
+    _token(token, "champion_cand", "passed")
+    monkeypatch.setenv("PROMOTE_REQUIRE_ROBUST", "1")
+    res = cp.promote(cand, champ, min_auc=0.53, min_improvement=0.02)
+    assert res["promoted"] is False and res["status"] == "kept_incumbent", res
+    assert "OOS" in res["reason"], res
+
+
+def test_require_robust_allows_when_oos_beats_baseline(dirs, monkeypatch):
+    """OOS 가 기준선을 넘으면 승격한다(정책이 잠금이 아니라 필터가 되게)."""
+    cand, champ, token = dirs
+    _token(token, "champion_cand", "passed")
+    _robust_oos(cand, 0.5850)
+    monkeypatch.setenv("PROMOTE_REQUIRE_ROBUST", "1")
+    res = cp.promote(cand, champ, min_auc=0.53, min_improvement=0.02)
+    assert res["promoted"] is True, res
