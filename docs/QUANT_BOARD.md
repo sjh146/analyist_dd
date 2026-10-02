@@ -1496,3 +1496,31 @@ T6 '코드 작성·푸시' 승인(09-30 18:16 `bd086a3` 로 이미 커밋·푸�
 **③ 🙋 사람이 직접 해야 하는 일**: **⏰ 지금 즉시 Creon PLUS 로그인**(HTS 가 06:46 경 종료된 상태 — 재로그인 1회,
   DibServer 중복 여부 먼저 확인). 완료 후 내 검증: `/health connected:true` → 감독이 브리지 자동 기동 →
   `loop_sup.log` 에 `loop running`. **마감 08:55**(09:00 개장 전). 재로그인이 늦으면 오늘도 개장을 놓친다(10-01 실측 10:23).
+
+### 트레이더 (2026-10-02 09:3x 장중 틱 — swing 원천 퇴화 발견, 실측)
+
+- **북극성**: 실현 순손익 **-1,446원** · 청산 3건 · 승률 **33.3%** · 기대값 **-482원/건** · 보유 **0** · 수수료 0원(T1 미해결) — 변화 없음.
+- **실행 경로(장중 09:26)**: halt=False · 실패 0 · phase=`close` · 상태 갱신 **1,065분 지연**(=10-01 마감 후 정지) · **브리지 없음**
+  (`127.0.0.1:8100` 미청취 · `cmd.exe curl` rc=7/http 000) → **오늘 주문 경로 전면 차단**. 근거: `bridge_sup.log` 08:45:27
+  "Creon not running - stopping the bridge pid 2236" → 08:45:58 "waiting for the Creon login" · `loop_sup.log` 08:30:16
+  "bridge not connected - loop not started". 피드 서버(8090)는 정상 listen(pid 16872) · `http=200`.
+- **🔴 신규(본 틱 발견) — swing 피드 후보 0건**: 08:40 발행분 `[swing] 후보 0건`(전일 15건). 원인 사슬(전부 실측):
+  ① `app/models/champion/auc.txt`=**0.554776** · `robust_auc.json` `replaced_baseline 0.5513` · retrained **10-01T12:26**
+  → **10-01 21:26 챔피언 교체** ② job-runner 마운트(`services/xgboost-ml → /opt/xgboost-ml`)로 08:31 스윙 스크리너가 신 챔피언 사용
+  ③ `data/reports/swing_candidates_20261002_083004.csv` = `batch_type=raw_fallback` · `up=0/20` · 최대 confidence **0.4733**
+  (스크리너 신호 문턱 0.55) ↔ 전일 `20261001_083004.csv` = `signal` · `up=15` · 최대 0.6558 · auc 0.551318
+  ④ 발행기 `confidence < 0.50` **20건 전량 제외** → 0건. 소비자 `signal_validator.py` 는 raw_fallback 배치를 **거래 금지**로
+  거부(2026-08-22 실측 7일 평균 -7.79%) → **swing 경로가 R1 문턱(MT70) 이전, 원천에서 닫혔다**. → 엔지니어 환류 **MT116** 신설.
+- **close 경로 이중 차단(발행물 고정 → 결정적)**: close 20건 score 82.4~90.0 · top10 평균 **87.760 < 88.0**(R1) **동시에**
+  top10 평균 `day_change_pct` **+15.279% > +15.0%**(HEAT) → 오늘 진입 0 예상(**09-30·10-01·10-02 3거래일 연속 무진입**,
+  마지막 진입 09-29 15:03). top10 에 상한가(+29.9%) 종목 다수 → **R26(상한가 제외)** 승인 항목의 직접 근거.
+- **켈리**: `build_screener_stats.py` 축소 후 f*=-0.0267 ≤ 0 → 파일 미기록(올바름) · 발행물 `scoring_summary` 미포함.
+- **피드 계약**: 위반 **0건**(파일 1개 · 최대 경과 0.03일) · close `close_price` 누락 0 · 6자리 코드·중복 0 ·
+  close `valid_until`=10-02T15:30(오늘 창 커버) · 단 `signal_date` 는 close·swing 모두 **09-30**(2일 전, T8).
+- **스크리너별 실현**: close 3건 **-1,446원**(승률 33.3%) · swing 0건. `data/reports/trader_fill_stats.json`(10-01 16:40 크론) 존재.
+- **백로그 프로브(재측정)**: T1 **failed**(fees 0.0) · T5 failed · T2 done · T6/T7 pending.
+- **핸드오프**: 총 **19건** · 미채택 **16건**(24시간 초과 1건 = MT70, 68.0h). 신설 **MT116**(`swing-champion-swap-raw-fallback`).
+- **계약2(엔지니어 성적표)**: 폴드 통계·purge·승격 dry-run 확인 · **champion AUC None** 유지(미비).
+- **사람 단계**: ③ **Creon PLUS 재로그인**(`ncstarter.log` 최종 `사인온 성공` = **10-01 16:22**, 이후 신규 0건 · DibServer 중복 확인 후 1회)
+  → ② 승인 ⓐ close 처분(R1 88.0 + HEAT 이중 상한) ⓑ T8 지정가 산식 ⓒ T1 수수료 기록 ⓓ T6 임계 재정의 ⓔ R26 상한가 제외
+  → ① 진행 중: 피드 계약 감시·환류(본 틱, MT116).
