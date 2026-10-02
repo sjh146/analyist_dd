@@ -49,6 +49,9 @@ DELAY = float(os.environ.get("KRX_REQUEST_DELAY", "3.0"))
 JITTER = float(os.environ.get("KRX_REQUEST_JITTER", "0.5"))
 MIN_GAP_BETWEEN_RUNS = float(os.environ.get("KRX_MIN_GAP_BETWEEN_RUNS", "60.0"))
 MAX_CALLS = int(os.environ.get("KRX_MAX_CALLS", "600"))
+# 증분 시작일 계산용: 이 행수 미만이면 '덜 찬 날'로 보고 그 날부터 다시 받는다
+MIN_ROWS_FULL_DAY = int(os.environ.get("KRX_MIN_ROWS_FULL_DAY", "2000"))
+LOOKBACK_DAYS = int(os.environ.get("KRX_LOOKBACK_DAYS", "7"))
 
 try:  # 호출 정책(프로세스 간) — 로드 실패해도 수집은 기존(프로세스 내) 지연으로 동작한다
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -248,6 +251,35 @@ def trading_dates(start, end, holidays):
     return out
 
 
+def _incremental_start(conn, today):
+    """증분 시작일 = **최근 창에서 커버리지가 모자란 거래일**, 없으면 DB 최신일+1.
+
+    WHY (실측 2026-10-02): 시작일을 MAX(trade_date)+1 로 잡으면, 다른 작성자
+    (yfinance 수집기·파이프라인 heredoc)가 **오늘 봉 1건만** 넣는 순간 max 가 오늘이 되고
+    구간이 [오늘+1, 어제] = 공집합이 된다 → 로그에는 "수집 구간 없음"으로 조용히 남고
+    **어제 봉은 영구 결손**된다(실측: 000020 1행 때문에 2026-10-02 전 종목 봉이 사라질 상태였다).
+    행수 기준으로 '덜 찬 날'부터 다시 받으면 구멍이 다음 실행에서 스스로 메워진다(멱등 upsert).
+
+    임계값 아래로 잡지 않기 위해 최근 LOOKBACK 일만 본다(휴장 파일은 제외).
+    """
+    holidays = set(load_json(HOLIDAY_PATH, []))
+    cur = conn.cursor()
+    since = today - timedelta(days=LOOKBACK_DAYS)
+    cur.execute("SELECT trade_date::text, COUNT(*) FROM market_data WHERE trade_date >= %s "
+                "GROUP BY 1", (since,))
+    counts = {str(r[0]): int(r[1]) for r in cur.fetchall()}
+    cur.execute("SELECT MAX(trade_date) FROM market_data")
+    mx = cur.fetchone()[0]
+    cur.close()
+    d = since
+    while d < today:
+        key = d.isoformat()
+        if d.weekday() < 5 and key not in holidays and counts.get(key, 0) < MIN_ROWS_FULL_DAY:
+            return d
+        d += timedelta(days=1)
+    return (mx + timedelta(days=1)) if mx else (today - timedelta(days=LOOKBACK_DAYS))
+
+
 def target_range(conn, args):
     cur = conn.cursor()
     cur.execute("SELECT MAX(trade_date) FROM market_data")
@@ -259,7 +291,7 @@ def target_range(conn, args):
     elif args.days:
         start = today - timedelta(days=args.days)
     else:
-        start = (mx + timedelta(days=1)) if mx else (today - timedelta(days=365))
+        start = _incremental_start(conn, today)
     end = (date.fromisoformat(args.d_to) if "-" in (args.d_to or "")
            else datetime.strptime(args.d_to, "%Y%m%d").date()) if args.d_to else today
     # KRX 일별매매정보는 당일 데이터를 주지 않는다 → 안전하게 종료일을 D-1로 (실제로는 D-2 반영)
