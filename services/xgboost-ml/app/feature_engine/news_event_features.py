@@ -246,17 +246,57 @@ class NewsEventFeatures:
     # ------------------------------------------------------------------
     # event_<type>_5d
     # ------------------------------------------------------------------
+    # DART 공시 기반 이벤트 유형(16종) — build_event_features.py 가 disclosures 에서
+    # 분류해 ``event_features`` 테이블에 적재한다. news_events 는 대형주(패널 200종목 중
+    # 9종목)에 커버리지가 거의 없어, 여기서 읽으면 event_*_5d 가 구조적으로 0 이 된다.
+    # (실측 2026-10-02: panel 200종목 × news_events 교집합 9종목 vs event_features 197종목)
+    DART_EVENT_SUFFIXES = [
+        "capital_increase", "cb_bw", "contract", "delisting", "disaster",
+        "exec_change", "litigation", "mna", "new_product", "partnership",
+        "patent", "realized", "recall", "regulation", "stake_change", "treasury",
+    ]
+
     def _get_event_counts_5d(self, stock_code: str, db_conn, date=None) -> Dict:
         """Return per-taxonomy event counts over the last 5 days.
 
-        ``date`` 가 주어지면 ``event_date BETWEEN <date> - INTERVAL '5 days'
-        AND <date>`` (그 날짜까지, as-of). None 이면 오늘까지(기존 동작).
+        두 소스를 합친다:
+          · DART 16종 — ``event_features`` 테이블(빌더 산출, 종목×거래일 격자).
+            빌더는 as-of 규율로 ``feat[D] = [D-5..D-1]``(당일 제외)을 이미 적용해 뒀으므로
+            ``trade_date = target_date`` 한 행을 읽는 것이 곧 그 날짜까지의 5거래일 창이다.
+          · news 보조 — ``news_events`` 를 ``event_date`` 창으로 세어 max 병합한다
+            (공시에 없는 신제품/특허/리콜/규제, 그리고 거시경제/시장지수·유동성 이벤트 보완).
+
+        ``date`` 가 주어지면 그 날짜까지(as-of), None 이면 오늘까지(기존 동작).
         """
         counts = {suffix: 0.0 for suffix in self.EVENT_TYPE_MAP.values()}
         if db_conn is None:
             return counts
 
         target_date = self._as_date(date)
+        # ── 1) DART 16종: pre-computed event_features (writer 미배선 → 배선) ──
+        try:
+            cur = db_conn.cursor()
+            cols = ", ".join(f"event_{s}_5d" for s in self.DART_EVENT_SUFFIXES)
+            cur.execute(
+                f"SELECT {cols} FROM event_features "
+                "WHERE stock_code = %s AND trade_date = %s",
+                (stock_code, target_date),
+            )
+            row = cur.fetchone()
+            cur.close()
+            if row:
+                for suffix, val in zip(self.DART_EVENT_SUFFIXES, row):
+                    if val:
+                        counts[suffix] = float(val)
+        except Exception as e:
+            logger.debug("event_features read failed for %s: %s", stock_code, e)
+            if db_conn:
+                db_conn.rollback()
+
+        # ── 2) news 보조 소스: news_events 의 event_type 창 카운트(공시와 합집합 취급) ──
+        #     공시(disclosures)는 뉴스에 없는 신제품/특허/리콜/규제 등이 드물고, 뉴스는
+        #     공시에 없는 거시경제/시장지수·유동성 이벤트를 가진다 → 두 소스를 **max** 로 합쳐
+        #     어느 쪽에서든 관측된 이벤트를 세되, 같은 사건이 양쪽에 나타나도 이중 계상하지 않는다.
         try:
             cur = db_conn.cursor()
             # 이벤트 윈도우: event_date BETWEEN <조회일> - INTERVAL 'N days' AND <조회일>
@@ -277,7 +317,7 @@ class NewsEventFeatures:
             for event_type, cnt in rows:
                 suffix = self.EVENT_TYPE_MAP.get(event_type)
                 if suffix is not None:
-                    counts[suffix] = float(cnt or 0)
+                    counts[suffix] = max(counts[suffix], float(cnt or 0))
         except Exception as e:
             logger.debug("event counts failed for %s: %s", stock_code, e)
             if db_conn:
