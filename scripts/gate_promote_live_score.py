@@ -23,6 +23,25 @@ import sys
 
 REPO = "/home/jhshi/analyist_dd"
 OUT = os.path.join(REPO, "data", "reports", "promote_live_score_gate.json")
+# 승격 초크포인트(app/training/champion_promote.py)가 요구하는 토큰 — 컨테이너와 공유되는 경로.
+# (services/xgboost-ml -> /app 바인드 → 컨테이너에서는 /app/app/models/promote_live_score_gate.json)
+TOKEN = os.path.join(REPO, "services", "xgboost-ml", "app", "models", "promote_live_score_gate.json")
+
+
+def write_token(candidate: str, status: str, detail: str, **extra) -> None:
+    """승격이 이 게이트를 **반드시 통과**하게 하는 토큰을 남긴다.
+
+    WHY: 파이프라인은 이 스크립트를 먼저 돌리지만 역할 틱·수동 승격은 건너뛸 수 있다.
+    토큰이 없거나 passed 가 아니면 champion_promote 가 승격을 거부한다(MT116 재발 방지).
+    """
+    rec = {"candidate": candidate, "status": status, "detail": detail,
+           "ts": dt.datetime.now().isoformat(timespec="seconds"), **extra}
+    try:
+        os.makedirs(os.path.dirname(TOKEN), exist_ok=True)
+        with open(TOKEN, "w", encoding="utf-8") as f:
+            json.dump(rec, f, ensure_ascii=False, indent=1)
+    except OSError as e:  # 토큰을 못 쓰면 승격이 거부된다 — 조용히 넘기지 않는다
+        print(f"[gate-live-score] 경고: 토큰 기록 실패({e!r}) → 승격 초크포인트가 거부한다")
 
 
 def probe(candidate: str, timeout: int = 900):
@@ -57,7 +76,9 @@ def main():
         rec.update({"verdict": "측정실패", "detail": err})
         os.makedirs(os.path.dirname(OUT), exist_ok=True)
         json.dump(rec, open(OUT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-        print(f"[gate-live-score] 측정 실패 — AUC 게이트에 위임: {err}")
+        write_token(a.candidate, "measure_failed", f"프로브 실패: {err}")
+        print(f"[gate-live-score] 측정 실패 — AUC 게이트에 위임: {err} "
+              f"(토큰=measure_failed → 승격 초크포인트는 거부한다: 증거 없는 승격 금지)")
         return 3
 
     cand = summary.get("candidate") or {}
@@ -71,6 +92,10 @@ def main():
     rec["verdict"] = "차단" if blocked else "허용"
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(rec, open(OUT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    write_token(a.candidate, "blocked" if blocked else "passed",
+                f"후보 신호 {n_cand}건(문턱 {a.conf} 초과, 챔피언 {n_champ}건, 최대 {cand.get('deployed_max')})",
+                candidate_signals=n_cand, champion_signals=n_champ,
+                candidate_max=cand.get("deployed_max"))
     if blocked:
         print(f"[gate-live-score] 차단: 후보 신호 {n_cand}건(문턱 {a.conf} 초과) · 최대 {cand.get('deployed_max')} "
               f"— 소비자가 배치를 거부한다(MT116 유형). 챔피언 신호 {n_champ}건.")

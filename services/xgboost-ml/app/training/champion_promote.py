@@ -43,6 +43,62 @@ MODEL_FILES = ("xgboost_model.pkl", "lightgbm_model.pkl", "catboost_model.pkl")
 CONTRACT_FILES = ("feature_names.json", "auc.txt")
 KEEP_BACKUPS = 3
 
+# 라이브 스코어 게이트 토큰 (MT116 재발 방지) — 호스트 게이트와 컨테이너가 같은 경로를 본다.
+#   호스트: <repo>/services/xgboost-ml/app/models/promote_live_score_gate.json
+#   컨테이너: /app/app/models/promote_live_score_gate.json  (services/xgboost-ml -> /app 바인드)
+_ML_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+LIVE_SCORE_GATE_PATH = os.environ.get(
+    "PROMOTE_LIVE_SCORE_GATE",
+    os.path.join(_ML_ROOT, "app", "models", "promote_live_score_gate.json"))
+LIVE_SCORE_GATE_TTL_H = float(os.environ.get("PROMOTE_LIVE_SCORE_TTL_H", "6"))
+
+
+def _read_live_score_gate(candidate_dir: str) -> Dict:
+    """라이브 스코어 게이트 토큰 판정 → {"ok": bool, "why": str, "token": dict|None}.
+
+    WHY (2026-10-01 실측, MT116): val AUC 는 **순위** 지표일 뿐 '배포된 스코어가 소비자 문턱을
+    넘는가'를 보장하지 않는다. 199피처 후보가 val AUC 0.5548 로 승격됐지만 배포 스코어 최대
+    0.4733(문턱 0.55 초과 0건) → 소비자(트레이더)가 배치를 거부해 **3세션 무진입**이 됐다.
+    생산 파이프라인은 호스트 게이트(scripts/gate_promote_live_score.py)를 먼저 돌리도록 배선돼
+    있지만, 다른 호출자(역할 틱·수동 승격·도구)는 그 검사를 건너뛸 수 있다 — 공유 초크포인트인
+    여기서 토큰을 요구해 **모든 경로**를 같은 문에 세운다.
+    """
+    path = LIVE_SCORE_GATE_PATH
+    if os.environ.get("PROMOTE_LIVE_SCORE_ENFORCE", "1") == "0":
+        return {"ok": True, "why": "enforce=0(비상 우회)", "token": None}
+    if not os.path.exists(path):
+        return {"ok": False, "why": f"라이브 스코어 게이트 기록 없음({path}) — "
+                                    f"scripts/gate_promote_live_score.py 를 먼저 실행하라",
+                "token": None}
+    try:
+        with open(path, encoding="utf-8") as f:
+            token = json.load(f)
+    except (OSError, ValueError) as e:
+        return {"ok": False, "why": f"토큰 파싱 실패({e!r})", "token": None}
+    # 후보 일치: 경로가 다를 수 있어(호스트 절대경로 vs 컨테이너 경로) basename 으로 맞춘다.
+    want = os.path.basename(os.path.normpath(candidate_dir))
+    got = os.path.basename(os.path.normpath(str(token.get("candidate", ""))))
+    if want and got and want != got:
+        return {"ok": False, "why": f"토큰은 다른 후보({got})용 — 이 후보({want}) 검사가 아니다",
+                "token": token}
+    ts_raw = token.get("ts") or token.get("recorded_at")
+    try:
+        ts = datetime.fromisoformat(str(ts_raw))
+    except (TypeError, ValueError):
+        return {"ok": False, "why": f"토큰 시각 불명({ts_raw!r})", "token": token}
+    age_h = (datetime.now() - ts).total_seconds() / 3600.0
+    if age_h > LIVE_SCORE_GATE_TTL_H:
+        return {"ok": False, "why": f"토큰이 오래됐다({age_h:.1f}h > {LIVE_SCORE_GATE_TTL_H}h)",
+                "token": token}
+    status = str(token.get("status", ""))
+    if status != "passed":
+        return {"ok": False,
+                "why": f"게이트 판정이 passed 가 아니다(status={status}, "
+                       f"{str(token.get('detail') or token.get('reason'))[:120]})",
+                "token": token}
+    return {"ok": True, "why": f"게이트 통과({age_h:.1f}h 전, "
+                               f"{str(token.get('detail'))[:80]})", "token": token}
+
 
 def _latest_training_result(candidate_dir: str) -> Optional[str]:
     paths = sorted(glob.glob(os.path.join(candidate_dir, "training-result-*.json")))
@@ -157,6 +213,9 @@ def promote(
     cand_metric = "auc_mean" if meta.get("auc_mean") is not None else "ensemble_auc"
     baseline = _champion_baseline(champion_dir, legacy_baseline_cap)
     champ_auc = float(baseline["value"])
+    # 라이브 스코어 게이트 상태는 항상 결과에 남긴다(승격 여부와 무관하게 관측 가능하게).
+    live_gate = _read_live_score_gate(candidate_dir)
+    result["live_score_gate"] = {"ok": live_gate["ok"], "why": live_gate["why"]}
 
     # 지표 동형성 가드 (2026-09-25): 기준선이 **다중 시드(auc_mean)** 인데 후보가
     # 단일 분할만 있으면 비교가 성립하지 않는다. 실측 예: champion_cand_fair 의 0.5513 은
@@ -228,6 +287,12 @@ def promote(
         result["reason"] = "dry-run: incumbent left untouched"
         logger.info("dry-run: would promote %.4f over baseline %.4f (%s)",
                     cand_auc, champ_auc, baseline["source"])
+        return result
+
+    if not live_gate["ok"]:
+        result["status"] = "blocked_live_score"
+        result["reason"] = "라이브 스코어 게이트 미통과 — 승격 거부: " + live_gate["why"]
+        logger.error("promote blocked: %s", result["reason"])
         return result
 
     backup = _backup_champion(champion_dir)
