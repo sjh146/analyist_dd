@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-02T22:27:56+09:00",
+  "updated_at": "2026-10-02T23:06:39+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -8297,7 +8297,7 @@
     {
       "id": "CG69",
       "title": "배포 가능(추론 계약 무변경) arm 의 5구간 짝 검정 — 스무딩+depth1 이 구간마다 대조군을 이기는가",
-      "status": "pending",
+      "status": "done",
       "priority": 5,
       "affects_model": true,
       "arm": "SD1s_* (게이트 ON + 라벨 스무딩 + depth1·lr0.05, rank 없음)",
@@ -8340,7 +8340,195 @@
       "metric": "wf_sweep_summary",
       "caution": "⚠ 종목 30개 구간이라 폴드 표본이 작다 — 'foldN: 표본 부족' 으로 건너뛴 폴드가 나오면 폴드 수가 다른 arm 과 짝 비교하지 말라(CG24 교훈). ⚠ panel_150u 는 2026-09-26 빌드(as-of 수리 전) — 레벨 비교는 panel_420_asof3 와 직접 하지 말고 구간 Δ 만 읽는다. ⚠ 스윕 요약은 기본 경로(reports/overnight/wf_label_sweep_summary.json)에 쓴다 — --out 주지 말 것(CG55 함정).",
       "note": "2026-10-02T18:22+0900 등록. 근거·삼중 재현은 arm/baseline/evidence 참조. 게이트 ON·rank 없음 = 추론 계약 무변경(CG27). | 2026-10-02 22:2x 실측: 250 cell 스윕이 외부 에이전트 4개(opencode wt/expectancy·wt/features·wt/metric + audit)와 4코어를 공유하며 cell 속도가 10 s → 60~90 s 로 10배 감속(22:20 실측 0.2 cell/min). 첫 실행(22:02, timeout 5400)은 250 cell 중 ~150 에서 23:32 컨테이너 timeout 에 걸릴 것으로 판단 → **timeout 24000(6.7h)·est 380분으로 정정**(스킬 교훈: est 와 timeout 을 둘 다 실측 속도로 맞춰라). 완주한 config 값은 `wf_label_sweep.jsonl` 에 남으므로 유실 시 `scripts/sweep_pairs_from_jsonl.py --since <UTC시각> --arm-prefix SD1s_ --ctl-prefix US_` 로 부분 짝 Δ 를 복원한다. 부분 실측(arm 5구간 완주, 대조군 미완): SD1s_00_30 0.4981 · 30_60 0.4994 · 60_90 0.4950 · 90_120 0.4981 · 120_150 0.5407 → panel_150u 에서 arm 절대값이 **0.50 근처**로, panel_420_asof3(49종목)의 0.5512 가 재현되지 않는다(미완이므로 판정 아님 — 다음 런에서 확정).",
-      "attempts": []
+      "attempts": [
+        {
+          "ts": "2026-10-02T22:59:30+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "구간 짝 Δ 평균 +0.0010 (n=5구간 · 양(+) 1/5) [-0.0223, -0.0118, -0.0084, -0.0017, +0.0490]",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG69_20261002-220217.log",
+          "elapsed_min": 57.2
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "구간 짝 Δ 평균 +0.0010 (n=5구간 · 양(+) 1/5) [-0.0223, -0.0118, -0.0084, -0.0017, +0.0490]",
+        "delta": 0.001,
+        "per_exp": {
+          "SD1s_00_30": {
+            "desc": "구간 [0:30) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_00_30",
+            "kind": "smooth",
+            "horizon": 5,
+            "folds": [
+              0.4712,
+              0.4668,
+              0.4721,
+              0.5416,
+              0.5388
+            ],
+            "mean": 0.4981,
+            "std": 0.0344,
+            "min": 0.4668,
+            "max": 0.5416,
+            "fold_win_rate": 0.4
+          },
+          "SD1s_30_60": {
+            "desc": "구간 [30:60) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_30_60",
+            "kind": "smooth",
+            "horizon": 5,
+            "folds": [
+              0.4956,
+              0.5832,
+              0.4672,
+              0.4816,
+              0.4696
+            ],
+            "mean": 0.4994,
+            "std": 0.0431,
+            "min": 0.4672,
+            "max": 0.5832,
+            "fold_win_rate": 0.2
+          },
+          "SD1s_60_90": {
+            "desc": "구간 [60:90) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_60_90",
+            "kind": "smooth",
+            "horizon": 5,
+            "folds": [
+              0.4898,
+              0.4847,
+              0.4981,
+              0.5046,
+              0.4978
+            ],
+            "mean": 0.495,
+            "std": 0.007,
+            "min": 0.4847,
+            "max": 0.5046,
+            "fold_win_rate": 0.2
+          },
+          "SD1s_90_120": {
+            "desc": "구간 [90:120) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_90_120",
+            "kind": "smooth",
+            "horizon": 5,
+            "folds": [
+              0.4502,
+              0.5603,
+              0.541,
+              0.4374,
+              0.5018
+            ],
+            "mean": 0.4981,
+            "std": 0.0484,
+            "min": 0.4374,
+            "max": 0.5603,
+            "fold_win_rate": 0.6
+          },
+          "SD1s_120_150": {
+            "desc": "구간 [120:150) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_120_150",
+            "kind": "smooth",
+            "horizon": 5,
+            "folds": [
+              0.5802,
+              0.5553,
+              0.4978,
+              0.5431,
+              0.5269
+            ],
+            "mean": 0.5407,
+            "std": 0.0276,
+            "min": 0.4978,
+            "max": 0.5802,
+            "fold_win_rate": 0.8
+          },
+          "US_00_30": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [0:30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4788,
+              0.5054,
+              0.4853,
+              0.5803,
+              0.5525
+            ],
+            "mean": 0.5204,
+            "std": 0.0395,
+            "min": 0.4788,
+            "max": 0.5803,
+            "fold_win_rate": 0.6
+          },
+          "US_30_60": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [30:60)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5344,
+              0.4891,
+              0.4942,
+              0.5032,
+              0.5349
+            ],
+            "mean": 0.5112,
+            "std": 0.0197,
+            "min": 0.4891,
+            "max": 0.5349,
+            "fold_win_rate": 0.6
+          },
+          "US_60_90": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [60:90)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.542,
+              0.4875,
+              0.4634,
+              0.506,
+              0.5181
+            ],
+            "mean": 0.5034,
+            "std": 0.0267,
+            "min": 0.4634,
+            "max": 0.542,
+            "fold_win_rate": 0.6
+          },
+          "US_90_120": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [90:120)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4808,
+              0.4862,
+              0.4908,
+              0.5054,
+              0.5356
+            ],
+            "mean": 0.4998,
+            "std": 0.0197,
+            "min": 0.4808,
+            "max": 0.5356,
+            "fold_win_rate": 0.4
+          },
+          "US_120_150": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [120:150)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4849,
+              0.5433,
+              0.4836,
+              0.4795,
+              0.4672
+            ],
+            "mean": 0.4917,
+            "std": 0.0266,
+            "min": 0.4672,
+            "max": 0.5433,
+            "fold_win_rate": 0.2
+          }
+        },
+        "rc": 0
+      },
+      "closure": "축 종결(2026-10-02) — '배포 가능 arm(스무딩+depth1, rank 없음)' 은 5구간 짝 Δ 평균 +0.0010(양(+) 1/5, 구간별 [-0.0223,-0.0118,-0.0084,-0.0017,+0.0490]) = 구간 견고성 실패. CG64/CG66/CG67 의 Δ+0.0162 는 49종목 패널 특이로 확정. 게이트 ON 대조군은 같은 런에서 0.5204→0.4917(유동성 구간 단조 감소)로 CG13 을 재현. → 다음 레버는 '무엇을 선별하는가'(CG71)."
     },
     {
       "id": "CG70",
@@ -8395,6 +8583,55 @@
       "cost": "champion_robust_eval 1회 ≈ 10~15분 · 2회 연속 실행(같은 창 고정).",
       "metric": "champion_robust_eval",
       "note": "2026-10-02 22:0x 신설. 도구는 아직 래퍼 없이 두 번 수동 실행 → 결과 비교는 보고서에서 한다(두 --out 중 첫 파일만 자동 판정됨). 래퍼(CG9d)는 필요해지면 신설."
+    },
+    {
+      "id": "CG71",
+      "title": "선별 규칙 축 — 날짜별 횡단면 IC top30 선별 vs 풀링 edge top30 (게이트 ON·5구간 짝, 기록상 0회 시험)",
+      "status": "pending",
+      "priority": 4,
+      "affects_model": true,
+      "arm": "SL_00_30..SL_120_150 (게이트 ON + 분위0.30 h5 + select=ic30)",
+      "baseline": {
+        "value": null,
+        "source": "US_00_30..US_120_150 (같은 런·같은 구간·같은 kind/q, select 만 top30)"
+      },
+      "hypothesis": "지금까지 70사이클 모든 arm 이 '풀링 edge top30' 선별을 공유했다. 선별 **크기** 축(SEL1·CG26 core15/20/40·CG44 top1/3/5)은 닫혔지만 **규칙**은 한 번도 바뀌지 않았다. edge_of 는 폴드 학습구간을 풀링한 순위 AUC 라 ① 그 날 전체가 좋았는가(날짜 레벨 성분) ② 소수 날짜·레짐 이 edge 를 만들 수 있는데, 모델은 **날짜별 횡단면 순위**로 채점된다. 선별 목적함수를 채점 목적함수(날짜별 IC × 부호 일관성)에 맞추면 OOS 가 오르는가.",
+      "evidence": "① CG69(10-02 22:59) 실측: 게이트 ON 대조군(US_*)이 5구간에서 0.5204·0.5112·0.5034·0.4998·0.4917 = 단조 감소(총폭 0.0287, CG13 재현)이고 배포 가능 arm 은 평평 → 남은 차이는 '무엇을 선별하는가'다. ② 자체점검 합성 실측(scripts/_ic_select_test.py, 13/13 PASS): 날짜 레벨 피처는 풀링 edge 0.2864 로 뽑히지만 날짜별 IC 는 정확히 0.0000(그 날 안에서 상수) → 기존 규칙이 날짜 레벨 성분을 후보로 올릴 수 있다. ③ e2e 스모크(2폴드×1시드, panel_150u): sel_desc = 'ic30 (edge top30 와 26/30 겹침)' → 두 규칙이 실제로 다른 30개를 고른다(Δ0 을 '효과 없음'으로 오독하지 않기 위한 확인). ④ 선별 규칙을 바꾼 전례 없음: SEL1/CG26/CG44 는 전부 k(크기) 축.",
+      "method": "① wf_wave.subset 에 select='ic{k}' 분기 신설: 학습행 날짜별 횡단면 Spearman IC 의 |평균|×일관성(다수 방향 날짜 비율) 으로 top-k, 관측날짜<10 은 0(무정보). dates 없이 호출하면 즉시 RuntimeError(조용한 폴백 금지). 선택 설명에 edge top-k 와의 겹침 수를 남긴다. ② wf_label_sweep 이 학습행 날짜(trd)를 subset 에 전달(2곳). ③ SL_* 5개 config 등록(게이트 ON·q0.30·h5·codes_slice — US_* 와 select 만 다름). ④ 누수 없음: 선별은 학습행·학습라벨만 사용(평가행 미사용). ⑤ 배포 가능성: 선별은 학습 시점 연산 → 추론 계약(종목 단위 스트리밍) 불변. rank 변환과 다른 점.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 24000 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 5 --only SL_00_30,SL_30_60,SL_60_90,SL_90_120,SL_120_150,US_00_30,US_30_60,US_60_90,US_90_120,US_120_150'",
+      "check": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_ic_select_test.py",
+      "success": "짝 Δ 평균 ≥ +0.02 이고 양(+) 구간 ≥ 4/5 → 선별 규칙이 게이트 ON 배포 경로에서 신호(→ 후속: 생산 경로 반영). 그 밖은 '노이즈'로 축 종결.",
+      "counterfactual": "US_00_30..US_120_150 (풀링 edge top30, 같은 런·같은 구간)",
+      "pairs": [
+        [
+          "SL_00_30",
+          "US_00_30"
+        ],
+        [
+          "SL_30_60",
+          "US_30_60"
+        ],
+        [
+          "SL_60_90",
+          "US_60_90"
+        ],
+        [
+          "SL_90_120",
+          "US_90_120"
+        ],
+        [
+          "SL_120_150",
+          "US_120_150"
+        ]
+      ],
+      "expected": "선별 집합이 4~5개 다르고(스모크 실측 26/30 겹침), 날짜별 IC 가 높은 시간가변 피처가 늘어난다 → 폴드 평균이 오르면 +0.01~+0.03.",
+      "cost": "10 config × 5폴드 × 5시드 = 250 cell · 실측 스모크 30s/cell(경쟁) · CG69 동일 규모 57분",
+      "est_minutes": 120,
+      "metric": "wf_sweep_summary",
+      "caution": "⚠ panel_150u 는 유동성 정렬 패널이다 — 절대값(대조군 평균 0.505)을 등록 기준선(0.5406, 49종목)과 직접 비교 금지. 판정은 같은 런·같은 구간의 짝 Δ 로만. 폴드 수가 다른 arm 비교 금지(CG24 교훈).",
+      "note": "선별 규칙 변경은 학습 시점 연산이라 추론 계약을 건드리지 않는다(게이트 목록·feature_names 는 모델 디렉터리에 고정). 대조군이 같은 런에 없으면 판정 불가 — US_* 5개를 반드시 함께 돌린다.",
+      "attempts": [],
+      "result": null
     }
   ]
 }

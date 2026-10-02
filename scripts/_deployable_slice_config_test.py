@@ -81,6 +81,26 @@ for uid in US_IDS:
     if us:
         check(f"{uid} rank 변환 없음", "transform" not in us and "recipe" not in us, str(us.get("recipe")))
 
+# ── CG71(2026-10-02): 선별 규칙 축 SL_* ↔ US_* 짝 무결성 ────────────────────────────
+# arm 과 대조군은 **select 만** 달라야 한다(ic30 vs top30). 다른 필드가 하나라도 다르면
+# 짝 Δ 가 선별 규칙이 아니라 설정 차이를 재게 된다(SD1s↔US_* 는 kind 가 의도적으로 다른
+# 반면, 선별 규칙 축은 '같은 설정에서 규칙만 교체'가 실험이므로 여기선 전 필드가 같아야 한다).
+SL_IDS = [f"SL_{a:02d}_{b:02d}" for a, b in SLICES]
+for sid, uid, (a, b) in zip(SL_IDS, US_IDS, SLICES):
+    sl, us = by_id.get(sid), by_id.get(uid)
+    check(f"{sid} 존재(CG71 선별규칙 arm)", sl is not None)
+    if not sl or not us:
+        continue
+    check(f"{sid} codes_slice={[a, b]}", sl.get("codes_slice") == [a, b], str(sl.get("codes_slice")))
+    check(f"{sid} select=ic30", sl.get("select") == "ic30", str(sl.get("select")))
+    for field in ("kind", "horizon", "q", "core_only"):
+        check(f"{sid}↔{uid} {field} 동일({sl.get(field)!r})", sl.get(field) == us.get(field),
+              f"S={sl.get(field)!r} C={us.get(field)!r}")
+    check(f"{sid} select 만 다름(arm=ic30 · 대조=top30)",
+          sl.get("select") != us.get("select"),
+          f"S={sl.get('select')!r} C={us.get('select')!r}")
+    check(f"{sid} rank 변환·recipe 없음(배포 가능)", "transform" not in sl and "recipe" not in sl)
+
 print()
 print(f"{'ALL PASS' if not fails else 'FAILURES: ' + ', '.join(fails)}  ({len(cfgs)} configs 파싱)")
 sys.exit(1 if fails else 0)

@@ -77,12 +77,97 @@ def edge_of(col, y):
     return abs((ranks[yy == 1].sum() - n1 * (n1 + 1) / 2.0) / (n1 * n0) - 0.5)
 
 
-def subset(names, select, X_train, y_train):
+def _rankdata(a):
+    """평균 순위(동점 = 중간 순위). spearman 을 scipy 없이 계산하기 위한 헬퍼."""
+    a = np.asarray(a, dtype=float)
+    order = np.argsort(a, kind="mergesort")
+    ranks = np.empty(len(a), dtype=float)
+    ranks[order] = np.arange(1, len(a) + 1, dtype=float)
+    xs = a[order]
+    i = 0
+    while i < len(xs):
+        j = i
+        while j + 1 < len(xs) and xs[j + 1] == xs[i]:
+            j += 1
+        if j > i:
+            ranks[order[i:j + 1]] = (i + 1 + j + 1) / 2.0
+        i = j + 1
+    return ranks
+
+
+def _spearman(x, y):
+    rx = _rankdata(x)
+    ry = _rankdata(y)
+    rx = rx - rx.mean()
+    ry = ry - ry.mean()
+    d = float(np.sqrt((rx ** 2).sum() * (ry ** 2).sum()))
+    return 0.0 if d == 0 else float((rx * ry).sum() / d)
+
+
+def ic_scores(X, y, dates, min_dates=10, min_rows=8):
+    """**날짜별 횡단면 순위 IC** 기반 피처 점수 (선별 *규칙* 축).
+
+    왜 edge_of 로는 부족한가: edge_of 는 폴드 학습구간을 **풀링**한 순위 AUC 다 →
+    ① 날짜 레벨 성분(그 날 전체가 좋았는가)이 지배할 수 있고 ② 소수 날짜/레짐이
+    edge 를 만들 수 있다. 모델은 **날짜별 횡단면 순위**로 채점되므로(그 날 안에서만
+    종목을 비교) 선별 목적함수를 채점 목적함수에 맞추는 것이 이 축의 가설이다.
+    점수 = |평균 IC| × 일관성(다수 방향 날짜 비율) — 부호가 날마다 뒤집히는 피처를
+    평균만으로 뽑지 않기 위한 항.
+    ⚠ 학습행·학습라벨만 받는다(평가행 미사용 = 누수 없음). 관측날짜 < min_dates → 0.
+    반환: (scores ndarray, 관측날짜수 ndarray)
+    """
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y).astype(int)
+    d = np.asarray(dates).astype(str)
+    _, di = np.unique(d, return_inverse=True)
+    di = np.asarray(di).reshape(-1)
+    groups = [np.where(di == g)[0] for g in range(int(di.max()) + 1)]
+    ncols = X.shape[1]
+    scores = np.zeros(ncols, dtype=float)
+    nds = np.zeros(ncols, dtype=int)
+    for c in range(ncols):
+        col = X[:, c]
+        ics = []
+        for rows in groups:
+            x, yy = col[rows], y[rows]
+            m = ~np.isnan(x)
+            if int(m.sum()) < min_rows:
+                continue
+            x, yy = x[m], yy[m]
+            if len(np.unique(x)) < 2 or yy.min() == yy.max():
+                continue
+            ics.append(_spearman(x, yy))
+        if len(ics) < min_dates:
+            continue
+        arr = np.asarray(ics, dtype=float)
+        mean = float(arr.mean())
+        cons = max(float((arr > 0).mean()), float((arr < 0).mean()))
+        scores[c] = abs(mean) * cons
+        nds[c] = len(arr)
+    return scores, nds
+
+
+def subset(names, select, X_train, y_train, dates=None):
     if select == "all":
         return list(range(len(names))), "all"
     if select.startswith("curated"):
         keep = set(_ORIG_SELECT(names, select.endswith("48")))
         return [i for i, n in enumerate(names) if n in keep], select
+    if select.startswith("ic"):
+        # ⚠ dates 없이 돌리면 **다른 규칙(풀링 edge)으로 조용히 바뀐다** → 즉시 실패시킨다.
+        if dates is None:
+            raise RuntimeError(
+                "select=%s 는 학습행 날짜(dates=)를 요구한다 — 날짜별 횡단면 IC 선별이라 "
+                "날짜 없이 호출하면 선별 규칙이 달라진다(조용한 폴백 금지)." % select)
+        k = int(select.replace("ic", ""))
+        sc, _nds = ic_scores(X_train, y_train, dates)
+        idx = sorted(int(i) for i in np.argsort(-sc)[:k])
+        # 투명성: 풀링 edge top-k 와 몇 개가 겹치는지 남긴다. 선별 규칙이 **실제로 다른
+        # 집합**을 고르는지 확인하지 않으면 'Δ0' 을 '효과 없음'으로 오독하게 된다(EV1 사고).
+        edges = np.array([edge_of(X_train[:, i].astype(float), y_train)
+                          for i in range(len(names))])
+        e_top = {int(i) for i in np.argsort(-edges)[:k]}
+        return idx, f"ic{k} (edge top{k} 와 {len(e_top & set(idx))}/{k} 겹침)"
     edges = np.array([edge_of(X_train[:, i].astype(float), y_train)
                       for i in range(len(names))])
     k = int(select.replace("top", ""))

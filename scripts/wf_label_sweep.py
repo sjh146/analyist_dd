@@ -259,6 +259,33 @@ CONFIGS = [
      "core_only": True, "codes_slice": [120, 150],
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "구간 [120:150) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_120_150"},
+    # ── CG71(2026-10-02): **선별 규칙(selection rule)** 축 — 기록상 0회 시험 ─────────────
+    # 왜 새 레버인가: 지금까지 모든 arm 이 '풀링 edge top30' 선별을 공유했다. 선별 **크기**
+    # 축(SEL1·CG26 core15/20/40·CG44 top1/3/5)은 닫혔지만 **규칙**은 한 번도 바뀌지 않았다.
+    # CG69 실측: 게이트 ON 대조군(US_*)의 AUC 가 유동성 구간에 따라 0.5204 → 0.4917 로
+    # 단조 감소하고 배포 가능 arm 은 평평(0.498)했다 → 남은 차이는 '무엇을 선별하는가'다.
+    # 메커니즘: edge_of 는 폴드 학습구간을 **풀링**한 순위 AUC 라 ① 날짜 레벨 성분(그 날
+    # 전체가 좋았는가) ② 소수 날짜·레짐 이 edge 를 만들 수 있다. 모델은 날짜별 횡단면
+    # 순위로 채점되므로 **선별 목적함수 = 채점 목적함수**로 맞추는 것이 가설이다.
+    # 배포 가능성: 선별은 학습 시점 연산이라 추론 계약(종목 단위 스트리밍)을 건드리지
+    # 않는다(모델 디렉터리의 feature_names 가 선택 결과를 고정). rank 변환과 다른 점이다.
+    # 대조군은 **같은 런의 US_00_30..US_120_150**(같은 kind·q·구간, select 만 top30)
+    # → 구간 교체 잡음(CG13 총폭 0.0287)을 상쇄하는 짝 설계.
+    {"id": "SL_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
+     "core_only": True, "codes_slice": [0, 30],
+     "desc": "구간 [0:30) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_00_30(풀링 edge top30)"},
+    {"id": "SL_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
+     "core_only": True, "codes_slice": [30, 60],
+     "desc": "구간 [30:60) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_30_60(풀링 edge top30)"},
+    {"id": "SL_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
+     "core_only": True, "codes_slice": [60, 90],
+     "desc": "구간 [60:90) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_60_90(풀링 edge top30)"},
+    {"id": "SL_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
+     "core_only": True, "codes_slice": [90, 120],
+     "desc": "구간 [90:120) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_90_120(풀링 edge top30)"},
+    {"id": "SL_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
+     "core_only": True, "codes_slice": [120, 150],
+     "desc": "구간 [120:150) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_120_150(풀링 edge top30)"},
     # ── CG28: 데이터 축(L3) — 패널에는 살아 있으나 게이트(core48) 밖인 '부활 후보' 11개 ──────
     # 왜 여기서 재는가: CG27(2026-09-29)에서 조정 축(피처변환·HP·유니버스·라벨·가중·k)이
     # 게이트 ON 천장 Δ+0.0180(<사전문턱 +0.02)로 닫혔다 → 남은 레버는 데이터 축뿐이다.
@@ -1375,7 +1402,7 @@ def main():
                     _dset = set(dv_names)
                     _keep = [j for j, f in enumerate(fn) if f not in _dset]
                     _idx_k, sel_desc = W.subset([fn[j] for j in _keep], cfg["select"],
-                                                Xtr[:, _keep], ytr)
+                                                Xtr[:, _keep], ytr, trd)
                     _der = [j for j, f in enumerate(fn) if f in _dset]
                     if not _der:
                         raise RuntimeError("파생 피처가 필터를 통과하지 못했다 — 측정 무효")
@@ -1384,7 +1411,7 @@ def main():
                     ml.log(f"  {exp_id}: 선별 {len(idx)}개 = edge top{len(_idx_k)} + Δ강제 {len(_der)}개"
                            f"{' (gate_add 포함)' if ga_names else ''}")
                 else:
-                    idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr)
+                    idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr, trd)
                 sel = [fn[j] for j in idx]
                 recipe = cfg.get("recipe") or W.BASE["recipe"]
                 _extra.clear()
