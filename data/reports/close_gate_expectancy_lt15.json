@@ -1,0 +1,62 @@
+{
+  "n_rows": 926,
+  "n_sessions": 87,
+  "round_trip_cost_pct": 0.21,
+  "topk": 3,
+  "buckets": {
+    "r1_fail_heat_fail": {
+      "n": 497,
+      "gross_pct": -0.0823,
+      "net_pct": -0.2923,
+      "win_pct": 39.0
+    },
+    "r1_ok_heat_fail": {
+      "n": 382,
+      "gross_pct": 0.0534,
+      "net_pct": -0.1566,
+      "win_pct": 39.3
+    },
+    "r1_fail_heat_ok": {
+      "n": 47,
+      "gross_pct": -0.8367,
+      "net_pct": -1.0467,
+      "win_pct": 21.3
+    }
+  },
+  "strategy": {
+    "current": {
+      "label": "현행(R1 ∧ HEAT)",
+      "n_sessions": 0
+    },
+    "no_heat": {
+      "label": "HEAT 해제(R1만)",
+      "n_sessions": 38,
+      "avg_pct": -0.5672,
+      "median_pct": -0.408,
+      "pos_sessions_pct": 34.2,
+      "t_stat": -3.13,
+      "sd": 1.119
+    },
+    "no_r1": {
+      "label": "R1 해제(HEAT만)",
+      "n_sessions": 3,
+      "avg_pct": -0.3839,
+      "median_pct": 2.0007,
+      "pos_sessions_pct": 66.7,
+      "t_stat": -0.08,
+      "sd": 7.851
+    },
+    "none": {
+      "label": "게이트 없음",
+      "n_sessions": 87,
+      "avg_pct": -0.6037,
+      "median_pct": -0.544,
+      "pos_sessions_pct": 32.2,
+      "t_stat": -3.16,
+      "sd": 1.781
+    }
+  },
+  "verdict": [
+    "현행 게이트로는 표본 기간 내내 진입 0세션 → 이 경로는 사실상 닫혀 있다"
+  ]
+}
