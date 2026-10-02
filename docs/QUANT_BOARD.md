@@ -1688,3 +1688,10 @@ T6 '코드 작성·푸시' 승인(09-30 18:16 `bd086a3` 로 이미 커밋·푸�
 - **CG69 진행 중**(22:02:17 착수, `--force`, 250 cell): 6분에 42 cell(≈7 cell/min) → ETA **≈22:40**(컨테이너 timeout 5400s 내). 다음 틱이 결과를 보고한다.
 - **누수 신호**(step 5): `dq_feature_stock_constant_ratio` **0.3354** · `market_level_count` 26 · `null_ratio_max` 0.999 · `coverage_illusion` 36 ·
   살아있는 199/횡단면 138 — **as-of 위반·padding 0**(리서처 성적표와 정합). 누수 게이트 위반 없음.
+
+**정정(22:3x)** — CG69 ETA 추정이 틀렸다: 스윕이 외부 에이전트 4개(`opencode` wt/expectancy·wt/features·wt/metric + `/tmp/model_metric_protocol_audit.py`)와 4코어를
+공유하며 cell 속도가 **10 s → 60~90 s(10배 감속)** 로 떨어졌다(22:20 실측 0.2 cell/min). 첫 런(22:02, `timeout 5400`)은 250 cell 중 ~150 에서
+23:32 컨테이너 timeout 에 걸릴 것이므로 **다음 런용으로 `timeout 24000`·`est 380분`으로 정정**했다(항목은 pending 유지).
+요약이 유실돼도 완주한 config 값은 `wf_label_sweep.jsonl` 에 남으므로 **`scripts/sweep_pairs_from_jsonl.py`**(신설)로 부분 짝 Δ 를 복원한다.
+부분 실측(arm 5구간 완주·대조군 미완): SD1s_00_30 **0.4981** · 30_60 **0.4994** · 60_90 **0.4950** · 90_120 **0.4981** · 120_150 **0.5407**
+— panel_420_asof3(49종목)의 0.5512 가 **150종목 패널에서 재현되지 않는 방향**(전부 0.50 근처)이다. 대조군 미완이라 **판정 아님**(CG11 유니버스 특이성과 부합하는 예비 신호).
