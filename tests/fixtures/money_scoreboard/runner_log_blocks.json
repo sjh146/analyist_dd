@@ -1,0 +1,5 @@
+[
+ "- R1 block swing: r1: avg prob 0.550 < 0.58 (calibrated)",
+ "- PRE filter close: 20 -> 0 (stale/blocked 20, window 0, price 0)",
+ "- PRE filter swing: 20 -> 0 (stale/blocked 20, window 0, price 0)"
+]

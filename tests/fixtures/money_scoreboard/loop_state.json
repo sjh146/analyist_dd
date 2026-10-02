@@ -1,0 +1,120 @@
+{
+ "version": 1,
+ "loop": {
+  "halt": false,
+  "halt_reason": ""
+ },
+ "daily": {
+  "date": "2026-10-02",
+  "start_equity": 526243.0,
+  "entries": 0,
+  "dry_run_entries": 0,
+  "closed_pnl": 0.0,
+  "closed": true,
+  "summary": {
+   "date": "2026-10-02",
+   "start_equity": 526243.0,
+   "end_equity": 526243.0,
+   "pnl": 0.0,
+   "entries": 0,
+   "reconcile": {
+    "applied": true,
+    "unfilled": [],
+    "qty_fixed": [],
+    "adopted": [],
+    "reopened": [],
+    "corrected": [],
+    "closed": [],
+    "needs_price": [],
+    "bogus_exits": [],
+    "broker_codes": [],
+    "journal_open_codes": [],
+    "issues": 0,
+    "report_only": []
+   }
+  },
+  "reconcile": {
+   "applied": true,
+   "unfilled": [],
+   "qty_fixed": [],
+   "adopted": [],
+   "reopened": [],
+   "corrected": [],
+   "closed": [],
+   "needs_price": [],
+   "bogus_exits": [],
+   "broker_codes": [],
+   "journal_open_codes": [],
+   "issues": 0,
+   "report_only": []
+  }
+ },
+ "check": {
+  "consecutive_failures": 0,
+  "last_error": null
+ },
+ "pending_entries": {},
+ "last_cycle": {
+  "ts": "2026-10-02T15:40:05.818454+09:00",
+  "phase": "close",
+  "market_open": false,
+  "fresh": false,
+  "checked": false,
+  "check_error": null,
+  "consecutive_failures": 0,
+  "decisions": 0,
+  "blocked_screeners": 0,
+  "r5_blocked": 0,
+  "plans": 0,
+  "acted": 0,
+  "exits": 0,
+  "exit_reasons": [],
+  "dry_run": false,
+  "halted": false,
+  "halt_reason": "",
+  "resumable": false,
+  "closed": true,
+  "reasons": [
+   "CLOSE cancelled 0 outstanding order(s)",
+   "CLOSE summary pnl=0.0 entries=0"
+  ],
+  "reconcile": {
+   "applied": true,
+   "unfilled": [],
+   "qty_fixed": [],
+   "adopted": [],
+   "reopened": [],
+   "corrected": [],
+   "closed": [],
+   "needs_price": [],
+   "bogus_exits": [],
+   "broker_codes": [],
+   "journal_open_codes": [],
+   "issues": 0,
+   "report_only": []
+  }
+ },
+ "last_summary": {
+  "date": "2026-10-01",
+  "start_equity": 526243.0,
+  "end_equity": 526243.0,
+  "pnl": 0.0,
+  "entries": 0,
+  "reconcile": {
+   "applied": true,
+   "unfilled": [],
+   "qty_fixed": [],
+   "adopted": [],
+   "reopened": [],
+   "corrected": [],
+   "closed": [],
+   "needs_price": [],
+   "bogus_exits": [],
+   "broker_codes": [],
+   "journal_open_codes": [],
+   "issues": 0,
+   "report_only": []
+  }
+ },
+ "updated_at": "2026-10-02T15:40:06.387915+09:00"
+}

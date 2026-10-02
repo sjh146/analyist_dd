@@ -1,0 +1,36 @@
+{
+ "health": {
+  "ok": true,
+  "connected": true,
+  "ts": 1790946465.2949665
+ },
+ "balance": {
+  "ok": true,
+  "balance": {
+   "account": "783247576",
+   "goods_flag": "01",
+   "positions_count": 0,
+   "total_buy_amount": 0,
+   "total_eval_amount": 0,
+   "total_eval_pnl": 0,
+   "equity": 526243,
+   "d2_deposit": 526243,
+   "loan_amount": 0,
+   "broker_total_eval": 526243,
+   "cash": 526243,
+   "withdrawable": 526243,
+   "buyable_error": "remote error -1: 12275 종목코드를 확인하십시요.(ord.stk.dpmyinqr.selpsblqtyamt)"
+  },
+  "ts": 1790946465.5999255
+ },
+ "positions": {
+  "ok": true,
+  "positions": [],
+  "ts": 1790946465.9230978
+ },
+ "orders": {
+  "ok": true,
+  "orders": [],
+  "ts": 1790946466.1628764
+ }
+}

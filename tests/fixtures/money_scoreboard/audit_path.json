@@ -1,0 +1,73 @@
+{
+ "ts": "2026-10-02T15:50:59",
+ "mode": "path",
+ "issues": [
+  {
+   "check": "loop_started_after_open_exit_window",
+   "severity": "warn",
+   "detail": "오늘 첫 루프 기동 11:20 (>09:10) — 익일 시가 청산 창을 놓칠 수 있었다 (보유 0종목 → 경고)"
+  }
+ ],
+ "info": {
+  "loop_process_state": {
+   "halt": false,
+   "halt_reason": ""
+  },
+  "daily": {
+   "date": "2026-10-02",
+   "entries": 0,
+   "closed": true
+  },
+  "last_cycle": {
+   "ts": "2026-10-02T15:40:05.818454+09:00",
+   "phase": "close",
+   "plans": 0,
+   "acted": 0,
+   "exits": 0,
+   "reasons": [
+    "CLOSE cancelled 0 outstanding order(s)",
+    "CLOSE summary pnl=0.0 entries=0"
+   ],
+   "blocked_screeners": 0
+  },
+  "bridge_health": {
+   "ok": true,
+   "connected": true,
+   "ts": 1790923859.5422006
+  },
+  "positions": {
+   "ok": true,
+   "positions": [],
+   "ts": 1790923860.0269685
+  },
+  "orders_n": 0,
+  "feed": {
+   "service": "analyist-dd-feed",
+   "file": "/home/jhshi/analyist_dd/data/feed/screener_latest.json",
+   "exists": true,
+   "generated_at": "2026-10-02T14:40:11+09:00",
+   "age_seconds": 4249.2,
+   "items": {
+    "close": 20,
+    "swing": 0
+   }
+  },
+  "loop_starts_3d": [
+   "2026-09-29T09:45:38",
+   "2026-09-29T10:05:47",
+   "2026-09-29T10:06:47",
+   "2026-09-29T10:07:47",
+   "2026-09-29T10:08:48",
+   "2026-09-29T10:09:48",
+   "2026-09-29T13:34:30",
+   "2026-09-29T14:57:04",
+   "2026-09-29T15:03:37",
+   "2026-09-30T09:19:14",
+   "2026-09-30T13:13:02",
+   "2026-09-30T13:16:03",
+   "2026-10-01T10:23:59",
+   "2026-10-02T11:20:21"
+  ]
+ },
+ "status": "warn"
+}
