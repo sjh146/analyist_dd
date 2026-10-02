@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-01T09:40:00+09:00",
+  "updated_at": "2026-10-02T13:26:25+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -29,7 +29,7 @@
       "cost": "저",
       "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
       "result": {
-        "ts": "2026-10-01T09:26:13+09:00",
+        "ts": "2026-10-02T09:26:05+09:00",
         "value": 0.0,
         "check": "0.0 >= 1.0",
         "verdict": "미달",
@@ -130,7 +130,7 @@
     {
       "id": "T5",
       "title": "건당 기대값 흑자 전환",
-      "status": "pending",
+      "status": "failed",
       "priority": 5,
       "command": "python3 scripts/trader_cycle.py --probe expectancy",
       "metric": "expectancy_krw",
@@ -144,7 +144,7 @@
       "cost": "저",
       "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
       "result": {
-        "ts": "2026-09-30T13:25:07+09:00",
+        "ts": "2026-10-02T11:25:22+09:00",
         "value": -482.00056666666734,
         "check": "-482.00056666666734 > 0.0",
         "verdict": "미달",
@@ -156,7 +156,7 @@
     {
       "id": "T6",
       "title": "브리지 감독 재기동 churn — 무백오프 90초 재기동",
-      "status": "pending",
+      "status": "done",
       "priority": 6,
       "command": "python3 scripts/trader_cycle.py --probe bridge_churn",
       "metric": "bridge_restarts_peak_per_hour_24h",
@@ -174,12 +174,12 @@
         "measured_at": "2026-09-29 09:40"
       },
       "result": {
-        "ts": "2026-09-30T15:25:35+09:00",
-        "value": 37.0,
-        "check": "37.0 <= 4.0",
-        "verdict": "미달",
+        "ts": "2026-10-02T13:25:23+09:00",
+        "value": 1.0,
+        "check": "1.0 <= 4.0",
+        "verdict": "충족",
         "rc": 0,
-        "stdout_tail": "37.0",
+        "stdout_tail": "1.0",
         "stderr_tail": ""
       }
     },
@@ -234,12 +234,12 @@
         "measured_at": "2026-10-01 08:2x"
       },
       "result": {
-        "ts": "2026-10-01T08:26:38+09:00",
-        "value": 10.547945205479458,
-        "check": "10.547945205479458 <= 1.0",
+        "ts": "2026-10-02T13:26:25+09:00",
+        "value": 20.860495436766623,
+        "check": "20.860495436766623 <= 1.0",
         "verdict": "미달",
         "rc": 0,
-        "stdout_tail": "10.547945205479458",
+        "stdout_tail": "20.860495436766623",
         "stderr_tail": ""
       }
     },

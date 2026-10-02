@@ -346,7 +346,8 @@ def verify_model_handoff() -> dict:
         out["has"]["purge"] = True
     if "dry-run" in blob or "dry_run" in blob or "dryrun" in blob:
         out["has"]["promote_dryrun"] = True
-    for f in ("/home/jhshi/analyist_dd/models/champion/auc.txt",
+    for f in ("/home/jhshi/analyist_dd/services/xgboost-ml/app/models/champion/auc.txt",
+              "/home/jhshi/analyist_dd/models/champion/auc.txt",
               "/home/jhshi/analyist_dd/services/xgboost-ml/models/champion/auc.txt"):
         try:
             with open(f, encoding="utf-8") as fh:

@@ -8014,6 +8014,25 @@
       "expected": "미지",
       "cost": null,
       "note": "트레이더가 요구한 자료 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다."
+    },
+    {
+      "id": "MT117",
+      "title": "챔피언 교체/롤백을 엔지니어 원장에 기록(git·원장 추적)",
+      "status": "needs_setup",
+      "priority": 8,
+      "from_trader": "champion-swap-unlogged",
+      "created_at": "2026-10-02T13:34:07+09:00",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": null,
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "챔피언 교체/롤백이 엔지니어 원장에 기록되지 않았다 — 실측 2026-10-02 11:44:20 KST: champion auc.txt 0.554776 -> 0.551318, 종전 챔피언은 champion_prev_20261002-024420/ 로 이동(그 auc.txt=0.554776), robust_auc.json robust_auc=0.5513 replaced_baseline=0.5548 recorded_at=2026-10-02T02:44:20Z(root 소유), stock_xgboost_ml StartedAt=11:13:42 KST. 재현: ls -la --time-style=full-iso services/xgboost-ml/app/models/ | head; cat services/xgboost-ml/app/models/champion/auc.txt services/xgboost-ml/app/models/champion_prev_20261002-024420/auc.txt; grep -c rollback data/reports/model_engineer_ledger.jsonl  (=0, 마지막 원장 항목 CG64 07:16). 영향: 트레이더가 swing 피드 ml_auc 의 출처 모델을 원장으로 검증할 수 없다(계약2 성적표).",
+      "evidence": "트레이더 사이클 요구: 챔피언 교체/롤백이 엔지니어 원장에 기록되지 않았다 — 실측 2026-10-02 11:44:20 KST: champion auc.txt 0.554776 -> 0.551318, 종전 챔피언은 champion_prev_20261002-024420/ 로 이동(그 auc.txt=0.554776), robust_auc.json robust_auc=0.5513 replaced_baseline=0.5548 recorded_at=2026-10-02T02:44:20Z(root 소유), stock_xgboost_ml StartedAt=11:13:42 KST. 재현: ls -la --time-style=full-iso services/xgboost-ml/app/models/ | head; cat services/xgboost-ml/app/models/champion/auc.txt services/xgboost-ml/app/models/champion_prev_20261002-024420/auc.txt; grep -c rollback data/reports/model_engineer_ledger.jsonl  (=0, 마지막 원장 항목 CG64 07:16). 영향: 트레이더가 swing 피드 ml_auc 의 출처 모델을 원장으로 검증할 수 없다(계약2 성적표).",
+      "success": null,
+      "expected": "미지",
+      "cost": null,
+      "note": "트레이더가 요구한 자료 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다."
     }
   ]
 }
