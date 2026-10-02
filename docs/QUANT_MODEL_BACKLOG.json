@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-02T23:06:39+09:00",
+  "updated_at": "2026-10-03T00:16:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -2838,17 +2838,18 @@
       "hypothesis": "지금까지의 모든 스윕은 train_curated 유니버스(KOSDAQ 코드순 50/150)에서 측정됐는데 생산 챔피언은 200종목(최근데이터순+seed 셔플)으로 학습된다. 유니버스가 다르면 실측이 승격 조건을 대표하지 못한다(CG5 에서 150종목 전이 시 부호 반전).",
       "evidence": "CG5(2026-09-28 05:26): 같은 config 가 49종목 +0.0227 → 150종목 −0.0109 로 반전. app/training/retrain_champion.py L90-94 → universe.select_training_universe(limit=200, min_days=30, seed=0).",
       "method": "select_training_universe 와 동일 규칙으로 200종목 패널을 굽고(wf_wave build_panel 유니버스 옵션), 스윕 대조군·실험군 2-arm 을 in-run A/B 로 재측정한다.",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 50400 python -u scripts/wf_wave.py --days 420 --limit 200 --universe prod --panel /app/app/models/wf/panel_prod200.npz --end-date 2026-09-27'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 61200 python -u scripts/wf_wave.py --days 420 --limit 200 --universe prod --panel /app/app/models/wf/panel_prod200.npz --end-date 2026-09-27'",
       "check": "python3 scripts/model_engineer_cycle.py --status",
       "success": "200종목 패널에서 CO_rank_smooth_d1_h5 − CO_core30_h5 Δ ≥ +0.02 → 생산 조건에서도 성립. 미만이면 22사이클의 +방향은 좁은 유니버스 특이로 최종 기록",
       "counterfactual": "CO_core30_h5(같은 런·같은 200종목 패널)",
-      "est_minutes": 400,
+      "est_minutes": 900,
       "cost": "200종목×~280일 ≈ 5.6만 페어 → 실측 1.06 pair/s 기준 약 15시간 — U3 완주 후 야간 슬롯 1개 필요",
       "metric": "wf_sweep_summary",
       "caution": "U3(995일 창)와 같은 야간 슬롯을 두고 경쟁하지 말 것 — U3 완주 후 pending 으로 승격한다. 빌드는 --end-date 로 구간을 고정하고 컨테이너 timeout 을 개장 전 종료에 맞춘다.",
       "note": "2026-09-28 06:2x 신설(backlog). wf_wave 에 --universe/-market/-order 배선이 선행 조건(내 소유 파일). | 2026-09-28 16:1x: **배선 완료(선행 조건 해소) + DB 실측**. `wf_wave.select_panel_codes`·`--universe prod|curated`·`--universe-seed`·`--universe-report`·`--panel` 신설, `wf_label_sweep` 에도 전달(기본값 현행 유지). DB 전용 검증(패널 빌드 없음): curated limit=200 → KOSDAQ 200·비주식 0 / prod limit=200 → KOSDAQ 141+KOSPI 59·비주식 0 / **교집합 19/200 = 9.5%**. 즉 지금까지 모든 스윕 Δ 는 챔피언 학습 유니버스와 90.5% 다른 종목 집합에서 측정됐다 — CG5(150종목 부호 반전)·CG11(전 성분 하회)의 유니버스 특이성과 정합하는 수치다. 남은 것은 패널 빌드뿐(200종목×~280일 ≈ 5.6만 페어 ≈ 15시간 · U3 와 같은 야간 슬롯 경쟁) → U3 완주 후 u3_launcher 방식의 명시적 런처로 착수. `--universe prod` 는 기본 파일명을 **거부**한다(기준선 패널 덮어쓰기 방지, rc=2 실측). | 2026-10-02T18:22+0900 사전점검 실측(착수 준비 완료 → pending 승격): ① 명령 그대로 700초 실행 → `universe[prod]: 200 종목` · 빌드 구간 2025-08-03~2026-09-27(end_date 고정) 확인 ② 실측 속도 0.71→3.24 pair/s(warm-up 후 안정) · 총 54,129 페어 · ETA ≈ 267분(4.5h) ③ 체크포인트 500페어마다 panel_prod200.npz.rows.pkl 저장(2,000행) 확인 ④ 2차 실행(170초)에서 `체크포인트 재개: processed=2000/54129 (3.7%)` 실측 → 재개 성립. ⚠ 종전 timeout 43200(12h)은 과거 추정(1.06 pair/s) 기준이라 postgres 경쟁 시 잘린다 → 50400(14h)로 올리고 est_minutes 도 400(전체 소요)으로 정정(est 는 '남은 시간'이 아니라 '전체 소요'). ⚠ 주말 슬롯: 다음 컨테이너 재생성이 월 20:00 이라 금 21:00 이후 착수하면 ETA 가드를 통과한다 — 사람 감시가 없으므로 월 20:00 이전 종료를 전제로만 착수한다. ⚠ 사전점검이 남긴 체크포인트(2,000행)는 panel_cache 재사용으로 그대로 이어진다.",
       "setup_needed": null,
-      "blocked_on": null
+      "blocked_on": null,
+      "est_minutes_note": "2026-10-03 수정: est_minutes 400→900(15h)·timeout 50400→61200s(17h). 근거: cost 실측 1.06 pair/s · 5.6만 페어 = 52,848s(14.68h) 인데 est 400(6.7h)·timeout 50400s(14h)로 둘 다 부족 → 94% 지점 SIGKILL 구조였다(스킬 실측교훈 'est_minutes 와 컨테이너 timeout 을 둘 다 실측값에 맞춰라'). 체크포인트 재개가 켜져 있어 경쟁으로 느려지면 야간 분할로 이어진다."
     },
     {
       "id": "CG11",
@@ -8564,7 +8565,7 @@
     {
       "id": "CG9c",
       "title": "승격 전 OOS 사전 게이트 — 후보·현행챔피언을 같은 창으로 champion_robust_eval 짝 비교해 Δ<0 이면 승격 보류",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "affects_model": true,
       "depends_on": "CG9b (게이트 val AUC 단독 판정의 실패 실측)",
@@ -8582,7 +8583,37 @@
       "est_minutes": 30,
       "cost": "champion_robust_eval 1회 ≈ 10~15분 · 2회 연속 실행(같은 창 고정).",
       "metric": "champion_robust_eval",
-      "note": "2026-10-02 22:0x 신설. 도구는 아직 래퍼 없이 두 번 수동 실행 → 결과 비교는 보고서에서 한다(두 --out 중 첫 파일만 자동 판정됨). 래퍼(CG9d)는 필요해지면 신설."
+      "note": "2026-10-02 22:0x 신설. 도구는 아직 래퍼 없이 두 번 수동 실행 → 결과 비교는 보고서에서 한다(두 --out 중 첫 파일만 자동 판정됨). 래퍼(CG9d)는 필요해지면 신설.",
+      "result": {
+        "verdict": "승격 보류 — OOS 짝 Δ −0.0384 (양(+) 1/3)",
+        "detail": "같은 3창(2025-12-01~2026-05-21, 전부 챔피언 학습구간 이전)·같은 라벨(rel h5)·같은 행(2155행·30날짜)에서 champion_robust_eval 짝 비교: challenger_cg9 0.4624±0.0300 vs 현행 champion 0.5008 (창별 Δ [-0.0870, -0.0446, +0.0164], 양(+) 1/3).",
+        "delta": -0.0384,
+        "per_exp": null,
+        "paired": {
+          "mean": -0.0384,
+          "per_fold": [
+            -0.087,
+            -0.0446,
+            0.0164
+          ],
+          "pos": 1,
+          "n": 3,
+          "arm": 0.4624,
+          "ctl": 0.5008
+        },
+        "gate_context": "CG9b champion_promote --dry-run 은 인샘플 val AUC 0.6173 vs 기준선 0.5513 으로 would_promote 를 냈으나 OOS 는 챔피언보다 −0.0384 열등 → 인샘플 판정이 OOS 순위와 반대(스피어만 −0.81 실측과 일치). 승격 차단.",
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-10-03T00:13:51+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.4624±0.0300 (시간창 3개 [0.4399, 0.5047, 0.4425]) · 풀링 0.4579 · 날짜별평균 0.4624 · 행 2155",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG9c_20261003-000019.log",
+          "elapsed_min": 13.5
+        }
+      ]
     },
     {
       "id": "CG71",
