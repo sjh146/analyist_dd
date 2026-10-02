@@ -151,7 +151,7 @@ v1 의 5개 중 실제로 필요했던 것은 3개였고, 나머지는 **우리 
 | P0 | **완료** — 스킬 재편(개명 3·통합 1·삭제 1·신규 1): `quant-council` · `quant-protocol-lock` · `quant-auditor` · `quant-safety` · `quant-release` | `~/.hermes/skills/quant/*` 5개 | 완료 |
 | P1 | **완료** — 게이트 스크립트 4개 + 스모크 테스트(`ALL PASS`): `audit_protocol_lock` · `audit_path_daily` · `audit_measure` · `audit_safety` | `scripts/audit_*.py` · `scripts/_audit_smoke_test.py` | 완료 |
 | P2 | **완료** — 릴리스 도구 2종: `tools/release_precheck.py`(감사4종+피드계약+승격dry-run+라이브스코어 프로브 → PASS/BLOCK) · `tools/release_champion.sh`(동결→백업→dry-run→사전검사→적용→15분 검증→롤백, `--apply` 없으면 무변경) | `tools/release_*` | 완료 |
-| P3 | 크론 배선(승인): 평일 08:25·14:45·15:50·15:55 (4틱, 모두 읽기 전용) | Hermes 크론 | 30분 |
+| P3 | **완료** — 크론 4틱(no_agent 스크립트, 토큰 0, discord 전달): `e6efdeed7947` 08:25 안전 · `d9c9336fe0cd` 14:45 안전(창 전) · `9cd4475f2be9` 15:50 감사 · `f7770e343c95` 15:55 락/큐. 전부 정상 시 침묵 + 동일 경보 반복 억제(상태파일) | Hermes 크론 + 래퍼 `~/.hermes/scripts/*_tick.sh` | 완료 |
 | P4 | 첫 전략회의(금 16:00) — 안건: MT116 회고·게이트 0.02·swing 복구 확인 | `docs/council/2026-10-02.md` | 1시간 |
 
 ## 10. 리스크와 가드
