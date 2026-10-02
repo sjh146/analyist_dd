@@ -342,11 +342,20 @@ else
     #   주의: 이 비교는 단일 val split 이라 문턱이 세면 승격이 오래 잠길 수 있다
     #   (챔피언 0.5513 기준 후보 ≥0.5713 필요) — 승격 게이트에 '라이브 스코어 분포' 검사를
     #   추가하는 근본 수리가 되면 그때 이 값을 완화한다(리뷰보드 안건).
-    docker exec stock_xgboost_ml python -m app.training.champion_promote \
-        --candidate "$CAND_DIR" --champion "$CHAMP_DIR" \
-        --min-auc 0.53 --min-improvement 0.02 \
-        --legacy-baseline-cap 0.53 --max-std 0.05 \
-        --summary-out app/reports/ml_result.json >> "$LOG_FILE" 2>&1 < /dev/null
+    # 라이브 스코어 게이트(2026-10-02 신설, MT116 구조 수리): 후보가 실제로 신호를 내는가.
+    #   AUC 게이트는 '배포 스코어 분포가 절대문턱 아래로 내려가 경로가 닫히는' 유형을 볼 수 없다
+    #   (실측: val AUC +0.0035 승격이 swing batch_type 을 signal→raw_fallback 으로 뒤집어 3세션 무진입).
+    #   프로브가 같은 유니버스·같은 피처행렬에서 후보/챔피언을 채점한다(약 90초).
+    #   차단(rc=2) → 승격 생략(챔피언 유지). 측정 실패(rc=3) → AUC 게이트에 위임(차단하지 않는다).
+    if python3 scripts/gate_promote_live_score.py --candidate "$CAND_DIR" >> "$LOG_FILE" 2>&1; then
+        docker exec stock_xgboost_ml python -m app.training.champion_promote \
+            --candidate "$CAND_DIR" --champion "$CHAMP_DIR" \
+            --min-auc 0.53 --min-improvement 0.02 \
+            --legacy-baseline-cap 0.53 --max-std 0.05 \
+            --summary-out app/reports/ml_result.json >> "$LOG_FILE" 2>&1 < /dev/null
+    else
+        echo "  라이브 스코어 게이트: 승격 생략(후보가 문턱 초과 신호 0건 — MT116 유형)" >> "$LOG_FILE"
+    fi
 fi
 # MT117(트레이더 환류): 챔피언 교체/롤백을 릴리스 로그에 남긴다 — 실패해도 파이프라인은 계속한다.
 # (2026-10-02 롤백이 어디에도 기록되지 않아 트레이더가 디렉터리 mtime 으로 역추적해야 했다.)

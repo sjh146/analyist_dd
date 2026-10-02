@@ -1,0 +1,12 @@
+{
+ "ts": "2026-10-02T15:29:17",
+ "candidate": "app/models/champion",
+ "conf": 0.55,
+ "min_signals": 1,
+ "candidate_signals": 9,
+ "champion_signals": 9,
+ "candidate_max": 0.6732856638948909,
+ "champion_max": 0.6732856638948909,
+ "n_universe": 300,
+ "verdict": "허용"
+}
