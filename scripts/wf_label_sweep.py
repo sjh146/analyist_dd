@@ -724,6 +724,32 @@ CONFIGS = [
     {"id": "CO_core30_csz_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "zscore", "core_only": True,
      "desc": "게이트 ON + 날짜별 횡단면 z-score — '배포 불가 정규화' 통제(tsz 와 같은 런 비교)"},
+    # ── CG70(2026-10-02): 스냅샷 컬럼 제외 A/B — 기록 기준선의 누수 성분 측정 ──────────
+    # 진단(scripts/_nan_exclude_probe.py·_stockconst_probe.py, panel_420_asof3 읽기 전용):
+    #  · NaN 99% 컬럼 26개 = kalman_{activity,attention,momentum,sentiment} + sns_* 22개
+    #    → 모델에 '결측'으로 들어가 무정보(단일피처 AUC 0.5). 값 자체가 없다.
+    #  · '종목별 상수값이 비영' 컬럼 17개 = 아래 목록 — 어떤 시점 값이 그 종목의 **모든 과거 행**에
+    #    복사된 스냅샷이다. 원인이 코드로 확인된다: VectorFeatures._find_similar_stocks 와
+    #    GraphFeatures._get_twin_features/_get_sector_features 는 date 인자를 받지 않고,
+    #    stock_vectors 는 종목당 1행(최신 임베딩, created_at 2026-09-22~10-01)이라 2025-10 행에도
+    #    2026-10 임베딩이 들어간다(≈1년 룩어헤드) — CG63 이 재무 getter 를 수리할 때 함께
+    #    점검되지 않은 잔여분(as-of 위반, 규칙 3).
+    # 노출: 게이트 ON(CORE_FEATURES 48 = 생산 경로)에는 유사도·트윈·테마가 없다 → 생산경로 영향 제한.
+    #      게이트 OFF(기록 기준선 LS_quant_q30_h5 = 0.5406 경로)는 fold1 top30 에
+    #      avg_similarity_top10·max_similarity·similar_count·theme_count·news_count_5d·
+    #      positive_ratio 가 실제로 들어간다 → **기록 기준선 자체가 스냅샷 위에 있을 수 있다.**
+    # 판정: 짝 Δ = LF_snapfree_h5 − LS_quant_q30_h5 (같은 런·같은 행·같은 폴드).
+    {"id": "LF_snapfree_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "exclude_names": ["authenticity_avg", "avg_similarity_top10", "max_similarity", "negative_ratio",
+                       "news_count_20d", "news_count_5d", "positive_ratio", "sentiment_avg",
+                       "sentiment_avg_20d", "sentiment_avg_5d", "sentiment_trend", "sentiment_volatility",
+                       "similarity_std", "theme_count", "theme_max_relevance", "twin_avg_correlation",
+                       "twin_count"],
+     "desc": "기준선 경로에서 스냅샷(종목상수·비영) 17컬럼 제외 — 기록 기준선의 누수 성분 측정"},
+    {"id": "LF_nanfree_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "exclude_names": ["kalman_activity", "kalman_attention", "kalman_momentum", "kalman_sentiment",
+                       "sns_*"],
+     "desc": "플라시보: NaN 99% 컬럼 26개만 제외 — 선별에 안 들어가므로 모델이 비트 동일해야 한다"},
 ]
 
 

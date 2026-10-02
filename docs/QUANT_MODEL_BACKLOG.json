@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-02T17:12:40+09:00",
+  "updated_at": "2026-10-02T19:10:05+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -8198,6 +8198,19 @@
       "metric": "wf_sweep_summary",
       "caution": "⚠ 종목 30개 구간이라 폴드 표본이 작다 — 'foldN: 표본 부족' 으로 건너뛴 폴드가 나오면 폴드 수가 다른 arm 과 짝 비교하지 말라(CG24 교훈). ⚠ panel_150u 는 2026-09-26 빌드(as-of 수리 전) — 레벨 비교는 panel_420_asof3 와 직접 하지 말고 구간 Δ 만 읽는다. ⚠ 스윕 요약은 기본 경로(reports/overnight/wf_label_sweep_summary.json)에 쓴다 — --out 주지 말 것(CG55 함정).",
       "note": "2026-10-02T18:22+0900 등록. 근거·삼중 재현은 arm/baseline/evidence 참조. 게이트 ON·rank 없음 = 추론 계약 무변경(CG27)."
+    },
+    {
+      "id": "CG70",
+      "status": "pending",
+      "priority": 2,
+      "title": "스냅샷(종목상수·비영) 17컬럼 제외 A/B — 기록 기준선 0.5406 의 누수 성분 측정 (+ NaN 99% 플라시보)",
+      "hypothesis": "panel_420_asof3 210컬럼 실측(읽기 전용 프로브 3종): ① NaN 99% 컬럼 26개 = kalman_{activity,attention,momentum,sentiment} + sns_* 22개 → 모델에 결측으로 들어가 무정보 (값 자체가 없음) ② '종목별 상수값이 비영'인 스냅샷 컬럼 17개(유사도 4·트윈 2·테마 2·센티먼트/뉴스 9) → 어떤 시점 값이 그 종목의 모든 과거 행에 복사돼 있다. 원인이 코드로 확인된다: VectorFeatures._find_similar_stocks · GraphFeatures._get_twin_features/_get_sector_features 가 date 인자를 받지 않고, stock_vectors 는 종목당 1행(최신 임베딩, created_at 2026-09-22~10-01, 4,342행/3,915 임베딩)이라 2025-10 행에도 2026-10 임베딩이 들어간다(≈1년 룩어헤드) = as-of 위반(규칙 3). CG63 이 재무 getter 를 수리할 때 함께 점검되지 않은 잔여분이다. 게이트 ON(CORE_FEATURES 48 = 생산 경로)에는 유사도·트윈·테마가 없어 생산경로 노출은 제한적이지만, **게이트 OFF 경로 = 기록 기준선 LS_quant_q30_h5(0.5406)** 의 fold1 top30 에는 avg_similarity_top10·max_similarity·similar_count·theme_count·news_count_5d·positive_ratio 가 실제로 들어간다 → 기준선 자체가 스냅샷 위에 있을 수 있다. 같은 런·같은 행에서 스냅샷만 빼면 그 성분을 직접 잴 수 있다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asof3.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,LF_snapfree_h5,LF_nanfree_h5 --out /app/reports/overnight/cg70_sweep.jsonl --summary-out /app/reports/overnight/cg70_summary.json'",
+      "counterfactual": "LS_quant_q30_h5 (같은 런·같은 패널·같은 폴드의 게이트 OFF 기준선 — 등록 기준선 0.5406 과 같은 config)",
+      "success": "① 본 판정(스냅샷 성분): 짝 Δ = LF_snapfree_h5 − LS_quant_q30_h5 ≤ −0.02 이고 폴드 부호 5/5 일치 → 기록 기준선이 스냅샷(룩어헤드)으로 부풀려져 있었다 = 기준선 재등록 승인 요청 + getter as-of 수리 착수. |Δ| < 0.02 → '스냅샷은 모델 성능에 무영향' 으로 축 종결(단 누수는 별개로 수리 대상). ② 플라시보: LF_nanfree_h5 의 Δ 는 **정확히 0.0000** 이어야 한다(NaN 컬럼은 edge 선별에 못 들어간다) — 아니면 측정 파이프라인 이상이므로 판정을 보류하라.",
+      "est_minutes": 20,
+      "metric": "wf_sweep_summary",
+      "note": "2026-10-02 19:xx 등록(같은 세션에서 진단·배선·검증 완료). 재현 가능한 진단: `docker exec stock_xgboost_ml python /app/scripts/_nan_exclude_probe.py` (NaN 비율 + 스냅샷 17 목록) · `_stockconst_probe.py`(종목상수 74컬럼) · `_xr13_deadfeature_probe.py`(XR13 11종 대조). config LF_snapfree_h5/LF_nanfree_h5 는 wf_label_sweep.py CONFIGS 에 추가(exclude_names). 구동기 수리 동반: summary_path('wf_sweep_summary') 가 `--summary-out` 을 존중하도록 고쳤다(종전 고정 경로 → --summary-out 실행을 '요약 미갱신 → 실행실패' 로 오판 + 기본 요약 덮어쓰기). 검증 python3 scripts/_summary_path_test.py 14/14 PASS. XR13(리서처 R13) 결론 동봉: '부활가능 11개'는 정본 패널에서 대부분 이미 살아 있다(bayes 4종·atr_pct·quality_price_volatility_60d 100% 비영, quality_beta 89.6%) — R13 의 '전부 0' 은 낡은 패널(panel_995: authenticity_avg 0.00%) 기준이라 '부활 대상'이 아니다."
     }
   ]
 }

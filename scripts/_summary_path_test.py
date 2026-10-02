@@ -46,6 +46,21 @@ check("--out= 형식", m.summary_path("champion_robust_eval", "x --out=/app/repo
 check("호스트 절대경로 유지", m.summary_path("champion_robust_eval", "--out /tmp/a.json"),
       "/tmp/a.json")
 
+# 4) wf_sweep_summary 도 --summary-out 을 존중해야 한다 (2026-10-02 수리).
+#    왜: 종전엔 기본 경로를 고정 반환했다 → --summary-out 을 준 실행(CG66/67/70 계열)은
+#    기본 파일을 건드리지 않으므로 구동기가 '요약 미갱신 → 실행실패'로 오판하고,
+#    반대로 기본 경로를 덮어써 다른 실험의 산출물(기록 기준선 요약)을 잃는다.
+SWEEP_DEFAULT = os.path.join(m.PROJ, "services/xgboost-ml/reports/overnight/wf_label_sweep_summary.json")
+SWEEP_CMD = ("docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2700 "
+             "python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asof3.npz "
+             "--only A,B --summary-out /app/reports/overnight/cg70_summary.json'")
+check("wf_sweep --summary-out 컨테이너 경로", m.summary_path("wf_sweep_summary", SWEEP_CMD),
+      os.path.join(m.PROJ, "services/xgboost-ml/reports/overnight/cg70_summary.json"))
+check("wf_sweep --summary-out 없으면 기본경로(회귀)",
+      m.summary_path("wf_sweep_summary", "python scripts/wf_label_sweep.py --only A"), SWEEP_DEFAULT)
+check("wf_sweep 기본경로와 --summary-out 경로가 다름(산출물 보존)",
+      m.summary_path("wf_sweep_summary", SWEEP_CMD) != SWEEP_DEFAULT, True)
+
 # 4) 실제 백로그 항목: champion_robust_eval 을 쓰는 **미완료** 항목의 경로가 유효한가
 #    (2026-09-29 수리: 예전 필터는 status=="pending" 만 봤다 → 대기 항목이 하루만 없어도
 #     n=0 이 되어 '검사한 항목 수' 가 FAIL 로 뜨는 시각의존 테스트였다. 코드 회귀가 아니라

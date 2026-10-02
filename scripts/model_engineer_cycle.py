@@ -517,6 +517,14 @@ def next_item(backlog, force=False):
 # ── 지표 파싱 (자기신고 금지 — 요약 JSON 에서 직접 계산) ───────────────────────
 def summary_path(kind, command=None):
     if kind == "wf_sweep_summary":
+        # ⚠ 실측 갭 수리(2026-10-02): 종전엔 기본 경로를 **고정**해 돌려줬다. 그런데
+        # wf_label_sweep.py 는 `--summary-out <path>` 를 받으므로, 그걸 준 실행은 기본 경로를
+        # 건드리지 않는다 → 구동기가 "요약 미갱신 → 실행실패" 로 오판하고(원장에 rc=0 인데
+        # 측정값 없음), 반대로 기본 경로를 덮어써 다른 실험의 산출물을 잃는다.
+        # champion_robust_eval 에서 같은 함정을 2026-09-29 에 수리했다(_out_arg).
+        out = _arg(command or "", "--summary-out")
+        if out:
+            return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_label_sweep_summary.json")
     if kind == "champion_robust_eval":
         # champion_robust_eval.py 는 컨테이너 cwd=/app 에서 --out /app/reports/... 로 쓴다
