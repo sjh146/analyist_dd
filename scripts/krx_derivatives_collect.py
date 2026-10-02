@@ -141,7 +141,39 @@ def load_json(path, default):
         return default
 
 
+try:  # 호출 정책(프로세스 간) — KRX 는 krx_daily 와 같은 키를 써서 간격·쿨다운을 공유한다
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import net_guard  # noqa: E402
+except Exception:  # noqa: BLE001
+    net_guard = None
+
+
+def _guard():
+    if net_guard is None:
+        return None
+    try:
+        return net_guard.guard("krx", delay=DELAY, jitter=JITTER,
+                               budget=int(os.environ.get("KRX_DAILY_BUDGET", "0") or 0))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _guard_block(g, reason):
+    if g is None:
+        return
+    try:
+        g.block(reason)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def fetch(path, key, base, basdd):
+    g = _guard()
+    if g is not None:
+        try:
+            g.acquire()
+        except Exception as e:  # noqa: BLE001
+            raise KrxBlocked(f"수집 정책 중단({type(e).__name__}): {e}") from e
     url = f"{base}/{path}?basDd={basdd}"
     req = urllib.request.Request(url, headers={"AUTH_KEY": key, "Accept": "application/json"})
     try:
@@ -154,12 +186,15 @@ def fetch(path, key, base, basdd):
     except Exception as e:  # noqa: BLE001
         raise KrxBlocked(f"전송 오류({e}) — 재시도하지 않고 중단 (IP 보호)")
     if code in (401, 403, 429) or code >= 500:
+        _guard_block(g, f"{path} HTTP {code} {raw.strip()[:100]}")
         raise KrxBlocked(f"{path} HTTP {code} {raw.strip()[:120]} — 재시도 없이 종료")
     try:
         data = json.loads(raw)
     except ValueError:
+        _guard_block(g, f"{path} 비JSON(HTTP {code})")
         raise KrxBlocked(f"{path} 비JSON 응답(HTTP {code}) {raw.strip()[:120]}")
     if data.get("respCode") not in (None, "", "200", "0"):
+        _guard_block(g, f"{path} respCode={data.get('respCode')}")
         raise KrxBlocked(f"{path} respCode={data.get('respCode')} {data.get('respMsg')}")
     rows = data.get("OutBlock_1")
     if rows is None:

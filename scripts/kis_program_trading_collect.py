@@ -51,6 +51,11 @@ try:  # 자기신고(R23) — 배선 실패가 수집을 깨지 않도록 방어
 except Exception:  # noqa: BLE001
     claim_start = claim_finish = None
 
+try:  # 호출 정책(프로세스 간) — KisClient 경로와 같은 앱키 키를 공유한다
+    import net_guard  # noqa: E402
+except Exception:  # noqa: BLE001
+    net_guard = None
+
 PROJ = os.environ.get("PROJ_DIR", "/home/jhshi/analyist_dd")
 TOKEN_PATH = os.path.join(PROJ, os.environ.get("KIS_TOKEN_PATH", "data/kis/token_cache.json"))
 
@@ -132,6 +137,21 @@ def get_token(appkey, appsecret, base_url):
     return d["access_token"]
 
 
+def _guard(appkey):
+    """KIS 앱키 단위 호출 정책 — KisClient 기반 러너와 상태를 공유한다(NETGUARD: 프로세스 간).
+
+    이 러너는 자체 curl 을 쓰지만 앱키 쿼터는 KisClient 와 같다 → 같은 키로 묶어야
+    두 러너가 겹칠 때 호출률이 2배가 되지 않는다.
+    """
+    if net_guard is None:
+        return None
+    try:
+        return net_guard.guard(net_guard.kis_key(appkey), delay=DELAY, jitter=JITTER,
+                               budget=int(os.environ.get("KIS_DAILY_BUDGET", "0") or 0))
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def call(appkey, appsecret, base_url, token, path, tr_id, params):
     url = base_url + path + "?" + urlencode(params)
     headers = {"authorization": f"Bearer {token}", "appkey": appkey, "appsecret": appsecret,
@@ -139,7 +159,15 @@ def call(appkey, appsecret, base_url, token, path, tr_id, params):
     args = ["--request", "GET", "--url", url]
     for k, v in headers.items():
         args += ["--header", f"{k}: {v}"]
+    g = _guard(appkey)
+    if g is not None:
+        try:
+            g.acquire()
+        except Exception as e:  # noqa: BLE001 — 정책 중단(쿨다운·예산)은 즉시 종료
+            raise KisError(f"수집 정책 중단({type(e).__name__}): {e}") from e
     status, out = curl(args)
+    if g is not None:
+        g.note(status, out)
     if status in (401, 403, 429) or status >= 500:
         raise KisError(f"{path} HTTP {status} — 중단")
     try:

@@ -50,6 +50,12 @@ JITTER = float(os.environ.get("KRX_REQUEST_JITTER", "0.5"))
 MIN_GAP_BETWEEN_RUNS = float(os.environ.get("KRX_MIN_GAP_BETWEEN_RUNS", "60.0"))
 MAX_CALLS = int(os.environ.get("KRX_MAX_CALLS", "600"))
 
+try:  # 호출 정책(프로세스 간) — 로드 실패해도 수집은 기존(프로세스 내) 지연으로 동작한다
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import net_guard  # noqa: E402
+except Exception:  # noqa: BLE001
+    net_guard = None
+
 # 마켓 → OpenAPI 서비스 경로. 승인된 서비스만 호출된다.
 MARKETS = {"KOSPI": "sto/stk_bydd_trd", "KOSDAQ": "sto/ksq_bydd_trd"}
 
@@ -167,8 +173,38 @@ def resolve_base(key):
     raise KrxBlocked("KRX OpenAPI 호스트를 찾지 못했습니다 (모두 404/HTML 응답)")
 
 
+def _guard():
+    """KRX 호스트 호출 정책(프로세스 간 간격·예산·쿨다운). 없으면 None.
+
+    WHY: 이 러너의 지연은 자기 프로세스 안에서만 유효하다 — 수동 백필과 크론이 겹치면
+    같은 IP 로 실제 호출률이 2배가 되고(차단 이력이 있는 호스트다) 로그는 양쪽 다 정상으로 보인다.
+    """
+    if net_guard is None:
+        return None
+    try:
+        return net_guard.guard("krx", delay=DELAY, jitter=JITTER, budget=MAX_CALLS)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _guard_block(g, reason):
+    """차단 신호를 호스트 키에 기록 — 다른 프로세스도 즉시 멈춘다."""
+    if g is None:
+        return
+    try:
+        g.block(reason)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def fetch_day(base, key, market_path, basdd):
     """1일 1시장 호출. 차단/비승인 신호는 KrxBlocked 로 즉시 중단."""
+    g = _guard()
+    if g is not None:
+        try:
+            g.acquire()
+        except Exception as e:  # noqa: BLE001 — 정책 중단(쿨다운·예산)도 즉시 종료로 처리
+            raise KrxBlocked(f"수집 정책 중단({type(e).__name__}): {e}") from e
     url = f"{base}/{market_path}?basDd={basdd}"
     req = urllib.request.Request(url, headers={"AUTH_KEY": key, "Accept": "application/json"})
     try:
@@ -182,17 +218,22 @@ def fetch_day(base, key, market_path, basdd):
         raise KrxBlocked(f"전송 오류({e}) — 재시도하지 않고 중단 (IP 보호)")
 
     if code in (401, 403, 429) or code >= 500:
+        _guard_block(g, f"HTTP {code} {raw.strip()[:100]}")
         raise KrxBlocked(f"HTTP {code} {raw.strip()[:120]} — 재시도 없이 종료 (IP 보호)")
     try:
         data = json.loads(raw)
     except ValueError:
+        _guard_block(g, f"비JSON 응답(HTTP {code}) {raw.strip()[:80]}")
         raise KrxBlocked(f"비JSON 응답(HTTP {code}) {raw.strip()[:120]}")
     # 정상 응답에는 respCode 가 아예 없다(OutBlock_1 만 온다) — 있으면 오류 코드만 검사한다.
     resp_code = str(data.get("respCode", "") or "")
     if resp_code and resp_code not in ("200", "0"):
+        if resp_code in ("401", "403", "429") or resp_code.startswith("5"):
+            _guard_block(g, f"respCode={resp_code} {data.get('respMsg')}")
         raise KrxBlocked(f"respCode={data.get('respCode')} {data.get('respMsg')}")
     rows = data.get("OutBlock_1")
     if rows is None:
+        _guard_block(g, f"OutBlock_1 없음(HTTP {code}) {raw.strip()[:80]}")
         raise KrxBlocked(f"OutBlock_1 없음(HTTP {code}) {raw.strip()[:120]}")
     return rows
 

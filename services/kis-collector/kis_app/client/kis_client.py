@@ -14,6 +14,7 @@ import logging
 import os
 import random
 import subprocess
+import sys
 import time
 from urllib.parse import urlencode
 
@@ -27,15 +28,57 @@ TOKEN_GRANT_TYPE = "client_credentials"
 TOKEN_EXPIRES_IN = 86400      # 24h (문서 기준)
 TOKEN_MIN_TTL = 300           # 남은 수명 < 5분 → 재발급 판단
 
+# 수집 정책(net_guard)에 따른 중단 — 쿼터 초과와 같은 급으로 다룬다(수집 루프가 멈춘다)
+POLICY_STOP_CODES = {"NETGUARD-BLOCK", "NETGUARD-BUDGET"}
 # 일시적/재시도 가능 오류 코드 (호출 빈도 제한·서버 오류)
 RATE_LIMIT_CODES = {"EGW00133", "EGW00123", "EGW00124", "EGW00225",
-                    "OPSQ0029", "OPSQ0015", "OPSQ0011"}
+                    "OPSQ0029", "OPSQ0015", "OPSQ0011"} | POLICY_STOP_CODES
 # 토큰 관련 오류 (401 포함) → 무효화 후 재발급 → 1회 재시도
 TOKEN_ERROR_CODES = {"EGW00115", "EGW00116", "EGW00117"}
 # 자격증명 자체가 거부된 오류 — 재시도 무의미, 운영자 확인 필요
 CREDENTIAL_ERROR_CODES = {"EGW00102", "EGW00103"}
 # 입력 필드 스키마 오류 → 설정 버그, 재시도 없이 raise
 SCHEMA_ERROR_CODES = {"OPSQ2001"}
+
+
+def _load_net_guard():
+    """scripts/net_guard.py 를 찾아 로드한다(호스트·컨테이너 양쪽).
+
+    WHY: 각 수집기는 **자기 프로세스 안에서만** 지연을 지킨다. 크론과 수동 실행이 겹치면
+    같은 앱키로 실제 호출률이 2배가 되고, 로그에는 두 러너 모두 정상으로 보인다.
+    net_guard 가 호스트(자격증명) 키별 상태파일 + flock 으로 간격·예산·쿨다운을
+    프로세스 경계를 넘어 강제한다. 못 찾으면 None → 기존(프로세스 내) 지연으로 폴백한다.
+    """
+    global _NET_GUARD
+    if _NET_GUARD is not False:
+        return _NET_GUARD or None
+    path = os.environ.get("NET_GUARD_PATH", "")
+    if not path:
+        here = os.path.dirname(os.path.abspath(__file__))
+        for _ in range(6):                       # services/kis-collector/kis_app/client → repo 루트
+            here = os.path.dirname(here)
+            cand = os.path.join(here, "scripts", "net_guard.py")
+            if os.path.exists(cand):
+                path = cand
+                break
+    if path and os.path.exists(path):
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("net_guard", path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"모듈 스펙 생성 실패: {path}")
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _NET_GUARD = mod
+        except Exception as e:  # noqa: BLE001 — 가드가 수집을 막아선 안 된다
+            logger.warning("net_guard 로드 실패(%r) — 프로세스 내 지연으로 동작", e)
+            _NET_GUARD = False
+    else:
+        _NET_GUARD = False
+    return _NET_GUARD or None
+
+
+_NET_GUARD = False
 
 
 def extract_kis_error(data):
@@ -284,6 +327,53 @@ class KisClient:
             rate_limit_sleep=token_rate_limit_sleep,
             max_retries=token_max_retries, sleep_fn=sleep_fn,
             curl_runner=self._curl_runner, dry_run=dry_run)
+        self._guard = self._init_guard()
+
+    # ── 호출 정책(net_guard) ────────────────────────────────────────────
+    def _init_guard(self):
+        """프로세스 경계를 넘는 호출 정책(간격·예산·차단 쿨다운)을 붙인다.
+
+        크론과 수동 실행이 겹쳐도 같은 앱키로 2배로 몰리지 않게 하는 장치다.
+        로드/초기화 실패는 치명적이지 않다 — 기존(프로세스 내) 지연으로 폴백한다.
+        """
+        mod = _load_net_guard()
+        if mod is None:
+            return None
+        # 테스트·dry-run 에서는 정책을 끈다(실 HTTP 가 없거나, 상태파일 공유가 테스트를 오염시킨다)
+        if (self._dry_run or os.environ.get("NET_GUARD_DISABLE") == "1"
+                or os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules):
+            logger.debug("net_guard 비활성(테스트/dry-run) — 프로세스 내 지연만 적용")
+            return None
+        # 예산은 **일일** 상한이라 러너별 실행 상한(KIS_MAX_CALLS 등)과 의미가 다르다.
+        # 실행 상한을 그대로 예산으로 쓰면 분봉처럼 콜이 많은 러너가 조용히 토막난다 →
+        # 기본 0(무제한)이고, 필요할 때 KIS_DAILY_BUDGET 로 명시적으로 켠다.
+        budget = int(os.environ.get("KIS_DAILY_BUDGET", "0") or 0)
+        try:
+            return mod.guard(mod.kis_key(self._appkey), delay=self._delay,
+                             jitter=self._jitter, budget=budget)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("net_guard 초기화 실패(%r) — 프로세스 내 지연으로 동작", e)
+            return None
+
+    def _guard_note(self, status, body):
+        """차단(WAF/IP)·일시오류 신호를 가드에 기록한다.
+
+        401 은 토큰 재발급 경로이므로 차단으로 기록하지 않는다(정상 흐름이다).
+        """
+        g = self._guard
+        if g is None:
+            return
+        code = int(status or 0)
+        text = body.decode("utf-8", "replace") if isinstance(body, bytes) else str(body or "")
+        if code == 401:
+            return
+        try:
+            if code == 403 or text.lstrip().startswith("<"):
+                g.note(403, text, log=logger.error)
+            elif code == 429 or code >= 500:
+                g.note(code, text, log=logger.warning)
+        except Exception:  # noqa: BLE001 — 기록 실패가 수집을 막아선 안 된다
+            pass
 
     # ── 공개 API ───────────────────────────────────────────────────────
     def get_daily_chart(self, symbol, excd, date_from, date_to, count=1):
@@ -316,7 +406,23 @@ class KisClient:
 
     # ── 내부 ───────────────────────────────────────────────────────────
     def _sleep_before_call(self):
-        """호출 간 보수적 대기 (기본 3s + jitter 0~0.5s)."""
+        """호출 직전 게이트 — net_guard 가 있으면 **프로세스 간** 간격을 강제한다.
+
+        정책 중단(차단 쿨다운·예산 소진)은 쿼터 초과와 같은 급으로 올린다 →
+        수집 루프의 quota_hit 분기가 멈추고 다음 크론이 이어서 받는다(재시도 금지).
+        """
+        g = self._guard
+        if g is not None:
+            try:
+                g.acquire()
+                return
+            except Exception as e:  # noqa: BLE001
+                kind = type(e).__name__
+                if kind in ("Blocked", "BudgetExhausted"):
+                    code = "NETGUARD-BLOCK" if kind == "Blocked" else "NETGUARD-BUDGET"
+                    logger.error("수집 정책 중단(%s): %s", code, e)
+                    raise KisApiError(code, str(e)[:200], rt_cd="1", http_status=429) from e
+                logger.warning("net_guard 사용 불가(%r) — 프로세스 내 지연으로 폴백", e)
         if self._delay > 0:
             self._sleep(self._delay + random.uniform(0, self._jitter))
 
@@ -339,6 +445,7 @@ class KisClient:
             args += ["--header", f"{name}: {value}"]
 
         status, body = self._curl_runner(args, timeout=self._http_timeout)
+        self._guard_note(status, body)
         try:
             data = json.loads(body) if body else {}
         except json.JSONDecodeError as e:

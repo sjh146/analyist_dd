@@ -52,22 +52,53 @@ ROW = re.compile(r'\[\s*"(\d{8})"\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d
                  r'\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)')
 STATE_DEFAULT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                              "data/naver_backfill_state.json")
+# 호출 정책(net_guard) — Naver 는 비공식 경로라 버스트가 곧 차단이다(프로세스 간 간격 공유)
+NAVER_REQUEST_DELAY = float(os.environ.get("NAVER_REQUEST_DELAY", "0.5"))
+NAVER_REQUEST_JITTER = float(os.environ.get("NAVER_REQUEST_JITTER", "0.3"))
+NAVER_DAILY_BUDGET = int(os.environ.get("NAVER_DAILY_BUDGET", "0"))
+
+try:
+    import net_guard  # noqa: E402
+except Exception:  # noqa: BLE001
+    net_guard = None
 
 
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+def _guard():
+    """Naver 호스트 호출 정책(프로세스 간 간격·쿨다운). 없으면 None."""
+    if net_guard is None:
+        return None
+    try:
+        return net_guard.guard("naver", delay=NAVER_REQUEST_DELAY,
+                               jitter=NAVER_REQUEST_JITTER, budget=NAVER_DAILY_BUDGET)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def fetch_day(code, start, end, retries=3):
     """종목 1개의 일봉을 받아 [(code, date, o, h, l, c, vol, value), ...] 반환."""
     params = {"symbol": code, "requestType": 1, "startTime": start, "endTime": end, "timeframe": "day"}
+    g = _guard()
     r = None
     for attempt in range(retries):
+        if g is not None:
+            try:
+                g.acquire()        # 프로세스 간 최소 간격·차단 쿨다운
+            except Exception as exc:  # noqa: BLE001 — 정책 중단은 재시도 없이 종료
+                raise RuntimeError(f"수집 정책 중단({type(exc).__name__}): {exc}") from exc
         try:
             r = requests.get(URL, params=params, timeout=20,
                              headers={"User-Agent": "Mozilla/5.0 (research; analyist_dd)"})
+            if g is not None:
+                g.note(r.status_code, r.text, headers=r.headers)
+            if r.status_code == 403:
+                # 차단(WAF) — 재시도해도 같은 결과이고, 빈 목록으로 넘기면 '데이터 없음'으로 오독된다
+                raise RuntimeError(f"{code}: HTTP 403 차단 의심 — 중단")
             if r.status_code == 429 or r.status_code >= 500:
-                time.sleep(5 * (attempt + 1))
+                time.sleep(5 * (attempt + 1) + random.uniform(0, 1.0))
                 continue
             r.raise_for_status()
             break
@@ -75,7 +106,7 @@ def fetch_day(code, start, end, retries=3):
             if attempt == retries - 1:
                 raise
             log(f"  {code} 재시도 {attempt + 1}: {type(exc).__name__}")
-            time.sleep(3 * (attempt + 1))
+            time.sleep(3 * (attempt + 1) + random.uniform(0, 0.7))
     if r is None:
         # 모든 시도가 429/5xx 였던 경우 — r 이 할당되지 않았으므로 명시적으로 실패시킨다
         # (그냥 진행하면 r.text 에서 NameError 로 죽는다: 린트가 잡은 실제 결함).

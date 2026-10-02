@@ -45,6 +45,21 @@ MARKETS = {"KOSPI": "sto/stk_bydd_trd", "KOSDAQ": "sto/ksq_bydd_trd"}
 BASE_CANDIDATES = ["https://data-dbg.krx.co.kr/svc/apis", "https://data.krx.co.kr/svc/apis"]
 DELAY = float(os.environ.get("KRX_REQUEST_DELAY", "3.0"))
 JITTER = float(os.environ.get("KRX_REQUEST_JITTER", "0.5"))
+
+try:  # 호출 정책(프로세스 간) — KRX 는 krx_daily 와 같은 키로 간격·쿨다운을 공유한다
+    import net_guard  # noqa: E402
+except Exception:  # noqa: BLE001
+    net_guard = None
+
+
+def _guard():
+    if net_guard is None:
+        return None
+    try:
+        return net_guard.guard("krx", delay=DELAY, jitter=JITTER,
+                               budget=int(os.environ.get("KRX_DAILY_BUDGET", "0") or 0))
+    except Exception:  # noqa: BLE001
+        return None
 # 반기/분기 손익 → 연간 환산 계수 (TTM 근사)
 ANNUALIZE = {"12-31": 1.0, "06-30": 2.0, "03-31": 4.0, "09-30": 4.0 / 3.0}
 
@@ -104,6 +119,12 @@ def resolve_base(key, state):
 
 
 def fetch_day(base, key, market_path, basdd):
+    g = _guard()
+    if g is not None:
+        try:
+            g.acquire()
+        except Exception as e:  # noqa: BLE001 — 정책 중단은 즉시 종료
+            raise RuntimeError(f"수집 정책 중단({type(e).__name__}): {e}") from e
     url = f"{base}/{market_path}?basDd={basdd}"
     req = urllib.request.Request(url, headers={"AUTH_KEY": key, "Accept": "application/json"})
     try:
@@ -113,6 +134,11 @@ def fetch_day(base, key, market_path, basdd):
     except urllib.error.HTTPError as e:
         raw, code = e.read().decode("utf-8", "replace"), e.code
     if code >= 400:
+        if g is not None and (code in (401, 403, 429) or code >= 500 or raw.lstrip()[:1] == "<"):
+            try:
+                g.block(f"HTTP {code} {raw[:80]}")
+            except Exception:  # noqa: BLE001
+                pass
         raise RuntimeError(f"HTTP {code} {raw[:120]}")
     data = json.loads(raw)
     rows = data.get("OutBlock_1")

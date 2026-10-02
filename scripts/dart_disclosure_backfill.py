@@ -21,6 +21,7 @@
 
 import argparse
 import os
+import random
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -46,6 +47,56 @@ DEFAULT_TYPES = "A"      # 기존 동작 보존 — 확장은 --types B,D,E,I �
 PAGE_COUNT = 100          # DART 최대
 DELAY_BASE = 1.5          # 초
 JITTER = (0.3, 0.8)
+# 호출 정책(net_guard) — 일일 예산은 크론·수동 실행이 함께 쓰는 값이다(러너별 --max-calls 는 실행당 상한)
+DART_DAILY_BUDGET = int(os.environ.get("DART_DAILY_BUDGET", "2500"))
+DART_RETRY_MAX = int(os.environ.get("DART_RETRY_MAX", "3"))
+DART_RETRY_BASE = float(os.environ.get("DART_RETRY_BACKOFF_BASE", "5.0"))
+
+try:  # 호출 정책(프로세스 간) — 실패해도 기존(프로세스 내) 지연으로 동작한다
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import net_guard  # noqa: E402
+except Exception:  # noqa: BLE001
+    net_guard = None
+
+
+def _guard():
+    """DART 호스트 호출 정책(간격·일일 예산·차단 쿨다운). 없으면 None."""
+    if net_guard is None:
+        return None
+    try:
+        return net_guard.guard("dart", delay=DELAY_BASE, jitter=JITTER[1],
+                               budget=DART_DAILY_BUDGET)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+class DartHttpError(RuntimeError):
+    """DART HTTP 오류 — 재시도 가치(transient)를 함께 나른다."""
+
+    def __init__(self, status, body=""):
+        super().__init__(f"HTTP {status} {str(body)[:120]}")
+        self.status = int(status)
+        self.transient = self.status in (408, 425, 429) or self.status >= 500
+
+
+def _blocked_looking(exc) -> bool:
+    """예외 메시지가 WAF/차단 페이지를 가리키는가(JSON 파싱 실패 + HTML/403)."""
+    text = str(exc).lower()
+    return ("403" in text or "<html" in text or "blocked" in text
+            or "forbidden" in text)
+
+
+def _transient(exc) -> bool:
+    """재시도 가치가 있는 실패인가(429/5xx/타임아웃/접속 오류)."""
+    text = str(exc).lower()
+    if any(k in text for k in ("429", "500", "502", "503", "504", "timed out",
+                               "timeout", "connection", "temporarily")):
+        return True
+    try:  # requests 예외는 status_code 를 갖는다
+        code = int(getattr(exc.response, "status_code", 0) or 0)
+        return code in (408, 425, 429, 500, 502, 503, 504)
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def log(msg):
@@ -99,14 +150,25 @@ def main():
     fc = FinancialCollector(api_key=key) if FinancialCollector else None
     calls = src_rows = kept = inserted = 0
     hit_limit = False
+    g = _guard()
 
     def fetch(params):
+        if g is not None:
+            g.acquire()          # 프로세스 간 간격·일일 예산·차단 쿨다운
         if fc is not None:
-            return fc._request("list.json", dict(params))   # noqa: SLF001 - 의도적 재사용
+            data = fc._request("list.json", dict(params))   # noqa: SLF001 - 의도적 재사용
+            if g is not None and _blocked_looking(data):
+                g.block(f"DART 응답 이상: {str(data)[:100]}")
+            return data
         import requests
         p = dict(params)
         p["crtfc_key"] = key
         r = requests.get("https://opendart.fss.or.kr/api/list.json", params=p, timeout=20)
+        if g is not None:
+            g.note(r.status_code, r.text, headers=r.headers)
+        if r.status_code in (403, 408, 425, 429) or r.status_code >= 500:
+            raise DartHttpError(r.status_code, r.text[:120])
+        r.raise_for_status()
         return r.json()
 
     for ty in types:
@@ -120,14 +182,32 @@ def main():
                     log(f"예산 소진({calls}콜) — 다음 실행에서 이어서")
                     hit_limit = True
                     break
-                try:
-                    resp = fetch({"bgn_de": d0.strftime("%Y%m%d"), "end_de": d1.strftime("%Y%m%d"),
-                                  "pblntf_ty": ty, "page_no": page, "page_count": PAGE_COUNT})
-                except Exception as exc:  # noqa: BLE001
-                    log(f"{d0} p{page} 요청 실패: {exc}")
+                # 일시오류(429/5xx/타임아웃)는 지수 백오프로 재시도하고, 차단 신호는 재시도하지 않는다.
+                # (2026-10-02 이전: 어떤 실패든 즉시 break → 야간 1회 실행이 그대로 실패로 끝났다)
+                resp = None
+                for attempt in range(DART_RETRY_MAX + 1):
+                    try:
+                        resp = fetch({"bgn_de": d0.strftime("%Y%m%d"), "end_de": d1.strftime("%Y%m%d"),
+                                      "pblntf_ty": ty, "page_no": page, "page_count": PAGE_COUNT})
+                        break
+                    except Exception as exc:  # noqa: BLE001
+                        if _blocked_looking(exc):
+                            if g is not None:
+                                g.block(f"DART 차단 신호: {exc}")
+                            log(f"{d0} p{page} 차단/WAF 신호({exc}) — 재시도 없이 중단")
+                            break
+                        if attempt >= DART_RETRY_MAX or not _transient(exc):
+                            log(f"{d0} p{page} 요청 실패: {exc}")
+                            break
+                        backoff = DART_RETRY_BASE * (2 ** attempt)
+                        log(f"{d0} p{page} 일시오류({exc}) — {backoff:.0f}s 후 재시도 "
+                            f"{attempt + 1}/{DART_RETRY_MAX}")
+                        time.sleep(backoff + random.uniform(0, 1.0))
+                if resp is None:
                     break
                 calls += 1
-                time.sleep(DELAY_BASE + __import__("random").uniform(*JITTER))
+                if g is None:      # 가드가 있으면 간격은 가드가 강제한다(이중 대기 방지)
+                    time.sleep(DELAY_BASE + random.uniform(*JITTER))
 
                 status = str(resp.get("status", ""))
                 items = resp.get("list") or []

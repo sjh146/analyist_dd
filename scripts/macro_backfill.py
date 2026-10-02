@@ -54,6 +54,7 @@ import csv
 import io
 import json
 import os
+import random
 import sys
 import time
 import urllib.error
@@ -73,6 +74,16 @@ FRED_BASE_URL = os.environ.get("FRED_BASE_URL", "https://fred.stlouisfed.org").r
 ECOS_BASE_URL = os.environ.get("ECOS_BASE_URL", "https://ecos.bok.or.kr/api")
 HTTP_TIMEOUT = int(os.environ.get("MACRO_HTTP_TIMEOUT", "30"))
 HTTP_RETRIES = int(os.environ.get("MACRO_HTTP_RETRIES", "3"))
+# 호출 정책(net_guard) — FRED/ECOS 는 관대하지만 '동시 실행이 겹칠 때'를 막아야 한다
+MACRO_REQUEST_DELAY = float(os.environ.get("MACRO_REQUEST_DELAY", "0.5"))
+MACRO_REQUEST_JITTER = float(os.environ.get("MACRO_REQUEST_JITTER", "0.3"))
+MACRO_DAILY_BUDGET = int(os.environ.get("MACRO_DAILY_BUDGET", "6000"))
+
+try:  # 호출 정책(프로세스 간) — 실패해도 기존 동작(재시도·백오프) 유지
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import net_guard  # noqa: E402
+except Exception:  # noqa: BLE001
+    net_guard = None
 
 UNIT = {
     "기준금리": "percent",
@@ -121,20 +132,62 @@ def log(msg: str) -> None:
 # --------------------------------------------------------------------------- http
 
 
+def _host_key(url: str) -> str:
+    """호스트별 정책 키 — 같은 소스는 크론·수동 실행이 예산과 간격을 공유한다."""
+    host = (urllib.parse.urlsplit(url).hostname or "unknown").lower()
+    if "ecos.bok.or.kr" in host:
+        return "ecos"
+    if "stlouisfed.org" in host:
+        return "fred"
+    return host
+
+
+def _guard(url: str):
+    if net_guard is None:
+        return None
+    try:
+        return net_guard.guard(_host_key(url), delay=MACRO_REQUEST_DELAY,
+                               jitter=MACRO_REQUEST_JITTER, budget=MACRO_DAILY_BUDGET)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def http_get(url: str, timeout: int = HTTP_TIMEOUT) -> bytes:
+    g = _guard(url)
     last_err: Optional[Exception] = None
     for attempt in range(1, HTTP_RETRIES + 1):
+        if g is not None:
+            g.acquire()          # 프로세스 간 간격·일일 예산·차단 쿨다운
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return resp.read()
+                body = resp.read()
+            if g is not None and body.lstrip()[:1] == b"<":
+                # JSON/CSV API 가 HTML(WAF 차단 페이지)을 주면 성공으로 읽으면 안 된다
+                g.block(f"HTML 응답 {url[:80]}")
+                raise RuntimeError(f"차단 의심(HTML 응답): {url[:120]}")
+            return body
         except urllib.error.HTTPError as exc:  # 4xx/5xx carry a status we want in the report
             last_err = exc
-            if exc.code in (400, 401, 403, 404, 410, 429) or attempt == HTTP_RETRIES:
+            raw = ""
+            try:
+                raw = exc.read().decode("utf-8", "replace")
+            except Exception:  # noqa: BLE001
+                pass
+            if g is not None:
+                g.note(exc.code, raw, headers=exc.headers)
+            if exc.code in (400, 401, 403, 404, 410):
+                raise                          # 의미상 '없음' 또는 차단 — 재시도 무의미
+            if attempt == HTTP_RETRIES:
                 raise
         except Exception as exc:  # noqa: BLE001 - network flake, retry
             last_err = exc
-        time.sleep(1.5 * attempt)
+            if g is not None:
+                g.note(error=exc)
+            if attempt == HTTP_RETRIES:
+                raise
+        # 지수 백오프 + 지터 (429/5xx 는 호스트가 원하는 만큼 물러선다)
+        time.sleep(min(60.0, 1.5 * (2 ** (attempt - 1))) + random.uniform(0, 0.7))
     raise RuntimeError(f"GET failed: {url} ({last_err!r})")
 
 

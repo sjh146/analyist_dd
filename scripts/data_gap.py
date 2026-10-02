@@ -170,6 +170,16 @@ def kis_is_trading_day(d):
                      "appsecret": env["KIS_APP_SECRET"], "tr_id": "CTCA0903R",
                      "custtype": "P", "content-type": "application/json"},
         )
+        # 호출 정책: 이 프로브도 같은 앱키 쿼터를 쓴다 → 수집과 간격·쿨다운을 공유한다(실패는 무시)
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import net_guard
+            g = net_guard.guard(net_guard.kis_key(env.get("KIS_APP_KEY", "")),
+                                delay=float(os.environ.get("KIS_REQUEST_DELAY", "3.0")),
+                                jitter=float(os.environ.get("KIS_REQUEST_JITTER", "0.5")))
+            g.acquire()
+        except Exception:  # noqa: BLE001 — 가드 문제로 휴장일 판별을 못 하면 오탐이 된다
+            pass
         with urllib.request.urlopen(req, timeout=15) as r:
             out = json.loads(r.read())["output"][0]
         return out.get("opnd_yn") == "Y" or out.get("tr_day_yn") == "Y"
