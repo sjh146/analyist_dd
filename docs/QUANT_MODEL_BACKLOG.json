@@ -2662,7 +2662,7 @@
     {
       "id": "CG9",
       "title": "생산 경로 구현 격차 닫기 — rank 변환 + h5·스무딩 라벨 + depth1 을 retrain_champion 옵션(기본 현행 유지)으로 구현 → 후보 생성 → champion_promote --dry-run",
-      "status": "needs_setup",
+      "status": "pending",
       "priority": 1,
       "affects_model": true,
       "baseline": {
@@ -2671,20 +2671,17 @@
       },
       "hypothesis": "22사이클 무개선의 원인 중 하나는 실험 프로토콜·유니버스와 생산 경로의 불일치다. ①생산 트레이너는 라벨이 1일 방향이고 유니버스가 200종목(app/training/universe.py select_training_universe limit=200)인데, 스윕 최고 config 는 49종목 패널·5일 분위0.30+스무딩 라벨에서 측정됐다. ②따라서 이 옵션들을 생산 트레이너에 넣고 **생산 유니버스에서 후보를 학습해 챔피언과 같은 walk-forward 프로토콜로 비교**해야 그 +0.02 가 실재하는지 판정된다.",
       "evidence": "① 생산 챔피언 학습기 app/training/retrain_champion.py 의 라벨은 1일 선행 종가 방향(L44-58)이고 스윕 최고 config 의 라벨은 5일 분위0.30 + 1~5일 평균 스무딩 — 라벨 정의가 다르다. ② 게이트 기준선 champion/robust_auc.json = 0.5513(ensemble_auc, 단일 분할, protocol 문자열 'ensemble_auc on candidate val split') · 하드룰 #1(단일 분할 AUC 를 승격 기준선으로 쓰지 않는다)과 충돌. ③ 실험 쪽은 확장창 다중폴드 평균(기준선 0.5406)을 쓴다 → 같은 후보라도 두 지표가 서로 다른 것을 재고 있어 승격 판정이 성립하지 않는다. ④ CG6 실측(2026-09-28 06:05): 10폴드에서도 CO_rank_smooth_d1_h5 0.5548±0.0246 vs 0.5310±0.0360 → Δ+0.0238, 폴드 10/10 승 — 게이트 ON 경로 config 가 폴드 수에 견고함을 재확인. ⑤ CG11(2026-09-28 07:12) panel_150u 4-arm: 모든 성분이 대조군 하회(결합 −0.0109) → CG 신호의 유니버스 특이성 확인. ⑥ 추론 경로 확인: app/inference/predictor.py L86-89 종목 단위 스트리밍 → rank 변환은 배치 추론 신설 없이는 배포 불가.",
-      "method": "retrain_champion 에 옵션 3개를 **기본값 현행 유지**로 추가: --rank-pct(전 피처 횡단면 rank 또는 기존 rank_ 6종 유지) · --label-kind {h1_direction(현행), h5q30_smooth} · --depth/--lr. 그 뒤 --days 90 --stock-limit 200 로 후보를 만들어 같은 폴드 프로토콜로 평가하고 champion_promote --dry-run 으로 게이트 판정만 본다(승격 실행 금지).",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -m app.training.retrain_champion --days 90 --stock-limit 200 --out-dir app/models/champion_cand_rank_smooth --rank-pct --label-kind h5q30_smooth --depth 1 --lr 0.05' && docker exec stock_xgboost_ml sh -c 'cd /app && python -m app.training.champion_promote --candidate-dir app/models/champion_cand_rank_smooth --dry-run'",
+      "method": "scripts/cg9_run.sh (신설 런처) — ① retrain_champion --days 90 --end-date 2026-10-01 --stock-limit 200 --label-kind rel_smooth --horizon 5 --model-params '{\"max_depth\":1,\"learning_rate\":0.05}' --checkpoint-path /app/app/models/wf/cg9.ckpt --out-dir app/models/challenger_cg9 ② champion_robust_eval(arm) → cg9_arm.json ③ champion_robust_eval(champion_cand=ctl) → cg9_ctl.json. JSON 을 구동기 커맨드에 직접 넣으면 중첩 인용에서 깨지므로(실측) 스크립트에 리터럴로 둔다.",
+      "command": "docker exec stock_xgboost_ml bash /app/scripts/cg9_run.sh --out /app/reports/overnight/cg9_arm.json",
       "check": "python3 scripts/model_engineer_cycle.py --status",
-      "success": "생산 유니버스(200종목·90일) 후보와 현행 챔피언을 같은 champion_robust_eval(5폴드) 프로토콜로 비교해 Δ 를 얻는다. Δ ≥ +0.02 면 승격 검토, 미만이면 '49종목 패널 특이' 로 축을 닫는다. dry-run 판정도 함께 기록.",
-      "counterfactual": "현행 라벨·전처리(h1 direction + 기존 rank_ 6종) 로 같은 구간을 학습한 후보 = champion/robust_auc.json 0.5513 경로",
-      "est_minutes": null,
+      "success": "①(주목적·배포성) rel_smooth h5 + depth1 후보가 만들어지고 champion_promote --dry-run 을 통과하는가 ②(보조) 짝 Δ 와 t/SE 를 기록. ⚠ 학습구간 이전 창 3개뿐이라 SE≈0.08 → **AUC 판정에는 쓰지 말고** 배포성·게이트 판정으로만 닫아라(과거 실패: AUC 판정을 붙여 '노이즈'로 오독).",
+      "counterfactual": "app/models/champion_cand — 같은 90일 창(2026-07-03~2026-10-01)·같은 200종목(결정적 유니버스)·같은 프로토콜, 라벨만 h1_direction(현행). 짝 Δ = arm(cg9_arm.json) − ctl(cg9_ctl.json).",
+      "est_minutes": 200,
       "cost": "구현 1~2시간 + 후보 학습 수 분(90일·200종목)",
-      "metric": "champion_robust_eval + champion_promote dry-run",
+      "metric": "champion_robust_eval",
       "caution": "retrain_champion.py 는 서비스 파일(내 소유 services/xgboost-ml/**) 이며 저녁 20:00 파이프라인이 같은 스크립트를 쓴다 — 옵션은 기본값 현행 유지로만 추가하고, 수정 후 tests + '기본 인자로 실행' 스모크로 회귀를 확인한 뒤 커밋한다. 승격 실행은 금지(dry-run 만). B단계(rank)는 추론 아키텍처 변경이라 별도 승인 대상.",
       "note": "⚠ 2026-10-02 갱신: 이 항목의 `command` 는 **실재하지 않는 플래그**를 가리킨다(`--rank-pct`·`--depth`·`--lr`). 실제 구현은 `--label-kind {h1_direction,rel,rel_smooth}` · `--horizon` · `--model-params '{\"max_depth\":1,\"learning_rate\":0.05}'` 이므로 A단계는 **이미 구현 완료**다(추론 계약 무변경). B단계(rank 를 추론에 적용)는 app/inference/predictor.py 단일종목 스트리밍 경로 때문에 **계약 변경 = 승인 대상**으로 남는다. ⚠ 성공기준 재검토 필요: champion_robust_eval 의 정직한 창은 학습구간 **이전** 3개뿐이라 SE≈0.08 → +0.02 를 검출할 힘이 없다(CG38 실측). 배포 경로 A/B 는 CG68 전방 성적표로 누적 측정하는 쪽이 옳다. 2026-09-28 06:2x 갱신: CG5(150종목 전이 실패 Δ−0.0109) + 생산 유니버스 200종목 확인 → 이 항목이 결정적 시험이다. 승격 실행 금지(dry-run 만). 게이트 기준선 자체 교체는 사용자 승인 대상(별건). | 2026-09-28 07:1x 갱신: 추론 경로 확인(app/inference/predictor.py L86-89 = 종목 단위 스트리밍 features.get(f,0.0)) → rank 변환은 추론 계약 변경 없이는 배포 불가. 따라서 CG9 는 A단계(라벨+HP, 계약 무변경)와 B단계(rank, 배치 추론 신설)로 분리한다.",
-      "setup_needed": [
-        "A단계(추론 계약 무변경·안전): retrain_champion.py 에 --label-kind(h1_direction 기본 유지 / h5q30_smooth) · --depth · --lr 추가 → 생산 유니버스(200종목) 후보 생성 → champion_promote --dry-run",
-        "B단계(추론 계약 변경 필요): rank 변환은 추론에도 적용해야 하는데 현재 추론은 app/inference/predictor.py L86-89 에서 종목 1개·날짜 1개 단위로 features.get(f,0.0) 벡터를 만든다 — 날짜별 횡단면 rank 는 그날 다른 종목 값이 필요해 이 경로로는 불가능하다. 스크리너에 '당일 전 종목 배치 추론' 경로를 추가한 뒤에만 rank 후보를 만들 수 있다."
-      ]
+      "setup_needed": null
     },
     {
       "id": "CG10",
