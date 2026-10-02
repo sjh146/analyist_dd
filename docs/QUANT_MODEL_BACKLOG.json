@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-02T22:08:03+09:00",
+  "updated_at": "2026-10-02T22:27:56+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -8308,7 +8308,7 @@
       "hypothesis": "수리 패널(panel_420_asof3)에서 CO_smooth_d1_h5 0.5512±0.0218 vs CO_core30_h5 0.5350±0.0189 = Δ+0.0162 가 세 번의 독립 실행에서 소수점까지 동일하게 재현됐다(비트 결정적). 사전문턱 +0.02 에 −0.0038 미달이라 규칙상 '노이즈'지만, 이 Δ 는 실행 잡음이 아니라 같은 패널·같은 유니버스의 값이다. 남은 질문은 **구간(유니버스 조각)을 바꿔도 부호가 유지되는가**다 — CG13 실측에서 서로소 30종목 구간 교체만으로 폴드 평균이 총폭 0.0287 흔들렸으므로 단일 구간 비교로는 판정할 수 없다. 배포 가능(rank 불필요·학습 옵션만) 조합이 유일하게 양(+)인 후보이므로, 여기서 부호가 무너지면 '배포 가능 레버 없음'이 확정되고 기준선·문턱 개편 승인 요청의 근거가 된다.",
       "evidence": "① CG64(10-02 07:16)·CG66(16:13)·CG67(18:1x) 실측: CO_core30_h5 0.5350 · CO_smooth_d1_h5 0.5512 (세 런 전부 동일) · 게이트 OFF LS_quant_q30_h5 0.5374~0.5383. ② CG11(09-28): 같은 config 를 다른 유니버스(panel_150u)에서 4-arm 분해하면 모든 성분이 대조군 하회 — 유니버스 특이성 전례. ③ CG13(09-28): 서로소 30종목 5구간 폴드 평균 총폭 0.0287 > 문턱 0.02. ④ 같은 런의 US_* 대조군 5구간 config 는 이미 존재(wf_label_sweep CONFIGS) — 새 arm 5개(SD1s_*)만 추가했다.",
       "method": "① wf_label_sweep CONFIGS 에 SD1s_00_30..SD1s_120_150 5개 추가(kind=smooth·q0.30·top30·core_only·recipe depth1/lr0.05·codes_slice) — 자체점검 scripts/_deployable_slice_config_test.py ALL PASS(48검사). ② panel_150u(150종목·유동성 정렬)에서 arm 5구간 + 대조군 5구간을 같은 런·같은 폴드·시드로 측정. ③ 구동기 judge_per 의 pairs 분기로 판정(짝 Δ 평균 ≥ +0.02 그리고 양(+) 구간 ≥ n−1=4). ④ 로그에서 'foldN: 표본 부족' 줄을 세어 건너뛴 폴드를 함께 보고(CG24 교훈).",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 5 --only SD1s_00_30,SD1s_30_60,SD1s_60_90,SD1s_90_120,SD1s_120_150,US_00_30,US_30_60,US_60_90,US_90_120,US_120_150'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 24000 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 5 --only SD1s_00_30,SD1s_30_60,SD1s_60_90,SD1s_90_120,SD1s_120_150,US_00_30,US_30_60,US_60_90,US_90_120,US_120_150'",
       "check": "python3 scripts/_deployable_slice_config_test.py",
       "success": "짝 Δ 평균 ≥ +0.02 이고 양(+) 구간 ≥ 4/5 → '배포 가능 arm 신호있음'(CG9 후보의 승격 근거). 그 밖은 '구간 견고성 실패'로 축 종결.",
       "counterfactual": "US_00_30..US_120_150 (같은 런·같은 구간의 게이트 ON 평범 config = CO_core30_h5 의 구간판)",
@@ -8336,10 +8336,11 @@
       ],
       "expected": "미지 — 전체 패널 Δ+0.0162 가 구간에서 재현되면 짝 평균도 +0.02 근처(4/5~5/5 양(+))일 것으로 본다. 무너지면 유니버스 특이 확정.",
       "cost": "10 config×5폴드×5시드 = 250 cell → 실측 1.2~7.5 s/cell 로 5~31분(+경쟁 시 최대 60분).",
-      "est_minutes": 60,
+      "est_minutes": 380,
       "metric": "wf_sweep_summary",
       "caution": "⚠ 종목 30개 구간이라 폴드 표본이 작다 — 'foldN: 표본 부족' 으로 건너뛴 폴드가 나오면 폴드 수가 다른 arm 과 짝 비교하지 말라(CG24 교훈). ⚠ panel_150u 는 2026-09-26 빌드(as-of 수리 전) — 레벨 비교는 panel_420_asof3 와 직접 하지 말고 구간 Δ 만 읽는다. ⚠ 스윕 요약은 기본 경로(reports/overnight/wf_label_sweep_summary.json)에 쓴다 — --out 주지 말 것(CG55 함정).",
-      "note": "2026-10-02T18:22+0900 등록. 근거·삼중 재현은 arm/baseline/evidence 참조. 게이트 ON·rank 없음 = 추론 계약 무변경(CG27)."
+      "note": "2026-10-02T18:22+0900 등록. 근거·삼중 재현은 arm/baseline/evidence 참조. 게이트 ON·rank 없음 = 추론 계약 무변경(CG27). | 2026-10-02 22:2x 실측: 250 cell 스윕이 외부 에이전트 4개(opencode wt/expectancy·wt/features·wt/metric + audit)와 4코어를 공유하며 cell 속도가 10 s → 60~90 s 로 10배 감속(22:20 실측 0.2 cell/min). 첫 실행(22:02, timeout 5400)은 250 cell 중 ~150 에서 23:32 컨테이너 timeout 에 걸릴 것으로 판단 → **timeout 24000(6.7h)·est 380분으로 정정**(스킬 교훈: est 와 timeout 을 둘 다 실측 속도로 맞춰라). 완주한 config 값은 `wf_label_sweep.jsonl` 에 남으므로 유실 시 `scripts/sweep_pairs_from_jsonl.py --since <UTC시각> --arm-prefix SD1s_ --ctl-prefix US_` 로 부분 짝 Δ 를 복원한다. 부분 실측(arm 5구간 완주, 대조군 미완): SD1s_00_30 0.4981 · 30_60 0.4994 · 60_90 0.4950 · 90_120 0.4981 · 120_150 0.5407 → panel_150u 에서 arm 절대값이 **0.50 근처**로, panel_420_asof3(49종목)의 0.5512 가 재현되지 않는다(미완이므로 판정 아님 — 다음 런에서 확정).",
+      "attempts": []
     },
     {
       "id": "CG70",
