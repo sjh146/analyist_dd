@@ -1,0 +1,26 @@
+{
+  "check": "MT116 구조 수리(롤백+게이트) 후 라이브 스코어 분포 복구 검증",
+  "ran_at": "2026-10-02T18:05+09:00",
+  "by": "quant-model-engineer (크론 틱 세션, 구동기 밖 수동 실행)",
+  "command": "docker exec -e PYTHONPATH=/app -e PROBE_MODEL_DIRS='[[\"champion_now\",\"/app/app/models/champion\"]]' stock_xgboost_ml python /app/scripts/_swing_ensemble_weight_probe.py",
+  "scope": "swing_screener 와 동일 유니버스(KOSDAQ 300)·같은 피처행렬 300종목 · 피처빌드 78초",
+  "champion_now": {
+    "dir": "app/models/champion",
+    "auc_txt": "0.551318",
+    "n_features": 173,
+    "trained": "2026-09-23 (롤백으로 복귀: 2026-10-02 11:44 champion_promote --min-improvement -0.01)",
+    "submodel_max": {"xgboost": 0.9263, "lightgbm": 0.6008, "catboost": 0.5065},
+    "deployed_unweighted": {"max": 0.6733, "gt_0.55": 9, "gt_0.50": 33},
+    "weighted_validated": {"max": 0.7254, "gt_0.55": 14, "gt_0.50": 40},
+    "rank_corr_deployed_vs_weighted": 0.9978,
+    "top5_deployed": {"475830": 0.6733, "263750": 0.6014, "319400": 0.5943, "033100": 0.5782, "019210": 0.5769}
+  },
+  "baseline_for_comparison_MT116": {
+    "model": "교체됐던 10-01 챔피언(199피처, auc 0.554776)",
+    "deployed_unweighted": {"max": 0.4733, "gt_0.55": 0},
+    "source": "data/reports/mt116_live_score_probe.json (2026-10-02T11:36)"
+  },
+  "verdict": "복구 확인 — 스크리너 신호 문턱(0.55) 초과가 0건 → 9건(max 0.6733). MT116 의 'residual(다음 08:30 파이프라인 결과로 확인 필요)' 이 모델/스크리너 입력 레벨에서 해소됨. 실제 피드 복구는 다음 거래일(10-06, 10-05 는 대체휴일) 08:30 파이프라인 산출물로 최종 확인.",
+  "residual": "swing 피드 산출물(batch_type=signal) 실측은 다음 거래일 08:30 러닝에서 확인해야 한다(오늘 08:30 산출물은 롤백 전 모델).",
+  "related_fix": "scripts/gate_promote_live_score.py (승격 전 라이브 스코어 게이트) + full_pipeline_dd.sh --min-improvement 0.02 — 배선 확인(2026-10-02 18:2x)"
+}

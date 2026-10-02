@@ -231,6 +231,34 @@ CONFIGS = [
     {"id": "CO_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "게이트 ON + 라벨 스무딩 + depth1·lr0.05 (rank 없음) — 추론 계약 무변경 배포 가능 후보"},
+    # ── CG69(2026-10-02): 배포 가능 arm 의 **구간 짝(pairs) 검정** — CG64/CG66/CG67 삼중 재현 ──
+    # 왜: 수리 패널(panel_420_asof3)에서 CO_smooth_d1_h5 0.5512 vs CO_core30_h5 0.5350 = Δ+0.0162 가
+    # **세 번의 독립 실행에서 소수점까지 동일**하게 나왔다(CG64·CG66·CG67 = 비트 결정적). 즉 이 Δ 는
+    # 실행 잡음이 아니라 같은 패널·같은 유니버스의 값이고, 사전문턱 +0.02 에 −0.0038 미달이다.
+    # 남은 질문은 '구간(유니버스 조각)을 바꿔도 부호가 유지되는가'다 — CG13 실측에서 서로소 30종목
+    # 구간 교체만으로 폴드 평균이 총폭 0.0287 흔들렸으므로, 단일 구간 비교로는 판정할 수 없다.
+    # 대조군은 같은 런의 US_00_30..US_120_150(게이트 ON 평범 config) — 구간마다 짝을 만들어
+    # 구간 교체 효과를 상쇄한다(구동기 judge_per 의 pairs 분기: 짝 Δ 평균 ≥ +0.02 그리고 양(+) 구간 ≥ n−1).
+    {"id": "SD1s_00_30", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [0:30) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_00_30"},
+    {"id": "SD1s_30_60", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [30:60) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_30_60"},
+    {"id": "SD1s_60_90", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [60:90) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_60_90"},
+    {"id": "SD1s_90_120", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [90:120) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_90_120"},
+    {"id": "SD1s_120_150", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150],
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "구간 [120:150) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_120_150"},
     # ── CG28: 데이터 축(L3) — 패널에는 살아 있으나 게이트(core48) 밖인 '부활 후보' 11개 ──────
     # 왜 여기서 재는가: CG27(2026-09-29)에서 조정 축(피처변환·HP·유니버스·라벨·가중·k)이
     # 게이트 ON 천장 Δ+0.0180(<사전문턱 +0.02)로 닫혔다 → 남은 레버는 데이터 축뿐이다.
