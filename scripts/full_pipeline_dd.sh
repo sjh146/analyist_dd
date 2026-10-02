@@ -331,9 +331,20 @@ else
     # 2026-09-25 하향(0.55→0.53): 5폴드×5시드 실측 상한이 ≈0.54 라 0.55 는 **어떤 정직한
     # 후보도 통과 못 하는 잠금**이었고 챔피언이 8/14 이후 동결되어 train/serve skew 만 컸다.
     # 근거: docs/asof_measurement_20260925.md
+    #
+    # 2026-10-02 (MT116 실측): --min-improvement 0.0 은 **노이즈급 승격**을 통과시켰다 —
+    #   전일 후보(val ensemble_auc 0.5548)가 챔피언(0.5513)을 +0.0035 로 이겨 승격됐고,
+    #   같은 유니버스·같은 피처행렬 실측에서 그 모델은 0.55 초과 신호가 0건(최대 0.4733)이라
+    #   swing 스크리너 batch_type 이 signal→raw_fallback 으로 뒤집혀 소비자가 배치를 전량
+    #   거부했다(3세션 연속 swing 무진입). 엔지니어 사전등록 문턱이 "폴드 std ±0.03 →
+    #   +0.02 이상만 신호"이므로 게이트도 같은 바닥을 쓴다.
+    #   재현: scripts/_swing_ensemble_weight_probe.py · data/reports/mt116_live_score_probe.json
+    #   주의: 이 비교는 단일 val split 이라 문턱이 세면 승격이 오래 잠길 수 있다
+    #   (챔피언 0.5513 기준 후보 ≥0.5713 필요) — 승격 게이트에 '라이브 스코어 분포' 검사를
+    #   추가하는 근본 수리가 되면 그때 이 값을 완화한다(리뷰보드 안건).
     docker exec stock_xgboost_ml python -m app.training.champion_promote \
         --candidate "$CAND_DIR" --champion "$CHAMP_DIR" \
-        --min-auc 0.53 --min-improvement 0.0 \
+        --min-auc 0.53 --min-improvement 0.02 \
         --legacy-baseline-cap 0.53 --max-std 0.05 \
         --summary-out app/reports/ml_result.json >> "$LOG_FILE" 2>&1 < /dev/null
 fi
