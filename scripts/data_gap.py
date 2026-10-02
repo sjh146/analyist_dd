@@ -310,19 +310,42 @@ def cmd_report():
     return 0 if os.path.exists(LOCK_PATH) else 1
 
 
+def _claim_noop(note):
+    """'배선된 러너가 실제로 돌았다'는 하트비트 1행(R27).
+
+    WHY(실측 2026-10-02 16:0x): R27 판정은 ``dq_runner_claim`` 의 14일 내 **행 존재**인데,
+    이 러너는 공실이 없으면 아무 행도 남기지 않는다 → 정상 상태(공실 0)가 '침묵하는 러너'로
+    오탐돼 R27 이 상시 미달이 된다(실측 check=1: 14일 내 0행인 러너가 data_gap_backfill 뿐,
+    크론 로그에는 매 실행 '백필할 공실 없음'이 찍혀 있었다 — 크론은 정상이었다).
+    source=0/claimed=0 행은 ``parse_failure``(= source>0 AND claimed==0)를 만들지 않으므로
+    DQ 지표를 오염시키지 않는다: 행 존재는 '돌았음'만 증명하고, 진짜 0행 적재는 source>0 으로 잡힌다.
+    """
+    if not (claim_start and claim_finish):
+        return
+    try:
+        if claim_start("data_gap_backfill", "market_data", note=note):
+            claim_finish("data_gap_backfill", source_rows=0, claimed_rows=0)
+    except Exception as e:  # noqa: BLE001 - 자기신고가 수집을 깨지 않는다
+        print("[claim] data_gap_backfill: 하트비트 실패(%s: %s)"
+              % (type(e).__name__, e), file=sys.stderr)
+
+
 def cmd_backfill():
     if os.path.exists(LOCK_PATH):
         print("백필 잠금 존재 — 다른 백필 진행 중, 종료")
+        _claim_noop("no-op: lock-held")
         return 0
     stale, note = stale_warning()
     if stale:
         print("상태: {0}".format(note))
         print("→ 1일/야간 백필로는 부족합니다. 구간 백필을 사용하세요:")
         print("   cd {0}/services/kis-collector && python3 ../../scripts/kis_backfill_range.py".format(PROJ))
+        _claim_noop("no-op: stale")
         return 0
     gaps, _holidays = find_gaps(probe=False)  # 보고 크론이 이미 probe함
     if not gaps:
         print("백필할 공실 없음")
+        _claim_noop("no-op: no-gaps")
         return 0
     # 실행 중인 수집기/파이프라인 확인 (분봉 23:00, 저녁 19:00 등)
     # 자기매칭 주의: shell=True 로 pgrep 을 돌리면 **자기 명령줄**이 패턴에 걸려 항상
@@ -336,6 +359,7 @@ def cmd_backfill():
     ).stdout.strip()
     if busy:
         print("수집기 실행 중 — 백필 보류:\n{0}".format(busy[:300]))
+        _claim_noop("no-op: busy")
         return 0
     target = gaps[0][0].replace("-", "")
     open(LOCK_PATH, "w").write(target)

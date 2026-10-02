@@ -754,7 +754,7 @@
     {
       "id": "R23",
       "title": "크론 직행 수집 러너 자기신고 누락 보강 (무음 0행 적재 차단)",
-      "status": "pending",
+      "status": "done",
       "priority": 7,
       "kind": "collect",
       "incremental": true,
@@ -780,13 +780,18 @@
           "ts": "2026-10-01T16:00:52+09:00",
           "rc": 2,
           "detail": "R23: 7 <= 0 → 미달"
+        },
+        {
+          "ts": "2026-10-02T06:01:16+09:00",
+          "rc": 0,
+          "detail": "R23: 0 <= 0 → 충족"
         }
       ],
       "result": {
-        "detail": "R23: 7 <= 0 → 미달",
-        "check_value": 7.0,
-        "rc": 2,
-        "log": "data/reports/res_cycle/logs/res_R23_20261001-160052.log"
+        "detail": "R23: 0 <= 0 → 충족",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R23_20261002-060116.log"
       }
     },
     {
@@ -840,7 +845,12 @@
       "needs": null,
       "if_blocked": "방치하면 새 공시가 재무 피처의 기간 구분·공시 지연에 안 들어가고, 회계기간 혼재(연간/반기) 결함이 되살아난다.",
       "registered_by": "operator-session 2026-10-01 (사용자 지시: 데이터 공백 규명)",
-      "result": "**해소(2026-10-01 21:1x 실측) — 스케줄이 존재하고 오늘 실제로 돌았다.** ① `/etc/cron.d/analyist_dd` L33-37: `# --- 2026-10-01 추가 (R25): DART 공시 인덱스(disclosures) 백필 ---` + 평일 18:10 `dart_disclosures.sh`(mode=daily, B/D/E/I) + 토 18:10 `--regular`(분기형 A) — 요청한 설계와 일치. 래퍼 `/home/jhshi/cron/dart_disclosures.sh`(mtime 10-01 17:09, 런타임 크론 mtime 17:10). ② 실측 로그 `reports/cron_dart_disclosures.log`(18:10:03~18:10:17): 콜 5 / 소스 307행 / 적재시도 297 / 실제 삽입 36 / 테이블 델타 36. ③ 테이블 `disclosures` 214,493행 · max(rcept_dt)=**2026-10-01**(종전 정지일 09-23). → 사람 승인 요청(needs)을 result 로 이관하고 **재발 감시 check 를 붙여 상시 항목으로 전환**한다 — 크론 줄이 사라지면 공시 표가 다시 조용히 멈추는데 DQ 지표에는 드러나지 않는다. check = 평일(월~금)에만 max(rcept_dt) 가 7일 이내(주말은 판정 대상 없음 → 통과). 회귀 없음(순수 조회).",
+      "result": {
+        "detail": "R25: 0 <= 0 → 충족",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R25_20261002-000109.log"
+      },
       "recurring": true,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
       "check_target": {
@@ -848,7 +858,14 @@
         "value": 0,
         "unit": "공시 접수일 신선도 미달(평일 기준)"
       },
-      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\""
+      "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
+      "attempts": [
+        {
+          "ts": "2026-10-02T00:01:09+09:00",
+          "rc": 0,
+          "detail": "R25: 0 <= 0 → 충족"
+        }
+      ]
     },
     {
       "id": "R26",
@@ -873,7 +890,7 @@
       "recurring": true,
       "affects_model": false,
       "hypothesis": "R23 의 판정은 소스에 'dq_claim' 문자열이 있으면 통과하는 **텍스트 휴리스틱**이다 — 배선만 해도 0 이 된다. 배선은 됐는데 실제로 자기신고 행을 안 남기는 러너는 여전히 '조용한 0행 적재' 사각지대다.",
-      "evidence": "실측 2026-10-01 21:1x: 휴리스틱 rc=0(누락 0개) 인데 `dq_runner_claim` 을 세면 크론이 실제로 돌리는 9개 러너 중 **kis_app.main:minute · data_gap_backfill 2개가 14일 내 행 0건** — 마지막 크론 실행(분봉 09-30 23:00 · data_gap 10-01 06:10)이 배선 커밋 `0534c97`(10-01 16:x) **이전**이라 아직 관측 기회가 없었다. kis_app.main 은 `--job daily --date 20260925 --limit 3` 멱등 재실행으로 `[claim] kis_app.main:daily -> market_data source=0 claimed=0 persisted=0` 줄과 행 생성을 실증(휴장일이라 no_data=3 — 원시행 0을 세지 않음). 검증 행은 삭제했다.",
+      "evidence": "실측 2026-10-01 21:1x: 휴리스틱 rc=0(누락 0개) 인데 `dq_runner_claim` 을 세면 크론이 실제로 돌리는 9개 러너 중 **kis_app.main:minute · data_gap_backfill 2개가 14일 내 행 0건** — 마지막 크론 실행(분봉 09-30 23:00 · data_gap 10-01 06:10)이 배선 커밋 `0534c97`(10-01 16:x) **이전**이라 아직 관측 기회가 없었다. kis_app.main 은 `--job daily --date 20260925 --limit 3` 멱등 재실행으로 `[claim] kis_app.main:daily -> market_data source=0 claimed=0 persisted=0` 줄과 행 생성을 실증(휴장일이라 no_data=3 — 원시행 0을 세지 않음). 검증 행은 삭제했다. | [2026-10-02 16:0x 실측·수리] check=1 → **미달**의 원인은 러너가 아니라 판정과 러너의 계약 불일치였다: 크론 로그(/home/dduckbeagy/analyist_dd/reports/cron_data_gap_backfill.log)는 10-02 04:15 '백필할 공실 없음' — 크론은 정상이었다. data_gap 은 **공실이 있을 때만** claim 을 남기므로 공실 0(정상 상태)이면 14일 내 행이 사라져 R27 이 상시 미달이 된다. 수리: scripts/data_gap.py 에 `_claim_noop()` 하트비트(잠금·stale·공실없음·수집기실행중 4개 종료 경로) — source=0/claimed=0 행은 parse_failure(=source>0 AND claimed==0)를 만들지 않아 지표를 오염시키지 않는다. 회귀 6건 tests/test_data_gap_noop_heartbeat.py. 검증: 백필 1회 실행 → `[claim] data_gap_backfill -> market_data source=0 claimed=0 persisted=0` · exporter 실측 dq_claim_parse_failure{data_gap_backfill}=0 · check=1 → **0** · dq_snapshot rc=0.",
       "method": "크론이 실제로 돌리는 러너(래퍼→러너 자기신고 이름)를 고정하고, `dq_runner_claim` 의 14일 내 행 존재로 판정한다. 소스 문자열 휴리스틱은 보조 신호로만 둔다(그것만으로 '통과'를 근거 삼지 않는다).",
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM (VALUES ('krx_daily'),('krx_derivatives_collect'),('kis_short_selling_backfill'),('kis_program_trading_collect'),('macro_backfill'),('kis_supply_backfill'),('dart_disclosure_backfill'),('kis_app.main:minute'),('data_gap_backfill')) v(r) WHERE NOT EXISTS (SELECT 1 FROM dq_runner_claim c WHERE c.runner=v.r AND c.run_at > now() - interval '14 days')\"",
       "check_target": {
@@ -883,7 +900,25 @@
       },
       "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM (VALUES ('krx_daily'),('krx_derivatives_collect'),('kis_short_selling_backfill'),('kis_program_trading_collect'),('macro_backfill'),('kis_supply_backfill'),('dart_disclosure_backfill'),('kis_app.main:minute'),('data_gap_backfill')) v(r) WHERE NOT EXISTS (SELECT 1 FROM dq_runner_claim c WHERE c.runner=v.r AND c.run_at > now() - interval '14 days')\"",
       "if_blocked": "배선만 되고 행이 없으면 그 러너의 적재량을 아무도 대조하지 못한다 — 2026-09-24 유형(파서 키 불일치로 +0행 적재·exit 0·진행파일에 '완료')이 다시 조용해진다.",
-      "expected": "정상 시 0 — 각 러너의 크론 실행 직후 자기신고 행이 남는다."
+      "expected": "정상 시 0 — 각 러너의 크론 실행 직후 자기신고 행이 남는다.",
+      "attempts": [
+        {
+          "ts": "2026-10-02T15:35:33+09:00",
+          "rc": 0,
+          "detail": "R27: 1 <= 0 → 미달"
+        },
+        {
+          "ts": "2026-10-02T16:05:00+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족 (data_gap no-op 하트비트 배선 후)"
+        }
+      ],
+      "result": {
+        "detail": "R27: 0 <= 0 → 충족 (하트비트 수리 후)",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R27_20261002-153532.log"
+      }
     }
   ]
 }
