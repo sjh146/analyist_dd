@@ -367,6 +367,8 @@ def main(argv=None) -> int:
     ap.add_argument("--horizon", type=int, default=5)
     ap.add_argument("--label-kind", choices=("rel", "abs"), default="rel")
     ap.add_argument("--skip", default="", help="콤마 구분: a,b,c 중 건너뛸 파트")
+    ap.add_argument("--robust-oos-out", default=None,
+                    help="모델이 1개일 때 그 디렉토리에 champion_promote 용 OOS 지표 JSON 을 쓴다")
     args = ap.parse_args(argv)
 
     if args.models:
@@ -418,6 +420,29 @@ def main(argv=None) -> int:
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print(f"\n[기록] {args.out}", flush=True)
+
+    # 후보 디렉토리에 승격 게이트용 OOS 지표를 남긴다(champion_promote 가 읽는 형식).
+    #   WHY: 단일 분할 AUC 로 승격하면 OOS 최악을 고르는 문제(스피어만 −0.81)를 게이트가
+    #   고칠 수 있으려면 후보마다 **다중 폴드 OOS 값**이 디렉토리에 있어야 한다.
+    #   정책은 별도 env(PROMOTE_REQUIRE_ROBUST=1)로 켠다 — 이 파일은 증거일 뿐 동작을 바꾸지 않는다.
+    if args.robust_oos_out and "b" not in skip and len(model_spec) == 1:
+        label = model_spec[0][0]
+        b = out.get("b_robust_auc", {}).get(label) or {}
+        if b.get("robust_auc") is not None:
+            rec = {"robust_auc": float(b["robust_auc"]),
+                   "metric": "robust_auc",
+                   "auc_pooled": b.get("auc_pooled"),
+                   "folds": args.folds, "horizon": args.horizon,
+                   "label_kind": args.label_kind, "stocks": args.stocks,
+                   "protocol": (f"{args.folds}-fold 연속 시간창(폴드당 {args.dates_per_fold}일), "
+                                f"h={args.horizon} 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=h"),
+                   "model": label, "created_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            os.makedirs(os.path.dirname(args.robust_oos_out) or ".", exist_ok=True)
+            with open(args.robust_oos_out, "w", encoding="utf-8") as f:
+                json.dump(rec, f, ensure_ascii=False, indent=2)
+            print(f"[기록] {args.robust_oos_out} (robust_auc={rec['robust_auc']:.4f})", flush=True)
+        else:
+            print("[주의] robust_auc 를 얻지 못해 OOS 파일을 쓰지 않았다", flush=True)
     return 0
 
 
