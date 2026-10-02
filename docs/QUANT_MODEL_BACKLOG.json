@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-03T06:05:00+09:00",
+  "updated_at": "2026-10-03T07:17:52+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -9092,22 +9092,243 @@
     },
     {
       "id": "CG74",
-      "title": "패널 피처명 중복 14쌍 제거 — 동일값 열이 top30 선별 슬롯을 낭비한다",
-      "status": "backlog",
-      "priority": 7,
-      "hypothesis": "`wf_wave.dedupe_names` 는 중복 라벨을 `__dupN` 로 **개명만** 하므로 동일값 열이 두 번 학습행렬에 남는다. top30 선별이 같은 피처를 두 슬롯에 넣으면 실질 28~29개만 쓰게 된다.",
-      "evidence": "이번 틱 실측(panel_prod200): 피처명 213개 중 14쌍이 **비트 동일**(cross_trend·momentum_vs_volatility·price_volume·return_5d_mean_10d·short_medium_term_momentum·target_ma_5/10/20·trend_confirmation·trend_interaction·volatility_20d_mean_10d·volatility_volume·volume_price_trend·volume_ratio_5_mean_10d). edge 상위 30개를 세어 보면 3쌍(volatility_20d_mean_10d·volume_price_trend·target_ma_5)이 들어가 **고유 피처 27개**만 선별된다.",
-      "command": null,
-      "metric": null,
-      "success": "패널 빌드 산출물의 `feature_names` 가 유일하고, 같은 유니버스·같은 config 스윕의 게이트 ON 폴드 평균이 악화되지 않음(Δ ≥ −0.005).",
-      "expected": "정답성 수리(기대 AUC 이득 ≈0 — 대체 슬롯의 edge 가 중복과 비슷). 실험보다 빌드 수리로 처리.",
-      "cost": "빌드 경로 수정 + 기존 패널은 열 제거 후 재사용(A/B 는 스윕 로더에서 열 drop 플래그 필요)",
-      "counterfactual": null,
-      "note": "2026-10-03 06:0x 신설. RB2('중복명 index 붕괴') 후속. 우선순위 낮음(정답성). prod200 재빌드는 16.5h 이므로 **스윕 로더 측 drop 플래그**로 기존 패널에서 A/B 하는 것이 비용이 낮다(단일 런 안에서 arm/cf 를 만들려면 config 필드로 넣어야 한다 — 전역 CLI 플래그는 한 런에 두 arm 을 못 만든다).",
-      "attempts": 0,
-      "result": null,
-      "arm": null,
-      "finding": null
+      "status": "done",
+      "priority": 3,
+      "title": "중복 라벨(drop_dup) 선별 슬롯 회수 — 게이트 OFF 경로 5구간 짝 검정",
+      "affects_model": true,
+      "metric": "wf_sweep_summary",
+      "arm": "UQa_00_30..UQa_120_150 (게이트 OFF + drop_dup + edge top30)",
+      "counterfactual": "LU_00_30..LU_120_150 (같은 런·같은 구간·중복 포함)",
+      "pairs": [
+        [
+          "UQa_00_30",
+          "LU_00_30"
+        ],
+        [
+          "UQa_30_60",
+          "LU_30_60"
+        ],
+        [
+          "UQa_60_90",
+          "LU_60_90"
+        ],
+        [
+          "UQa_90_120",
+          "LU_90_120"
+        ],
+        [
+          "UQa_120_150",
+          "LU_120_150"
+        ]
+      ],
+      "baseline": {
+        "value": null,
+        "source": "LU_* (같은 런·같은 panel_prod200·같은 서로소 30종목 구간)"
+      },
+      "hypothesis": "패널 npz 의 feature_names 에는 **같은 라벨이 2번씩 14쌍** 있고 값이 비트 동일하다(전 패널 공통: cross_trend·price_volume·target_ma_5/10/20·volume_price_trend·volatility_volume·trend_interaction …). `wf_wave.dedupe_names` 는 두 번째부터 `__dupN` 접미사로 **개명만** 하므로 열은 그대로 남고, edge top30 이 같은 피처를 두 슬롯에 넣으면 실질 서로 다른 피처가 27개로 줄어든다. 중복열을 후보에서 제거하면 30 슬롯이 서로 다른 피처로 채워져 OOS AUC 가 오르는가.",
+      "evidence": "① 실측(2026-10-03 07:0x, `_drop_dup_test.py` 12/12 PASS): panel_prod200·panel_150u·panel_420_asof3 전부 dup_labels=14 · 비트 동일 14/14. ② 실측(1폴드 스모크, 게이트 OFF·구간 [0:30)): LU_00_30 선별 30개 중 **중복열 3개**(실질 고유 27개) — 중복이 실제로 선별 슬롯을 먹는다. ③ 같은 스모크에서 UQa_00_30 은 '중복 라벨 제거 14개(후보 127)' 로 서로 다른 30개를 선별(1폴드 AUC 0.5050 vs LU 0.5248 = Δ−0.0198, 단일 폴드라 판정 아님 — **다중 폴드 필요**). ④ 게이트 ON 경로에서는 중복열이 CORE_FEATURES(48) 밖이라 후보에 0개 → UQ_core30_h5 와 CO_core30_h5 는 AUC 비트 동일(0.5338) = **이 축은 게이트 OFF 경로(기록 기준선 LS_quant_q30_h5) 전용**.",
+      "method": "wf_label_sweep 에 config 필드 `drop_dup` 신설(값이 아니라 **이름** 접미사 `__dupN` 을 선별 후보에서 제거 — 값 비교 없이 O(1)). 같은 런 10 config = 5 서로소 30종목 구간 × (drop_dup, 중복포함). 판정은 구동기 judge_per 의 pairs 분기(짝 Δ 평균·양(+) 구간 수). 게이트 OFF 경로로 고정(core_only 미설정) — 게이트 ON 은 중복이 후보에 없다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only UQa_00_30,UQa_30_60,UQa_60_90,UQa_90_120,UQa_120_150,LU_00_30,LU_30_60,LU_60_90,LU_90_120,LU_120_150 --out /app/reports/overnight/cg74_sweep.jsonl --summary-out /app/reports/overnight/cg74_summary.json'",
+      "check": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_drop_dup_test.py",
+      "check_target": {
+        "op": ">=",
+        "value": 1
+      },
+      "success": "구간 짝 Δ(UQa − LU) 평균 ≥ +0.02 그리고 양(+) 구간 ≥ 4/5 → 신호(→ 후속: `drop_dup` 를 패널 빌드에 반영 + 승격 후보 검토). 미달이면 '중복 슬롯은 성능 축이 아니다(정답성 수리)'로 축을 닫고, 같은 런에서 관측된 게이트 ON 비트 동일도 함께 기록.",
+      "expected": "이득 ≈0 을 예상한다 — 중복열과 그것을 대체하는 차순위 피처의 edge 가 비슷하기 때문이다. 다만 동일값 열 2개가 트리 앙상블에서 그 피처의 분할 확률을 **암묵적으로 2배**로 만드는 효과가 있으므로 부호는 미지다(스모크 1폴드는 −0.0198).",
+      "cost": "250 cell · 실측 4.5 s/cell → 약 19분(경쟁 시 30분). 컨테이너 timeout 3600.",
+      "est_minutes": 25,
+      "caution": "⚠ panel_prod200(유동성 정렬·KOSPI 혼합)의 절대값을 등록 기준선(0.5406, 49종목 panel_420_asofpatch)과 직접 비교 금지 — 판정은 같은 런·같은 구간의 짝 Δ 로만. 폴드 수가 다른 arm 비교 금지(CG24 교훈).",
+      "note": "2026-10-03 07:0x 신설·구현·검증(이 세션). 계기: 규칙 4(실행 가능 pending 0) + 점수판 '16사이클 연속 기준선 +0.02 미달'. **모델 측 축 포화** 판정 하에 남은 실행가능 항목이 이 정답성 축뿐이었다. 구현: wf_label_sweep `drop_dup` 필드 + UQa_*/LU_* 10 config + 선별 로그에 중복열 개수(오독 방지: len(set(sel)) 은 dedupe_names 때문에 항상 30). 검증: `_drop_dup_test.py` 12/12 PASS(호스트/컨테이너 구분 — 컨테이너에서 실행). **패널 npz 는 건드리지 않는다**(컬럼 제거는 로더측 플래그 → 16.5h 재빌드 회피). 게이트 ON 샌드박스 결과(중복 0개)는 스킬 실측교훈에 이미 반영.",
+      "attempts": [
+        {
+          "ts": "2026-10-03T07:17:52+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "구간 짝 Δ 평균 -0.0029 (n=5구간 · 양(+) 2/5) [+0.0010, -0.0045, +0.0013, -0.0104, -0.0021]",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG74_20261003-070607.log",
+          "elapsed_min": 11.7
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "구간 짝 Δ 평균 -0.0029 (n=5구간 · 양(+) 2/5) [+0.0010, -0.0045, +0.0013, -0.0104, -0.0021]",
+        "delta": -0.0029,
+        "per_exp": {
+          "UQa_00_30": {
+            "desc": "구간 [0:30) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_00_30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5077,
+              0.5616,
+              0.4542,
+              0.4936,
+              0.5987
+            ],
+            "mean": 0.5232,
+            "std": 0.0511,
+            "min": 0.4542,
+            "max": 0.5987,
+            "fold_win_rate": 0.6
+          },
+          "UQa_30_60": {
+            "desc": "구간 [30:60) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_30_60",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4987,
+              0.5236,
+              0.5059,
+              0.4995,
+              0.5347
+            ],
+            "mean": 0.5125,
+            "std": 0.0143,
+            "min": 0.4987,
+            "max": 0.5347,
+            "fold_win_rate": 0.6
+          },
+          "UQa_60_90": {
+            "desc": "구간 [60:90) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_60_90",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4846,
+              0.4938,
+              0.4691,
+              0.5353,
+              0.5438
+            ],
+            "mean": 0.5053,
+            "std": 0.0292,
+            "min": 0.4691,
+            "max": 0.5438,
+            "fold_win_rate": 0.4
+          },
+          "UQa_90_120": {
+            "desc": "구간 [90:120) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_90_120",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5723,
+              0.5346,
+              0.455,
+              0.472,
+              0.5184
+            ],
+            "mean": 0.5105,
+            "std": 0.0425,
+            "min": 0.455,
+            "max": 0.5723,
+            "fold_win_rate": 0.6
+          },
+          "UQa_120_150": {
+            "desc": "구간 [120:150) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_120_150",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5248,
+              0.4874,
+              0.5142,
+              0.5849,
+              0.5171
+            ],
+            "mean": 0.5257,
+            "std": 0.0322,
+            "min": 0.4874,
+            "max": 0.5849,
+            "fold_win_rate": 0.8
+          },
+          "LU_00_30": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [0:30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5067,
+              0.5823,
+              0.4674,
+              0.4897,
+              0.5651
+            ],
+            "mean": 0.5222,
+            "std": 0.0442,
+            "min": 0.4674,
+            "max": 0.5823,
+            "fold_win_rate": 0.6
+          },
+          "LU_30_60": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [30:60)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4994,
+              0.525,
+              0.4997,
+              0.5028,
+              0.558
+            ],
+            "mean": 0.517,
+            "std": 0.0226,
+            "min": 0.4994,
+            "max": 0.558,
+            "fold_win_rate": 0.6
+          },
+          "LU_60_90": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [60:90)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.476,
+              0.4994,
+              0.476,
+              0.536,
+              0.5328
+            ],
+            "mean": 0.504,
+            "std": 0.0262,
+            "min": 0.476,
+            "max": 0.536,
+            "fold_win_rate": 0.4
+          },
+          "LU_90_120": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [90:120)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5709,
+              0.557,
+              0.4658,
+              0.483,
+              0.5279
+            ],
+            "mean": 0.5209,
+            "std": 0.0408,
+            "min": 0.4658,
+            "max": 0.5709,
+            "fold_win_rate": 0.6
+          },
+          "LU_120_150": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [120:150)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5298,
+              0.4858,
+              0.5272,
+              0.5833,
+              0.5127
+            ],
+            "mean": 0.5278,
+            "std": 0.0319,
+            "min": 0.4858,
+            "max": 0.5833,
+            "fold_win_rate": 0.8
+          }
+        },
+        "rc": 0
+      },
+      "updated": "2026-10-03T07:05:59+09:00"
     }
   ]
 }

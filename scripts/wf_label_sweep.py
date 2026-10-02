@@ -22,6 +22,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import time
 
@@ -777,6 +778,48 @@ CONFIGS = [
      "exclude_names": ["kalman_activity", "kalman_attention", "kalman_momentum", "kalman_sentiment",
                        "sns_*"],
      "desc": "플라시보: NaN 99% 컬럼 26개만 제외 — 선별에 안 들어가므로 모델이 비트 동일해야 한다"},
+    # ── CG74(2026-10-03): 중복 라벨(동일값) 열 제거 — 선별 슬롯 낭비 (정답성 축) ──────────
+    # 왜: 전 패널 공통으로 feature_names 에 같은 라벨이 2번씩 14쌍 있고 값은 **비트 동일**
+    #     (실측: cross_trend·price_volume·target_ma_5/10/20·volume_price_trend·volatility_volume …).
+    #     `dedupe_names` 가 `__dupN` 로 개명만 하므로 열은 남고, edge top30 이 같은 피처를
+    #     두 슬롯에 넣으면 실질 고유 피처가 27개로 줄어든다. drop_dup=True 로 `__dupN` 을
+    #     후보에서 빼면 30 슬롯이 서로 다른 피처로 채워진다.
+    # 기대: 정답성 수리(이득 ≈0 — 대체 슬롯 edge 가 중복과 비슷). 그래도 **측정**한다:
+    #     '중복이 선별을 낭비한다'를 같은 런 짝 Δ 로 확정해야 다음 피처 단위 판정이 깨끗해진다.
+    # ⚠ 실측(2026-10-03 07:03 스모크): **게이트 ON 에선 중복이 후보에 0개**다(CORE_FEATURES 48 밖,
+    #     `_drop_dup_test.py` NOTE [5]) → UQ_core30_h5 와 CO_core30_h5 는 AUC 0.5338 로 비트 동일.
+    #     즉 이 축은 **게이트 OFF 경로(기록 기준선 LS_quant_q30_h5)** 에서만 유효하다 →
+    #     아래 UQa_*/LU_* 5구간 짝(서로소 30종목)으로 잰다(유니버스 교체 잡음 0.0287 상쇄).
+    {"id": "UQa_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "drop_dup": True, "codes_slice": [0, 30],
+     "desc": "구간 [0:30) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_00_30"},
+    {"id": "UQa_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "drop_dup": True, "codes_slice": [30, 60],
+     "desc": "구간 [30:60) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_30_60"},
+    {"id": "UQa_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "drop_dup": True, "codes_slice": [60, 90],
+     "desc": "구간 [60:90) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_60_90"},
+    {"id": "UQa_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "drop_dup": True, "codes_slice": [90, 120],
+     "desc": "구간 [90:120) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_90_120"},
+    {"id": "UQa_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "drop_dup": True, "codes_slice": [120, 150],
+     "desc": "구간 [120:150) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_120_150"},
+    {"id": "LU_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [0, 30],
+     "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [0:30)"},
+    {"id": "LU_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [30, 60],
+     "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [30:60)"},
+    {"id": "LU_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [60, 90],
+     "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [60:90)"},
+    {"id": "LU_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [90, 120],
+     "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [90:120)"},
+    {"id": "LU_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [120, 150],
+     "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [120:150)"},
 ]
 
 
@@ -1391,6 +1434,18 @@ def main():
                         raise RuntimeError(
                             f"exclude_names={xnames} 가 아무 컬럼도 제외하지 않았다 — "
                             "이름 표기가 틀렸다(측정 전에 실패시킨다)")
+                # ── CG74: 중복 라벨(동일값) 열 제거 — edge top30 선별 슬롯 낭비 방지 ──────
+                # 왜: npz 의 feature_names 에는 **같은 라벨이 2번** 들어 있다(전 패널 공통 14쌍,
+                # 실측 비트 동일: cross_trend·price_volume·target_ma_5·volume_price_trend …).
+                # `wf_wave.dedupe_names` 는 두 번째부터 `__dupN` 접미사로 **개명만** 하므로
+                # 열은 그대로 남고, edge top30 이 같은 피처를 두 슬롯에 넣으면 실질 27개(고유)만
+                # 학습에 쓰인다. `drop_dup=True` 는 `__dupN` 열을 **선별 후보에서 제거**해
+                # 30 슬롯을 서로 다른 피처로 채운다. 같은 런 A/B 로 '중복이 낭비인가'를 잰다.
+                if cfg.get("drop_dup"):
+                    _dupm = np.array([bool(re.search(r"__dup\d+$", f)) for f in bn], dtype=bool)
+                    n_dup = int((cols & _dupm).sum())
+                    cols = cols & np.logical_not(_dupm)
+                    ml.log(f"  {exp_id}: 중복 라벨 제거 {n_dup}개 (후보 {int(cols.sum())})")
                 fn = [f for f, m in zip(bn, cols) if m]
                 Xtr, Xte = Xtr[:, cols], Xte[:, cols]
                 # ── CG25 선별: 파생을 **선별 후보에서 빼고** top30 을 고른 뒤 강제로 덧붙인다 ──
@@ -1413,6 +1468,15 @@ def main():
                 else:
                     idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr, trd)
                 sel = [fn[j] for j in idx]
+                # CG74 투명성: 선별 집합에 중복열(`__dupN`)이 몇 개 들어갔는지 남긴다 —
+                # 이것이 0 이 아니면 'drop_dup' arm 과 대조군이 **다른 집합**이라는 증거다
+                # (둘 다 0 이면 이 축은 측정 불가이므로 Δ0 을 '효과 없음'으로 오독하게 된다).
+                _ndup_sel = sum(1 for f in sel if re.search(r"__dup\d+$", f))
+                # '실질 서로 다른 피처' = 선별 수 − 중복열 수(중복열은 값이 다른 열과 동일하다).
+                # ⚠ len(set(sel)) 을 '고유'로 적지 말라 — dedupe_names 가 이름을 유일하게 만들어
+                #   항상 30 이 나온다(값 기준 고유성과 무관). 2026-10-03 실측 교훈.
+                ml.log(f"  {exp_id}: 선별 {len(idx)}개 (중복열 {_ndup_sel}개·실질 고유 "
+                       f"{len(idx) - _ndup_sel}개) {sel_desc}")
                 recipe = cfg.get("recipe") or W.BASE["recipe"]
                 _extra.clear()
                 _extra.update(cfg.get("recipe_extra") or {})
