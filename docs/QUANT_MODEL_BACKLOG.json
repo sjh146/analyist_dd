@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-02T07:24:54.888140+09:00",
+ "updated_at": "2026-10-02T16:00:55+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -7743,7 +7743,7 @@
   {
    "id": "XR25",
    "title": "[리서처 R25] DART 공시 정기 러너 — 스케줄 확인 완료(10-01), 신선도 상시 감시",
-   "status": "backlog",
+   "status": "needs_setup",
    "priority": 8,
    "from_research": "R25",
    "arm": null,
@@ -7756,7 +7756,9 @@
    "success": null,
    "expected": "미지",
    "cost": null,
-   "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라."
+   "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
+   "promoted_from": "handoff",
+   "promoted_at": "2026-10-02T15:35:23+09:00"
   },
   {
    "id": "CG60",
@@ -7979,7 +7981,7 @@
   {
    "id": "CG65",
    "title": "수리 패널의 피처 스크린 재측정 — 종목상수·무정보 비율이 실제로 줄었는가 (CG63 후속 진단)",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "affects_model": false,
    "hypothesis": "재무 as-of 수리로 종목상수 48개 중 재무군(9개 이상)이 시간가변으로 바뀌고, top30 선별 구성도 달라진다. 스크린의 '무정보 126/210' 도 재측정해야 다음 레버 판단이 정직해진다.",
@@ -7993,8 +7995,24 @@
    "cost": "분 단위(210피처 × 13,609행)",
    "est_minutes": 15,
    "metric": null,
-   "note": "2026-10-02 등록. 판정 metric 이 없는 진단 항목이라 구동기는 '요약 없음 → 판정불가'로 닫는다(정상).",
-   "attempts": []
+   "note": "2026-10-02 등록. 판정 metric 이 없는 진단 항목이라 구동기는 '요약 없음 → 판정불가'로 닫는다(정상). | 2026-10-02 16:0x 종결: 위 result 참조. CG66(결측 대체 계산) 신설.",
+   "attempts": [
+    {
+     "ts": "2026-10-02T16:00:55+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric=None)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG65_20261002-160027.log",
+     "elapsed_min": 0.5
+    }
+   ],
+   "result": {
+    "verdict": "판정불가",
+    "detail": "panel_420_asof2(13,609행×210피처·49종목·281일): 누수 0 · 종목상수 **30**(수리 전 48, −18) · 시장레벨 44(41) · 무정보 127/210(불변). 최고피처가 종목상수 재무 → 시간가변 변동성군(atr_pct 0.4417·rank_volatility_20d 0.4470·bayes_volatility 0.4484, |IC t|<1.4)으로 바뀜. 재무 top(operating_profit 0.5512·net_income 0.5468·quality_roa 0.5455)은 이제 시간가변. → as-of 수리는 스크린 구조를 바꿨지만 **정보량은 그대로**(무정보 60%) — 데이터 축에 후보 없음. 후속 실측: value_per/value_pbr/quality_roe 커버리지 0.698/0.960/0.920 → 0.069/0.094/0.090, 동시에 per_current/pbr_current/roe 와 **비트 동일**(중복 피처) — 원인은 수리 후 드러난 소스 공백(financial_statements.per/pbr/roe 가 2026 보고서 행에만 존재, 2023~2025 전부 NULL).",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "MT116",
@@ -8058,6 +8076,42 @@
     "closed_at": "2026-10-02"
    },
    "closed_at": "2026-10-02"
+  },
+  {
+   "id": "CG66",
+   "title": "as-of 수리로 죽은 value_per/value_pbr/quality_roe 결측 대체 계산 부활 + 모델 영향 A/B (수리 패널)",
+   "status": "done",
+   "priority": 2,
+   "affects_model": false,
+   "hypothesis": "CG63 수리 후 value_per/value_pbr/quality_roe 가 소스 공백(financial_statements.per/pbr/roe 는 2026 보고서 행에만 존재)으로 92% 죽는다. 같은 소스·같은 술어를 읽는 per_current/pbr_current/roe 와 **비트 동일**(중복 피처)이므로, 저장값이 없을 때만 as-of 시총÷as-of 재무(ni·equity)로 계산해 채우면 커버리지가 회복되고 중복이 풀린다. 회복된 재무 피처가 top30 선별에 들어가면 AUC 가 움직인다.",
+   "evidence": "CG65(2026-10-02 16:00) 후속 실측: panel_420_asof2 에서 비영률 value_per 0.698→0.069 · value_pbr 0.960→0.094 · quality_roe 0.920→0.090, 그리고 value_per≡per_current / value_pbr≡pbr_current / quality_roe≡roe (np.array_equal=True, corr 1.0000). DB 실측 financial_statements: per 2023:0/2024:0/2025:0/2026:1633(행 2588) · pbr 0/0/0/2509 · roe 0/0/0/2332.",
+   "method": "① factor_features._value_factors/_quality_factors 에 '저장값 0 일 때만' 계산 대체 추가(저장값 우선). ② scripts/patch_panel_asof.py --also-factors 로 panel_420_asof2 → panel_420_asof3 재계산(1m50s). ③ panel_feature_screen 재측정 ④ 같은 3-arm(5폴드×5시드) 스윕으로 CG64 와 동일 프로토콜 A/B.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3000 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asof3.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,CO_core30_h5,CO_smooth_d1_h5 --out /app/reports/overnight/cg66_sweep.jsonl --summary-out /app/reports/overnight/cg66_summary.json'",
+   "check": "docker exec stock_xgboost_ml python /app/scripts/_asof_value_fallback_test.py (10/10 PASS)",
+   "success": "(a) 커버리지 회복 + 중복 해소  (b) 게이트 ON 대조군 대비 짝 Δ ≥ +0.02",
+   "counterfactual": "CO_core30_h5 on panel_420_asof2 (0.5350±0.0189, CG64)",
+   "expected": "value 커버리지 0.07~0.09 → 0.8~0.96, 종목상수/중복 해소. 모델은 문턱 미달(현 피처풀 포화)로 예상.",
+   "cost": "패치 1.8분 + 스윕 3.3분",
+   "est_minutes": 6,
+   "metric": "wf_sweep_summary",
+   "note": "2026-10-02 크론 세션에서 구동기 밖(setsid 아님·포그라운드)으로 실행 — 원장 기록 없음(감사 흔적은 이 항목). 같은 런·같은 프로토콜 비교는 CG64.",
+   "attempts": [
+    {
+     "ts": "2026-10-02T16:13:45+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "수리 후 커버리지 회복·중복 해소, 모델 Δ0.0000",
+     "log": "data/reports/overnight/cg66_summary.json",
+     "elapsed_min": 3.3
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "커버리지 회복 실측(panel_420_asof3 vs asof2): value_per 0.069→0.767 · value_pbr 0.094→0.960 · quality_roe 0.090→0.958, 중복 해소(identical=False, corr 0.61/0.27/0.36). 스크린: 누수 0 · 종목상수 30(불변) · 시장레벨 44→41 · 무정보 127/210(불변). 모델(5폴드×5시드·같은 유니버스·같은 3 config): CO_smooth_d1_h5 0.5512±0.0218(Δ vs CG64 0.0000) · CO_core30_h5 0.5350±0.0189(Δ 0.0000) · LS_quant_q30_h5 0.5381±0.0282(Δ +0.0007) → 사전문턱 +0.02 미달 = **노이즈**(회복 피처가 top30 선별에 실질 영향 없음). 재무 단일AUC 실측(asof3): quality_roe 0.5435(IC t −3.07) · quality_roa 0.5455 · value_per 0.5108 · value_pbr 0.4968.",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   }
  ]
 }

@@ -330,6 +330,21 @@ class FactorFeatures:
         per = latest.get("per", 0.0)
         pbr = latest.get("pbr", 0.0)
 
+        # 2026-10-02 실측(CG65 후속): `financial_statements.per/pbr/roe` 컬럼은 **2026 보고서 행에만**
+        # 값이 있다(DB 실측 — 2023·2024·2025 전부 NULL, 2026 만 per 1,633/2,588 · pbr 2,509/2,588).
+        # 그래서 as-of 정직 조회(CG63 수리)를 켜면 2025년 구간이 전부 0 이 되어
+        #   · value_per/value_pbr 가 죽고(커버리지 0.698→0.069 / 0.960→0.094, panel_420_asof2)
+        #   · 같은 소스를 같은 술어로 읽는 per_current/pbr_current 와 비트 동일한 중복 피처가 된다.
+        # 저장값이 **없을 때만** as-of 시총 ÷ as-of 재무로 계산해 채운다(저장값 있는 행은 무변경,
+        # 추정 입력도 전부 시점정합이라 누수 없음). date=None(추론) 경로는 최신 보고서에 값이
+        # 있으므로 종전과 동일하다.
+        if per <= 0:
+            ni_ttm = annual.get("net_income", 0.0) or latest.get("net_income", 0.0)
+            per = (market_cap / ni_ttm) if (market_cap > 0 and ni_ttm > 0) else 0.0
+        if pbr <= 0:
+            eq_val = latest.get("total_equity", 0.0)
+            pbr = (market_cap / eq_val) if (market_cap > 0 and eq_val > 0) else 0.0
+
         # --- 현금흐름 계열: 반드시 연간(12월) 행 사용 (기간 페어링) ---
         ocf_fy = annual.get("operating_cash_flow", 0.0)
         assets_fy = annual.get("total_assets", 0.0)
@@ -372,6 +387,12 @@ class FactorFeatures:
         assets = latest.get("total_assets", 0.0)
         equity = latest.get("total_equity", 0.0)
         roe = latest.get("roe", 0.0)
+        # 2026-10-02(CG65 후속): `roe` 컬럼도 2026 보고서 행에만 값이 있다 → as-of 조회에서
+        # 과거 구간이 전부 0 이 되어 quality_roe 가 죽고(0.920→0.090) `roe` 와 중복이 된다.
+        # 저장값이 없을 때만 자기자본이익률을 계산해 채운다(quality_roa 와 같은 방식).
+        if roe <= 0:
+            ni_q = latest.get("net_income", 0.0)
+            roe = (ni_q / equity * 100) if (equity > 0 and ni_q) else 0.0
         debt_ratio = latest.get("debt_ratio", 0.0)
 
         prev_assets = prev.get("total_assets", 0.0)

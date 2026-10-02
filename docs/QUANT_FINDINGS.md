@@ -539,3 +539,30 @@
 - **운영 사실**: WSL 호스트가 오늘 11:13 재부팅 → 브리지 11:19:47 · 루프 11:20:21 기동(감독이 연결
   확인 후 자동 시작). 개장 08:30~11:20 약 3시간은 루프가 없었다(보유 0이라 노출은 없음). 사유는
   Creon 업데이터가 파일 점검 중이었고 그 뒤 사람이 로그인(브리지 감독 로그 실측).
+
+## 2026-10-02 — as-of 수리(CG63)가 드러낸 '값 피처' 소스 공백과 그 수리 (CG65/CG66)
+
+- **CG65(수리 패널 스크린)**: panel_420_asof2(13,609행×210피처·49종목·281일) → 누수 0 · 종목상수
+  **30**(수리 전 48) · 시장레벨 44(41) · 무정보 **127/210**(불변). 최고피처가 종목상수 재무에서
+  시간가변 변동성군(atr_pct 0.4417·rank_volatility_20d 0.4470)으로 바뀌었다 → 수리는 구조를 바꿨지만
+  **정보량은 그대로**(무정보 60%).
+- **후속 진단(전수 비영률 대조)**: 수리로 죽은 컬럼 = value_pbr 0.960→0.094 · quality_roe 0.920→0.090 ·
+  value_per 0.698→0.069 · quality_earnings_volatility 0.981→0.512. 그리고
+  value_per≡per_current · value_pbr≡pbr_current · quality_roe≡roe 가 **비트 동일**(np.array_equal)
+  = 수리 후 중복 피처.
+- **원인(DB 실측)**: `financial_statements.per/pbr/roe` 컬럼이 **2026 보고서 행에만** 값이 있다
+  (per 2023 0건·2024 0건·2025 0건·2026 1,633/2,588 · pbr 2,509 · roe 2,332). as-of 정직 조회에서는
+  과거 구간이 전부 NULL → 0. 즉 수리 전 커버리지 0.70~0.96 은 **룩어헤드**였고, '종목상수 재무가
+  최고 AUC' 는 누수 지문이었다(CG63 진단 확증).
+- **수리(CG66)**: `factor_features._value_factors/_quality_factors` 에 **저장값이 0 일 때만**
+  as-of 시총 ÷ as-of 재무(ni_ttm·total_equity)로 계산해 채우는 대체를 추가(저장값 우선 →
+  date=None 추론 경로 비트 동일 실측). `patch_panel_asof --also-factors` 로 panel_420_asof3 생성.
+  검증 `_asof_value_fallback_test.py` 10/10 PASS · `_asof_financials_test.py` 17/17 PASS ·
+  `_asof_pipeline_smoke.py` OK(date=None 10/10 동일).
+- **결과**: 커버리지 회복(value_per 0.767·value_pbr 0.960·quality_roe 0.958)·중복 해소.
+  그러나 모델은 **Δ0.0000**(CO_smooth_d1_h5 0.5512±0.0218, CO_core30_h5 0.5350±0.0189 —
+  CG64 와 동일, LS_quant 만 +0.0007) → 사전문턱 미달 **노이즈**. 회복 피처가 top30 선별에
+  실질 영향이 없다 = 현 피처풀 포화 진단 재확인.
+- **남은 레버**: 값 피처의 역사를 채우려면 원천 백필이 필요하다. `financial_ratio_features`
+  (PIT·rcept_dt, 2025-06-16~2026-09-29, 패널 49종목 중 40종목)가 대안 소스로 존재하나
+  구간이 패널 창보다 짧다 → 리서처 핸드오프(XR12 재무비율 부활·XR25 DART 러너)와 함께 다뤄야 한다.
