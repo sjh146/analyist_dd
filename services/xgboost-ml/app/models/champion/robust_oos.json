@@ -1,0 +1,12 @@
+{
+  "robust_auc": 0.5008,
+  "metric": "robust_auc",
+  "auc_pooled": 0.4996,
+  "folds": 5,
+  "horizon": 5,
+  "label_kind": "rel",
+  "stocks": 80,
+  "protocol": "5-fold 연속 시간창(폴드당 10일), h=5 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=h",
+  "model": "champion",
+  "created_at": "2026-10-02T14:13:55"
+}
