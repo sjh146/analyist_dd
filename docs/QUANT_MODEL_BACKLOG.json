@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-03T04:02:42+09:00",
+  "updated_at": "2026-10-03T06:05:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -4105,7 +4105,7 @@
     {
       "id": "XR13",
       "title": "[리서처 R13] 죽은 피처 35개 분해 조사 (원천부재/커버리지/시장레벨/부활가능)",
-      "status": "needs_setup",
+      "status": "closed_rejected",
       "priority": 8,
       "from_research": "R13",
       "arm": null,
@@ -4118,7 +4118,7 @@
       "success": "각 계열에 대해 '수집 가능(비용)' 또는 '소스 없음' 결론 + 후속 항목 등록",
       "expected": "미지",
       "cost": "조사 2~4시간(수집 제외)",
-      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 먼저 '부활가능 11개가 왜 0 인가'(빌더/패널)를 수치로 확인하고, 시장레벨 7개는 피처 집합에서 빼는 것을 제안한다.",
+      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 먼저 '부활가능 11개가 왜 0 인가'(빌더/패널)를 수치로 확인하고, 시장레벨 7개는 피처 집합에서 빼는 것을 제안한다.\n| 2026-10-03 06:0x **엔지니어 종결(closed_rejected)** — '파이프라인 값이 전부 0' 전제가 현 패널에서 성립하지 않는다. 생산 유니버스 패널(panel_prod200·54,800행) 실측: atr_pct 비영 1.000 · quality_beta 0.903 · quality_price_volatility_60d 0.998 · similarity_std 1.000 · twin_count 0.745 · twin_avg_correlation 0.745 · bayes_momentum_1d/5d·bayes_volatility·bayes_gain_uncertainty 1.000. 즉 부활가능 11개는 **이미 모델 입력에 들어와 있고** 단일피처 edge 도 atr_pct 0.0365(선별 문턱 0.044 미달) 수준이다 → '부활'할 것이 없다. ②의 시장레벨 7개는 계약 #6 대로 횡단면 투입 금지(현행 유지). 진짜 죽은 열 24개의 원인은 **원천 부재**(short_interest·days_to_cover·margin_balance_change·credit_balance_change·etf_flow_5d 테이블 없음, institution_ownership_pct 소스 미발굴=XR2) 또는 **원천이 패널 유니버스를 덮지 않음**(sns_posts 22/200종목 · news_events 12/200종목 · stock_sentiment 2일치)이다 → 다음 단계는 재측정이 아니라 원천 확보(CG73)다.",
       "promoted_from": "handoff",
       "promoted_at": "2026-10-02T06:01:01+09:00"
     },
@@ -8730,7 +8730,7 @@
     {
       "id": "CG71",
       "title": "선별 규칙 축 — 날짜별 횡단면 IC top30 선별 vs 풀링 edge top30 (게이트 ON·5구간 짝, 기록상 0회 시험)",
-      "status": "pending",
+      "status": "done",
       "priority": 4,
       "affects_model": true,
       "arm": "SL_00_30..SL_120_150 (게이트 ON + 분위0.30 h5 + select=ic30)",
@@ -8773,8 +8773,341 @@
       "metric": "wf_sweep_summary",
       "caution": "⚠ panel_150u 는 유동성 정렬 패널이다 — 절대값(대조군 평균 0.505)을 등록 기준선(0.5406, 49종목)과 직접 비교 금지. 판정은 같은 런·같은 구간의 짝 Δ 로만. 폴드 수가 다른 arm 비교 금지(CG24 교훈).",
       "note": "선별 규칙 변경은 학습 시점 연산이라 추론 계약을 건드리지 않는다(게이트 목록·feature_names 는 모델 디렉터리에 고정). 대조군이 같은 런에 없으면 판정 불가 — US_* 5개를 반드시 함께 돌린다.",
-      "attempts": [],
-      "result": null
+      "attempts": [
+        {
+          "ts": "2026-10-03T04:17:58+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "구간 짝 Δ 평균 +0.0049 (n=5구간 · 양(+) 3/5) [+0.0179, -0.0051, +0.0065, -0.0065, +0.0116]",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG71_20261003-040601.log",
+          "elapsed_min": 11.9
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "구간 짝 Δ 평균 +0.0049 (n=5구간 · 양(+) 3/5) [+0.0179, -0.0051, +0.0065, -0.0065, +0.0116]",
+        "delta": 0.0049,
+        "per_exp": {
+          "SL_00_30": {
+            "desc": "구간 [0:30) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_00_30(풀링 edge top30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4837,
+              0.5151,
+              0.546,
+              0.5865,
+              0.5604
+            ],
+            "mean": 0.5383,
+            "std": 0.0357,
+            "min": 0.4837,
+            "max": 0.5865,
+            "fold_win_rate": 0.8
+          },
+          "SL_30_60": {
+            "desc": "구간 [30:60) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_30_60(풀링 edge top30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5668,
+              0.4921,
+              0.48,
+              0.5018,
+              0.4899
+            ],
+            "mean": 0.5061,
+            "std": 0.0311,
+            "min": 0.48,
+            "max": 0.5668,
+            "fold_win_rate": 0.4
+          },
+          "SL_60_90": {
+            "desc": "구간 [60:90) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_60_90(풀링 edge top30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5319,
+              0.4904,
+              0.4712,
+              0.5436,
+              0.5125
+            ],
+            "mean": 0.5099,
+            "std": 0.0265,
+            "min": 0.4712,
+            "max": 0.5436,
+            "fold_win_rate": 0.6
+          },
+          "SL_90_120": {
+            "desc": "구간 [90:120) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_90_120(풀링 edge top30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4636,
+              0.4945,
+              0.5016,
+              0.5099,
+              0.4966
+            ],
+            "mean": 0.4933,
+            "std": 0.0157,
+            "min": 0.4636,
+            "max": 0.5099,
+            "fold_win_rate": 0.4
+          },
+          "SL_120_150": {
+            "desc": "구간 [120:150) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_120_150(풀링 edge top30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4911,
+              0.5533,
+              0.5017,
+              0.5037,
+              0.4669
+            ],
+            "mean": 0.5033,
+            "std": 0.0282,
+            "min": 0.4669,
+            "max": 0.5533,
+            "fold_win_rate": 0.6
+          },
+          "US_00_30": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [0:30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4788,
+              0.5054,
+              0.4853,
+              0.5803,
+              0.5525
+            ],
+            "mean": 0.5204,
+            "std": 0.0395,
+            "min": 0.4788,
+            "max": 0.5803,
+            "fold_win_rate": 0.6
+          },
+          "US_30_60": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [30:60)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5344,
+              0.4891,
+              0.4942,
+              0.5032,
+              0.5349
+            ],
+            "mean": 0.5112,
+            "std": 0.0197,
+            "min": 0.4891,
+            "max": 0.5349,
+            "fold_win_rate": 0.6
+          },
+          "US_60_90": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [60:90)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.542,
+              0.4875,
+              0.4634,
+              0.506,
+              0.5181
+            ],
+            "mean": 0.5034,
+            "std": 0.0267,
+            "min": 0.4634,
+            "max": 0.542,
+            "fold_win_rate": 0.6
+          },
+          "US_90_120": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [90:120)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4808,
+              0.4862,
+              0.4908,
+              0.5054,
+              0.5356
+            ],
+            "mean": 0.4998,
+            "std": 0.0197,
+            "min": 0.4808,
+            "max": 0.5356,
+            "fold_win_rate": 0.4
+          },
+          "US_120_150": {
+            "desc": "게이트 ON 대조군 · 서로소 구간 [120:150)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4849,
+              0.5433,
+              0.4836,
+              0.4795,
+              0.4672
+            ],
+            "mean": 0.4917,
+            "std": 0.0266,
+            "min": 0.4672,
+            "max": 0.5433,
+            "fold_win_rate": 0.2
+          }
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG72",
+      "title": "생산 유니버스(panel_prod200)에서 게이트 ON 기준선·배포 가능 arm A/B — CG10 의 미측정 대조군을 채운다",
+      "status": "done",
+      "priority": 2,
+      "affects_model": true,
+      "metric": "wf_sweep_summary",
+      "arm": "CO_smooth_d1_h5",
+      "baseline": {
+        "value": null,
+        "source": "CO_core30_h5 (같은 런·같은 200종목 생산 유니버스 패널의 게이트 ON 대조군)"
+      },
+      "counterfactual": "CO_core30_h5 (같은 런·같은 panel_prod200)",
+      "hypothesis": "70사이클 내내 스윕 실험은 curated 유니버스(KOSDAQ 코드순 50/150종목)에서 측정된 반면 생산 챔피언은 200종목(최근데이터순+seed 셔플, KOSPI 혼합)으로 학습된다 — 유니버스가 다르면 실측이 승격 조건을 대표하지 못한다(CG5 150종목 전이시 부호 반전 −0.0109 · CG14 −0.0057 · CG9c 생산경로 OOS 짝 Δ −0.0384). CG10 이 생산 유니버스 패널(panel_prod200: X(54800,213)·200종목·274행/종목)을 완성했지만 그 실행은 wf_wave 의 WF1~WF5(게이트 OFF 계열, 최고 WF3 0.5302±0.0168)만 측정했고 등록된 대조군 CO_core30_h5(게이트 ON 생산경로 대조군)는 **미측정**으로 남았다. 이제 같은 패널에서 게이트 ON 배포 후보(스무딩+depth1, 추론 계약 무변경)를 직접 재면, 전이 실패가 '유니버스 탓'인지 '게이트 탓'인지, 아니면 애초에 49/150종목 특이였는지가 갈린다.",
+      "evidence": "① CG10(10-03 04:02) 실측: panel_prod200.npz (54,800행·213피처, prod 유니버스 KOSPI+KOSDAQ 200종목) — WF1 0.5143±0.0225 · WF2 0.5127±0.0279 · WF3 0.5302±0.0168 · WF4 0.5268±0.0135 · WF5 0.5172±0.0238 (5폴드). ② 배포 가능 후보의 유일한 양(+) 재현: CG64/CG66/CG67 삼중 재현 CO_smooth_d1_h5 0.5512 vs CO_core30_h5 0.5350 = Δ+0.0162 (수리 패널 panel_420_asof3), 사전문턱 −0.0038 미달. ③ CG69: 150종목 5구간 짝 Δ +0.0010(양(+) 1/5) = 구간 견고성 실패. 남은 미측정 변수는 '유니버스의 정체(생산 200종목)'다. ④ 패널 캐시가 이미 있어 스윕 비용만 든다(빌드 없음).",
+      "method": "패널은 이미 존재(panel_prod200.npz) → 스윕만 실행. 4 config: LS_quant_q30_h5(게이트 OFF 참조) · CO_core30_h5(게이트 ON 대조군) · CO_smooth_d1_h5(배포 가능 arm, 판정 대상) · CO_rank_smooth_d1_h5(CG8 우승 조합 — 배포 불가지만 생산유니버스 전이 확인용). 5폴드×5시드. 판정은 판정 대상 arm 과 대조군의 **같은 런 폴드 평균 짝 Δ**(arm=CO_smooth_d1_h5, counterfactual=CO_core30_h5).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,CO_core30_h5,CO_smooth_d1_h5,CO_rank_smooth_d1_h5 --out /app/reports/overnight/cg72_sweep.jsonl --summary-out /app/reports/overnight/cg72_summary.json'",
+      "check": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_deployable_slice_config_test.py",
+      "success": "짝 Δ = CO_smooth_d1_h5 − CO_core30_h5 ≥ +0.02 → 생산 유니버스에서 배포 가능 arm 성립(→ 후속: CG9 승격 경로 재검토, 사람 승인 절차). |Δ| < 0.02 → 노이즈로 '유니버스 전이' 축 종결. 보조: CO_rank_smooth_d1_h5 − CO_core30_h5(배포 불가·CG8 우승) — 이것도 미달이면 22사이클의 모든 +방향이 좁은 유니버스 특이로 최종 확정.",
+      "expected": "생산 유니버스는 종목 수가 200(넓은 횡단면)이라 폴드당 표본이 두껍고, 유동성 상위라 curated 코드순 150종목보다 '크기 효과'가 다르다. 게이트 ON 대조군은 150종목 실측(0.5101~0.5365)과 비슷하거나 낮게 나올 것으로 보이고(prod WF1~5 0.51~0.53), 판정은 대조군과의 짝 Δ 로만 한다(타 패널 직접비교 금지).",
+      "est_minutes": 30,
+      "note": "2026-10-03 05:0x 크론 세션에서 등록(선별 규칙 축 CG71 종결 직후). CG10 의 미측정 대조군을 채우는 항목이다 — CG10 은 wf_wave(WF1~WF5)만 재서 counterfactual 이 비어 있었다. ⚠ 타 패널(panel_420_asof3·panel_150u) 값과 직접 비교 금지 — 같은 런 Δ 로만 판정. ⚠ --summary-out 을 쓰므로 기본 요약 경로를 덮지 않는다(구동기 summary_path 가 --summary-out 존중, CG70 수리).",
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 CO_smooth_d1_h5 0.5355 vs 대조군 CO_core30_h5 0.5305 → Δ+0.0050 (최고: CO_rank_smooth_d1_h5 0.5414)",
+        "delta": 0.005,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5326,
+              0.5543,
+              0.5017,
+              0.5305,
+              0.5317
+            ],
+            "mean": 0.5302,
+            "std": 0.0168,
+            "min": 0.5017,
+            "max": 0.5543,
+            "fold_win_rate": 1.0
+          },
+          "CO_core30_h5": {
+            "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5235,
+              0.5574,
+              0.4974,
+              0.5334,
+              0.5408
+            ],
+            "mean": 0.5305,
+            "std": 0.0199,
+            "min": 0.4974,
+            "max": 0.5574,
+            "fold_win_rate": 0.8
+          },
+          "CO_rank_smooth_d1_h5": {
+            "desc": "게이트 ON + rank + 스무딩 + depth1 — 생산경로에서 가진 방향 전부 결합",
+            "kind": "smooth",
+            "horizon": 5,
+            "folds": [
+              0.5273,
+              0.5634,
+              0.5207,
+              0.5389,
+              0.5567
+            ],
+            "mean": 0.5414,
+            "std": 0.0164,
+            "min": 0.5207,
+            "max": 0.5634,
+            "fold_win_rate": 1.0
+          },
+          "CO_smooth_d1_h5": {
+            "desc": "게이트 ON + 라벨 스무딩 + depth1·lr0.05 (rank 없음) — 추론 계약 무변경 배포 가능 후보",
+            "kind": "smooth",
+            "horizon": 5,
+            "folds": [
+              0.5295,
+              0.5622,
+              0.5221,
+              0.5257,
+              0.5381
+            ],
+            "mean": 0.5355,
+            "std": 0.0143,
+            "min": 0.5221,
+            "max": 0.5622,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-10-03T05:10:14+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 CO_smooth_d1_h5 0.5355 vs 대조군 CO_core30_h5 0.5305 → Δ+0.0050 (최고: CO_rank_smooth_d1_h5 0.5414)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG72_20261003-050242.log",
+          "elapsed_min": 7.5
+        }
+      ]
+    },
+    {
+      "id": "CG73",
+      "title": "데이터 축 재개 조건 — 패널 유니버스(200종목)를 덮는 원천 확보 후 신규 피처 ≥5종 측정",
+      "status": "needs_setup",
+      "priority": 2,
+      "hypothesis": "모델 입력(패널)에 쓸 수 있는 **신규 정보가 남아 있는 유일한 곳은 원천 커버리지**다. 현재 패널 213피처 중 full-coverage 시간가변 최고 edge 는 0.0453(변동성군)으로 선별 문턱(0.044) 근처뿐이고, 조정 축(변환·HP·유니버스·라벨·창·k·선별규칙·표본가중·파생)은 17사이클 실측으로 전부 종결됐다. 반면 SNS·뉴스·수급·공매도는 **원천은 살아 있으나 패널 유니버스를 덮지 않는다**(sns_posts 22/200종목 · news_events 12/200종목 · stock_sentiment 2일치 · short_interest/margin/credit/etf 테이블 부재). 커버리지를 패널 유니버스로 확장하면 가격·수급과 독립인 신호가 처음으로 학습에 들어온다.",
+      "evidence": "이번 틱 실측(2026-10-03, panel_prod200): ① 전행 0 컬럼 24/213 ② 누수 0 · 종목상수 34 · 시장레벨 56 · 무정보 120/213 ③ sns_posts 384,821행/309종목 → 패널 교집합 22종목(27,127행, sns_* 비영 ~2%, 단일피처 AUC 0.6071 은 'SNS 보유 종목' 식별에 가까움) ④ news_events 7,133행/211종목 → 패널 교집합 12종목 ⑤ stock_sentiment 118행·2일치 ⑥ 선별 문턱 0.044 대비 full-coverage 최고 edge 0.0453(bayes_volatility) ⑦ 종결 축: CG71(선별규칙)·CG72(생산 유니버스 게이트 ON)·CG9c(rank+스무딩+depth1 승격 OOS −0.0384).",
+      "command": null,
+      "metric": null,
+      "success": "패널 유니버스 200종목을 덮는 신규 원천으로 만든 피처 중 단일피처 |AUC−0.5| ≥ 0.044(= 현 선별 문턱) 가 **5종 이상**이고, 그중 1종 이상이 시간가변(종목별 유니크값 ≥ 3)이며, 게이트 ON 스윕에서 확장창 다중폴드 평균이 대조군 대비 +0.02 이상.",
+      "expected": "원천 확보는 리서처/사람 결정(수집 범위·API 한도·자격증명)이 필요하다. 화이트리스트 통과 전에는 스윕을 돌리지 않는다(과거 4개 독립 구성이 0.534~0.548 로 수렴한 실패를 반복하지 않기 위함).",
+      "cost": "수집 배선 1~2일 + 패널 재빌드(prod200 실측 0.92 pair/s·54,800페어 ≈ 16.5h)",
+      "counterfactual": "현행 패널(213피처) — 같은 유니버스·같은 게이트 ON 대조군 CO_core30_h5(0.5305±0.0199, CG72)",
+      "note": "2026-10-03 06:0x 신설. 계기: 규칙 4(실행 가능 pending 0) + 점수판 '16사이클 연속 기준선 대비 +0.02 미달'. **모델 측 축은 포화**로 판정 — 이 항목은 원천 확보가 선행돼야 command 를 채울 수 있어 needs_setup 으로 둔다. 선행 작업: ① SNS 수집 유니버스를 패널 200종목으로 확장(sns_posts 는 2018~2026 누적·384k행이 이미 있으므로 '수집 범위' 문제) ② 뉴스/SNS 감성의 종목 커버리지 확대 ③ 공매도·신용·ETF 테이블 신설 여부 결정(원천 자체가 없음).",
+      "attempts": 0,
+      "result": null,
+      "arm": null,
+      "finding": null
+    },
+    {
+      "id": "CG74",
+      "title": "패널 피처명 중복 14쌍 제거 — 동일값 열이 top30 선별 슬롯을 낭비한다",
+      "status": "backlog",
+      "priority": 7,
+      "hypothesis": "`wf_wave.dedupe_names` 는 중복 라벨을 `__dupN` 로 **개명만** 하므로 동일값 열이 두 번 학습행렬에 남는다. top30 선별이 같은 피처를 두 슬롯에 넣으면 실질 28~29개만 쓰게 된다.",
+      "evidence": "이번 틱 실측(panel_prod200): 피처명 213개 중 14쌍이 **비트 동일**(cross_trend·momentum_vs_volatility·price_volume·return_5d_mean_10d·short_medium_term_momentum·target_ma_5/10/20·trend_confirmation·trend_interaction·volatility_20d_mean_10d·volatility_volume·volume_price_trend·volume_ratio_5_mean_10d). edge 상위 30개를 세어 보면 3쌍(volatility_20d_mean_10d·volume_price_trend·target_ma_5)이 들어가 **고유 피처 27개**만 선별된다.",
+      "command": null,
+      "metric": null,
+      "success": "패널 빌드 산출물의 `feature_names` 가 유일하고, 같은 유니버스·같은 config 스윕의 게이트 ON 폴드 평균이 악화되지 않음(Δ ≥ −0.005).",
+      "expected": "정답성 수리(기대 AUC 이득 ≈0 — 대체 슬롯의 edge 가 중복과 비슷). 실험보다 빌드 수리로 처리.",
+      "cost": "빌드 경로 수정 + 기존 패널은 열 제거 후 재사용(A/B 는 스윕 로더에서 열 drop 플래그 필요)",
+      "counterfactual": null,
+      "note": "2026-10-03 06:0x 신설. RB2('중복명 index 붕괴') 후속. 우선순위 낮음(정답성). prod200 재빌드는 16.5h 이므로 **스윕 로더 측 drop 플래그**로 기존 패널에서 A/B 하는 것이 비용이 낮다(단일 런 안에서 arm/cf 를 만들려면 config 필드로 넣어야 한다 — 전역 CLI 플래그는 한 런에 두 arm 을 못 만든다).",
+      "attempts": 0,
+      "result": null,
+      "arm": null,
+      "finding": null
     }
   ]
 }
