@@ -40,28 +40,39 @@ def small_item():
 
 def main():
     print("=== next_item ETA 굶음 회귀 테스트 ===")
-    now = datetime.now(m.now_kst().tzinfo)
+    tz = m.now_kst().tzinfo
+    # ⚠ 날짜 의존 제거(2026-10-03): 종전엔 "지금 시각"에서 재생성 창까지의 거리를 가정했다 —
+    # 주말(토 04:00 → 다음 재생성 월 20:00 = 64h 뒤)엔 est 1410분(23.5h)이 창을 넘지 않아
+    # **정당하게 통과**하는데도 테스트가 FAIL 을 켰다(스킬 교훈 '달력 기대값이 낡으면 빨간불'
+    # 과 같은 클래스 — 코드 회귀로 오진 금지). next_recreate/next_market_open 을 고정해
+    # 시각과 무관하게 검증한다. probe 변수(미사용)도 제거.
+    orig_rec, orig_mo = m.next_recreate, m.next_market_open
+    base = datetime.now(tz)
+    m.next_market_open = lambda *a, **k: None
+    try:
+        # 케이스 1: 다음 재생성 창이 2시간 뒤 → BIG(23.5h)은 반드시 차단된다.
+        m.next_recreate = lambda now=None: base + timedelta(hours=2)
+        blocked, why = m.eta_blocks(eta_blocking_item())
+        ok_eta = m.eta_blocks({"id": "X", "est_minutes": 1})[0] is False
+        check("eta_blocks: est_minutes=1 은 통과", ok_eta)
+        check("eta_blocks: est_minutes=1410 차단(재생성 2h 뒤)", blocked is True)
 
-    # 케이스 1: 장중이 아닌 평일 밤(다음 재생성 = 내일/다음 평일 20:00)에 BIG 은 걸린다.
-    #          오늘 20:00 전 시각을 골라 BIG(23.5h)이 확실히 재생성 창을 넘게 한다.
-    probe = now.replace(hour=10, minute=0, second=0, microsecond=0)
-    if probe <= now:
-        probe = probe + timedelta(days=1)
-    blocked, why = m.eta_blocks(eta_blocking_item())
-    ok_eta = m.eta_blocks({"id": "X", "est_minutes": 1})[0] is False
-    check("eta_blocks: est_minutes=1 은 통과", ok_eta)
-    check("eta_blocks: est_minutes=1410 은 차단(현재 시각 기준)", blocked is True)
-    if not blocked:
-        print("    (참고: 지금 시각에서는 재생성 창까지 23.5h 이상 남아 통과 — 케이스 2로 검증)")
+        b = {"items": [eta_blocking_item(), small_item()]}
+        picked = m.next_item(b)
+        check("next_item(force=False): ETA 차단 BIG 을 건너뛰고 SMALL 선택",
+              (picked or {}).get("id") == "SMALL")
 
-    b = {"items": [eta_blocking_item(), small_item()]}
-    picked = m.next_item(b)
-    check("next_item(force=False): ETA 차단 BIG 을 건너뛰고 SMALL 선택",
-          (picked or {}).get("id") == "SMALL")
+        picked_f = m.next_item(b, force=True)
+        check("next_item(force=True): BIG 도 후보로 반환(강행 경로 유지)",
+              (picked_f or {}).get("id") == "BIG")
 
-    picked_f = m.next_item(b, force=True)
-    check("next_item(force=True): BIG 도 후보로 반환(강행 경로 유지)",
-          (picked_f or {}).get("id") == "BIG")
+        # 케이스 2: 재생성 창이 멀면(주말 등) BIG 도 통과한다 — 주말엔 ETA 가드가 열려 있어
+        # 긴 항목이 사람 감시 없이 밤새 돌 수 있다(스킬 교훈). 이 사실을 테스트로 고정한다.
+        m.next_recreate = lambda now=None: base + timedelta(days=5)
+        check("eta_blocks: 재생성 5일 뒤면 1410 통과(주말 개방 — 주의)",
+              m.eta_blocks(eta_blocking_item())[0] is False)
+    finally:
+        m.next_recreate, m.next_market_open = orig_rec, orig_mo
 
     # 케이스 3: 짧은 항목만 있으면 정상 선택(과잉 차단 방지)
     b2 = {"items": [small_item()]}

@@ -526,6 +526,17 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_label_sweep_summary.json")
+    if kind == "wf_wave_summary":
+        # ⚠ 실측 갭 수리(2026-10-03 CG10): CG10 의 command 는 `wf_wave.py` 인데 metric 을
+        # `wf_sweep_summary` 로 등록해 두어, 구동기가 **다른 파일**(wf_label_sweep_summary.json,
+        # mtime 22:59 = 실행 시작 이전)을 보고 "요약 미갱신 → 판정불가" 로 기록했다. 실제로는
+        # wf_wave 가 `reports/overnight/wf_wave_summary.json`(mtime 03:43)에 WF1~WF5 를 써 뒀다
+        # → 2.6시간 실행의 실측이 원장에서 사라질 참이었다(CG43 과 같은 'metric 등록 누락' 함정).
+        # 스키마는 wf_label_sweep 과 호환(results[].folds{}.mean)이라 parse_wf_sweep 를 재사용한다.
+        out = _arg(command or "", "--summary-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_wave_summary.json")
     if kind == "champion_robust_eval":
         # champion_robust_eval.py 는 컨테이너 cwd=/app 에서 --out /app/reports/... 로 쓴다
         # (/app = services/xgboost-ml). CG31 이 이 metric 으로 돌아간다.
@@ -858,7 +869,8 @@ def judge_promote_dryrun(item, parsed) -> tuple:
 def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     """metric 이름으로 파서를 고른다(모르는 metric 은 예외 없이 오류 dict)."""
     kind = item.get("metric")
-    if kind == "wf_sweep_summary":
+    if kind in ("wf_sweep_summary", "wf_wave_summary"):
+        # 두 요약의 스키마가 같다(results[].folds{}.mean · exp/desc) → 같은 파서를 쓴다.
         return parse_wf_sweep(spath, mtime_floor)
     if kind == "champion_robust_eval":
         return parse_champion_robust(spath, mtime_floor)
@@ -1435,11 +1447,29 @@ def start_background(item_id, force=False):
     except OSError:
         pass
     if p.poll() is not None or refused:
+        # 즉시 종료가 **정상 완료**인지 구분한다(실측 2026-10-03, _orphan_record_test [2]):
+        # `command` 가 `true` 나 진단 쿼리처럼 3초 안에 끝나는 항목은 자식이 원장에 기록을 남기고
+        # 정상 종료한다 — 그런데 종전엔 이를 "가드 거부 또는 즉시 종료"로 **단정**해 ① 운영자에게
+        # 거짓 실패를 보고하고 ② 그 항목이 실제로 수행됐는지 알 길이 없었다. 시작 시각 이후의
+        # 원장 기록을 확인해 구분한다(가드 거부는 로그에 '시작 보류' 가 있고 원장 기록이 없다).
+        started_at, done_ts = None, None
+        try:
+            with open(STATE, encoding="utf-8") as f:
+                started_at = (json.load(f) or {}).get("started")
+        except (OSError, json.JSONDecodeError):
+            pass
+        for r in load_ledger():
+            if r.get("id") == item_id and (not started_at or r.get("ts", "") >= started_at):
+                done_ts = r.get("ts")
         for f in (PIDFILE, STATE):
             try:
                 os.remove(f)
             except OSError:
                 pass
+        if done_ts and not refused:
+            log(f"즉시 완료: {item_id} — 3초 안에 끝나 원장 기록({done_ts})을 남겼다"
+                f"(짧은 항목). '실행 중'으로 세우지 않는다")
+            return 0
         log(f"기동 실패: {item_id} — 가드 거부 또는 즉시 종료"
             f"(로그 {os.path.relpath(logfile, PROJ)}). '실행 중'으로 기록하지 않는다")
         return 3

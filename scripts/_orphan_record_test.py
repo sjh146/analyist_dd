@@ -99,8 +99,12 @@ def main() -> int:
         json.dump({"id": "TST", "pid": pid, "started": started}, f)
     m.tick()
     rows2 = [json.loads(l) for l in open(m.LEDGER, encoding="utf-8") if l.strip()]
-    # [1] 의 기록이 시작 시각 이후로 존재하므로 중복 기록하면 안 된다.
-    check("원장 여전히 1건", len(rows2) == 1, len(rows2))
+    # [1] 의 기록이 시작 시각 이후로 존재하므로 **같은 죽음**을 중복 기록하면 안 된다.
+    # ⚠ 다만 틱은 그 뒤에 pending TST 를 정상 착수한다(command=`true` → 3초 내 완료) — 그
+    #   완료 기록 1건이 추가되는 것은 멱등성 위반이 아니다(실측 2026-10-03: 종전 이 테스트는
+    #   '전체 1건'을 요구해 정상 착수를 회귀로 오진했다). 검사 대상은 **실행실패(고아) 기록 수**다.
+    orphans = [r for r in rows2 if r.get("verdict") == "실행실패"]
+    check("같은 죽음의 고아 기록은 1건(멱등)", len(orphans) == 1, str(rows2)[:300])
 
     print("=== [3] 원장 기록이 다른(정상) 실행을 막지 않는가 ===")
     check("PIDFILE 제거됨", not os.path.exists(os.path.join(piddir, "running.pid")))

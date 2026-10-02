@@ -61,6 +61,25 @@ check("wf_sweep --summary-out 없으면 기본경로(회귀)",
 check("wf_sweep 기본경로와 --summary-out 경로가 다름(산출물 보존)",
       m.summary_path("wf_sweep_summary", SWEEP_CMD) != SWEEP_DEFAULT, True)
 
+# 4b) wf_wave_summary (2026-10-03 CG10 수리) — wf_wave.py 는 **다른 파일**을 쓴다.
+#     왜: CG10 의 command 는 wf_wave.py 인데 metric 이 wf_sweep_summary 로 등록돼 있어, 구동기가
+#     wf_label_sweep_summary.json(전날 22:59)을 보고 "요약 미갱신 → 판정불가" 로 기록했다.
+#     실제 산출물(wf_wave_summary.json, 03:43)은 2.6시간 실행의 유일한 증거였다.
+WAVE_DEFAULT = os.path.join(m.PROJ, "services/xgboost-ml/reports/overnight/wf_wave_summary.json")
+check("wf_wave 기본경로", m.summary_path("wf_wave_summary"), WAVE_DEFAULT)
+check("wf_wave 경로가 wf_sweep 기본경로와 다름(핵심 수리)", WAVE_DEFAULT != SWEEP_DEFAULT, True)
+WAVE_CMD = ("docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 61200 "
+            "python -u scripts/wf_wave.py --days 420 --limit 200 --universe prod "
+            "--panel /app/app/models/wf/panel_prod200.npz --end-date 2026-09-27 "
+            "--summary-out /app/reports/overnight/cg72_wave.json'")
+check("wf_wave --summary-out 컨테이너 경로", m.summary_path("wf_wave_summary", WAVE_CMD),
+      os.path.join(m.PROJ, "services/xgboost-ml/reports/overnight/cg72_wave.json"))
+# 파서 라우팅: wf_wave_summary 는 parse_wf_sweep 로 가야 한다(파일 없음 → '요약 파일 없음',
+# 'parser 없음' 이 아니어야 한다 — CG43 의 'metric 등록 누락' 재발 감지).
+_p = m.parse_by_metric({"metric": "wf_wave_summary"}, "/nonexistent/x.json", 0.0)
+check("wf_wave_summary 파서 라우팅(parser 없음 아님)", "parser 없음" in str(_p.get("error")), False)
+check("wf_wave_summary 없으면 '요약 파일 없음'", _p.get("error"), "요약 파일 없음")
+
 # 4) 실제 백로그 항목: champion_robust_eval 을 쓰는 **미완료** 항목의 경로가 유효한가
 #    (2026-09-29 수리: 예전 필터는 status=="pending" 만 봤다 → 대기 항목이 하루만 없어도
 #     n=0 이 되어 '검사한 항목 수' 가 FAIL 로 뜨는 시각의존 테스트였다. 코드 회귀가 아니라

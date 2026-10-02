@@ -424,6 +424,12 @@ def main():
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--smoke", action="store_true")
+    # 요약 JSON 경로를 지정할 수 있게 한다(기본 /app/reports/overnight/wf_wave_summary.json).
+    # 왜(2026-10-03): 구동기 `summary_path("wf_wave_summary", cmd)` 가 고정 경로를 쓰므로, 여러
+    # wf_wave 런을 서로 다른 파일로 남기려면 이 플래그가 필요하다(같은 파일을 덮어 다른 실험의
+    # 산출물을 잃는 것을 막는다 — champion_robust_eval 의 --out 과 같은 이유).
+    ap.add_argument("--summary-out", default=None,
+                    help="요약 JSON 경로 (기본 /app/reports/overnight/wf_wave_summary.json)")
     args = ap.parse_args()
 
     if args.universe_report:
@@ -446,7 +452,7 @@ def main():
                   "예: --panel /app/app/models/wf/panel_prod200.npz")
             return 2
         results_path = "/app/reports/overnight/wf_wave.jsonl"
-        summary_path = "/app/reports/overnight/wf_wave_summary.json"
+        summary_path = args.summary_out or "/app/reports/overnight/wf_wave_summary.json"
         cfgs = CONFIGS
 
     ml.set_exp_log("wf_wave")
