@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-03T21:10:49+09:00",
+  "updated_at": "2026-10-03T22:04:58+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -10258,7 +10258,46 @@
       "success": "① 동일 모델·동일 창에서 문턱 정책(절대 vs 분위 top-k)의 진입 건수가 모델 교체에 불변 ② 보정 후 Brier 개선(0.2552 → 이하) 확인 ③ 전방 성적표(forward_scorecard)에서 top-k 실현수익 ≥ 전체평균 유지",
       "est_minutes": null,
       "setup_needed": "소비자 경로 수정은 이 역할 소유가 아니다 — ① swing 문턱 정책(절대 → 분위) 변경 = trader 역할 파일 (scripts/swing_screener.py · signal_validator) 승인 대상 ② 보정 계층을 배포 스코어에 넣는 것은 발행 계약 변경(app/models·추론 경로) = 승인 대상 ③ 확률 보정 자체의 구현·검증은 이 역할에서 착수 가능 (app/calibration 에 platt·isotonic·bayesian 이미 존재, 배선만 없음).",
-      "note": "2026-10-03 21:0x 신설. AUC 를 올리는 레버가 아니라 **AUC 를 매매로 옮기는 경로**의 레버다 — CG80 까지로 모델 측 AUC 축이 전부 닫혔고(±0.02 노이즈), CG81 이 남은 병목이 확률 스케일·문턱 정합임을 실측으로 보였다. 주의: 단조 보정은 AUC·top-k 순위를 바꾸지 않는다 → 이 항목의 성공 기준은 AUC 가 아니라 진입 건수·Brier·실현수익이다."
+      "note": "2026-10-03 21:0x 신설. AUC 를 올리는 레버가 아니라 **AUC 를 매매로 옮기는 경로**의 레버다 — CG80 까지로 모델 측 AUC 축이 전부 닫혔고(±0.02 노이즈), CG81 이 남은 병목이 확률 스케일·문턱 정합임을 실측으로 보였다. 주의: 단조 보정은 AUC·top-k 순위를 바꾸지 않는다 → 이 항목의 성공 기준은 AUC 가 아니라 진입 건수·Brier·실현수익이다. | 2026-10-03 22:2x CG83 실측(cross-fitted Platt, 같은 OOS 26,685행): Brier 0.2552→0.2494(이득 +0.0058) · ECE 0.0534→0.0139 · 최대과신 0.1783→0.0252 · AUC 0.5305→0.5300(단조 보정이라 불변). 핵심: 보정 후 확률이 0.5 근처로 압축되어(p90 0.5378 · max 0.6364) 절대문턱 0.55 가 37.0%→6.2%(1,646행) 로 줄고 top-10/일 커트오프는 0.526 이다 → **AUC≈0.53 모델에서 0.55 절대문턱은 정직한 보정으로도 성립하지 않는다**(MT116 3세션 무진입의 기제). 따라서 승인 요청의 대상은 보정 배선이 아니라 **소비 정책(절대 → 분위 top-k)** ①이다."
+    },
+    {
+      "id": "CG83",
+      "title": "확률 보정 계층 cross-fitted 실측 — Platt/isotonic 이 신뢰도(ECE·최대과신)를 회복하는가 (CG82 자율 선행)",
+      "status": "done",
+      "priority": 3,
+      "affects_model": false,
+      "metric": "calibration_probe",
+      "arm": "platt / isotonic (cross-fitted: 폴드 k 는 나머지 폴드로 적합한 보정기로만 예측)",
+      "baseline": {
+        "value": null,
+        "source": "raw(보정 없음) — 같은 OOS 행(cg81_preds.jsonl)에서 직접 계산"
+      },
+      "counterfactual": "raw(보정 없음) · 같은 OOS 26,685행·225일",
+      "hypothesis": "CG81 진단에서 OOS 확률이 **과신**임을 실측했다(신뢰도 상위 10분위 예측 0.7220 vs 실제 0.5436 = +0.1783, 하위 −0.0567). app/calibration 에 Platt·isotonic·Bayesian 이 구현돼 있으나 **배선이 없다**. 폴드 밖에서 적합한(cross-fitted) 보정이 신뢰도(ECE·최대과신)와 Brier 를 실제로 회복하는지, 그리고 보정이 절대문턱 0.55 를 '확률로서 의미 있는 값'으로 되돌리는지를 같은 OOS 행에서 측정한다.",
+      "evidence": "CG81(2026-10-03 21:07, wf_label_sweep --dump-preds, CO_core30_h5·panel_prod200·5폴드×3시드): raw Brier 0.2552 · logloss 0.7053 · ECE 0.0534 · 최대과신 +0.1783 · p90 0.6594 · max 0.9355. 절대문턱 0.55 → 9,871행(37.0%) · 정밀도 0.5264 · 평균 fwd_ret 0.0135(전체 0.0209 보다 **낮다**) · top-10/일 커트오프 median 0.6319. MT116 라이브 배포 챔피언은 같은 문턱에서 0건(max 0.4733).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/calibration_probe.py /app/reports/overnight/cg81_preds.jsonl --json-out /app/reports/overnight/cg83_calibration.json'",
+      "success": "cross-fitted Brier 이득 ≥ +0.002 **그리고** ECE 이득 > 0. (AUC 는 단조 보정에 불변이어야 한다 — 값이 크게 움직이면 구현 결함: `auc_delta` 로 확인.) 미달이면 '보정 무효'로 닫는다.",
+      "expected": "Brier 이득 +0.005 내외(과신 교정분), ECE 는 크게 감소. **주의**: 보정은 순위를 바꾸지 않으므로 AUC·top-k 정밀도는 그대로이고, 보정 후 확률은 0.5 근처로 압축되어 **절대문턱 0.55 는 오히려 더 안 걸린다** — 그 사실 자체가 승인 요청(CG82 ①: 소비 정책을 절대→분위 top-k 로)의 근거다.",
+      "cost": "실행 30초(읽기 전용, sklearn 사용) · 쓰기 없음",
+      "est_minutes": 2,
+      "note": "2026-10-03 22:2x 주말 자율 세션 신설(규칙 4 = 실행 가능 pending 0). 모델 측 AUC 축은 CG80 까지 전부 닫혔고(±0.02 노이즈), 남은 레버는 ①데이터 축(원천·이력 = 리서처/승인) ②**AUC 를 매매로 옮기는 경로**(CG82)뿐이다. CG82 의 setup_needed ③(보정 구현·검증은 이 역할 자율)이 이 항목이다 — 소비자 경로 수정(swing 문턱 정책)은 트레이더 소유라 승인 대상으로 남긴다. 판정은 AUC 가 아니라 Brier·ECE 다(per_exp 금지 — 스코어보드 오독 방지).",
+      "attempts": [
+        {
+          "ts": "2026-10-03T22:04:58+09:00",
+          "rc": 0,
+          "verdict": "보정 유효",
+          "detail": "cross-fitted platt: Brier 0.2552→0.2494(이득 +0.0058) · ECE 0.0534→0.0139(이득 +0.0395) · 최대과신 0.1783→0.0252 · AUC 변화 -0.0005(단조면 0) · n=26685 225일 → 사전등록 충족(이득 ≥ 0.002). 승격 아님 — 소비 정책 입력",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG83_20261003-220453.log",
+          "elapsed_min": 0.1
+        }
+      ],
+      "result": {
+        "verdict": "보정 유효",
+        "detail": "cross-fitted platt: Brier 0.2552→0.2494(이득 +0.0058) · ECE 0.0534→0.0139(이득 +0.0395) · 최대과신 0.1783→0.0252 · AUC 변화 -0.0005(단조면 0) · n=26685 225일 → 사전등록 충족(이득 ≥ 0.002). 승격 아님 — 소비 정책 입력",
+        "delta": 0.0058,
+        "per_exp": null,
+        "rc": 0
+      }
     }
   ]
 }

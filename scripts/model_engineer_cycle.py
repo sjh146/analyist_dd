@@ -604,6 +604,17 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/forward_scorecard.json")
+    if kind == "calibration_probe":
+        # 확률 보정 계측기(scripts/calibration_probe.py --json-out). CG83.
+        # 왜 전용 metric 인가(2026-10-03 CG81 진단): OOS 확률의 과신(최대 +0.1783)·절대문턱
+        # 0.55 의 스케일 의존을 실측으로 확인했고, 보정 계층의 효과(Brier·ECE)를 원장에 남기려면
+        # Brier/ECE 를 담는 전용 파서가 필요하다(wf_sweep 파서로는 폴드 AUC 만 남아 판정 대상이
+        # 사라진다 — CG43/CG10 함정). ⚠ per_exp 는 만들지 않는다(scoreboard 오독 방지).
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: calibration_probe 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -896,6 +907,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
         return parse_forward_scorecard(spath, mtime_floor)
+    if kind == "calibration_probe":
+        return parse_calibration_probe(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -938,6 +951,49 @@ def parse_forward_scorecard(path, mtime_floor) -> dict:
     return out
 
 
+def parse_calibration_probe(path, mtime_floor) -> dict:
+    """확률 보정 계측기(scripts/calibration_probe.py --json-out)를 파싱한다.
+
+    스키마: {n_rows, n_dates, base_rate, best_method, brier_gain, ece_gain, auc_delta,
+             raw:{auc,brier,logloss,ece,max_overconf,...}, calibrated:{platt:{...}, isotonic:{...}}}
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장의 per_exp 전체를 'arm 폴드 평균(AUC)'으로
+    읽어 best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 여기 값은 Brier/ECE 라
+    `calibration` 키로 분리해 스코어보드가 AUC 로 오독하지 않게 한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    mkeys = ("auc", "brier", "logloss", "ece", "max_overconf", "p50", "p90", "max")
+    raw = d.get("raw") or {}
+    cal = d.get("calibrated") or {}
+    out = {
+        "summary_mtime": mt, "generated_at": d.get("generated_at"),
+        "n_rows": d.get("n_rows"), "n_dates": d.get("n_dates"),
+        "base_rate": d.get("base_rate"), "best_method": d.get("best_method"),
+        "brier_gain": d.get("brier_gain"), "ece_gain": d.get("ece_gain"),
+        "auc_delta": d.get("auc_delta"),
+        "raw": {k: raw.get(k) for k in mkeys},
+        "calibration": {m: {k: (v or {}).get(k) for k in mkeys} for m, v in cal.items()},
+        "raw_thresholds": raw.get("thresholds"), "raw_topk": raw.get("topk"),
+        "cal_thresholds": {m: (v or {}).get("thresholds") for m, v in cal.items()},
+        "cal_topk": {m: (v or {}).get("topk") for m, v in cal.items()},
+    }
+    if out["brier_gain"] is None:
+        out["error"] = "요약에 brier_gain 이 없음 — 계측기 출력 형식을 확인하라"
+    return out
+
+
 def judge_forward_scorecard(item, parsed) -> tuple:
     """전방 성적표 판정 — **단일 런 비교가 아니라 사전등록 문턱**으로 판정한다.
 
@@ -974,6 +1030,35 @@ def judge_forward_scorecard(item, parsed) -> tuple:
     verdict = "신호있음" if (ok_auc and ok_top) else "노이즈"
     delta = round(auc - min_auc, 4) if auc is not None else None
     return verdict, detail + f" (AUC≥{min_auc} {ok_auc} · top10≥전체평균 {ok_top})", delta
+
+
+def judge_calibration_probe(item, parsed) -> tuple:
+    """확률 보정 계측기 판정 — **AUC 판정이 아니다**(단조 보정은 순위를 바꾸지 않는다).
+
+    사전등록(항목 필드로 override 가능): cross-fitted Brier 이득 ≥ min_brier_gain(기본 +0.002)
+    **그리고** ECE 이득 > 0 이면 '보정 유효', 아니면 '보정 무효'. delta 는 brier_gain.
+
+    ⚠ 이 판정을 성능(승격) 근거로 쓰지 말라 — 목적은 '절대문턱이 확률로서 의미를 갖는가'이고,
+    결과는 소비 정책(절대 vs top-k) 판단의 입력이다(소비자 경로 수정은 승인 대상, CG82).
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    bg = parsed.get("brier_gain")
+    eg = parsed.get("ece_gain")
+    if bg is None:
+        return "판정불가", "brier_gain 없음", None
+    min_bg = float(item.get("min_brier_gain") or 0.002)
+    raw, cal = parsed.get("raw") or {}, parsed.get("calibration") or {}
+    best = parsed.get("best_method")
+    bc = (cal.get(best) or {}) if best else {}
+    detail = (f"cross-fitted {best}: Brier {parsed.get('raw', {}).get('brier')}→{bc.get('brier')}"
+              f"(이득 {bg:+.4f}) · ECE {raw.get('ece')}→{bc.get('ece')}(이득 {eg:+.4f})"
+              f" · 최대과신 {raw.get('max_overconf')}→{bc.get('max_overconf')}"
+              f" · AUC 변화 {parsed.get('auc_delta')}(단조면 0) · n={parsed.get('n_rows')}"
+              f" {parsed.get('n_dates')}일")
+    if bg >= min_bg and eg is not None and eg > 0:
+        return "보정 유효", detail + f" → 사전등록 충족(이득 ≥ {min_bg}). 승격 아님 — 소비 정책 입력", float(bg)
+    return "보정 무효", detail + f" → 사전등록 미충족(Brier 이득 ≥ {min_bg} 미달 또는 ECE 미개선)", float(bg)
 
 
 def parse_topk_precision(path, mtime_floor) -> dict:
@@ -1139,6 +1224,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_topk_precision(item, parsed)
     if kind == "forward_scorecard":
         return judge_forward_scorecard(item, parsed)
+    if kind == "calibration_probe":
+        return judge_calibration_probe(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 
