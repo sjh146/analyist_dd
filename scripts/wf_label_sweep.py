@@ -897,6 +897,56 @@ CONFIGS = [
     {"id": "CN_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
      "codes_slice": [120, 150],
      "desc": "구간 [120:150) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_120_150"},
+    # ── CG80(2026-10-03): 학습 목적함수(objective) 축 — 날짜별 횡단면 랭킹 ────────────────
+    # 왜: 이 스택의 모든 arm(70+사이클)이 `binary:logistic`(행 독립) 하나를 공유한다. 그런데
+    #     라벨은 '날짜내 분위'(횡단면 상대)라 학습이 날짜 경계를 모른다. rank:pairwise + group
+    #     (날짜별 행 수)은 **날짜 안에서** 양성을 위로 올리도록 직접 최적화한다 — 추론은 행별
+    #     점수라 계약 변경이 없다(rank 변환과 달리 배포 가능).
+    # ⚠ 두 arm 은 완전히 동일하고 objective 문자열만 다르다: 같은 정렬·같은 분할·같은 단일
+    #     xgboost. 그래서 과샘플·셔플을 쓰지 않는다(group 이 깨짐) → Δ 는 objective 하나로 귀속.
+    # ⚠ 대조군이 '등록 기준선(CO_core30_h5)'이 아니라 같은 런 RPb_* 인 이유: 이 경로는
+    #     과샘플을 생략하므로 표준 경로와 수치가 다를 수 있다(그 차이는 '경로 효과'로 따로 읽는다).
+    # 성공 기준: 구간 짝 Δ(RPr − RPb) 평균 ≥ +0.02 그리고 양(+) ≥ 4/5.
+    {"id": "RPb_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30], "objective": "binary:logistic",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [0:30) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)"},
+    {"id": "RPb_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60], "objective": "binary:logistic",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [30:60) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)"},
+    {"id": "RPb_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90], "objective": "binary:logistic",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [60:90) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)"},
+    {"id": "RPb_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120], "objective": "binary:logistic",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [90:120) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)"},
+    {"id": "RPb_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150], "objective": "binary:logistic",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [120:150) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)"},
+    {"id": "RPr_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30], "objective": "rank:pairwise",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [0:30) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)"},
+    {"id": "RPr_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60], "objective": "rank:pairwise",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [30:60) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)"},
+    {"id": "RPr_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90], "objective": "rank:pairwise",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [60:90) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)"},
+    {"id": "RPr_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120], "objective": "rank:pairwise",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [90:120) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)"},
+    {"id": "RPr_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150], "objective": "rank:pairwise",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "구간 [120:150) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)"},
 ]
 
 
@@ -1050,6 +1100,99 @@ def train_seed_weighted(X_train, X_val, X_test, y_train, y_val, y_test, feature_
         except Exception:
             model_aucs[name] = 0.5
     return ens_auc, model_aucs, curated, ensemble
+
+
+def _rank_order_and_groups(dates, split=0.67):
+    """랭킹 학습용 정렬·그룹 분할(CG80).
+
+    반환: (order, cut, gc_t, gc_v)
+      order : 날짜 오름차순(안정 정렬) 인덱스 — group 은 **연속 블록**이어야 한다.
+      cut   : train/val 경계(그룹 경계에 스냅) — 같은 날짜가 양쪽에 걸치지 않게 한다.
+      gc_t/gc_v : 각 구간의 날짜별 행 수(합 == 구간 행 수).
+    왜 그룹 경계에 스냅하는가: xgboost 랭킹 objective 는 group 이 학습행을 정확히 분할할 것을
+    요구하고, 같은 날짜가 train/val 에 걸치면 그 날짜의 횡단면 비교가 반쪽이 되어 의미가 깨진다.
+    """
+    d = np.asarray([str(x) for x in dates])
+    if d.size == 0:
+        raise RuntimeError("빈 dates — 랭킹 그룹을 만들 수 없다")
+    order = np.argsort(d, kind="stable")
+    _, counts = np.unique(d[order], return_counts=True)
+    ends = np.cumsum(counts)
+    cut = int(ends[np.searchsorted(ends, int(len(d) * split), side="left")])
+    cut = max(1, min(cut, len(d) - 1))
+    _, gc_t = np.unique(d[order][:cut], return_counts=True)
+    _, gc_v = np.unique(d[order][cut:], return_counts=True)
+    return order, cut, gc_t, gc_v
+
+
+def train_seed_rank(X_train, X_test, y_train, y_test, feature_names, out_dir,
+                    seed, lr, depth, n_estimators, train_dates, objective):
+    """CG80(2026-10-03): **학습 목적함수(objective) 축** — 날짜별 횡단면 랭킹.
+
+    왜 이 축인가: 이 스택의 70+ 사이클 모든 arm 이 `binary:logistic`(행 독립) 하나를
+    공유한다. 그런데 라벨은 '날짜내 분위'(횡단면 상대)라, 학습은 날짜 경계를 전혀 모른다.
+    `rank:pairwise` + group(날짜별 행 수)은 **날짜 안에서** 양성을 음성 위로 올리도록 직접
+    최적화한다. 추론은 행별 점수 하나라 계약 변경이 없다(배포 가능 — rank 변환과 다른 점).
+
+    프로토콜(두 arm 이 **완전히 동일**하고 objective 문자열만 다르다):
+      · 과샘플(양성 복제)·셔플을 **하지 않는다** — group 이 깨지기 때문. 정렬만 한다.
+      · xgboost 단일 모델(config 의 ens.skip 으로 lgb/cat 제외) — 앙상블이 랭킹점수와 확률을
+        섞으면 스케일이 어긋난다.
+      · 폴드 경계를 날짜 그룹 경계에 맞춘다(같은 날짜가 train/val 에 걸치지 않게).
+    ⚠ 대조군(RPb_*)은 같은 경로에 objective="binary:logistic" 만 준 것이다 — 정렬·분할·
+      모델이 동일하므로 Δ 는 objective 하나로 귀속된다.
+    """
+    _tc = ml.tc
+    curated = _tc.select_curated_features(feature_names, True)
+    if not curated:
+        raise RuntimeError("no curated features selected")
+    idx = [feature_names.index(f) for f in curated]
+    Xtr = X_train[:, idx]
+    Xte = X_test[:, idx]
+
+    dts = np.asarray([str(x) for x in train_dates])
+    if len(dts) != len(Xtr):
+        raise RuntimeError(
+            f"train_dates 길이 불일치({len(dts)} vs {len(Xtr)}) — 학습행 순서가 어긋났다")
+    order, cut, gc_t, gc_v = _rank_order_and_groups(dts, 0.67)
+    Xs = Xtr[order]
+    ys = np.asarray(y_train).astype(int)[order]
+    ds = dts[order]
+    if int(gc_t.sum()) != cut or int(gc_v.sum()) != len(Xs) - cut:
+        raise RuntimeError("group 합이 행 수와 다르다 — 랭킹 그룹 계산 버그")
+    Xc_t, yc_t = Xs[:cut], ys[:cut]
+    Xc_v, yc_v = Xs[cut:], ys[cut:]
+
+    _is_rank = str(objective).lower().startswith("rank")
+
+    ens = ml.EnsembleModel(model_dir=out_dir)
+    _tc.apply_hyperparams(ens, lr, depth, n_estimators, seed)
+    if not getattr(ens, "models", None):
+        raise RuntimeError("모델이 없다(ens.skip 설정 확인)")
+    if _is_rank and len(ens.models) != 1:
+        raise RuntimeError(
+            f"랭킹 arm 은 단일 모델이어야 한다 — 현재 {len(ens.models)}개(ens.skip 미설정?)")
+    xm = ens.models[0]
+    # ⚠ scale_pos_weight 를 **양 arm 모두 1.0 으로** 고정한다: 랭킹 objective 는 이 파라미터를
+    # 무시하므로(xgboost 경고 "scale_pos_weight are not used"), 대조군만 1.4 를 쓰면 Δ 에
+    # 'objective' 와 '클래스 재가중' 두 변화가 섞인다. 여기서 중립화해 차이를 objective 하나로 좁힌다.
+    _p = getattr(xm, "params", None)
+    if isinstance(_p, dict):
+        _p["scale_pos_weight"] = 1.0
+    xm.train(Xc_t, yc_t, Xc_v, yc_v,
+             group=(gc_t if _is_rank else None),
+             val_group=(gc_v if _is_rank else None),
+             objective=objective)
+    ens.val_weights = {n: 1.0 for n in ens.model_names}
+    test_probs = np.asarray(ens.predict(Xte), dtype=float)
+    ens_auc = ml._safe_auc(y_test, test_probs)
+    model_aucs = {}
+    for name, model in zip(ens.model_names, ens.models):
+        try:
+            model_aucs[name] = ml._safe_auc(y_test, model.predict(Xte))
+        except Exception:
+            model_aucs[name] = 0.5
+    return ens_auc, model_aucs, curated, ens
 
 
 def _add_miss_ind(df, base_names, spec, srcs, log=None):
@@ -1610,11 +1753,20 @@ def main():
                 probs = []
                 n_eff_seen = set()
                 for seed in range(args.seeds):
-                    a, _m, _c, _e = train_seed_weighted(
-                        Xtr[:, idx], None, Xte[:, idx], ytr, None, yte, sel,
-                        f"/app/app/models/wf/labelsweep_{exp_id}", seed,
-                        recipe["lr"], recipe["depth"],
-                        recipe["n_estimators"], True, None, w_tr)
+                    _obj = cfg.get("objective")
+                    if _obj:
+                        # CG80: 목적함수 축 — 같은 경로에 objective 만 바꾼 두 arm.
+                        a, _m, _c, _e = train_seed_rank(
+                            Xtr[:, idx], Xte[:, idx], ytr, yte, sel,
+                            f"/app/app/models/wf/labelsweep_{exp_id}", seed,
+                            recipe["lr"], recipe["depth"],
+                            recipe["n_estimators"], trd, _obj)
+                    else:
+                        a, _m, _c, _e = train_seed_weighted(
+                            Xtr[:, idx], None, Xte[:, idx], ytr, None, yte, sel,
+                            f"/app/app/models/wf/labelsweep_{exp_id}", seed,
+                            recipe["lr"], recipe["depth"],
+                            recipe["n_estimators"], True, None, w_tr)
                     aucs.append(float(a))
                     # 실효 피처 수 = train_seed 내부 curated 게이트를 통과한 개수.
                     # 선별 수와 다르면 그 실험은 '게이트 키홀'을 통해 측정된 것이다.

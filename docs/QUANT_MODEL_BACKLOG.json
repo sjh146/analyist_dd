@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-03T19:20:00+09:00",
+  "updated_at": "2026-10-03T20:08:16+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -9963,6 +9963,228 @@
       ],
       "risk": "빌드 16h ×2밤 + 피처 코드 변경 금지 창 필요. 실패 시 손실은 CPU 시간뿐(측정은 same-run 짝이라 통제됨).",
       "note": "CG78 의 진단에서 이관됨(2026-10-03). 데이터 축의 남은 후보는 '원천 커버리지 확장'(CG73, 리서처 소유)과 이 항목(빌드 시점 결측/채움 정보) 둘뿐이다."
+    },
+    {
+      "id": "CG80",
+      "title": "학습 목적함수(objective) 축 — 날짜별 횡단면 랭킹(rank:pairwise) vs 이진분류 (배포 가능·기록상 0회 시험)",
+      "status": "done",
+      "priority": 2,
+      "metric": "wf_sweep_summary",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 5 --only RPb_00_30,RPb_30_60,RPb_60_90,RPb_90_120,RPb_120_150,RPr_00_30,RPr_30_60,RPr_60_90,RPr_90_120,RPr_120_150 --out /app/reports/overnight/cg80_sweep.jsonl --summary-out /app/reports/overnight/cg80_summary.json'",
+      "counterfactual": "RPb_00_30..RPb_120_150 (같은 행·같은 정렬·같은 분할·같은 단일 xgboost, objective=binary:logistic)",
+      "success": "구간 짝 Δ(RPr − RPb) 평균 ≥ +0.02 그리고 양(+) 구간 ≥ 4/5 → 신호(→ 후속: 배포 objective 검토. 단 랭킹점수는 확률이 아니라 절대문턱 소비자(swing 배치)에는 보정 선행 필요). 미달이면 '목적함수 축도 성능 축이 아니다'로 닫는다.",
+      "est_minutes": 8,
+      "pairs": [
+        [
+          "RPr_00_30",
+          "RPb_00_30"
+        ],
+        [
+          "RPr_30_60",
+          "RPb_30_60"
+        ],
+        [
+          "RPr_60_90",
+          "RPb_60_90"
+        ],
+        [
+          "RPr_90_120",
+          "RPb_90_120"
+        ],
+        [
+          "RPr_120_150",
+          "RPb_120_150"
+        ]
+      ],
+      "note": "2026-10-03 20:0x 신설(주말 자율 세션, 규칙 6 = 실행 가능 pending 0). 계기: 모델 측 축 포화 판정(70+사이클) — 그런데 그 모든 arm 이 **objective='binary:logistic'(행 독립)** 하나를 공유한다. 라벨은 '날짜내 분위'(횡단면 상대)이므로 학습이 날짜 경계를 모른다 → rank:pairwise + group(날짜별 행 수)은 날짜 안에서 양성을 위로 올리도록 직접 최적화한다. 배포 가능: 추론은 행별 점수 하나(app/inference/predictor.py 종목 단위 스트리밍 무변경) — 횡단면 rank 변환(CG8 우승·배포 불가)과 달리 계약을 건드리지 않는다. 구현: `wf_label_sweep.train_seed_rank` + xgboost_model.train(group/val_group/objective, 기본 None → 프로덕션 무변경) + config RPb_*/RPr_* 10종. 두 arm 은 **완전 동일**하고 objective 문자열만 다르다(과샘플·셔플 생략 — group 이 깨짐 / xgb 단일모델 — 랭킹점수와 확률 혼합 방지 / scale_pos_weight 양 arm 1.0 고정 — 랭킹은 그 파라미터를 무시하므로). 검증: `docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_rank_objective_test.py` ALL PASS + e2e 스모크. ⚠ 대조군은 등록 기준선(CO_core30_h5)이 아니라 같은 런 RPb_* 다 — 이 경로는 표준(과샘플)과 다르므로 절대값을 기준선과 직접 비교하지 말 것.",
+      "attempts": [
+        {
+          "ts": "2026-10-03T20:08:16+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "구간 짝 Δ 평균 -0.0007 (n=5구간 · 양(+) 3/5) [+0.0060, +0.0019, +0.0018, -0.0008, -0.0126]",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG80_20261003-200728.log",
+          "elapsed_min": 0.8
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "구간 짝 Δ 평균 -0.0007 (n=5구간 · 양(+) 3/5) [+0.0060, +0.0019, +0.0018, -0.0008, -0.0126]",
+        "delta": -0.0007,
+        "per_exp": {
+          "RPb_00_30": {
+            "desc": "구간 [0:30) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4598,
+              0.4718,
+              0.4716,
+              0.5772,
+              0.5164
+            ],
+            "mean": 0.4994,
+            "std": 0.0435,
+            "min": 0.4598,
+            "max": 0.5772,
+            "fold_win_rate": 0.4
+          },
+          "RPb_30_60": {
+            "desc": "구간 [30:60) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5218,
+              0.4899,
+              0.4875,
+              0.4701,
+              0.5024
+            ],
+            "mean": 0.4943,
+            "std": 0.0172,
+            "min": 0.4701,
+            "max": 0.5218,
+            "fold_win_rate": 0.4
+          },
+          "RPb_60_90": {
+            "desc": "구간 [60:90) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5317,
+              0.5197,
+              0.4626,
+              0.5351,
+              0.4942
+            ],
+            "mean": 0.5087,
+            "std": 0.0271,
+            "min": 0.4626,
+            "max": 0.5351,
+            "fold_win_rate": 0.6
+          },
+          "RPb_90_120": {
+            "desc": "구간 [90:120) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.495,
+              0.4969,
+              0.4958,
+              0.5664,
+              0.5192
+            ],
+            "mean": 0.5147,
+            "std": 0.0274,
+            "min": 0.495,
+            "max": 0.5664,
+            "fold_win_rate": 0.4
+          },
+          "RPb_120_150": {
+            "desc": "구간 [120:150) · 게이트 ON + 정렬·무과샘플 경로 · objective=binary (CG80 대조군)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4875,
+              0.5416,
+              0.5112,
+              0.4748,
+              0.4676
+            ],
+            "mean": 0.4965,
+            "std": 0.027,
+            "min": 0.4676,
+            "max": 0.5416,
+            "fold_win_rate": 0.4
+          },
+          "RPr_00_30": {
+            "desc": "구간 [0:30) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4728,
+              0.484,
+              0.4749,
+              0.5614,
+              0.5339
+            ],
+            "mean": 0.5054,
+            "std": 0.0358,
+            "min": 0.4728,
+            "max": 0.5614,
+            "fold_win_rate": 0.4
+          },
+          "RPr_30_60": {
+            "desc": "구간 [30:60) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5115,
+              0.4876,
+              0.4808,
+              0.4914,
+              0.5097
+            ],
+            "mean": 0.4962,
+            "std": 0.0123,
+            "min": 0.4808,
+            "max": 0.5115,
+            "fold_win_rate": 0.4
+          },
+          "RPr_60_90": {
+            "desc": "구간 [60:90) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4959,
+              0.5347,
+              0.4857,
+              0.5331,
+              0.5029
+            ],
+            "mean": 0.5105,
+            "std": 0.0199,
+            "min": 0.4857,
+            "max": 0.5347,
+            "fold_win_rate": 0.6
+          },
+          "RPr_90_120": {
+            "desc": "구간 [90:120) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4776,
+              0.4962,
+              0.5012,
+              0.554,
+              0.5405
+            ],
+            "mean": 0.5139,
+            "std": 0.0287,
+            "min": 0.4776,
+            "max": 0.554,
+            "fold_win_rate": 0.6
+          },
+          "RPr_120_150": {
+            "desc": "구간 [120:150) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4775,
+              0.5373,
+              0.4999,
+              0.4196,
+              0.4852
+            ],
+            "mean": 0.4839,
+            "std": 0.0382,
+            "min": 0.4196,
+            "max": 0.5373,
+            "fold_win_rate": 0.2
+          }
+        },
+        "rc": 0
+      }
     }
   ]
 }

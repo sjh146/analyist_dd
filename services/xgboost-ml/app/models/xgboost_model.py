@@ -38,7 +38,10 @@ class XGBoostModel:
     def train(self, X_train: np.ndarray, y_train: np.ndarray,
               X_val: Optional[np.ndarray] = None,
               y_val: Optional[np.ndarray] = None,
-              sample_weight: Optional[np.ndarray] = None) -> Dict:
+              sample_weight: Optional[np.ndarray] = None,
+              group: Optional[np.ndarray] = None,
+              val_group: Optional[np.ndarray] = None,
+              objective: Optional[str] = None) -> Dict:
         """
         Train the XGBoost model.
         
@@ -49,19 +52,39 @@ class XGBoostModel:
             y_val: Validation labels
             sample_weight: 행별 학습 가중치(선택). None(기본) 이면 기존과 동일하게
                            균등 가중으로 학습한다 — 기존 호출 경로는 무변경.
+            group: 날짜별 그룹 크기(랭킹 objective 전용). None(기본) 이면 기존과 동일.
+            val_group: 검증행의 날짜별 그룹 크기(랭킹 objective 전용).
+            objective: 학습 목적함수 덮어쓰기(실험 전용). None(기본) 이면 self.params
+                       의 objective 를 그대로 쓴다 → 프로덕션 경로 무변경.
         
         Returns:
             Training metrics
         """
-        dtrain = xgb.DMatrix(X_train, label=y_train, weight=sample_weight)
+        params = self.params
+        if objective is not None:
+            # ⚠ 프로덕션 경로 무변경: objective=None 이면 원본 params 객체를 그대로 쓴다.
+            params = dict(self.params)
+            params["objective"] = objective
+            if str(objective).lower().startswith("rank"):
+                # 랭킹 objective 는 eval_metric 'auc' 를 지원하지 않는다(build 에 따라 예외).
+                # 채점 AUC 는 어차피 스윕이 sklearn 으로 예측값 위에서 계산한다.
+                params["eval_metric"] = "ndcg"
+        dkwargs = {}
+        if group is not None:
+            # 랭킹 그룹: 학습행을 날짜별 연속 블록으로 나눈다(합 == 행 수, 정렬 전제).
+            dkwargs["group"] = np.asarray(group, dtype=np.uint32)
+        dtrain = xgb.DMatrix(X_train, label=y_train, weight=sample_weight, **dkwargs)
         evals = [(dtrain, "train")]
 
         if X_val is not None and y_val is not None:
-            dval = xgb.DMatrix(X_val, label=y_val)
+            vkwargs = {}
+            if val_group is not None:
+                vkwargs["group"] = np.asarray(val_group, dtype=np.uint32)
+            dval = xgb.DMatrix(X_val, label=y_val, **vkwargs)
             evals.append((dval, "eval"))
 
         self.model = xgb.train(
-            self.params,
+            params,
             dtrain,
             num_boost_round=self.n_estimators,
             evals=evals,
