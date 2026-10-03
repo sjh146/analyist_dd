@@ -15,6 +15,10 @@ import yaml
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.join(REPO_ROOT, "services", "strategy-agents"))
+# `app` 네임스페이스 충돌 해소: services/ 12곳이 각각 app/ 을 갖는다(먼저 import 한 쪽이 선점).
+from tests._app_path import force_app  # noqa: E402
+
+force_app("strategy-agents")
 
 from app.strategies.ackman_strategy import (  # noqa: E402
     AckmanStrategy,

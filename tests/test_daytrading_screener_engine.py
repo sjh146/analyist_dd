@@ -16,6 +16,10 @@ import pytest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "scripts"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "services", "xgboost-ml"))
+# `app` 네임스페이스 충돌 해소(services/ 12곳이 각각 app/): 반드시 app import 전에.
+from tests._app_path import force_app  # noqa: E402
+
+force_app("xgboost-ml")
 
 from day_trading_engine import (FixtureProvider, rank_candidates, run_screener,
                                 score_candidates)

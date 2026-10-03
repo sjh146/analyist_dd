@@ -17,6 +17,9 @@ import pytest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "services", "xgboost-ml"))
 sys.path.insert(0, REPO_ROOT)
+from tests._app_path import force_app  # noqa: E402
+
+force_app("xgboost-ml")   # `app` 네임스페이스 충돌 해소(services/ 12곳이 각각 app/)
 
 # ROS 시스템 패키지에 "scripts" 라는 충돌 모듈이 있어 `from scripts.sns_lag_backtest`
 # import 가 ROS 의 scripts 패키지를 잡는다. 파일 경로로 직접 로드해 우회한다.

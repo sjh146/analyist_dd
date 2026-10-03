@@ -18,6 +18,10 @@ import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "services", "xgboost-ml"))
+# `app` 네임스페이스 충돌 해소(services/ 12곳이 각각 app/) — app import 전에 고정.
+from tests._app_path import force_app  # noqa: E402
+
+force_app("xgboost-ml")
 
 from app.feature_engine.sns_features import SnsFeatures  # noqa: E402
 

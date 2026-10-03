@@ -23,6 +23,11 @@ import pandas as pd
 import psycopg2
 import pytest
 
+# 이 파일은 **실제 스택**(PostgreSQL·컨테이너)이 필요하고 수 분~수십 분 걸린다 →
+# 기본 `pytest` 수집에서 제외한다(marker 로 선언, 아래 addopts 의 -m "not e2e_live").
+# 실행: POSTGRES_* 를 세팅한 뒤 `pytest -m e2e_live tests/test_e2e_pipeline.py`
+pytestmark = pytest.mark.e2e_live
+
 # ── Path setup ──────────────────────────────────────────────────────────────
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

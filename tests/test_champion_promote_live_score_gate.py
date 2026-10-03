@@ -14,6 +14,12 @@ import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "services", "xgboost-ml"))
+# `app` 네임스페이스 충돌 해소(services/ 12곳이 각각 app/): 전체 수집에서 다른 서비스 app 이
+# 먼저 잡히면 `No module named 'app.training'` 으로 죽는다 → import 전에 고정한다.
+sys.path.insert(0, REPO_ROOT)
+from tests._app_path import force_app  # noqa: E402
+
+force_app("xgboost-ml")
 
 from app.training import champion_promote as cp  # noqa: E402
 

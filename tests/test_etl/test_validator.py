@@ -1,8 +1,9 @@
+import pytest
 import sys
 from pathlib import Path
 
-import polars as pl
-
+# 서비스 의존성(polars)은 호스트에 없다 → 컨테이너에서 실행한다(전체 수집이 죽지 않게 skip).
+pl = pytest.importorskip("polars", reason="polars 없음 — ML 컨테이너에서 실행")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from services.shared.etl.validator import (

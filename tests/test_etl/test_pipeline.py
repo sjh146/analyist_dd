@@ -1,4 +1,6 @@
-import polars as pl
+import pytest
+# 서비스 의존성(polars)은 호스트에 없다 → 컨테이너에서 실행한다(전체 수집이 죽지 않게 skip).
+pl = pytest.importorskip("polars", reason="polars 없음 — ML 컨테이너에서 실행")
 import pytest
 
 from services.shared.etl.pipeline import (
