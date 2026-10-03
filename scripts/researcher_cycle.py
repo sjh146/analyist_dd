@@ -397,7 +397,17 @@ def execute(item, force=False):
     b = json.load(open(RES_BACKLOG, encoding="utf-8"))
     for it in b["items"]:
         if it["id"] == item["id"]:
-            it.setdefault("attempts", []).append({"ts": rec["ts"], "rc": rc, "detail": detail})
+            # attempts 는 list 계약이지만, 손편집·구버전 항목이 **정수**로 남아 있을 수 있다.
+            # 실측(2026-10-03 18:00 R28): 백로그에 `"attempts": 0` 이 있어 setdefault 가 0 을 돌려주고
+            # `.append` 가 AttributeError 로 죽었다. 이 줄은 append_ledger **뒤**라 원장에는 결과가
+            # 남는데 백로그 status·result 는 갱신되지 않았고, traceback 종료로 `--run` 의 pidfile
+            # 정리도 스킵돼 고아 running.pid(=hygiene breach 재발)가 남았다.
+            # 러너는 계약 위반 데이터를 만나도 죽지 않는다 — 형태를 맞추고 이어간다.
+            att = it.get("attempts")
+            if not isinstance(att, list):
+                att = []
+                it["attempts"] = att
+            att.append({"ts": rec["ts"], "rc": rc, "detail": detail})
             new_status = status_after(item, rc, passed)
             if new_status == "pending" and rc != 0:
                 log(f"{item['id']}: rc={rc} 는 러너가 선언한 재개 신호(resumable_rc) "
@@ -762,11 +772,17 @@ def main():
         if not it:
             log(f"백로그에 {a.run} 없음")
             return 2
-        rc = execute(it, a.force)
+        # 실행이 **예외로 죽어도** pidfile 은 반드시 지운다. 안 지우면 hygiene 이
+        # '죽은 프로세스의 사이클 pidfile 잔존: researcher' breach 를 다음 점검까지(수 시간) 보고한다
+        # (실측 2026-10-03 18:00: execute() 내부 AttributeError 로 traceback 종료 → 종전에는 이 줄에
+        #  도달하지 못해 고아 running.pid 가 남았고, 부모 tick 은 자식을 이미 종료로 보므로 재수거도 없다).
         try:
-            os.remove(base.PIDFILE)
-        except OSError:
-            pass
+            rc = execute(it, a.force)
+        finally:
+            try:
+                os.remove(base.PIDFILE)
+            except OSError:
+                pass
         return rc
     ap.print_help()
     return 0
