@@ -1294,7 +1294,7 @@ def judge_per(item, per_exp) -> tuple:
         detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 대조군 {cf_name} "
                   f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f} "
                   f"(최고: {best[0]} {best[1]['mean']:.4f})")
-    elif arm and arm in per and base_rec:
+    elif arm and arm in per and base_rec and base_rec.get("value") is not None:
         # 대조군이 이 런에 없거나(다른 패널) arm 과 동명(자기대조) → 기록 기준선과 비교한다.
         base = float(base_rec["value"])
         delta = round(per[arm]["mean"] - base, 4)
@@ -1323,8 +1323,16 @@ def judge_per(item, per_exp) -> tuple:
             detail = (f"대조군 {cf_name} {per[cf_name]['mean']:.4f} 만 측정됨(비교할 가설군 없음)"
                       + (f" · 기록 기준선 {float(base_rec['value']):.4f} 존재" if base_rec else ""))
     else:
-        verdict, detail = "기준선없음", (f"최고 {best[0]} {best[1]['mean']:.4f} "
-                                    f"(대조군 {cf_name} 미측정 · 기록 기준선 없음)")
+        if arm and arm in per and base_rec:
+            # baseline 은 있는데 value 가 null(진단·계측기 항목) — float(None) 으로 죽으면 원장 기록 없이
+            # 사라진다(설계원칙 4 위반). 숫자 AUC 판정 대상이 아님을 정직하게 적는다.
+            verdict = "기준선없음"
+            detail = (f"가설 {arm} {per[arm]['mean']:.4f} · 기록 기준선 값 없음"
+                      f"(value={base_rec.get('value')!r} · {base_rec.get('source', '출처미상')})"
+                      f" — 진단/계측기 항목은 AUC 판정 대상이 아니다")
+        else:
+            verdict, detail = "기준선없음", (f"최고 {best[0]} {best[1]['mean']:.4f} "
+                                        f"(대조군 {cf_name} 미측정 · 기록 기준선 없음)")
     return verdict, detail, delta
 
 

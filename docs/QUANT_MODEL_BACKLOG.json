@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-03T20:08:16+09:00",
+  "updated_at": "2026-10-03T21:10:49+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -9947,7 +9947,7 @@
     {
       "id": "CG79",
       "title": "빌드 시점 결측·대체 플래그 피처 — 패널에 '이 셀이 채워졌는가'를 남겨 행수준 결측 지시자를 가능케 한다",
-      "status": "needs_setup",
+      "status": "closed_rejected",
       "priority": 3,
       "affects_model": true,
       "metric": "wf_sweep_summary",
@@ -9962,7 +9962,12 @@
         "성공 기준: 구간 짝 Δ ≥ +0.02 (양(+) ≥ 4/5) 그리고 placebo 대비 우위"
       ],
       "risk": "빌드 16h ×2밤 + 피처 코드 변경 금지 창 필요. 실패 시 손실은 CPU 시간뿐(측정은 same-run 짝이라 통제됨).",
-      "note": "CG78 의 진단에서 이관됨(2026-10-03). 데이터 축의 남은 후보는 '원천 커버리지 확장'(CG73, 리서처 소유)과 이 항목(빌드 시점 결측/채움 정보) 둘뿐이다."
+      "note": "CG78 의 진단에서 이관됨(2026-10-03). 데이터 축의 남은 후보는 '원천 커버리지 확장'(CG73, 리서처 소유)과 이 항목(빌드 시점 결측/채움 정보) 둘뿐이다. | 2026-10-03 21:0x 주말 자율 세션 — **전제를 직접 측정으로 기각(16h 재빌드 불필요)**. 실측(`docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_panel_fill_coverage.py /app/app/models/wf/panel_prod200.npz /app/app/models/wf/panel_420_asof3.npz`, 신설 계측기): panel_prod200(54,800×213) NaN 보유 열 26개(전부 SNS/kalman, NaN 98.2%) · panel_420_asof3(13,609×210) 동일 26개(99.2%) → NaN 결측은 이분포(CG78 재확인). 비영 커버리지 5~80% 구간의 열은 33개(prod200)/30개(asof3)이고 그중 시간가변 24/26개지만, 이들은 값이 **0.0 으로 채워져** 있어 \"미관측\" 지시자는 (x==0) 으로 기존 피처에서 그대로 유도된다 → GBDT 에 추가 정보가 없고(부모 열이 top30 선별에 없으면 같은 edge 로 지시자도 탈락), 재빌드 16.5h 대비 기대 이득 0.",
+      "result": {
+        "verdict": "전제 기각 — 축 종결(재빌드 불필요)",
+        "detail": "NaN 기반 결측은 이분포(SNS/kalman 26열만 98%) · 0.0 채움 열 33개는 (x==0) 유도 가능 = 새 정보 없음. 측정: scripts/_panel_fill_coverage.py (신설)",
+        "delta": null
+      }
     },
     {
       "id": "CG80",
@@ -10185,6 +10190,75 @@
         },
         "rc": 0
       }
+    },
+    {
+      "id": "CG81",
+      "title": "확률 스케일 정합 진단 — 모델 OOS 확률분포 vs 소비자 절대문턱(0.55). AUC 축과 매매 경로 축의 분리",
+      "status": "done",
+      "priority": 3,
+      "affects_model": false,
+      "metric": "wf_sweep_summary",
+      "arm": "CO_core30_h5",
+      "baseline": {
+        "value": null,
+        "source": "동전(0.5) + 전체 양성률 + MT116 라이브 실측(max 0.4733)"
+      },
+      "counterfactual": "동전(0.5) · 전체 양성률 0.50 · MT116 라이브 배포모델 max 0.4733",
+      "hypothesis": "판정 지표(워크포워드 AUC)와 매매 경로(절대문턱)는 다른 축이다. MT116(2026-10-02)에서 배포 챔피언 교체 후 val AUC 는 올랐는데(0.5513→0.5548) 라이브 스코어 top20 max 가 0.4733 이라 소비자 문턱 0.55 를 한 건도 못 넘어 3세션 무진입이 됐다. 모델 확률의 스케일·신뢰도(calibration)를 OOS 에서 직접 재면, (a) 문턱 정책이 모델 교체마다 무효화되는지 (b) 확률이 실제 양성률과 얼마나 어긋나는지가 수치로 드러난다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 3 --only CO_core30_h5 --out /app/reports/overnight/cg81_sweep.jsonl --summary-out /app/reports/overnight/cg81_summary.json --dump-preds /app/reports/overnight/cg81_preds.jsonl'  &&  python3 scripts/prob_threshold_probe.py services/xgboost-ml/reports/overnight/cg81_preds.jsonl --topk 10",
+      "success": "진단(판정 아님): ① OOS 확률분포·문턱표·신뢰도 곡선 산출 ② top-k 정책을 확률 문턱으로 번역 ③ 계측기 재현(tests). AUC 판정·per_exp 는 만들지 않는다(진단 항목).",
+      "est_minutes": 10,
+      "note": "2026-10-03 21:0x 주말 자율 세션 신설(규칙 4 = 실행 가능 pending 0). 계기: CG79 전제 기각 측정 중 \"확률 스케일 vs 소비자 절대문턱\"이 라이브 경로의 실제 병목이라는 사실(MT116)이 드러났다. 계측기 `scripts/prob_threshold_probe.py`(신설, 읽기 전용) — wf_label_sweep --dump-preds 산출 jsonl 을 읽어 확률분포·문턱별 선택(건수/정밀도/실현수익)·신뢰도 10분위·top-k 커트오프 번역을 낸다.",
+      "result": {
+        "verdict": "기준선없음",
+        "detail": "가설 CO_core30_h5 0.5315 · 기록 기준선 값 없음(value=None · 동전(0.5) + 전체 양성률 + MT116 라이브 실측(max 0.4733)) — 진단/계측기 항목은 AUC 판정 대상이 아니다",
+        "delta": null,
+        "per_exp": {
+          "CO_core30_h5": {
+            "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5214,
+              0.5575,
+              0.499,
+              0.5354,
+              0.5442
+            ],
+            "mean": 0.5315,
+            "std": 0.02,
+            "min": 0.499,
+            "max": 0.5575,
+            "fold_win_rate": 0.8
+          }
+        },
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-10-03T21:10:49+09:00",
+          "rc": 0,
+          "verdict": "기준선없음",
+          "detail": "가설 CO_core30_h5 0.5315 · 기록 기준선 값 없음(value=None · 동전(0.5) + 전체 양성률 + MT116 라이브 실측(max 0.4733)) — 진단/계측기 항목은 AUC 판정 대상이 아니다",
+          "log": "/app/reports/overnight/cg81_summary.json",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ]
+    },
+    {
+      "id": "CG82",
+      "title": "절대문턱 소비 정책 ↔ 확률 스케일 정합 — 문턱을 모델별 분위(top-k)로 정의하고 보정 계층을 배선",
+      "status": "needs_setup",
+      "priority": 3,
+      "affects_model": false,
+      "metric": null,
+      "hypothesis": "CG81 실측: 같은 OOS 행에서도 절대문턱 0.55 초과 비율이 스윕 모델 37.0% vs 라이브 배포 챔피언 4.0% vs 10-01 승격분 0.0% 로 달라진다. 소비자(swing)가 절대 확률 문턱을 쓰는 한, 모델을 교체할 때마다 진입 경로가 조용히 열리거나 닫힌다(MT116 = 3세션 무진입). 문턱을 \"그날 상위 k/분위\"로 정의하면 스케일 비의존이 되고, 추가로 상위 분위 과신(예측 0.7220 vs 실제 0.5436)을 보정 계층으로 고쳐야 문턱값이 확률로서 의미를 갖는다.",
+      "counterfactual": "현행: 소비자 고정 절대문턱(0.55) + 보정 없음",
+      "success": "① 동일 모델·동일 창에서 문턱 정책(절대 vs 분위 top-k)의 진입 건수가 모델 교체에 불변 ② 보정 후 Brier 개선(0.2552 → 이하) 확인 ③ 전방 성적표(forward_scorecard)에서 top-k 실현수익 ≥ 전체평균 유지",
+      "est_minutes": null,
+      "setup_needed": "소비자 경로 수정은 이 역할 소유가 아니다 — ① swing 문턱 정책(절대 → 분위) 변경 = trader 역할 파일 (scripts/swing_screener.py · signal_validator) 승인 대상 ② 보정 계층을 배포 스코어에 넣는 것은 발행 계약 변경(app/models·추론 경로) = 승인 대상 ③ 확률 보정 자체의 구현·검증은 이 역할에서 착수 가능 (app/calibration 에 platt·isotonic·bayesian 이미 존재, 배선만 없음).",
+      "note": "2026-10-03 21:0x 신설. AUC 를 올리는 레버가 아니라 **AUC 를 매매로 옮기는 경로**의 레버다 — CG80 까지로 모델 측 AUC 축이 전부 닫혔고(±0.02 노이즈), CG81 이 남은 병목이 확률 스케일·문턱 정합임을 실측으로 보였다. 주의: 단조 보정은 AUC·top-k 순위를 바꾸지 않는다 → 이 항목의 성공 기준은 AUC 가 아니라 진입 건수·Brier·실현수익이다."
     }
   ]
 }
