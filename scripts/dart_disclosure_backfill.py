@@ -20,6 +20,8 @@
 """
 
 import argparse
+import contextlib
+import json
 import os
 import random
 import sys
@@ -115,6 +117,45 @@ def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+# ── resume 커서 (2026-10-03 신설) ────────────────────────────────────────────────
+# WHY: 러너는 창×유형을 **처음부터** 훑고 `--max-calls` 에서 멈춘다. 커서가 없으면 토요일
+# `--regular`(3개월 × A,B,D,E,I, 필요 콜 ≫200)는 **매주 같은 앞 200콜만 다시 받고** 뒤 구간은
+# 영원히 못 채운다(실측: 20:37 예산 200콜 소진 — 진도 없음). (타입,창) 완료 지점을 저장해
+# 다음 실행이 그 다음부터 이어가게 한다. 창·유형이 바뀌면 커서를 무시한다(키 비교).
+CURSOR_PATH = os.path.join(os.environ.get("PROJ_DIR", "."), "data", "state", "dart_backfill_cursor.json")
+
+
+def _cursor_key(pairs) -> str:
+    return json.dumps([[ty, str(w[0]), str(w[1])] for ty, w in pairs], ensure_ascii=False)
+
+
+def load_cursor(key: str):
+    """이전 실행이 완료한 (타입,창) 개수 — 키가 다르면 None(무시)."""
+    try:
+        with open(CURSOR_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+        return int(d["done"]) if d.get("key") == key else None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def save_cursor(key: str, done: int, total: int) -> None:
+    try:
+        os.makedirs(os.path.dirname(CURSOR_PATH), exist_ok=True)
+        tmp = CURSOR_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"key": key, "done": done, "total": total,
+                       "updated": datetime.now().isoformat(timespec="seconds")}, f, ensure_ascii=False)
+        os.replace(tmp, CURSOR_PATH)
+    except OSError as e:                      # 커서 실패가 수집을 막지는 않는다
+        log(f"커서 저장 실패({e!r}) — 다음 실행은 처음부터(멱등 upsert)")
+
+
+def clear_cursor() -> None:
+    with contextlib.suppress(OSError):
+        os.remove(CURSOR_PATH)
+
+
 def months_between(start: date, end: date):
     """월 단위 (bgn_de, end_de) 창 목록."""
     out, cur = [], date(start.year, start.month, 1)
@@ -183,10 +224,20 @@ def main():
         r.raise_for_status()
         return r.json()
 
+    pairs = [(ty, w) for ty in types for w in windows]
+    ckey = _cursor_key(pairs)
+    done = load_cursor(ckey) or 0
+    if done:
+        log(f"커서 재개: 앞 {done}/{len(pairs)} (타입,창)은 완료로 표시됨 — 건너뛴다")
+    pi = -1
     for ty in types:
         if hit_limit:
             break
         for (d0, d1) in windows:
+            pi += 1
+            if pi < done:              # 이전 실행이 끝낸 (타입,창)은 다시 받지 않는다
+                continue
+            pair_done = False
             page = 1
             prev_first = None
             while True:
@@ -263,19 +314,31 @@ def main():
                 # (실측 피해: 214페이지를 돌고도 신규 945행뿐 = 95% 중복).
                 total = int(resp.get("total_count") or 0)
                 if total and page * PAGE_COUNT >= total:
+                    pair_done = True
                     break
                 # ── 종료조건 ② 반복 감지(이중 안전장치) ──────────────────────────
                 first_no = items[0].get("rcept_no") if items else None
                 if first_no and first_no == prev_first:
                     log(f"  [{ty}] {d0:%Y-%m} p{page}: 직전 페이지와 동일 응답 → 중단(API 상한 추정)")
+                    pair_done = True
                     break
                 prev_first = first_no
 
                 if len(items) < PAGE_COUNT:
+                    pair_done = True
                     break
                 page += 1
+            # ── resume 커서 저장(2026-10-03) — (타입,창) 단위로만 전진한다 ──────
+            # 완료한 창만 건너뛰게 해야 예산이 작은 실행이 조금씩이라도 진도를 낸다.
+            if pair_done and not hit_limit:
+                save_cursor(ckey, pi + 1, len(pairs))
+            elif hit_limit:
+                save_cursor(ckey, pi, len(pairs))
+                log(f"커서 저장: 다음 실행은 #{pi + 1}/{len(pairs)} (타입,창) 부터 이어간다")
             if hit_limit:
                 break
+    if not hit_limit:
+        clear_cursor()               # 전 구간 완료 → 커서 초기화
 
     cur.execute("SELECT COUNT(*) FROM disclosures")
     after = int(cur.fetchone()[0])
