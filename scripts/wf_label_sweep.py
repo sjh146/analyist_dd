@@ -844,6 +844,37 @@ CONFIGS = [
     {"id": "LU_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "codes_slice": [120, 150],
      "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [120:150)"},
+    # ── CG78(2026-10-03): 피처 결측 지시자(missing indicator) 축 ─────────────────────
+    # 왜: 학습 직전 np.nan_to_num(nan=0.0)(L1377/1381)이 결측을 0 으로 대체한다 → 트리는
+    #     '값 0'과 '결측'을 구분 못 한다 → 결측 자체가 정보일 수 있다.
+    # 실측(2026-10-03, 패널별 per-column NaN 분포): 결측은 **열 단위 이분포**다 —
+    #     panel_prod200 213열: 187열 0.0% / 26열 98.2% (중간대 0개) · panel_150u 는 같은 26열이
+    #     88.5% · panel_420/995 계열도 동일. 즉 **행수준 결측은 빌드 시 0 으로 대체돼 사라졌고**
+    #     살아남은 NaN 은 '그 피처가 그 구간에 아예 없었다'(SNS·kalman) 뿐이다 → 이 축은
+    #     '수집 여부' 프록시를 재는 셈이며, 진짜 행수준 결측 지시자는 feature_pipeline(빌드 시점)
+    #     에서만 만들 수 있다(패널 재빌드 필요 = 별도 항목).
+    # 설계: CG25(Δk)·CG28(gate_add)과 같은 프로토콜 — 지시자는 **선별 후보에서 빼고** top30 을
+    #     고른 뒤 강제로 덧붙인다 → 두 arm 의 edge top30 이 동일 집합, 차이는 '지시자 10컬럼'뿐.
+    #     소스는 사전 등록 규칙(결측률 1~99.5% 내림차순 top10)으로 고정 — 결과 보고 소스를 고르면 누수.
+    # 한계(명시): 용량 교란 통제(placebo)는 이 런에 없다 → 신호가 나오면 같은 수의 무정보 파생을
+    #     붙인 placebo arm 으로 확인할 것. 게이트 OFF 경로 전용(지시자 이름이 CORE_FEATURES 밖).
+    # 배포 가능성: 추론 시점에도 '그 피처가 결측인가'는 알 수 있다 → 계약 위반 아님(단 지시자
+    #     컬럼을 추론 경로가 만들도록 feature 파이프라인 수정 필요 = 승격 시 별도 승인).
+    {"id": "MIs_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [0, 30], "derived": {"kind": "miss", "top_k": 10},
+     "desc": "구간 [0:30) · 게이트 OFF + 결측 지시자 10개 강제투입 — 짝 대조군 LU_00_30"},
+    {"id": "MIs_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [30, 60], "derived": {"kind": "miss", "top_k": 10},
+     "desc": "구간 [30:60) · 게이트 OFF + 결측 지시자 10개 강제투입 — 짝 대조군 LU_30_60"},
+    {"id": "MIs_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [60, 90], "derived": {"kind": "miss", "top_k": 10},
+     "desc": "구간 [60:90) · 게이트 OFF + 결측 지시자 10개 강제투입 — 짝 대조군 LU_60_90"},
+    {"id": "MIs_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [90, 120], "derived": {"kind": "miss", "top_k": 10},
+     "desc": "구간 [90:120) · 게이트 OFF + 결측 지시자 10개 강제투입 — 짝 대조군 LU_90_120"},
+    {"id": "MIs_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "codes_slice": [120, 150], "derived": {"kind": "miss", "top_k": 10},
+     "desc": "구간 [120:150) · 게이트 OFF + 결측 지시자 10개 강제투입 — 짝 대조군 LU_120_150"},
     # ── CG76(2026-10-03): 조건부(비영) edge 선별 — 희소 피처의 선별 진입 축 ─────────────
     # 왜: 부활 피처(disclosure_count_5d 등)는 커버리지를 살려도 **풀링 edge 가 낮아 top30 에
     #     들어가지 못한다**(EV1 이벤트 17종 진입 0 · CG67 부활 후 AUC 비트 불변). 선별 규칙이
@@ -1021,6 +1052,48 @@ def train_seed_weighted(X_train, X_val, X_test, y_train, y_val, y_test, feature_
     return ens_auc, model_aucs, curated, ensemble
 
 
+def _add_miss_ind(df, base_names, spec, srcs, log=None):
+    """결측 지시자 파생(CG78): `na_<src>` = 1.0 if 원본이 NaN else 0.0.
+
+    왜 이 축인가: 학습 직전 `np.nan_to_num(nan=0.0)`(이 파일 L1377/1381)이 결측을 **0 으로
+    대체**한다 → 트리는 '값이 0'과 '값이 없음'을 구분할 수 없다. 결측 자체가 정보일 수 있다
+    (신규 상장·공시 지연·수급 미집계 기간). 지시자를 별도 열로 남겨 선별이 후보로 볼 수 있게 한다.
+
+    누수 방지:
+      · 소스를 지정하지 않으면 **사전 등록 규칙**으로 고른다(패널 전체 결측률 1~90% 중 내림차순
+        top_k). 선별/스윙 결과를 보고 소스를 고르면 선택 누수다.
+      · 지시자는 원본과 같은 시점의 결측 여부만 쓴다(미래 참조 없음).
+      · 값은 위치 기반으로 계산한다(중복 라벨 pandas 정렬 사고 방지).
+    반환: (지시자 열이 추가된 새 프레임, 확장된 이름 목록).
+    """
+    mat = df[base_names].values.astype(float)
+    if mat.shape[1] != len(base_names):
+        raise RuntimeError(
+            f"열 수 불일치({mat.shape[1]} vs {len(base_names)}) — 패널 중복 라벨로 매핑이 깨졌다")
+    pos = {n: i for i, n in enumerate(base_names)}
+    if not srcs:
+        k = int(spec.get("top_k") or 10)
+        frac = np.isnan(mat).mean(axis=0)
+        order = np.argsort(-frac)
+        picked = [base_names[j] for j in order if 0.01 <= frac[j] <= 0.995][:k]
+        if not picked:
+            raise RuntimeError(
+                "결측 지시자: 사전규칙(결측률 1~99.5%)에 해당하는 피처가 없다 — 축 측정 불가")
+        srcs = picked
+        if log:
+            log("  결측 지시자 소스(사전규칙 top%d): %s"
+                % (k, ", ".join(f"{s}({frac[pos[s]]:.3f})" for s in srcs)))
+    out = df.copy()
+    for s in srcs:
+        name = f"na_{s}"
+        if name in out.columns:
+            raise RuntimeError(f"결측 지시자 이름 충돌: {name}")
+        out[name] = np.isnan(mat[:, pos[s]]).astype(float)
+    if log:
+        log(f"  결측 지시자 {len(srcs)}개 = na_{{src}} ({srcs})")
+    return out, list(base_names) + [f"na_{s}" for s in srcs]
+
+
 def add_derived(df, base_names, spec, log=None):
     """CG25: 사전 등록된 소스 컬럼의 **시간 차분(Δk)** 을 파생 피처로 추가한다.
 
@@ -1040,6 +1113,11 @@ def add_derived(df, base_names, spec, log=None):
     missing = [s for s in (spec.get("sources") or []) if s not in base_names]
     if missing and log:
         log(f"  파생: 소스 누락 {missing} (패널에 없음)")
+    _kind = str(spec.get("kind") or "delta")
+    if _kind == "miss":
+        return _add_miss_ind(df, base_names, spec, srcs, log=log)
+    if _kind != "delta":
+        raise RuntimeError(f"derived.kind 알 수 없음: {_kind!r} (delta | miss)")
     if not srcs:
         raise RuntimeError("derived.sources 가 패널 컬럼과 하나도 일치하지 않는다")
     lags = [int(k) for k in (spec.get("lags") or [1, 5])]
