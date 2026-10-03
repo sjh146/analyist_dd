@@ -62,6 +62,10 @@ DISABLED = os.environ.get("NET_GUARD_DISABLE") == "1"
 BLOCKED_STATUS = {401, 403, 407, 418, 451, 999}
 TRANSIENT_STATUS = {408, 425, 429, 500, 502, 503, 504, 522, 524}
 
+# 프로세스 내 중복 기록 방지(실측 2026-10-03: 같은 PermissionError 를 9회 기록).
+_GUARD_ERRS: set = set()
+_FALLBACK_WARNED: set = set()
+
 
 class GuardError(Exception):
     """기반 오류."""
@@ -197,7 +201,11 @@ class Guard:
     @contextlib.contextmanager
     def _lock(self):
         _, path = _paths(self.key)
-        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+        # 공유 상태 파일은 **여러 uid 가 번갈아 쓴다**(크론=root, 수동/에이전트=사용자).
+        # 실측 2026-10-03: root 가 만든 0644 파일을 사용자 프로세스가 못 열어 PermissionError →
+        # fail-open 으로 **조용히 무력화**됐다(9회 반복 로그). → 0666 으로 만들고, 그래도 막히면
+        # uid 별 파일로 내려가되 '폴백' 이벤트를 남긴다(무력화를 숨기지 않는다).
+        fd = self._open_state(path, primary=True)
         deadline = time.time() + LOCK_TIMEOUT
         try:
             while True:
@@ -216,6 +224,23 @@ class Guard:
                 fcntl.flock(fd, fcntl.LOCK_UN)
             os.close(fd)
 
+    def _open_state(self, path: str, *, primary: bool) -> int:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o666)
+            with contextlib.suppress(OSError):       # 다음 uid 도 쓸 수 있게(가능하면)
+                os.chmod(path, 0o666)
+            return fd
+        except PermissionError:
+            if not primary:
+                raise
+            alt = f"{path}.u{os.getuid()}"
+            if alt not in _FALLBACK_WARNED:
+                _FALLBACK_WARNED.add(alt)
+                _record({"key": self.key, "event": "guard_fallback", "path": alt,
+                         "reason": "상태 파일 소유자가 달라 uid 별 파일로 폴백 — "
+                                   "다른 uid 프로세스와의 직렬화는 약해진다(수동 실행 주의)"})
+            return os.open(alt, os.O_CREAT | os.O_RDWR, 0o666)
+
     def acquire(self, *, log=None) -> float:
         """호출 직전 게이트. 반환=실제 대기한 초. 예산/쿨다운 위반은 예외로 알린다."""
         if not self.enabled:
@@ -225,7 +250,10 @@ class Guard:
         except (BudgetExhausted, Blocked):
             raise
         except Exception as e:                            # noqa: BLE001 — 가드 자체 오류
-            _record({"key": self.key, "event": "guard_error", "error": repr(e)[:200]})
+            sig = f"{self.key}:{e!r}"
+            if sig not in _GUARD_ERRS:                    # 같은 오류 반복 기록 금지(실측 9회 중복)
+                _GUARD_ERRS.add(sig)
+                _record({"key": self.key, "event": "guard_error", "error": repr(e)[:200]})
             if FAIL_OPEN:
                 if log:
                     log(f"[net_guard] 가드 오류(무시하고 진행): {e!r}")

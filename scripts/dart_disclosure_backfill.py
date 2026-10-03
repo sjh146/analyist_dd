@@ -79,11 +79,23 @@ class DartHttpError(RuntimeError):
         self.transient = self.status in (408, 425, 429) or self.status >= 500
 
 
-def _blocked_looking(exc) -> bool:
-    """예외 메시지가 WAF/차단 페이지를 가리키는가(JSON 파싱 실패 + HTML/403)."""
-    text = str(exc).lower()
-    return ("403" in text or "<html" in text or "blocked" in text
-            or "forbidden" in text)
+def _blocked_looking(data) -> bool:
+    """DART 응답이 '차단/한도'를 뜻하는가 — **구조화 판정**(문자열 검색 금지).
+
+    실측 사고 2026-10-03 18:10: 정상 응답(dict)을 `str(data)` 문자열에서 "403" 으로 검색해
+    오탐했다 — 종목코드·접수번호 같은 **숫자에 '403' 이 우연히 포함**되면(예: corp_code 0040304)
+    정상 수집이 '차단'으로 판정됐다. 그 결과 900초 쿨다운 + 그날 DART 적재 0행.
+    → dict 면 **status 코드로만** 판정한다(000 정상 · 013 데이터 없음 = 정상).
+
+    DART 상태코드: 000 정상 · 013 조회 데이터 없음 · 020 요청 제한 초과(차단) ·
+    100/101/102 인증키 오류(중단) · 800/900 시스템 오류(일시).
+    """
+    if isinstance(data, dict):
+        return str(data.get("status", "000")) in {"020", "100", "101", "102", "800", "900"}
+    text = str(data).lower()
+    return ("http 403" in text or "403 client error" in text or "http 429" in text
+            or "429 too many" in text or "<html" in text
+            or "blocked" in text or "forbidden" in text)
 
 
 def _transient(exc) -> bool:
@@ -215,6 +227,8 @@ def main():
                     break
                 if status != "000":
                     log(f"{d0} p{page} DART 오류 status={status} msg={resp.get('message')}")
+                    if status == "020" and g is not None:   # 요청 제한 초과 — 전 프로세스 쿨다운
+                        g.block(f"DART 요청 제한 초과(status=020, msg={resp.get('message')})")
                     break
 
                 batch, skipped = [], 0
