@@ -60,6 +60,20 @@ def _auc(pairs):
     return (s_pos - n1 * (n1 + 1) / 2.0) / (n1 * n0)
 
 
+def _dedupe_latest(rows):
+    """rows = [(stock, date, version, confidence, created_at)] → [(stock, date, version, confidence)].
+
+    같은 (종목, 날짜)에 두 버전이 남을 수 있다(승격/롤백이 같은 날 겹친 경우). 그대로 세면
+    그날 표본이 두 번 들어가므로 created_at 최신 행만 채택한다(입력은 created_at 오름차순).
+    """
+    latest = {}
+    for a, b, c, d, e in rows:
+        latest[(str(a), str(b)[:10])] = (c, float(d))
+    out = [(k[0], k[1], v[0], v[1]) for k, v in latest.items()]
+    out.sort(key=lambda x: (x[0], x[1]))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="/app/reports/overnight/forward_scorecard.json")
@@ -68,9 +82,13 @@ def main() -> int:
 
     conn = _pg_connect()
     cur = conn.cursor()
-    cur.execute("SELECT stock_code, prediction_date, model_version, confidence "
-                "FROM ml_predictions WHERE confidence IS NOT NULL ORDER BY 1,2")
-    preds = [(str(a), str(b)[:10], str(c), float(d)) for a, b, c, d in cur.fetchall()]
+    cur.execute("SELECT stock_code, prediction_date, model_version, confidence, created_at "
+                "FROM ml_predictions WHERE confidence IS NOT NULL ORDER BY 1,2,5")
+    preds = _dedupe_latest(cur.fetchall())
+    # 모델 버전별 표본 수 — 승격/롤백 전후를 나눠 볼 수 있게 함께 낸다(model_version 귀속).
+    ver_counts: dict = defaultdict(int)
+    for _, _, ver, _ in preds:
+        ver_counts[ver] += 1
 
     stocks = sorted({p[0] for p in preds})
     cur.execute("SELECT stock_code, trade_date, close_price FROM market_data "
@@ -135,6 +153,7 @@ def main() -> int:
         }
     payload = {"generated_at": __import__("datetime").datetime.now().isoformat(timespec="seconds"),
                "predictions_rows": len(preds),
+               "model_versions": dict(ver_counts),
                "result": res}
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     try:

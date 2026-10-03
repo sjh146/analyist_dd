@@ -1,6 +1,9 @@
 {
-  "generated_at": "2026-10-02T21:05:36",
+  "generated_at": "2026-10-03T07:06:05",
   "predictions_rows": 37378,
+  "model_versions": {
+    "v1.0": 37378
+  },
   "result": {
     "h1": {
       "n_pairs": 17938,
