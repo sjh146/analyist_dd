@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-03T23:08:18+09:00",
+  "updated_at": "2026-10-03T23:09:08+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -10340,7 +10340,7 @@
     {
       "id": "CG85",
       "title": "패널 누수 지문 사전 게이트 — 실험 전 스냅샷 청정성 판정 + 누수 패널 은퇴 (하드규칙 ③)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "affects_model": false,
       "metric": "panel_leak_gate",
@@ -10355,8 +10355,23 @@
       "require_clean": [
         "panel_prod200.npz"
       ],
-      "attempts": [],
-      "result": null
+      "attempts": [
+        {
+          "ts": "2026-10-03T23:09:08+09:00",
+          "rc": 0,
+          "verdict": "누수 없음",
+          "detail": "패널 15개 스캔 — 청정 3개 ['panel_420_asof3.npz', 'panel_420_asof4ev.npz', 'panel_prod200.npz'] · 누수 12개 ['panel_150u.npz', 'panel_420.npz', 'panel_420_asof2.npz', 'panel_420_asofpatch.npz', 'panel_420_asofpatch_ev.npz', 'panel_420_asofpatch_evfix.npz', 'panel_995.npz', 'panel_995_w180.npz', 'panel_995_w281.npz', 'panel_995_w450.npz', 'panel_995_w90.npz', 'panel_smoke.npz'] · 검사요청 ['panel_prod200.npz'] → 위반 [] → 실험 가능",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG85_20261003-230903.log",
+          "elapsed_min": 0.1
+        }
+      ],
+      "result": {
+        "verdict": "누수 없음",
+        "detail": "패널 15개 스캔 — 청정 3개 ['panel_420_asof3.npz', 'panel_420_asof4ev.npz', 'panel_prod200.npz'] · 누수 12개 ['panel_150u.npz', 'panel_420.npz', 'panel_420_asof2.npz', 'panel_420_asofpatch.npz', 'panel_420_asofpatch_ev.npz', 'panel_420_asofpatch_evfix.npz', 'panel_995.npz', 'panel_995_w180.npz', 'panel_995_w281.npz', 'panel_995_w450.npz', 'panel_995_w90.npz', 'panel_smoke.npz'] · 검사요청 ['panel_prod200.npz'] → 위반 [] → 실험 가능",
+        "delta": 12.0,
+        "per_exp": null,
+        "rc": 0
+      }
     }
   ]
 }
