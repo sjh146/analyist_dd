@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T00:18:22+09:00",
+  "updated_at": "2026-10-04T01:04:26+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -10692,7 +10692,7 @@
       "priority": 2,
       "affects_model": true,
       "title": "청정 패널(prod200)에서 CG28 강제투입 3-arm 재측정 — 누수 제거 후 '기존 피처 재배치=노이즈' 결론이 유지되는가",
-      "status": "pending",
+      "status": "done",
       "metric": "wf_sweep_summary",
       "arm": "CO_core30_g11_h5",
       "counterfactual": "CO_core30_h5",
@@ -10702,7 +10702,111 @@
       "expected": "노이즈 쪽 무게. g11 의 11개는 전부 전구간 커버(fill 1.0)이고 그중 최강은 bayes_volatility(|AUC−0.5| 0.0453 = 선별 문턱 바로 위, ic_t 3.01) — 청정 패널의 top30 구성이 이미 그 계열을 일부 포함하고 있어 잔여 증분이 작을 개연성이 높다.",
       "cost": "3 config × 5폴드 × 5시드 = 75 cell · CG87 실측 8.5분/75 cell → 약 9분",
       "est_minutes": 20,
-      "note": "2026-10-04 00:3x 신설. 계기: ① CG87(청정 패널 등록 프로토콜) 완료 — 배포가능 arm Δ+0.0050 노이즈, 청정 참조치 0.5305(기록 기준선 대비 −0.0101, 재등록 불요) ② 같은 패널 피처 스크린 실측으로 '문턱을 넘는 시간가변 피처가 사실상 없다'(전구간 커버는 bayes_volatility 0.0453 하나, 나머지 7개는 SNS·fill 1.84%·2026-05-27~ 4개월) ③ CG28·CG29 의 결론이 누수 패널 산이므로 청정 재측정이 필요. ⚠ gate_add 11/10 컬럼이 panel_prod200 에 전부 존재함을 확인(scripts/_cg88_gateadd_check.py). ⚠ 코드 변경 0 — 기존 config 재사용이라 회귀 위험 없음."
+      "note": "2026-10-04 00:3x 신설. 계기: ① CG87(청정 패널 등록 프로토콜) 완료 — 배포가능 arm Δ+0.0050 노이즈, 청정 참조치 0.5305(기록 기준선 대비 −0.0101, 재등록 불요) ② 같은 패널 피처 스크린 실측으로 '문턱을 넘는 시간가변 피처가 사실상 없다'(전구간 커버는 bayes_volatility 0.0453 하나, 나머지 7개는 SNS·fill 1.84%·2026-05-27~ 4개월) ③ CG28·CG29 의 결론이 누수 패널 산이므로 청정 재측정이 필요. ⚠ gate_add 11/10 컬럼이 panel_prod200 에 전부 존재함을 확인(scripts/_cg88_gateadd_check.py). ⚠ 코드 변경 0 — 기존 config 재사용이라 회귀 위험 없음.",
+      "attempts": [
+        {
+          "ts": "2026-10-04T00:43:49+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "가설 CO_core30_g11_h5 0.5298 vs 대조군 CO_core30_h5 0.5305 → Δ-0.0007 (최고: CO_core30_pv10_h5 0.5311)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG88_20261004-001822.log",
+          "elapsed_min": 25.4
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "가설 CO_core30_g11_h5 0.5298 vs 대조군 CO_core30_h5 0.5305 → Δ-0.0007 (최고: CO_core30_pv10_h5 0.5311)",
+        "delta": -0.0007,
+        "per_exp": {
+          "CO_core30_h5": {
+            "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5235,
+              0.5574,
+              0.4974,
+              0.5334,
+              0.5408
+            ],
+            "mean": 0.5305,
+            "std": 0.0199,
+            "min": 0.4974,
+            "max": 0.5574,
+            "fold_win_rate": 0.8
+          },
+          "CO_core30_g11_h5": {
+            "desc": "게이트 ON + 부활후보 11개 강제투입(core30 동일 top30 + 11컬럼) — 데이터 축 L3",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5192,
+              0.5527,
+              0.5033,
+              0.5206,
+              0.5535
+            ],
+            "mean": 0.5298,
+            "std": 0.0199,
+            "min": 0.5033,
+            "max": 0.5535,
+            "fold_win_rate": 1.0
+          },
+          "CO_core30_pv10_h5": {
+            "desc": "게이트 ON + 무정보(placebo) 10개 강제투입 — 용량 교란 통제(같은 수·다른 정보량)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.523,
+              0.563,
+              0.5019,
+              0.5251,
+              0.5423
+            ],
+            "mean": 0.5311,
+            "std": 0.0205,
+            "min": 0.5019,
+            "max": 0.563,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG89",
+      "title": "청정 패널(prod200)에서 라벨 꼬리(q0.05) 축 최종 재판정 — 누수 제거 후 '꼬리=노이즈' 결론이 유지되는가",
+      "hypothesis": "라벨 꼬리(q) 축의 종결 근거는 전부 **은퇴한 누수 패널** 위 실측이다 — CG19/20/21/24 는 panel_150u, CG22 는 panel_420_asofpatch 계열이고 CG85(패널 누수 지문 게이트)가 둘 다 LEAKY(재무 as-of 위반 · value_per/pbr/quality_* 종목당유니크 1~2)로 판정했다. 게다가 스코어보드의 best_robust 0.5727 은 CG24 의 q0.05 arm(Q5s_30_60, 같은 누수 패널) 값이다. 청정 패널(panel_prod200·200종목·누수 0)에서 같은 행·같은 구간의 q0.30↔q0.05 짝 Δ 를 재면, 꼬리 이득이 유동성·누수 교란의 산물인지 실제 신호인지가 확정된다. 스킬 규칙 '수리 후에는 수리 전 수치를 인용하지 마라 — 대조군 재측정이 우선'의 q 축 이행이다.",
+      "metric": "wf_sweep_summary",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only Q5s_00_30,Q5s_30_60,Q5s_60_90,Q5s_90_120,Q5s_120_150,US_00_30,US_30_60,US_60_90,US_90_120,US_120_150 --out /app/reports/overnight/cg89_sweep.jsonl --summary-out /app/reports/overnight/cg89_summary.json'",
+      "counterfactual": "US_00_30..US_120_150 (q0.30 · 게이트 ON 평범 config · 같은 런·같은 서로소 구간)",
+      "pairs": [
+        [
+          "Q5s_00_30",
+          "US_00_30"
+        ],
+        [
+          "Q5s_30_60",
+          "US_30_60"
+        ],
+        [
+          "Q5s_60_90",
+          "US_60_90"
+        ],
+        [
+          "Q5s_90_120",
+          "US_90_120"
+        ],
+        [
+          "Q5s_120_150",
+          "US_120_150"
+        ]
+      ],
+      "success": "구간 짝 Δ(Q5s−US) 평균 ≥ +0.02 **이고** 양(+) 구간 ≥ 4/5 → '청정 패널에서 라벨 꼬리 신호'(→ precision@k 실질성 재검 + 승격 검토). 미달이면 라벨 꼬리 축을 누수 무관하게 **최종 종결**하고, 스코어보드 best_robust 0.5727 이 누수 패널 산물이라는 근거로 기준선·프로토콜 재등록을 ② 승인 항목으로 올린다.",
+      "est_minutes": 50,
+      "priority": 2,
+      "status": "pending",
+      "note": "2026-10-04 01:0x 신설(주말 자율 세션). 계기: ① CG88(청정 패널 강제투입 3-arm) 노이즈 → '기존 피처 재배치' 축 종결 ② CG86(스무딩+depth1 청정 재측정) 노이즈 · CG87(청정 참조치 LS 0.5302 / CO_core30 0.5305) ③ 실행 가능 pending 0(규칙 4) ④ **q 축만 청정 재측정이 안 됐다** — 다른 축(변환·HP·k·목적함수·표본가중·선별규칙)은 CG80·CG76·CG77·CG71 등으로 이미 청정/누수 양쪽 또는 같은 런 짝으로 닫혔거나 무효화됐다. 프로토콜은 CG24/CG86 과 동일(게이트 ON·5폴드·30종목 서로소 5구간·구간 내 짝 Δ) — 구간 간 유니버스 교체 잡음(Δ0.0287, CG13)이 상쇄된다. ⚠ 시드 5(추정 50분, CG86 3시드=25.4분 기반) · timeout 7200 동반 상향. ⚠ 코드 변경 0 — 기존 config 재사용이라 회귀 위험 없음. ⚠ 주의: q0.05 는 행 집합이 q0.30 의 부분집합이라 AUC 절대값 비교가 아니라 **구간 내 짝 Δ** 만 판정에 쓴다(스킬: 라벨 q 가 다른 두 arm 의 AUC·precision 은 '분모' 때문에 뒤집힌다)."
     }
   ]
 }
