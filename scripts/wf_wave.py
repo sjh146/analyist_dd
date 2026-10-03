@@ -168,6 +168,36 @@ def subset(names, select, X_train, y_train, dates=None):
                           for i in range(len(names))])
         e_top = {int(i) for i in np.argsort(-edges)[:k]}
         return idx, f"ic{k} (edge top{k} 와 {len(e_top & set(idx))}/{k} 겹침)"
+    if select.startswith("cnd"):
+        # ── 조건부 edge 선별 (2026-10-03 CG76) ─────────────────────────────────
+        # 왜: `edge_of` 는 폴드 학습구간을 **풀링**한 순위 AUC 라, 희소 피처는 전 행의 대부분이
+        # 0 이어서 |AUC−0.5| 가 0 에 가까워 top-k 에 절대 들어가지 못한다. 실측 근거:
+        #   · EV1(2026-09-26) 이벤트 17종 진입 0개 → EV_all == EV_none 비트 동일
+        #   · CG67(2026-10-02) disclosure_count_5d 를 42.2% 커버리지로 부활해도 선별 진입 0 →
+        #     AUC 불변(0.5350/0.5512 — CG64/CG66 과 소수점 동일)
+        # 즉 '피처가 죽어서'가 아니라 **선별 규칙이 희소 피처를 후보에서 탈락시켜서** 모델에 안 들어간다.
+        # 이 분기는 비영 행에서만 edge 를 계산해 희소 피처가 dense 피처와 경쟁하게 한다.
+        # 비영 표본이 min_nz 미만이면 후보 제외(추정 불가·노이즈 방지). 비영=전 행(dense)이면
+        # 풀링 edge 와 값이 같으므로 **축은 희소 피처에만 작용**한다(다른 축과 교락 없음).
+        # 반환 desc 에 풀링 edge top-k 와의 겹침을 남겨 '규칙이 실제로 다른 집합을 골랐는지'를
+        # 확인 가능하게 한다 — 0 이면 같은 실험을 두 번 돌린 것(EV1 사고)이다.
+        k = int(select.replace("cnd", ""))
+        Xf = X_train.astype(float)
+        yy = np.asarray(y_train).astype(int)
+        n_rows = Xf.shape[0]
+        min_nz = max(50, int(round(0.005 * n_rows)))   # edge_of 는 len>=50 을 요구한다
+        ncols = Xf.shape[1]
+        sc = np.zeros(ncols, dtype=float)
+        for i in range(ncols):
+            col = Xf[:, i]
+            nz = ~np.isnan(col) & (col != 0)
+            if int(nz.sum()) < min_nz:
+                continue                                # 너무 희소 → 후보 제외
+            sc[i] = edge_of(col[nz], yy[nz])            # 비영 행에서만 edge
+        idx = sorted(int(i) for i in np.argsort(-sc)[:k])
+        pool = np.array([edge_of(Xf[:, i], yy) for i in range(ncols)])
+        e_top = {int(i) for i in np.argsort(-pool)[:k]}
+        return idx, f"cnd{k} (min_nz={min_nz}, edge top{k} 와 {len(e_top & set(idx))}/{k} 겹침)"
     edges = np.array([edge_of(X_train[:, i].astype(float), y_train)
                       for i in range(len(names))])
     k = int(select.replace("top", ""))

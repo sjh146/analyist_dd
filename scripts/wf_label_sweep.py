@@ -820,6 +820,28 @@ CONFIGS = [
     {"id": "LU_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "codes_slice": [120, 150],
      "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [120:150)"},
+    # ── CG76(2026-10-03): 조건부(비영) edge 선별 — 희소 피처의 선별 진입 축 ─────────────
+    # 왜: 부활 피처(disclosure_count_5d 등)는 커버리지를 살려도 **풀링 edge 가 낮아 top30 에
+    #     들어가지 못한다**(EV1 이벤트 17종 진입 0 · CG67 부활 후 AUC 비트 불변). 선별 규칙이
+    #     희소 피처를 배제하는 것이 원인이므로, 비영 행에서만 edge 를 계산해 경쟁시킨다.
+    #     대조군은 같은 런의 LU_*(edge top30) — 게이트 OFF·같은 구간·같은 q.
+    # ⚠ CG71(IC 규칙)·CG74(drop_dup)와 달리 이건 **선별 표본 도메인**을 바꾸는 것이고
+    #     dense 피처에는 작용하지 않는다(비영=전 행이면 값 동일).
+    {"id": "CN_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
+     "codes_slice": [0, 30],
+     "desc": "구간 [0:30) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_00_30"},
+    {"id": "CN_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
+     "codes_slice": [30, 60],
+     "desc": "구간 [30:60) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_30_60"},
+    {"id": "CN_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
+     "codes_slice": [60, 90],
+     "desc": "구간 [60:90) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_60_90"},
+    {"id": "CN_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
+     "codes_slice": [90, 120],
+     "desc": "구간 [90:120) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_90_120"},
+    {"id": "CN_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
+     "codes_slice": [120, 150],
+     "desc": "구간 [120:150) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_120_150"},
 ]
 
 
