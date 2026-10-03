@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T01:32:12+09:00",
+  "updated_at": "2026-10-04T03:22:42+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -11151,10 +11151,85 @@
       "setup_needed": null,
       "est_minutes": 150,
       "priority": 2,
-      "status": "pending",
+      "status": "done",
       "note": "2026-10-04 02:0x 셋업 구현 완료(이 역할 소유 코드) → pending 승격. 구현: retrain_champion 에 --label-kind quantile + --label-q(가운데 분위는 학습에서 제외 — wf_wave.make_labels(kind='quantile') 와 동일 정의), champion_robust_eval 에 --label-kind quantile + --label-q(가운데 분위 None → 채점 제외; 학습 라벨과 **같은 종류**여야 자기 과제가 된다, CG36/37). 검증: `docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_label_q_test.py` 18/18 PASS(스윕과 원소 단위 동일·기본경로 회귀·CLI 계약·e2e 가운데 행 제거) + `_label_kind_test.py` 14/14 PASS + 기존 회귀(_retrain_labelkind 18/18 · _summary_path · _judge_baseline_paired · _deployable_slice_config 179 configs · _robust_oos 19/19) 전부 PASS. 설계: ① 학습창을 --start-date/--end-date 로 **고정**(2025-08-22~11-20) → 평가창(최근 200거래일 = 2025-12-01~2026-09-23)이 전부 학습 **이후**(전방 OOS, windows_excluded=[]) ② 대조군은 배포 챔피언이 아니라 **같은 커맨드·같은 체크포인트로 학습한 q0.30 arm**(라벨 종류가 다르면 비교 자체가 성립하지 않는다 — CG36/37) ③ 유니버스는 학습·평가 모두 select_training_universe(200·seed 0·recency) 로 **동일**(실측 확인: 양측 3회 호출 동일). ⚠ 구동기 판정 한계: `_out_arg` 가 **첫 --out**(cg92_q05)만 읽는다 → 원장에는 q0.05 의 견고 AUC 가 '기준선 실측'으로 남고 짝 Δ 는 실리지 않는다. 실행 후 세션이 cg92_q30_robust.json 을 파싱해 item['counterfactual_value'] 를 채우고 원장 parsed 에 paired 를 실어 재판정한다(CG38/CG55 와 같은 절차). ⚠ 비용 실측(2026-10-04 02:1x, 200종목·11,853페어): 빌드 2.51→5.05 pair/s(웜업) → 학습빌드 ~40분, 체크포인트 재사용으로 2번째 arm 학습은 수 분, 평가는 창 5×8일=40일 × 200종목 = 8,000 빌드/arm ≈ 30분 → 총 ~1h45m. est_minutes 150. ⚠ 체크포인트 /app/app/models/wf/cg92.ckpt 는 이미 1000/11853 행까지 진행돼 있다(재개). ⚠ 피처코드(_feature_code_sig)가 바뀌면 체크포인트가 폐기되고 빌드가 처음부터다(_assert_code_unchanged 는 종목 배치마다 검사 — 다른 역할이 feature_engine 을 편집하는 밤에는 의미가 없다).",
       "metric": "champion_robust_eval",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u -m app.training.retrain_champion --start-date 2025-08-22 --end-date 2025-11-20 --stock-limit 200 --label-kind quantile --label-q 0.05 --out-dir app/models/wf/cg92_q05 --checkpoint-path /app/app/models/wf/cg92.ckpt' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u -m app.training.retrain_champion --start-date 2025-08-22 --end-date 2025-11-20 --stock-limit 200 --label-kind quantile --label-q 0.30 --out-dir app/models/wf/cg92_q30 --checkpoint-path /app/app/models/wf/cg92.ckpt' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 5 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --out /app/reports/overnight/cg92_q05_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q30 --label-kind quantile --label-q 0.30 --horizon 5 --folds 5 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --out /app/reports/overnight/cg92_q30_robust.json'"
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u -m app.training.retrain_champion --start-date 2025-08-22 --end-date 2025-11-20 --stock-limit 200 --label-kind quantile --label-q 0.05 --out-dir app/models/wf/cg92_q05 --checkpoint-path /app/app/models/wf/cg92.ckpt' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u -m app.training.retrain_champion --start-date 2025-08-22 --end-date 2025-11-20 --stock-limit 200 --label-kind quantile --label-q 0.30 --out-dir app/models/wf/cg92_q30 --checkpoint-path /app/app/models/wf/cg92.ckpt' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 5 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --out /app/reports/overnight/cg92_q05_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q30 --label-kind quantile --label-q 0.30 --horizon 5 --folds 5 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --out /app/reports/overnight/cg92_q30_robust.json'",
+      "attempts": [
+        {
+          "ts": "2026-10-04T03:22:42+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5703±0.0419 (시간창 5개 [0.5238, 0.5601, 0.5513, 0.5675, 0.6487]) · 풀링 0.5693 · 날짜별평균 0.5703 · 행 799",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG92_20261004-021546.log",
+          "elapsed_min": 66.9
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5703±0.0419 (시간창 5개 [0.5238, 0.5601, 0.5513, 0.5675, 0.6487]) · 풀링 0.5693 · 날짜별평균 0.5703 · 행 799 || 짝 Δ(q0.05−q0.30, 같은 5창) 평균 +0.0459 (5/5 · std 0.0267 · SE 0.0120 · t 3.83) [+0.0240,+0.0284,+0.0270,+0.0711,+0.0788] → 사전등록(Δ≥+0.02 **이고** t≥2) 충족 = 생산 경로 재현 성공",
+        "delta": 0.0459,
+        "per_exp": null,
+        "rc": 0,
+        "paired": {
+          "n": 5,
+          "mean": 0.0459,
+          "std": 0.0267,
+          "se": 0.012,
+          "t": 3.83,
+          "pos": 5,
+          "diffs": [
+            0.024,
+            0.0284,
+            0.027,
+            0.0711,
+            0.0788
+          ],
+          "same_run": true,
+          "same_checkpoint": true,
+          "same_windows": true,
+          "note": "두 arm 의 채점 행 도메인이 다르다(q0.05 799행 vs q0.30 4,798행) — 같은 창·같은 프로토콜의 창별 짝 Δ 이며 행 단위 짝이 아니다. 행 도메인 교란은 CG93(공통 후보집합 top-k)이 통제한다."
+        },
+        "paired_verdict": "신호있음(생산 경로 재현)"
+      },
+      "counterfactual_value": {
+        "arm": "cg92_q30",
+        "model_dir": "app/models/wf/cg92_q30",
+        "protocol": "동일 5창·동일 체크포인트·ldiffering 라벨만 q0.30",
+        "robust_auc": 0.5244,
+        "auc_std_across_folds": 0.0265,
+        "folds": [
+          0.4998,
+          0.5317,
+          0.5243,
+          0.4964,
+          0.5699
+        ],
+        "auc_pooled": 0.5207,
+        "auc_per_date_mean": 0.5244,
+        "rows_scored": 4798,
+        "dates_scored": 40,
+        "windows_excluded": [],
+        "source": "services/xgboost-ml/reports/overnight/cg92_q30_robust.json",
+        "same_run": true,
+        "same_windows": true
+      }
+    },
+    {
+      "id": "CG93",
+      "priority": 1,
+      "affects_model": true,
+      "title": "생산 경로 라벨 꼬리 이득의 실질성 — 공통 후보집합 상위 k 정밀도 (CG90 의 생산 경로 대응)",
+      "hypothesis": "CG92 는 같은 5창 짝 Δ +0.0459(5/5 · t 3.83)로 생산 경로 재현을 확인했지만 두 arm 의 **채점 행 도메인이 다르다**(q0.05 799행 vs q0.30 4,798행) → '더 극단적 양성을 맞히는 다른 과제' 교란이 남는다(스킬: 라벨 q 가 다른 두 arm 의 AUC·precision 은 분모 때문에 뒤집힌다). CG90 은 **스윕 경로**에서 공통 후보집합(restrict-q 0.05) top-k 로 이 교란을 통제해 k=3 Δprec +0.0815(p=1e-4) · k=5 +0.0587(p<1e-4)를 얻었다 — 같은 계측기를 **생산 경로**(champion_robust_eval --dump-preds)에 적용하면 승격 요청의 마지막 구멍이 닫힌다. 코드 변경 0(‑-dump-preds 는 2026-10-01 CG54 배선 완료).",
+      "metric": "topk_precision",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 5 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg93_q05_preds.jsonl --dump-tag cg92_q05 --out /app/reports/overnight/cg93_q05_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q30 --label-kind quantile --label-q 0.30 --horizon 5 --folds 5 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg93_q30_preds.jsonl --dump-tag cg92_q30 --out /app/reports/overnight/cg93_q30_robust.json' && docker exec stock_xgboost_ml sh -c 'cat /app/reports/overnight/cg93_q05_preds.jsonl /app/reports/overnight/cg93_q30_preds.jsonl > /app/reports/overnight/cg93_preds.jsonl' && python3 scripts/topk_precision.py services/xgboost-ml/reports/overnight/cg93_preds.jsonl --k 3,5,10 --arm cg92_q05 --control cg92_q30 --restrict-q 0.05 --min-pool 20 --json-out /app/reports/overnight/cg93_topk.json",
+      "counterfactual": "cg92_q30 (같은 창·같은 유니버스·같은 행 원본에서 학습한 q0.30 arm — 학습된 모델 재사용, 재학습 없음)",
+      "success": "공통 후보집합(restrict-q 0.05)에서 k=3 **과** k=5 둘 다 Δprec 짝 평균 ≥ +0.05 이고 동점제외 부호검정 p<0.05, Δfwd_ret > 0 → 라벨 꼬리 레버가 생산 경로에서도 과제 난이도 효과가 아님 → 승격 검토(리뷰보드 승인 요청) 근거 완성. 미달이면 '생산 경로 꼬리 이득은 행 도메인 교란'으로 판정하고 승격 요청을 철회한다.",
+      "expected": "CG90(스윕 경로)과 같은 계측기·같은 패널 규모(200종목)라 통과 개연성이 높다. 단 채점 행이 ~12~20/일로 얇아 k=5 포화(saturated) 위험이 있다 — 포화 셀은 판정에서 제외된다.",
+      "cost": "평가 2회(모델 학습 재사용, 체크포인트 불필요) — CG92 평가 2회분 ≈ 30~40분 + 집계 1분",
+      "est_minutes": 60,
+      "note": "2026-10-04 04:0x 신설(주말 자율 세션). 계기: ① CG92 생산 경로 짝 Δ +0.0459(5/5 · t 3.83) 재현 성공 ② 그러나 행 도메인 차이(799 vs 4,798)가 남아 승격 요청의 실질성 근거가 스윕 경로(CG90)에만 있다 ③ 코드 변경 0 — champion_robust_eval --dump-preds·topk_precision metric 은 이미 배선(CG54). ⚠ 두 평가는 같은 --folds/--dates-per-fold/--universe-seed 를 써야 (fold,date) 키가 맞는다. ⚠ metric=topk_precision 의 --json-out 은 컨테이너 경로(/app/...)로 적어야 구동기가 호스트 경로로 변환한다.",
+      "status": "pending"
     }
   ]
 }
