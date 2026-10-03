@@ -627,6 +627,18 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: policy_compare 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "panel_leak_gate":
+        # 패널 누수 지문 사전 게이트(scripts/panel_leak_gate.py --json-out). CG85.
+        # 하드 판정규칙 ③(누수 게이트)은 '종목 상수 피처가 선별을 지배하면 중단'인데, 그 지문을
+        # 실험 **전에** 판정하는 계측기가 없었다 — 실측(2026-10-03)으로 패널 함대가 as-of 수리
+        # 시점(2026-10-02) 전후로 갈리는 것을 확인했고(CLEAN: asof3/asof4ev/prod200 ·
+        # LEAKY: 150u/995/asofpatch/asof2), 그 판정을 원장에 남기려면 전용 파서가 필요하다.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 패널별 판정은 `panels` 로 싣는다.
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: panel_leak_gate 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -923,6 +935,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_calibration_probe(spath, mtime_floor)
     if kind == "policy_compare":
         return parse_policy_compare(spath, mtime_floor)
+    if kind == "panel_leak_gate":
+        return parse_panel_leak_gate(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -1172,6 +1186,80 @@ def judge_policy_compare(item, parsed) -> tuple:
     return "정책 교체 근거 없음", detail, round(delta, 6) if delta is not None else None
 
 
+def parse_panel_leak_gate(path, mtime_floor) -> dict:
+    """패널 누수 지문 사전 게이트(scripts/panel_leak_gate.py --json-out)를 파싱한다.
+
+    스키마: {n_panels, n_clean, n_leaky, clean: [...], leaky: [...], missing: [...],
+             panels: {파일명: {verdict, rows, cols, n_stocks, date_min, date_max,
+                              leaky_columns, offenders}}}
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장 per_exp 전체를 'arm 폴드 평균(AUC)'으로
+    읽어 best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 패널별 판정은 `panels` 키다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if "panels" not in d:
+        return {"error": "요약에 panels 가 없음 — 계측기 출력 형식을 확인하라"}
+    return {
+        "summary_mtime": mt, "generated_at": d.get("generated_at"),
+        "n_panels": d.get("n_panels"), "n_clean": d.get("n_clean"), "n_leaky": d.get("n_leaky"),
+        "clean": d.get("clean") or [], "leaky": d.get("leaky") or [],
+        "missing": d.get("missing") or [],
+        "panels": {k: {kk: (v or {}).get(kk) for kk in
+                       ("verdict", "rows", "cols", "n_stocks", "date_min", "date_max",
+                        "leaky_columns")}
+                   for k, v in (d.get("panels") or {}).items()},
+    }
+
+
+def judge_panel_leak_gate(item, parsed) -> tuple:
+    """패널 누수 지문 게이트 판정 — **AUC 판정이 아니다**(스냅샷 청정성 판정).
+
+    사전등록(항목 필드로 override 가능):
+      실험에 쓰는 패널(`--panels` 로 지정하거나 `require_clean` 목록) 중 하나라도 LEAKY 면
+      '누수 발견' — 하드 판정규칙 ③에 따라 그 패널로 측정한 절대값은 인용 금지, 승격 후보 제외.
+      전부 CLEAN 이면 '누수 없음'.
+
+    ⚠ 이미 실행된 실험을 소급 무효화하지 않는다 — 같은 런·같은 패널의 **짝 Δ**(arm vs 대조군)는
+    공통 오염이 상쇄되어 귀속에 유효하다. 문제는 ①누수 컬럼이 선별(top-k)에 들어가 슬롯을 먹는 것
+    ②수리 전후 절대값을 비교하는 것이다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    leaky = parsed.get("leaky") or []
+    clean = parsed.get("clean") or []
+    req = item.get("require_clean") or []
+    if req:
+        bad = [p for p in req if p in leaky]
+        ok = not bad
+    else:
+        bad, ok = leaky, not leaky
+    detail = (f"패널 {parsed.get('n_panels')}개 스캔 — 청정 {len(clean)}개 {clean} · "
+              f"누수 {len(leaky)}개 {leaky}")
+    if req:
+        detail += f" · 검사요청 {req} → 위반 {bad}"
+    panels = parsed.get("panels") or {}
+    leaky_detail = "; ".join(
+        f"{p}: {'/'.join((panels.get(p) or {}).get('leaky_columns') or [])}"
+        for p in bad[:6])
+    if not ok:
+        return ("누수 발견",
+                detail + f" → 실험 금지(수리 후 재빌드 필요). 누수 컬럼 {leaky_detail}",
+                float(len(leaky)))
+    return "누수 없음", detail + " → 실험 가능", float(len(leaky))
+
+
 def parse_topk_precision(path, mtime_floor) -> dict:
     """상위 k 정밀도·실현수익 짝 집계(scripts/topk_precision.py --json-out)를 파싱한다.
 
@@ -1339,6 +1427,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_calibration_probe(item, parsed)
     if kind == "policy_compare":
         return judge_policy_compare(item, parsed)
+    if kind == "panel_leak_gate":
+        return judge_panel_leak_gate(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 

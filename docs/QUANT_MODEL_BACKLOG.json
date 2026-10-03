@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-03T22:06:33+09:00",
+  "updated_at": "2026-10-03T23:04:01+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -10302,7 +10302,7 @@
     {
       "id": "CG84",
       "title": "소비 문턱 정책의 실현수익 검정 — 절대문턱 vs 분위(top-k) 짝 비교 (AUC→돈 경로, CG82 ③)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "affects_model": false,
       "metric": "policy_compare",
@@ -10315,8 +10315,23 @@
       "est_minutes": 2,
       "setup_needed": "① `scripts/calibration_probe.py` 에 (fold,date) 짝 정책 비교 섹션 추가 또는 신규 `scripts/policy_compare_probe.py` — 절대문턱 vs top-k 의 평균 실현수익 Δ·부호검정(p)·날짜 수를 낸다 ② metric 신설(`policy_compare`, --json-out, per_exp 금지) + parse/judge/summary_path 배선을 **같은 커밋에서** ③ 자율 실행 가능(읽기 전용). 소비자 경로 수정(CG82 ①)은 여전히 트레이더 파일 = 승인 대상.",
       "note": "2026-10-03 22:2x 주말 자율 세션 신설(규칙 4 후속). CG82 의 ①②는 CG83 으로 채워졌고 남은 것은 ③(실현수익)이다. 이 항목이 끝나면 '모델 측 닫힘 + 소비 정책 근거 완비' 상태가 되어 남은 레버는 원천 확보(수집·승인)뿐이다. | 2026-10-03 23:0x 셋업 구현 완료(자율): `scripts/policy_compare_probe.py` 신설 — 같은 (fold,date) 안에서 절대문턱 진입집합 vs top-k 진입집합의 평균 실현수익 짝 Δ + 부호검정(양측, 동점 제외, 1e-12 미만 동점 처리) + 양(+) 날짜 비율. raw 와 cross-fitted Platt 두 스케일 각각 산출(판정은 raw=현 배포 스케일). metric `policy_compare` 배선 완료(summary_path·parse_policy_compare·judge_policy_compare, per_exp 미생성 — scoreboard 오독 방지). 검증: `python3 scripts/_policy_compare_test.py` 27/27 PASS + 기존 회귀 7종 PASS.",
-      "attempts": [],
-      "result": null,
+      "attempts": [
+        {
+          "ts": "2026-10-03T23:04:01+09:00",
+          "rc": 0,
+          "verdict": "정책 교체 근거 없음",
+          "detail": "[raw] k3: Δ+0.0206(+2.06%) 양(+) 107/225(rate 0.4756) p 0.505074 · k5: Δ+0.0124(+1.24%) 양(+) 116/225(rate 0.5156) p 0.689249 · k10: Δ+0.0078(+0.78%) 양(+) 118/225(rate 0.5244) p 0.382978 → 사전등록 통과 0/3개(필요 2 · Δ>0 · pos_rate≥0.6 · p<0.05) | 보조[platt] k3: Δ+0.0159 p 0.693686",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG84_20261003-230358.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "정책 교체 근거 없음",
+        "detail": "[raw] k3: Δ+0.0206(+2.06%) 양(+) 107/225(rate 0.4756) p 0.505074 · k5: Δ+0.0124(+1.24%) 양(+) 116/225(rate 0.5156) p 0.689249 · k10: Δ+0.0078(+0.78%) 양(+) 118/225(rate 0.5244) p 0.382978 → 사전등록 통과 0/3개(필요 2 · Δ>0 · pos_rate≥0.6 · p<0.05) | 보조[platt] k3: Δ+0.0159 p 0.693686",
+        "delta": 0.012443,
+        "per_exp": null,
+        "rc": 0
+      },
       "policy_scale": "raw",
       "min_pos_rate": 0.6,
       "max_p": 0.05,
