@@ -167,7 +167,7 @@ def _split_oos(windows: list[list[str]], train_start: str,
     return [w for w in windows if keep(w)], [w for w in windows if not keep(w)]
 
 
-def _make_labels(rets, kind: str = "rel"):
+def _make_labels(rets, kind: str = "rel", q: float | None = None) -> list:
     """라벨 생성 — kind='rel'(기본) = 시장상대 중앙값, kind='abs' = 절대 방향(r > 0).
 
     왜 'abs' 가 필요한가 (2026-09-29 실측 CG36): 이 스크립트의 라벨은 **시장상대 중앙값**인데
@@ -175,9 +175,22 @@ def _make_labels(rets, kind: str = "rel"):
     L44-58). 즉 CG34(h=5)·CG36(h=1)는 모두 '다른 과제' 점수이고, 챔피언의 자기 과제 OOS 는
     아직 측정된 적이 없다. 같은 날짜·같은 모델·같은 피처에서 라벨만 바꾸면 그 값이 나온다.
     기본값은 'rel' 이라 기존 호출·기록은 비트 동일하게 유지된다.
+
+    kind='quantile'(2026-10-04 CG92): 그날 표본의 **분위 꼬리** 라벨 —
+    r > quantile(1-q) = 1, r < quantile(q) = 0, 가운데는 **None**(채점 제외).
+    retrain_champion --label-kind quantile 과 **같은 정의**여야 '자기 과제' 점수가 된다
+    (CG36/37 교훈: 학습 라벨과 평가 라벨의 종류가 다르면 그 값은 자기 과제가 아니다).
+    ⚠ 반환 리스트에 None 이 섞이므로 호출자가 행을 걸러내야 한다(main 참조).
     """
     if kind == "abs":
         return [1 if r > 0 else 0 for r in rets]
+    if kind == "quantile":
+        if not q or not (0.0 < float(q) < 0.5):
+            raise ValueError(f"quantile 라벨은 q in (0, 0.5) 가 필요하다 (받은 값: {q!r})")
+        arr = np.asarray(rets, dtype=float)
+        hi = float(np.quantile(arr, 1.0 - float(q)))
+        lo = float(np.quantile(arr, float(q)))
+        return [1 if r > hi else (0 if r < lo else None) for r in arr]
     med = statistics.median(rets)
     return [1 if r > med else 0 for r in rets]
 
@@ -188,10 +201,16 @@ def main() -> int:
     ap.add_argument("--dates-per-fold", type=int, default=10)
     ap.add_argument("--stocks", type=int, default=80)
     ap.add_argument("--horizon", type=int, default=5, help="라벨 호라이즌(거래일)")
-    ap.add_argument("--label-kind", choices=("rel", "abs"), default="rel",
+    ap.add_argument("--label-kind", choices=("rel", "abs", "quantile"), default="rel",
                     help="라벨 종류. rel=시장상대 중앙값(기존 프로토콜·기본값), "
                          "abs=절대 방향(r>0) — abs 는 배포 챔피언이 실제로 학습한 과제다"
-                         "(retrain_champion._create_labels: 1일 선행 종가 방향)")
+                         "(retrain_champion._create_labels: 1일 선행 종가 방향), "
+                         "quantile=그날 분위 꼬리(--label-q 로 q 지정; 가운데 분위는 채점 제외) — "
+                         "retrain_champion --label-kind quantile 로 학습한 후보의 **자기 과제** 점수")
+    ap.add_argument("--label-q", dest="label_q", type=float, default=None,
+                    help="분위 꼬리 라벨의 q (0<q<0.5). --label-kind quantile 과 함께만 쓴다. "
+                         "학습 라벨의 q 와 **같은 값**을 줘야 자기 과제가 된다(CG36/37). "
+                         "기본 None = 현행.")
     ap.add_argument("--train-start", default=None,
                     help="학습 데이터 **시작일**(YYYY-MM-DD). 학습구간과 겹치는 창은 AUC 가 "
                          "부풀려지므로 제외한다. 미지정 시 model_dir 의 training-result-*.json "
@@ -229,6 +248,14 @@ def main() -> int:
                          "승격 기준선 robust_auc.json 은 champion_promote 가 지표 동형으로 "
                          "기록한다 — 여기서 덮어쓰면 단일 분할/워크포워드가 섞여 판정이 느슨해진다")
     args = ap.parse_args()
+
+    # 라벨 옵션 정합(2026-10-04 CG92): quantile 은 q 필수, q 는 quantile 전용.
+    if args.label_kind == "quantile" and args.label_q is None:
+        ap.error("--label-kind quantile 은 --label-q <분위> 가 필요하다 (예: --label-q 0.05)")
+    if args.label_q is not None and args.label_kind != "quantile":
+        ap.error("--label-q 는 --label-kind quantile 과만 함께 쓴다")
+    if args.label_q is not None and not (0.0 < args.label_q < 0.5):
+        ap.error("--label-q 는 0 < q < 0.5 범위여야 한다")
 
     conn = psycopg2.connect(
         host=os.environ.get("POSTGRES_HOST", "postgres"),
@@ -382,7 +409,18 @@ def main() -> int:
             if len(rets) < 10:
                 continue
 
-            y = _make_labels(rets, args.label_kind)
+            y = _make_labels(rets, args.label_kind, args.label_q)
+            if args.label_kind == "quantile":
+                # 가운데 분위(None)는 채점에서 제외한다 — 학습 라벨과 같은 행 도메인이어야
+                # '자기 과제' 점수가 된다(retrain_champion --label-kind quantile 과 동일 규칙).
+                _keep = [i for i, v in enumerate(y) if v is not None]
+                if len(_keep) < 10:
+                    logger.info("%s: quantile 라벨 후 표본 %d개 — 건너뜀", date, len(_keep))
+                    continue
+                codes = [codes[i] for i in _keep]
+                probs = [probs[i] for i in _keep]
+                rets = [rets[i] for i in _keep]
+                y = [int(y[i]) for i in _keep]
             if len(set(y)) < 2:
                 # 전 종목 동일 라벨(예: 급등일 전부 상승) → AUC 정의 불가. 날짜만 세고 버린다.
                 logger.info("%s: 라벨 단일값 — AUC 정의 불가, 건너뜀", date)
@@ -418,12 +456,15 @@ def main() -> int:
         return 2
 
     fold_means = [f["auc_mean"] for f in fold_stats]
+    _lbl_desc = {"rel": "시장상대 중앙값", "abs": "절대 방향(>0)",
+                 "quantile": f"분위 꼬리 q={args.label_q}(가운데 제외)"}[args.label_kind]
     payload = {
         "model_dir": args.model_dir,
         "protocol": (f"{len(fold_stats)}-fold 연속 시간창, h={args.horizon} "
-                     f"{'시장상대 중앙값' if args.label_kind == 'rel' else '절대 방향(>0)'} 라벨, "
+                     f"{_lbl_desc} 라벨, "
                      f"크로스섹션 AUC, purge={args.horizon}거래일"),
         "label_kind": args.label_kind,
+        "label_q": (float(args.label_q) if args.label_q is not None else None),
         "universe": universe_info,          # 무엇을 채점했는가(모드·ETF 수·학습유니버스 교집합)
         "metric": "cross_sectional_auc_mean",
         "robust_auc": round(statistics.mean(fold_means), 4),

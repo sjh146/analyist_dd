@@ -98,6 +98,49 @@ def _create_labels_relative(df: pd.DataFrame, horizon: int = 5,
     return labels
 
 
+def _create_labels_quantile(df: pd.DataFrame, horizon: int = 5,
+                            q: float = 0.05) -> np.ndarray:
+    """**분위 꼬리** 라벨 — 그날 횡단면 h일 선행수익의 상위 q=1 / 하위 q=0 / 가운데 NaN.
+
+    `wf_wave.make_labels(kind="quantile")`(스윕 프로토콜)과 **같은 정의**다:
+      hi = 그날 quantile(1-q), lo = 그날 quantile(q) → ret>hi = 1, ret<lo = 0, 나머지 NaN.
+    왜 필요한가(2026-10-04, CG92): 청정 패널(panel_prod200) 스윕 실측에서 라벨 꼬리
+    (q0.05)가 사전문턱·실질성을 모두 통과했다(CG89 구간 짝 Δ+0.0406 5/5 · CG90 공통
+    후보집합 top-k k=3 +0.0815 p=1e-4 · CG91 dose-response q0.30 0.5305 → q0.10 0.5450 →
+    q0.05 0.5841). 그러나 그 셋은 전부 **스윕 프로토콜**이라, 승격 전에 배포 경로
+    (retrain_champion → champion_robust_eval)로 재현해야 한다(CG9c·CG22 전례).
+
+    ⚠ 가운데 분위는 **학습에서 제외**한다(wf_label_sweep L1518 `d=d[~isna(_y)]` 와 동일) —
+    호출자가 NaN 행을 버려야 스윕과 같은 과제가 된다. 안 버리면 가운데 행이 라벨 0 으로
+    학습돼 'q0.05' 가 아니라 '하위 50% 방향' 과제가 된다(조용한 정의 이탈).
+    ⚠ 시점정합: 선행수익(shift(-h))만 본다. 마지막 h행은 라벨 없음(NaN).
+    """
+    out = np.full(len(df), np.nan, dtype=np.float64)
+    if not {"stock_code", "price", "date"} <= set(df.columns):
+        return out
+    price = df["price"].to_numpy(dtype=np.float64)
+    codes = df["stock_code"].to_numpy()
+    fwd = np.full(len(df), np.nan, dtype=np.float64)
+    # 위치 기반 그룹(인덱스 라벨에 의존하지 않는다 — reset_index 가 안 된 df 여도 안전).
+    for _code in pd.unique(codes):
+        idx = np.flatnonzero(codes == _code)
+        p = price[idx]
+        n = len(p)
+        vals = np.full(n, np.nan, dtype=np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            for j in range(n - horizon):
+                vals[j] = p[j + horizon] / p[j] - 1.0
+        fwd[idx] = vals
+    s = pd.Series(fwd)
+    day = df["date"].to_numpy()
+    hi = s.groupby(day).transform(lambda x: x.quantile(1.0 - q)).to_numpy()
+    lo = s.groupby(day).transform(lambda x: x.quantile(q)).to_numpy()
+    with np.errstate(invalid="ignore"):
+        out[fwd > hi] = 1.0
+        out[fwd < lo] = 0.0
+    return out
+
+
 def _add_cross_sectional_ranks(df: pd.DataFrame) -> pd.DataFrame:
     """Batch-level cross-sectional ranks, replicating
     FeaturePipeline.compute_cross_sectional_ranks / Trainer (trainer.py:107-118)."""
@@ -148,6 +191,7 @@ def retrain_champion(
     label_kind: str = "h1_direction",
     horizon: int = 5,
     model_params: Optional[dict] = None,
+    label_q: Optional[float] = None,
 ) -> dict:
     """Core retrain (DB-free, testable): train 3 models on ONE canonical matrix.
 
@@ -155,8 +199,11 @@ def retrain_champion(
       * "h1_direction" — 절대 1일 선행 종가 방향(기존 챔피언 라벨)
       * "rel"          — h일 선행수익의 **시장상대 중앙값** 분할(평가 경로와 같은 정의)
       * "rel_smooth"   — 위 + 1~h일 수익률 평균(보유기간 정합)
+      * "quantile"     — h일 선행수익의 **그날 분위 꼬리**(label_q 로 q 지정). 가운데 분위는
+                         학습에서 제외된다(wf_wave.make_labels(kind="quantile") 와 같은 정의).
     model_params(기본 None = 현행): {"max_depth":1,"learning_rate":0.05} 처럼 주면 각 모델의
       params 사전에 **있는 키만** 덮어쓴다(스윕 recipe 의 depth·lr 을 생산 경로로 옮기는 통로).
+    label_q(기본 None): "quantile" 일 때 필수(0<q<0.5). 다른 label_kind 에 주면 무시된다.
 
     Returns a summary dict with per-model val AUC, ensemble AUC, feature count.
     """
@@ -166,10 +213,23 @@ def retrain_champion(
 
     df = _add_cross_sectional_ranks(df)
     df = df.sort_values("date").reset_index(drop=True)
+    n_middle_dropped = 0
     if label_kind == "h1_direction":
         y = _create_labels(df)
     elif label_kind in ("rel", "rel_smooth"):
         y = _create_labels_relative(df, horizon=horizon, smooth=(label_kind == "rel_smooth"))
+    elif label_kind == "quantile":
+        if not label_q or not (0.0 < float(label_q) < 0.5):
+            raise ValueError(f"quantile 라벨은 label_q in (0, 0.5) 가 필요하다 (받은 값: {label_q!r})")
+        yq = _create_labels_quantile(df, horizon=horizon, q=float(label_q))
+        keep = np.isfinite(yq)
+        n_middle_dropped = int((~keep).sum())
+        if int(keep.sum()) < 200:
+            raise ValueError(
+                f"quantile 라벨 후 학습행이 {int(keep.sum())} — 표본 부족"
+                f"(q={label_q}, 원 행 {len(df)})")
+        df = df.loc[keep].reset_index(drop=True)
+        y = yq[keep].astype(int)
     else:
         raise ValueError(f"unknown label_kind: {label_kind!r}")
 
@@ -265,6 +325,10 @@ def retrain_champion(
         # 있어야 A/B 해석이 성립한다(CG36 교훈: 라벨 종류를 안 적어 두면 자기 과제 점수를 오독한다).
         "label_kind": label_kind,
         "horizon": int(horizon),
+        "label_q": (float(label_q) if label_q is not None else None),
+        # quantile 라벨에서 가운데 분위로 **버린 행 수**(스윕과 같은 과제인지 확인용).
+        # 0 이 아니면 라벨 꼬리 과제다 — AUC 해석 시 '과제 정의가 다름'을 함께 적어야 한다.
+        "n_middle_dropped": int(n_middle_dropped),
         "model_params_override": dict(model_params) if model_params else None,
     }
     meta_path = os.path.join(out_dir, f"training-result-{datetime.now():%Y%m%d-%H%M%S}.json")
@@ -292,12 +356,18 @@ def main() -> None:
                          "실측상 무작위 표본). liquidity = 최근 60일 일평균 거래대금 상위 "
                          "(결정적 정렬 — 짝 비교용). 어느 모드든 ETF/ETN 은 제외된다.")
     ap.add_argument("--label-kind", dest="label_kind",
-                    choices=("h1_direction", "rel", "rel_smooth"), default="h1_direction",
+                    choices=("h1_direction", "rel", "rel_smooth", "quantile"),
+                    default="h1_direction",
                     help="학습 라벨 정의. 기본 h1_direction = 현행(절대 1일 선행 종가 방향). "
                          "rel = h일 선행수익의 시장상대 중앙값(평가 경로 champion_robust_eval 과 "
-                         "같은 정의), rel_smooth = 위 + 1~h일 수익률 평균(5일 보유 정합).")
+                         "같은 정의), rel_smooth = 위 + 1~h일 수익률 평균(5일 보유 정합), "
+                         "quantile = h일 선행수익의 그날 분위 꼬리(--label-q 로 q 지정; "
+                         "가운데 분위는 학습에서 제외 — 스윕 wf_wave.make_labels 와 같은 정의).")
+    ap.add_argument("--label-q", dest="label_q", type=float, default=None,
+                    help="분위 꼬리 라벨의 q (0<q<0.5). --label-kind quantile 과 함께만 쓴다. "
+                         "예: 0.05 = 상위 5%%=1 / 하위 5%%=0 / 가운데 제외. 기본 None = 현행.")
     ap.add_argument("--horizon", type=int, default=5,
-                    help="rel/rel_smooth 라벨의 선행 거래일 수(기본 5 = 트레이더 보유기간)")
+                    help="rel/rel_smooth/quantile 라벨의 선행 거래일 수(기본 5 = 트레이더 보유기간)")
     ap.add_argument("--model-params", dest="model_params", default=None,
                     help='모델 params 덮어쓰기 JSON. 예: \'{"max_depth":1,"learning_rate":0.05}\'. '
                          "각 모델 params 에 있는 키만 적용된다(기본 None = 현행).")
@@ -315,6 +385,15 @@ def main() -> None:
                          "키가 유지된다 — 매일 '오늘'로 밀리면 체크포인트도 매일 폐기된다). "
                          "기본 None = 현행 동작(체크포인트 없음).")
     args = ap.parse_args()
+
+    # 라벨 옵션 정합(2026-10-04 CG92): quantile 은 q 가 필수이고, q 는 quantile 전용이다.
+    # 조용히 무시하면 '라벨을 바꿨다'고 믿고 같은 실험을 두 번 돌린다(EV1 사고와 동형).
+    if args.label_kind == "quantile" and args.label_q is None:
+        ap.error("--label-kind quantile 은 --label-q <분위> 가 필요하다 (예: --label-q 0.05)")
+    if args.label_q is not None and args.label_kind != "quantile":
+        ap.error("--label-q 는 --label-kind quantile 과만 함께 쓴다")
+    if args.label_q is not None and not (0.0 < args.label_q < 0.5):
+        ap.error("--label-q 는 0 < q < 0.5 범위여야 한다")
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -340,6 +419,7 @@ def main() -> None:
                                 val_frac=args.val_frac, n_estimators=args.n_estimators,
                                 data_start=start_s, data_end=end_s,
                                 label_kind=args.label_kind, horizon=args.horizon,
+                                label_q=args.label_q,
                                 model_params=(json.loads(args.model_params)
                                               if args.model_params else None))
         print(json.dumps(meta, ensure_ascii=False, indent=2))
