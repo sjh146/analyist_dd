@@ -956,7 +956,7 @@
     {
       "id": "R28",
       "title": "저녁 파이프라인(20:00) 컨테이너 내부 수집 단계 자기신고 미배선 — docker exec 경로는 러너 래퍼를 못 쓴다",
-      "status": "partial",
+      "status": "pending",
       "priority": 6,
       "kind": "collect",
       "recurring": true,
