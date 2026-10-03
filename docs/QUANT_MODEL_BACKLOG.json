@@ -10372,6 +10372,47 @@
         "per_exp": null,
         "rc": 0
       }
+    },
+    {
+      "id": "CG86",
+      "priority": 2,
+      "affects_model": true,
+      "title": "청정 패널(prod200·누수 0)에서 배포 가능 arm(스무딩+depth1) 5구간 짝 재측정 — 누수 제거 후에도 결론이 유지되는가",
+      "status": "pending",
+      "metric": "wf_sweep_summary",
+      "arm": "SD1s_* (게이트 ON + 라벨 스무딩 + depth1·lr0.05, rank 없음 — 추론 계약 무변경·배포 가능)",
+      "counterfactual": "US_00_30..US_120_150 (같은 런·같은 구간의 게이트 ON 평범 config = CO_core30_h5 의 구간판)",
+      "pairs": [
+        [
+          "SD1s_00_30",
+          "US_00_30"
+        ],
+        [
+          "SD1s_30_60",
+          "US_30_60"
+        ],
+        [
+          "SD1s_60_90",
+          "US_60_90"
+        ],
+        [
+          "SD1s_90_120",
+          "US_90_120"
+        ],
+        [
+          "SD1s_120_150",
+          "US_120_150"
+        ]
+      ],
+      "hypothesis": "CG85 실측: panel_150u 는 as-of 누수 패널(LEAKY — value_per/pbr/quality_* 종목당유니크 1)이었고, CG69(스무딩+depth1 이 구간마다 대조군을 이기는가)의 Δ+0.0010 판정은 그 누수 패널 위에서 나왔다. 청정 패널은 3개뿐이고 그중 실험 규모를 감당하는 것은 panel_prod200(200종목·54,800행·value_pbr 유니크 192). 누수 컬럼이 edge top30 선별 슬롯을 먹는 동안의 '노이즈' 결론이 청정 데이터에서도 유지되는지가 미측정이다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 3 --only SD1s_00_30,SD1s_30_60,SD1s_60_90,SD1s_90_120,SD1s_120_150,US_00_30,US_30_60,US_60_90,US_90_120,US_120_150 --out /app/reports/overnight/cg86_sweep.jsonl --summary-out /app/reports/overnight/cg86_summary.json'",
+      "success": "구간 짝 Δ(SD1s − US) 평균 ≥ +0.02 그리고 양(+) 구간 ≥ 4/5 → '청정 패널에서 배포 가능 arm 신호있음'(→ 승격 검토 + 기준선 재등록 승인 요청). 미달이면 '청정 데이터에서도 스무딩+depth1 은 성능 축이 아니다'로 축을 닫는다.",
+      "expected": "미지 — 150u 누수판에서는 Δ+0.0010(양(+) 1/5)이었다. 누수 컬럼이 선별에서 빠지면 상위 30 피처 구성이 바뀌므로 값은 달라질 수 있으나 방향은 노이즈일 가능성이 높다.",
+      "cost": "10 config × 5폴드 × 3시드 = 150 cell · 실측 12s/cell 기준 약 30분(경합 시 최대 2배)",
+      "est_minutes": 45,
+      "note": "2026-10-03 23:1x 신설. 계기: CG85(패널 누수 게이트)로 실험 함대가 수리 시점 전후로 갈리는 것을 확인 — CLEAN = asof3·asof4ev·prod200 / LEAKY = 150u·995·asofpatch·asof2·420. 즉 최근 두 축 종결(CG77·CG80)과 CG69 는 누수 패널 위 실측이다(짝 Δ 라 귀속은 유효, 절대값 인용만 금지). 청정 패널에서 표준 arm 을 다시 재는 것이 규칙 '수리 후에는 수리 전 수치를 인용하지 마라'의 이행이다. 시드는 3(시간) — 5로 늘리려면 timeout 도 함께 올려라.",
+      "attempts": [],
+      "result": null
     }
   ]
 }
