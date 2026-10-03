@@ -10336,6 +10336,27 @@
       "min_pos_rate": 0.6,
       "max_p": 0.05,
       "min_k_pass": 2
+    },
+    {
+      "id": "CG85",
+      "title": "패널 누수 지문 사전 게이트 — 실험 전 스냅샷 청정성 판정 + 누수 패널 은퇴 (하드규칙 ③)",
+      "status": "pending",
+      "priority": 1,
+      "affects_model": false,
+      "metric": "panel_leak_gate",
+      "hypothesis": "하드 판정규칙 ③(누수 게이트: 종목 상수 피처가 선별을 지배하면 중단)을 실험 **전에** 판정하는 계측기가 없었다. 2026-10-03 실측에서 패널 함대가 as-of 수리 시점(2026-10-02 CG63 getter 수정) 전후로 정확히 갈렸다 — CLEAN(수리 후 빌드): panel_420_asof3·asof4ev·panel_prod200 (value_pbr 종목당유니크 중앙 182·value_per 157·quality_roa 3) / LEAKY(수리 전 빌드): panel_150u·panel_995·panel_420_asofpatch(유니크 중앙 1)·panel_420_asof2(부분 — value_* getter 미수리, 유니크 2). 즉 최근 두 축 종결 실측(CG77 표본가중·CG80 목적함수)은 **누수 패널(150u)** 에서 나왔다.",
+      "counterfactual": "실험 전 청정성 무검사(지문을 사후에야 발견)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/panel_leak_gate.py --json-out /app/reports/overnight/cg85_panel_gate.json'",
+      "success": "스냅샷 함대 전부에 대해 verdict(CLEAN/LEAKY)와 누수 컬럼이 원장에 기록되고, 실험에 쓸 패널은 `require_clean` 으로 지정돼 LEAKY 면 '누수 발견' 으로 판정된다. AUC 판정 아님(진단).",
+      "expected": "2개 이상 LEAKY(150u·995·asofpatch) → 그 패널들 실험 금지·수리 후 재빌드 대상. 짝 Δ 는 공통 오염이 상쇄되어 유효하나 절대값 인용은 금지.",
+      "cost": "실행 1~2분(읽기 전용, npz 17개 스캔)",
+      "est_minutes": 3,
+      "note": "2026-10-03 23:0x 주말 자율 세션 신설. 계기: CG84 로 소비 정책 축까지 닫힌 뒤(규칙 4 = 실행 가능 pending 0) `_panel_leak_probe.py` 를 prod200·995·150u·asof2·asof3·asof4ev·asofpatch 에 돌린 실측 — 누수 지문이 **빌드 시점**을 정확히 반영했다. 도구 `scripts/panel_leak_gate.py` 신설(지문 컬럼 18종 · 비영 5% 미만은 '데이터 부재'로 누수 판정 제외 · --strict rc=1) + metric `panel_leak_gate` 배선(summary_path·parse·judge, per_exp 미생성). 검증: `docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_panel_leak_gate_test.py` 22/22 PASS. ⚠ 소급 무효화 아님 — 같은 패널·같은 런의 짝 Δ(arm vs 대조군)는 공통 오염이 상쇄되어 귀속에 유효하다.",
+      "require_clean": [
+        "panel_prod200.npz"
+      ],
+      "attempts": [],
+      "result": null
     }
   ]
 }
