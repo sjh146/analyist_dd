@@ -37,8 +37,12 @@ def check(name, cond, got=""):
         print(f"  FAIL {name} {got}")
 
 
-def _panel(n_stocks=4, n_dates=6, constant=False, zero=False, cols=None):
-    """합성 패널 — codes/dates/feature_names/X."""
+def _panel(n_stocks=4, n_dates=12, constant=False, zero=False, two_valued=False, cols=None):
+    """합성 패널 — codes/dates/feature_names/X.
+
+    n_dates 기본 12: value_* 는 '일별 변동' 계층(청정이면 유니크 ≥ 10)이라 6일짜리 합성 패널은
+    누수로 오판된다(그게 실제 규칙이다).
+    """
     import numpy as np
     names = cols or ["value_pbr", "quality_roa", "momentum_1m", "noise_feat"]
     codes, dates, rows = [], [], []
@@ -50,6 +54,8 @@ def _panel(n_stocks=4, n_dates=6, constant=False, zero=False, cols=None):
             for i, n in enumerate(names):
                 if constant:
                     vals.append(0.5 if not zero else 0.0)
+                elif two_valued and n in ("value_pbr", "value_per", "value_psr", "value_pcr"):
+                    vals.append(0.5 if d < n_dates // 2 else 0.6)     # 종목당 유니크 2 (거의 상수)
                 else:
                     vals.append(0.1 * (s + 1) + 0.01 * (d + 1) + 0.001 * i)
             rows.append(vals)
@@ -78,6 +84,14 @@ def main():
     print("[3] classify — 상수지만 전부 0(데이터 부재) → CLEAN")
     r3 = g.classify(*_panel(constant=True, zero=True))
     check("verdict CLEAN", r3["verdict"] == "CLEAN", got=f"{r3['verdict']} {r3['leaky_columns']}")
+
+    print("[3b] classify — '거의 상수'(유니크 2) price ratio → LEAKY")
+    r3b = g.classify(*_panel(two_valued=True))
+    check("verdict LEAKY", r3b["verdict"] == "LEAKY", got=r3b["verdict"])
+    check("value_pbr 잡힘(임계 10)", "value_pbr" in r3b["leaky_columns"],
+          got=str(r3b["leaky_columns"]))
+    check("quality_roa 는 통과(임계 2)", "quality_roa" not in r3b["leaky_columns"],
+          got=str(r3b["leaky_columns"]))
 
     print("[4] summary_path 배선")
     cmd = ("docker exec stock_xgboost_ml python /app/scripts/panel_leak_gate.py "

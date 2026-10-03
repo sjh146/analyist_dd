@@ -33,15 +33,29 @@ import numpy as np
 
 # as-of 누수에 취약한 재무 getter 계열(= date 인자가 없던 경로). 이들이 '비영인데 종목 상수'면
 # 빌드 시점 최신 보고서가 과거 행에 들어간 룩어헤드 지문이다.
-OFFENDERS = [
-    "value_per", "value_pbr", "value_psr", "value_pcr", "value_ncav",
-    "roe", "per_current", "pbr_current",
+#
+# 두 계층으로 나눈다 — 임계값 1 만 쓰면 **'거의 상수'(유니크 2)** 누수를 놓친다(실측 2026-10-03:
+# panel_420_asof2 의 value_pbr/value_per 유니크 중앙 2 가 게이트를 통과해 CLEAN 으로 오판됐다.
+# 같은 컬럼이 청정 패널(prod200)에서는 118~215, asof3 에서는 157~182 다).
+#   ① 가격 파생 비율 — 청정 패널에서 **일별로 변한다**(≥ 10 이 정상). 누수면 1~2.
+DAILY_VARYING = ["value_per", "value_pbr", "value_psr", "value_pcr"]
+MIN_UNIQUE_DAILY = 10
+#   ② 보고서 기반 지표 — 보고서가 갱신되는 만큼(2~5) 변한다. 누수면 1(단일 스냅샷).
+#      (roe/per_current/pbr_current/value_ncav 는 청정 패널에서도 2 수준이라 ①에 넣으면 오탐한다.)
+REPORT_BASED = [
+    "roe", "per_current", "pbr_current", "value_ncav",
     "debt_ratio", "op_margin", "net_margin", "revenue", "operating_profit", "net_income",
     "quality_roa", "quality_score", "quality_f_score", "quality_asset_growth",
 ]
+MIN_UNIQUE_REPORT = 2
+OFFENDERS = DAILY_VARYING + REPORT_BASED
 # 이 비영 비율 미만이면 '데이터가 없어 상수'일 뿐 누수라 단정하지 않는다(예: value_ncav 0%).
 MIN_NONZERO_PCT = 5.0
 DEFAULT_DIR = "/app/app/models/wf"
+
+
+def _threshold(name):
+    return MIN_UNIQUE_DAILY if name in DAILY_VARYING else MIN_UNIQUE_REPORT
 
 
 def classify(names, X, codes, dates):
@@ -59,10 +73,12 @@ def classify(names, X, codes, dates):
             per[c].add(round(float(col[r]), 6))
         uniq = sorted(len(v) for v in per.values())
         med = uniq[len(uniq) // 2] if uniq else 0
+        thr = _threshold(name)
         rec = {"median_unique": med, "min_unique": uniq[0] if uniq else 0,
-               "max_unique": uniq[-1] if uniq else 0, "nonzero_pct": round(nz, 2)}
+               "max_unique": uniq[-1] if uniq else 0, "nonzero_pct": round(nz, 2),
+               "min_unique_required": thr}
         offenders[name] = rec
-        if med <= 1 and nz >= MIN_NONZERO_PCT:
+        if med < thr and nz >= MIN_NONZERO_PCT:
             leaky.append(name)
     out = {
         "rows": int(X.shape[0]), "cols": len(names), "n_stocks": len(set(codes)),
