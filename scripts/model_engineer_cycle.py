@@ -2217,9 +2217,19 @@ def tick(force=False):
         save_backlog(_hb)
         for _iid, _st in _promoted:
             print(f"  핸드오프 승격: {_iid} → {_st}")
-    _left = len(handoff_items(_hb))
-    if _left:
-        print(f"  핸드오프 대기(실행 전) {_left}건 — 매 틱 1건씩 큐로 올린다")
+    # 실측(2026-10-04 00:0x): handoff_items 는 status in (backlog, needs_setup) 을 모두 세는데
+    # promote_handoffs 는 **backlog 만** 승격한다. 그런데 종전 메시지는 합계를 그대로 찍어
+    # "매 틱 1건씩 큐로 올린다"고 오보했다 → 11건 전부 needs_setup 인 동안 큐가 전혀 줄지
+    # 않는데도 구동기가 스스로 도는 것처럼 보였다(운영자가 '자동 소비 중'으로 오독).
+    _hb_items = handoff_items(_hb)
+    _hb_backlog = [i for i in _hb_items if i.get("status") == "backlog"]
+    _hb_ns = [i for i in _hb_items if i.get("status") == "needs_setup"]
+    if _hb_backlog:
+        print(f"  핸드오프 대기 {len(_hb_backlog)}건(backlog) — 매 틱 1건씩 큐로 올린다")
+    if _hb_ns:
+        print(f"  핸드오프 셋업 대기 {len(_hb_ns)}건(needs_setup) — 승격이 아니라 "
+              f"셋업 구현이 필요하다: {', '.join(i['id'] for i in _hb_ns[:6])}"
+              f"{' …' if len(_hb_ns) > 6 else ''}")
     pid = running_pid()
     if pid:
         st = {}
