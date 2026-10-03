@@ -959,7 +959,7 @@
       "status": "partial",
       "priority": 6,
       "kind": "collect",
-      "recurring": false,
+      "recurring": true,
       "affects_model": false,
       "hypothesis": "R23/R27 은 '호스트에서 도는 크론 직행 러너'만 다뤘다. 저녁 파이프라인 Phase 1-1(yfinance 시세·기술지표)은 `docker exec -i stock_yfinance_collector sh -c 'cat > /tmp/phase_1_1.py'` 로 **컨테이너 내부에서** 돌아 scripts/dq_claim.py 가 그 컨테이너에 없으므로 자기신고가 원리적으로 불가능하다. 이 경로는 market_data 를 ON CONFLICT DO NOTHING 으로 채우므로(실측 2026-10-02 20:00 로그: 'market_data 적재 모드: 빈 자리만 채우기(DO NOTHING)') 조용한 0행 적재가 나도 사후에 구분되지 않는다 — R23 이 막으려던 바로 그 유형이 다른 실행 위치에 남아 있다.",
       "evidence": "실측 2026-10-02 21:2x: `dq_runner_claim` 에 runner LIKE 'yfinance%' 행이 최근 30일 **0건**(관측 러너 17종 중). 같은 시각 market_data 최신일(10-02) 3,739행은 KIS 일봉 경로(krx_daily — 자기신고 있음)가 채운 것이고, yfinance 경로의 기여분은 수치로 분리되지 않는다(자기신고 없음). 즉 현재 자기신고율은 market_data 적재 경로의 절반만 덮는다.",
@@ -970,7 +970,7 @@
         "value": 1,
         "unit": "최근 7일 yfinance 경로 자기신고 행(source>0) 수"
       },
-      "check_note": "배선(문자열)이 아니라 실제 행+source_rows>0 으로 판정한다(R23/R27 교훈). 2026-10-03 배선 완료: 컨테이너 phase 가 '[claim] yfinance_market_data market_data source=.. claimed=.. persisted=..' 를 찍고 호스트 래퍼(run_docker_phase)가 scripts/yf_claim_from_phase_log.py 로 기록. DB 왕복 검증 완료(합성 로그→행 삽입→check=1→정리). 종단 확인은 20:00 파이프라인 실행 후 실제 source>0 행으로. | [2026-10-03 22:0x 수리 — check 를 주말-인지 스크립트로 교체] 저녁 파이프라인은 **평일 20:00 전용**(`/etc/cron.d/analyist_dd`: `0 20 * * 1-5`)인데, 종전 SQL check 는 최근 7일 창으로 행을 세어 배선 직후 첫 주말(10-03 토)에 매 틱 0 → '미달'을 기록했다 — 마땅히 판정 대상이 없는 날을 결함으로 세는 **'주말에 구조적으로 실패하는 check'**(스킬 함정). 새 check = `scripts/r28_yf_claim_check.py`(회귀 13건 `tests/test_r28_yf_claim_check.py`): ① 배선일(커밋 2e96da1, 10-03) 이후 완료된 파이프라인 로그가 없으면 통과(판정 대상 없음) ② 로그에 `source>0` 인 `[claim] yfinance_market_data` 줄이 있어야 자기신고를 요구(휴장·신규데이터 없음 = phase 가 [claim] 미출력 = 정상 no-op 이므로 통과) ③ 요구되는데 행 0건이면 미달(진짜 호스트 기록 결함) ④ DB 조회 불가면 fail-closed(0). 실측 확인: 10-03 토요일 실행 → 통과값 1·사유 stderr. 다음 실제 종단 확인 = 월요일 10-05 20:00 파이프라인.",
+      "check_note": "배선(문자열)이 아니라 실제 행+source_rows>0 으로 판정한다(R23/R27 교훈). 2026-10-03 배선 완료: 컨테이너 phase 가 '[claim] yfinance_market_data market_data source=.. claimed=.. persisted=..' 를 찍고 호스트 래퍼(run_docker_phase)가 scripts/yf_claim_from_phase_log.py 로 기록. DB 왕복 검증 완료(합성 로그→행 삽입→check=1→정리). 종단 확인은 20:00 파이프라인 실행 후 실제 source>0 행으로. | [2026-10-03 22:0x 수리 — check 를 주말-인지 스크립트로 교체] 저녁 파이프라인은 **평일 20:00 전용**(`/etc/cron.d/analyist_dd`: `0 20 * * 1-5`)인데, 종전 SQL check 는 최근 7일 창으로 행을 세어 배선 직후 첫 주말(10-03 토)에 매 틱 0 → '미달'을 기록했다 — 마땅히 판정 대상이 없는 날을 결함으로 세는 **'주말에 구조적으로 실패하는 check'**(스킬 함정). 새 check = `scripts/r28_yf_claim_check.py`(회귀 13건 `tests/test_r28_yf_claim_check.py`): ① 배선일(커밋 2e96da1, 10-03) 이후 완료된 파이프라인 로그가 없으면 통과(판정 대상 없음) ② 로그에 `source>0` 인 `[claim] yfinance_market_data` 줄이 있어야 자기신고를 요구(휴장·신규데이터 없음 = phase 가 [claim] 미출력 = 정상 no-op 이므로 통과) ③ 요구되는데 행 0건이면 미달(진짜 호스트 기록 결함) ④ DB 조회 불가면 fail-closed(0). 실측 확인: 10-03 토요일 실행 → 통과값 1·사유 stderr. | [2026-10-03 22:1x] `recurring: true` 로 전환(종전 status=partial·비recurring) — `next_item()` 은 **pending 만** 후보로 보므로 partial 항목은 이후 틱에서 다시 집히지 않아, **월요일 파이프라인 뒤의 종단 재확인 자체가 불가**했다(배선 검증이 영영 안 끝남). 상시 감시로 돌려 배선 회귀를 계속 지켜본다(R27 과 동일 패턴). ⚠ 읽는 법: '판정 대상 없음'의 값 `1` 은 **'검증 완료'가 아니라 '아직 기회(평일 파이프라인) 없음'**이다 — 실제 종단 확인은 배선일 이후 파이프라인 로그가 생긴 뒤의 행 수로만 판정한다.",
       "cost": "약 20분(파서 배선 + 1회 실행 검증)",
       "success": "",
       "attempts": [
