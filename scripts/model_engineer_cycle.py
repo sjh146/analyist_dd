@@ -615,6 +615,18 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: calibration_probe 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "policy_compare":
+        # 소비 문턱 정책 비교 계측기(scripts/policy_compare_probe.py --json-out). CG84.
+        # 왜 전용 metric 인가(2026-10-03): CG83 으로 '절대문턱은 확률 보정으로도 성립하지 않는다'
+        # 가 확정됐고(보정 후 0.55 초과 37.0%→6.2%), 남은 판단은 '절대문턱 vs 분위(top-k)' 중
+        # 무엇이 실제로 돈이 되는가다. 그 값(실현수익 짝 Δ·부호검정)은 폴드 AUC 도 Brier 도 아니라
+        # 기존 파서 어디에도 안 담긴다 → 전용 파서가 필요하다(CG43/CG10 함정).
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — k별 통계는 `policy` 로 싣는다.
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: policy_compare 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -909,6 +921,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_forward_scorecard(spath, mtime_floor)
     if kind == "calibration_probe":
         return parse_calibration_probe(spath, mtime_floor)
+    if kind == "policy_compare":
+        return parse_policy_compare(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -1059,6 +1073,103 @@ def judge_calibration_probe(item, parsed) -> tuple:
     if bg >= min_bg and eg is not None and eg > 0:
         return "보정 유효", detail + f" → 사전등록 충족(이득 ≥ {min_bg}). 승격 아님 — 소비 정책 입력", float(bg)
     return "보정 무효", detail + f" → 사전등록 미충족(Brier 이득 ≥ {min_bg} 미달 또는 ECE 미개선)", float(bg)
+
+
+def parse_policy_compare(path, mtime_floor) -> dict:
+    """소비 문턱 정책 비교 계측기(scripts/policy_compare_probe.py --json-out)를 파싱한다.
+
+    스키마: {n_rows, n_groups, threshold, ks, primary_scale, k_passed, criterion,
+             scales: {"raw": {"k3": {...}, "k5": {...}}, "platt": {...}}}
+    각 k 통계 = {n_pairs, mean_delta, std, se, pos, neg, ties, pos_rate, p_value,
+                 abs_mean_ret, topk_mean_ret, abs_n, topk_n}.
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장의 per_exp 전체를 'arm 폴드 평균(AUC)'으로
+    읽어 best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 여기 값은 실현수익 Δ 라
+    `policy` 키로 분리해 스코어보드가 AUC 로 오독하지 않게 한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    scales = d.get("scales") or {}
+    if not scales:
+        return {"error": "요약에 scales 가 없음 — 계측기 출력 형식을 확인하라"}
+    keys = ("n_pairs", "n_skipped_dates", "mean_delta", "std", "se", "pos", "neg", "ties",
+            "pos_rate", "p_value", "abs_mean_ret", "topk_mean_ret", "abs_n", "topk_n")
+    out = {
+        "summary_mtime": mt, "generated_at": d.get("generated_at"),
+        "n_rows": d.get("n_rows"), "n_groups": d.get("n_groups"),
+        "threshold": d.get("threshold"), "ks": d.get("ks"),
+        "primary_scale": d.get("primary_scale"), "k_passed": d.get("k_passed"),
+        "criterion": d.get("criterion"),
+        "policy": {sc: {str(k): {kk: (v or {}).get(kk) for kk in keys}
+                        for k, v in (st or {}).items()}
+                   for sc, st in scales.items()},
+    }
+    return out
+
+
+def judge_policy_compare(item, parsed) -> tuple:
+    """소비 문턱 정책 비교 판정 — **AUC 판정이 아니다**(실현수익 짝 Δ + 부호검정).
+
+    사전등록(CG84 success, 항목 필드로 override 가능): k ∈ ks(기본 3·5·10) 중
+    min_k_pass(기본 2)개 이상에서 ① mean_delta > 0 ② pos_rate ≥ min_pos_rate(기본 0.6)
+    ③ p_value < max_p(기본 0.05) 를 **동시에** 만족하면 '정책 교체 근거 있음',
+    아니면 '정책 교체 근거 없음(노이즈)' 으로 종결한다.
+
+    판정 스케일은 primary_scale(기본 raw = 현 배포 스케일 — 보정 계층은 아직 미배선, CG82 ②)이다.
+    보조 스케일(platt) 값은 detail 에 함께 적어 방향이 스케일 의존인지 드러나게 한다.
+
+    ⚠ 승격 근거가 아니다 — 결과는 소비 정책(절대→분위 top-k) 승인 요청의 입력이다(CG82 ①).
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    crit = parsed.get("criterion") or {}
+    min_pos_rate = float(item.get("min_pos_rate") or crit.get("min_pos_rate") or 0.6)
+    max_p = float(item.get("max_p") or crit.get("max_p") or 0.05)
+    min_k_pass = int(item.get("min_k_pass") or crit.get("min_k_pass") or 2)
+    pol = parsed.get("policy") or {}
+    scale = item.get("policy_scale") or parsed.get("primary_scale") or "raw"
+    st = pol.get(scale) or {}
+    ks = item.get("ks") or parsed.get("ks") or [int(str(k)[1:]) for k in st if str(k).startswith("k")]
+    if not st:
+        return "판정불가", f"policy[{scale}] 가 비어 있음(스케일={sorted(pol.keys())})", None
+
+    passed, parts = [], []
+    for k in ks:
+        v = st.get(f"k{k}") or st.get(str(k)) or {}
+        md, pr, pv = v.get("mean_delta"), v.get("pos_rate"), v.get("p_value")
+        if md is None:
+            parts.append(f"k{k}: 미측정")
+            continue
+        ok = md > 0 and (pr or 0) >= min_pos_rate and pv is not None and pv < max_p
+        if ok:
+            passed.append(k)
+        parts.append(f"k{k}: Δ{md:+.4f}({md:+.2%}) 양(+) {v.get('pos')}/{v.get('n_pairs')}"
+                     f"(rate {pr}) p {pv}{' ✓' if ok else ''}")
+    detail = (f"[{scale}] " + " · ".join(parts)
+              + f" → 사전등록 통과 {len(passed)}/{len(ks)}개"
+                f"(필요 {min_k_pass} · Δ>0 · pos_rate≥{min_pos_rate} · p<{max_p})")
+    other = [s for s in pol if s != scale]
+    for s in other:
+        ov = (pol.get(s) or {}).get(f"k{ks[0] if ks else 3}") or {}
+        if ov.get("mean_delta") is not None:
+            detail += f" | 보조[{s}] k{ks[0]}: Δ{ov['mean_delta']:+.4f} p {ov.get('p_value')}"
+
+    prim = st.get("k5") or st.get(f"k{ks[0]}") if ks else None
+    delta = prim.get("mean_delta") if prim else None
+    if len(passed) >= min_k_pass:
+        return "정책 교체 근거 있음", detail, round(delta, 6) if delta is not None else None
+    return "정책 교체 근거 없음", detail, round(delta, 6) if delta is not None else None
 
 
 def parse_topk_precision(path, mtime_floor) -> dict:
@@ -1226,6 +1337,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_forward_scorecard(item, parsed)
     if kind == "calibration_probe":
         return judge_calibration_probe(item, parsed)
+    if kind == "policy_compare":
+        return judge_policy_compare(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 
