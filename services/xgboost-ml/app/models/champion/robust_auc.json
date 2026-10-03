@@ -1,14 +1,14 @@
 {
-  "robust_auc": 0.5548,
+  "robust_auc": 0.5513,
   "metric": "ensemble_auc",
   "auc_std": null,
-  "protocol": "ensemble_auc on candidate val split (n_rows=12053)",
+  "protocol": "ensemble_auc on candidate val split (n_rows=12629)",
   "model_aucs": {
-    "xgboost": 0.5236,
-    "lightgbm": 0.5663,
-    "catboost": 0.5262
+    "xgboost": 0.5492,
+    "lightgbm": 0.5448,
+    "catboost": 0.5185
   },
-  "recorded_at": "2026-10-01T12:26:46",
-  "replaced_baseline": 0.5513,
+  "recorded_at": "2026-10-02T02:44:20",
+  "replaced_baseline": 0.5548,
   "replaced_source": "robust_auc.json"
 }
