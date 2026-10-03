@@ -24,6 +24,10 @@ spec.loader.exec_module(rc)
 class _FakePopen:
     pid = 424242
 
+    def poll(self):
+        # 2026-10-03: tick 이 '기동 확인'(start_item)으로 자식 생존을 본다 → 살아있는 자식(None).
+        return None
+
 
 def _prep(monkeypatch, tmp_path, backlog_items, ledger_rows, picked):
     rt = tmp_path / "res_cycle"
@@ -45,6 +49,7 @@ def _prep(monkeypatch, tmp_path, backlog_items, ledger_rows, picked):
     monkeypatch.setattr(rc, "snapshot_brief", lambda *a, **k: [])
     monkeypatch.setattr(rc.base, "guards", lambda *a, **k: (True, "ok"))
     monkeypatch.setattr(rc, "pick_item", lambda b, force=False: picked(b))
+    monkeypatch.setattr(rc, "ORPHAN_SETTLE", 0)   # 테스트는 3초 기동 확인 대기를 건너뛴다
     started = []
 
     def _popen(cmd, **kw):

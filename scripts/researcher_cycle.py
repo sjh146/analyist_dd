@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -578,6 +579,45 @@ def approval_asks(item):
     return out
 
 
+# 자식 '기동 확인' 창(초). 짧은 항목(R27·R28 pytest 0.02초)이 남기는 고아 pidfile 을 막는다.
+ORPHAN_SETTLE = 3.0
+
+
+def start_item(cmd, item_id, settle=None):
+    """자식을 백그라운드로 띄우고 pidfile·state 를 기록한다 → (proc, finished_early).
+
+    WHY (실측 2026-10-03 06:00 R28): 리서처 tick 은 자체 Popen 경로라, ME 구동기
+    (`base.start_background`)에 있는 '3초 기동 확인' 가드가 없었다. pytest 처럼 0.02초에 끝나는
+    자식은 `--run` 종료 시 **자기 pidfile 을 먼저 지우고**, 부모가 그 뒤에 pidfile 을 쓰는 경합이
+    생긴다 → 죽은 pid 를 가리키는 고아 pidfile 이 남아 hygiene 이
+    '죽은 프로세스의 사이클 pidfile 잔존: researcher' breach 를 06:30~15:30(9시간) 보고했다.
+    (정상 실행에서는 자식이 자기 pidfile 을 지워 정리되므로 이 경합에서만 샌다.)
+
+    가드: settle 초 뒤 자식이 **이미 끝났으면** pidfile·state 를 지운다 → '실행 중'으로 세우지
+    않는다(결과는 다음 틱이 원장에서 읽는다). 자식이 살아 있으면 그대로 두고, 자식이 종료 시
+    자기 pidfile 을 지운다.
+    """
+    os.makedirs(RES_RUNTIME, exist_ok=True)
+    bg = os.path.join(RES_RUNTIME, f"bg_{item_id}.log")
+    with open(bg, "w", encoding="utf-8") as lf:
+        p = subprocess.Popen(cmd, stdout=lf, stderr=subprocess.STDOUT,
+                             start_new_session=True, cwd=PROJ)
+    with open(base.PIDFILE, "w", encoding="utf-8") as f:
+        f.write(str(p.pid))
+    with open(base.STATE, "w", encoding="utf-8") as f:
+        json.dump({"id": item_id, "pid": p.pid,
+                   "started": now_kst().isoformat(timespec="seconds")}, f)
+    time.sleep(ORPHAN_SETTLE if settle is None else settle)
+    if p.poll() is not None:
+        for f in (base.PIDFILE, base.STATE):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+        return p, True
+    return p, False
+
+
 def tick(force=False):
     pid = base.running_pid()
     if pid:
@@ -659,17 +699,9 @@ def tick(force=False):
     cmd = [sys.executable, os.path.abspath(__file__), "--run", nxt["id"]]
     if force:
         cmd.append("--force")
-    os.makedirs(RES_RUNTIME, exist_ok=True)
-    bg = os.path.join(RES_RUNTIME, f"bg_{nxt['id']}.log")
-    with open(bg, "w", encoding="utf-8") as lf:
-        p = subprocess.Popen(cmd, stdout=lf, stderr=subprocess.STDOUT,
-                             start_new_session=True, cwd=PROJ)
-    with open(base.PIDFILE, "w", encoding="utf-8") as f:
-        f.write(str(p.pid))
-    with open(base.STATE, "w", encoding="utf-8") as f:
-        json.dump({"id": nxt["id"], "pid": p.pid,
-                   "started": now_kst().isoformat(timespec="seconds")}, f)
-    print(f"시작: {nxt['id']} — {nxt['title']} (비용 {nxt.get('cost')})")
+    _, done = start_item(cmd, nxt["id"])
+    tail = " (기동 확인: 3초 내 완료 — 결과는 다음 틱에 원장에서 읽는다)" if done else ""
+    print(f"시작: {nxt['id']} — {nxt['title']} (비용 {nxt.get('cost')}){tail}")
     return 0
 
 
