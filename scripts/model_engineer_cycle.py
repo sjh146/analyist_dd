@@ -592,6 +592,18 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out)
         log("경고: blend_eval 인데 커맨드에 --out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "forward_scorecard":
+        # 배포 경로 **전방(forward)** 성적표(scripts/forward_scorecard.py --out). CG75.
+        # 왜 전용 metric 인가(2026-10-03): 창 기반 champion_robust_eval 은 학습구간이 항상
+        # 최신까지라 남는 창이 **학습 이전**뿐이다(CG45/58/61/62) → 전방 검증 수단이 없었다.
+        # ml_predictions × 실현 선행수익이 유일한 전방 표본이므로 그 계측기를 metric 으로
+        # 배선해 둔다. ⚠ 미배선 상태로 pending 이 되면 구동기가 '판정불가'로 기록하고 rc=0 이라
+        # done 으로 닫혀 항목의 유일한 산출물이 사라진다(CG43/CG10 함정) — CG75 의 setup_needed ④.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 창별 값은 `windows` 로 싣는다.
+        out = _out_arg(command or "")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/forward_scorecard.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -882,7 +894,86 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_topk_precision(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
+    if kind == "forward_scorecard":
+        return parse_forward_scorecard(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
+
+
+def parse_forward_scorecard(path, mtime_floor) -> dict:
+    """배포 경로 전방 성적표(scripts/forward_scorecard.py --out)를 파싱한다.
+
+    스키마: {"generated_at", "predictions_rows", "model_versions", "result": {"h1": {...}, "h5": {...}}}
+    각 창 = {n_pairs, n_dates, pooled_auc, daily_auc_mean, daily_auc_list, top10_ret_mean, all_ret_mean}.
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장 per_exp 전체를 'arm 폴드 평균(AUC)'으로
+    읽어 best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 여기 값은 AUC·수익 혼합이라
+    키 이름을 `windows` 로 분리해 스코어보드가 AUC 로 오독하지 않게 한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    res = d.get("result") if isinstance(d.get("result"), dict) else {}
+    windows = {}
+    for k, v in res.items():
+        if not isinstance(v, dict):
+            continue
+        windows[str(k)] = {f: v.get(f) for f in
+                           ("n_pairs", "n_dates", "skipped", "pooled_auc", "daily_auc_mean",
+                            "daily_auc_list", "base_rate_up", "top10_ret_mean", "all_ret_mean")}
+    out = {"summary_mtime": mt, "generated_at": d.get("generated_at"),
+           "predictions_rows": d.get("predictions_rows"),
+           "model_versions": d.get("model_versions"), "windows": windows}
+    if not windows:
+        out["error"] = "요약에 result 창(h1/h5)이 없음 — 계측기 출력 형식을 확인하라"
+    return out
+
+
+def judge_forward_scorecard(item, parsed) -> tuple:
+    """전방 성적표 판정 — **단일 런 비교가 아니라 사전등록 문턱**으로 판정한다.
+
+    사전등록(항목 필드로 override 가능): forward_horizon(기본 5) 창에서
+    ① n_dates ≥ min_dates(기본 10) ② pooled AUC ≥ min_auc(기본 0.52)
+    ③ top10 실현수익 평균 ≥ 전체평균(all_ret_mean) — 세 조건 **동시** 충족이면 신호.
+    n_dates 미달이면 '표본부족'(판정 보류) — 배포 경로 표본이 아직 쌓이지 않은 상태를
+    '노이즈'로 오독해 축을 조기에 닫는 사고를 막는다(CG75 전제: 표본 누적 후 판정).
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    h = str(item.get("forward_horizon") or 5)
+    w = (parsed.get("windows") or {}).get(f"h{h}")
+    if not w:
+        return "판정불가", f"요약에 h{h} 창이 없음(창={sorted((parsed.get('windows') or {}).keys())})", None
+
+    def _f(x):
+        return float(x) if isinstance(x, (int, float)) else None
+
+    nd = int(w.get("n_dates") or 0)
+    auc, dmean = _f(w.get("pooled_auc")), _f(w.get("daily_auc_mean"))
+    top10, allr = _f(w.get("top10_ret_mean")), _f(w.get("all_ret_mean"))
+    min_dates = int(item.get("min_dates") or 10)
+    min_auc = float(item.get("min_auc") or 0.52)
+    detail = (f"h{h} 전방 pooled AUC {auc if auc is None else round(auc, 4)}"
+              f"(날짜별 {dmean if dmean is None else round(dmean, 4)}) · n_dates {nd} · "
+              f"n_pairs {w.get('n_pairs')} · top10 실현수익 "
+              f"{'n/a' if top10 is None else format(top10, '+.4%')} vs 전체평균 "
+              f"{'n/a' if allr is None else format(allr, '+.4%')}")
+    if nd < min_dates:
+        return "표본부족", detail + f" — n_dates {nd} < {min_dates} → 판정 보류(표본 누적 대기)", None
+    ok_auc = auc is not None and auc >= min_auc
+    ok_top = top10 is not None and allr is not None and top10 >= allr
+    verdict = "신호있음" if (ok_auc and ok_top) else "노이즈"
+    delta = round(auc - min_auc, 4) if auc is not None else None
+    return verdict, detail + f" (AUC≥{min_auc} {ok_auc} · top10≥전체평균 {ok_top})", delta
 
 
 def parse_topk_precision(path, mtime_floor) -> dict:
@@ -1046,6 +1137,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_seed_family(item, parsed)
     if kind == "topk_precision":
         return judge_topk_precision(item, parsed)
+    if kind == "forward_scorecard":
+        return judge_forward_scorecard(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 

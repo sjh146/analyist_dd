@@ -684,6 +684,30 @@ CONFIGS = [
     {"id": "WDw_h60_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [120, 150], "weight": {"kind": "time_decay", "hl": 60},
      "desc": "구간 [120:150) · 게이트 ON · 시간 감쇠 hl60 (사전등록 arm)"},
+    # ── CG77 (2026-10-03): 표본 가중 **잔여** 축 — |선행수익| 규모 가중 ──────────────
+    # 왜: CG23 의 가설은 ①최근 표본 가중(시간 감쇠) ②|선행 h일 수익| 이 큰 표본에 가중 —
+    #     두 갈래였는데 **원장 CG23 per_exp 를 보면 WDn/WDu/WDw_h60 뿐이고 absret arm 이
+    #     없다**(가설의 ②는 한 번도 측정되지 않았다). 즉 '표본 가중 축 소진' 판정은 ①에만
+    #     해당한다. 트레이더는 5일 보유 실현손익으로 평가받으므로 '크게 움직인' 표본에
+    #     집중하면 상위 k 정밀도가 오를 수 있다는 것이 ②의 기제다(구현은 CG23 에서 이미
+    #     넣어 둔 make_weights kind=absret — clip 0.05·바닥 0.25 로 완전 0 가중은 피한다).
+    # 대조군은 **같은 런·같은 구간**의 WDn(가중 없음 원 경로), 배관 통제는 WDu(균등 가중).
+    # 짝 Δ(ABw − WDn) 5구간 · 사전문턱 +0.02 · 양(+) ≥ 4/5.
+    {"id": "ABw_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [0, 30], "weight": {"kind": "absret", "clip": 0.05},
+     "desc": "구간 [0:30) · 게이트 ON · |선행 5일 수익| 규모 가중 (CG77 arm)"},
+    {"id": "ABw_30_60", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [30, 60], "weight": {"kind": "absret", "clip": 0.05},
+     "desc": "구간 [30:60) · 게이트 ON · |선행 5일 수익| 규모 가중 (CG77 arm)"},
+    {"id": "ABw_60_90", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [60, 90], "weight": {"kind": "absret", "clip": 0.05},
+     "desc": "구간 [60:90) · 게이트 ON · |선행 5일 수익| 규모 가중 (CG77 arm)"},
+    {"id": "ABw_90_120", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [90, 120], "weight": {"kind": "absret", "clip": 0.05},
+     "desc": "구간 [90:120) · 게이트 ON · |선행 5일 수익| 규모 가중 (CG77 arm)"},
+    {"id": "ABw_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "codes_slice": [120, 150], "weight": {"kind": "absret", "clip": 0.05},
+     "desc": "구간 [120:150) · 게이트 ON · |선행 5일 수익| 규모 가중 (CG77 arm)"},
     # 배관 통제(CG23 ④): 가중이 실제로 모델을 바꾸는지 확인용 — 절대값 비교가 아니라
     # '같은 런에서 WDw ≠ WDu 임'을 보이기 위한 참조다.
     {"id": "CO_core30_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",

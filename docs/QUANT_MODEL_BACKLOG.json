@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-03T16:12:00+09:00",
+  "updated_at": "2026-10-03T17:23:39+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -9340,22 +9340,25 @@
       "arm": "배포 챔피언(현행) — 전방 pooled/daily AUC + top-k 실현수익",
       "counterfactual": "동전(0.5) + 전체평균 실현수익(all_ret_mean)",
       "command": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/forward_scorecard.py --out /app/reports/overnight/forward_scorecard.json",
-      "metric": null,
+      "metric": "forward_scorecard",
       "hypothesis": "배포 경로의 confidence 가 실현 선행수익을 예측한다. 즉 창 기반 OOS(0.44~0.53)와 달리 실거래 경로에는 전방 신호가 존재하며, 누적 표본에서 confidence 상위 종목의 실현수익이 전체평균을 상회한다.",
       "evidence": "2026-10-03 실측(계측기 2회차, 같은 명령): h1 n=17,938페어·5일 pooled 0.5437·daily 0.5290·top10 −0.257% vs 전체 +0.794% · h5 n=6,404페어·2일 pooled 0.5719·daily 0.5539·top10 +2.45% vs 전체 +3.01%. 1차(2026-10-02) h1 0.5468/5일 · h5 0.5003/2일. → pooled 는 0.5 를 넘지만 **top-k 가 전체평균을 하회**하고 날짜가 2~5개뿐이라 판정 불가(CG68 결론 유지). 2026-10-03 수리: ml_predictions.model_version 이 항상 'v1.0' 이라 승격/롤백 구분이 불가했다 → predictor._resolve_model_version() 로 챔피언 메타 기반 식별자 귀속(자체점검 10/10 PASS).",
       "success": "n_dates ≥ 10 거래일에서 h5 전방 pooled AUC ≥ 0.52 **그리고** top-10 실현수익 ≥ all_ret_mean (동시 충족). 미달이면 '배포 경로 전방 신호 없음'으로 종결하고 배포 모델 교체 근거로 쓰지 않는다.",
       "expected": "미지 — 창 기반 OOS 가 0.44~0.53 이므로 전방도 비슷할 가능성이 크다. 다만 이 지표만이 승격/롤백의 실거래 성적을 말할 수 있다.",
       "cost": "실행 1분(읽기 전용) · 표본 누적에 거래일 10일 필요",
       "est_minutes": 1,
-      "setup_needed": "① 일 1회 실행 배선(크론 추가 = 승인 대상) 또는 사람이 장 마감 후 수동 실행 ② 표본 누적 대기(n_dates ≥ 10) ③ model_version 귀속(2026-10-03 구현) 이후에만 승격/롤백 전후 짝 비교가 성립 ④ **승격 시 필수 배선**: metric 'forward_scorecard' 를 model_engineer_cycle 의 summary_path/parse_by_metric/judge_by_metric 에 등록해야 한다(미등록 상태로 pending 이 되면 구동기가 '판정불가'로 기록하고 done 으로 닫아 산출물이 사라진다 — CG43/CG10 함정). 그래서 지금은 metric=null 로 둔다.",
-      "note": "2026-10-03 16:0x 신설(주말 자율 세션). **오늘 착수하지 않는 이유**: 오늘 다시 돌려도 같은 5일을 재측정할 뿐이라 Δ=0 이고 '실험을 돌렸다'만 남는다 → precondition 을 명시하고 backlog 로 둔다. 재개 조건이 충족되면 judge 배선과 함께 pending 으로 승격한다(단일 런 비교 금지 — 표본 누적 후 짝 판정).",
+      "setup_needed": "① 일 1회 실행 배선(크론 추가 = 승인 대상) 또는 사람이 장 마감 후 수동 실행 ② 표본 누적 대기(n_dates ≥ 10) ③ model_version 귀속(2026-10-03 구현) 이후에만 승격/롤백 전후 짝 비교가 성립. ④ [완료 2026-10-03] metric 'forward_scorecard' 를 model_engineer_cycle 의 summary_path/parse_by_metric/judge_by_metric 에 등록했다 — 파서는 `windows` 키로 싣고 per_exp 는 만들지 않는다(스코어보드 오독 방지), n_dates 미달은 '표본부족'(판정 보류)로 조기 종결을 막는다. 검증: `python3 scripts/_forward_scorecard_metric_test.py` 19/19 PASS.",
+      "note": "2026-10-03 16:0x 신설(주말 자율 세션). **오늘 착수하지 않는 이유**: 오늘 다시 돌려도 같은 5일을 재측정할 뿐이라 Δ=0 이고 '실험을 돌렸다'만 남는다 → precondition 을 명시하고 backlog 로 둔다. 재개 조건이 충족되면 judge 배선과 함께 pending 으로 승격한다(단일 런 비교 금지 — 표본 누적 후 짝 판정). | 2026-10-03 18:1x 갱신(주말 자율 세션): metric 배선(④)을 완료해 pending 승격 시 '판정불가→done' 함정(CG43/CG10)이 닫혔다. 현재 실측 표본 = ml_predictions 37,378행·9거래일(09-22~10-02, model_version 전부 v1.0)이고 전방 성적표 최신 산출물(10-03 07:06)은 h5 n_dates=2 · h1 n_dates=5 로 min_dates 10 에 미달한다 → 재개 조건(②)은 아직 미충족, status 는 backlog 유지. 다음 행동: n_dates ≥ 10 이 되는 시점(≈1~2거래일 누적)에 pending 으로 승격하고 ①(일 1회 실행 배선) 승인을 요청한다.",
       "result": null,
-      "attempts": 0
+      "attempts": 0,
+      "forward_horizon": 5,
+      "min_dates": 10,
+      "min_auc": 0.52
     },
     {
       "id": "CG76",
       "title": "조건부(비영) edge 선별 — 부활·희소 피처가 선별에 진입조차 못 하는 문제 (선별 표본 도메인 축)",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "affects_model": true,
       "metric": "wf_sweep_summary",
@@ -9401,8 +9404,229 @@
       "cost": "250 cell · 실측 2.8 s/cell(CG74 11.7분) → 약 12~20분. 컨테이너 timeout 3600.",
       "est_minutes": 25,
       "note": "2026-10-03 17:0x 신설(주말 자율 세션, 규칙 4 = 실행 가능 pending 0). 계기: 모델 측 축은 포화로 판정됐지만, EV1·CG67 이 '부활 피처가 선별에 진입조차 못 했다'를 실측으로 남겼다 — 그 진입을 막는 것이 선별 표본 도메인이라는 가설은 미측정이다. CG71(선별 *통계량*: IC vs 풀링 edge)·CG74(drop_dup)와 달리 이건 **선별 표본 도메인**(전 행 vs 비영 행)을 바꾸는 것이고, dense 피처에는 작용하지 않는다(비영=전 행이면 값 동일 → 교락 없음, [1] 로 증명). ⚠ CG73 과 구분: CG73 은 '원천을 늘려야 한다'(수집·승인), CG76 은 '원천이 있는 것도 선별에 안 들어간다'(내 소유 코드) — 둘은 직교하며 CG76 이 먼저 닫혀야 CG73 의 기대효과가 성립한다.",
-      "result": null,
-      "attempts": 0
+      "result": {
+        "verdict": "노이즈",
+        "detail": "구간 짝 Δ 평균 -0.0012 (n=5구간 · 양(+) 2/5) [-0.0134, -0.0107, +0.0144, +0.0097, -0.0062]",
+        "delta": -0.0012,
+        "per_exp": {
+          "LU_00_30": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [0:30)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5067,
+              0.5823,
+              0.4674,
+              0.4897,
+              0.5651
+            ],
+            "mean": 0.5222,
+            "std": 0.0442,
+            "min": 0.4674,
+            "max": 0.5823,
+            "fold_win_rate": 0.6
+          },
+          "LU_30_60": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [30:60)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4994,
+              0.525,
+              0.4997,
+              0.5028,
+              0.558
+            ],
+            "mean": 0.517,
+            "std": 0.0226,
+            "min": 0.4994,
+            "max": 0.558,
+            "fold_win_rate": 0.6
+          },
+          "LU_60_90": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [60:90)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.476,
+              0.4994,
+              0.476,
+              0.536,
+              0.5328
+            ],
+            "mean": 0.504,
+            "std": 0.0262,
+            "min": 0.476,
+            "max": 0.536,
+            "fold_win_rate": 0.4
+          },
+          "LU_90_120": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [90:120)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5709,
+              0.557,
+              0.4658,
+              0.483,
+              0.5279
+            ],
+            "mean": 0.5209,
+            "std": 0.0408,
+            "min": 0.4658,
+            "max": 0.5709,
+            "fold_win_rate": 0.6
+          },
+          "LU_120_150": {
+            "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [120:150)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5298,
+              0.4858,
+              0.5272,
+              0.5833,
+              0.5127
+            ],
+            "mean": 0.5278,
+            "std": 0.0319,
+            "min": 0.4858,
+            "max": 0.5833,
+            "fold_win_rate": 0.8
+          },
+          "CN_00_30": {
+            "desc": "구간 [0:30) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_00_30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5212,
+              0.5707,
+              0.4764,
+              0.4374,
+              0.5386
+            ],
+            "mean": 0.5088,
+            "std": 0.0469,
+            "min": 0.4374,
+            "max": 0.5707,
+            "fold_win_rate": 0.6
+          },
+          "CN_30_60": {
+            "desc": "구간 [30:60) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_30_60",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5122,
+              0.526,
+              0.5096,
+              0.4877,
+              0.4958
+            ],
+            "mean": 0.5063,
+            "std": 0.0133,
+            "min": 0.4877,
+            "max": 0.526,
+            "fold_win_rate": 0.6
+          },
+          "CN_60_90": {
+            "desc": "구간 [60:90) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_60_90",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.4811,
+              0.5017,
+              0.498,
+              0.5822,
+              0.5289
+            ],
+            "mean": 0.5184,
+            "std": 0.0354,
+            "min": 0.4811,
+            "max": 0.5822,
+            "fold_win_rate": 0.6
+          },
+          "CN_90_120": {
+            "desc": "구간 [90:120) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_90_120",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5605,
+              0.5424,
+              0.5127,
+              0.545,
+              0.4923
+            ],
+            "mean": 0.5306,
+            "std": 0.0246,
+            "min": 0.4923,
+            "max": 0.5605,
+            "fold_win_rate": 0.8
+          },
+          "CN_120_150": {
+            "desc": "구간 [120:150) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_120_150",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5254,
+              0.5043,
+              0.523,
+              0.5757,
+              0.4795
+            ],
+            "mean": 0.5216,
+            "std": 0.0317,
+            "min": 0.4795,
+            "max": 0.5757,
+            "fold_win_rate": 0.8
+          }
+        },
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-10-03T17:23:39+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "구간 짝 Δ 평균 -0.0012 (n=5구간 · 양(+) 2/5) [-0.0134, -0.0107, +0.0144, +0.0097, -0.0062]",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG76_20261003-171156.log",
+          "elapsed_min": 11.7
+        }
+      ]
+    },
+    {
+      "id": "CG77",
+      "title": "표본 가중 잔여 축 — |선행수익| 규모 가중 (CG23 가설 ②만 미측정)",
+      "status": "pending",
+      "priority": 1,
+      "hypothesis": "CG23 의 가설은 두 갈래였다: ①최근 표본 가중(시간 감쇠) ②|선행 h일 수익| 이 큰 표본에 가중. 그런데 원장 CG23 per_exp 를 세어 보면 WDn/WDu/WDw_h60(x5구간) 뿐이고 **absret arm 이 한 번도 없다** → '표본 가중 축 소진' 판정은 ①에만 해당한다. 트레이더는 5일 보유 실현손익으로 평가받으므로 '크게 움직인' 표본에 학습을 집중하면 상위 k 정밀도·AUC 가 오를 수 있다. 구현은 CG23 에서 이미 넣어 둔 make_weights(kind='absret', clip=0.05) — 0.25 바닥으로 완전 0 가중을 피한다.",
+      "metric": "wf_sweep_summary",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150u.npz --folds 5 --seeds 5 --only ABw_00_30,ABw_30_60,ABw_60_90,ABw_90_120,ABw_120_150,WDn_00_30,WDn_30_60,WDn_60_90,WDn_90_120,WDn_120_150,WDu_00_30,WDu_30_60,WDu_60_90,WDu_90_120,WDu_120_150 --out /app/reports/overnight/cg77_sweep.jsonl --summary-out /app/reports/overnight/cg77_summary.json'",
+      "counterfactual": "WDn_00_30 .. WDn_120_150 (같은 런·같은 구간·게이트 ON·가중 없음 원 경로)",
+      "pairs": [
+        [
+          "ABw_00_30",
+          "WDn_00_30"
+        ],
+        [
+          "ABw_30_60",
+          "WDn_30_60"
+        ],
+        [
+          "ABw_60_90",
+          "WDn_60_90"
+        ],
+        [
+          "ABw_90_120",
+          "WDn_90_120"
+        ],
+        [
+          "ABw_120_150",
+          "WDn_120_150"
+        ]
+      ],
+      "success": "구간 짝 Δ(ABw − WDn) 평균 ≥ +0.02 그리고 양(+) 구간 ≥ 4/5 → 신호(→ 후속: 표본 가중을 승격 후보 축으로 검토 · 게이트 ON 동시 측정). 미달이면 표본 가중 축 **완전 종결**(①② 모두 실측)로 기록하고 재시험하지 않는다. 같은 런에서 WDu(균등 가중) == WDn(무가중) 임을 함께 확인해 배관 통제를 유지한다(이게 어긋나면 Δ 를 가중 효과로 귀속할 수 없다).",
+      "est_minutes": 45,
+      "note": "2026-10-03 18:1x 신설(주말 자율 세션, 규칙 4 = 실행 가능 pending 0). 계기: 모델 측 축은 17사이클 실측으로 포화 판정됐으나, 축 종결 판정의 근거가 된 CG23 per_exp 를 직접 세어 보니 가설의 절반(② |선행수익| 가중)이 실행 목록에 없었다 — 즉 유일하게 남은 미측정 knob 이다. 패널·폴드·시드·게이트를 CG23 과 동일하게 두어(panel_150u·5폴드×5시드·core_only) 값이 직접 비교된다. ⚠ 유니버스 교체 잡음 Δ0.0287(CG13) 때문에 단일 arm 대 단일 대조군은 금지 — 짝 Δ 5구간으로만 판정한다. 저 prior 축이므로 미달 시 즉시 닫고 데이터 축(CG73) 승인 항목으로 이동한다."
     }
   ]
 }
