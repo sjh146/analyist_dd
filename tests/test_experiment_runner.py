@@ -105,6 +105,19 @@ def test_data_fingerprint_detects_new_data(tmp_path):
     assert fp1.split("_")[-1] == "1"        # 세션 수가 지문에 들어간다
 
 
+def test_band_axis_is_fillable_only():
+    """체결 대역은 '살 수 있는' 구간만 담아야 한다 — 상한가(+30%) 근처가 들어가면 착시 구간이다."""
+    import pandas as pd
+    for name, band in er.BANDS.items():
+        if band is None:
+            continue
+        assert 0.0 <= band[0] <= band[1] <= er.MAX_FILLABLE_CAP, (name, band)
+    t = pd.DataFrame({"day_change_pct": [-3.0, 2.0, 7.0, 20.0], "score": [1.0, 2.0, 3.0, 4.0]})
+    lo, hi = er.BANDS["p5_15"]
+    sub = t[(t["day_change_pct"] >= lo) & (t["day_change_pct"] <= hi)]
+    assert sub["day_change_pct"].tolist() == [7.0]     # 20%(상한가 근처)·2%(미달) 제외
+
+
 def test_gate_filter_never_claims_passed_when_columns_missing():
     """게이트 컬럼이 없으면 '통과분'을 주장하지 않는다(빈 집합 = 측정 불가) — 조용한 0건 금지."""
     import pandas as pd

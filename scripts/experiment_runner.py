@@ -54,10 +54,14 @@ GRID = {
     "select": ["score_top", "score_bottom", "daychg_low"],
     # 실제 매매 경로는 R1/HEAT 게이트를 통과한 종목만 산다. 측정도 그 조건으로 봐야 정직하다.
     "gated": [True, False],
+    # 체결 가능 대역(당일등락 %) — 지금 스크리너는 상한가(+25~30%)를 뽑아 82%가 살 수 없는 종목이다.
+    # "상승 중이지만 상한가가 아닌" 구간에서 고르면 체결 가능하고 추세도 이어질 수 있다는 가설을 측정한다.
+    "band": ["none", "p0_10", "p3_12", "p5_15"],
 }
 INCUMBENT = {"topk": 3, "max_day_chg": 25.0, "exit": "next_open",
-             "select": "score_top", "gated": True}   # 현행 트레이더 설정(게이트 통과분만 매수)
+             "select": "score_top", "gated": True, "band": "none"}   # 현행 트레이더 설정
 MAX_FILLABLE_CAP = 25.0
+BANDS = {"none": None, "p0_10": (0.0, 10.0), "p3_12": (3.0, 12.0), "p5_15": (5.0, 15.0)}
 
 
 def protocol_hash() -> str:
@@ -66,8 +70,9 @@ def protocol_hash() -> str:
 
 
 def combo_key(c: dict) -> str:
-    return "k{topk}_cap{max_day_chg}_{exit}_{select}_g{0}".format(
-        1 if c["gated"] else 0, **{k: c[k] for k in ("topk", "max_day_chg", "exit", "select")})
+    return "k{topk}_cap{max_day_chg}_{exit}_{select}_g{0}_b{band}".format(
+        1 if c["gated"] else 0,
+        **{k: c[k] for k in ("topk", "max_day_chg", "exit", "select", "band")})
 
 
 def data_fingerprint(path: str) -> str:
@@ -138,6 +143,10 @@ def evaluate(t, combos: list[dict], args) -> dict:
         base = variants[c["select"]]
         if c["gated"]:
             base = _apply_gate(base)
+        band = BANDS.get(c["band"])
+        if band is not None:                          # 체결 가능 대역 필터(살 수 있는 구간만)
+            dc = base["day_change_pct"]
+            base = base[(dc >= band[0]) & (dc <= band[1])]
         t_f, dropped = fe.apply_filters(base, ns)
         rt = fe.round_trip(ns)
         per_session, dates, _detail = fe.simulate(t_f, ns.topk, fe.EXIT_COLS[ns.exit], rt)
