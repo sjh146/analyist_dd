@@ -283,6 +283,38 @@ def load_stats():
     return None
 
 
+HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
+
+
+def is_krx_holiday(day) -> bool:
+    """``data/krx_holidays.json`` 에 그 날짜가 휴장일로 등록돼 있으면 True.
+
+    왜(실측 2026-10-05): 소비자(trader-agent)의 ``market_is_open`` 은 **평일
+    09:00-15:30 시계만** 보고 KRX 휴장일을 모른다(``profiles.py`` 주석: "exchange
+    holidays are not [handled]"). 개천절 대체공휴일인 오늘 08:30 에 루프 감독기가
+    라이브 루프를 띄웠고(pid 14064), 08:30 swing 파이프라인이 date=10-04 로 산출물을
+    갱신해 **스크리너 신선도 가드도 통과**했다 → 발행되면 휴장일에 실주문 경로가
+    열린다(상위10 평균확률 0.5978 > R1 0.58). 발행측이 휴장일엔 전략을 비워 그
+    경로를 닫는다(실행 안전 게이트 #3 의 확장).
+
+    캘린더 파일이 없거나 못 읽으면 False — 발행을 막지 않는다(보수적).
+    """
+    try:
+        with open(HOLIDAY_PATH, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:
+        return False
+    if isinstance(data, dict):
+        data = data.get("holidays") or data.get("dates") or []
+    iso = day.isoformat()
+    for row in data:
+        if isinstance(row, dict):
+            row = row.get("date") or row.get("trade_date") or ""
+        if str(row)[:10] == iso:
+            return True
+    return False
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="trader-agent 피드 스냅샷 발행")
     ap.add_argument("--close", default=DEFAULT_SOURCES["close"])
@@ -308,11 +340,22 @@ def main(argv=None):
                     help="swing 점수 스케일. native=확률×100(기본). rank_pct=모델 분포 내 "
                          "백분위(0~100)로 바꿔 발행 — 문턱이 분포 이동에 강건해진다. "
                          "reports/swing_universe_<date>.json 이 있을 때만 동작한다.")
+    ap.add_argument("--ignore-holiday", action="store_true",
+                    help="KRX 휴장일이어도 정상 발행(기본: 휴장일엔 전략을 비운다)")
     args = ap.parse_args(argv)
+
+    publish_date = datetime.now(KST).date()
+    holiday = is_krx_holiday(publish_date) and not args.ignore_holiday
+    if holiday:
+        logger.warning("KRX 휴장일(%s) — 모든 전략을 빈 리스트로 발행한다 "
+                       "(소비자는 휴장 달력이 없어 신선한 피드면 매수를 시도한다): %s",
+                       publish_date.isoformat(), HOLIDAY_PATH)
 
     sources = {"close": args.close, "swing": args.swing}
     payloads = {}
     for key, path in sources.items():
+        if holiday:
+            continue
         if not os.path.exists(path):
             logger.warning("[%s] 산출물 없음: %s (이 전략은 빈 리스트로 발행)", key, path)
             continue
