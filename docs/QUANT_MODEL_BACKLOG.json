@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T22:39:19+09:00",
+  "updated_at": "2026-10-05T02:04:29+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -11,6 +11,52 @@
     "needs_setup 항목은 명령이 준비되기 전 실행하지 않는다(구동기가 건너뛴다)."
   ],
   "items": [
+    {
+      "id": "CG103",
+      "title": "돈 축 대칭 폐쇄 — 대조 프로토콜(q0.30·게이트 ON 생산경로) top-k 가 세션 풀 평균을 넘는가",
+      "hypothesis": "돈 축 종결(CG96~CG100)은 **q0.05 arm 만** 채점했다. 등록 기준선·소비 경로에 가장 가까운 것은 q0.30(CG95 의 '대조군', 게이트 ON 생산경로)이다. CG95 arm-vs-arm 표에서 대조군 k=3 은 +2.667%p/세션으로 arm(+1.754)보다 오히려 높고 풀평균(+2.205)도 +0.462 웃돌았다 → '엣지는 q0.05 가 아니라 q0.30 쪽'이라는 반대 가설이 아직 검정되지 않았다. 대조군 top-k 를 널(세션 풀 평균)과 짝 비교해 t·분할표본까지 채우면 돈 축이 양쪽 arm 에서 닫히는지 확정된다. 재학습 0 — CG95 dump 전량 재사용.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg95_q30_all.jsonl --arm-tag cg92_q30 --control-jsonl /app/reports/overnight/cg95_q05_all.jsonl --control-tag cg92_q05 --k 3,5,10,20,30 --sides top,bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg101_q30_vs_pool.json'",
+      "metric": "fillable_topk_vs_pool",
+      "counterfactual": "세션 풀 평균(같은 dump·같은 체결성 필터[상한가·당일등락25%·거래대금10억]·같은 수수료 왕복 0.21%p 로 계산한 필터 통과 전 종목 동일비중 순기대 = 무작위 k 바스켓 기대값). 재학습 0(cg95_q30_all.jsonl 재사용).",
+      "success": "k=3 과 k=5 둘 다: ① arm(q0.30) 순기대 > 0 ② 짝 Δ(arm − 세션 풀 평균) ≥ +0.1%p/세션 ③ 짝 t ≥ 2 ④ 분할표본(arm) 앞/뒤 모두 양(+) → 기준선 프로토콜에 베타 초과 엣지 존재 → 돈 축 재개. 미달이면 '두 arm 모두 베타 초과 미검출' 로 돈 축 대칭 폐쇄.",
+      "est_minutes": 5,
+      "priority": 1,
+      "status": "done",
+      "added": "2026-10-05 02:0x (엔지니어 — CG96~CG100 이 q0.05 arm 만 채점한 비대칭 수리)",
+      "attempts": [
+        {
+          "ts": "2026-10-05T02:04:29+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm cg92_q30 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +2.667%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +0.462(t 0.81) · 양세션 57.5% · 분할 both_positive [+3.713/+1.621] ✗ · k=5 arm +2.199%p/세션 · 풀평균 +2.205 · Δ(arm−풀) -0.006(t -0.01) · 양세션 58.8% · 분할 both_positive [+2.915/+1.483] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG103_20261005-0202.log",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm cg92_q30 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +2.667%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +0.462(t 0.81) · 양세션 57.5% · 분할 both_positive [+3.713/+1.621] ✗ · k=5 arm +2.199%p/세션 · 풀평균 +2.205 · Δ(arm−풀) -0.006(t -0.01) · 양세션 58.8% · 분할 both_positive [+2.915/+1.483] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+        "delta": 0.4616,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG104",
+      "title": "[측정정합성] 스코어보드 best_robust 가 과제정의·유니버스가 다른 arm 을 기준선(q0.30)과 직접 비교해 거짓 돌파를 만든다 — 프로토콜 수정",
+      "hypothesis": "스코어보드 북극성이 '로버스트 0.5870 vs 기준선 0.5406 (Δ+0.0464) · 무개선 0사이클' 로 뜨지만, 0.5870 의 출처는 원장 top per_exp 스캔으로 **CG89 의 Q5s_120_150**(q0.05·서로소 유니버스 슬라이스[120:150) = 유동성 최하위 30종목, std 0.0519)이다. 기준선 0.5406 은 q0.30·게이트 ON. 스킬 하드규칙: ① q0.05 의 행 집합은 q0.30 의 부분집합이라 과제 정의가 다르고 AUC 직접 비교 금지 ② 유니버스 교체만으로 폴드 평균이 Δ0.0287 움직인다(사전문턱 +0.02 는 잡음 바닥 아래). 즉 Δ+0.0464 는 개선이 아니라 서로 다른 과제·유니버스 AUC 를 나란히 놓은 산물이다. 돈 지표도 양쪽 다 엣지 없음(q0.05 Δ≤+0.23 t<1.1 / q0.30 Δ+0.462 t 0.81, CG103).",
+      "command": null,
+      "metric": null,
+      "counterfactual": "현행: 원장 per_exp 전체의 최고 mean 을 무조건 best_robust 로 채택(대조 가능성 미검사)",
+      "success": "① 대조 불가 arm(라벨 kind·q·게이트·유니버스가 기준선과 다름)은 무개선 카운터·best_robust 에서 제외되고 ② 그 사실이 로그 각주로 남으며 ③ 기존 기준선 값은 재계산 전후 보존된다.",
+      "est_minutes": null,
+      "priority": 2,
+      "status": "needs_setup",
+      "setup_needed": "`scripts/quant_scoreboard.py` 는 공유 파일 — 스킬상 '스코어보드 기준선/프로토콜 변경' = 리뷰보드 승인 대상. 승인 후 대조 가능성 필터(라벨 kind·q·게이트·유니버스 태그 비교) 구현 + 회귀. 실측 근거: 원장 최고 per_exp = CG89 Q5s_120_150 0.5870(q0.05·유니버스슬라이스) vs 기준선 0.5406(q0.30·게이트 ON) = 비교 불가 비교.",
+      "added": "2026-10-05 02:0x (엔지니어 — 북극성 거짓 돌파 진단)",
+      "attempts": []
+    },
     {
       "id": "L1",
       "title": "라벨 호라이즌: h5 → h8 (동일 유니버스·동일 프로토콜)",
