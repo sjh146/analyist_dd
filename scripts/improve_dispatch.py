@@ -127,8 +127,9 @@ def run_one(task: dict, *, auto_merge: bool, timeout: int, log=print) -> dict:
         rec.update({"result": "rejected",
                     "note": f"검증 실패(verify rc={rc_v}, pytest rc={rc_p}) — worktree 보존: {wt}"})
         return rec
-    # 4) 커밋(worktree 안) — 과제당 1커밋
+    # 4) 커밋(worktree 안) — 과제당 1커밋. 위임 잡음(stderr·백엔드 마커)은 커밋에서 제외한다.
     sh(["git", "add", "-A"], cwd=wt)
+    sh(["git", "reset", "-q", "--", "reports/agent_*.md.stderr.*", "reports/agent_*.md.backend"], cwd=wt)
     rc_c, _, err_c = sh(["git", "-c", "user.name=hermes-auto", "-c", "user.email=auto@local",
                          "commit", "-m", f"auto({qid}): {task['title'][:60]}"], cwd=wt)
     if rc_c != 0:

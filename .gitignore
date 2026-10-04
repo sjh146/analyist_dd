@@ -81,3 +81,7 @@ data/reports/hygiene/
 
 # 위임(ask_claude.sh) 작성 중 임시 스펙 파일
 docs/spec_*.md.tmp.*
+
+# 위임 에이전트 잡음(보고서는 커밋하되 stderr·백엔드 마커는 제외)
+reports/agent_*.md.backend
+reports/agent_*.md.stderr.*

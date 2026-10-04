@@ -58,7 +58,7 @@
     "promote_require_expectancy": true,
     "promote_require_robust": false,
     "auto_rollback": true,
-    "orchestrator_auto_merge": false,
+    "orchestrator_auto_merge": true,
     "min_improvement_auc": 0.02,
     "note": "promote_require_* 는 파이프라인이 champion_promote 로 넘기는 플래그의 기본값이다. true = 증거 없으면 승격하지 않는다. auto_rollback = 되돌림 감시가 실제로 원복까지 실행할지(기본 false = 권고·경보만)."
   },
