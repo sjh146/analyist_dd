@@ -90,6 +90,21 @@ def test_grid_covers_reversal_and_gate_axes():
     assert v["daychg_low"]["score"].tolist() == [-5.0, -1.0, 2.0]
 
 
+def test_data_fingerprint_detects_new_data(tmp_path):
+    """같은 조합도 데이터가 바뀌면 재평가해야 한다 — 안 그러면 자율 탐색이 죽은 루프가 된다.
+
+    실측 사고(2026-10-04): registry 를 조합 키로만 건너뛰어 첫 실행 뒤 매일 no-op 이 됐다.
+    """
+    p = tmp_path / "trades.csv"
+    p.write_text("date,code,score\n2026-10-01,005930,0.9\n", encoding="utf-8")
+    fp1 = er.data_fingerprint(str(p))
+    p.write_text("date,code,score\n2026-10-01,005930,0.9\n2026-10-02,000660,0.8\n", encoding="utf-8")
+    fp2 = er.data_fingerprint(str(p))
+    assert fp1 != fp2
+    assert er.data_fingerprint(str(tmp_path / "none.csv")) == "no-file"
+    assert fp1.split("_")[-1] == "1"        # 세션 수가 지문에 들어간다
+
+
 def test_gate_filter_never_claims_passed_when_columns_missing():
     """게이트 컬럼이 없으면 '통과분'을 주장하지 않는다(빈 집합 = 측정 불가) — 조용한 0건 금지."""
     import pandas as pd

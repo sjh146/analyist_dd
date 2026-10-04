@@ -70,6 +70,27 @@ def combo_key(c: dict) -> str:
         1 if c["gated"] else 0, **{k: c[k] for k in ("topk", "max_day_chg", "exit", "select")})
 
 
+def data_fingerprint(path: str) -> str:
+    """평가 대상 데이터가 바뀌면 같은 조합도 **다시** 평가해야 한다(안 그러면 루프가 무동작).
+
+    실측 사고(2026-10-04): registry 를 조합 키로만 건너뛰니 첫 실행 뒤로는 매일 no-op 이 되어
+    '자율 탐색'이 죽은 루프가 됐다. 파일 지문(크기·행수·최근 세션)을 함께 저장해 새 데이터에서 재평가한다.
+    """
+    try:
+        st = os.stat(path)
+        return "{0}_{1}_{2}".format(st.st_size, int(st.st_mtime), _csv_sessions(path))
+    except OSError:
+        return "no-file"
+
+
+def _csv_sessions(path: str) -> int:
+    try:
+        import pandas as pd
+        return int(pd.read_csv(path, usecols=["date"])["date"].nunique())
+    except Exception:
+        return -1
+
+
 def _args_for(combo: dict, args):
     ns = argparse.Namespace()
     ns.max_day_chg = combo["max_day_chg"]
@@ -199,11 +220,14 @@ def main(argv=None) -> int:
         return 2
 
     combos = [dict(zip(GRID, v)) for v in itertools.product(*GRID.values())]
-    todo = combos if a.force else [c for c in combos if combo_key(c) not in (reg.get("tested") or {})]
+    fp = data_fingerprint(a.trades)
+    tested = reg.get("tested") or {}
+    todo = combos if a.force else [c for c in combos
+                                   if (tested.get(combo_key(c)) or {}).get("fp") != fp]
     if not todo:
-        print(json.dumps({"tested_total": len(reg.get("tested") or {}),
-                          "note": "새 조합 없음(격자 전부 평가됨) — registry 요약만",
-                          "passing": [k for k, v in reg["tested"].items() if v.get("pass")]},
+        print(json.dumps({"tested_total": len(tested), "data_fp": fp,
+                          "note": "새 조합 없음(같은 데이터로 격자 전부 평가됨)",
+                          "passing": [k for k, v in tested.items() if v.get("pass")]},
                          ensure_ascii=False))
         return 0
 
@@ -215,6 +239,7 @@ def main(argv=None) -> int:
 
     reg.setdefault("tested", {}).update({k: {"pass": v["pass"], "avg_pct": v.get("avg_pct"),
                                              "why": v["why"], "combo": results[k]["combo"],
+                                             "fp": fp,
                                              "at": dt.datetime.now().isoformat(timespec="seconds")}
                                          for k, v in verd.items()})
     os.makedirs(REGISTRY.rsplit("/", 1)[0], exist_ok=True)
