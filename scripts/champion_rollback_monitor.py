@@ -65,21 +65,41 @@ def last_swap(path: str = SWAPS):
 
 
 def trading_sessions_since(ts_iso: str, repo: str = REPO) -> int | None:
-    """스왑 이후 경과 세션 수 — DB 없이 파일 기반(수집된 일봉 날짜 수)으로 센다."""
+    """스왑 이후 경과 **거래일** 수 — DB(수집된 일봉) 기준. 실패하면 None(판정은 증거만으로).
+
+    WHY: 되돌림 감시는 'K세션 뒤' 재판정이 설계 의도다(즉시 재판정은 잔떨림). 처음엔 리포트 파일
+    키에서 날짜를 세려 했는데 실측 2026-10-04 에 키가 없어 None 이 나왔고, 그 결과 스왑 직후에도
+    판정해 버렸다 → DB 의 trade_date 를 정본으로 쓰고, 실패하면 None 으로 남겨 '판정 불가'를 숨기지 않는다.
+    """
     try:
         d0 = dt.datetime.fromisoformat(ts_iso).date()
     except (ValueError, TypeError):
         return None
-    dates = set()
-    for rel in ("data/reports/screener_stats_measured.json",):
-        d = _read_json(os.path.join(repo, rel))
-        if isinstance(d, dict):
-            for k in list(d.keys()):
-                if len(str(k)) == 10 and str(k)[4] == "-":
-                    dates.add(str(k))
-    if not dates:
+    try:
+        import psycopg2
+        env = dict(os.environ)
+        try:                                  # .env 최소 파싱(외부 의존성 없이)
+            for line in open(os.path.join(repo, ".env"), encoding="utf-8"):
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        except OSError:
+            pass
+        conn = psycopg2.connect(host="127.0.0.1",
+                                port=int(env.get("POSTGRES_HOST_PORT") or 5434),
+                                user=env.get("POSTGRES_USER", "stock_user"),
+                                password=env.get("POSTGRES_PASSWORD", ""),
+                                dbname=env.get("POSTGRES_DB", "stock_trading"),
+                                connect_timeout=5)
+        with conn, conn.cursor() as cur:
+            cur.execute("select count(distinct trade_date) from market_data where trade_date > %s", (d0,))
+            row = cur.fetchone()
+            n = int(row[0]) if row else 0
+        conn.close()
+        return n
+    except Exception:                     # noqa: BLE001 — DB 없으면 판정 불가로 남긴다
         return None
-    return sum(1 for x in sorted(dates) if x > d0.isoformat())
 
 
 def _too_old(ev: dict, max_age_days: int) -> bool:
