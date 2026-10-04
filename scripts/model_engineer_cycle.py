@@ -580,6 +580,18 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: topk_precision 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "fillable_topk_expectancy":
+        # 돈 지표(체결성·수수료 반영 top-k 순기대) — scripts/fillable_topk_expectancy.py --json-out.
+        # 왜 전용 metric 인가(2026-10-04 CG95): CG93/CG94 의 top-k 정밀도는 `--restrict-q` 로
+        # **실현 선행수익의 꼬리**를 후보집합으로 삼아 측정된 것이라(예측 시점에 알 수 없는 선택)
+        # 그 자체로는 매매 가능한 바스켓이 아니다. 이 역할의 최우선 규칙은 "실험은 '돈' 지표로
+        # 측정한다"이므로, 전 유니버스 채점(--dump-all) 위에서 세션별 상위 k 동일비중 순기대를
+        # 짝으로 재는 전용 계측기를 쓴다. ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: fillable_topk_expectancy 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     if kind == "blend_eval":
         # 라벨 다양성 앙상블(scripts/blend_eval.py --out). CG56.
         # 왜 전용 metric 인가(실측 2026-10-01): 요약 스키마가 champion_robust_eval 과 **다르다**
@@ -927,6 +939,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_seed_family(spath, mtime_floor)
     if kind == "topk_precision":
         return parse_topk_precision(spath, mtime_floor)
+    if kind == "fillable_topk_expectancy":
+        return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
@@ -1339,6 +1353,103 @@ def judge_topk_precision(item, parsed) -> tuple:
     return "노이즈", detail + " → 사전등록 미충족", first
 
 
+def parse_fillable_topk_expectancy(path, mtime_floor) -> dict:
+    """돈 지표(체결성·수수료 반영 top-k 순기대) 요약을 파싱한다 — scripts/fillable_topk_expectancy.py --json-out.
+
+    스키마: {exit, horizon, ks, fee_roundtrip_pct, rows, n_sessions_fillable, pool_median_fillable,
+             conditions: {fillable|unfiltered: {filtered_out, k: {k: {arm, control, arm_halves,
+             control_halves, paired}}}}}
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장 per_exp 전체를 'arm 폴드 평균(AUC)' 으로
+    읽어 best_robust·무개선 카운터를 만든다(실측 2026-09-29 CG31 사고). k별 통계는 `conditions`
+    에 그대로 싣는다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    conds = d.get("conditions") or {}
+    fill = (conds.get("fillable") or {}).get("k") or {}
+    if not fill:
+        return {"error": "conditions.fillable.k 없음(집계 실패)", "summary_mtime": mt}
+    return {
+        "metric_name": d.get("metric_name"),
+        "exit": d.get("exit"), "horizon": d.get("horizon"), "ks": d.get("ks"),
+        "arm_tag": d.get("arm_tag"), "control_tag": d.get("control_tag"),
+        "fee_roundtrip_pct": d.get("fee_roundtrip_pct"),
+        "rows": d.get("rows"), "n_sessions_fillable": d.get("n_sessions_fillable"),
+        "pool_median_fillable": d.get("pool_median_fillable"),
+        "conditions": conds, "summary_mtime": mt,
+    }
+
+
+def judge_fillable_topk_expectancy(item, parsed) -> tuple:
+    """돈 지표 짝 판정 — 사전 등록(CG95): k=3 **과** k=5 둘 다
+
+      (a) arm(q0.05) 순기대 > 0  (b) 짝 Δ(arm − 대조군) ≥ +0.1%p/세션
+      (c) 짝 t ≥ 2              (d) 분할표본 앞/뒤 모두 양(+)
+    를 만족하면 '신호있음'. 하나라도 미달이면 '노이즈'(축 종결 근거).
+
+    왜 이 기준인가: (a)(b)(d)는 이 회사의 승격 표준(`champion_promote --require-expectancy`
+    = 순기대>0 · 분할표본 both_positive · 챔피언 대비 +0.1%p)과 동일하고, (c)는 표본(세션 80)에서
+    +0.1%p 가 잡음과 구분되는지(≈2σ) 보는 장치다. AUC 처럼 폴드 std ±0.03 을 감안한 +0.02 문턱이
+    아니라 **돈 단위(%p/세션)** 문턱이라는 점이 다르다 — 이 역할의 최우선 규칙.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    conds = parsed.get("conditions") or {}
+    fill = (conds.get("fillable") or {}).get("k") or {}
+    unf = (conds.get("unfiltered") or {}).get("k") or {}
+    parts, ok_all, first = [], True, None
+    for k in ("3", "5"):
+        b = fill.get(k)
+        if not isinstance(b, dict):
+            return "판정불가", f"k={k} 통계 없음 (keys={list(fill)})", None
+        arm = b.get("arm") or {}
+        ctl = b.get("control") or {}
+        pa = b.get("paired") or {}
+        hf = b.get("arm_halves") or {}
+        net, d, t = arm.get("mean"), pa.get("delta_mean"), pa.get("t")
+        st = hf.get("stable")
+        good = (isinstance(net, (int, float)) and net > 0
+                and isinstance(d, (int, float)) and d >= 0.1
+                and isinstance(t, (int, float)) and t >= 2
+                and st == "both_positive")
+        ok_all = ok_all and good
+        if first is None:
+            first = d
+        fmt = (f"k={k} arm {net:+.3f}%p/세션 · 대조 {ctl.get('mean', float('nan')):+.3f} · "
+               f"Δ{d:+.3f}(t {t}) · 양세션 {arm.get('pos_pct')}% · 분할 {st} "
+               f"[{hf.get('front', {}).get('mean', float('nan')):+.3f}/"
+               f"{hf.get('back', {}).get('mean', float('nan')):+.3f}]"
+               if all(isinstance(x, (int, float)) for x in (net, d, t))
+               else f"k={k} 통계 결측")
+        parts.append(fmt + ("" if good else " ✗"))
+    ref = ""
+    if isinstance(unf.get("3"), dict):
+        ua = (unf["3"].get("arm") or {}).get("mean")
+        ud = (unf["3"].get("paired") or {}).get("delta_mean")
+        ref = (f" · 참고(체결성 필터 OFF): k=3 arm {ua:+.3f}%p · Δ{ud:+.3f}"
+               if isinstance(ua, (int, float)) and isinstance(ud, (int, float)) else "")
+    detail = (f"arm {parsed.get('arm_tag')} vs 대조군 {parsed.get('control_tag')} · "
+              f"exit {parsed.get('exit')} h{parsed.get('horizon')} · 수수료 왕복 "
+              f"{parsed.get('fee_roundtrip_pct')}%p · 세션 {parsed.get('n_sessions_fillable')} · "
+              f"풀 중앙값 {parsed.get('pool_median_fillable')} · " + " · ".join(parts)
+              + ref + " · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive")
+    if ok_all:
+        return "신호있음", detail + " → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인)", first
+    return "노이즈", detail + " → 사전등록 미충족", first
+
+
 def parse_blend_eval(path, mtime_floor) -> dict:
     """라벨 다양성 앙상블(scripts/blend_eval.py --out) 짝 집계를 파싱한다.
 
@@ -1421,6 +1532,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_seed_family(item, parsed)
     if kind == "topk_precision":
         return judge_topk_precision(item, parsed)
+    if kind == "fillable_topk_expectancy":
+        return judge_fillable_topk_expectancy(item, parsed)
     if kind == "forward_scorecard":
         return judge_forward_scorecard(item, parsed)
     if kind == "calibration_probe":

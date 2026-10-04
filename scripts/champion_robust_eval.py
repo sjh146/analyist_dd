@@ -243,6 +243,13 @@ def main() -> int:
     ap.add_argument("--dump-tag", dest="dump_tag", default=None,
                     help="--dump-preds 의 exp 이름(기본 = model_dir 의 basename). 두 모델을 "
                          "한 파일로 합칠 때 --arm/--control 이름으로 쓴다.")
+    ap.add_argument("--dump-all", dest="dump_all", action="store_true",
+                    help="--dump-preds 를 **전 유니버스 행**으로 쓴다(quantile 라벨의 가운데 행도 "
+                         "y_true=null 로 포함). 왜 필요한가(2026-10-04 CG95): 기본 덤프는 라벨이 "
+                         "있는 행만 담으므로 후보 풀이 '실현 선행수익의 꼬리'로 사후 선택되고, "
+                         "그 위에서 잰 top-k 정밀도·기대수익은 매매 가능한 바스켓이 아니다"
+                         "(예측 시점에 그 꼬리를 알 수 없다). 돈 지표는 전 유니버스 채점 위에서 "
+                         "재야 한다(scripts/fillable_topk_expectancy.py). 기본값은 현행 비트 동일.")
     ap.add_argument("--write", action="store_true",
                     help="robust_walkforward.json 도 기록(정보용 견고성 지표). "
                          "승격 기준선 robust_auc.json 은 champion_promote 가 지표 동형으로 "
@@ -410,6 +417,15 @@ def main() -> int:
                 continue
 
             y = _make_labels(rets, args.label_kind, args.label_q)
+            if dump_rows is not None and args.dump_all:
+                # 전 유니버스 덤프(CG95): 라벨 가운데(None)도 포함한다 — 예측 시점에 실제로
+                # 고를 수 있는 풀은 '그날 채점된 전 종목'이지 실현수익 꼬리가 아니다.
+                for _c, _p, _r, _yi in zip(codes, probs, rets, y):
+                    dump_rows.append({"exp": dump_tag, "fold": fi + 1, "date": date,
+                                      "code": _c,
+                                      "y_true": (int(_yi) if _yi is not None else None),
+                                      "y_pred": round(float(_p), 6),
+                                      "fwd_ret": round(float(_r), 6)})
             if args.label_kind == "quantile":
                 # 가운데 분위(None)는 채점에서 제외한다 — 학습 라벨과 같은 행 도메인이어야
                 # '자기 과제' 점수가 된다(retrain_champion --label-kind quantile 과 동일 규칙).
@@ -425,7 +441,7 @@ def main() -> int:
                 # 전 종목 동일 라벨(예: 급등일 전부 상승) → AUC 정의 불가. 날짜만 세고 버린다.
                 logger.info("%s: 라벨 단일값 — AUC 정의 불가, 건너뜀", date)
                 continue
-            if dump_rows is not None:
+            if dump_rows is not None and not args.dump_all:
                 for _c, _p, _r, _yi in zip(codes, probs, rets, y):
                     dump_rows.append({"exp": dump_tag, "fold": fi + 1, "date": date,
                                       "code": _c, "y_true": int(_yi),
@@ -452,6 +468,16 @@ def main() -> int:
                         usable[0], usable[-1])
 
     if not fold_stats:
+        # AUC 폴드가 하나도 안 남아도, --dump-all 로 모은 전 유니버스 행은 **쓴다**(CG95).
+        # 왜: 돈 지표(fillable_topk_expectancy)는 AUC 폴드 유효성과 무관하게 세션별 순기대를
+        # 재는데, 여기서 그냥 return 하면 몇 시간치 채점 결과가 통째로 사라진다.
+        if args.dump_preds and dump_rows:
+            os.makedirs(os.path.dirname(args.dump_preds) or ".", exist_ok=True)
+            with open(args.dump_preds, "w", encoding="utf-8") as f:
+                for _row in dump_rows:
+                    f.write(json.dumps(_row, ensure_ascii=False) + "\n")
+            logger.warning("유효 폴드 없음 — 그래도 --dump-preds %d행 기록(돈 지표는 폴드 무관)",
+                           len(dump_rows))
         logger.error("유효 폴드가 없습니다")
         return 2
 

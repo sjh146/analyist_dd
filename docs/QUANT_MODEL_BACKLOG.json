@@ -11289,6 +11289,22 @@
         "per_exp": null,
         "rc": 0
       }
+    },
+    {
+      "id": "CG95",
+      "priority": 1,
+      "affects_model": true,
+      "title": "라벨 꼬리(q0.05) 레버의 **돈 지표** — 전 유니버스 채점 + 체결성·수수료 반영 top-k 순기대 (생산 경로, 짝)",
+      "hypothesis": "CG92(생산경로 AUC 짝 Δ+0.0459·t 3.83)와 CG94(공통 후보집합 top-k k=3 Δprec +0.1208 p 0.0054 · k=5 +0.1100 p 9.0e-05)는 **순위** 신호를 보였다. 그러나 (a) CG94 의 Δfwd_ret 는 k=3 **−0.0396**(음) · k=5 +0.0249 로 부호가 엇갈리고 (b) 그 후보집합은 `--restrict-q 0.05` 로 **실현 선행수익의 꼬리**를 골라 만든 것이라(예측 시점에 알 수 없는 선택) 매매 가능한 바스켓이 아니며 (c) 수수료도 반영되지 않았다. 전 유니버스 채점(`--dump-all`) 위에서 실제 소비 정책(세션별 모델점수 상위 k 동일비중 매수 → h5 종가 매도, 체결성 필터 + 수수료 왕복 0.21%p)을 짝으로 재면 라벨 꼬리 레버가 **돈으로도** 실질적인지 판정할 수 있다. 기대: 정밀도 이득이 상위 k 에 집중되므로 k=3 에서 Δ기대가 양(+)이고, q0.30 대조군보다 위험조정 우위가 나온다.",
+      "metric": "fillable_topk_expectancy",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 10 --dates-per-fold 8 --stocks 300 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg95_q05_all.jsonl --dump-tag cg92_q05 --dump-all --out /app/reports/overnight/cg95_q05_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q30 --label-kind quantile --label-q 0.30 --horizon 5 --folds 10 --dates-per-fold 8 --stocks 300 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg95_q30_all.jsonl --dump-tag cg92_q30 --dump-all --out /app/reports/overnight/cg95_q30_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg95_q05_all.jsonl --arm-tag cg92_q05 --control-jsonl /app/reports/overnight/cg95_q30_all.jsonl --control-tag cg92_q30 --k 3,5,10 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg95_money.json'",
+      "counterfactual": "cg92_q30 (같은 창·같은 유니버스·같은 프로토콜로 전 유니버스 채점한 q0.30 라벨 arm — 모델 디렉터리 재사용, 재학습 0)",
+      "success": "k=3 **과** k=5 둘 다: ① arm(q0.05) 순기대 > 0 ② 짝 Δ(arm − 대조군) ≥ +0.1%p/세션 ③ 짝 t ≥ 2 ④ 분할표본 앞/뒤 모두 양(+) → '돈으로도 실질성 있음' → 라벨 정의 변경(q0.30→q0.05) **리뷰보드 승인 요청** (+ 소비 정책 동반: CG82·CG83 의 절대문턱 0.55 → 분위 top-k 는 트레이더 소유 파일이라 별도 승인). 하나라도 미달이면 **라벨 꼬리 축을 돈 기준으로 종결**하고 데이터 축으로 복귀한다(방향 무관, 이 항목의 결과로 닫는다).",
+      "expected": "CG94 의 정밀도 이득(+0.12 @k=3)이 순위 이득이라면 상위 3종목 바스켓에서 Δ기대 +0.2~+1.0%p/세션이 나올 수 있다. 단 필터(min_value 1e9·day_chg<25·상한가 제외)로 풀이 296→약 115종목으로 줄어 k=5 까지는 포화되지 않는다.",
+      "cost": "평가 2회(모델 재사용·학습 0). CG94 실측과 동일 프로토콜(300종목×80세션) → 약 120~150분.",
+      "est_minutes": 150,
+      "status": "pending",
+      "note": "2026-10-04 16:1x 신설(주말 자율 세션). 계기: CG94 가 정밀도 기준으로는 통과(k=3·5 둘 다 p<0.01)했지만 **등록된 성공조건의 'Δfwd_ret>0' 을 구현된 판정기가 검사하지 않았고**, 실제로 k=3 의 Δfwd_ret 는 음(−0.0396)이었다 → 판정기와 등록 문턱의 정합성 갭(별도 승인 항목으로 보고). 이 역할의 최우선 규칙은 '실험은 돈 지표로 측정한다'이므로 AUC·정밀도 위에서 승인 요청을 올리기 전에 돈 지표를 확보한다. 도구 2종 신규: ①`champion_robust_eval --dump-all`(전 유니버스 행 덤프 — 기본 덤프는 라벨 있는 행만 담아 후보풀이 실현수익 꼬리로 사후 선택된다) ②`scripts/fillable_topk_expectancy.py`(체결성·수수료 반영 top-k 순기대, 수수료 상수는 fillable_expectancy.py 에서 import = 단일 진실원) + 구동기 metric `fillable_topk_expectancy` 배선(파서·판정·summary_path). 자체점검 `python3 scripts/_fillable_topk_judge_test.py` 17/17 PASS. ⚠ 같은 커맨드에 두 --out 이 있지만 판정 대상은 마지막 `--json-out`(돈 지표)이다 — champion_robust_eval 의 --out 은 판정에 쓰이지 않는다."
     }
   ]
 }
