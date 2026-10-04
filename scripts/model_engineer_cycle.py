@@ -580,8 +580,10 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: topk_precision 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
-    if kind == "fillable_topk_expectancy":
+    if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool"):
         # 돈 지표(체결성·수수료 반영 top-k 순기대) — scripts/fillable_topk_expectancy.py --json-out.
+        # `fillable_topk_vs_pool` 은 같은 --json-out 을 읽되 판정만 '모델 top-k vs 널(풀 평균)' 로
+        # 바꾼 변형이다(2026-10-04 CG96: CG95 는 arm vs arm 만 봐 둘 다 양(+)이라 베타 구분 불가).
         # 왜 전용 metric 인가(2026-10-04 CG95): CG93/CG94 의 top-k 정밀도는 `--restrict-q` 로
         # **실현 선행수익의 꼬리**를 후보집합으로 삼아 측정된 것이라(예측 시점에 알 수 없는 선택)
         # 그 자체로는 매매 가능한 바스켓이 아니다. 이 역할의 최우선 규칙은 "실험은 '돈' 지표로
@@ -939,7 +941,7 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_seed_family(spath, mtime_floor)
     if kind == "topk_precision":
         return parse_topk_precision(spath, mtime_floor)
-    if kind == "fillable_topk_expectancy":
+    if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool"):
         return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
@@ -1458,6 +1460,62 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
     return "노이즈", detail + " → 사전등록 미충족", first
 
 
+def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
+    """모델 top-k 가 **널 기준선(세션 풀 평균 = 무작위 k 기대)** 을 넘는가 — 돈 축의 널 판정.
+
+    WHY(2026-10-04 CG95): 같은 프로토콜에서 arm(q0.05) 과 대조군(q0.30) **둘 다** +2%p/세션 대로
+    양(+)이었다 — arm vs arm 비교만으로는 그 양수가 '모델 엣지'인지 '시장 베타'인지 가릴 수
+    없다. 무작위 k 바스켓의 기대값은 정확히 풀 평균이므로 `top-k − 풀평균` = **베타 제거 초과**다.
+
+    사전문턱(승격 표준 `champion_promote --require-expectancy` 와 동일 단위): k=3 **과** k=5 둘 다
+      (a) arm 순기대 > 0  (b) 짝 Δ(arm − 풀평균) ≥ +0.1%p/세션
+      (c) 짝 t ≥ 2        (d) 분할표본(arm) 앞/뒤 모두 양(+)
+    를 만족하면 '신호있음'(모델이 베타를 넘는다 — 승격은 별도 절차). 하나라도 미달이면
+    '노이즈' = '돈 축에서 베타 초과 미검출' 로 기록한다(축 종결 근거).
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    fill = ((parsed.get("conditions") or {}).get("fillable") or {})
+    ks = fill.get("k") or {}
+    bpool = fill.get("baseline_pool") or {}
+    bp = bpool.get("stat") or {}
+    paired_by_k = bpool.get("paired_by_k") or {}
+    if not ks or not paired_by_k:
+        return "판정불가", "baseline_pool 없음(구 스키마 — 널 기준선 미계산)", None
+    parts, ok_all, first = [], True, None
+    for k in ("3", "5"):
+        b = ks.get(k)
+        if not isinstance(b, dict):
+            return "판정불가", f"k={k} 통계 없음 (keys={list(ks)})", None
+        arm = b.get("arm") or {}
+        pk = paired_by_k.get(k) or {}
+        hf = b.get("arm_halves") or {}
+        net, d, t = arm.get("mean"), pk.get("delta_mean"), pk.get("t")
+        st = hf.get("stable")
+        good = (isinstance(net, (int, float)) and net > 0
+                and isinstance(d, (int, float)) and d >= 0.1
+                and isinstance(t, (int, float)) and t >= 2
+                and st == "both_positive")
+        ok_all = ok_all and good
+        if first is None:
+            first = d
+        fmt = (f"k={k} arm {net:+.3f}%p/세션 · 풀평균 {bp.get('mean', float('nan')):+.3f} · "
+               f"Δ(arm−풀) {d:+.3f}(t {t}) · 양세션 {arm.get('pos_pct')}% · 분할 {st} "
+               f"[{hf.get('front', {}).get('mean', float('nan')):+.3f}/"
+               f"{hf.get('back', {}).get('mean', float('nan')):+.3f}]"
+               if all(isinstance(x, (int, float)) for x in (net, d, t))
+               else f"k={k} 통계 결측")
+        parts.append(fmt + ("" if good else " ✗"))
+    detail = (f"arm {parsed.get('arm_tag')} · 널=세션 풀 평균(무작위 k 기대) · exit "
+              f"{parsed.get('exit')} h{parsed.get('horizon')} · 수수료 왕복 "
+              f"{parsed.get('fee_roundtrip_pct')}%p · 세션 {parsed.get('n_sessions_fillable')} · "
+              + " · ".join(parts)
+              + f" · 풀평균 t {bp.get('t')} · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive")
+    if ok_all:
+        return "신호있음", detail + " → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)", first
+    return "노이즈", detail + " → 사전등록 미충족(베타 초과 미검출)", first
+
+
 def parse_blend_eval(path, mtime_floor) -> dict:
     """라벨 다양성 앙상블(scripts/blend_eval.py --out) 짝 집계를 파싱한다.
 
@@ -1542,6 +1600,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_topk_precision(item, parsed)
     if kind == "fillable_topk_expectancy":
         return judge_fillable_topk_expectancy(item, parsed)
+    if kind == "fillable_topk_vs_pool":
+        return judge_fillable_topk_vs_pool(item, parsed)
     if kind == "forward_scorecard":
         return judge_forward_scorecard(item, parsed)
     if kind == "calibration_probe":

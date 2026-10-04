@@ -175,20 +175,39 @@ def apply_filters(rows, a, on=True):
     return kept, len(rows) - len(kept)
 
 
-def baskets(rows, ks, rt_pct):
-    """(fold,date) 세션마다 score 상위 k 동일비중 net(%) → {k: {session_key: net}}."""
+def baskets(rows, ks, rt_pct, reverse=False):
+    """(fold,date) 세션마다 score 상위 k 동일비중 net(%) → {k: {session_key: net}}.
+
+    reverse=True 면 **하위 k**(모델이 가장 낮게 점수한 k종목) — 점수가 돈 정보를 갖는지
+    양끝에서 보는 검사용(2026-10-04 CG98). 기본 False 는 기존 동작(상위 k) 비트 동일.
+    """
     by_sess = defaultdict(list)
     for r in rows:
         by_sess[(r["fold"], r["date"])].append(r)
     out = {k: {} for k in ks}
     for key, rs in by_sess.items():
-        rs = sorted(rs, key=lambda x: -x["score"])
+        rs = sorted(rs, key=(lambda x: x["score"]) if reverse else (lambda x: -x["score"]))
         for k in ks:
             pick = rs[:k]
             if not pick:
                 continue
             out[k][key] = sum(p["gross_pct"] for p in pick) / len(pick) - rt_pct
     return out
+
+
+def pool_series(rows, rt_pct):
+    """세션별 **풀 평균**(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓의 기대값.
+
+    WHY(실측 2026-10-04 CG95): 모델 top-k 의 순기대가 양(+)이어도 그게 **시장 베타**인지
+    모델 엣지인지 가르는 널 기준선이 없었다 — CG95 는 arm(q0.05) vs control(q0.30) 만 봤고
+    둘 다 +2%p/세션 대로 양(+)이었다. 무작위 k 바스켓의 기대값은 정확히 풀 평균이므로,
+    `top-k − 풀평균` = 모델이 캡처한 **베타 제거 초과**다(양수여야 '돈이 된다'고 말할 수 있다).
+    """
+    by_sess = defaultdict(list)
+    for r in rows:
+        by_sess[(r["fold"], r["date"])].append(r)
+    return {key: (sum(x["gross_pct"] for x in rs) / len(rs)) - rt_pct
+            for key, rs in by_sess.items() if rs}
 
 
 def stat(vals):
@@ -253,6 +272,10 @@ def main(argv=None) -> int:
     ap.add_argument("--control-jsonl", required=True)
     ap.add_argument("--control-tag", default=None)
     ap.add_argument("--k", default="3,5,10")
+    ap.add_argument("--sides", default="top",
+                    help="top(기본) · bottom 추가 시 반대쪽 k 바스켓도 계산해 `bottom_k` 로 싣는다")
+    ap.add_argument("--primary-side", choices=("top", "bottom"), default="top",
+                    help="k 바스켓을 상위(기본)로 볼지 하위로 볼지 — 하위는 '점수 반전' 가설 검정(CG99)")
     ap.add_argument("--exit", choices=EXITS, default="close_h",
                     help="close_h: 라벨 호라이즌 h 의 종가 매도(기본) · next_open: 익일 시가")
     ap.add_argument("--horizon", type=int, default=5)
@@ -268,6 +291,8 @@ def main(argv=None) -> int:
     ap.add_argument("--json-out", default=None)
     a = ap.parse_args(argv)
     ks = [int(x) for x in str(a.k).split(",") if x.strip()]
+    sides = [s.strip() for s in str(a.sides).split(",") if s.strip()]
+    flip = (a.primary_side == "bottom")
     rt_pct = (a.fee_buy + a.fee_sell + a.tax_sell) * 100.0
 
     arm, bad_a = load_rows(a.arm_jsonl, a.arm_tag)
@@ -299,9 +324,23 @@ def main(argv=None) -> int:
     for cond, on in (("fillable", True), ("unfiltered", False)):
         fa, sk_a = apply_filters(arm_e, a, on)
         fc, sk_c = apply_filters(ctl_e, a, on)
-        ba = baskets(fa, ks, rt_pct)
-        bc = baskets(fc, ks, rt_pct)
+        ba = baskets(fa, ks, rt_pct, reverse=flip)
+        bc = baskets(fc, ks, rt_pct, reverse=flip)
         block = {"filtered_out": {"arm": sk_a, "control": sk_c}, "k": {}}
+        # 널 기준선(무작위 k 기대 = 풀 평균). arm 행 기준 — 두 arm 의 필터 통과 집합은
+        # 같으므로(같은 dump·같은 종목·날짜) 어느 쪽에서 계산해도 동일하다.
+        bpool = pool_series(fa, rt_pct)
+        block["baseline_pool"] = {
+            "desc": "세션별 풀 평균(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓 기대값",
+            "stat": stat(list(bpool.values())), "halves": halves(bpool),
+            "paired_by_k": {str(k): paired_stats(ba[k], bpool) for k in ks},
+        }
+        if ("bottom" in sides) and not flip:
+            # 반대쪽(하위) k — 점수의 돈 정보를 양끝에서 본다(CG98).
+            bb = baskets(fa, ks, rt_pct, reverse=True)
+            block["bottom_k"] = {
+                str(k): {"arm": stat(list(bb[k].values())),
+                         "paired_vs_pool": paired_stats(bb[k], bpool)} for k in ks}
         for k in ks:
             sa = ba[k]
             sc = bc[k]
@@ -336,6 +375,22 @@ def main(argv=None) -> int:
                   f"{pa.get('delta_mean', float('nan')):>8.3f} {pa.get('t', float('nan')):>6.2f} "
                   f"{str(pa.get('pos'))+'/'+str(pa.get('neg'))+'/'+str(pa.get('ties')):>11} "
                   f"{b['arm'].get('pos_pct', float('nan')):>10.1f}")
+        bp = out["conditions"][cond]["baseline_pool"]
+        bs = bp["stat"]
+        print(f"  [널] 풀 평균(무작위 k 기대) {bs.get('mean', float('nan')):+.3f}%p/세션 "
+              f"(n={bs.get('n')} · t {bs.get('t')} · 양세션 {bs.get('pos_pct')}%)")
+        for k in ks:
+            pk = bp["paired_by_k"][str(k)]
+            print(f"    k={k:>2} Δ({a.primary_side}-k − 풀평균) {pk.get('delta_mean', float('nan')):+.3f} "
+                  f"(t {pk.get('t')} · pos/neg/ty {pk.get('pos')}/{pk.get('neg')}/{pk.get('ties')})")
+        cb = out["conditions"][cond]
+        if "bottom_k" in cb:
+            print("  [반대쪽 k] 풀 평균 대비")
+            for k in ks:
+                bk = cb["bottom_k"][str(k)]
+                pv = bk["paired_vs_pool"]
+                print(f"    k={k:>2} arm {bk['arm'].get('mean', float('nan')):+.3f}%p/세션 "
+                      f"· Δ(pool) {pv.get('delta_mean', float('nan')):+.3f} (t {pv.get('t')})")
     if a.json_out:
         os.makedirs(os.path.dirname(a.json_out) or ".", exist_ok=True)
         with open(a.json_out, "w", encoding="utf-8") as f:

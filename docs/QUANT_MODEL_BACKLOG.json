@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T07:04:11+09:00",
+  "updated_at": "2026-10-04T19:14:59+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -11303,8 +11303,145 @@
       "expected": "CG94 의 정밀도 이득(+0.12 @k=3)이 순위 이득이라면 상위 3종목 바스켓에서 Δ기대 +0.2~+1.0%p/세션이 나올 수 있다. 단 필터(min_value 1e9·day_chg<25·상한가 제외)로 풀이 296→약 115종목으로 줄어 k=5 까지는 포화되지 않는다.",
       "cost": "평가 2회(모델 재사용·학습 0). CG94 실측과 동일 프로토콜(300종목×80세션) → 약 120~150분.",
       "est_minutes": 150,
-      "status": "pending",
-      "note": "2026-10-04 16:1x 신설(주말 자율 세션). 계기: CG94 가 정밀도 기준으로는 통과(k=3·5 둘 다 p<0.01)했지만 **등록된 성공조건의 'Δfwd_ret>0' 을 구현된 판정기가 검사하지 않았고**, 실제로 k=3 의 Δfwd_ret 는 음(−0.0396)이었다 → 판정기와 등록 문턱의 정합성 갭(별도 승인 항목으로 보고). 이 역할의 최우선 규칙은 '실험은 돈 지표로 측정한다'이므로 AUC·정밀도 위에서 승인 요청을 올리기 전에 돈 지표를 확보한다. 도구 2종 신규: ①`champion_robust_eval --dump-all`(전 유니버스 행 덤프 — 기본 덤프는 라벨 있는 행만 담아 후보풀이 실현수익 꼬리로 사후 선택된다) ②`scripts/fillable_topk_expectancy.py`(체결성·수수료 반영 top-k 순기대, 수수료 상수는 fillable_expectancy.py 에서 import = 단일 진실원) + 구동기 metric `fillable_topk_expectancy` 배선(파서·판정·summary_path). 자체점검 `python3 scripts/_fillable_topk_judge_test.py` 17/17 PASS. ⚠ 같은 커맨드에 두 --out 이 있지만 판정 대상은 마지막 `--json-out`(돈 지표)이다 — champion_robust_eval 의 --out 은 판정에 쓰이지 않는다."
+      "status": "done",
+      "note": "2026-10-04 16:1x 신설(주말 자율 세션). 계기: CG94 가 정밀도 기준으로는 통과(k=3·5 둘 다 p<0.01)했지만 **등록된 성공조건의 'Δfwd_ret>0' 을 구현된 판정기가 검사하지 않았고**, 실제로 k=3 의 Δfwd_ret 는 음(−0.0396)이었다 → 판정기와 등록 문턱의 정합성 갭(별도 승인 항목으로 보고). 이 역할의 최우선 규칙은 '실험은 돈 지표로 측정한다'이므로 AUC·정밀도 위에서 승인 요청을 올리기 전에 돈 지표를 확보한다. 도구 2종 신규: ①`champion_robust_eval --dump-all`(전 유니버스 행 덤프 — 기본 덤프는 라벨 있는 행만 담아 후보풀이 실현수익 꼬리로 사후 선택된다) ②`scripts/fillable_topk_expectancy.py`(체결성·수수료 반영 top-k 순기대, 수수료 상수는 fillable_expectancy.py 에서 import = 단일 진실원) + 구동기 metric `fillable_topk_expectancy` 배선(파서·판정·summary_path). 자체점검 `python3 scripts/_fillable_topk_judge_test.py` 17/17 PASS. ⚠ 같은 커맨드에 두 --out 이 있지만 판정 대상은 마지막 `--json-out`(돈 지표)이다 — champion_robust_eval 의 --out 은 판정에 쓰이지 않는다.",
+      "attempts": [
+        {
+          "ts": "2026-10-04T18:30:37+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm cg92_q05 vs 대조군 cg92_q30 · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · 풀 중앙값 107 · k=3 arm +1.754%p/세션 · 대조 +2.667 · Δ-0.912(t -1.45) · 양세션 61.2% · 분할 both_positive [+2.607/+0.902] ✗ · k=5 arm +2.386%p/세션 · 대조 +2.199 · Δ+0.187(t 0.36) · 양세션 65.0% · 분할 both_positive [+3.396/+1.376] ✗ · 참고(체결성 필터 OFF): k=3 arm +1.237%p · Δ-0.659 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG95_20261004-161243.log",
+          "elapsed_min": 137.9
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm cg92_q05 vs 대조군 cg92_q30 · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · 풀 중앙값 107 · k=3 arm +1.754%p/세션 · 대조 +2.667 · Δ-0.912(t -1.45) · 양세션 61.2% · 분할 both_positive [+2.607/+0.902] ✗ · k=5 arm +2.386%p/세션 · 대조 +2.199 · Δ+0.187(t 0.36) · 양세션 65.0% · 분할 both_positive [+3.396/+1.376] ✗ · 참고(체결성 필터 OFF): k=3 arm +1.237%p · Δ-0.659 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+        "delta": -0.9124,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG96",
+      "title": "돈 지표의 널 기준선 — 모델 top-k 가 세션 풀 평균(무작위 k 기대)을 넘는가 (베타 제거 초과, 짝)",
+      "hypothesis": "CG95 는 arm(q0.05) vs 대조군(q0.30) 만 비교해 **둘 다** +2%p/세션 대로 양(+)이었다 (k=3 arm +1.754 · 대조 +2.667 · k=5 arm +2.386 · 대조 +2.199). arm vs arm 만으로는 그 양수가 '모델 엣지'인지 '시장 베타'인지 가릴 수 없다 — 지금까지 모든 돈 측정에 널 기준선이 없었다. 무작위 k 바스켓의 기대값은 정확히 세션 풀 평균이므로, `top-k − 풀평균` = 베타 제거 초과다. 이 값이 승격표준(+0.1%p·t≥2·분할 양(+))을 넘으면 돈 축에서 처음으로 실엣지가 확인되는 것이고, 넘지 못하면 AUC 계열 작업 전체가 돈으로 환산되지 않는다는 결론(=돈 축 종결)이 된다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg95_q05_all.jsonl --arm-tag cg92_q05 --control-jsonl /app/reports/overnight/cg95_q30_all.jsonl --control-tag cg92_q30 --k 3,5,10,20,30 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg96_money.json'",
+      "metric": "fillable_topk_vs_pool",
+      "success": "k=3 **과** k=5 둘 다: ① arm(q0.05) 순기대 > 0 ② 짝 Δ(arm − 세션 풀 평균) ≥ +0.1%p/세션 ③ 짝 t ≥ 2 ④ 분할표본(arm) 앞/뒤 모두 양(+) → '모델이 시장 베타를 넘는 돈 엣지' → 돈 축 유지, 다음 레버는 k·청산 호라이즌 dose-response. 미달이면 '돈 축: 베타 초과 미검출' 로 종결하고 승격 근거 없음으로 기록한다(성공·실패 어느 쪽이든 이 런으로 돈 축 1차 결론을 낸다).",
+      "counterfactual": "세션 풀 평균(같은 dump·같은 체결성 필터·같은 수수료로 계산한 필터 통과 전 종목 동일비중 순기대 = 무작위 k 바스켓 기대값). 재학습 0 — CG95 가 만든 cg95_q05_all.jsonl / cg95_q30_all.jsonl 재사용(dump-all 전 유니버스 채점).",
+      "est_minutes": 30,
+      "priority": 1,
+      "status": "done",
+      "added": "2026-10-04 19:0x (엔지니어, CG95 노이즈 판정 후 — 돈 지표 널 기준선 부재 수리)",
+      "attempts": [
+        {
+          "ts": "2026-10-04T19:04:30+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm cg92_q05 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +1.754%p/세션 · 풀평균 +2.205 · Δ(arm−풀) -0.451(t -1.0) · 양세션 61.2% · 분할 both_positive [+2.607/+0.902] ✗ · k=5 arm +2.386%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +0.181(t 0.48) · 양세션 65.0% · 분할 both_positive [+3.396/+1.376] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG96_20261004-190428.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm cg92_q05 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +1.754%p/세션 · 풀평균 +2.205 · Δ(arm−풀) -0.451(t -1.0) · 양세션 61.2% · 분할 both_positive [+2.607/+0.902] ✗ · k=5 arm +2.386%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +0.181(t 0.48) · 양세션 65.0% · 분할 both_positive [+3.396/+1.376] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+        "delta": -0.4507,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG97",
+      "title": "돈 축 종결의 견고성 — 청산 호라이즌 4점 dose-response (모델 top-k − 세션 풀 평균, h1·h3·h5·h10)",
+      "hypothesis": "CG96 은 exit=close_h **h5** 에서 모델 top-k 가 널(세션 풀 평균 = 무작위 k 기대 +2.205%p/세션)을 넘지 못함을 보였다(Δ k=3 −0.451(t−1.0) · k=5 +0.181(t0.48) · k=10 +0.189 · k=20 +0.228 · k=30 +0.222, 전부 t<1.1). 그런데 스킬에 **라벨 호라이즌(h1)과 트레이더 보유기간(h5) 불일치**가 기록돼 있으므로, h5 하나로 돈 축을 닫기 전에 다른 청산 호라이즌에서 신호가 사는지 봐야 한다. 만약 특정 h 에서만 Δ(모델−풀)가 승격표준(+0.1%p·t≥2)을 넘으면 그것이 다음 레버이고, 전 호라이즌에서 ≈0 이면 '모델 랭킹은 어느 보유기간에서도 시장 베타를 넘지 못한다'로 돈 축을 종결한다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_horizon_sweep.py --arm-jsonl /app/reports/overnight/cg95_q05_all.jsonl --arm-tag cg92_q05 --control-jsonl /app/reports/overnight/cg95_q30_all.jsonl --control-tag cg92_q30 --k 3,5,10,20,30 --horizons 1,3,5,10 --primary 5 --json-out /app/reports/overnight/cg97_money.json'",
+      "metric": "fillable_topk_vs_pool",
+      "success": "primary(h5) 판정은 기존 사전문턱 그대로(k=3·k=5 둘 다 Δ(arm−풀)≥+0.1%p & t≥2 & 분할 both_positive). **추가로** `horizon_table` 의 h∈{1,3,5,10} 전부에서 k=3·k=5 의 Δ(arm−풀) 부호·크기를 표로 제출해 '어느 호라이즌에도 베타 초과가 없다'를 확인하면 돈 축 종결(승격 근거 없음). 어느 h 에서 문턱을 넘으면 그 h 를 다음 실험의 대조·청산 기준으로 승격한다.",
+      "counterfactual": "세션 풀 평균(같은 dump·같은 체결성 필터·같은 수수료의 필터 통과 종목 동일비중 순기대 = 무작위 k 기대). 재학습·재평가 0 — CG95 dump(cg95_q05_all.jsonl / cg95_q30_all.jsonl) 재사용.",
+      "est_minutes": 30,
+      "priority": 1,
+      "status": "done",
+      "added": "2026-10-04 19:1x (엔지니어, CG96 노이즈 — 돈 축 종결 전 청산 호라이즌 견고성 검사)",
+      "attempts": [
+        {
+          "ts": "2026-10-04T19:07:24+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm cg92_q05 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +1.754%p/세션 · 풀평균 +2.205 · Δ(arm−풀) -0.451(t -1.0) · 양세션 61.2% · 분할 both_positive [+2.607/+0.902] ✗ · k=5 arm +2.386%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +0.181(t 0.48) · 양세션 65.0% · 분할 both_positive [+3.396/+1.376] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG97_20261004-190718.log",
+          "elapsed_min": 0.1
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm cg92_q05 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +1.754%p/세션 · 풀평균 +2.205 · Δ(arm−풀) -0.451(t -1.0) · 양세션 61.2% · 분할 both_positive [+2.607/+0.902] ✗ · k=5 arm +2.386%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +0.181(t 0.48) · 양세션 65.0% · 분할 both_positive [+3.396/+1.376] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+        "delta": -0.4507,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG98",
+      "title": "모델 점수의 돈 정보를 양끝에서 검사 — 상위 k 곡선(k=3..107) + 하위 k vs 세션 풀 평균",
+      "hypothesis": "CG96/CG97 로 상위 k(k=3..30)·4개 청산 호라이즌에서 모델 top-k 가 널(세션 풀 평균)을 넘지 못함이 확인됐다(최대 Δ+0.23, 전부 t<2). 남은 미검사면은 **분포의 반대쪽**이다: 지금까지 소비 정책은 항상 상위 k 였고, 하위 k(모델 최하점)는 한 번도 재본 적이 없다. ① 상위 k 를 풀 크기(107)까지 늘린 곡선이 어디서 최대인지, ② 하위 k 가 풀 평균보다 유의하게 낮은지(= 점수가 '회피 신호'로는 쓸모가 있는지)를 본다. 둘 다 ≈0 이면 모델 점수는 돈 정보가 전혀 없다로 최종 종결한다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg95_q05_all.jsonl --arm-tag cg92_q05 --control-jsonl /app/reports/overnight/cg95_q30_all.jsonl --control-tag cg92_q30 --k 3,5,10,20,30,50,75,100,107 --sides top,bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg98_money_both_tails.json'",
+      "metric": "fillable_topk_vs_pool",
+      "success": "① 상위 k 곡선(k=3..107)에서 Δ(top-k − 풀평균)의 최대 대역을 수치로 제출. ② 하위 k(k=3·5)의 Δ(bottom-k − 풀평균) ≤ −0.1%p/세션 이고 t ≤ −2 면 점수가 돈 정보를 갖는다(롱온리 소비 경로에서는 '회피 필터'로 쓸 수 있음) → 다음 레버는 소비 정책. ③ 상하위 Δ 가 모두 |Δ|<0.2 이고 |t|<2 면 **점수는 돈 정보 없음** = 돈 축 최종 종결. ⚠ 판정기(fillable_topk_vs_pool)는 상위 k=3/5 만 본다 — 이 항목의 실제 판정 근거는 JSON 의 `bottom_k` 와 k 곡선이며, 원장 verdict 는 상위 경로 값이라는 **갭을 문서화**한다(판정기 완화 금지).",
+      "counterfactual": "세션 풀 평균(같은 dump·같은 체결성 필터·같은 수수료의 필터 통과 종목 동일비중 = 무작위 k 기대). 재학습·재평가 0 — CG95 dump 재사용.",
+      "est_minutes": 15,
+      "priority": 1,
+      "status": "done",
+      "added": "2026-10-04 19:1x (엔지니어, CG96/97 노이즈 — 분포 반대쪽(하위 k) 미검사면 봉합)",
+      "attempts": [
+        {
+          "ts": "2026-10-04T19:11:27+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm cg92_q05 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +1.754%p/세션 · 풀평균 +2.205 · Δ(arm−풀) -0.451(t -1.0) · 양세션 61.2% · 분할 both_positive [+2.607/+0.902] ✗ · k=5 arm +2.386%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +0.181(t 0.48) · 양세션 65.0% · 분할 both_positive [+3.396/+1.376] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG98_20261004-191123.log",
+          "elapsed_min": 0.1
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm cg92_q05 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +1.754%p/세션 · 풀평균 +2.205 · Δ(arm−풀) -0.451(t -1.0) · 양세션 61.2% · 분할 both_positive [+2.607/+0.902] ✗ · k=5 arm +2.386%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +0.181(t 0.48) · 양세션 65.0% · 분할 both_positive [+3.396/+1.376] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+        "delta": -0.4507,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG99",
+      "title": "점수 반전(하위 k) 돈 검정 — CG98 이 드러낸 '반예측 랭킹'의 사전등록 확인",
+      "hypothesis": "CG98 실측(panel dump 재사용·전 유니버스·체결성 필터·80세션): 모델 top-k 는 풀평균 +2.205%p/세션 대비 k≥75 에서 유의하게 **낮고**(k=75 Δ−0.212 t−2.12 · k=100 −0.163 t−2.62), 모델 **최하점** 하위 k 는 풀평균보다 **높다**(k=3 Δ+3.040 t1.92 · k=5 +1.769 t1.49 · k=20 +0.840 t2.0). 즉 점수가 돈수익과 **역방향**일 가능성 — 롱온리 소비에서 회피(제외) 필터로 쓸 수 있는지 검정한다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg95_q05_all.jsonl --arm-tag cg92_q05 --control-jsonl /app/reports/overnight/cg95_q30_all.jsonl --control-tag cg92_q30 --k 3,5,10,20,30 --primary-side bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg99_money_bottom.json'",
+      "metric": "fillable_topk_vs_pool",
+      "success": "k=3 **과** k=5 둘 다: bottom-k 순기대 > 0 · Δ(bottom-k − 세션 풀 평균) ≥ +0.1%p/세션 · t ≥ 2 · 분할 both_positive → '점수는 반예측(롱온리에서는 회피 신호)' → 다음 레버는 소비 정책(제외 필터). ⚠ 같은 데이터에서 이미 관측된 힌트라 이 런은 **확인**이지 blind 검정이 아니다 — 승격 근거로 쓰려면 서로소 창/유니버스 재현(후속 CG100)이 **선행**해야 한다. 미달이면 상·하위 양끝 모두 무정보로 **돈 축 최종 종결**(모델 점수에 돈 정보 없음)로 기록한다.",
+      "counterfactual": "세션 풀 평균(같은 dump·같은 체결성 필터·같은 수수료의 필터 통과 종목 동일비중 = 무작위 k 기대). 재학습·재평가 0.",
+      "est_minutes": 15,
+      "priority": 1,
+      "status": "done",
+      "added": "2026-10-04 19:1x (엔지니어, CG98 — 하위 k 힌트의 사전등록 확인)",
+      "attempts": [
+        {
+          "ts": "2026-10-04T19:14:59+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm cg92_q05 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +5.245%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +3.040(t 1.92) · 양세션 60.0% · 분할 both_positive [+8.461/+2.029] ✗ · k=5 arm +3.974%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +1.769(t 1.49) · 양세션 62.5% · 분할 both_positive [+7.920/+0.028] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG99_20261004-191456.log",
+          "elapsed_min": 0.1
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm cg92_q05 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 80 · k=3 arm +5.245%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +3.040(t 1.92) · 양세션 60.0% · 분할 both_positive [+8.461/+2.029] ✗ · k=5 arm +3.974%p/세션 · 풀평균 +2.205 · Δ(arm−풀) +1.769(t 1.49) · 양세션 62.5% · 분할 both_positive [+7.920/+0.028] ✗ · 풀평균 t 3.26 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+        "delta": 3.0399,
+        "per_exp": null,
+        "rc": 0
+      }
     }
   ]
 }
