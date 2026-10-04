@@ -130,8 +130,36 @@ def load_ledger(limit=None):
     return out[-limit:] if limit else out
 
 
+SCORECARD = os.path.join(PROJ, "data", "reports", "model_engineer_scorecard.json")
+
+
+def validation_block():
+    """원장 기록마다 싣는 검증 블록 — 트레이더 계약 2번(폴드 통계·purge·승격 dry-run).
+
+    WHY (2026-10-05, MT49 실측): 트레이더 사이클의 `verify_model_handoff` 는 **원장 최근 5행**을
+    문자열로 훑어 folds / mean±std / fold_win_rate / purge / promote_dryrun 이 있는지 본다.
+    그런데 2026-10-04 밤의 최근 5행이 전부 돈 지표(fillable_topk_expectancy) 기록이라
+    gaps 4개가 계속 남아 트레이더가 매 사이클 같은 핸드오프를 재발행했다(계약2 미비).
+    → 배포 챔피언 성적표(scripts/champion_scorecard.py 산출물)를 **모든 기록에 압축해 실어**
+    최근 5행 어디서나 계약 필드가 보이게 한다. 값은 파일에서 읽고 출처·측정시각을 함께 남긴다
+    (자기신고 금지 — 값을 만들어 내지 않고, 낡았으면 낡은 사실이 보이게 둔다).
+    """
+    try:
+        import champion_scorecard as _cs          # 같은 디렉터리(scripts/) — 지연 임포트
+        return _cs.validation_block(SCORECARD)
+    except Exception as e:                        # 성적표 부재·손상이 기록을 막지 않는다
+        log(f"검증 블록 생략({type(e).__name__}: {e})")
+        return None
+
+
 def append_ledger(rec):
     os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
+    try:
+        vb = validation_block()
+        if vb and "validation" not in rec:
+            rec["validation"] = vb
+    except Exception as e:
+        rec.setdefault("validation_error", f"{type(e).__name__}: {e}")
     with open(LEDGER, "a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
@@ -558,6 +586,18 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/ml_result.json")
+    if kind == "champion_scorecard":
+        # 배포 챔피언 검증 성적표(scripts/champion_scorecard.py --out · MT49). 커맨드는 **호스트
+        # python3** 로 돌고 산출물도 호스트 경로에 쓴다 → 상대경로는 PROJ 기준으로 푼다.
+        # (실측 2026-10-05: 종전엔 _container_path_to_host 로 보내 상대 `data/reports/...` 가
+        #  `services/xgboost-ml/data/reports/...` 로 변환돼 '요약 파일 없음 → 판정불가'가 났다.
+        #  컨테이너 산출물(--out /app/...)은 이 분기와 무관하다.)
+        out = (_arg(command or "", "--out") or "").strip("'\"")
+        if not out:
+            return SCORECARD
+        if out.startswith("/app/"):
+            return _container_path_to_host(out)
+        return out if os.path.isabs(out) else os.path.join(PROJ, out)
     if kind == "champion_seed_family":
         # 다중 시드(유니버스) 짝 판정 집계(scripts/champion_seed_family_agg.py --agg-out). CG50/CG51.
         # 왜 전용 metric 인가(실측 2026-10-01): 같은 모델·같은 창에서 유니버스 정체만 바꿔도
@@ -895,6 +935,63 @@ def parse_champion_promote_dryrun(path, mtime_floor) -> dict:
     }
 
 
+def parse_champion_scorecard(path, mtime_floor) -> dict:
+    """배포 챔피언 검증 성적표(scripts/champion_scorecard.py --out)를 파싱한다(MT49).
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장 `parsed.per_exp` 전체를 'arm 의 폴드 평균'으로
+    읽어 best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 여기 폴드 통계는 **챔피언 자기
+    과제**의 값이지 어떤 arm 도 아니므로 `fold_stats` 키로만 싣는다.
+    """
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if not isinstance(d.get("fold_stats"), dict):
+        return {"error": "fold_stats 키가 없음(성적표 아님)", "summary_mtime": mt}
+    return {
+        "generated_at": d.get("generated_at"), "metric_name": d.get("metric_name"),
+        "champion_dir": d.get("champion_dir"), "champion_auc_txt": d.get("champion_auc_txt"),
+        "fold_stats": d.get("fold_stats"), "purge": d.get("purge"),
+        "promote_dryrun": d.get("promote_dryrun"), "money": d.get("money"),
+        "insample": d.get("insample"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_champion_scorecard(item, parsed) -> tuple:
+    """성적표 판정 — **성능 판정이 아니라 계약(자료 완비) 판정**이다.
+
+    이 항목의 성공 조건은 "트레이더가 판정에 쓸 폴드 통계·purge·승격 dry-run 이 원장에 실렸는가"다.
+    AUC 개선 여부는 여기서 판정하지 않는다(하드룰 #1 — 승격·기준선은 다중창 짝 Δ 로만).
+    """
+    if parsed.get("error"):
+        return "판정불가", parsed["error"], None
+    fs = parsed.get("fold_stats") or {}
+    pd = parsed.get("promote_dryrun") or {}
+    pv = (parsed.get("purge") or {}).get("observed") or {}
+    mn = parsed.get("money") or {}
+    parts = []
+    if fs.get("mean") is not None:
+        parts.append(f"챔피언 폴드 통계 {fs.get('folds')} · 평균 {fs.get('mean')}±{fs.get('std')}"
+                     f"(min {fs.get('min')} max {fs.get('max')}) · 폴드승률 {fs.get('fold_win_rate')}"
+                     f" · n_folds {fs.get('n_folds')} · 출처 {fs.get('source')} @{fs.get('measured_at')}")
+    else:
+        parts.append(f"폴드 통계 없음({fs.get('error')})")
+    parts.append(f"purge 정책 h={(parsed.get('purge') or {}).get('horizon')}거래일(라벨 참조일 기준)"
+                 + (f" · 관측 {pv.get('n_label_ref_purged')}행" if pv else " · 관측값 없음"))
+    parts.append(f"승격 dry-run status={pd.get('status')} · 기록 {pd.get('record_id')} @{pd.get('record_ts')}")
+    parts.append(f"돈 지표 순기대 {mn.get('expectancy_pct')}%p(t {mn.get('expectancy_t')}) · 세션 {mn.get('n_sessions')}")
+    complete = bool(fs.get("mean") is not None and pd.get("status") and (parsed.get("purge") or {}).get("policy"))
+    return ("계약 충족" if complete else "계약 미비"), " · ".join(parts), None
+
+
 def judge_promote_dryrun(item, parsed) -> tuple:
     """승격 게이트 dry-run 의 판정 — **성능 판정이 아니라 생산 경로 검증**이다.
 
@@ -953,6 +1050,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_policy_compare(spath, mtime_floor)
     if kind == "panel_leak_gate":
         return parse_panel_leak_gate(spath, mtime_floor)
+    if kind == "champion_scorecard":
+        return parse_champion_scorecard(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -1610,6 +1709,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_policy_compare(item, parsed)
     if kind == "panel_leak_gate":
         return judge_panel_leak_gate(item, parsed)
+    if kind == "champion_scorecard":
+        return judge_champion_scorecard(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 

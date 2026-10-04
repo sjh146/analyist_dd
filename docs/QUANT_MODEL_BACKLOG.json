@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-05T02:04:29+09:00",
+  "updated_at": "2026-10-05T03:17:38+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -11,6 +11,90 @@
     "needs_setup 항목은 명령이 준비되기 전 실행하지 않는다(구동기가 건너뛴다)."
   ],
   "items": [
+    {
+      "id": "CG105",
+      "title": "재무 컬럼 as-of 정렬 — 실제 공시 접수일(rcept_dt) 격자(R12)로 교체 시 AUC (XR1/R12 ML 임팩트)",
+      "status": "done",
+      "priority": 1,
+      "metric": "wf_sweep_summary",
+      "arm": "CO_core30_h5 @ panel_prod200_rcept(재무 16컬럼 = financial_ratio_features rcept-aware 값)",
+      "counterfactual": "CO_core30_h5 @ panel_prod200(재무 16컬럼 = live 계산, report_date+90/45일 가정)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only CO_core30_h5 --out /app/reports/overnight/cg105_control.jsonl --summary-out /app/reports/overnight/cg105_control_summary.json && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_rcept.npz --folds 5 --seeds 5 --only CO_core30_h5 --out /app/reports/overnight/cg105_arm.jsonl --summary-out /app/reports/overnight/cg105_arm_summary.json'",
+      "hypothesis": "현 피처엔진의 재무 as-of 는 report_date+보수지연(연간 90·그밖 45일)이다. DB 실측: 실제 접수일 중위 연간 77일(90일보다 13일 보수적) · 지연 초과 = 루킹어헤드 연간 0.92%·반기 1.19%(7,242쌍 중 73). 리서처 R12 격자(financial_ratio_features)는 rcept_dt<=거래일 로 정확히 구성돼 있다 → 그 값으로 교체하면 ① 연간 보고서를 13일 먼저 쓸 수 있고 ② 1% 루킹어헤드가 사라진다. 다만 구현도 함께 바뀌므로(중위값은 근접·셀의 ~90%에서 소수 차이) 귀속은 'R12 격자 버전 vs 라이브 버전'이다.",
+      "evidence": "2026-10-05 실측: financial_ratio_features rcept_dt 커버리지 96.9%(779,914행 중 755,574) · 종목×기간쌍 7,242(2,560종목) · 지연(접수일−기간말) 연간 p50 77/p95 82/최대 150 vs 가정 90 → 초과 44쌍(0.92%) · 반기 p50 45/p95 45/최대 83 vs 가정 45 → 초과 29쌍(1.19%). 패치 실측(scripts/patch_panel_fin_rcept.py): 54,800행 중 격자 적중 95.41% · 미래 rcept 셀 0 · 16컬럼 교체(셀 변경 33~95%, 중위값 근접). roe/per_current/pbr_current 는 격자에서 quality_roe/value_per/value_pbr 와 100% 동일(중복열)이라 제외했다.",
+      "success": "같은 런 5폴드 짝 Δ(arm−control) 평균 ≥ +0.02 이고 폴드 승률 ≥ 0.8. 미달이면 '재무 as-of 정렬은 AUC 레버가 아니다'로 종결(XR1/R12 ML 임팩트 닫힘).",
+      "expected": "미지(구현 차이 교락 — 부호보다 크기를 본다)",
+      "cost": "약 10~20분",
+      "est_minutes": 20,
+      "note": "두 요약 JSON 을 세션이 직접 비교해 짝 Δ 를 계산한다: control=/app/reports/overnight/cg105_control_summary.json, arm=/app/reports/overnight/cg105_arm_summary.json. 구동기 판정은 첫 --summary-out(control)만 본다 — 원장 parsed 에 counterfactual_arm·paired 를 넣어 둘 것(per_exp 금지). 함정: 두 arm 을 한 커맨드에 넣으면 두 번째 --out 은 원장에서 사라진다(CG38/CG55 실측).",
+      "attempts": [
+        {
+          "ts": "2026-10-05T03:14:30+09:00",
+          "rc": 0,
+          "verdict": "기준선없음",
+          "detail": "대조군 CO_core30_h5 0.5305 만 측정됨(비교할 가설군 없음)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG105_20261005-030720.log",
+          "elapsed_min": 7.2
+        }
+      ],
+      "result": {
+        "verdict": "노이즈(Δ0.0000 · 학습행렬 비트 동일 — 재무 16컬럼이 게이트 ON top30 선별 미진입)",
+        "detail": "같은 런 5폴드 짝 Δ(arm−control) 평균 +0.0000 (5/5 동일, 전 폴드 차이 0.0000) — control [0.5235,0.5574,0.4974,0.5334,0.5408] = arm 과 소수점까지 동일(학습행렬 비트 동일). R12 rcept-aware 격자로 재무 16컬럼을 교체했지만(셀 변경 33~95%) 선별 top30 에 0개 진입 → 게이트 ON 경로에서 as-of 정렬은 AUC 레버가 아니다(CG67/EV1 과 같은 기제). 부수 확인: 교체 후에도 미래 rcept 셀 0(격자 자체는 무누수).",
+        "delta": 0.0,
+        "paired": {
+          "n": 5,
+          "mean": 0.0,
+          "std": 0.0,
+          "se": 0.0,
+          "t": null,
+          "pos": 0,
+          "deltas": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "control_folds": [
+            0.5235,
+            0.5574,
+            0.4974,
+            0.5334,
+            0.5408
+          ],
+          "arm_folds": [
+            0.5235,
+            0.5574,
+            0.4974,
+            0.5334,
+            0.5408
+          ],
+          "verdict": "노이즈(Δ0.0000 — 학습행렬 비트 동일: 재무 16컬럼이 게이트 ON top30 선별에 미진입)"
+        },
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG106",
+      "title": "배포 챔피언 폴드 통계 새로고침 — 학습도메인 정합 유니버스·겹침창 제외 5창 (MT49 성적표 최신화)",
+      "status": "pending",
+      "priority": 3,
+      "metric": "champion_robust_eval",
+      "arm": "app/models/champion @ 학습유니버스(training, 200종목) · 5창×10일 · 겹침창 자동 제외",
+      "counterfactual": "성적표가 현재 인용하는 폴드 통계 = ledger:CG55(2026-10-01, 3창)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --universe training --stocks 200 --folds 5 --dates-per-fold 10 --train-start 2026-06-25 --train-end 2026-09-23 --out /app/reports/overnight/cg106_champion_eval.json'",
+      "baseline": {
+        "name": "챔피언 자기 과제 OOS(다중창 평균)",
+        "value": null
+      },
+      "hypothesis": "MT49 성적표의 폴드 통계가 2026-10-01(CG55, 3창) 값이라 낡았다. 배포 챔피언의 '자기 과제' 다중창 OOS 를 지금 다시 재서 성적표(원장 validation 블록)를 최신화한다.",
+      "evidence": "2026-10-05 실측: champion_robust_eval 산출물 중 챔피언 직접 측정분 최신 = 2026-10-01(CG55, 3창) · champion/robust_oos.json(2026-10-04)은 pooled 만 있고 폴드 목록이 없다. 학습구간은 모델파일 mtime(09-24)+스킬 기록(2026-06-25~09-23) 가정으로 겹침창을 제외한다.",
+      "success": "폴드 5개(또는 겹침 제외 후 남은 창)의 AUC 목록·평균±std·폴드승률이 산출물에 남고, 성적표 재생성 시 그 값이 인용된다.",
+      "expected": "챔피언 자체 성능 변화는 기대하지 않는다(성적표 신선도 목적)",
+      "cost": "약 30~70분",
+      "est_minutes": 45,
+      "note": "⚠ 학습구간 가정(--train-start/--train-end)이 틀리면 창이 과도하게 제외되거나 인샘플이 섞인다 — 로그의 '겹치는 창 N개 제외' 줄과 windows_excluded 를 확인하라. 이 항목은 승격 판정이 아니라 성적표(자료) 신선도 작업이다(AUC 개선 주장 금지)."
+    },
     {
       "id": "CG103",
       "title": "돈 축 대칭 폐쇄 — 대조 프로토콜(q0.30·게이트 ON 생산경로) top-k 가 세션 풀 평균을 넘는가",
@@ -3127,20 +3211,64 @@
     {
       "id": "MT49",
       "title": "[트레이더 요구] 검증 성적표에 폴드 통계·purge·승격 dry-run 을 포함하라",
-      "status": "needs_setup",
-      "priority": 8,
+      "status": "done",
+      "priority": 2,
       "from_trader": "need-fold-scorecard",
-      "arm": null,
-      "counterfactual": null,
-      "baseline": null,
-      "command": null,
-      "metric": "wf_sweep_summary",
+      "arm": "원장 모든 기록의 `validation` 블록(append_ledger 주입)",
+      "counterfactual": "현행: 원장 최근 5행에 folds/mean±std/fold_win_rate/purge/promote_dryrun 이 없어 트레이더 verify_model_handoff gaps 4개(2026-10-05 03:0x 실측)",
+      "baseline": {
+        "name": "현행 계약 미비(gaps 4)",
+        "value": null
+      },
+      "command": "python3 scripts/champion_scorecard.py --out data/reports/model_engineer_scorecard.json",
+      "metric": "champion_scorecard",
       "hypothesis": "트레이더 판정에 필요한 필드 누락: purge (엔지니어 원장 30행, champion AUC None)",
       "evidence": "트레이더 사이클 요구: 트레이더 판정에 필요한 필드 누락: purge (엔지니어 원장 30행, champion AUC None)",
-      "success": null,
-      "expected": "미지",
+      "success": "① 원장 최근 5행에서 트레이더 검사 키워드 5종(folds·std/±·fold_win_rate·purge·dry-run)이 전부 검출되고 ② trader_cycle.verify_model_handoff() 의 gaps 가 빈다 ③ 성적표/블록이 없거나 손상돼도 원장 기록은 남는다(예외 없음).",
+      "expected": "트레이더 계약 2번 충족(핸드오프 재발행 중단)",
       "cost": null,
-      "note": "트레이더가 요구한 자료 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다."
+      "note": "구현(2026-10-05): scripts/champion_scorecard.py 신설(챔피언 폴드통계·purge 정책/관측·마지막 승격 dry-run·돈지표를 출처와 함께 한 JSON 으로) + model_engineer_cycle.append_ledger 가 모든 기록에 `validation` 블록 주입 + metric `champion_scorecard` 배선(summary_path/parse/judge, per_exp 미생성). 자체점검 python3 scripts/_scorecard_contract_test.py 16/16 PASS. 값은 파일/원장에서 읽고 출처·측정시각을 남긴다(자기신고 금지) — 낡았으면 낡은 사실이 보이게 둔다.",
+      "est_minutes": 1,
+      "attempts": [
+        {
+          "ts": "2026-10-05T03:15:31+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "요약 파일 없음",
+          "log": "data/reports/me_cycle/logs/me_cycle_MT49_20261005-031531.log",
+          "elapsed_min": 0.0
+        },
+        {
+          "ts": "2026-10-05T03:16:22+09:00",
+          "rc": 0,
+          "verdict": "계약 충족",
+          "detail": "챔피언 폴드 통계 [0.5374, 0.5513, 0.4766] · 평균 0.5218±0.0324(min 0.4766 max 0.5513) · 폴드승률 0.667 · n_folds 3 · 출처 ledger:CG55 @2026-10-01T07:16:40 · purge 정책 h=5거래일(라벨 참조일 기준) · 관측값 없음 · 승격 dry-run status=would_promote · 기록 CG9b @2026-10-02T22:01:51+09:00 · 돈 지표 순기대 -0.182%p(t -0.81) · 세션 87",
+          "log": "data/reports/me_cycle/logs/me_cycle_MT49_20261005-031622.log",
+          "elapsed_min": 0.0
+        },
+        {
+          "ts": "2026-10-05T03:16:51+09:00",
+          "rc": 0,
+          "verdict": "계약 충족",
+          "detail": "챔피언 폴드 통계 [0.5374, 0.5513, 0.4766] · 평균 0.5218±0.0324(min 0.4766 max 0.5513) · 폴드승률 0.667 · n_folds 3 · 출처 ledger:CG55 @2026-10-01T07:16:40 · purge 정책 h=5거래일(라벨 참조일 기준) · 관측 43행 · 승격 dry-run status=would_promote · 기록 CG9b @2026-10-02T22:01:51+09:00 · 돈 지표 순기대 -0.182%p(t -0.81) · 세션 87",
+          "log": "data/reports/me_cycle/logs/me_cycle_MT49_20261005-031651.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "계약 충족",
+        "detail": "챔피언 폴드 통계 [0.5374, 0.5513, 0.4766] · 평균 0.5218±0.0324(min 0.4766 max 0.5513) · 폴드승률 0.667 · n_folds 3 · 출처 ledger:CG55 @2026-10-01T07:16:40 · purge 정책 h=5거래일(라벨 참조일 기준) · 관측 43행 · 승격 dry-run status=would_promote · 기록 CG9b @2026-10-02T22:01:51+09:00 · 돈 지표 순기대 -0.182%p(t -0.81) · 세션 87",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0,
+        "artifacts": [
+          "data/reports/model_engineer_scorecard.json",
+          "scripts/champion_scorecard.py",
+          "scripts/_scorecard_contract_test.py"
+        ]
+      },
+      "closed_by": "engineer(자율 — 셋업 구현+회귀+커밋)",
+      "closed_at": "2026-10-05T03:17:38+09:00"
     },
     {
       "id": "XR11",
