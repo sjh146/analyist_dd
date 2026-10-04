@@ -24,6 +24,27 @@
 #   ASK_CLAUDE_MIN_BYTES 성공으로 볼 최소 출력(기본 40)
 #   ASK_CLAUDE_CLAUDE_BIN / ASK_CLAUDE_OPENCODE_BIN  테스트용 교체
 #
+
+# ── 금지 경로 가드 (2026-10-04) ────────────────────────────────────────────────
+# 저작 대상이 실주문·정책 값·자격증명에 닿으면 **위임 자체를 거부**한다.
+# 목록은 scripts/protected_paths.py 단일 진실원(개선 오케스트레이터와 공유).
+# review/investigate 는 읽고 보고만 하므로 출력 경로만 보고, 파일을 쓰는 build 는 프롬프트(=[구현 대상])까지 본다.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/protected_paths.py" ]; then
+  if [ "${1:-}" = "build" ]; then
+    GUARD_ARGS=("${1:-}" "${2:-}" "${3:-}")
+  else
+    GUARD_ARGS=("${1:-}" "${2:-}")
+  fi
+  GUARD_MSG="$(/usr/bin/python3 "$SCRIPT_DIR/protected_paths.py" "${GUARD_ARGS[@]}" 2>&1)"
+  GUARD_RC=$?
+  if [ "$GUARD_RC" -ne 0 ]; then
+    echo "[ask_claude] $GUARD_MSG" >&2
+    echo "[ask_claude] 위임 거부 — 이 변경은 사람 승인 대상이다(needs_human)." >&2
+    exit 2
+  fi
+fi
+
 # 산출물: $OUT(결과) · $OUT.backend(어느 백엔드가 답했는지) · $OUT.stderr(.oc)
 # 종료코드: 성공 0 / 두 백엔드 모두 실패 1
 set -uo pipefail

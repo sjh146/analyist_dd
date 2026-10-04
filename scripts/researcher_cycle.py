@@ -247,6 +247,20 @@ def ensure_artifact(item, run_log):
     if not target:
         return True, "", {}
     tpath = os.path.join(PROJ, target)
+    # 금지 경로 가드(2026-10-04): 이 경로에는 검사가 없어 `authoring.target` 이 실주문·정책 값을
+    # 가리켜도 막을 코드가 없었다(오케스트레이터만 검사). 목록은 scripts/protected_paths.py 단일 진실원.
+    # fail-closed: 가드를 불러오지 못하면 저작하지 않는다(자율 저작은 드물고, 침묵 사고가 더 비싸다).
+    try:
+        import protected_paths as _pp
+        _blocked = _pp.violation(target)
+    except Exception as exc:                                  # noqa: BLE001
+        log(f"저작 거부(가드 로드 실패 {exc}) — fail-closed: {item['id']} → {target}")
+        return False, f"저작 거부(금지경로 가드 로드 실패: {exc})", {
+            "target": target, "needs_human": True, "guard_error": str(exc)[:200]}
+    if _blocked:
+        log(f"저작 거부(금지 경로): {item['id']} → {target} | {_blocked}")
+        return False, f"금지 경로 저작 거부({_blocked})", {
+            "target": target, "needs_human": True, "blocked": _blocked}
     if os.path.exists(tpath):
         return True, f"산출물 이미 존재({target}) — 저작 생략", {"target": target, "skipped": True}
 
