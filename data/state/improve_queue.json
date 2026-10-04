@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-04T13:46:24",
+  "updated": "2026-10-04T15:51:22",
   "tasks": [
     {
       "id": "Q20261004-01",
@@ -13,14 +13,15 @@
       ],
       "protected": false,
       "priority": 1,
-      "state": "inflight",
+      "state": "merged",
       "attempts": 1,
       "max_attempts": 2,
-      "commit": null,
-      "note": null,
+      "commit": "404881e",
+      "note": "dry-run 검증 통과 → 사람 검토(코드·실데이터 확인) 후 병합",
       "created": "2026-10-04T13:46:10",
       "source": "objective_state.top_lever",
-      "claimed_at": "2026-10-04T13:46:24"
+      "claimed_at": "2026-10-04T13:46:24",
+      "finished_at": "2026-10-04T13:58:19"
     }
   ]
 }

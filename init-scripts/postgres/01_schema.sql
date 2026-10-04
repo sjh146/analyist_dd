@@ -150,7 +150,12 @@ CREATE TABLE risk_management (
 );
 
 -- === 인덱스 ===
-CREATE UNIQUE INDEX idx_market_data_stock_date ON market_data(stock_code, trade_date);
+CREATE UNIQUE INDEX IF NOT EXISTS market_data_stock_code_trade_date_key ON market_data(stock_code, trade_date);
+-- 2026-10-04 최적화(실측): (stock_code, trade_date) 유니크 인덱스가 둘이었다(중복 131MB) →
+-- 하나만 남기고, 날짜 범위 스캔용 단독 인덱스를 추가했다. 야간 잡(신선도 감사·갭 점검·실험 러너)이
+-- `trade_date > X` 형태를 자주 쓰는데 이 인덱스가 없으면 626MB 테이블을 순차 스캔한다.
+-- 적용 후 플랜: Index Only Scan using idx_market_data_trade_date (21MB).
+CREATE INDEX IF NOT EXISTS idx_market_data_trade_date ON market_data(trade_date);
 CREATE UNIQUE INDEX idx_stock_sentiment_stock_date ON stock_sentiment(stock_code, analysis_date);
 CREATE UNIQUE INDEX idx_ml_predictions_stock_date ON ml_predictions(stock_code, prediction_date, model_version);
 CREATE INDEX idx_trade_orders_status ON trade_orders(order_status);
