@@ -11975,7 +11975,7 @@
       "method": "① wf_label_sweep `--only AT_*` + `--dump-preds` 로 OOF 확률·실현 선행수익 덤프(전 행 = 후보집합이 라벨로 사후 선택되지 않음). ② scripts/fillable_topk_expectancy.py 로 세션별 점수 상위 k 동일비중 매수 → close_h 매도·수수료 왕복 0.21%p 차감, 널 기준선은 같은 덤프의 풀 평균. arm=control=같은 덤프로 Δ0 을 고정하고 `paired_vs_pool` 블록만 읽는다. ③ 판정은 `judge_fillable_topk_vs_pool`(순기대>0 · Δ(pool)≥+0.1%p/세션 · t≥2 · 분할 both_positive) — 승격 표준과 동일 단위.",
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only AT_00_30,AT_30_60,AT_60_90,AT_90_120,AT_120_150 --dump-preds /app/reports/overnight/cg108_at_preds.jsonl' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg108_at_preds.jsonl --arm-tag cg108_at --control-jsonl /app/reports/overnight/cg108_at_preds.jsonl --control-tag cg108_at --k 1,3,5,10,20 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg108_money.json'",
       "check": "docker exec stock_xgboost_ml python /app/scripts/_fillable_topk_judge_test.py",
-      "success": "k=1..20 중 하나라도 순기대>0 · Δ(pool)≥+0.1%p/세션 · t≥2 · 분할 both_positive 이면 '라벨-돈 정합이 돈 정보를 만든다'(→ 생산 경로 retrain_champion 라벨 옵션 반영 검토). 전부 미달이면 'abs_thresh 라벨도 돈 랭킹을 만들지 못한다'로 축 종결(재시험 금지) — 이 경우 CG107 의 AUC 이득은 행 도메인 교란으로 판정.",
+      "success": "돈 지표 판정기 계약(`judge_fillable_topk_vs_pool`)과 동일: **k=3 과 k=5 둘 다** 순기대>0 · Δ(pool)≥+0.1%p/세션 · t≥2 · 분할 both_positive → 신호있음. 미달이면 '노이즈 = 돈 축에서 베타 초과 미검출'로 기록한다. (2026-10-05 정정: 최초 등록 문구는 'k=1..20 중 하나라도'였는데, 그 규칙은 k 5개에 대한 사후 선택이라 p-해킹이 되고 판정기와도 불일치했다 — 판정기 계약(k=3·k=5)을 정본으로 확정.)",
       "counterfactual": "세션 풀 평균(널) — 같은 덤프·같은 필터·같은 수수료. arm vs arm(US) 이 아니라 풀 기준선을 쓴다(CG95 교훈: arm vs arm 은 베타를 구분 못 한다).",
       "metric": "fillable_topk_vs_pool",
       "est_minutes": 22,
@@ -12005,7 +12005,8 @@
         "delta": 0.4095,
         "per_exp": null,
         "rc": 0
-      }
+      },
+      "result_note": "실측 판정 = 노이즈(판정기 계약). 단 k=5 Δ+0.710(t 2.09, both_positive)·k=10 +0.682(t 3.11)·k=20 +0.451(t 3.19) 로 기록상 처음 돈 축이 t>2 를 냈다(k=3 t 0.98 미달) → 재현 CG109."
     },
     {
       "id": "CG109",
