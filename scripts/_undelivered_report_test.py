@@ -21,6 +21,9 @@
   10) status='failed'·outcome='delivered' → 되돌리지 않는다(전달된 결과 보호)
   11) reported_at 없음 + ts 가 창 안 → ts 로 대체 판정해 되돌림(수동 표시 경로 구제)
   12) 되돌림 대상이라도 실행이 lookback(6h)보다 오래됐으면 손대지 않는다(옛 상태 재보고 방지)
+  13) [2026-10-05] 최신 실행이 delivered 인데 옛 실패 실행의 창(±3600s)이 같은 기록을 덮는 경우 →
+      유지(틱이 매시간이라 창이 겹쳐 중복 보고되던 결함). 최신 실행의 전달 여부로 확정한다.
+      반대로 최신 실행이 failed 면 되돌린다(13b).
 
 사용: python3 scripts/_undelivered_report_test.py
 """
@@ -189,6 +192,24 @@ def main():
         msgs, out = run(m, tmp, [("testjob", BASE, "failed", None)],
                         [rec("CG56", "2026-09-30T05:00:10+09:00")], lookback=6, ts=near)
         check("12b) lookback(6h) 안 실행 → 되돌림", bool(msgs) and out[0]["reported"] is False)
+
+    # 13) [2026-10-05 실측 추가] 나중 실행이 **전달에 성공**했는데 옛 실패 실행의 창(±3600s)이
+    #     같은 기록을 덮어 중복 보고되던 결함. 틱이 매시간이라 창이 겹친다(04:01 failed·05:00
+    #     delivered → reported_at=05:00:12). 최신 실행의 전달 여부로 확정해야 한다.
+    with tempfile.TemporaryDirectory() as tmp:
+        rows = [("testjob", "2026-09-30T05:00:11+09:00", "completed", "delivered"),
+                ("testjob", "2026-09-30T04:01:01+09:00", "failed", None)]
+        msgs, out = run(m, tmp, rows, [rec("CG105", "2026-09-30T05:00:12+09:00")])
+        check("13) 최신 실행이 delivered 면 옛 실패 창에 걸려도 유지(중복 방지)",
+              not msgs and out[0]["reported"] is True, f"msgs={msgs} reported={out[0]['reported']}")
+
+    # 13b) 반대 순서: 최신 실행이 실패면 기록을 되돌린다(최신 판정이 실패를 놓치지 않는다)
+    with tempfile.TemporaryDirectory() as tmp:
+        rows = [("testjob", "2026-09-30T05:00:10+09:00", "failed", None),
+                ("testjob", "2026-09-30T04:00:10+09:00", "completed", "delivered")]
+        msgs, out = run(m, tmp, rows, [rec("CG105", "2026-09-30T05:00:20+09:00")])
+        check("13b) 최신 실행이 failed 면 되돌림", bool(msgs) and out[0]["reported"] is False,
+              f"msgs={msgs} reported={out[0]['reported']}")
 
     print(f"=== {'ALL PASS' if not FAILS else str(len(FAILS)) + ' FAIL'} ===")
     return 1 if FAILS else 0

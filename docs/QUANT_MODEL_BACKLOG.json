@@ -11767,7 +11767,9 @@
           "AT_120_150",
           "US_120_150"
         ]
-      ]
+      ],
+      "metric": "wf_sweep_summary",
+      "summary_note": "command 에 --out/--summary-out 이 없어 기본 경로(/app/reports/overnight/wf_label_sweep_summary.json)를 쓴다 → metric=wf_sweep_summary (2026-10-05 05:0x 배선)"
     }
   ]
 }

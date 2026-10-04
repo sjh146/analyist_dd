@@ -218,29 +218,37 @@ def check_undelivered_reports():
     except Exception as e:      # sqlite3 부재·DB 이동·스키마 변경 — 본업을 막지 않는다
         return [f"NOTE: 미전달 감지 불가({type(e).__name__}: {e}) — 원장 플래그는 유지"]
     floor = now_kst() - timedelta(hours=UNDELIVERED_LOOKBACK_HOURS)
-    bad, changed = [], False
-    for started, status, outcome in hist:
+    # 미전달 판정에 **status 축**을 추가한다. 종전엔 delivery_outcome in (failed, unknown) 만
+    # 봤는데, 호스트/세션 종료로 중단된 실행은 delivery_outcome=NULL 이다(실측 2026-10-01:
+    # 18:00·19:00 틱이 'Interrupted by shutdown', status=failed·outcome=NULL → 감지기가 못 잡아
+    # CG56 결과가 조용히 소실될 참이었다). 진행 중(running)은 종전대로 보류한다.
+    hist_norm = []
+    for started, status, outcome in hist:      # hist 는 started_at desc = 최신순
         st = _parse_ts(started)
         if st is None or st < floor:
             continue
-        # 미전달 판정에 **status 축**을 추가한다. 종전엔 delivery_outcome in (failed, unknown) 만
-        # 봤는데, 호스트/세션 종료로 중단된 실행은 delivery_outcome=NULL 이다(실측 2026-10-01:
-        # 18:00·19:00 틱이 'Interrupted by shutdown', status=failed·outcome=NULL → 감지기가 못 잡아
-        # CG56 결과가 조용히 소실될 참이었다). 진행 중(running)은 종전대로 보류한다.
         undelivered = (outcome in ("failed", "unknown")
                        or (status in ("failed", "unknown") and outcome != "delivered"))
-        if not undelivered:
+        hist_norm.append((st, undelivered, started, status, outcome))
+    # 기록별로 **가장 최근** 실행이 그 기록을 소비했는지로 판정한다. 종전엔 실패 실행마다 독립적으로
+    # 훑어서, 나중 실행이 이미 전달한 기록까지 **옛 실패 실행의 창**에 걸려 중복 보고됐다 — 틱이
+    # 매시간이라 창 3600s 가 겹친다(실측 2026-10-05: 04:01 failed·05:00 delivered 가 같은 기록의
+    # reported_at=05:00:12 를 함께 덮어 06:00 틱이 CG105/MT49/CG106 을 재보고할 참이었다).
+    flagged = {}                               # hist_norm 인덱스 -> [기록]
+    for r in cand:
+        rt = _parse_ts(r.get("reported_at") or r.get("ts"))
+        if rt is None:
             continue
-        hit = []
-        for r in cand:
-            rt = _parse_ts(r.get("reported_at") or r.get("ts"))
-            if rt is None:
-                continue
+        for idx, (st, undelivered, _started, _status, _outcome) in enumerate(hist_norm):
             dt = (rt - st).total_seconds()
             if -REPORT_EARLY_SEC <= dt <= REPORT_WINDOW_SEC:
-                hit.append(r)
-        if not hit:
-            continue
+                if undelivered:
+                    flagged.setdefault(idx, []).append(r)
+                break          # 최신 실행이 이 기록을 소비했다 → 그 실행의 전달 여부로 확정
+    bad, changed = [], False
+    for idx in sorted(flagged):
+        _st, _und, started, status, outcome = hist_norm[idx]
+        hit = flagged[idx]
         for r in hit:
             r["reported"] = False
             r.pop("reported_at", None)
