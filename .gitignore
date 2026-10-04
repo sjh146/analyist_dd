@@ -98,3 +98,7 @@ services/xgboost-ml/app/models/wf/
 data/reports/close_gate_probe/
 !data/reports/close_gate_probe/trades.csv
 !data/reports/close_gate_probe/summary.json
+
+# 루프 원자적 쓰기의 백업 잔여(소음)
+*.bak-*
+*.tmp
