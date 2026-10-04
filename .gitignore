@@ -88,3 +88,13 @@ reports/agent_*.md.stderr.*
 
 # 피처 패널 디스크 캐시(측정 가속, 재생성 가능)
 services/xgboost-ml/app/models/_panel_cache/
+
+# ── 생성 산출물(리포 소음 제거, 2026-10-04 실측 435건 untracked) ──────────────
+# 컨테이너가 쓰는 리포트·야간 산출물은 재생성 가능하다. 입력(trades.csv)만 추적 유지.
+services/xgboost-ml/app/reports/
+services/xgboost-ml/reports/
+services/xgboost-ml/catboost_info/
+services/xgboost-ml/app/models/wf/
+data/reports/close_gate_probe/
+!data/reports/close_gate_probe/trades.csv
+!data/reports/close_gate_probe/summary.json
