@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "updated": "2026-10-03",
+  "goal": {
+    "statement": "analyist_dd 의 최상위 목표는 '돈을 버는 것'. 위험 봉투 안에서 순기대값이 양(+)인 거래만 실행하고, 기준을 통과하지 못하면 무거래가 정답이다.",
+    "primary_metric": "fillable_oos_net_expectancy_pct",
+    "metric_definition": "체결 가능(당일등락 < +25%) 후보만 대상으로, 다중 폴드 OOS 에서 세션당 top-K 동일비중 기대수익(수수료 왕복 0.21%p 차감)의 평균(%p).",
+    "why_this_metric": "실측 2026-10-02(8모델 4축): 단일분할 val AUC ↔ 다중폴드 OOS AUC 순위 상관 스피어만 -0.81(거의 반대), 어느 AUC 도 순기대와 상관 없음(+0.10 / -0.24, n=8). AUC 를 최적화하면 돈과 어긋난다.",
+    "protocol": {
+      "folds": 5,
+      "dates_per_fold": 10,
+      "stocks": 80,
+      "horizon": 5,
+      "label_kind": "rel",
+      "topk": 3,
+      "max_day_chg_pct": 25.0,
+      "fee_buy": 0.00015,
+      "fee_sell": 0.00015,
+      "tax_sell": 0.0018,
+      "exit": "next_open",
+      "tools": [
+        "scripts/model_metric_protocol_audit.py",
+        "scripts/fillable_expectancy.py"
+      ]
+    },
+    "acceptance": {
+      "primary": "expectancy_pct > 0",
+      "min_expectancy_pct": 0.0,
+      "min_improvement_pct_over_incumbent": 0.1,
+      "min_sample_sessions": 40,
+      "min_sample_trades": 30,
+      "split_sample_required": "both_halves_positive",
+      "min_live_signals": 1,
+      "min_robust_auc": 0.5
+    },
+    "rollback": {
+      "monitor_sessions": 5,
+      "degrade_pct": -0.2,
+      "note": "승격 후 K세션 실측이 기준선 대비 degrade_pct 를 넘게 나빠지면 자동 원복(구현 예정: 3번)."
+    }
+  },
+  "envelope": {
+    "source": "trader-agent/trader_core/config.py · runner/config.py (실계좌 783247576 첫 운영 값)",
+    "max_entries_per_day": 3,
+    "max_position_pct": 0.1,
+    "max_invested_pct": 0.3,
+    "daily_loss_limit_pct": 0.03,
+    "one_entry_per_code_per_day": true,
+    "kelly_fraction_live": 0.15,
+    "r1_max_avg_score": 95.0,
+    "r1_max_avg_pct": 15.0,
+    "exit_window": "09:00-09:10",
+    "kill_switch_file": "/mnt/c/Users/jhshi/analyist_dd/trader-agent/kill_switch.txt"
+  },
+  "gates": {
+    "promote_require_live_score": true,
+    "promote_require_expectancy": true,
+    "promote_require_robust": false,
+    "min_improvement_auc": 0.02,
+    "note": "promote_require_* 는 파이프라인이 champion_promote 로 넘기는 플래그의 기본값이다. true = 증거 없으면 승격하지 않는다."
+  },
+  "autonomy": {
+    "tier0": "측정·계기판·감사·경보·테스트·문서·크론 — 사람 없이",
+    "tier1": "봉투 내부의 모델·파라미터·선택규칙·청산규칙 — 사전등록 증거 게이트 + 자동 롤백 조건에서만",
+    "tier2": "봉투 값·주문 경로·킬스위치 의미·자격증명 — 사람",
+    "human_steps": [
+      "Creon PLUS 로그인 (브리지 not_connected 시 — 09:10 청산창 데드라인)",
+      "위험 봉투 값 변경",
+      "킬스위치 발동 후 재개 판단"
+    ]
+  }
+}

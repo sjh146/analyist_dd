@@ -117,11 +117,57 @@ def _read_robust_oos(candidate_dir: str):
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         val = float(data.get("robust_auc"))
-        return {"value": val, "metric": str(data.get("metric") or "robust_auc"),
-                "protocol": str(data.get("protocol") or "")[:120],
-                "source": os.path.basename(path)}
+        rec = {"value": val, "metric": str(data.get("metric") or "robust_auc"),
+               "protocol": str(data.get("protocol") or "")[:160],
+               "source": os.path.basename(path)}
+        for k in ("expectancy_pct", "expectancy_t", "n_sessions", "n_trades", "halves",
+                  "topk", "max_day_chg_pct", "created_at"):
+            if k in data:
+                rec[k] = data[k]
+        return rec
     except (OSError, ValueError, TypeError):
         return None
+
+
+def _expectancy_verdict(candidate, champion, *, min_pct: float, min_sessions: int,
+                        min_trades: int, min_improvement: float):
+    """돈 기준(체결 가능 OOS 순기대) 증거로 승격 가부를 판정한다.
+
+    반환: (기록할 요약 dict, 거부 사유 문자열 또는 None).
+    WHY: AUC 는 순기대와 상관하지 않는다(실측 n=8: +0.10/−0.24). 승격은 **돈 증거**로만 한다.
+    요구 조건(모두 만족해야 승격):
+      ① 증거 파일에 expectancy_pct 가 있을 것(누락 = 증거 없음 → 승격 안 함)
+      ② expectancy_pct > min_pct (기본 0 = 순기대 양수)
+      ③ 세션·표본 수 ≥ 사전등록 최소치(얇은 표본의 운값 배제)
+      ④ 앞/뒤 절반 모두 양수(split-sample 안정성)
+      ⑤ 챔피언 기준선(같은 프로토콜) 대비 +min_improvement 이상
+    """
+    summary: Dict = {"present": candidate is not None}
+    if candidate is None or candidate.get("expectancy_pct") is None:
+        return summary, ("돈 증거 없음(<후보>/robust_oos.json 의 expectancy_pct) — "
+                         "scripts/model_metric_protocol_audit.py 로 측정하라")
+    exp = float(candidate["expectancy_pct"])
+    ns = int(candidate.get("n_sessions") or 0)
+    nt = int(candidate.get("n_trades") or 0)
+    halves = candidate.get("halves") or {}
+    champ_exp = None if champion is None else champion.get("expectancy_pct")
+    summary.update({"pct": exp, "sessions": ns, "trades": nt, "halves": halves,
+                    "champion_pct": champ_exp, "t": candidate.get("expectancy_t"),
+                    "source": candidate.get("source")})
+    why: list[str] = []
+    if exp <= min_pct:
+        why.append(f"순기대 {exp:+.3f}%p ≤ 문턱 {min_pct:+.3f}%p")
+    if ns < min_sessions:
+        why.append(f"세션 {ns} < 최소 {min_sessions}")
+    if nt < min_trades:
+        why.append(f"표본 {nt} < 최소 {min_trades}")
+    if halves.get("stable") != "both_positive":
+        why.append(f"분할표본 불안정(앞 {halves.get('front_pct')} / 뒤 {halves.get('back_pct')})")
+    if champ_exp is None:
+        why.append("챔피언 기준선 순기대 없음 — 같은 프로토콜로 챔피언을 먼저 측정하라")
+    elif exp < float(champ_exp) + min_improvement:
+        why.append(f"챔피언 {float(champ_exp):+.3f}%p 대비 개선 부족(≥ +{min_improvement}%p 필요)")
+    return summary, ("; ".join(why) or None)
 
 
 def _latest_training_result(candidate_dir: str) -> Optional[str]:
@@ -192,6 +238,12 @@ def promote(
     dry_run: bool = False,
     legacy_baseline_cap: float = 0.53,
     max_std: Optional[float] = 0.05,
+    require_expectancy: bool = False,
+    min_expectancy_pct: float = 0.0,
+    min_expectancy_sessions: int = 40,
+    min_expectancy_trades: int = 30,
+    min_expectancy_improvement_pct: float = 0.1,
+    require_robust: bool = False,
 ) -> Dict:
     """Compare a trained candidate against the incumbent and promote if better.
 
@@ -239,7 +291,7 @@ def promote(
     robust_oos = _read_robust_oos(candidate_dir)
     if robust_oos:
         result["candidate_robust_oos"] = robust_oos
-    want_robust = os.environ.get("PROMOTE_REQUIRE_ROBUST", "0") == "1"
+    want_robust = (require_robust or os.environ.get("PROMOTE_REQUIRE_ROBUST", "0") == "1")
     if want_robust:
         if robust_oos is None:
             result["status"] = "kept_incumbent"
@@ -249,6 +301,22 @@ def promote(
             logger.warning("promote skipped: %s", result["reason"])
             return result
         cand_auc, cand_metric = robust_oos["value"], robust_oos["metric"]
+
+    # ── 돈 기준 증거 게이트 (2026-10-03 신설) ────────────────────────────────────
+    # WHY: AUC 는 순기대와 상관하지 않는다(실측 2026-10-02, n=8: 단일분할 +0.10 / 다중폴드 −0.24).
+    # 승격의 최종 기준은 **체결 가능 OOS 순기대**다. 증거가 없거나 표본이 얇으면 승격하지 않는다.
+    # 증거 파일: <후보>/robust_oos.json (scripts/model_metric_protocol_audit.py 가 쓴다).
+    if require_expectancy:
+        exp_txt, why = _expectancy_verdict(
+            candidate=robust_oos, champion=_read_robust_oos(champion_dir),
+            min_pct=min_expectancy_pct, min_sessions=min_expectancy_sessions,
+            min_trades=min_expectancy_trades, min_improvement=min_expectancy_improvement_pct)
+        result["expectancy_gate"] = exp_txt
+        if why:
+            result["status"] = "kept_incumbent"
+            result["reason"] = "돈 기준 게이트 거부: " + why
+            logger.warning("promote skipped: %s", result["reason"])
+            return result
     baseline = _champion_baseline(champion_dir, legacy_baseline_cap)
     champ_auc = float(baseline["value"])
     # 라이브 스코어 게이트 상태는 항상 결과에 남긴다(승격 여부와 무관하게 관측 가능하게).
@@ -381,6 +449,19 @@ def main() -> int:
                     help="후보 auc_std 상한(초과 시 거부). 0 이하면 비활성")
     ap.add_argument("--summary-out", default="app/reports/ml_result.json")
     ap.add_argument("--dry-run", action="store_true")
+    # ── 돈 기준 증거 게이트 (2026-10-03) — objective.json 의 게이트가 값을 넘긴다 ──
+    ap.add_argument("--require-expectancy", action="store_true",
+                    help="체결 가능 OOS 순기대 증거가 없거나 기준 미달이면 승격 거부")
+    ap.add_argument("--min-expectancy-pct", type=float, default=0.0,
+                    help="후보 순기대 하한(%p). 기본 0 = 양수 요구")
+    ap.add_argument("--min-expectancy-sessions", type=int, default=40,
+                    help="최소 세션 수(얇은 표본의 운값 배제)")
+    ap.add_argument("--min-expectancy-trades", type=int, default=30,
+                    help="최소 표본(후보 행) 수")
+    ap.add_argument("--min-expectancy-improvement-pct", type=float, default=0.1,
+                    help="챔피언 기준선(같은 프로토콜) 대비 최소 개선폭(%p)")
+    ap.add_argument("--require-robust", action="store_true",
+                    help="다중 폴드 OOS 지표(robust_oos.json) 없이는 승격하지 않는다")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -394,6 +475,12 @@ def main() -> int:
         dry_run=args.dry_run,
         legacy_baseline_cap=args.legacy_baseline_cap,
         max_std=args.max_std if args.max_std > 0 else None,
+        require_expectancy=args.require_expectancy,
+        min_expectancy_pct=args.min_expectancy_pct,
+        min_expectancy_sessions=args.min_expectancy_sessions,
+        min_expectancy_trades=args.min_expectancy_trades,
+        min_expectancy_improvement_pct=args.min_expectancy_improvement_pct,
+        require_robust=args.require_robust,
     )
 
     if args.summary_out:

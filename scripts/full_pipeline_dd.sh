@@ -373,29 +373,40 @@ else
     #   주의: 이 비교는 단일 val split 이라 문턱이 세면 승격이 오래 잠길 수 있다
     #   (챔피언 0.5513 기준 후보 ≥0.5713 필요) — 승격 게이트에 '라이브 스코어 분포' 검사를
     #   추가하는 근본 수리가 되면 그때 이 값을 완화한다(리뷰보드 안건).
-    # 다중 폴드 OOS 지표 생성(2026-10-02 신설 — 증거 축적, 정책은 별도 env 로 결정):
-    #   실측(8모델 4축): 단일 분할 val AUC 는 다중 폴드 OOS AUC 와 순위 상관 스피어만 **−0.81**
-    #   (거의 반대)라, 지금 게이트 지표로 승격하면 **OOS 최악을 고른다**(CG9: 단일 0.6173/OOS 0.4624,
-    #   scratch_ctl: 단일 0.4159/OOS 0.5199). 후보마다 OOS 를 남겨 두면 `PROMOTE_REQUIRE_ROBUST=1`
-    #   한 줄로 정책을 바꿀 수 있다(기본 off 라 이 단계는 동작을 바꾸지 않는다).
-    #   비용 실측: 피처 빌드 757s + 모델 채점 ≈1분 (총 ≈13분). 실패해도 파이프라인은 계속한다.
-    #   프로토콜 5폴드·h=5·80종목(정본 robust 표준). 근거: docs/OVERNIGHT_2026-10-02.md §3e.
-    timeout 1500 docker exec -w /app -e PYTHONPATH=/app stock_xgboost_ml \
+    # 다중 폴드 OOS + 순기대 증거 생성(2026-10-02 신설 · 2026-10-03 확장 — 증거 축적, 정책은 objective.json):
+    #   실측(8모델 4축): 단일 분할 val AUC 는 다중 폴드 OOS AUC 와 순위 상관 스피어만 **−0.81**, 그리고
+    #   AUC 는 순기대와 상관하지 않는다(+0.10/−0.24, n=8). 그래서 승격 증거는 **돈(체결 가능 순기대)** 이다.
+    #   `--skip` 없이 전부 측정한다: ②다중폴드 AUC ③순기대/분할표본(+①라이브 신호 수 검증에 재사용).
+    #   비용 실측: 피처 빌드 757s + 파트당 수 분 (총 ≈15~20분). 실패해도 파이프라인은 계속한다.
+    timeout 2100 docker exec -w /app -e PYTHONPATH=/app stock_xgboost_ml \
         python /app/scripts/model_metric_protocol_audit.py \
-        --models "[[\"cand\", \"/app/$CAND_DIR\"]]" --skip a,c \
-        --out "/app/app/reports/robust_oos_${CAND_DIR##*/}.json" \
+        --models "[[\"cand\", \"/app/$CAND_DIR\"]]" \
+        --out "/app/app/reports/oos_evidence_${CAND_DIR##*/}.json" \
         --robust-oos-out "/app/$CAND_DIR/robust_oos.json" >> "$LOG_FILE" 2>&1 \
-        || echo "  (OOS 지표 생성 실패 — 비차단, 다음 실행에서 재시도)" >> "$LOG_FILE"
+        || echo "  (OOS/순기대 증거 생성 실패 — 비차단, 다음 실행에서 재시도)" >> "$LOG_FILE"
+    # 챔피언 기준선(같은 프로토콜) 갱신 — 월요일에만(비용 ≈15분). 게이트는 같은 지표로 비교해야 한다.
+    if [ "$(date +%u)" = "1" ]; then
+        timeout 2100 docker exec -w /app -e PYTHONPATH=/app stock_xgboost_ml \
+            python /app/scripts/model_metric_protocol_audit.py \
+            --models "[[\"champion\", \"/app/$CHAMP_DIR\"]]" \
+            --out "/app/app/reports/oos_evidence_champion.json" \
+            --robust-oos-out "/app/$CHAMP_DIR/robust_oos.json" >> "$LOG_FILE" 2>&1 \
+            || echo "  (챔피언 기준선 갱신 실패 — 비차단, 지난 값 유지)" >> "$LOG_FILE"
+    fi
     # 라이브 스코어 게이트(2026-10-02 신설, MT116 구조 수리): 후보가 실제로 신호를 내는가.
     #   AUC 게이트는 '배포 스코어 분포가 절대문턱 아래로 내려가 경로가 닫히는' 유형을 볼 수 없다
     #   (실측: val AUC +0.0035 승격이 swing batch_type 을 signal→raw_fallback 으로 뒤집어 3세션 무진입).
     #   프로브가 같은 유니버스·같은 피처행렬에서 후보/챔피언을 채점한다(약 90초).
     #   차단(rc=2) → 승격 생략(챔피언 유지). 측정 실패(rc=3) → AUC 게이트에 위임(차단하지 않는다).
     if python3 scripts/gate_promote_live_score.py --candidate "$CAND_DIR" >> "$LOG_FILE" 2>&1; then
+        # 증거 게이트 플래그는 objective.json(단일 진실원)에서 만든다 — 정책과 코드가 어긋나지 않게.
+        GATE_FLAGS="$(python3 scripts/objective.py promote-flags 2>> "$LOG_FILE" | tr -d '\n')"
+        echo "  승격 게이트 플래그: $GATE_FLAGS" >> "$LOG_FILE"
         docker exec stock_xgboost_ml python -m app.training.champion_promote \
             --candidate "$CAND_DIR" --champion "$CHAMP_DIR" \
             --min-auc 0.53 --min-improvement 0.02 \
             --legacy-baseline-cap 0.53 --max-std 0.05 \
+            $GATE_FLAGS \
             --summary-out app/reports/ml_result.json >> "$LOG_FILE" 2>&1 < /dev/null
     else
         echo "  라이브 스코어 게이트: 승격 생략(후보가 문턱 초과 신호 0건 — MT116 유형)" >> "$LOG_FILE"

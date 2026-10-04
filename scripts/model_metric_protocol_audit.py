@@ -289,6 +289,7 @@ def part_c(models, pipeline, conn, args):
         tt = tt[tt["day_change_pct"] < args.max_day_chg]
         per_session, dates, _detail = fe.simulate(tt, args.topk, exit_col, ROUND_TRIP)
         st = fe.session_stats(per_session, dates)
+        halves = fe.split_half(per_session, dates)
         result[label] = {
             "n_rows_scored": int(len(tt)),
             "n_sessions": st.get("n_sessions", 0),
@@ -297,6 +298,13 @@ def part_c(models, pipeline, conn, args):
             "pos_sessions_pct": st.get("pos_sessions_pct"),
             "t_stat": st.get("t_stat"),
             "worst_session_pct": st.get("worst_session_pct"),
+            # 승격 게이트가 요구하는 증거: 표본 수 + 앞/뒤 절반 안정성(한쪽만 플러스인 운값 배제)
+            "n_trades": int(len(tt)),
+            "halves": ({"front_pct": halves["front"].get("avg_pct"),
+                        "back_pct": halves["back"].get("avg_pct"),
+                        "stable": halves.get("stable"),
+                        "split_date": halves.get("split_date")}
+                       if halves else None),
         }
         print(f"[c] {label}: n={result[label]['n_rows_scored']} "
               f"세션={result[label]['n_sessions']} 순기대={result[label]['avg_pct']}% "
@@ -421,26 +429,37 @@ def main(argv=None) -> int:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print(f"\n[기록] {args.out}", flush=True)
 
-    # 후보 디렉토리에 승격 게이트용 OOS 지표를 남긴다(champion_promote 가 읽는 형식).
-    #   WHY: 단일 분할 AUC 로 승격하면 OOS 최악을 고르는 문제(스피어만 −0.81)를 게이트가
-    #   고칠 수 있으려면 후보마다 **다중 폴드 OOS 값**이 디렉토리에 있어야 한다.
-    #   정책은 별도 env(PROMOTE_REQUIRE_ROBUST=1)로 켠다 — 이 파일은 증거일 뿐 동작을 바꾸지 않는다.
+    # 승격 게이트용 증거 파일(champion_promote 가 읽는 형식).
+    #   WHY: 단일 분할 AUC 로 승격하면 OOS 최악을 고르는 문제(스피어만 −0.81)와, AUC 자체가
+    #   순기대와 상관하지 않는다는 실측(+0.10/−0.24, n=8) 때문에 **돈 기준 증거**를 남긴다.
+    #   정책은 objective.json 의 게이트가 켠다(이 파일은 증거일 뿐 동작을 바꾸지 않는다).
     if args.robust_oos_out and "b" not in skip and len(model_spec) == 1:
         label = model_spec[0][0]
         b = out.get("b_robust_auc", {}).get(label) or {}
+        c = out.get("c_net_expectancy", {}).get(label) or {}
         if b.get("robust_auc") is not None:
             rec = {"robust_auc": float(b["robust_auc"]),
                    "metric": "robust_auc",
                    "auc_pooled": b.get("auc_pooled"),
                    "folds": args.folds, "horizon": args.horizon,
                    "label_kind": args.label_kind, "stocks": args.stocks,
+                   "topk": args.topk, "max_day_chg_pct": args.max_day_chg,
+                   "exit": "next_open",
                    "protocol": (f"{args.folds}-fold 연속 시간창(폴드당 {args.dates_per_fold}일), "
-                                f"h={args.horizon} 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=h"),
+                                f"h={args.horizon} 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=h; "
+                                f"순기대는 체결성 필터(당일등락<{args.max_day_chg}%)·수수료 왕복 "
+                                f"{ROUND_TRIP:.2f}%p·top{args.topk} 동일비중·익일 시가 청산"),
+                   "expectancy_pct": c.get("avg_pct"),
+                   "expectancy_t": c.get("t_stat"),
+                   "n_sessions": c.get("n_sessions"),
+                   "n_trades": c.get("n_trades"),
+                   "halves": c.get("halves"),
                    "model": label, "created_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
             os.makedirs(os.path.dirname(args.robust_oos_out) or ".", exist_ok=True)
             with open(args.robust_oos_out, "w", encoding="utf-8") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=2)
-            print(f"[기록] {args.robust_oos_out} (robust_auc={rec['robust_auc']:.4f})", flush=True)
+            print(f"[기록] {args.robust_oos_out} (robust_auc={rec['robust_auc']:.4f}, "
+                  f"순기대={rec.get('expectancy_pct')}%, 세션={rec.get('n_sessions')})", flush=True)
         else:
             print("[주의] robust_auc 를 얻지 못해 OOS 파일을 쓰지 않았다", flush=True)
     return 0
