@@ -6,6 +6,16 @@
 
 출력: reports/safety/<YYYY-MM-DD>.json · 경보만 stdout.
 종료코드: 0 정상 / 2 경보 / 3 사람 단계 필요(사람이 해야 풀리는 항목).
+
+2026-10-04 통합: audit_exit_window(09:15 틱)의 최근 창 밖 청산을 preopen 경보로 싣는다.
+WHY(실측): objective_state top_lever = exit_window_miss −1,814원(evidence '중간')인데
+08:25 preopen 감사에는 이 항목이 없어 장 시작 전에 위험을 알 수 없었다. audit_exit_window 가
+남긴 JSON 실측: n_sells=3 · n_out_of_window=3 · out_of_window_krw=−1,814.0 (ts 2026-10-02T22:13:38).
+(조회: python3 -c "import json;print(json.load(open('data/state/objective_state.json'))['top_lever'])"
+      cat data/reports/audit/exit_window.json)
+통합 방식(3분리·멱등): exit_window_receive(소스 수신) → exit_window_parse(파서 생성) →
+rec['alerts'/'info'] 저장(실제 저장) + dq_claim.record_claim 자기신고. safety_<date>.json 은
+덮어쓰기이고 경보는 매 실행 새로 구성된다 → 재실행 안전(중복 적재 없음).
 """
 import datetime as dt
 import json
@@ -20,6 +30,10 @@ OUT_DIR = os.path.join(REPO, "reports", "safety")
 CURL = "/mnt/c/Windows/System32/curl.exe"
 WPY = "/mnt/c/Users/jhshi/Python312-64/python.exe"
 LIMITS = {"max_daily_trades": 3, "per_stock_pct": 0.10, "max_open_positions": 3, "total_exposure_pct": 0.30}
+EXIT_WINDOW_JSON = os.path.join(REPO, "data", "reports", "audit", "exit_window.json")
+# 이보다 묵은 exit_window.json 은 '최근'이라 할 수 없어 경보 근거로 쓰지 않는다(틱 정지 시 오경보 방지).
+# audit_exit_window 자신의 조회 범위(--days 10)와 같다.
+EXIT_WINDOW_MAX_AGE_DAYS = 10
 
 
 def sh(cmd, timeout=30):
@@ -74,6 +88,87 @@ def journal_stats():
         return {"error": out.strip()[:120]}
 
 
+def exit_window_receive(path=None):
+    """소스 수신(1/3) — audit_exit_window 가 남긴 JSON(data/reports/audit/exit_window.json)을 읽는다.
+
+    없거나 깨졌으면 (None, 사유) — preopen 감사가 이것 때문에 죽으면 안 된다(감사가 감사에
+    깨지는 것). 판정은 exit_window_parse 가 한다.
+    """
+    p = path or EXIT_WINDOW_JSON
+    if not os.path.exists(p):
+        return None, f"no file: {p}"
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f), None
+    except (OSError, ValueError) as e:  # noqa: BLE001
+        return None, f"{type(e).__name__}: {e}"
+
+
+def exit_window_parse(rec, remaining_positions=None):
+    """파서 생성(2/3) — 수신 JSON → (info 요약, 경보 또는 None).
+
+    판정 규칙(추측 금지):
+      · 창 밖 = ``in_window`` 가 명시적으로 False 인 행만. 키가 없으면(옛 형식) 창 밖으로 세지 않는다.
+      · 원화는 행별 vs_open_krw 합(측정 불가 행은 0 기여) — 파서가 다시 센다(파일의 합계를 그대로 안 믿는다).
+      · JSON 이 EXIT_WINDOW_MAX_AGE_DAYS 일보다 묵었으면(stale) 경보 없이 info 만 준다 —
+        틱이 죽은 지 오래면 '최근'이라 할 수 없고, 그 사실은 info['stale'] 로 남는다.
+    remaining_positions: 저널 기준 미청산 건수(journal_stats()['open']) — 브리지가 죽은
+    preopen 에도 조회 가능한 잔존 포지션 수. 경보 문구와 info 에 실린다.
+    """
+    if not isinstance(rec, dict):
+        return None, None
+    try:
+        ts = dt.datetime.fromisoformat(str(rec.get("ts") or ""))
+    except (TypeError, ValueError):
+        return None, None
+    age_days = (dt.datetime.now() - ts).total_seconds() / 86400.0
+    sells = [r for r in (rec.get("sells") or []) if isinstance(r, dict)]
+    out_rows = sorted((r for r in sells if r.get("in_window") is False),
+                      key=lambda r: str(r.get("ts") or ""), reverse=True)
+    krw = round(sum(r.get("vs_open_krw") for r in out_rows if r.get("vs_open_krw") is not None), 1)
+    info = {"source_ts": rec.get("ts"), "age_days": round(age_days, 2),
+            "stale": age_days > EXIT_WINDOW_MAX_AGE_DAYS,
+            "window": rec.get("window"), "n_sells": len(sells),
+            "n_out_of_window": len(out_rows), "out_of_window_krw": krw,
+            "remaining_positions": remaining_positions,
+            "out_rows": [{"date": r.get("date"), "hm": r.get("hm"), "code": r.get("code"),
+                          "price": r.get("price"), "open_price": r.get("open_price"),
+                          "vs_open_krw": r.get("vs_open_krw")} for r in out_rows[:3]]}
+    if info["stale"] or not out_rows:
+        return info, None
+    latest = out_rows[0]
+    rem = (f" · 잔존 포지션 {remaining_positions}건 — 오늘 창(09:00-09:10)도 놓치면 같은 손실 재발"
+           if remaining_positions else "")
+    alert = {"check": "exit_out_of_window_recent",
+             "detail": (f"최근 창 밖 청산 {len(out_rows)}건/{len(sells)}건 · 시가 대비 {krw:+,.0f}원 "
+                        f"— 최근 {latest.get('date')} {latest.get('hm')} {latest.get('code')} "
+                        f"@{latest.get('price')}(시가 {latest.get('open_price')}) "
+                        f"[감사 시각 {rec.get('ts')}]{rem}")}
+    return info, alert
+
+
+def _exit_window_claim(source_rows, claimed, persisted, note):
+    """자기신고(3/3-보조) — 소스 수신/파서 생성/실제 저장 3값을 dq_runner_claim 에 남긴다.
+
+    scripts/dq_claim.py 의 record_claim 재사용(러너 자기신고 규약). preopen 감사의 본업은
+    경보이므로 자기신고 실패는 사유 문자열로 info 에만 남기고 감사를 깨지 않는다
+    (dq_claim.py 설계 원칙: 자기신고 실패가 수집을 깨면 안 된다).
+    """
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from dq_claim import _open_conn, record_claim  # noqa: PLC0415 — psycopg2 지연 import
+        conn = _open_conn()
+        try:
+            record_claim(conn, runner="audit_safety", table_name="exit_window",
+                         claimed_rows=int(claimed), persisted_rows=int(persisted),
+                         source_rows=int(source_rows), note=str(note)[:400])
+        finally:
+            conn.close()
+        return "ok"
+    except Exception as e:  # noqa: BLE001
+        return f"{type(e).__name__}: {e}"
+
+
 def processes():
     out = sh(["/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", "-NoProfile", "-Command",
               "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | ForEach-Object "
@@ -99,6 +194,14 @@ def main():
     rec["info"] = {"bridge_health": hp, "balance_ok": bool(isinstance(bal, dict) and bal.get("ok")),
                    "positions": npos, "orders": norders, "processes": proc, "limits": cfg,
                    "kill_switch_file": kill, "journal": js}
+
+    # 5b) audit_exit_window(09:15 틱) 통합 — 소스 수신 → 파서 생성 → 저장 3분리.
+    #     WHY 는 파일 상단 docstring. 잔존 포지션은 브리지가 죽어도 읽히는 저널 미청산 수.
+    ewr, ewr_err = exit_window_receive()
+    ew_info, ew_alert = (exit_window_parse(ewr, remaining_positions=(js.get("open") if isinstance(js, dict) else None))
+                         if isinstance(ewr, dict) else (None, None))
+    rec["info"]["exit_window"] = ew_info or {"error": ewr_err or "unparseable",
+                                             "source": EXIT_WINDOW_JSON}
 
     # 1) 킬스위치
     if kill:
@@ -142,6 +245,15 @@ def main():
         elif hm > "09:10" and "15:00" > hm:
             rec["alerts"].append({"check": "exit_window_missed",
                                   "detail": f"보유 {npos}종목 · 시가 청산창(09:00-09:10) 경과 — 루프 기동 이력 확인"})
+    # 5c) audit_exit_window 통합 경보 — 창 밖 청산이 최근에 있었다면 위험 항목으로 저장
+    if ew_alert:
+        rec["alerts"].append(ew_alert)
+    rec["info"]["exit_window"]["claim"] = _exit_window_claim(
+        source_rows=(ew_info or {}).get("n_sells", 0),
+        claimed=(ew_info or {}).get("n_out_of_window", 0),
+        persisted=1 if ew_alert else 0,
+        note=("%s krw=%s" % (ew_info.get("source_ts"), ew_info.get("out_of_window_krw"))
+              if ew_info else (ewr_err or "no data")))
     # 6) 회계 (fees 미반영)
     if isinstance(js, dict) and js.get("n") and not js.get("fees_sum"):
         rec["alerts"].append({"check": "fees_unbooked",
