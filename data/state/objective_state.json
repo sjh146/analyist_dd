@@ -1,0 +1,72 @@
+{
+  "updated": "2026-10-04T13:23:53",
+  "goal_metric": "fillable_oos_net_expectancy_pct",
+  "acceptance": {
+    "primary": "expectancy_pct > 0",
+    "min_expectancy_pct": 0.0,
+    "min_improvement_pct_over_incumbent": 0.1,
+    "min_sample_sessions": 40,
+    "min_sample_trades": 30,
+    "split_sample_required": "both_halves_positive",
+    "min_live_signals": 1,
+    "min_robust_auc": 0.5
+  },
+  "gates_policy": {
+    "promote_require_live_score": true,
+    "promote_require_expectancy": true,
+    "promote_require_robust": false,
+    "auto_rollback": true,
+    "min_improvement_auc": 0.02,
+    "note": "promote_require_* 는 파이프라인이 champion_promote 로 넘기는 플래그의 기본값이다. true = 증거 없으면 승격하지 않는다. auto_rollback = 되돌림 감시가 실제로 원복까지 실행할지(기본 false = 권고·경보만)."
+  },
+  "value": {
+    "champion_expectancy_pct": -0.182,
+    "champion_sessions": 87,
+    "champion_robust_auc": 0.501,
+    "candidate_expectancy_pct": null,
+    "candidate_robust_auc": null,
+    "evidence_present": {
+      "champion": true,
+      "candidate": false
+    },
+    "note": "순기대는 체결성 필터·수수료 반영 OOS 값(%p/세션). 증거가 없으면 승격도 없다."
+  },
+  "money": {
+    "realized_pnl_krw": -1446.0,
+    "closed_trades": 3,
+    "equity_krw": 526243.0,
+    "open_positions": 0,
+    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-10-04.json"
+  },
+  "envelope": {
+    "limits": {
+      "max_entries_per_day": 3,
+      "per_stock_pct": 0.1,
+      "max_invested_pct": 0.3,
+      "daily_loss_limit_pct": 0.03
+    },
+    "used": {
+      "equity_krw": 526243.0,
+      "invested_pct_now": 0.0,
+      "peak_concurrent": 3,
+      "closed_trades": 3,
+      "realized_pnl_krw": -1446.0
+    },
+    "breaches": [
+      "수수료 미계상(fees=0) — 순손익 신뢰도 결손"
+    ]
+  },
+  "top_lever": {
+    "id": "exit_window_miss",
+    "title": "익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+    "krw": -1814.0,
+    "evidence": "중간"
+  },
+  "data_freshness": {
+    "feed_generated_at": "2026-10-02T20:30:03+09:00",
+    "feed_age_h": 40.9,
+    "screener_stats_mtime": "2026-10-02T20:30:02",
+    "swing_probe_mtime": "2026-10-02T18:21:28",
+    "close_gap_history_mtime": "2026-10-02T15:42:35"
+  }
+}
