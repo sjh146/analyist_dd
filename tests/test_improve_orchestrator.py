@@ -57,6 +57,14 @@ def test_add_dedupes_live_titles(queue):
     assert a["id"] == b["id"] and len(d["tasks"]) == 1
 
 
+def test_add_dedupes_same_evidence_even_if_title_changed(queue):
+    """같은 근거(source+why)는 제목이 달라도 같은 과제다(실측: 손실원 중복 생성)."""
+    d = iq._load()
+    a = iq.add(d, "원래 제목", "근거 문장", ["t"], source="objective_state.top_lever")
+    b = iq.add(d, "제목을 사람이 다듬음", "근거 문장", ["t"], source="objective_state.top_lever")
+    assert a["id"] == b["id"] and len(d["tasks"]) == 1
+
+
 def test_next_respects_priority(queue):
     d = iq._load()
     iq.add(d, "낮은 우선순위", "", ["t"], priority=3)

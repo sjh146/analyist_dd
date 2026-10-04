@@ -55,8 +55,18 @@ def _new_id(d: dict) -> str:
 
 def add(d: dict, title: str, why: str, acceptance: list[str], priority: int = 2,
         protected: bool = False, source: str = "") -> dict:
-    for t in d["tasks"]:                       # 제목 중복 방지(살아 있는 항목이 있으면 추가하지 않음)
-        if t["title"].strip() == title.strip() and t["state"] in ("todo", "inflight"):
+    """과제 추가 — 같은 '근거(source+why)' 또는 같은 제목의 살아있는 과제가 있으면 그걸 돌려준다.
+
+    WHY(실측 2026-10-04): 제목만 비교했더니 같은 손실원이 문구가 조금 달라져 **중복 생성**됐다
+    (사람이 제목을 다듬은 뒤 seed 가 다시 넣음). 근거가 같으면 같은 일이다 — 두 축으로 막는다.
+    """
+    for t in d["tasks"]:
+        if t["state"] not in ("todo", "inflight"):
+            continue
+        same_title = t["title"].strip() == title.strip()
+        same_source = bool(source) and t.get("source") == source and \
+            (t.get("why") or "").strip() == why.strip()
+        if same_title or same_source:
             return t
     task = {"id": _new_id(d), "title": title.strip(), "why": why.strip(),
             "acceptance": [a.strip() for a in acceptance if a.strip()],

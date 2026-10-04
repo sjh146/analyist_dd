@@ -21,24 +21,6 @@
       "created": "2026-10-04T13:46:10",
       "source": "objective_state.top_lever",
       "claimed_at": "2026-10-04T13:46:24"
-    },
-    {
-      "id": "Q20261004-02",
-      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
-      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
-      "acceptance": [
-        "변경한 경로의 테스트 통과",
-        "루트 pytest 통과"
-      ],
-      "protected": false,
-      "priority": 1,
-      "state": "todo",
-      "attempts": 0,
-      "max_attempts": 2,
-      "commit": null,
-      "note": null,
-      "created": "2026-10-04T13:46:24",
-      "source": "objective_state.top_lever"
     }
   ]
 }
