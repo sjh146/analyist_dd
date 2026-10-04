@@ -1,0 +1,16 @@
+{
+  "monitor_sessions": 5,
+  "degrade_pct": -0.2,
+  "swap_ts": "2026-10-02T15:25:44+09:00",
+  "prev_dir": "champion_prev_20261002-024420",
+  "sessions_since": null,
+  "champion_pct": -0.182,
+  "prev_pct": -0.298,
+  "champion_auc": 0.501,
+  "prev_auc": 0.4838,
+  "degrade": 0.116,
+  "verdict": "ok",
+  "detail": "승격 유지(증거가 백업 이상)",
+  "updated": "2026-10-04T13:41:51",
+  "auto_rollback_gate": true
+}

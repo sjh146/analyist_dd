@@ -1,0 +1,1 @@
+{"day": "2026-10-03", "calls": 649, "blocked_until": 1791019504.1069427, "blocked_reason": "DART 응답 이상: {'status': '000', 'message': '정상', 'page_no': 1, 'page_count': 100, 'total_count': 131, 'total_page'", "total_calls": 649, "blocked_count": 1, "key": "dart", "delay": 1.5, "jitter": 0.8, "last_call_ts": 1791028887.2211287, "updated": "2026-10-03T21:01:27"}
