@@ -11442,6 +11442,19 @@
         "per_exp": null,
         "rc": 0
       }
+    },
+    {
+      "id": "CG100",
+      "title": "하위 k 반예측의 재현 — 다른 유니버스 시드(seed 7)에서 점수 반전 돈 검정 (CG99 후속)",
+      "hypothesis": "CG98/CG99 는 seed 0 유니버스에서 모델 top-k 가 풀평균보다 낮고(k≥75 유의) 하위 k 가 높음을 보였다(k=3 Δ+3.040 t1.92 · k=5 +1.769 t1.49 · k=20 +0.840 t2.0) — 사전문턱 t≥2 에 못 미쳐 노이즈로 기록됐다. 같은 데이터에서 관측된 힌트라, **서로소 유니버스 시드**에서 같은 방향이 재현되는지가 승격 근거의 선행 조건이다.",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 10 --dates-per-fold 8 --stocks 300 --universe training --universe-seed 7 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg100_q05_all.jsonl --dump-tag cg92_q05 --dump-all --out /app/reports/overnight/cg100_q05_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q30 --label-kind quantile --label-q 0.30 --horizon 5 --folds 10 --dates-per-fold 8 --stocks 300 --universe training --universe-seed 7 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg100_q30_all.jsonl --dump-tag cg92_q30 --dump-all --out /app/reports/overnight/cg100_q30_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg100_q05_all.jsonl --arm-tag cg92_q05 --control-jsonl /app/reports/overnight/cg100_q30_all.jsonl --control-tag cg92_q30 --k 3,5,10,20,30 --primary-side bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg100_money_bottom_seed7.json'",
+      "metric": "fillable_topk_vs_pool",
+      "success": "seed 7 유니버스에서 k=3 **과** k=5 둘 다 Δ(bottom-k − 세션 풀 평균) ≥ +0.1%p/세션 & t ≥ 2 & 분할 both_positive → 반예측 랭킹이 재현됨(승격 아님 — 롱온리 소비 정책 변경은 트레이더·리뷰보드 승인). 미달이면 점수에 돈 정보가 없다(양끝 모두 무정보)로 **돈 축 최종 종결**하고, 다음 레버는 데이터 축(수집·누적)뿐이다.",
+      "counterfactual": "seed 7 유니버스의 세션 풀 평균(같은 dump·체결성 필터·수수료). CG95/CG98 의 seed 0 결과와 유니버스가 서로소.",
+      "est_minutes": 90,
+      "priority": 2,
+      "status": "pending",
+      "added": "2026-10-04 19:1x (엔지니어, CG99 노이즈 — 반예측 힌트의 독립 재현)"
     }
   ]
 }
