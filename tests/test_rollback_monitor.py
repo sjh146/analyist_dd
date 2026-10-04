@@ -84,4 +84,5 @@ def test_repo_objective_has_rollback_config():
     obj = objective.load()
     rb = obj["goal"]["rollback"]
     assert rb["monitor_sessions"] >= 1 and rb["degrade_pct"] < 0
-    assert "auto_rollback" in obj["gates"] and obj["gates"]["auto_rollback"] is False
+    # auto_rollback 은 '정책'이라 값이 바뀔 수 있다(2026-10-04 켬) — 타입·존재만 잠근다.
+    assert isinstance(obj["gates"].get("auto_rollback"), bool)
