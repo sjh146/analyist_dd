@@ -47,9 +47,16 @@ LEDGER = os.path.join(REPO, "data", "reports", "experiments.jsonl")
 GRID = {
     "topk": [1, 2, 3, 5],
     "max_day_chg": [10.0, 15.0, 20.0, 25.0],
-    "exit": ["next_open", "next_close", "t2_open"],
+    "exit": ["next_open", "next_close"],
+    # 선택 방향 — 지금까지는 '점수 상위'만 봤다. 시장 패턴은 반대편에 있을 수 있다:
+    #  · score_bottom : 모델이 가장 낮게 본 종목(비선호 = 역추세)
+    #  · daychg_low   : 당일 상승폭이 가장 작은 종목(과열 회피 = 되돌림)
+    "select": ["score_top", "score_bottom", "daychg_low"],
+    # 실제 매매 경로는 R1/HEAT 게이트를 통과한 종목만 산다. 측정도 그 조건으로 봐야 정직하다.
+    "gated": [True, False],
 }
-INCUMBENT = {"topk": 3, "max_day_chg": 25.0, "exit": "next_open"}   # 현행 트레이더 설정
+INCUMBENT = {"topk": 3, "max_day_chg": 25.0, "exit": "next_open",
+             "select": "score_top", "gated": True}   # 현행 트레이더 설정(게이트 통과분만 매수)
 MAX_FILLABLE_CAP = 25.0
 
 
@@ -59,7 +66,8 @@ def protocol_hash() -> str:
 
 
 def combo_key(c: dict) -> str:
-    return f"k{c['topk']}_cap{c['max_day_chg']}_{c['exit']}"
+    return "k{topk}_cap{max_day_chg}_{exit}_{select}_g{0}".format(
+        1 if c["gated"] else 0, **{k: c[k] for k in ("topk", "max_day_chg", "exit", "select")})
 
 
 def _args_for(combo: dict, args):
@@ -76,12 +84,40 @@ def _args_for(combo: dict, args):
     return ns
 
 
+def _select_variants(t):
+    """선택 규칙별 뷰를 만든다 — simulate 는 score 내림차순만 하므로 부호/축을 바꿔 표현한다."""
+    out = {}
+    for sel in GRID["select"]:
+        tv = t.copy()
+        if sel == "score_bottom":
+            tv["score"] = -tv["score"]
+        elif sel == "daychg_low":
+            tv["score"] = -tv["day_change_pct"]
+        out[sel] = tv
+    return out
+
+
+def _apply_gate(tv):
+    """실제 매매 경로와 같은 조건: R1·HEAT·게이트를 통과한 종목만."""
+    mask = None
+    for col in ("gate_ok", "r1_ok", "heat_ok"):
+        if col not in tv.columns:
+            return tv.iloc[0:0]                      # 컬럼이 없으면 '통과분'을 주장할 수 없다
+        c = tv[col].fillna(False).astype(bool)
+        mask = c if mask is None else (mask & c)
+    return tv[mask]
+
+
 def evaluate(t, combos: list[dict], args) -> dict:
     """격자 평가 — DB 조회/수익률 계산은 한 번만(t 를 재사용), 조합별로 필터·시뮬만 돈다."""
+    variants = _select_variants(t)
     out: dict[str, dict] = {}
     for c in combos:
         ns = _args_for(c, args)
-        t_f, dropped = fe.apply_filters(t, ns)
+        base = variants[c["select"]]
+        if c["gated"]:
+            base = _apply_gate(base)
+        t_f, dropped = fe.apply_filters(base, ns)
         rt = fe.round_trip(ns)
         per_session, dates, _detail = fe.simulate(t_f, ns.topk, fe.EXIT_COLS[ns.exit], rt)
         st = fe.session_stats(per_session, dates)
@@ -177,7 +213,7 @@ def main(argv=None) -> int:
     results = evaluate(t, todo, a)
     verd = verdicts(results, obj)
 
-    reg.setdefault("tested", {}).update({k: {"pass": v["pass"], "avg_pct": v["avg_pct"],
+    reg.setdefault("tested", {}).update({k: {"pass": v["pass"], "avg_pct": v.get("avg_pct"),
                                              "why": v["why"], "combo": results[k]["combo"],
                                              "at": dt.datetime.now().isoformat(timespec="seconds")}
                                          for k, v in verd.items()})
@@ -216,9 +252,10 @@ def main(argv=None) -> int:
     print(json.dumps({"evaluated": len(results), "passing": passing,
                       "incumbent_key": combo_key(INCUMBENT),
                       "incumbent_avg_pct": (results.get(combo_key(INCUMBENT)) or {}).get("avg_pct"),
-                      "top5": [{"key": k, "avg_pct": results[k]["avg_pct"], "t": results[k]["t_stat"],
-                                "halves": results[k]["halves"]["stable"], "pass": verd[k]["pass"]}
-                               for k in rank[:5]]}, ensure_ascii=False, indent=2))
+                      "top8": [{"key": k, "avg_pct": results[k]["avg_pct"], "t": results[k]["t_stat"],
+                                "n": results[k]["n_sessions"], "halves": results[k]["halves"]["stable"],
+                                "pass": verd[k]["pass"]} for k in rank[:8]]},
+                     ensure_ascii=False, indent=2))
     return 0 if passing else 1
 
 

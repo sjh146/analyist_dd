@@ -75,3 +75,26 @@ def test_everything_passes_when_conditions_met():
     r.update(_res("k2_cap15.0_next_open", 15.0, 0.60, topk=2))
     v = er.verdicts(r, _obj())
     assert v["k2_cap15.0_next_open"]["pass"] is True, v
+
+
+def test_grid_covers_reversal_and_gate_axes():
+    """탐색 공간이 '점수 상위'만 보지 않는다 — 역추세(하위·소상승)와 게이트 조건을 포함해야 한다."""
+    import pandas as pd
+    assert "score_bottom" in er.GRID["select"] and "daychg_low" in er.GRID["select"]
+    assert True in er.GRID["gated"] and False in er.GRID["gated"]
+    t = pd.DataFrame({"score": [1.0, 2.0, 3.0], "day_change_pct": [5.0, 1.0, -2.0]})
+    v = er._select_variants(t)
+    # score 하위 = 원래 최저 점수(1.0)가 1등이 된다
+    assert v["score_bottom"]["score"].tolist() == [-1.0, -2.0, -3.0]
+    # 당일 상승폭 최소 = 당일 하락 종목(-2.0)이 1등
+    assert v["daychg_low"]["score"].tolist() == [-5.0, -1.0, 2.0]
+
+
+def test_gate_filter_never_claims_passed_when_columns_missing():
+    """게이트 컬럼이 없으면 '통과분'을 주장하지 않는다(빈 집합 = 측정 불가) — 조용한 0건 금지."""
+    import pandas as pd
+    t = pd.DataFrame({"score": [1.0, 2.0]})
+    assert len(er._apply_gate(t)) == 0
+    tg = pd.DataFrame({"score": [1.0, 2.0], "gate_ok": [True, False],
+                       "r1_ok": [True, True], "heat_ok": [True, True]})
+    assert len(er._apply_gate(tg)) == 1

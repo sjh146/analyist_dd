@@ -1,187 +1,766 @@
 {
-  "protocol": "36863b1f2265",
+  "protocol": "bc12e1a65261",
   "tested": {
-    "k1_cap10.0_next_open": {
+    "k1_cap10.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap10.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.6414,
       "why": [
         "순기대 -0.641%p ≤ 0.0",
-        "분할표본 불안정(-0.3282/-0.9546)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-0.3282/-0.9546)"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 10.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap10.0_next_close": {
+    "k1_cap10.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap10.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.3728,
+      "why": [
+        "순기대 -0.373%p ≤ 0.0",
+        "분할표본 불안정(-0.4589/-0.2866)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap10.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap10.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2332,
+      "why": [
+        "순기대 -0.233%p ≤ 0.0",
+        "분할표본 불안정(-0.9265/0.4601)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap10.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap10.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -2.2379,
       "why": [
         "순기대 -2.238%p ≤ 0.0",
-        "분할표본 불안정(-2.9802/-1.4956)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-2.9802/-1.4956)"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 10.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap10.0_t2_open": {
+    "k1_cap10.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -2.0938,
+      "avg_pct": null,
       "why": [
-        "순기대 -2.094%p ≤ 0.0",
-        "분할표본 불안정(-3.1979/-0.9897)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 10.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap15.0_next_open": {
+    "k1_cap10.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.1379,
+      "why": [
+        "순기대 -1.138%p ≤ 0.0",
+        "분할표본 불안정(-2.2496/-0.0262)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap10.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap10.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.1828,
+      "why": [
+        "순기대 -1.183%p ≤ 0.0",
+        "분할표본 불안정(-1.1258/-1.2398)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -1.025,
       "why": [
         "순기대 -1.025%p ≤ 0.0",
-        "분할표본 불안정(-0.8944/-1.1527)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-0.8944/-1.1527)"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 15.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap15.0_next_close": {
+    "k1_cap15.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.2758,
+      "why": [
+        "순기대 -0.276%p ≤ 0.0",
+        "분할표본 불안정(-0.0431/-0.5032)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2315,
+      "why": [
+        "순기대 -0.232%p ≤ 0.0",
+        "분할표본 불안정(-0.921/0.4423)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -2.5083,
       "why": [
         "순기대 -2.508%p ≤ 0.0",
-        "분할표본 불안정(-3.434/-1.6036)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-3.434/-1.6036)"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 15.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap15.0_t2_open": {
+    "k1_cap15.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -3.1258,
+      "avg_pct": null,
       "why": [
-        "순기대 -3.126%p ≤ 0.0",
-        "분할표본 불안정(-3.0048/-3.2441)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 15.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap20.0_next_open": {
+    "k1_cap15.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.3049,
+      "why": [
+        "순기대 -1.305%p ≤ 0.0",
+        "분할표본 불안정(-1.5919/-1.0244)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap15.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.1997,
+      "why": [
+        "순기대 -1.200%p ≤ 0.0",
+        "분할표본 불안정(-1.1238/-1.2738)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -1.054,
       "why": [
         "순기대 -1.054%p ≤ 0.0",
-        "분할표본 불안정(-0.8208/-1.282)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-0.8208/-1.282)"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 20.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap20.0_next_close": {
+    "k1_cap20.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.3426,
+      "why": [
+        "순기대 -0.343%p ≤ 0.0",
+        "분할표본 불안정(-0.0945/-0.5851)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2315,
+      "why": [
+        "순기대 -0.232%p ≤ 0.0",
+        "분할표본 불안정(-0.921/0.4423)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -3.0043,
       "why": [
         "순기대 -3.004%p ≤ 0.0",
-        "분할표본 불안정(-4.0495/-1.9829)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-4.0495/-1.9829)"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 20.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap20.0_t2_open": {
+    "k1_cap20.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -2.8709,
+      "avg_pct": null,
       "why": [
-        "순기대 -2.871%p ≤ 0.0",
-        "분할표본 불안정(-3.6466/-2.1129)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 20.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap25.0_next_open": {
+    "k1_cap20.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.6879,
+      "why": [
+        "순기대 -1.688%p ≤ 0.0",
+        "분할표본 불안정(-2.7442/-0.6556)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap20.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.1997,
+      "why": [
+        "순기대 -1.200%p ≤ 0.0",
+        "분할표본 불안정(-1.1238/-1.2738)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.8133,
       "why": [
         "순기대 -0.813%p ≤ 0.0",
-        "분할표본 불안정(-0.5774/-1.0438)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-0.5774/-1.0438)"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 25.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap25.0_next_close": {
+    "k1_cap25.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.4094,
+      "why": [
+        "순기대 -0.409%p ≤ 0.0",
+        "분할표본 불안정(-0.1099/-0.7022)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2315,
+      "why": [
+        "순기대 -0.232%p ≤ 0.0",
+        "분할표본 불안정(-0.921/0.4423)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -3.6093,
       "why": [
         "순기대 -3.609%p ≤ 0.0",
-        "분할표본 불안정(-4.1047/-3.1252)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-4.1047/-3.1252)"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 25.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k1_cap25.0_t2_open": {
+    "k1_cap25.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -3.6235,
+      "avg_pct": null,
       "why": [
-        "순기대 -3.623%p ≤ 0.0",
-        "분할표본 불안정(-4.1351/-3.1235)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 1,
         "max_day_chg": 25.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap10.0_next_open": {
+    "k1_cap25.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.6003,
+      "why": [
+        "순기대 -1.600%p ≤ 0.0",
+        "분할표본 불안정(-2.6915/-0.5339)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k1_cap25.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.1997,
+      "why": [
+        "순기대 -1.200%p ≤ 0.0",
+        "분할표본 불안정(-1.1238/-1.2738)"
+      ],
+      "combo": {
+        "topk": 1,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.5561,
       "why": [
@@ -191,131 +770,555 @@
       "combo": {
         "topk": 2,
         "max_day_chg": 10.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap10.0_next_close": {
+    "k2_cap10.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.3076,
+      "why": [
+        "순기대 -0.308%p ≤ 0.0",
+        "분할표본 불안정(-0.3826/-0.2326)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.27,
+      "why": [
+        "순기대 -0.270%p ≤ 0.0",
+        "분할표본 불안정(-0.6247/0.0848)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.5831,
       "why": [
         "순기대 -1.583%p ≤ 0.0",
-        "분할표본 불안정(-2.5184/-0.6478)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-2.5184/-0.6478)"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 10.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap10.0_t2_open": {
+    "k2_cap10.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.4537,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.454%p ≤ 0.0",
-        "분할표본 불안정(-2.5237/-0.3836)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 10.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap15.0_next_open": {
+    "k2_cap10.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.7953,
+      "why": [
+        "순기대 -0.795%p ≤ 0.0",
+        "분할표본 불안정(-1.7705/0.1799)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap10.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.2254,
+      "why": [
+        "순기대 -1.225%p ≤ 0.0",
+        "분할표본 불안정(-1.7502/-0.7006)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.5763,
       "why": [
         "순기대 -0.576%p ≤ 0.0",
-        "분할표본 불안정(-0.3562/-0.7913)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-0.3562/-0.7913)"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 15.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap15.0_next_close": {
+    "k2_cap15.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.2675,
+      "why": [
+        "순기대 -0.268%p ≤ 0.0",
+        "분할표본 불안정(-0.187/-0.3461)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2411,
+      "why": [
+        "순기대 -0.241%p ≤ 0.0",
+        "분할표본 불안정(-0.518/0.0295)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.2597,
       "why": [
         "순기대 -1.260%p ≤ 0.0",
-        "분할표본 불안정(-1.9131/-0.621)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-1.9131/-0.621)"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 15.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap15.0_t2_open": {
+    "k2_cap15.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.5309,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.531%p ≤ 0.0",
-        "분할표본 불안정(-1.7623/-1.3048)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 15.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap20.0_next_open": {
+    "k2_cap15.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.9031,
+      "why": [
+        "순기대 -0.903%p ≤ 0.0",
+        "분할표본 불안정(-1.3951/-0.4223)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap15.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.375,
+      "why": [
+        "순기대 -1.375%p ≤ 0.0",
+        "분할표본 불안정(-1.8742/-0.8871)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.9085,
       "why": [
         "순기대 -0.908%p ≤ 0.0",
-        "분할표본 불안정(-0.6152/-1.1952)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-0.6152/-1.1952)"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 20.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap20.0_next_close": {
+    "k2_cap20.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.5037,
+      "why": [
+        "순기대 -0.504%p ≤ 0.0",
+        "분할표본 불안정(-0.1898/-0.8104)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2411,
+      "why": [
+        "순기대 -0.241%p ≤ 0.0",
+        "분할표본 불안정(-0.518/0.0295)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -2.1664,
       "why": [
         "순기대 -2.166%p ≤ 0.0",
-        "분할표본 불안정(-2.7507/-1.5954)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-2.7507/-1.5954)"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 20.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap20.0_t2_open": {
+    "k2_cap20.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -2.154,
+      "avg_pct": null,
       "why": [
-        "순기대 -2.154%p ≤ 0.0",
-        "분할표본 불안정(-2.8256/-1.4977)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 20.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap25.0_next_open": {
+    "k2_cap20.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.361,
+      "why": [
+        "순기대 -1.361%p ≤ 0.0",
+        "분할표본 불안정(-2.169/-0.5713)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap20.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.375,
+      "why": [
+        "순기대 -1.375%p ≤ 0.0",
+        "분할표본 불안정(-1.8742/-0.8871)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.5223,
       "why": [
@@ -325,41 +1328,183 @@
       "combo": {
         "topk": 2,
         "max_day_chg": 25.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap25.0_next_close": {
+    "k2_cap25.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.5309,
+      "why": [
+        "순기대 -0.531%p ≤ 0.0",
+        "분할표본 불안정(-0.2441/-0.8112)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2411,
+      "why": [
+        "순기대 -0.241%p ≤ 0.0",
+        "분할표본 불안정(-0.518/0.0295)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -2.4335,
       "why": [
         "순기대 -2.433%p ≤ 0.0",
-        "분할표본 불안정(-2.6484/-2.2235)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-2.6484/-2.2235)"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 25.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k2_cap25.0_t2_open": {
+    "k2_cap25.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -2.1927,
+      "avg_pct": null,
       "why": [
-        "순기대 -2.193%p ≤ 0.0",
-        "분할표본 불안정(-2.5001/-1.8922)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 2,
         "max_day_chg": 25.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap10.0_next_open": {
+    "k2_cap25.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.4324,
+      "why": [
+        "순기대 -1.432%p ≤ 0.0",
+        "분할표본 불안정(-2.4413/-0.4465)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k2_cap25.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.375,
+      "why": [
+        "순기대 -1.375%p ≤ 0.0",
+        "분할표본 불안정(-1.8742/-0.8871)"
+      ],
+      "combo": {
+        "topk": 2,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.3213,
       "why": [
@@ -369,131 +1514,555 @@
       "combo": {
         "topk": 3,
         "max_day_chg": 10.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap10.0_next_close": {
+    "k3_cap10.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.2082,
+      "why": [
+        "순기대 -0.208%p ≤ 0.0",
+        "분할표본 불안정(-0.3642/-0.0523)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.3149,
+      "why": [
+        "순기대 -0.315%p ≤ 0.0",
+        "분할표본 불안정(-0.5361/-0.0937)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.2943,
       "why": [
         "순기대 -1.294%p ≤ 0.0",
-        "분할표본 불안정(-1.993/-0.5956)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-1.993/-0.5956)"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 10.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap10.0_t2_open": {
+    "k3_cap10.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.1562,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.156%p ≤ 0.0",
-        "분할표본 불안정(-2.008/-0.3045)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 10.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap15.0_next_open": {
+    "k3_cap10.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.8212,
+      "why": [
+        "순기대 -0.821%p ≤ 0.0",
+        "분할표본 불안정(-1.6667/0.0243)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap10.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.2934,
+      "why": [
+        "순기대 -1.293%p ≤ 0.0",
+        "분할표본 불안정(-1.7743/-0.8124)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.6037,
       "why": [
         "순기대 -0.604%p ≤ 0.0",
-        "분할표본 불안정(-0.525/-0.6806)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-0.525/-0.6806)"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 15.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap15.0_next_close": {
+    "k3_cap15.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.3024,
+      "why": [
+        "순기대 -0.302%p ≤ 0.0",
+        "분할표본 불안정(-0.4061/-0.201)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.3269,
+      "why": [
+        "순기대 -0.327%p ≤ 0.0",
+        "분할표본 불안정(-0.471/-0.186)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.4678,
       "why": [
         "순기대 -1.468%p ≤ 0.0",
-        "분할표본 불안정(-2.099/-0.851)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-2.099/-0.851)"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 15.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap15.0_t2_open": {
+    "k3_cap15.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.6398,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.640%p ≤ 0.0",
-        "분할표본 불안정(-1.9754/-1.3118)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 15.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap20.0_next_open": {
+    "k3_cap15.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.0152,
+      "why": [
+        "순기대 -1.015%p ≤ 0.0",
+        "분할표본 불안정(-1.5103/-0.5315)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap15.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.4714,
+      "why": [
+        "순기대 -1.471%p ≤ 0.0",
+        "분할표본 불안정(-1.9329/-1.0203)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.6446,
       "why": [
         "순기대 -0.645%p ≤ 0.0",
-        "분할표본 불안정(-0.1902/-1.0886)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-0.1902/-1.0886)"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 20.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap20.0_next_close": {
+    "k3_cap20.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.6004,
+      "why": [
+        "순기대 -0.600%p ≤ 0.0",
+        "분할표본 불안정(-0.4496/-0.7477)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.3269,
+      "why": [
+        "순기대 -0.327%p ≤ 0.0",
+        "분할표본 불안정(-0.471/-0.186)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.3682,
       "why": [
         "순기대 -1.368%p ≤ 0.0",
-        "분할표본 불안정(-1.7018/-1.0422)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-1.7018/-1.0422)"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 20.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap20.0_t2_open": {
+    "k3_cap20.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.5505,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.550%p ≤ 0.0",
-        "분할표본 불안정(-1.7242/-1.3808)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 20.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap25.0_next_open": {
+    "k3_cap20.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.3739,
+      "why": [
+        "순기대 -1.374%p ≤ 0.0",
+        "분할표본 불안정(-2.2337/-0.5336)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap20.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.4714,
+      "why": [
+        "순기대 -1.471%p ≤ 0.0",
+        "분할표본 불안정(-1.9329/-1.0203)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.6702,
       "why": [
@@ -503,41 +2072,183 @@
       "combo": {
         "topk": 3,
         "max_day_chg": 25.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap25.0_next_close": {
+    "k3_cap25.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.6801,
+      "why": [
+        "순기대 -0.680%p ≤ 0.0",
+        "분할표본 불안정(-0.5376/-0.8194)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.3269,
+      "why": [
+        "순기대 -0.327%p ≤ 0.0",
+        "분할표본 불안정(-0.471/-0.186)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -2.018,
       "why": [
         "순기대 -2.018%p ≤ 0.0",
-        "분할표본 불안정(-2.6525/-1.3979)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-2.6525/-1.3979)"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 25.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k3_cap25.0_t2_open": {
+    "k3_cap25.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -2.1571,
+      "avg_pct": null,
       "why": [
-        "순기대 -2.157%p ≤ 0.0",
-        "분할표본 불안정(-2.6597/-1.6659)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 3,
         "max_day_chg": 25.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap10.0_next_open": {
+    "k3_cap25.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.5936,
+      "why": [
+        "순기대 -1.594%p ≤ 0.0",
+        "분할표본 불안정(-2.4159/-0.7899)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k3_cap25.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.4714,
+      "why": [
+        "순기대 -1.471%p ≤ 0.0",
+        "분할표본 불안정(-1.9329/-1.0203)"
+      ],
+      "combo": {
+        "topk": 3,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.3107,
       "why": [
@@ -547,41 +2258,183 @@
       "combo": {
         "topk": 5,
         "max_day_chg": 10.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap10.0_next_close": {
+    "k5_cap10.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.1819,
+      "why": [
+        "순기대 -0.182%p ≤ 0.0",
+        "분할표본 불안정(-0.3507/-0.0131)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.296,
+      "why": [
+        "순기대 -0.296%p ≤ 0.0",
+        "분할표본 불안정(-0.4502/-0.1417)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.1841,
       "why": [
         "순기대 -1.184%p ≤ 0.0",
-        "분할표본 불안정(-1.9356/-0.4326)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-1.9356/-0.4326)"
       ],
       "combo": {
         "topk": 5,
         "max_day_chg": 10.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap10.0_t2_open": {
+    "k5_cap10.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.1497,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.150%p ≤ 0.0",
-        "분할표본 불안정(-2.0792/-0.2201)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 5,
         "max_day_chg": 10.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap15.0_next_open": {
+    "k5_cap10.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.0628,
+      "why": [
+        "순기대 -1.063%p ≤ 0.0",
+        "분할표본 불안정(-1.8418/-0.2838)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap10.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.2872,
+      "why": [
+        "순기대 -1.287%p ≤ 0.0",
+        "분할표본 불안정(-2.1822/-0.3923)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 10.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.3858,
       "why": [
@@ -591,41 +2444,183 @@
       "combo": {
         "topk": 5,
         "max_day_chg": 15.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap15.0_next_close": {
+    "k5_cap15.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.1342,
+      "why": [
+        "순기대 -0.134%p ≤ 0.0",
+        "분할표본 불안정(-0.3007/0.0285)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2677,
+      "why": [
+        "순기대 -0.268%p ≤ 0.0",
+        "분할표본 불안정(-0.406/-0.1326)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.513,
       "why": [
         "순기대 -1.513%p ≤ 0.0",
-        "분할표본 불안정(-2.5135/-0.5353)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-2.5135/-0.5353)"
       ],
       "combo": {
         "topk": 5,
         "max_day_chg": 15.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap15.0_t2_open": {
+    "k5_cap15.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.5736,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.574%p ≤ 0.0",
-        "분할표본 불안정(-2.5105/-0.6579)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 5,
         "max_day_chg": 15.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap20.0_next_open": {
+    "k5_cap15.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.028,
+      "why": [
+        "순기대 -1.028%p ≤ 0.0",
+        "분할표본 불안정(-1.7199/-0.3517)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap15.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.4727,
+      "why": [
+        "순기대 -1.473%p ≤ 0.0",
+        "분할표본 불안정(-2.3776/-0.5883)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 15.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.4074,
       "why": [
@@ -635,41 +2630,183 @@
       "combo": {
         "topk": 5,
         "max_day_chg": 20.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap20.0_next_close": {
+    "k5_cap20.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.2672,
+      "why": [
+        "순기대 -0.267%p ≤ 0.0",
+        "분할표본 불안정(-0.2736/-0.2609)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2691,
+      "why": [
+        "순기대 -0.269%p ≤ 0.0",
+        "분할표본 불안정(-0.4087/-0.1326)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.3314,
       "why": [
         "순기대 -1.331%p ≤ 0.0",
-        "분할표본 불안정(-2.0469/-0.6321)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-2.0469/-0.6321)"
       ],
       "combo": {
         "topk": 5,
         "max_day_chg": 20.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap20.0_t2_open": {
+    "k5_cap20.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.4981,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.498%p ≤ 0.0",
-        "분할표본 불안정(-2.2552/-0.7583)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 5,
         "max_day_chg": 20.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap25.0_next_open": {
+    "k5_cap20.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.358,
+      "why": [
+        "순기대 -1.358%p ≤ 0.0",
+        "분할표본 불안정(-2.4767/-0.2647)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap20.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.4609,
+      "why": [
+        "순기대 -1.461%p ≤ 0.0",
+        "분할표본 불안정(-2.3538/-0.5883)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 20.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_open_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_open_score_top_g0": {
       "pass": false,
       "avg_pct": -0.2864,
       "why": [
@@ -679,39 +2816,166 @@
       "combo": {
         "topk": 5,
         "max_day_chg": 25.0,
-        "exit": "next_open"
+        "exit": "next_open",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap25.0_next_close": {
+    "k5_cap25.0_next_open_score_bottom_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_open_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -0.3215,
+      "why": [
+        "순기대 -0.322%p ≤ 0.0",
+        "분할표본 불안정(-0.4206/-0.2248)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_open_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_open_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -0.2691,
+      "why": [
+        "순기대 -0.269%p ≤ 0.0",
+        "분할표본 불안정(-0.4087/-0.1326)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_open",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_close_score_top_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_close_score_top_g0": {
       "pass": false,
       "avg_pct": -1.3747,
       "why": [
         "순기대 -1.375%p ≤ 0.0",
-        "분할표본 불안정(-1.7379/-1.0197)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "분할표본 불안정(-1.7379/-1.0197)"
       ],
       "combo": {
         "topk": 5,
         "max_day_chg": 25.0,
-        "exit": "next_close"
+        "exit": "next_close",
+        "select": "score_top",
+        "gated": false
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
     },
-    "k5_cap25.0_t2_open": {
+    "k5_cap25.0_next_close_score_bottom_g1": {
       "pass": false,
-      "avg_pct": -1.3553,
+      "avg_pct": null,
       "why": [
-        "순기대 -1.355%p ≤ 0.0",
-        "분할표본 불안정(-1.691/-1.0272)",
-        "현행 조합 -0.670%p 대비 개선 부족(≥ +0.1)"
+        "측정 불가"
       ],
       "combo": {
         "topk": 5,
         "max_day_chg": 25.0,
-        "exit": "t2_open"
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": true
       },
-      "at": "2026-10-04T15:51:47"
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_close_score_bottom_g0": {
+      "pass": false,
+      "avg_pct": -1.2205,
+      "why": [
+        "순기대 -1.220%p ≤ 0.0",
+        "분할표본 불안정(-2.4298/-0.0387)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "score_bottom",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_close_daychg_low_g1": {
+      "pass": false,
+      "avg_pct": null,
+      "why": [
+        "측정 불가"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": true
+      },
+      "at": "2026-10-04T16:09:13"
+    },
+    "k5_cap25.0_next_close_daychg_low_g0": {
+      "pass": false,
+      "avg_pct": -1.4609,
+      "why": [
+        "순기대 -1.461%p ≤ 0.0",
+        "분할표본 불안정(-2.3538/-0.5883)"
+      ],
+      "combo": {
+        "topk": 5,
+        "max_day_chg": 25.0,
+        "exit": "next_close",
+        "select": "daychg_low",
+        "gated": false
+      },
+      "at": "2026-10-04T16:09:13"
     }
   },
   "runs": []
