@@ -642,6 +642,18 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: fillable_topk_expectancy 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "rank_ic_money":
+        # 세션별 횡단면 **랭크 IC** 검정 — scripts/rank_ic_money.py --json-out (CG113).
+        # 왜 전용 metric 인가(2026-10-05): CG111 실측으로 돈 지표(top-k − 풀평균)의 검출 바닥이
+        # k=3 에서 sd 0.415 %p/세션임이 드러났다 → CG96~CG112 의 '노이즈' 판정은 '미검출'과
+        # 구분되지 않는다. k=3 바스켓(세션당 3종목) 대신 **세션당 수백 종목의 랭크상관**을 쓰면
+        # 같은 표본에서 검정력이 한 자릿수 올라간다. IC 는 순기대가 아니라 **필요조건** 검정이다.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: rank_ic_money 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     if kind == "blend_eval":
         # 라벨 다양성 앙상블(scripts/blend_eval.py --out). CG56.
         # 왜 전용 metric 인가(실측 2026-10-01): 요약 스키마가 champion_robust_eval 과 **다르다**
@@ -1048,6 +1060,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_topk_precision(spath, mtime_floor)
     if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool"):
         return parse_fillable_topk_expectancy(spath, mtime_floor)
+    if kind == "rank_ic_money":
+        return parse_rank_ic_money(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
@@ -1692,6 +1706,88 @@ def judge_blend_eval(item, parsed) -> tuple:
     return "짝 노이즈", detail + f" → 사전등록 미충족(양(+) 비율 {pos_ratio:.2f}, 기준 0.80)", float(delta)
 
 
+def parse_rank_ic_money(path, mtime_floor) -> dict:
+    """세션별 횡단면 랭크 IC 요약을 파싱한다 — scripts/rank_ic_money.py --json-out.
+
+    스키마: {arm, arm_jsonl, fillable, fillable_filter, n_rows, n_rows_skipped,
+             mean_cs_sd_ret, ic:{n_sessions,mean_ic,sd_ic,t,pos_session_share,
+             first_half_ic,second_half_ic,implied_edge_pct}, verdict, detail,
+             control:{...}, paired:{...}}
+
+    ⚠ `per_exp` 를 만들지 않는다 — scoreboard 가 그것을 'arm 폴드 평균(AUC)' 으로 오독한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    ic = d.get("ic") or {}
+    if not ic or ic.get("mean_ic") is None:
+        return {"error": "ic.mean_ic 없음(집계 실패)", "summary_mtime": mt}
+    return {
+        "metric_name": d.get("metric_name") or "rank_ic_money",
+        "arm": d.get("arm"), "arm_jsonl": d.get("arm_jsonl"),
+        "fillable": d.get("fillable"), "fillable_filter": d.get("fillable_filter"),
+        "n_rows": d.get("n_rows"), "n_rows_skipped": d.get("n_rows_skipped"),
+        "mean_cs_sd_ret": d.get("mean_cs_sd_ret"),
+        "ic": ic,
+        "control": d.get("control"),
+        "paired": d.get("paired"),
+        "profile": d.get("profile"),
+        "tool_verdict": d.get("verdict"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_rank_ic_money(item, parsed) -> tuple:
+    """랭크 IC 판정 — 사전등록(CG113, 도구 기본값과 동일):
+
+      mean_IC > 0 · t ≥ min_t(기본 2.0) · 양(+) 세션 ≥ min_pos(기본 0.55) · 앞/뒤 절반 모두 양(+)
+
+    를 만족하면 '신호있음' = **랭킹에 돈 방향 정보가 있다**(순기대의 필요조건 충족).
+    하나라도 미달이면 '노이즈' = 미검출. ⚠ 어느 쪽이든 이 판정만으로 승격하지 않는다 —
+    IC 는 순기대가 아니고, 소비 정책(top-k)의 기대값은 별도 측정이다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    ic = parsed.get("ic") or {}
+    m, t = ic.get("mean_ic"), ic.get("t")
+    pos, h1, h2 = ic.get("pos_session_share"), ic.get("first_half_ic"), ic.get("second_half_ic")
+    if m is None:
+        return "판정불가", "ic.mean_ic 없음", None
+    min_t = float(item.get("min_t") or 2.0)
+    min_pos = float(item.get("min_pos") or 0.55)
+    mode = "체결성 필터 ON" if parsed.get("fillable") else "무필터"
+    detail = ("%s · 세션 %s · mean IC %+.4f · t %s · 양세션 %s%% · 앞/뒤 %s/%s · "
+              "상위10%% 스프레드 근사 %s%%p"
+              % (mode, ic.get("n_sessions"),
+                 m, None if t is None else round(t, 2),
+                 None if pos is None else round(pos * 100, 1),
+                 None if h1 is None else round(h1, 4),
+                 None if h2 is None else round(h2, 4),
+                 None if ic.get("implied_edge_pct") is None
+                 else round(ic["implied_edge_pct"], 3)))
+    if parsed.get("paired"):
+        p = parsed["paired"]
+        detail += (" · 대조 짝 ΔIC %+.4f(t %s, n %s)"
+                   % (p.get("mean_delta_ic") or 0.0,
+                      None if p.get("t") is None else round(p["t"], 2),
+                      p.get("n_sessions")))
+    ok = (m > 0 and (t or 0) >= min_t and (pos or 0) >= min_pos
+          and (h1 or 0) > 0 and (h2 or 0) > 0)
+    if ok:
+        return "신호있음", detail + " — 랭킹에 돈 방향 정보(순기대의 필요조건 충족)", round(m, 4)
+    return "노이즈", detail + " — 미검출(검출 바닥 이하 또는 부호 불일치)", round(m, 4)
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
@@ -1709,6 +1805,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_fillable_topk_expectancy(item, parsed)
     if kind == "fillable_topk_vs_pool":
         return judge_fillable_topk_vs_pool(item, parsed)
+    if kind == "rank_ic_money":
+        return judge_rank_ic_money(item, parsed)
     if kind == "forward_scorecard":
         return judge_forward_scorecard(item, parsed)
     if kind == "calibration_probe":

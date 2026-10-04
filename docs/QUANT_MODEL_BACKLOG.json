@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-05T05:53:52+09:00",
+  "updated_at": "2026-10-05T07:12:41+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12090,7 +12090,7 @@
     {
       "id": "CG112",
       "title": "배포 챔피언(app/models/champion)의 돈 지표 **직접** 판정 — 청정 유니버스·전 유니버스 덤프(기록상 0회)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "metric": "fillable_topk_vs_pool",
       "est_minutes": 55,
@@ -12099,7 +12099,79 @@
       "success": "k=3·k=5 둘 다: 순기대>0 · Δ(arm−풀평균)≥+0.1%p/세션 · t≥2 · 분할 both_positive → '배포 모델이 시장 베타를 넘는 돈 엣지가 있다'(승격은 별도 절차). 미달이면 '배포 챔피언의 돈 엣지 미검출' 로 기록하고 CG111 검출 바닥(±0.42/±0.30/±0.16 by k)을 함께 적는다.",
       "note": "왜 필요한가: CG96~CG109 의 돈 판정은 전부 **arm 모델**(app/models/wf/cg92_q05 등)과 abs_thresh 스윕 모델이었다 — 실거래에 쓰는 app/models/champion 은 돈 지표로 한 번도 채점된 적이 없다(전방 스코어카드는 11일 표본, 창 기반은 AUC). ⚠ 학습구간 겹침 창은 --train-start/--train-end 로 제외하므로 남는 창은 학습 **이전**이다 = 전방 검증 아님(CG45/58/61/62 와 같은 한계). 두 커맨드를 && 로 이어 붙였고 구동기는 `--json-out`(돈 지표)을 요약으로 읽는다(--out 은 champion 산출물이라 오탐하지 않는다 — _arg 는 정확 토큰 비교).",
       "hypothesis": "실제로 매매에 쓰는 모델이 돈 지표에서도 무신호라면, 트레이더가 소비하는 확률·신호 자체가 돈과 무관하다는 결론이 배포 경로에서 직접 확인된다(지금까지는 대리 모델로만 측정).",
-      "session": "2026-10-05"
+      "session": "2026-10-05",
+      "attempts": [
+        {
+          "ts": "2026-10-05T06:28:57+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm champ · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 30 · k=3 arm -1.006%p/세션 · 풀평균 +0.814 · Δ(arm−풀) -1.819(t -2.14) · 양세션 50.0% · 분할 neither [-0.224/-1.787] ✗ · k=5 arm -0.576%p/세션 · 풀평균 +0.814 · Δ(arm−풀) -1.389(t -2.12) · 양세션 50.0% · 분할 unstable [+0.066/-1.217] ✗ · 풀평균 t 0.86 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG112_20261005-061417.log",
+          "elapsed_min": 14.7
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm champ · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 30 · k=3 arm -1.006%p/세션 · 풀평균 +0.814 · Δ(arm−풀) -1.819(t -2.14) · 양세션 50.0% · 분할 neither [-0.224/-1.787] ✗ · k=5 arm -0.576%p/세션 · 풀평균 +0.814 · Δ(arm−풀) -1.389(t -2.12) · 양세션 50.0% · 분할 unstable [+0.066/-1.217] ✗ · 풀평균 t 0.86 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+        "delta": -1.8195,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG113",
+      "title": "돈 축 검정력 수리 — top-k 바스켓(검출 바닥 ±0.42%p/세션) 대신 세션별 횡단면 랭크 IC 로 재판정",
+      "status": "done",
+      "priority": 1,
+      "affects_model": false,
+      "arm": "q0.05 라벨 스윕 모델(cg95_q05) — 체결성 필터 통과 행의 세션별 Spearman IC(y_pred, h5 실현수익)",
+      "counterfactual": "무작위 랭킹(IC 기대 0) + 대조 arm(q0.30) 같은 세션 짝 ΔIC",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/rank_ic_money.py --arm-jsonl /app/reports/overnight/cg95_q05_all.jsonl --control-jsonl /app/reports/overnight/cg95_q30_all.jsonl --fillable --json-out /app/reports/overnight/cg113_rank_ic.json'",
+      "metric": "rank_ic_money",
+      "hypothesis": "CG111 실측으로 돈 지표(top-k − 세션 풀평균)의 검출 바닥이 k=3 에서 sd 0.415%p/세션임이 드러났다 → CG96~CG112 의 모든 '노이즈' 판정은 '미검출'과 구분되지 않는다. k=3 바스켓은 세션당 3종목만 보지만 세션별 횡단면 랭크 IC 는 세션당 수백 종목을 보므로, 같은 표본 그대로 검정력이 한 자릿수 오른다. IC 는 순기대가 아니라 필요조건이다(IC≈0 이면 어떤 top-k 정책도 기대값을 못 만든다).",
+      "success": "사전등록(도구 기본값과 동일): mean_IC>0 · t≥2.0 · 양(+)세션≥55% · 앞/뒤 절반 모두 양(+) → '랭킹에 돈 방향 정보가 있다'(순기대의 필요조건). 미달이면 '미검출'. ⚠ 이 판정은 순기대가 아니므로 승격 근거가 될 수 없다 — 분위 프로파일(decile_edge_pct·topk_vs_pool)로 어느 구간이 기여하는지 함께 본다.",
+      "expected": "미지 — 참조: 같은 덤프의 top-k k=3 Δ+0.37(t 0.98, CG108 참조) · k≥75 음(-)(CG98).",
+      "cost": "실행 1분(읽기 전용)",
+      "est_minutes": 3,
+      "evidence": "2026-10-05 실측(체결성 필터 ON, 300종목·80세션·행 8,793 — 필터가 15,065행 제외): q0.05 arm mean IC +0.0560 · t 4.53 · 양세션 66.2% · 앞/뒤 +0.0195/+0.0925 (사전등록 통과) / q0.30 대조 +0.0746(t 4.26) → **짝 ΔIC −0.0186(t −1.44) = 라벨 꼬리 arm 의 돈 랭킹 우위 없음**(CG107 AUC +0.0397 이 돈으로 환산되지 않음). 분위 프로파일(당일 풀평균 대비, %p/세션): d1 +1.38(t 2.08) · d2 +0.05 · d3 −0.24 · d4 −0.39 · d5 −0.34 · d6 −0.11 · d7 −0.59(t −1.85) · d8 −0.18 · d9 +0.28 · d10 +0.08(t 0.3) → **유의한 버킷은 최하위 분위뿐**이므로 'mean IC 양(+)'을 '상위 분위 기대값'으로 옮겨 읽으면 안 된다(정규근사 implied 1.159%p 는 비단조라 근거 아님). top-k vs 풀평균: k3 −0.45(t−1.01) · k5 +0.18(0.48) · k10 +0.19(0.60) · k20 +0.23(0.97) · k50 −0.14(−0.90) · k100 −0.28(t−2.62). 무필터 IC: arm +0.0399(t 3.71) · 대조 +0.0310(t 2.17) — 필터 후 상승(0.040→0.056)이라 상한가 종목이 만든 신호가 아니다. abs_thresh arm(150종목·225세션): +0.0274(t 2.55) 이나 앞/뒤 −0.0027/+0.0571 로 분할 불일치 → 노이즈. 배포 챔피언(199종목·30세션): +0.0165(t 0.94) → 무신호.",
+      "note": "도구 신설: scripts/rank_ic_money.py(자체점검 12/12) + metric rank_ic_money 배선(summary_path·parse·judge, per_exp 미생성) + 자체점검 scripts/_rank_ic_metric_test.py(21/21). **해석 규율**: IC 는 순위 통계이므로 (a) 승격 근거 금지 (b) 비단조 프로파일이면 상위 분위 주장 금지. CG113 은 '돈 축의 검출 바닥'을 좁힌 것이며, 축 종결을 뒤집지 않는다(하위 꼬리 힌트는 CG99/CG100 이 이미 닫았고 그 검정은 CG114 에서 한 번만 재현 확인한다).",
+      "attempts": [
+        {
+          "ts": "2026-10-05T07:12:41+09:00",
+          "rc": 0,
+          "verdict": "신호있음",
+          "detail": "체결성 필터 ON · 세션 80 · mean IC +0.0560 · t 4.53 · 양세션 66.2% · 앞/뒤 0.0195/0.0925 · 상위10% 스프레드 근사 1.159%p · 대조 짝 ΔIC -0.0186(t -1.44, n 80) — 랭킹에 돈 방향 정보(순기대의 필요조건 충족)",
+          "log": "",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "신호있음",
+        "detail": "체결성 필터 ON · 세션 80 · mean IC +0.0560 · t 4.53 · 양세션 66.2% · 앞/뒤 0.0195/0.0925 · 상위10% 스프레드 근사 1.159%p · 대조 짝 ΔIC -0.0186(t -1.44, n 80) — 랭킹에 돈 방향 정보(순기대의 필요조건 충족)",
+        "delta": 0.056,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG114",
+      "title": "닫힌 '하위 꼬리 반전' 축의 재현 검정 — IC 분위 프로파일이 지목한 d1(+1.38%p·t2.08)을 유니버스 시드 7 표본에서 한 번만 확인",
+      "status": "pending",
+      "priority": 2,
+      "affects_model": false,
+      "arm": "q0.05 라벨 모델 유니버스 시드 7(cg100_q05_all) — 체결성 필터 ON 분위 프로파일(d1 edge·t) + IC",
+      "counterfactual": "유니버스 시드 0(cg95_q05_all, CG113 실측 d1 +1.38 t2.08) · 무작위 랭킹(edge 0)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/rank_ic_money.py --arm-jsonl /app/reports/overnight/cg100_q05_all.jsonl --fillable --json-out /app/reports/overnight/cg114_seed7_ic.json'",
+      "metric": "rank_ic_money",
+      "hypothesis": "CG99(시드 0, 하위 k=3 Δ+3.04 t1.92 · k=5 +1.77 t1.49 · k=20 +0.84 t2.0)와 CG100(시드 7)은 하위 k 바스켓을 '노이즈'로 닫았다(CG100 성공조건에 '돈 축 최종 종결' 명시). 그런데 CG113 의 IC 분위 프로파일에서 **유일하게 t≥2 인 버킷이 최하위 분위(d1 +1.38%p/세션, t 2.08)** 였다 → '닫힘이 성급했는가'를 서로소에 가까운 표본(유니버스 시드 7)에서 한 번만 검정한다.",
+      "success": "재현 ⟺ d1 edge ≥ +0.1%p/세션 AND t ≥ 2 AND 상위 분위(d9·d10) t < 2. 재현되면 '하위 반전 실재·상위 무신호'로 기록하고 소비 정책(롱온리 하위 분위 진입)을 **리뷰보드 승인 대상**으로 올린다. 재현되지 않으면 하위 반전도 노이즈로 확정하고 **돈 축을 최종 종결**한다(방향 무관, 이 항목으로 닫고 재시험 금지).",
+      "expected": "반반 — CG100 이 이미 시드 7 에서 하위 k 신호를 재현하지 못했으므로 '재현 실패'가 다소 우세하다고 본다.",
+      "cost": "실행 1분(읽기 전용)",
+      "est_minutes": 3,
+      "evidence": "근거 체인: CG98/99(하위 k 힌트) → CG100(시드 7 재현 실패, t<2) → CG113(IC 프로파일 d1 t 2.08, 시드 0 표본). ⚠ 같은 데이터에서 이미 본 힌트의 재검정이므로 **blind 검정이 아니다** — 그래서 1회로 못박고 성공/실패 어느 쪽이든 이 항목으로 축을 닫는다(무한 재시도 금지).",
+      "note": "프로파일 산출은 스크립트 옵션이 아니라 기본 출력이다(profile.decile_edge_pct·topk_vs_pool) — 판정기는 IC 사전문턱만 보므로, 이 항목의 결론(d1 재현 여부)은 원장 parsed.profile 을 세션이 직접 읽어 기록한다."
     }
-  ]
+  ],
+  "updated": "2026-10-05T09:30:00+09:00"
 }
