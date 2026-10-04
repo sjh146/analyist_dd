@@ -3,14 +3,9 @@
   "degrade_pct": -0.2,
   "swap_ts": "2026-10-02T15:25:44+09:00",
   "prev_dir": "champion_prev_20261002-024420",
-  "sessions_since": null,
-  "champion_pct": -0.182,
-  "prev_pct": -0.298,
-  "champion_auc": 0.501,
-  "prev_auc": 0.4838,
-  "degrade": 0.116,
-  "verdict": "ok",
-  "detail": "승격 유지(증거가 백업 이상)",
-  "updated": "2026-10-04T13:41:51",
+  "sessions_since": 0,
+  "verdict": "too_early",
+  "detail": "경과 0세션 < 감시 5세션 — 아직 판정하지 않는다",
+  "updated": "2026-10-04T22:30:54",
   "auto_rollback_gate": true
 }

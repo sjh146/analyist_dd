@@ -1,9 +1,606 @@
 {
-  "date": "2026-09-25",
-  "total": 0,
-  "up": 0,
-  "down": 0,
-  "high_confidence": [],
-  "top_up": [],
-  "top_down": []
+  "date": "2026-10-02",
+  "total": 1682,
+  "up": 826,
+  "down": 856,
+  "high_confidence": [
+    {
+      "code": "058450",
+      "name": "한주에이알티",
+      "sector": null,
+      "close": 540.0,
+      "prob": 0.6955,
+      "dir": "UP",
+      "conf": 0.391
+    },
+    {
+      "code": "228340",
+      "name": "동양파일",
+      "sector": null,
+      "close": 3375.0,
+      "prob": 0.3204,
+      "dir": "DOWN",
+      "conf": 0.3592
+    },
+    {
+      "code": "042420",
+      "name": "네오위즈홀딩스",
+      "sector": null,
+      "close": 22200.0,
+      "prob": 0.3224,
+      "dir": "DOWN",
+      "conf": 0.3552
+    },
+    {
+      "code": "250930",
+      "name": "예선테크",
+      "sector": null,
+      "close": 529.0,
+      "prob": 0.675,
+      "dir": "UP",
+      "conf": 0.3499
+    },
+    {
+      "code": "022220",
+      "name": "티케이지애강",
+      "sector": null,
+      "close": 820.0,
+      "prob": 0.3269,
+      "dir": "DOWN",
+      "conf": 0.3461
+    },
+    {
+      "code": "484120",
+      "name": "도우인시스",
+      "sector": null,
+      "close": 23150.0,
+      "prob": 0.3277,
+      "dir": "DOWN",
+      "conf": 0.3445
+    },
+    {
+      "code": "257720",
+      "name": "실리콘투",
+      "sector": null,
+      "close": 37200.0,
+      "prob": 0.3291,
+      "dir": "DOWN",
+      "conf": 0.3418
+    },
+    {
+      "code": "091590",
+      "name": "남화토건",
+      "sector": null,
+      "close": 6030.0,
+      "prob": 0.3297,
+      "dir": "DOWN",
+      "conf": 0.3407
+    },
+    {
+      "code": "014950",
+      "name": "삼익제약",
+      "sector": null,
+      "close": 8510.0,
+      "prob": 0.3341,
+      "dir": "DOWN",
+      "conf": 0.3319
+    },
+    {
+      "code": "115530",
+      "name": "씨엔플러스",
+      "sector": null,
+      "close": 2860.0,
+      "prob": 0.3365,
+      "dir": "DOWN",
+      "conf": 0.327
+    },
+    {
+      "code": "282620",
+      "name": "기도산업",
+      "sector": null,
+      "close": 11880.0,
+      "prob": 0.3378,
+      "dir": "DOWN",
+      "conf": 0.3244
+    },
+    {
+      "code": "070300",
+      "name": "퀀텀레일",
+      "sector": null,
+      "close": 605.0,
+      "prob": 0.6614,
+      "dir": "UP",
+      "conf": 0.3229
+    },
+    {
+      "code": "377450",
+      "name": "리파인",
+      "sector": null,
+      "close": 14470.0,
+      "prob": 0.3404,
+      "dir": "DOWN",
+      "conf": 0.3192
+    },
+    {
+      "code": "477470",
+      "name": "미래에셋비전스팩5호",
+      "sector": null,
+      "close": 2065.0,
+      "prob": 0.3409,
+      "dir": "DOWN",
+      "conf": 0.3181
+    },
+    {
+      "code": "134580",
+      "name": "탑코미디어",
+      "sector": null,
+      "close": 2850.0,
+      "prob": 0.3413,
+      "dir": "DOWN",
+      "conf": 0.3174
+    },
+    {
+      "code": "060900",
+      "name": "에이전트AI",
+      "sector": null,
+      "close": 1630.0,
+      "prob": 0.6581,
+      "dir": "UP",
+      "conf": 0.3162
+    },
+    {
+      "code": "417180",
+      "name": "핑거스토리",
+      "sector": null,
+      "close": 3830.0,
+      "prob": 0.3421,
+      "dir": "DOWN",
+      "conf": 0.3158
+    },
+    {
+      "code": "072770",
+      "name": "멤레이비티",
+      "sector": null,
+      "close": 651.0,
+      "prob": 0.3423,
+      "dir": "DOWN",
+      "conf": 0.3154
+    },
+    {
+      "code": "340810",
+      "name": "시선AI",
+      "sector": null,
+      "close": 3450.0,
+      "prob": 0.3435,
+      "dir": "DOWN",
+      "conf": 0.3131
+    },
+    {
+      "code": "462860",
+      "name": "더즌",
+      "sector": null,
+      "close": 2960.0,
+      "prob": 0.3435,
+      "dir": "DOWN",
+      "conf": 0.3131
+    },
+    {
+      "code": "261780",
+      "name": "아리바이오랩",
+      "sector": null,
+      "close": 3415.0,
+      "prob": 0.3454,
+      "dir": "DOWN",
+      "conf": 0.3093
+    },
+    {
+      "code": "487400",
+      "name": "케이앤에스아이앤씨",
+      "sector": null,
+      "close": 6620.0,
+      "prob": 0.3458,
+      "dir": "DOWN",
+      "conf": 0.3085
+    },
+    {
+      "code": "469900",
+      "name": "하나31호스팩",
+      "sector": null,
+      "close": 2100.0,
+      "prob": 0.3475,
+      "dir": "DOWN",
+      "conf": 0.305
+    },
+    {
+      "code": "468670",
+      "name": "브릴스",
+      "sector": null,
+      "close": 34150.0,
+      "prob": 0.3484,
+      "dir": "DOWN",
+      "conf": 0.3031
+    },
+    {
+      "code": "386380",
+      "name": "스카이랩스",
+      "sector": null,
+      "close": 18090.0,
+      "prob": 0.3487,
+      "dir": "DOWN",
+      "conf": 0.3026
+    },
+    {
+      "code": "216080",
+      "name": "제테마",
+      "sector": null,
+      "close": 6030.0,
+      "prob": 0.3497,
+      "dir": "DOWN",
+      "conf": 0.3006
+    }
+  ],
+  "top_up": [
+    {
+      "code": "058450",
+      "name": "한주에이알티",
+      "sector": null,
+      "close": 540.0,
+      "prob": 0.6955,
+      "dir": "UP",
+      "conf": 0.391
+    },
+    {
+      "code": "250930",
+      "name": "예선테크",
+      "sector": null,
+      "close": 529.0,
+      "prob": 0.675,
+      "dir": "UP",
+      "conf": 0.3499
+    },
+    {
+      "code": "070300",
+      "name": "퀀텀레일",
+      "sector": null,
+      "close": 605.0,
+      "prob": 0.6614,
+      "dir": "UP",
+      "conf": 0.3229
+    },
+    {
+      "code": "060900",
+      "name": "에이전트AI",
+      "sector": null,
+      "close": 1630.0,
+      "prob": 0.6581,
+      "dir": "UP",
+      "conf": 0.3162
+    },
+    {
+      "code": "026910",
+      "name": "광진실업",
+      "sector": null,
+      "close": 2035.0,
+      "prob": 0.6492,
+      "dir": "UP",
+      "conf": 0.2983
+    },
+    {
+      "code": "263920",
+      "name": "휴엠앤씨",
+      "sector": null,
+      "close": 3230.0,
+      "prob": 0.6417,
+      "dir": "UP",
+      "conf": 0.2834
+    },
+    {
+      "code": "081580",
+      "name": "성우전자",
+      "sector": null,
+      "close": 2450.0,
+      "prob": 0.6391,
+      "dir": "UP",
+      "conf": 0.2781
+    },
+    {
+      "code": "103230",
+      "name": "에스앤더블류",
+      "sector": null,
+      "close": 1402.0,
+      "prob": 0.6377,
+      "dir": "UP",
+      "conf": 0.2755
+    },
+    {
+      "code": "199730",
+      "name": "바이오인프라",
+      "sector": null,
+      "close": 663.0,
+      "prob": 0.6367,
+      "dir": "UP",
+      "conf": 0.2734
+    },
+    {
+      "code": "475830",
+      "name": "오름테라퓨틱",
+      "sector": null,
+      "close": 21050.0,
+      "prob": 0.6358,
+      "dir": "UP",
+      "conf": 0.2716
+    },
+    {
+      "code": "312610",
+      "name": "에이에프더블류",
+      "sector": null,
+      "close": 37.0,
+      "prob": 0.6335,
+      "dir": "UP",
+      "conf": 0.267
+    },
+    {
+      "code": "270520",
+      "name": "앱튼",
+      "sector": null,
+      "close": 818.0,
+      "prob": 0.6328,
+      "dir": "UP",
+      "conf": 0.2656
+    },
+    {
+      "code": "215100",
+      "name": "로보로보",
+      "sector": null,
+      "close": 4210.0,
+      "prob": 0.6301,
+      "dir": "UP",
+      "conf": 0.2602
+    },
+    {
+      "code": "354200",
+      "name": "엔젠바이오",
+      "sector": null,
+      "close": 764.0,
+      "prob": 0.6298,
+      "dir": "UP",
+      "conf": 0.2597
+    },
+    {
+      "code": "214260",
+      "name": "라파스",
+      "sector": null,
+      "close": 7800.0,
+      "prob": 0.6288,
+      "dir": "UP",
+      "conf": 0.2577
+    },
+    {
+      "code": "214370",
+      "name": "케어젠",
+      "sector": null,
+      "close": 42500.0,
+      "prob": 0.6277,
+      "dir": "UP",
+      "conf": 0.2554
+    },
+    {
+      "code": "336570",
+      "name": "원텍",
+      "sector": null,
+      "close": 5070.0,
+      "prob": 0.6272,
+      "dir": "UP",
+      "conf": 0.2544
+    },
+    {
+      "code": "024880",
+      "name": "케이피에프",
+      "sector": null,
+      "close": 3970.0,
+      "prob": 0.626,
+      "dir": "UP",
+      "conf": 0.2519
+    },
+    {
+      "code": "453450",
+      "name": "그리드위즈",
+      "sector": null,
+      "close": 13370.0,
+      "prob": 0.6259,
+      "dir": "UP",
+      "conf": 0.2517
+    },
+    {
+      "code": "039200",
+      "name": "오스코텍",
+      "sector": null,
+      "close": 36650.0,
+      "prob": 0.6253,
+      "dir": "UP",
+      "conf": 0.2506
+    }
+  ],
+  "top_down": [
+    {
+      "code": "228340",
+      "name": "동양파일",
+      "sector": null,
+      "close": 3375.0,
+      "prob": 0.3204,
+      "dir": "DOWN",
+      "conf": 0.3592
+    },
+    {
+      "code": "042420",
+      "name": "네오위즈홀딩스",
+      "sector": null,
+      "close": 22200.0,
+      "prob": 0.3224,
+      "dir": "DOWN",
+      "conf": 0.3552
+    },
+    {
+      "code": "022220",
+      "name": "티케이지애강",
+      "sector": null,
+      "close": 820.0,
+      "prob": 0.3269,
+      "dir": "DOWN",
+      "conf": 0.3461
+    },
+    {
+      "code": "484120",
+      "name": "도우인시스",
+      "sector": null,
+      "close": 23150.0,
+      "prob": 0.3277,
+      "dir": "DOWN",
+      "conf": 0.3445
+    },
+    {
+      "code": "257720",
+      "name": "실리콘투",
+      "sector": null,
+      "close": 37200.0,
+      "prob": 0.3291,
+      "dir": "DOWN",
+      "conf": 0.3418
+    },
+    {
+      "code": "091590",
+      "name": "남화토건",
+      "sector": null,
+      "close": 6030.0,
+      "prob": 0.3297,
+      "dir": "DOWN",
+      "conf": 0.3407
+    },
+    {
+      "code": "014950",
+      "name": "삼익제약",
+      "sector": null,
+      "close": 8510.0,
+      "prob": 0.3341,
+      "dir": "DOWN",
+      "conf": 0.3319
+    },
+    {
+      "code": "115530",
+      "name": "씨엔플러스",
+      "sector": null,
+      "close": 2860.0,
+      "prob": 0.3365,
+      "dir": "DOWN",
+      "conf": 0.327
+    },
+    {
+      "code": "282620",
+      "name": "기도산업",
+      "sector": null,
+      "close": 11880.0,
+      "prob": 0.3378,
+      "dir": "DOWN",
+      "conf": 0.3244
+    },
+    {
+      "code": "377450",
+      "name": "리파인",
+      "sector": null,
+      "close": 14470.0,
+      "prob": 0.3404,
+      "dir": "DOWN",
+      "conf": 0.3192
+    },
+    {
+      "code": "477470",
+      "name": "미래에셋비전스팩5호",
+      "sector": null,
+      "close": 2065.0,
+      "prob": 0.3409,
+      "dir": "DOWN",
+      "conf": 0.3181
+    },
+    {
+      "code": "134580",
+      "name": "탑코미디어",
+      "sector": null,
+      "close": 2850.0,
+      "prob": 0.3413,
+      "dir": "DOWN",
+      "conf": 0.3174
+    },
+    {
+      "code": "417180",
+      "name": "핑거스토리",
+      "sector": null,
+      "close": 3830.0,
+      "prob": 0.3421,
+      "dir": "DOWN",
+      "conf": 0.3158
+    },
+    {
+      "code": "072770",
+      "name": "멤레이비티",
+      "sector": null,
+      "close": 651.0,
+      "prob": 0.3423,
+      "dir": "DOWN",
+      "conf": 0.3154
+    },
+    {
+      "code": "340810",
+      "name": "시선AI",
+      "sector": null,
+      "close": 3450.0,
+      "prob": 0.3435,
+      "dir": "DOWN",
+      "conf": 0.3131
+    },
+    {
+      "code": "462860",
+      "name": "더즌",
+      "sector": null,
+      "close": 2960.0,
+      "prob": 0.3435,
+      "dir": "DOWN",
+      "conf": 0.3131
+    },
+    {
+      "code": "261780",
+      "name": "아리바이오랩",
+      "sector": null,
+      "close": 3415.0,
+      "prob": 0.3454,
+      "dir": "DOWN",
+      "conf": 0.3093
+    },
+    {
+      "code": "487400",
+      "name": "케이앤에스아이앤씨",
+      "sector": null,
+      "close": 6620.0,
+      "prob": 0.3458,
+      "dir": "DOWN",
+      "conf": 0.3085
+    },
+    {
+      "code": "469900",
+      "name": "하나31호스팩",
+      "sector": null,
+      "close": 2100.0,
+      "prob": 0.3475,
+      "dir": "DOWN",
+      "conf": 0.305
+    },
+    {
+      "code": "468670",
+      "name": "브릴스",
+      "sector": null,
+      "close": 34150.0,
+      "prob": 0.3484,
+      "dir": "DOWN",
+      "conf": 0.3031
+    }
+  ]
 }

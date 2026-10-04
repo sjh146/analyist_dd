@@ -1,7 +1,11 @@
 {
- "ts": "2026-10-02T14:58:05",
+ "ts": "2026-10-02T22:14:41",
  "mode": "safety",
  "alerts": [
+  {
+   "check": "loop_process_missing",
+   "detail": "run_market_loop.py 프로세스 0개 (브리지만 살아있는 상태)"
+  },
   {
    "check": "fees_unbooked",
    "detail": "청산 3건인데 fees 합=0 — 수수료 백필(tools/backfill_fees.py) 미실행"
@@ -12,14 +16,14 @@
   "bridge_health": {
    "ok": true,
    "connected": true,
-   "ts": 1790920685.6829255
+   "ts": 1790946882.0697825
   },
   "balance_ok": true,
   "positions": 0,
   "orders": 0,
   "processes": {
    "bridge": 1,
-   "loop": 1
+   "loop": 0
   },
   "limits": {},
   "kill_switch_file": false,

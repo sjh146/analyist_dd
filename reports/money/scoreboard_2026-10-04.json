@@ -1,0 +1,519 @@
+{
+ "ts": "2026-10-04T12:52:52",
+ "mode": "live",
+ "window_days": 30,
+ "date": "2026-10-04",
+ "data_sources": {
+  "journal": "trade_journal.sqlite3 (Windows python 경유)",
+  "journal_trades": 3,
+  "journal_decisions": 1828,
+  "pg": "SELECT only: trader_fills · positions · market_data",
+  "bridge": "GET /health /balance /positions /orders",
+  "repo": "/home/jhshi/analyist_dd"
+ },
+ "realized": {
+  "cum": {
+   "closed": 3,
+   "pnl": -1446.0,
+   "fees": 0.0,
+   "wins": 1,
+   "losses": 2,
+   "flat": 0,
+   "win_rate": 0.3333,
+   "avg_win": 416.0,
+   "avg_loss": 931.0,
+   "profit_factor": 0.2234,
+   "net_pnl": -1446.0,
+   "first_trade": "2026-09-29T15:03:40.954097+09:00",
+   "last_trade": "2026-09-29T15:03:41.627504+09:00"
+  },
+  "recent_30d": {
+   "closed": 3,
+   "pnl": -1446.0,
+   "fees": 0.0,
+   "wins": 1,
+   "losses": 2,
+   "flat": 0,
+   "win_rate": 0.3333,
+   "avg_win": 416.0,
+   "avg_loss": 931.0,
+   "profit_factor": 0.2234
+  },
+  "weekly": [
+   {
+    "week_start": "2026-09-28",
+    "closed": 3,
+    "pnl": -1446.0,
+    "fees": 0.0,
+    "wins": 1,
+    "losses": 2,
+    "flat": 0,
+    "win_rate": 0.3333,
+    "avg_win": 416.0,
+    "avg_loss": 931.0,
+    "profit_factor": 0.2234
+   }
+  ],
+  "by_screener": {
+   "close": {
+    "closed": 3,
+    "pnl": -1446.0,
+    "fees": 0.0,
+    "wins": 1,
+    "losses": 2,
+    "flat": 0,
+    "win_rate": 0.3333,
+    "avg_win": 416.0,
+    "avg_loss": 931.0,
+    "profit_factor": 0.2234
+   }
+  },
+  "open_trades": 0,
+  "fees_unbooked_flag": true
+ },
+ "open_state": {
+  "positions_bridge": 0,
+  "positions_journal_open": 0,
+  "positions_pg": 0,
+  "unrealized_pnl": 0.0,
+  "pending_orders": 0,
+  "source": "bridge /balance /positions /orders + 저널 미청산 + pg positions"
+ },
+ "capital_utilization": {
+  "equity": 526243.0,
+  "used_now": 0.0,
+  "used_pct_now": 0.0,
+  "limits": {
+   "max_daily_trades": 3,
+   "per_stock_pct": 0.1,
+   "max_open_positions": 3,
+   "total_exposure_pct": 0.3
+  },
+  "limit_notional_now": 157872.9,
+  "peak": {
+   "concurrent": 3,
+   "notional": 89271.0,
+   "at": "2026-09-29",
+   "equity_approx": 527689.0,
+   "pct_approx": 16.92,
+   "note": "피크 시점 평가액은 '현재 평가액 − 누적 실현손익' 근사"
+  },
+  "equity_source": "bridge /balance"
+ },
+ "opportunity_cost": {
+  "assumed_notional_krw": 29757.0,
+  "assumed_notional_note": "가정: 차단 후보도 실제 매수 체결 평균 크기로 샀다고 환산 (순수 % 통계는 가정 없음)",
+  "ledger": {
+   "eval_rows_by_gate": {
+    "balance_position_amount": 1434,
+    "daily_trade_count": 241
+   },
+   "blocked_codes_by_gate": {
+    "balance_position_amount": 41,
+    "daily_trade_count": 12
+   },
+   "passed_not_traded": [
+    {
+     "code": "396300",
+     "name": "HT로보틱스",
+     "screener": "close",
+     "ts": "2026-09-29T09:45:40.050911+09:00"
+    },
+    {
+     "code": "131100",
+     "name": "티엔엔터테인먼트",
+     "screener": "close",
+     "ts": "2026-09-29T09:45:40.063632+09:00"
+    },
+    {
+     "code": "054780",
+     "name": "키이스트",
+     "screener": "close",
+     "ts": "2026-09-29T09:45:40.066647+09:00"
+    }
+   ]
+  },
+  "blocked_2026-09-29": {
+   "close": {
+    "all": {
+     "n": 33,
+     "avg_pct": 0.4546,
+     "median_pct": 0.1985,
+     "sum_pct": 15.0028,
+     "up": 17,
+     "down": 16,
+     "krw_sum": 4464.34
+    },
+    "by_gate": {
+     "balance_position_amount": {
+      "n": 21,
+      "avg_pct": 0.0946,
+      "median_pct": 0.0,
+      "sum_pct": 1.9861,
+      "up": 10,
+      "down": 11,
+      "krw_sum": 590.98
+     },
+     "daily_trade_count": {
+      "n": 12,
+      "avg_pct": 1.0847,
+      "median_pct": 1.1307,
+      "sum_pct": 13.0167,
+      "up": 7,
+      "down": 5,
+      "krw_sum": 3873.36
+     }
+    },
+    "n_blocks": 33,
+    "n_measured": 33,
+    "missing": [],
+    "assumed_notional_krw": 29757.0
+   },
+   "swing": {
+    "n_blocks": 20,
+    "codes": [
+     "475830",
+     "298380",
+     "263750",
+     "098460",
+     "178320",
+     "003380",
+     "399720",
+     "019210",
+     "189300",
+     "122870",
+     "032500",
+     "101490",
+     "031330",
+     "330860",
+     "112040",
+     "403870",
+     "356860",
+     "032820",
+     "137400",
+     "043260"
+    ],
+    "measure": "측정 불가 — 스윙 프로파일은 고정 청산 기간이 없어 (stop/tp·최대 5세션) 대응 실측 정의가 없음"
+   }
+  },
+  "missing_prices": [],
+  "by_gate": {
+   "balance_position_amount": {
+    "n": 21,
+    "avg_pct": 0.0946,
+    "median_pct": 0.0,
+    "sum_pct": 1.9861,
+    "up": 10,
+    "down": 11,
+    "krw_sum": 590.98
+   },
+   "daily_trade_count": {
+    "n": 12,
+    "avg_pct": 1.0847,
+    "median_pct": 1.1307,
+    "sum_pct": 13.0167,
+    "up": 7,
+    "down": 5,
+    "krw_sum": 3873.36
+   }
+  },
+  "by_gate_note": "balance_position_amount=동시 3종목 한도, daily_trade_count=일 3건 한도. %/KRW 측정은 close 종목만(스윙은 정의 없음). 종목 수는 차단 원장 전체."
+ },
+ "gates": {
+  "probe": {
+   "measured_at": "2026-10-01T21:18:20.472090",
+   "signal_dates": [
+    "2026-05-26",
+    "2026-09-30"
+   ],
+   "n_signal_days": 87,
+   "n_rows": 1736,
+   "entry_assumption": "발굴일 종가 매수(실제 14:50-15:29 근사) → 다음 거래일 시가 매도",
+   "all_candidates": {
+    "n": 1736,
+    "win_rate": 46.3,
+    "avg": 1.376,
+    "median": 0.0,
+    "p10": -3.43,
+    "p90": 8.02,
+    "min": -24.91,
+    "max": 30.0
+   },
+   "gate_open_days_only": {
+    "n": 0
+   },
+   "gate_blocked_days_only": {
+    "n": 1736,
+    "win_rate": 46.3,
+    "avg": 1.376,
+    "median": 0.0,
+    "p10": -3.43,
+    "p90": 8.02,
+    "min": -24.91,
+    "max": 30.0
+   },
+   "by_gate_reason": {
+    "r1_fail_heat_ok": {
+     "n": 60,
+     "win_rate": 25.0,
+     "avg": -0.676,
+     "median": -0.641,
+     "p10": -3.54,
+     "p90": 2.81,
+     "min": -24.91,
+     "max": 13.71
+    },
+    "r1_ok_heat_fail": {
+     "n": 758,
+     "win_rate": 49.2,
+     "avg": 1.856,
+     "median": 0.0,
+     "p10": -2.89,
+     "p90": 9.38,
+     "min": -19.24,
+     "max": 30.0
+    },
+    "both_fail": {
+     "n": 918,
+     "win_rate": 45.3,
+     "avg": 1.113,
+     "median": 0.0,
+     "p10": -3.95,
+     "p90": 7.04,
+     "min": -22.43,
+     "max": 30.0
+    }
+   },
+   "days": {
+    "total": 87,
+    "gate_open": 0,
+    "r1_ok": 38,
+    "heat_ok": 3
+   },
+   "avg_daychg_top10_mean": 19.99,
+   "avg_score_top10_mean": 87.25
+  },
+  "sessions_blocked": {
+   "total": 87,
+   "gate_open": 0,
+   "r1_blocked": 49,
+   "heat_blocked": 84,
+   "note": "R1=상위10 평균점수≥88.0, HEAT=상위10 평균 당일등락≤+15.0% (scripts/_close_gate_backtest.py 재사용 — 진입가=종가 근사 한계 포함)"
+  },
+  "live": [
+   {
+    "date": "2026-10-04",
+    "blocked_screeners": 0,
+    "reasons": [],
+    "runner_log_blocks": [
+     "- R1 block swing: r1: avg prob 0.550 < 0.58 (calibrated)",
+     "- PRE filter close: 20 -> 0 (stale/blocked 20, window 0, price 0)",
+     "- PRE filter swing: 20 -> 0 (stale/blocked 20, window 0, price 0)"
+    ],
+    "note": "상태 파일(loop_state·audit)은 마지막 사이클로 덮어써짐 — 장중 차단 근거는 runner_log_blocks(내구)와 blocked_candidates 파일 참조"
+   }
+  ],
+  "blocked_candidates_files": 1,
+  "blocked_candidates_latest": {
+   "n": 20,
+   "missing": [],
+   "avg_ret_pct": 1.97,
+   "median_ret_pct": 0.84,
+   "up": 12,
+   "down": 8,
+   "top5": [
+    {
+     "code": "263600",
+     "name": "덕우전자",
+     "rank": 1,
+     "score": 90.0,
+     "prev": 4410.0,
+     "today": 5290.0,
+     "ret_pct": 19.95
+    },
+    {
+     "code": "136150",
+     "name": "원일티엔아이",
+     "rank": 2,
+     "score": 90.0,
+     "prev": 10850.0,
+     "today": 12440.0,
+     "ret_pct": 14.65
+    },
+    {
+     "code": "097800",
+     "name": "윈팩",
+     "rank": 10,
+     "score": 88.0,
+     "prev": 3835.0,
+     "today": 4065.0,
+     "ret_pct": 6.0
+    },
+    {
+     "code": "351320",
+     "name": "넥사다이내믹스",
+     "rank": 20,
+     "score": 85.9,
+     "prev": 4650.0,
+     "today": 4805.0,
+     "ret_pct": 3.33
+    },
+    {
+     "code": "056190",
+     "name": "SFA",
+     "rank": 16,
+     "score": 87.0,
+     "prev": 30150.0,
+     "today": 31050.0,
+     "ret_pct": 2.99
+    }
+   ],
+   "bottom3": [
+    {
+     "code": "045100",
+     "name": "한양이엔지",
+     "rank": 4,
+     "score": 89.2,
+     "prev": 35350.0,
+     "today": 34650.0,
+     "ret_pct": -1.98
+    },
+    {
+     "code": "476830",
+     "name": "알지노믹스",
+     "rank": 14,
+     "score": 87.2,
+     "prev": 29250.0,
+     "today": 28150.0,
+     "ret_pct": -3.76
+    },
+    {
+     "code": "214430",
+     "name": "아이쓰리시스템",
+     "rank": 15,
+     "score": 87.0,
+     "prev": 83800.0,
+     "today": 78600.0,
+     "ret_pct": -6.21
+    }
+   ],
+   "note": "HEAT 차단(heat avg +17.0% > +15.0%)의 기회비용 실측 — 차단된 후보가 오늘 실제로 얼마나 움직였나"
+  },
+  "gap_history": {
+   "sessions": [
+    {
+     "session": "20261002",
+     "signal_date": "2026-10-01",
+     "n": 20,
+     "avg_gap_pct": 2.3,
+     "median_gap_pct": 0.45,
+     "up": 12,
+     "down": 8,
+     "missing": [],
+     "dup_rows": 3
+    }
+   ],
+   "cum_avg_gap_pct": 2.3,
+   "dup_row_total": 2
+  }
+ },
+ "data_quality": [
+  {
+   "check": "journal_vs_trader_fills",
+   "journal_sum": -1446.0,
+   "fills_net_sum": -1446.0,
+   "match": true,
+   "note": "저널 -1446.0017 vs fills -1446.0 → 부동소수점 반올림 차이(동일)"
+  },
+  {
+   "check": "journal_vs_ledger",
+   "journal_sum": -1446.0,
+   "ledger_north_krw": -1446.0,
+   "match": true,
+   "ledger_ts": "2026-10-02T15:25:51+09:00"
+  },
+  {
+   "check": "fees_unbooked",
+   "detail": "청산 3건 전부 fees=0 — 수수료 백필(tools/backfill_fees.py) 미실행. 순손익이 비용 미차감 상태(회의록: 기대값 -482원/건 낙관 편향)"
+  },
+  {
+   "check": "gap_history_dup_rows",
+   "detail": "close_path_gap_history.jsonl 에 같은 세션 중복 행 2건 — 프로브 append 가 멱등하지 않음"
+  },
+  {
+   "check": "live_trade_day_vs_probe_gate",
+   "detail": "실거래일 2026-09-29 은 재생성 데이터 기준 HEAT 위반(상위10 평균 +16.22% > +15.0%)이었으나 실계좌는 3건 집행 — 라이브 피드와 재생성 데이터의 게이트 판정이 달랐음 (프로브는 당시 발행본이 아닌 재생성물이라는 한계 포함)"
+  }
+ ],
+ "verdict": {
+  "top1": {
+   "rank": 1,
+   "id": "exit_window_miss",
+   "title": "익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+   "krw": -1814.0,
+   "evidence": "중간",
+   "detail": "실측: 청산 3건 체결가(저널 exit_ts 09:26:48, 'reconcile: broker flat' 채택)가 당일 시가 대비 합계 -1814원. 시가 청산이었다면 이날 +368원 (실제 -1446원) — 실현손실 전체가 청산창 이탈로 설명된다. 단, 체결 시각은 리콘사일 채택값이라 실제 주문 시각은 미확인. 10-02 감사도 '루프 기동 11:20 (>09:10)' 경보(보유 0이라 무피해).",
+   "benchmark_note": "시가(09:00) 체결은 벤치마크 — 청산창(09:00-09:10) 체결가의 근사"
+  },
+  "rank": [
+   {
+    "rank": 1,
+    "id": "exit_window_miss",
+    "title": "익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+    "krw": -1814.0,
+    "evidence": "중간",
+    "detail": "실측: 청산 3건 체결가(저널 exit_ts 09:26:48, 'reconcile: broker flat' 채택)가 당일 시가 대비 합계 -1814원. 시가 청산이었다면 이날 +368원 (실제 -1446원) — 실현손실 전체가 청산창 이탈로 설명된다. 단, 체결 시각은 리콘사일 채택값이라 실제 주문 시각은 미확인. 10-02 감사도 '루프 기동 11:20 (>09:10)' 경보(보유 0이라 무피해).",
+    "benchmark_note": "시가(09:00) 체결은 벤치마크 — 청산창(09:00-09:10) 체결가의 근사"
+   },
+   {
+    "rank": 2,
+    "id": "r1_heat_gate_closed",
+    "title": "R1·HEAT 이중 게이트가 87거래일 중 개방 0일 — close 경로 전량 차단",
+    "krw": null,
+    "evidence": "약함",
+    "detail": "백테스트(close_gate_probe, 진입가=종가 근사 한계): 차단집단 익일 시가 수익률 평균 +1.1~+1.9%/일(R1만 통과 +1.856%, 둘 다 실패 +1.113%). KRW 환산은 상위 3종목 선정·체결가 가정이 필요해 측정 불가 — %만 실측. 회의록 결정: HEAT 상한 유지, 되돌림 조건 = 시가 갭 5세션 연속 양(+) (현재 1세션 +2.30%)"
+   },
+   {
+    "rank": 3,
+    "id": "swing_never_traded",
+    "title": "swing 경로 집행 0건 (사실상 미가동)",
+    "krw": null,
+    "evidence": "약함",
+    "detail": "09-29 스윙 후보 20종목 전량 '동시 3종목' 한도에 차단(close 가 슬롯 선점). 10-02 스윙 배치 raw_fallback up=0/20 — 기회비용 실측 정의 없음(측정 불가)."
+   },
+   {
+    "rank": 4,
+    "id": "fees_unbooked",
+    "title": "수수료 미백필 — 순손익 낙관 편향",
+    "krw": null,
+    "evidence": "약함",
+    "detail": "청산 3건 전부 fees=0 (백필 승인 대기). 실측된 '수수료 손실'은 아직 0원이 아니라 미계상 상태."
+   }
+  ],
+  "evidence_note": "근거 등급: 강함=체결·잔고 실측으로 확정 / 중간=실측이나 시점·벤치마크 한계 / 약함=백테스트·가정 포함"
+ },
+ "claim": {
+  "runner": "money_scoreboard",
+  "source_rows": {
+   "journal_trades": 3,
+   "journal_decisions": 1828,
+   "trader_fills": 3,
+   "market_data_rows": 280,
+   "gap_history_lines": 3,
+   "blocked_candidates_files": 1,
+   "bridge_endpoints": 4
+  },
+  "parsed_rows": {
+   "trades": 3,
+   "decisions": 1828,
+   "blocked_codes": 53,
+   "price_joined": 53
+  },
+  "persisted_rows": {
+   "scoreboard_json": 1,
+   "scoreboard_md": 1,
+   "out_dir": "/home/jhshi/analyist_dd/reports/money"
+  },
+  "note": "DB 쓰기 금지(읽기 전용 계약)라 dq_claim.record_claim 은 미사용 — 대신 출력 파일에 3분리 자기신고 내장. 재실행 시 같은 날짜 파일을 덮어쓴다(멱등)."
+ }
+}

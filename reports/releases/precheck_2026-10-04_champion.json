@@ -1,0 +1,101 @@
+{
+ "ts": "2026-10-04T13:55:52",
+ "target": "champion",
+ "blocks": [
+  "audit_measure.py: 이상(rc=2) —   - submodel_auc_spread: 서브모델 AUC 격차 0.0307 > 0.02 — 배포는 균등평균(val_weights 미복원), 검증값은 가중평균이라 라이브 스코어가 검증값과 다르다 {'xgboost'",
+  "audit_path_daily.py: 이상(rc=2) —   ! feed_stale: age 41.4h · items={'close': 20, 'swing': 0}",
+  "audit_safety.py: 이상(rc=2) —   ! fees_unbooked: 청산 3건인데 fees 합=0 — 수수료 백필(tools/backfill_fees.py) 미실행"
+ ],
+ "warns": [
+  "audit_protocol_lock.py: 이상(rc=2) — 일시/대기 항목만(['handoffs_unconsumed', 'lock_fields_missing'])",
+  "--candidate 미지정: 승격 dry-run·델타 미검증"
+ ],
+ "info": {
+  "freeze_consumers": [
+   "./tools/release_champion.sh",
+   "./tools/release_precheck.py",
+   "./scripts/trader_cycle.py",
+   "./scripts/_cg56_register.py",
+   "./scripts/_champion_robust_parser_test.py",
+   "./scripts/pnl_backtest.py",
+   "./scripts/cg61_run.sh",
+   "./scripts/extra_experiments.py",
+   "./scripts/cg56_run.sh",
+   "./scripts/_seed_family_gate_test.py",
+   "./scripts/swing_screener.py",
+   "./scripts/cg58_run.sh",
+   "./scripts/_cg33_promote_to_pending.py",
+   "./scripts/phase_4_backtest.py",
+   "./scripts/_mt116_117_close.py",
+   "./scripts/champion_rollback_monitor.py",
+   "./scripts/_swing_ensemble_weight_probe.py",
+   "./scripts/_cg47_register.py",
+   "./scripts/_universe_seed_flag_test.py",
+   "./scripts/day_trading_engine/pipeline.py",
+   "./scripts/model_metric_protocol_audit.py",
+   "./scripts/_cg34_cg35_cg36_register.py",
+   "./scripts/overnight_ml_loop.py",
+   "./scripts/cg62_run.sh",
+   "./scripts/_cg33_correct_record.py",
+   "./scripts/quant_scoreboard.py",
+   "./scripts/ml_infinite_loop.sh",
+   "./scripts/swing_degenerate_probe.py",
+   "./scripts/_promote_dryrun_metric_test.py",
+   "./scripts/_seed_family_judge_test.py",
+   "./scripts/full_pipeline_dd.sh",
+   "./scripts/_cg46_register.py",
+   "./scripts/gate_promote_live_score.py",
+   "./scripts/backtest_model.py",
+   "./scripts/model_reload_pending.sh",
+   "./scripts/train_quick.py",
+   "./scripts/champion_robust_eval.py",
+   "./scripts/_cg46_correct_record.py",
+   "./scripts/_cg31_register.py",
+   "./scripts/seed_strategy_runs.py"
+  ],
+  "audits": {
+   "audit_protocol_lock.py": {
+    "rc": 2,
+    "tail": "[audit-lock] 위반 5건 · /home/jhshi/analyist_dd/reports/locks/lock_audit_2026-10-04.json\n  - lock_fields_missing: R21 누락 필드: ['counterfactual', 'est_minutes']\n  - lock_fields_missing: R25 누락 필드: ['counterfactual', 'success', 'est_minutes']\n  - lock_fields_missing: R27 누락 필드: ['counterfactual', 'success', 'est_minutes']\n  - lock_fields_missing: R28 누락 필드: ['counterfactual', 'success', 'est_minutes']\n  - handoffs_unconsumed:  핸드오프 미소비 17/20 (기준 2026-10-02T15:25:51+09:00) — 소비 계획을 역할에 배정해야 한다",
+    "checks": [
+     "lock_fields_missing",
+     "lock_fields_missing",
+     "lock_fields_missing",
+     "lock_fields_missing",
+     "handoffs_unconsumed"
+    ]
+   },
+   "audit_measure.py": {
+    "rc": 2,
+    "tail": "[audit-measure] 이상 2건 · /home/jhshi/analyist_dd/reports/audit/measure_2026-10-04.json\n  - live_score_path_closed: 스윙 배치 raw_fallback (up=0/20, max=None) — 0.55 초과 신호 0건이면 소비자가 배치를 거부한다. 재현: scripts/_swing_ensemble_weight_probe.py\n  - submodel_auc_spread: 서브모델 AUC 격차 0.0307 > 0.02 — 배포는 균등평균(val_weights 미복원), 검증값은 가중평균이라 라이브 스코어가 검증값과 다르다 {'xgboost': 0.5492, 'lightgbm': 0.5448, 'catboost': 0.5185}",
+    "checks": [
+     "live_score_path_closed",
+     "submodel_auc_spread"
+    ]
+   },
+   "audit_path_daily.py": {
+    "rc": 2,
+    "tail": "[audit-path] fail · 1실패/0경고 · /home/jhshi/analyist_dd/reports/audit/path_2026-10-04.json\n  ! feed_stale: age 41.4h · items={'close': 20, 'swing': 0}",
+    "checks": [
+     "feed_stale"
+    ]
+   },
+   "audit_safety.py": {
+    "rc": 2,
+    "tail": "[audit-safety] alerts · /home/jhshi/analyist_dd/reports/safety/safety_2026-10-04.json\n  ! loop_process_missing: run_market_loop.py 프로세스 0개 (브리지만 살아있는 상태)\n  ! fees_unbooked: 청산 3건인데 fees 합=0 — 수수료 백필(tools/backfill_fees.py) 미실행",
+    "checks": [
+     "loop_process_missing",
+     "fees_unbooked"
+    ]
+   }
+  },
+  "feed_contract": {
+   "path": "/home/jhshi/analyist_dd/data/feed/screener_latest.json",
+   "issues": [],
+   "generated_at": "2026-10-02T20:30:03+09:00",
+   "close_n": 20,
+   "swing_n": 0
+  }
+ },
+ "verdict": "BLOCK"
+}

@@ -1,0 +1,4 @@
+{"when": "20261004-155122", "tested": 60, "passing": ["k1_capNone_next_open", "k1_capNone_t2_open", "k2_capNone_next_open", "k3_capNone_next_open", "k5_capNone_next_open"], "best": "k1_capNone_next_open", "best_avg_pct": 5.3273}
+{"when": "20261004-155147", "tested": 48, "passing": [], "best": "k5_cap25.0_next_open", "best_avg_pct": -0.2864}
+{"when": "20261004-160913", "tested": 192, "passing": [], "best": "k5_cap15.0_next_open_score_bottom_g0", "best_avg_pct": -0.1342}
+{"when": "20261004-161611", "tested": 768, "passing": [], "best": "k1_cap10.0_next_open_score_bottom_g0_bp5_15", "best_avg_pct": 0.0067}

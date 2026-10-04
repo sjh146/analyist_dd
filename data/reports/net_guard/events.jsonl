@@ -1,0 +1,10 @@
+{"ts": "2026-10-03T18:10:04", "key": "dart", "event": "blocked", "reason": "DART 응답 이상: {'status': '000', 'message': '정상', 'page_no': 1, 'page_count': 100, 'total_count': 131, 'total_page'", "cooldown_s": 900.0}
+{"ts": "2026-10-03T20:29:43", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-10-03T20:29:43", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-10-03T20:29:44", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-10-03T20:29:44", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-10-03T20:29:44", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-10-03T20:29:44", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-10-03T20:29:45", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-10-03T20:29:45", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-10-03T20:29:45", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}

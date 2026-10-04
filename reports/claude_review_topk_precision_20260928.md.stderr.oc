@@ -1,0 +1,99 @@
+[93m[1m! [0m agent "explore" is a subagent, not a primary agent. Falling back to default agent
+[0m
+> build · deepseek-v4-pro
+[0m
+[0m→ [0mRead scripts/topk_precision.py
+[0m→ [0mSkill "review"
+[0m→ [0mRead scripts/_topk_precision_test.py
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && git branch --show-current && git log --oneline -5 && git status --short
+master
+4d64e5e fix(hygiene): 재시작 반복 판정을 누적값 → 증가분으로 (영구 경고 제거)
+dc0168a researcher: 틱 요약에 스크랩 건강 줄([경로]) 포함 — 매 틱 '모니터링이 살아 있음'을 증거로 남긴다
+3408b28 researcher: 수집 모니터링 11분 실명 탐지 추가 (스크랩 건강 판정) + R18
+1a3ac93 기술지표 '조용한 죽음' 3건 수리 + KRX 대체 경로 (죽은 피처 부활)
+022d0d6 fix(researcher): 러너의 '재개' 종료코드(resumable_rc)를 failed 로 적어 점진 수집이 정지하던 결함 수정
+ M data/reports/alert_dispatch_state.json
+ M data/reports/model_engineer_ledger.jsonl
+ M data/reports/researcher_ledger.jsonl
+ M data/reports/trader_ledger.jsonl
+ M docs/QUANT_BOARD.md
+ M docs/QUANT_MODEL_BACKLOG.json
+ M reports/close_latest.json
+ M reports/swing_latest.json
+ M services/xgboost-ml/app/models/wf/panel_995.npz.meta.json
+ M services/xgboost-ml/app/models/wf/panel_995.npz.rows.pkl
+ M services/xgboost-ml/catboost_info/catboost_training.json
+ M services/xgboost-ml/catboost_info/learn/events.out.tfevents
+ M services/xgboost-ml/catboost_info/learn_error.tsv
+ M services/xgboost-ml/catboost_info/test/events.out.tfevents
+ M services/xgboost-ml/catboost_info/test_error.tsv
+ M services/xgboost-ml/catboost_info/time_left.tsv
+ M services/xgboost-ml/reports/overnight/wf_label_sweep.jsonl
+ M services/xgboost-ml/reports/overnight/wf_label_sweep_summary.json
+?? data/reports/swing_candidates_20260928_083002.csv
+?? docs/QUANT_MODEL_BACKLOG.json.bak-20260928
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg10
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg12
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg13
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg14
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg2
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg21path
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg3
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg4
+?? docs/QUANT_MODEL_BACKLOG.json.bak-cg5
+?? docs/QUANT_MODEL_BACKLOG.json.bak-xr11
+?? reports/claude_review_topk_precision_20260928.md.stderr.oc
+?? reports/claude_review_topk_precision_20260928.md.tmp.613245
+?? scripts/_backlog_add_cg20_21.py
+?? scripts/_cg20_stats.py
+?? scripts/_cg21_pool_probe.py
+?? scripts/_recreate_window_test.py
+?? services/xgboost-ml/reports/overnight/panel_screen_420asofpatch.json
+?? services/xgboost-ml/reports/overnight/smoke_lb.jsonl
+?? services/xgboost-ml/reports/overnight/smoke_lb_summary.json
+[0m
+[0m✱ [0mGrep "restrict-q|restrict_q|min-pool|topk_precision|dump-preds|dump_preds"[90m in . · 59 matches[0m
+[0m✱ [0mGlob "scripts/*.py"[90m 100 matches[0m
+[0m→ [0mRead scripts/_cg21_pool_probe.py
+[0m→ [0mRead scripts/wf_label_sweep.py[90m [offset=610, limit=80][0m
+[0m→ [0mRead scripts/wf_label_sweep.py[90m [offset=850, limit=90][0m
+[0m✱ [0mGrep "def make_labels|def _label|quantile|def make_quantile_label|q="[90m in services/xgboost-ml/app · 1 match[0m
+[0m✱ [0mGrep "def make_labels|CO_q05|CO_core30|CONFIGS|"q":|"id": "CO"[90m in . · 100 matches[0m
+[0m✱ [0mGrep "def make_labels|import|from .* import|W =|W\.|quantile"[90m in scripts/wf_label_sweep.py · 100 matches[0m
+[0m→ [0mRead scripts/wf_label_sweep.py[90m [limit=40, offset=1][0m
+[0m✱ [0mGrep "def make_labels"[90m in scripts/wf_label_sweep.py · 4 matches[0m
+[0m→ [0mRead scripts/wf_wave.py[90m [limit=70, offset=237][0m
+[0m→ [0mRead scripts/wf_wave.py[90m [limit=60, offset=1][0m
+[0m
+[0m$ [0mcd /home/jhshi/analyist_dd && python3 scripts/_topk_precision_test.py 2>&1 | tail -5
+TOPk TEST PASS (5/5)
+[0m
+[0m$ [0mcd /tmp/opencode && cat > repro.jsonl <<'EOF'
+{"exp":"Q05","fold":1,"date":"2026-01-02","code":"A","y_true":1,"y_pred":0.9,"fwd_ret":0.10}
+{"exp":"Q05","fold":1,"date":"2026-01-02","code":"F","y_true":0,"y_pred":0.1,"fwd_ret":-0.10}
+{"exp":"Q30","fold":1,"date":"2026-01-02","code":"A","y_true":1,"y_pred":0.8,"fwd_ret":0.10}
+{"exp":"Q30","fold":1,"date":"2026-01-02","code":"B","y_true":1,"y_pred":0.7,"fwd_ret":0.08}
+{"exp":"Q30","fold":1,"date":"2026-01-02","code":"F","y_true":0,"y_pred":0.2,"fwd_ret":-0.10}
+{"exp":"Q05","fold":1,"date":"2026-01-03","code":"A","y_true":1,"y_pred":0.9,"fwd_ret":0.10}
+{"exp":"Q05","fold":1,"date":"2026-01-03","code":"F","y_true":0,"y_pred":0.1,"fwd_ret":-0.10}
+{"exp":"Q30","fold":1,"date":"2026-01-03","code":"A","y_true":1,"y_pred":0.8,"fwd_ret":0.10}
+{"exp":"Q30","fold":1,"date":"2026-01-03","code":"B","y_true":1,"y_pred":0.7,"fwd_ret":0.08}
+{"exp":"Q30","fold":1,"date":"2026-01-03","code":"E","y_true":0,"y_pred":0.3,"fwd_ret":-0.08}
+{"exp":"Q30","fold":1,"date":"2026-01-03","code":"F","y_true":0,"y_pred":0.2,"fwd_ret":-0.10}
+EOF
+python3 /home/jhshi/analyist_dd/scripts/topk_precision.py repro.jsonl --k 2 --arm Q05 --control Q30 --restrict-q 0.05 --min-pool 4
+preds=repro.jsonl rows=11 (파싱실패 0) exps=['Q05', 'Q30']
+채점 기준: 공통 후보집합(양쪽 꼬리 q=0.05)
+exp                k   prec@k        prec_fold±std    fwd_ret       n
+Q05                2   0.5000        0.5000±0.0000    +0.0000       2
+Q30                2   0.7500        0.7500±0.0000    +0.0450       2
+  후보 풀 중앙값 Q05: 2 (k 가 이 값 이상이면 포화 — 그 k 의 Δ 는 해석하지 말 것)
+  후보 풀 중앙값 Q30: 3 (k 가 이 값 이상이면 포화 — 그 k 의 Δ 는 해석하지 말 것)
+
+=== 짝 비교 Q05 − Q30 ((fold,date) 단위) ===
+  k=2: Δprec -0.2500 (양수 0/1 동점제외, 동점 1, 부호검정 p=1.0000) · Δfwd_ret -0.0450 · 폴드별 양수 {'1': '0/2'}
+[0m
+[0m→ [0mRead scripts/wf_label_sweep.py[90m [limit=75, offset=780][0m
+[0m→ [0mRead scripts/wf_label_sweep.py[90m [limit=75, offset=705][0m
+[0m→ [0mRead docs/QUANT_MODEL_BACKLOG.json[90m [limit=30, offset=4305][0m

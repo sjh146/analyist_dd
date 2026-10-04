@@ -1,5 +1,5 @@
 {
-  "ts": "2026-09-28T18:07:01+09:00",
+  "ts": "2026-09-29T06:06:21+09:00",
   "dead_total": 35,
   "buckets": {
     "buildable": {
@@ -60,9 +60,9 @@
   },
   "unclassified": [],
   "probes": {
-    "market_data": "3093148|2023-01-02|2026-09-28",
-    "news_analysis": "5575/8418|2026-09-28",
-    "stock_vectors": "4340|4340|2026-09-27",
+    "market_data": "3096880|2023-01-02|2026-09-28",
+    "news_analysis": "5639/8482|2026-09-28",
+    "stock_vectors": "4340|4340|2026-09-28",
     "krx_short_selling": "2393|30|2026-09-23",
     "stocks": "1544/4340",
     "sns_post_features": "14576|250|184",
@@ -70,7 +70,7 @@
     "krx_program_trading": "false|196|2026-09-23",
     "economic_events": "291|10",
     "financial_statements": "false|10370",
-    "ownership": "true|225",
+    "ownership": "true|825",
     "credit_balance": "0",
     "etf_flow": "0",
     "theme": "0"
@@ -81,14 +81,14 @@
       "bucket": "buildable",
       "source": "market_data",
       "why": "일봉 종목 레벨 — ATR 계산 가능",
-      "probe": "3093148|2023-01-02|2026-09-28"
+      "probe": "3096880|2023-01-02|2026-09-28"
     },
     {
       "feature": "authenticity_avg",
       "bucket": "buildable",
       "source": "news_analysis",
       "why": "authenticity_score 결측 아님",
-      "probe": "5575/8418|2026-09-28"
+      "probe": "5639/8482|2026-09-28"
     },
     {
       "feature": "basis",
@@ -109,28 +109,28 @@
       "bucket": "buildable",
       "source": "stock_vectors",
       "why": "종목 벡터 존재",
-      "probe": "4340|4340|2026-09-27"
+      "probe": "4340|4340|2026-09-28"
     },
     {
       "feature": "bayes_momentum_1d",
       "bucket": "buildable",
       "source": "stock_vectors",
       "why": "종목 벡터 존재",
-      "probe": "4340|4340|2026-09-27"
+      "probe": "4340|4340|2026-09-28"
     },
     {
       "feature": "bayes_momentum_5d",
       "bucket": "buildable",
       "source": "stock_vectors",
       "why": "종목 벡터 존재",
-      "probe": "4340|4340|2026-09-27"
+      "probe": "4340|4340|2026-09-28"
     },
     {
       "feature": "bayes_volatility",
       "bucket": "buildable",
       "source": "stock_vectors",
       "why": "종목 벡터 존재",
-      "probe": "4340|4340|2026-09-27"
+      "probe": "4340|4340|2026-09-28"
     },
     {
       "feature": "credit_balance_change",
@@ -193,7 +193,7 @@
       "bucket": "source_absent",
       "source": "ownership",
       "why": "KIS 현재가에 기관 지분율 필드 없음(R2 확정)",
-      "probe": "true|225"
+      "probe": "true|825"
     },
     {
       "feature": "margin_balance_change",
@@ -214,14 +214,14 @@
       "bucket": "buildable",
       "source": "market_data",
       "why": "일봉 종목 레벨 — 베타 계산 가능",
-      "probe": "3093148|2023-01-02|2026-09-28"
+      "probe": "3096880|2023-01-02|2026-09-28"
     },
     {
       "feature": "quality_price_volatility_60d",
       "bucket": "buildable",
       "source": "market_data",
       "why": "일봉 종목 레벨 — 60일 변동성",
-      "probe": "3093148|2023-01-02|2026-09-28"
+      "probe": "3096880|2023-01-02|2026-09-28"
     },
     {
       "feature": "sector_count",
@@ -249,7 +249,7 @@
       "bucket": "buildable",
       "source": "stock_vectors",
       "why": "종목 벡터 존재",
-      "probe": "4340|4340|2026-09-27"
+      "probe": "4340|4340|2026-09-28"
     },
     {
       "feature": "sns_bot_filtered_count",
@@ -305,14 +305,14 @@
       "bucket": "buildable",
       "source": "stock_vectors",
       "why": "종목 벡터 존재",
-      "probe": "4340|4340|2026-09-27"
+      "probe": "4340|4340|2026-09-28"
     },
     {
       "feature": "twin_count",
       "bucket": "buildable",
       "source": "stock_vectors",
       "why": "종목 벡터 존재",
-      "probe": "4340|4340|2026-09-27"
+      "probe": "4340|4340|2026-09-28"
     },
     {
       "feature": "value_ncav",

@@ -1,0 +1,32 @@
+=== [1] 종가 스크리너 갱신 (14:40 크론) ===
+-rw-r--r-- 1 jhshi jhshi 9060 Sep 29 14:40 /home/jhshi/analyist_dd/reports/close_latest.json
+2026-09-29 14:40:18,396 INFO [swing] 산출물 기준일 2026-09-28 (1.61일 전)
+2026-09-29 14:40:18,633 INFO [close] signal_date 1~1일 전 (발행일 2026-09-29, valid_until예: 2026-09-29T15:30:00+09:00)
+2026-09-29 14:40:18,634 INFO [swing] signal_date 1~1일 전 (발행일 2026-09-29, valid_until예: 2026-10-03T15:30:00+09:00)
+2026-09-29 14:40:18,635 INFO [close] 20건 | score min=82.8 median=86.1 max=90.0 spread=7.2
+2026-09-29 14:40:18,635 INFO [swing] 20건 | score min=50.4 median=52.4 max=62.5 spread=12.1
+2026-09-29 14:40:18,640 INFO 발행 완료: /home/jhshi/analyist_dd/data/feed/screener_latest.json (17207 bytes, generated_at=2026-09-29T14:40:18+09:00)
+
+=== [2] 발행된 피드 (close 신선도) ===
+generated_at 2026-09-29T14:40:18+09:00
+  close: 20건 | signal_date ['2026-09-28'] | kind ['screener']
+      024850 HLB이노베이션 score 90.0 price 19680 valid_until 2026-09-29T15:30:00+09:00
+      256840 한국비엔씨 score 90.0 price 3425 valid_until 2026-09-29T15:30:00+09:00
+      338220 뷰노 score 90.0 price 7240 valid_until 2026-09-29T15:30:00+09:00
+  swing: 20건 | signal_date ['2026-09-28'] | kind ['calibrated_prob']
+      475830 오름테라퓨틱 score 62.45 price 24250 valid_until 2026-10-03T15:30:00+09:00
+      298380 에이비엘바이오 score 58.04 price 49750 valid_until 2026-10-03T15:30:00+09:00
+      263750 펄어비스 score 55.98 price 33100 valid_until 2026-10-03T15:30:00+09:00
+
+=== [3] 루프 마지막 사이클 (PRE filter / R3 / 체결) ===
+updated 2026-09-29T14:52:57.189107+09:00 | phase monitor | halt False
+decisions 0 | plans 0 | acted 0 | entries 0
+   - R1 block swing: r1: avg prob 0.550 < 0.58 (calibrated)
+   - PRE filter close: 20 -> 0 (stale/blocked 0, window 0, price 20)
+   - PRE filter swing: 20 -> 0 (stale/blocked 20, window 0, price 0)
+
+=== [4] 브리지/계좌 ===
+{"ok": true, "connected": true, "ts": 1790661190.4470458}
+{"ok": true, "positions": [], "ts": 1790661190.8043559}
+{"ok": true, "balance": {"account": "783247576", "goods_flag": "01", "positions_count": 0, "total_buy_amount": 0, "total_eval_amount": 0, "total_eval_pnl": 0, "equity": 527670, "d2_deposit": 527670, "loan_amount": 0, "broker_total_eval": 527670, "cash": 527670
+=== 완료 2026-09-29 14:53:10 ===

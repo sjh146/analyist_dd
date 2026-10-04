@@ -1,0 +1,336 @@
+{
+  "request_type": "swing_screener",
+  "date": "2026-09-28",
+  "generated_at": "2026-09-28T23:34:36.097892Z",
+  "total": 20,
+  "up": 20,
+  "down": 0,
+  "high_confidence": 0,
+  "batch_type": "signal",
+  "auc": "0.551318",
+  "top_up": [
+    {
+      "stock_code": "475830",
+      "stock_name": "오름테라퓨틱",
+      "sector": "Unknown",
+      "confidence": 0.6245,
+      "expected_return": 24.9,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "298380",
+      "stock_name": "에이비엘바이오",
+      "sector": "Unknown",
+      "confidence": 0.5804,
+      "expected_return": 16.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "263750",
+      "stock_name": "펄어비스",
+      "sector": "Unknown",
+      "confidence": 0.5598,
+      "expected_return": 11.96,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "098460",
+      "stock_name": "고영",
+      "sector": "Unknown",
+      "confidence": 0.5487,
+      "expected_return": 9.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "178320",
+      "stock_name": "서진시스템",
+      "sector": "Unknown",
+      "confidence": 0.5434,
+      "expected_return": 8.68,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "003380",
+      "stock_name": "하림지주",
+      "sector": "Unknown",
+      "confidence": 0.5328,
+      "expected_return": 6.56,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "399720",
+      "stock_name": "가온칩스",
+      "sector": "Unknown",
+      "confidence": 0.5321,
+      "expected_return": 6.42,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "019210",
+      "stock_name": "와이지-원",
+      "sector": "Unknown",
+      "confidence": 0.5311,
+      "expected_return": 6.22,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "189300",
+      "stock_name": "인텔리안테크",
+      "sector": "Unknown",
+      "confidence": 0.525,
+      "expected_return": 5.0,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "122870",
+      "stock_name": "와이지엔터테인먼트",
+      "sector": "Unknown",
+      "confidence": 0.5239,
+      "expected_return": 4.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "032500",
+      "stock_name": "케이엠더블유",
+      "sector": "Unknown",
+      "confidence": 0.5239,
+      "expected_return": 4.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "101490",
+      "stock_name": "에스앤에스텍",
+      "sector": "Unknown",
+      "confidence": 0.5237,
+      "expected_return": 4.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "031330",
+      "stock_name": "에스에이엠티",
+      "sector": "Unknown",
+      "confidence": 0.5223,
+      "expected_return": 4.46,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "330860",
+      "stock_name": "네패스아크",
+      "sector": "Unknown",
+      "confidence": 0.5205,
+      "expected_return": 4.1,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "112040",
+      "stock_name": "위메이드",
+      "sector": "Unknown",
+      "confidence": 0.5153,
+      "expected_return": 3.06,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "403870",
+      "stock_name": "HPSP",
+      "sector": "Unknown",
+      "confidence": 0.511,
+      "expected_return": 2.2,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "356860",
+      "stock_name": "티엘비",
+      "sector": "Unknown",
+      "confidence": 0.5082,
+      "expected_return": 1.64,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "032820",
+      "stock_name": "우리기술",
+      "sector": "Unknown",
+      "confidence": 0.5059,
+      "expected_return": 1.18,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "137400",
+      "stock_name": "피엔티",
+      "sector": "Unknown",
+      "confidence": 0.5059,
+      "expected_return": 1.18,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "043260",
+      "stock_name": "성호전자",
+      "sector": "Unknown",
+      "confidence": 0.5038,
+      "expected_return": 0.76,
+      "batch_type": "signal"
+    }
+  ],
+  "top_down": [],
+  "candidates": [
+    {
+      "stock_code": "475830",
+      "stock_name": "오름테라퓨틱",
+      "sector": "Unknown",
+      "confidence": 0.6245,
+      "expected_return": 24.9,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "298380",
+      "stock_name": "에이비엘바이오",
+      "sector": "Unknown",
+      "confidence": 0.5804,
+      "expected_return": 16.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "263750",
+      "stock_name": "펄어비스",
+      "sector": "Unknown",
+      "confidence": 0.5598,
+      "expected_return": 11.96,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "098460",
+      "stock_name": "고영",
+      "sector": "Unknown",
+      "confidence": 0.5487,
+      "expected_return": 9.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "178320",
+      "stock_name": "서진시스템",
+      "sector": "Unknown",
+      "confidence": 0.5434,
+      "expected_return": 8.68,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "003380",
+      "stock_name": "하림지주",
+      "sector": "Unknown",
+      "confidence": 0.5328,
+      "expected_return": 6.56,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "399720",
+      "stock_name": "가온칩스",
+      "sector": "Unknown",
+      "confidence": 0.5321,
+      "expected_return": 6.42,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "019210",
+      "stock_name": "와이지-원",
+      "sector": "Unknown",
+      "confidence": 0.5311,
+      "expected_return": 6.22,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "189300",
+      "stock_name": "인텔리안테크",
+      "sector": "Unknown",
+      "confidence": 0.525,
+      "expected_return": 5.0,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "122870",
+      "stock_name": "와이지엔터테인먼트",
+      "sector": "Unknown",
+      "confidence": 0.5239,
+      "expected_return": 4.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "032500",
+      "stock_name": "케이엠더블유",
+      "sector": "Unknown",
+      "confidence": 0.5239,
+      "expected_return": 4.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "101490",
+      "stock_name": "에스앤에스텍",
+      "sector": "Unknown",
+      "confidence": 0.5237,
+      "expected_return": 4.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "031330",
+      "stock_name": "에스에이엠티",
+      "sector": "Unknown",
+      "confidence": 0.5223,
+      "expected_return": 4.46,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "330860",
+      "stock_name": "네패스아크",
+      "sector": "Unknown",
+      "confidence": 0.5205,
+      "expected_return": 4.1,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "112040",
+      "stock_name": "위메이드",
+      "sector": "Unknown",
+      "confidence": 0.5153,
+      "expected_return": 3.06,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "403870",
+      "stock_name": "HPSP",
+      "sector": "Unknown",
+      "confidence": 0.511,
+      "expected_return": 2.2,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "356860",
+      "stock_name": "티엘비",
+      "sector": "Unknown",
+      "confidence": 0.5082,
+      "expected_return": 1.64,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "032820",
+      "stock_name": "우리기술",
+      "sector": "Unknown",
+      "confidence": 0.5059,
+      "expected_return": 1.18,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "137400",
+      "stock_name": "피엔티",
+      "sector": "Unknown",
+      "confidence": 0.5059,
+      "expected_return": 1.18,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "043260",
+      "stock_name": "성호전자",
+      "sector": "Unknown",
+      "confidence": 0.5038,
+      "expected_return": 0.76,
+      "batch_type": "signal"
+    }
+  ]
+}

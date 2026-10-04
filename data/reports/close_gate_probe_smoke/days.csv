@@ -1,0 +1,12 @@
+date,n,avg_score_top10,avg_daychg_top10,r1_ok,heat_ok,gate_open
+2026-09-14,20,88.12,17.05,True,False,False
+2026-09-15,20,89.34,25.92,True,False,False
+2026-09-16,20,89.2,23.7,True,False,False
+2026-09-17,20,88.64,23.86,True,False,False
+2026-09-18,20,88.3,15.54,True,False,False
+2026-09-21,20,89.21,20.85,True,False,False
+2026-09-22,20,88.88,22.41,True,False,False
+2026-09-23,20,88.06,15.28,True,False,False
+2026-09-28,20,89.94,24.14,True,False,False
+2026-09-29,20,89.21,16.22,True,False,False
+2026-09-30,20,88.16,15.02,True,False,False

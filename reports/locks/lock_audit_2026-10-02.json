@@ -1,5 +1,5 @@
 {
- "ts": "2026-10-02T14:58:15",
+ "ts": "2026-10-02T15:55:10",
  "mode": "protocol_lock",
  "violations": [
   {
@@ -22,17 +22,17 @@
   },
   {
    "check": "handoffs_unconsumed",
-   "detail": "핸드오프 미소비 16/19 (기준 2026-10-02T13:33:25+09:00) — 소비 계획을 역할에 배정해야 한다"
+   "detail": "핸드오프 미소비 17/20 (기준 2026-10-02T15:25:51+09:00) — 소비 계획을 역할에 배정해야 한다"
   }
  ],
  "queue": {
-  "handoffs_total": 19,
-  "handoffs_unfilled": 16,
-  "ts": "2026-10-02T13:33:25+09:00"
+  "handoffs_total": 20,
+  "handoffs_unfilled": 17,
+  "ts": "2026-10-02T15:25:51+09:00"
  },
  "info": {
   "items_checked": 4,
-  "needs_setup": 17,
+  "needs_setup": 16,
   "pipeline_min_improvement": [
    "0.02"
   ],

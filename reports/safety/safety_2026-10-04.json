@@ -1,0 +1,79 @@
+{
+ "ts": "2026-10-04T13:58:10",
+ "mode": "safety",
+ "alerts": [
+  {
+   "check": "loop_process_missing",
+   "detail": "run_market_loop.py 프로세스 0개 (브리지만 살아있는 상태)"
+  },
+  {
+   "check": "exit_out_of_window_recent",
+   "detail": "최근 창 밖 청산 3건/3건 · 시가 대비 -1,814원 — 최근 2026-09-30 09:26 206560 @945.0(시가 949.0) [감사 시각 2026-10-02T22:13:38]"
+  },
+  {
+   "check": "fees_unbooked",
+   "detail": "청산 3건인데 fees 합=0 — 수수료 백필(tools/backfill_fees.py) 미실행"
+  }
+ ],
+ "human_steps": [],
+ "info": {
+  "bridge_health": {
+   "ok": true,
+   "connected": true,
+   "ts": 1791089890.4888957
+  },
+  "balance_ok": true,
+  "positions": 0,
+  "orders": 0,
+  "processes": {
+   "bridge": 1,
+   "loop": 0
+  },
+  "limits": {},
+  "kill_switch_file": false,
+  "journal": {
+   "n": 3,
+   "open": 0,
+   "fees_sum": 0.0,
+   "pnl_sum": -1446.001700000002
+  },
+  "exit_window": {
+   "source_ts": "2026-10-02T22:13:38",
+   "age_days": 1.66,
+   "stale": false,
+   "window": "09:00-09:10",
+   "n_sells": 3,
+   "n_out_of_window": 3,
+   "out_of_window_krw": -1814.0,
+   "remaining_positions": 0,
+   "out_rows": [
+    {
+     "date": "2026-09-30",
+     "hm": "09:26",
+     "code": "206560",
+     "price": 945.0,
+     "open_price": 949.0,
+     "vs_open_krw": -124.0
+    },
+    {
+     "date": "2026-09-30",
+     "hm": "09:26",
+     "code": "105740",
+     "price": 9410.0,
+     "open_price": 9420.0,
+     "vs_open_krw": -30.0
+    },
+    {
+     "date": "2026-09-30",
+     "hm": "09:26",
+     "code": "094860",
+     "price": 1515.0,
+     "open_price": 1598.0,
+     "vs_open_krw": -1660.0
+    }
+   ],
+   "claim": "ok"
+  }
+ },
+ "status": "alerts"
+}

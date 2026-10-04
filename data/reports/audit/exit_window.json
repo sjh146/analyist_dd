@@ -1,0 +1,52 @@
+{
+ "ts": "2026-10-02T22:13:38",
+ "days": 10,
+ "window": "09:00-09:10",
+ "n_sells": 3,
+ "n_out_of_window": 3,
+ "out_of_window_krw": -1814.0,
+ "sells": [
+  {
+   "ts": "2026-09-30T09:26:48.540127+09:00",
+   "code": "094860",
+   "qty": 20.0,
+   "price": 1515.0,
+   "screener": "close",
+   "exit_reason": "reconcile: broker flat",
+   "entry_ts": "2026-09-29T15:03:41.306056+09:00",
+   "date": "2026-09-30",
+   "hm": "09:26",
+   "in_window": false,
+   "open_price": 1598.0,
+   "vs_open_krw": -1660.0
+  },
+  {
+   "ts": "2026-09-30T09:26:48.543031+09:00",
+   "code": "105740",
+   "qty": 3.0,
+   "price": 9410.0,
+   "screener": "close",
+   "exit_reason": "reconcile: broker flat",
+   "entry_ts": "2026-09-29T15:03:41.627504+09:00",
+   "date": "2026-09-30",
+   "hm": "09:26",
+   "in_window": false,
+   "open_price": 9420.0,
+   "vs_open_krw": -30.0
+  },
+  {
+   "ts": "2026-09-30T09:26:48.545224+09:00",
+   "code": "206560",
+   "qty": 31.0,
+   "price": 945.0,
+   "screener": "close",
+   "exit_reason": "reconcile: broker flat",
+   "entry_ts": "2026-09-29T15:03:40.954097+09:00",
+   "date": "2026-09-30",
+   "hm": "09:26",
+   "in_window": false,
+   "open_price": 949.0,
+   "vs_open_krw": -124.0
+  }
+ ]
+}
