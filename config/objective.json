@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-03",
+  "updated": "2026-10-04",
   "goal": {
     "statement": "analyist_dd 의 최상위 목표는 '돈을 버는 것'. 위험 봉투 안에서 순기대값이 양(+)인 거래만 실행하고, 기준을 통과하지 못하면 무거래가 정답이다.",
     "primary_metric": "fillable_oos_net_expectancy_pct",
@@ -36,7 +36,8 @@
     "rollback": {
       "monitor_sessions": 5,
       "degrade_pct": -0.2,
-      "note": "승격 후 K세션 실측이 기준선 대비 degrade_pct 를 넘게 나빠지면 자동 원복(구현 예정: 3번)."
+      "max_evidence_age_days": 14,
+      "note": "승격 후 K세션 뒤 같은 프로토콜로 다시 비교해 degrade_pct 를 넘게 나빠지면 원복한다. 증거가 max_evidence_age_days 보다 오래되면 판정하지 않는다(먼저 재측정)."
     }
   },
   "envelope": {
@@ -56,8 +57,9 @@
     "promote_require_live_score": true,
     "promote_require_expectancy": true,
     "promote_require_robust": false,
+    "auto_rollback": true,
     "min_improvement_auc": 0.02,
-    "note": "promote_require_* 는 파이프라인이 champion_promote 로 넘기는 플래그의 기본값이다. true = 증거 없으면 승격하지 않는다."
+    "note": "promote_require_* 는 파이프라인이 champion_promote 로 넘기는 플래그의 기본값이다. true = 증거 없으면 승격하지 않는다. auto_rollback = 되돌림 감시가 실제로 원복까지 실행할지(기본 false = 권고·경보만)."
   },
   "autonomy": {
     "tier0": "측정·계기판·감사·경보·테스트·문서·크론 — 사람 없이",
