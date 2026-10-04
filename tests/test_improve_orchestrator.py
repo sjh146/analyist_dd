@@ -118,7 +118,7 @@ def test_seed_uses_objective_state_top_lever(queue, tmp_path):
     assert added and "청산창" in d["tasks"][0]["title"]
 
 
-def test_repo_gate_defaults_to_dry_run():
-    """기본은 dry-run(검증만) — 자동 병합 게이트가 꺼져 있어야 한다."""
+def test_repo_gate_is_a_policy_flag():
+    """병합 게이트는 '정책'이라 값이 바뀔 수 있다(2026-10-04 종단 검증 후 true 로 전환) — 타입만 잠근다."""
     import objective
-    assert objective.load()["gates"].get("orchestrator_auto_merge") is False
+    assert isinstance(objective.load()["gates"].get("orchestrator_auto_merge"), bool)
