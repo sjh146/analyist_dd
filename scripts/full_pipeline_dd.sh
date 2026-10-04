@@ -373,6 +373,14 @@ else
     #   주의: 이 비교는 단일 val split 이라 문턱이 세면 승격이 오래 잠길 수 있다
     #   (챔피언 0.5513 기준 후보 ≥0.5713 필요) — 승격 게이트에 '라이브 스코어 분포' 검사를
     #   추가하는 근본 수리가 되면 그때 이 값을 완화한다(리뷰보드 안건).
+    # 증거 측정 전 필수 준비: 순기대(part c)는 후보 CSV(체결성 스윕 결과)를 읽는다.
+    #   컨테이너는 `data/reports` 를 마운트하지 않는다(실측 2026-10-04) → 서비스 내부 경로로 복사한다.
+    #   (호스트에서 직접 쓰면 권한 거부: 서비스 app/reports 는 컨테이너가 root 로 만든다 → docker cp 로.)
+    if [ -f data/reports/close_gate_probe/trades.csv ]; then
+        docker cp data/reports/close_gate_probe/trades.csv \
+            stock_xgboost_ml:/app/app/reports/close_gate_probe_trades.csv >> "$LOG_FILE" 2>&1 \
+            || echo "  (trades.csv 스테이징 실패 — 순기대 증거 없이 진행)" >> "$LOG_FILE"
+    fi
     # 다중 폴드 OOS + 순기대 증거 생성(2026-10-02 신설 · 2026-10-03 확장 — 증거 축적, 정책은 objective.json):
     #   실측(8모델 4축): 단일 분할 val AUC 는 다중 폴드 OOS AUC 와 순위 상관 스피어만 **−0.81**, 그리고
     #   AUC 는 순기대와 상관하지 않는다(+0.10/−0.24, n=8). 그래서 승격 증거는 **돈(체결 가능 순기대)** 이다.

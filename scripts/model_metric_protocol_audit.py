@@ -267,9 +267,16 @@ def part_b(models, pipeline, conn, args):
 # ── (c) close 경로 순기대값 (fillable_expectancy 계산 재사용, 모델별 top-K) ────────
 def part_c(models, pipeline, conn, args):
     t0 = time.time()
-    trades_path = args.trades
-    if not os.path.exists(trades_path):
-        print(f"[c] trades 없음: {trades_path}", flush=True)
+    # trades.csv 경로 해석: 컨테이너는 `data/reports` 를 마운트하지 않는다(실측 2026-10-04) →
+    # 호스트 경로가 없으면 서비스 내부 복사본(`app/reports/...`)을 쓴다. 둘 다 없으면 명확히 알린다.
+    candidates = [args.trades,
+                  "/app/app/reports/close_gate_probe_trades.csv",
+                  "/home/jhshi/analyist_dd/data/reports/close_gate_probe/trades.csv"]
+    trades_path = next((p for p in candidates if p and os.path.exists(p)), None)
+    if trades_path is None:
+        print(f"[c] trades 없음 — 시도한 경로: {candidates}\n"
+              f"    (호스트에서 복사하라: cp data/reports/close_gate_probe/trades.csv "
+              f"services/xgboost-ml/app/reports/close_gate_probe_trades.csv)", flush=True)
         return {}
     t = fe.load_trades(trades_path)          # code/date 표준화 + score 열 포함
     rows = list(zip(t["code"].tolist(), t["date"].tolist()))
@@ -415,14 +422,20 @@ def main(argv=None) -> int:
         out["b_robust_auc"] = part_b(models, pipeline, conn, args)
     if "c" not in skip:
         pipeline._cache.clear()
-        out["c_net_expectancy"] = part_c(models, pipeline, conn, args)
+        c_res = part_c(models, pipeline, conn, args)
+        # ⚠ trades.csv 를 못 찾으면 part_c 가 **빈 dict** 를 돌려준다 → 그대로 넣으면 상관 계산이
+        # 깨진다(실측 2026-10-04: KeyError 'n' 으로 15분 측정이 통째로 날아감). 비었으면 아예 뺀다.
+        if c_res:
+            out["c_net_expectancy"] = c_res
+        else:
+            print("[c] 건너뜀 — 순기대 증거 없이 저장한다(승격 게이트는 증거 없음으로 거부)", flush=True)
 
     if all(k in out for k in ("a_live_signal", "b_robust_auc", "c_net_expectancy")):
-        out["correlation"] = correlate(out["a_live_signal"], out["b_robust_auc"],
-                                       out["c_net_expectancy"])
-        print("\n[correlation] (스피어만 순위상관, n=%d)" % out["correlation"]["n"],
-              flush=True)
-        print(json.dumps(out["correlation"], ensure_ascii=False, indent=2), flush=True)
+        corr = correlate(out["a_live_signal"], out["b_robust_auc"], out["c_net_expectancy"])
+        if "n" in corr:
+            out["correlation"] = corr
+            print("\n[correlation] (스피어만 순위상관, n=%d)" % corr["n"], flush=True)
+            print(json.dumps(corr, ensure_ascii=False, indent=2), flush=True)
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
