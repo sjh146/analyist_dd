@@ -99,7 +99,8 @@ def envelope_check(obj: dict, sb: dict | None) -> dict:
     if equity and pnl is not None and pnl / equity < -limits["daily_loss_limit_pct"]:
         out["breaches"].append(f"누적 실현손익 {pnl}원 < 일 손실한도 {limits['daily_loss_limit_pct'] * 100}%×자본")
     if real.get("fees_unbooked_flag"):
-        out["breaches"].append("수수료 미계상(fees=0) — 순손익 신뢰도 결손")
+        out["breaches"].append("수수료 미계상 — 과거 청산은 브로커 API(CpTd6032)가 당일만 제공해 "
+                               "복구 불가(추정으로 채우지 않음). 신규 청산부터 16:05 틱이 자동 계상")
     return out
 
 

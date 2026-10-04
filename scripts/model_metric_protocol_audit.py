@@ -28,8 +28,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import pickle
 import statistics
 import sys
 import time
@@ -49,6 +51,41 @@ from app.models.ensemble_model import EnsembleModel  # noqa: E402
 
 CONF = 0.55
 ROUND_TRIP = (fe.FEE_BUY + fe.FEE_SELL + fe.TAX_SELL) * 100.0   # 0.21 %p
+
+# ── 피처 패널 디스크 캐시 (2026-10-04, 비용 최적화) ────────────────────────────────
+# WHY: 피처 빌드가 측정 비용의 대부분이다(실측 757s ≈ 13분). 후보(매일)와 챔피언 기준선(월요일)은
+# 같은 격자·같은 행 집합을 쓰므로 **같은 패널을 두 번 빌드**하고 있었다 → 그 두 번째를 없앤다.
+# 안전 규칙(조용한 오염 금지): 키에 ①격자 파라미터 ②데이터 지문(마지막 거래일·행 수) ③행 집합 지문
+# ④CACHE_VERSION 을 모두 넣는다. 하나라도 다르면 MISS 다. HIT/MISS 를 항상 로그에 남긴다.
+# 랭크 주입은 크로스섹션(그 날의 종목 집합)에 의존하므로 **행 집합 지문이 반드시 키에 있어야** 한다.
+CACHE_VERSION = 1
+PANEL_CACHE_DIR = "/app/app/models/_panel_cache"
+_CACHE = {"sig": None, "enabled": True}
+
+
+def _rows_fingerprint(rows) -> str:
+    h = hashlib.sha256()
+    for code, date in sorted((str(c), str(d)) for c, d in rows):
+        h.update("{0}|{1}\n".format(code, date).encode())
+    return h.hexdigest()[:16]
+
+
+def set_cache_signature(args, conn) -> None:
+    """격자 + 데이터 지문으로 캐시 서명을 만든다. 실패하면 캐시를 끈다(안전)."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute("select max(trade_date), count(*) from market_data")
+            row = cur.fetchone()
+        data_fp = "{0}_{1}".format(row[0], row[1])
+    except Exception as exc:                     # 데이터 지문을 못 얻으면 캐시 금지
+        print("[build] 패널 캐시 비활성(데이터 지문 실패: {0})".format(exc), flush=True)
+        _CACHE["sig"] = None
+        return
+    grid = "{0}-{1}-{2}-{3}-{4}-{5}".format(args.folds, args.dates_per_fold, args.stocks,
+                                            args.horizon, args.label_kind, args.topk)
+    _CACHE["sig"] = "v{0}_{1}_{2}".format(CACHE_VERSION, grid, data_fp)
+    os.makedirs(PANEL_CACHE_DIR, exist_ok=True)
+    print("[build] 패널 캐시 서명 {0}".format(_CACHE["sig"]), flush=True)
 
 DEFAULT_MODELS = [
     ("champion", "/app/app/models/champion"),
@@ -88,7 +125,29 @@ def read_single_split_auc(d):
 
 # ── 공통: (code, date) → 피처 빌드 + 날짜별 크로스섹션 랭크 ─────────────────────────
 def build_features_for(rows, pipeline, verbose=True):
-    """rows: [(code, date), ...]. 반환: {date: {code: feats}} (rank 주입 완료)."""
+    """rows: [(code, date), ...]. 반환: {date: {code: feats}} (rank 주입 완료).
+
+    디스크 캐시(2026-10-04): 키 = 격자·데이터 지문·행 집합 지문. 같은 행 집합을 다시 요청하면
+    빌드(≈13분)를 건너뛴다 — 후보(매일)와 챔피언 기준선(월요일)이 같은 패널을 두 번 빌드하던 비용.
+    HIT/MISS 는 항상 로그에 남긴다(조용한 재사용 금지).
+    """
+    cache_path = None
+    if _CACHE["enabled"] and _CACHE["sig"]:
+        key = "{0}_{1}".format(_CACHE["sig"], _rows_fingerprint(rows))
+        cache_path = os.path.join(PANEL_CACHE_DIR, "panel_{0}.pkl".format(key))
+        if os.path.exists(cache_path):
+            t0 = time.time()
+            try:
+                with open(cache_path, "rb") as fh:
+                    cached = pickle.load(fh)
+                print("    [build] PANEL CACHE HIT {0} ({1}일, {2:.0f}s)".format(
+                    key, len(cached), time.time() - t0), flush=True)
+                return cached
+            except Exception as exc:              # 손상 캐시는 버리고 다시 빌드(추측 금지)
+                print("    [build] PANEL CACHE 손상({0}) — 재빌드".format(exc), flush=True)
+        else:
+            print("    [build] PANEL CACHE MISS {0}".format(key), flush=True)
+
     by_date = defaultdict(list)
     for code, date in rows:
         by_date[date].append(code)
@@ -110,6 +169,16 @@ def build_features_for(rows, pipeline, verbose=True):
         out[date] = feats
         if verbose and len(out) % 25 == 0:
             print(f"    [build] {len(out)}일 완료 {time.time() - t0:.0f}s", flush=True)
+    if cache_path:                                # 성공한 빌드만 저장한다
+        try:
+            os.makedirs(PANEL_CACHE_DIR, exist_ok=True)
+            tmp = cache_path + ".tmp"
+            with open(tmp, "wb") as fh:
+                pickle.dump(out, fh, protocol=4)
+            os.replace(tmp, cache_path)           # 원자적 교체(반쯤 쓰인 캐시 금지)
+            print("    [build] PANEL CACHE 저장 {0}".format(os.path.basename(cache_path)), flush=True)
+        except Exception as exc:
+            print("    [build] 캐시 저장 실패({0}) — 무시하고 진행".format(exc), flush=True)
     return out
 
 
@@ -382,6 +451,8 @@ def main(argv=None) -> int:
     ap.add_argument("--horizon", type=int, default=5)
     ap.add_argument("--label-kind", choices=("rel", "abs"), default="rel")
     ap.add_argument("--skip", default="", help="콤마 구분: a,b,c 중 건너뛸 파트")
+    ap.add_argument("--no-panel-cache", action="store_true",
+                    help="피처 패널 디스크 캐시를 쓰지 않는다(항상 새로 빌드)")
     ap.add_argument("--robust-oos-out", default=None,
                     help="모델이 1개일 때 그 디렉토리에 champion_promote 용 OOS 지표 JSON 을 쓴다")
     args = ap.parse_args(argv)
@@ -400,6 +471,8 @@ def main(argv=None) -> int:
 
     conn = ss.get_pg_conn()
     pipeline = FeaturePipeline(pg_conn=conn)
+    _CACHE["enabled"] = not bool(getattr(args, "no_panel_cache", False))
+    set_cache_signature(args, conn)
     skip = {x for x in args.skip.split(",") if x}
     out = {
         "config": {"topk": args.topk, "max_day_chg": args.max_day_chg,
