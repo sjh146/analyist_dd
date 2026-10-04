@@ -349,12 +349,15 @@ def build_panel(cache, limit, days, log=print, end_date=None, universe="curated"
     return df, available
 
 
-def make_labels(df, kind, horizon, q):
-    """라벨 생성. kind: quantile(기본) / relative(시장상대) / smooth / voladj / voladj_smooth.
+def make_labels(df, kind, horizon, q, thresh=None):
+    """라벨 생성. kind: quantile(기본) / relative(시장상대) / smooth / voladj / voladj_smooth / abs_thresh.
 
     ⚠ 시점정합: 모든 변형은 **앞만** 본다(선행수익 shift(-k), 후행변동성 rolling).
-    smooth   = 선행 1~h일 수익률의 평균 — 5일 보유와 정합, 라벨 잡음 축소.
-    voladj   = 선행 h일 수익률 ÷ 후행 20일 실현변동성(위험조정, 표준 관행).
+    smooth     = 선행 1~h일 수익률의 평균 — 5일 보유와 정합, 라벨 잡음 축소.
+    voladj     = 선행 h일 수익률 ÷ 후행 20일 실현변동성(위험조정, 표준 관행).
+    abs_thresh = **절대** 임계 라벨 — 선행 h일 수익률 >= thresh(예 +0.02) 를 1, 그 밖을 0.
+                 분위(quantile)와 달리 중간 분위를 버리지 않아 행 도메인이 넓고,
+                 양성률이 시장 국면에 따라 변한다(돈 지표와 같은 절대 단위 — CG107).
     """
     price = df.groupby("stock_code", sort=False)["price"]
     if kind in ("smooth", "voladj_smooth"):
@@ -371,6 +374,14 @@ def make_labels(df, kind, horizon, q):
         # 변동성 0/결측 → 라벨 결측(보수적: 추정 불가 구간은 학습에서 제외된다).
         ret = ret / vol.replace(0.0, np.nan)
     day = df["date"]
+    if kind == "abs_thresh":
+        # 절대 임계 라벨(CG107): 중간 분위를 버리지 않는다 → 행 도메인 = 수익률이 계산된 전 행.
+        # 미지원 kind 는 조용히 quantile 로 떨어지지 않도록 여기서 명시적으로만 처리한다.
+        if thresh is None:
+            raise RuntimeError("abs_thresh 라벨에는 thresh(절대 임계, 예 +0.02) 가 필요하다")
+        r = np.asarray(ret, dtype=float)
+        y = np.where(np.isnan(r), np.nan, np.where(r >= float(thresh), 1.0, 0.0))
+        return y
     if kind == "relative":
         med = ret.groupby(day).transform("median")
         y = (ret > med).astype(float)

@@ -897,6 +897,28 @@ CONFIGS = [
     {"id": "CN_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
      "codes_slice": [120, 150],
      "desc": "구간 [120:150) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_120_150"},
+    # ── CG107(2026-10-05): 라벨-돈 단위 정합 — 절대수익 임계 라벨 vs 분위 ────────────────
+    # 왜: 모든 기존 라벨은 **상대**(분위 q / 시장상대 중앙값)인데 돈 지표는 **절대**(%p/세션)다.
+    #     분위 라벨은 하락일에도 '그날 상위 30%' 를 양성으로 강제하지만, 절대 임계(>=+2%)는
+    #     상승일에 양성이 늘고 하락일에 줄어 국면에 적응한다. 중간 분위를 버리지 않아 행
+    #     도메인도 넓다 → AUC 를 직접 비교하지 말고 **같은 런·같은 구간 짝 Δ** 로만 판정한다.
+    # 대조군: 같은 런의 US_00_30..US_120_150 (게이트 ON · 분위0.30 h5 · 같은 구간, 라벨 정의만 다름)
+    # 성공 기준: 구간 짝 Δ(AT − US) 평균 ≥ +0.02 그리고 양(+) ≥ 4/5.
+    {"id": "AT_00_30", "kind": "abs_thresh", "horizon": 5, "q": 0.30, "thresh": 0.02,
+     "select": "top30", "core_only": True, "codes_slice": [0, 30],
+     "desc": "구간 [0:30) · 게이트 ON + 절대 임계 라벨(선행5일 >= +2%) — 짝 대조군 US_00_30"},
+    {"id": "AT_30_60", "kind": "abs_thresh", "horizon": 5, "q": 0.30, "thresh": 0.02,
+     "select": "top30", "core_only": True, "codes_slice": [30, 60],
+     "desc": "구간 [30:60) · 게이트 ON + 절대 임계 라벨(선행5일 >= +2%) — 짝 대조군 US_30_60"},
+    {"id": "AT_60_90", "kind": "abs_thresh", "horizon": 5, "q": 0.30, "thresh": 0.02,
+     "select": "top30", "core_only": True, "codes_slice": [60, 90],
+     "desc": "구간 [60:90) · 게이트 ON + 절대 임계 라벨(선행5일 >= +2%) — 짝 대조군 US_60_90"},
+    {"id": "AT_90_120", "kind": "abs_thresh", "horizon": 5, "q": 0.30, "thresh": 0.02,
+     "select": "top30", "core_only": True, "codes_slice": [90, 120],
+     "desc": "구간 [90:120) · 게이트 ON + 절대 임계 라벨(선행5일 >= +2%) — 짝 대조군 US_90_120"},
+    {"id": "AT_120_150", "kind": "abs_thresh", "horizon": 5, "q": 0.30, "thresh": 0.02,
+     "select": "top30", "core_only": True, "codes_slice": [120, 150],
+     "desc": "구간 [120:150) · 게이트 ON + 절대 임계 라벨(선행5일 >= +2%) — 짝 대조군 US_120_150"},
     # ── CG80(2026-10-03): 학습 목적함수(objective) 축 — 날짜별 횡단면 랭킹 ────────────────
     # 왜: 이 스택의 모든 arm(70+사이클)이 `binary:logistic`(행 독립) 하나를 공유한다. 그런데
     #     라벨은 '날짜내 분위'(횡단면 상대)라 학습이 날짜 경계를 모른다. rank:pairwise + group
@@ -1466,7 +1488,8 @@ def main():
                "ts": ml.now_iso(), "status": "failed", "folds": {}}
         ml.log(f"=== {exp_id}: {cfg['desc']} ===")
         try:
-            y = W.make_labels(df, cfg["kind"], cfg["horizon"], cfg["q"])
+            y = W.make_labels(df, cfg["kind"], cfg["horizon"], cfg["q"],
+                              thresh=cfg.get("thresh"))
             d = df.copy()
             # ── CG25 파생 피처(Δk): 라벨 결측 제거 **전에** 계산한다 ────────────────────
             # 왜 전에: 분위 라벨은 중간 분위도 NaN 이라, 결측 제거 후 shift 하면 Δ1 이 실제로는

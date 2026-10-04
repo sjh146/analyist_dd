@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-05T03:17:38+09:00",
+  "updated_at": "2026-10-05T04:1x+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -77,7 +77,7 @@
     {
       "id": "CG106",
       "title": "배포 챔피언 폴드 통계 새로고침 — 학습도메인 정합 유니버스·겹침창 제외 5창 (MT49 성적표 최신화)",
-      "status": "pending",
+      "status": "done",
       "priority": 3,
       "metric": "champion_robust_eval",
       "arm": "app/models/champion @ 학습유니버스(training, 200종목) · 5창×10일 · 겹침창 자동 제외",
@@ -93,7 +93,24 @@
       "expected": "챔피언 자체 성능 변화는 기대하지 않는다(성적표 신선도 목적)",
       "cost": "약 30~70분",
       "est_minutes": 45,
-      "note": "⚠ 학습구간 가정(--train-start/--train-end)이 틀리면 창이 과도하게 제외되거나 인샘플이 섞인다 — 로그의 '겹치는 창 N개 제외' 줄과 windows_excluded 를 확인하라. 이 항목은 승격 판정이 아니라 성적표(자료) 신선도 작업이다(AUC 개선 주장 금지)."
+      "note": "⚠ 학습구간 가정(--train-start/--train-end)이 틀리면 창이 과도하게 제외되거나 인샘플이 섞인다 — 로그의 '겹치는 창 N개 제외' 줄과 windows_excluded 를 확인하라. 이 항목은 승격 판정이 아니라 성적표(자료) 신선도 작업이다(AUC 개선 주장 금지).",
+      "attempts": [
+        {
+          "ts": "2026-10-05T03:33:25+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5148±0.0344 (시간창 3개 [0.4899, 0.5635, 0.4910]) · 풀링 0.5136 · 날짜별평균 0.5148 · 행 5950",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG106_20261005-031819.log",
+          "elapsed_min": 15.1
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5148±0.0344 (시간창 3개 [0.4899, 0.5635, 0.4910]) · 풀링 0.5136 · 날짜별평균 0.5148 · 행 5950",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG103",
@@ -410,15 +427,18 @@
     {
       "id": "F2",
       "title": "재무 피처 복구: DART rcept_dt + 기간유형 구분",
-      "status": "backlog",
+      "status": "closed_rejected",
       "priority": 5,
       "hypothesis": "연간/반기 혼재로 growth 피처가 무의미해졌고, as-of 패치 후 종목당 유니크값이 2~3개로 거의 상수다. 공시일(rcept_dt)이 있으면 as-of 정확도와 성장률 피처가 살아난다.",
-      "evidence": "as-of 패치 후 재무 11개 컬럼 종목당 유니크 중앙값 1→3 (여전히 극소). revenue_growth_yoy 가 H1-2026 vs FY2025 를 비교해 -48.6% 같은 엉뚱한 값.",
+      "evidence": "CG105(2026-10-05 03:14, rc=0, 7.2분): rcept-aware 격자(R12)로 재무 16컬럼 교체(셀 변경 33~95%) → 게이트 ON 5폴드 AUC 가 대조군과 소수점까지 동일(전 폴드 Δ 0.0000, arm=control) = 선별 top30 진입 0개(학습행렬 비트 동일). DB 실측: financial_ratio_features.rcept_dt 커버리지 96.9% · 접수일−기간말 연간 p50 77일(p95 82, 가정 90일 → 13일 보수적) · 가정 초과 44쌍(0.92%) · 반기 p50 45일 = 가정 45일 (초과 1.19%). → as-of 지연 가정은 실측상 거의 정확하고, 그 정확화의 ML 임팩트는 0.",
       "command": null,
       "metric": "dq_feature_coverage + wf_sweep_summary",
       "success": "재무 피처의 종목당 유니크값 증가 + 폴드 평균 유지 또는 상승",
       "expected": "미지 (데이터 확보가 선행 조건)",
-      "cost": "DART 수집 + 피처 재계산"
+      "cost": "DART 수집 + 피처 재계산",
+      "closed_at": "2026-10-05T04:0x+09:00",
+      "closed_by": "quant-model-engineer (CG105 실측)",
+      "closed_reason": "재무 as-of 정확화 축은 CG105 로 ML 임팩트 0 이 실측됐다 — 격자 교체가 선별 top30 에 들어가지 않으면 AUC 는 움직이지 않는다(CG67/EV1 과 같은 기제). 재개 조건: 재무 컬럼이 게이트 top30 에 진입하는 새 피처 정의가 생길 때만."
     },
     {
       "id": "C1",
@@ -474,7 +494,7 @@
     {
       "id": "XR1",
       "title": "[리서처 R1] 실제 공시 접수일(rcept_dt)로 재무 as-of 정확화 + 재측정",
-      "status": "needs_setup",
+      "status": "closed_rejected",
       "priority": 5,
       "from_research": "R1",
       "arm": "LS_quant_q30_h5",
@@ -486,13 +506,16 @@
       "command": null,
       "metric": "wf_sweep_summary",
       "hypothesis": "실제 rcept_dt 로 교체하면 사업보고서의 불필요한 12일 지연을 없앨 수 있다(반기·분기는 이미 정확해 변화 없음). 순효과는 미지 — 최신 정보 활용은 보통 성능을 올리지만 폴드 분산이 커질 수 있다.",
-      "evidence": "리서처 R1 실측 — **표본 확대 후 정정**(disclosures 22,278행 / 3,025종목 / 2025-01-03~2026-09-23, 월별 커버리지가 한국 공시 달력과 일치: 3월 3,211·5월 2,872·8월 3,142·11월 2,830):\n  - 사업보고서: n=6,559, 지연 **중간값 78일** (평균 97, 최대 956=정정공시)\n  - 반기보고서: n=2,708, 지연 **중간값 45일** (최대 85)\n  - 분기보고서: n=24, 지연 **중간값 44.5일**\n→ 결론: **반기 45일·분기 45일 가정은 정확**하고, **사업보고서 90일 가정만 과도하게 보수적**이다(실제 78일 → 12일 정보 손실). as-of 누수는 없다.\n※ 정정 이력: 앞선 보고에서 '반기 45일 가정은 누수 위험(p50 63일)'이라 했으나 그때 표본이 n=24(늦게 제출된 편향 부분집합)였다. n=2,708 로 재측정하니 중간값이 정확히 45일이었다 — 소표본 결론이었다.",
+      "evidence": "CG105(2026-10-05 03:14, rc=0, 7.2분): rcept-aware 격자(R12)로 재무 16컬럼 교체(셀 변경 33~95%) → 게이트 ON 5폴드 AUC 가 대조군과 소수점까지 동일(전 폴드 Δ 0.0000, arm=control) = 선별 top30 진입 0개(학습행렬 비트 동일). DB 실측: financial_ratio_features.rcept_dt 커버리지 96.9% · 접수일−기간말 연간 p50 77일(p95 82, 가정 90일 → 13일 보수적) · 가정 초과 44쌍(0.92%) · 반기 p50 45일 = 가정 45일 (초과 1.19%). → as-of 지연 가정은 실측상 거의 정확하고, 그 정확화의 ML 임팩트는 0.",
       "success": "공시지연 가정을 실제 접수일 기준으로 교체 후 ① dq_asof_violation_rows == 0 유지 ② 폴드 평균이 0.5406 대비 −0.02 이내 또는 개선",
       "expected": "미지 (피처가 살아나면 +, 아니면 무변화)",
       "cost": "패치 적용 30분 + 재측정 1시간",
       "note": "command 예시(엔지니어가 확정): ① company_features 의 지연 계산을 disclosures join 으로 교체 ② /usr/bin/python3 scripts/patch_panel_asof.py 로 패널 재패치 ③ docker exec stock_xgboost_ml ... wf_label_sweep.py --only LS_quant_q30_h5 ④ dq_asof_violation_rows == 0 확인",
       "promoted_from": "handoff",
-      "promoted_at": "2026-10-02T01:53:15+09:00"
+      "promoted_at": "2026-10-02T01:53:15+09:00",
+      "closed_at": "2026-10-05T04:0x+09:00",
+      "closed_by": "quant-model-engineer (CG105 실측)",
+      "closed_reason": "재무 as-of 정확화 축은 CG105 로 ML 임팩트 0 이 실측됐다 — 격자 교체가 선별 top30 에 들어가지 않으면 AUC 는 움직이지 않는다(CG67/EV1 과 같은 기제). 재개 조건: 재무 컬럼이 게이트 top30 에 진입하는 새 피처 정의가 생길 때만."
     },
     {
       "id": "U1B",
@@ -6750,7 +6773,7 @@
       "command": null,
       "metric": "wf_sweep_summary",
       "hypothesis": "financial_statements 10,370행이 연간/반기 혼재로 growth 피처가 깨져 있고 ROA/ROE/부채비율/PER/PBR 등 기본 비율이 아예 없다. rcept_dt 확보로 구분 가능해졌다.",
-      "evidence": "리서처 R12 결과: [저작생략] 산출물 이미 존재(scripts/build_financial_ratio_features.py) — 저작 생략 | R12: 0 <= 1 → 충족",
+      "evidence": "CG105(2026-10-05 03:14, rc=0, 7.2분): rcept-aware 격자(R12)로 재무 16컬럼 교체(셀 변경 33~95%) → 게이트 ON 5폴드 AUC 가 대조군과 소수점까지 동일(전 폴드 Δ 0.0000, arm=control) = 선별 top30 진입 0개(학습행렬 비트 동일). DB 실측: financial_ratio_features.rcept_dt 커버리지 96.9% · 접수일−기간말 연간 p50 77일(p95 82, 가정 90일 → 13일 보수적) · 가정 초과 44쌍(0.92%) · 반기 p50 45일 = 가정 45일 (초과 1.19%). → as-of 지연 가정은 실측상 거의 정확하고, 그 정확화의 ML 임팩트는 0. 또한 격자의 roe/per_current/pbr_current 는 같은 패널의 quality_roe/value_per/value_pbr 와 100% 동일(중복열)이다.",
       "success": "19개 중 3개 이상 nonzero(실측 18) + dq_asof_violation_rows 0 유지 + 재무비율 격자 최신일이 시장 최신일 대비 1거래일 이내",
       "expected": "미지",
       "cost": "2~3시간(기간유형 구분 포함)",
@@ -11702,6 +11725,49 @@
         "delta": null
       },
       "note": "2026-10-05 01:3x 등록·실행(장외 자율 틱, panel_feature_screen 3.5분 — 패널 재빌드 없이 컬럼만 append). 부수 데이터품질 실측: `disclosures` 에 (stock_code, rcept_dt) 다중행 그룹이 **44,302개**이고 005930 은 2026-02-06 하루에 **933행**(서로 다른 rcept_no, report_nm='임원ㆍ주요주주특정증권등소유상황보고서') → 건수형 피처는 대량 동일자 보고서에 지배된다(최대 451건/5일). 정제판(일자별 존재여부·임원소유 보고서 제외)을 만들 수는 있으나 최대 edge 0.0042 라 회수 가치가 없다 — **그래서 이 축은 정제 없이 닫는다**. CG67 의 '부활=성능 아님' 결론은 커버리지 120배 확대 후에도 유지됨을 확인했다(결론은 같고 근거는 강해졌다). 재현물: scripts/patch_panel_disclosures_multi.py · 서비스 컨테이너 산출물 reports/overnight/panel_prod200_disc_screen.json."
+    },
+    {
+      "id": "CG107",
+      "title": "라벨-돈 정합: 절대수익 임계 라벨(≥ +2%) vs 분위(q0.30) — 교육 목적함수를 돈 단위에 맞춘다 (기록상 0회)",
+      "status": "pending",
+      "priority": 4,
+      "affects_model": true,
+      "arm": "AT_00_30..AT_120_150 (게이트 ON + kind=abs_thresh(thresh=+0.02, h5) + 5서로소 구간)",
+      "baseline": {
+        "value": null,
+        "source": "US_00_30..US_120_150 (같은 런·같은 구간·게이트 ON + 분위0.30 h5, 라벨 정의만 다름)"
+      },
+      "hypothesis": "현재 모든 라벨은 **상대(relative)** 다(분위 q / 시장상대 중앙값) — 그런데 돈 지표는 **절대**(%p/세션)다. 분위 라벨은 하락일에도 '그날 상위 30%' 를 양성으로 강제해, '아무것도 안 오른 날'을 학습 신호로 넣는다. 절대 임계 라벨(ret >= +2%)은 상승일엔 양성이 늘고 하락일엔 줄어 **시장 국면에 적응**하며, 돈 지표와 같은 단위(절대 수익)를 최적화한다. 'AUC 는 올랐는데 돈은 평평'(CG96~CG103)의 한 원인이 이 단위 불일치인가.",
+      "evidence": "① CG96~CG103 실측: 모델 top-k 가 세션 풀 평균을 넘지 못한다(k=3..30 Δ≤+0.23, t<1.1). ② 라벨 kind 축에서 rel(시장상대 중앙값) vs abs(방향)는 측정됐지만(CG36/CG37: 0.4410 vs 0.4719), **절대 임계(threshold)** 라벨은 기록상 0회다(모든 config 의 kind 는 quantile/smooth/voladj/relative). ③ 분위 라벨은 중간 분위를 버려 행 도메인이 좁아지지만(양성 30%/일 고정), 절대 임계는 전 행을 남기고 양성률이 날짜에 따라 변한다 — 과제 정의가 달라 직접 AUC 비교가 아니라 **같은 런·같은 구간 짝 Δ** 로만 판정한다. ④ [2026-10-05 셋업 완료] make_labels(abs_thresh) 9/9 PASS · config 파싱 회귀 ALL PASS(184) · panel_prod200 존재 확인.",
+      "method": "① wf_wave.make_labels 에 kind='abs_thresh' 분기 신설: ret = 선행 h일 수익률(shift(-h)), y = 1.0 if ret >= thresh else 0.0, 결측 유지(중간 분위 버리지 않음). 기본 인자 thresh=None 이면 기존 경로 비트 동일(프로덕션 무변경). 미지원 kind 는 **즉시 RuntimeError**(조용한 폴백 금지 — EV1 사고). ② config AT_* 5개 등록(게이트 ON·h5·codes_slice, US_* 와 라벨 정의만 다름). ③ 자체점검 `scripts/_abs_thresh_label_test.py`: 경계값·결측·원소 단위 대조(합성 df) + 기본 경로(quantile) 회귀. ④ 시점정합: 선행수익만 사용(누수 없음).",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only AT_00_30,AT_30_60,AT_60_90,AT_90_120,AT_120_150,US_00_30,US_30_60,US_60_90,US_90_120,US_120_150'",
+      "check": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_abs_thresh_label_test.py",
+      "success": "구간 짝 Δ 평균 >= +0.02 이고 양(+) 구간 >= 4/5 → 라벨-돈 단위 정합이 신호(→ 후속: 생산 경로 retrain_champion 라벨 옵션 반영 검토). 그 밖은 '노이즈'로 축 종결.",
+      "counterfactual": "US_00_30..US_120_150 (풀링 edge top30 · 게이트 ON · 분위0.30 h5, 같은 런·같은 구간)",
+      "setup_needed": "완료(2026-10-05 04:1x): kind='abs_thresh' 구현 + AT_* config + 자체점검 9/9 PASS + 기존 config 회귀 ALL PASS. 남은 것은 실행뿐 — est_minutes 40 은 CG105 실측(8.6s/cell × 250 cell)에서 산출했고 컨테이너 timeout 은 그 3배(7200s)로 잡았다.",
+      "est_minutes": 40,
+      "pairs": [
+        [
+          "AT_00_30",
+          "US_00_30"
+        ],
+        [
+          "AT_30_60",
+          "US_30_60"
+        ],
+        [
+          "AT_60_90",
+          "US_60_90"
+        ],
+        [
+          "AT_90_120",
+          "US_90_120"
+        ],
+        [
+          "AT_120_150",
+          "US_120_150"
+        ]
+      ]
     }
   ]
 }
