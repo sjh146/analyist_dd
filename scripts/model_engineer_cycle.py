@@ -713,6 +713,14 @@ def summary_path(kind, command=None):
         if out.startswith("/app/"):
             return _container_path_to_host(out)
         return out if os.path.isabs(out) else os.path.join(PROJ, out)
+    if kind == "intraday_screen":
+        # 인트라데이(분봉) 피처 **사전 스크린**(scripts/intraday_feature_screen.py --json-out). CG128.
+        # 데이터 축(CG101)의 첫 측정 — 수집기 결함(XR26)으로 지금은 장마감 30분(15:01~15:30)만 쌓인다.
+        # 그 구간만으로도 '종가 동시호가 전 매매압력'이라는 별개 정보를 담는지 먼저 채점한다.
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg128_intraday_screen.json")
     if kind == "champion_seed_family":
         # 다중 시드(유니버스) 짝 판정 집계(scripts/champion_seed_family_agg.py --agg-out). CG50/CG51.
         # 왜 전용 metric 인가(실측 2026-10-01): 같은 모델·같은 창에서 유니버스 정체만 바꿔도
@@ -1221,6 +1229,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_regime_ic_screen(spath, mtime_floor)
     if kind == "champion_scorecard":
         return parse_champion_scorecard(spath, mtime_floor)
+    if kind == "intraday_screen":
+        return parse_intraday_screen(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -2041,6 +2051,101 @@ def judge_regime_ic_screen(item, parsed) -> tuple:
         None if dd is None else round(dd, 4))
 
 
+def parse_intraday_screen(path, mtime_floor) -> dict:
+    """인트라데이(분봉) 피처 사전 스크린(scripts/intraday_feature_screen.py --json-out) 파서. CG128.
+
+    스키마: {full_days:[...], n_rows:int,
+             horizons:{"h1":{n_dates, dates, features:{name:{daily_auc_mean, daily_auc_std,
+                      daily_auc_list, ic_mean, ic_t}}}, "h5":{...}}}
+    ⚠ per_exp 를 만들지 않는다 — scoreboard 가 'arm 폴드 AUC' 로 오독한다(2026-09-29 교훈).
+    판정 입력은 **날짜별 IC(|평균|)·t·표본 날짜수(n_dates)** 이고 AUC 는 참고값이다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if d.get("error"):
+        return {"error": d["error"], "summary_mtime": mt}
+    hz = d.get("horizons") or {}
+    if not hz:
+        return {"error": "horizons 없음(집계 실패)", "summary_mtime": mt}
+    out = {"metric_name": "intraday_screen", "full_days": d.get("full_days"),
+           "n_rows": d.get("n_rows"), "horizons": {}, "summary_mtime": mt}
+    for h, blk in hz.items():
+        feats = (blk or {}).get("features") or {}
+        best = None                      # (|ic|, name, 블록)
+        for name, v in feats.items():
+            if not isinstance(v, dict):
+                continue
+            ic = v.get("ic_mean")
+            key = abs(ic) if isinstance(ic, (int, float)) else -1.0
+            if best is None or key > best[0]:
+                best = (key, name, v)
+        out["horizons"][h] = {
+            "n_dates": (blk or {}).get("n_dates") or 0,
+            "dates": (blk or {}).get("dates") or [],
+            "n_features": len(feats),
+            "best_feature": (best[1] if best else None),
+            "best_ic": (None if not best else best[2].get("ic_mean")),
+            "best_ic_t": (None if not best else best[2].get("ic_t")),
+            "best_auc": (None if not best else best[2].get("daily_auc_mean")),
+            "aucs": {n: v.get("daily_auc_mean") for n, v in feats.items() if isinstance(v, dict)},
+            "ics": {n: v.get("ic_mean") for n, v in feats.items() if isinstance(v, dict)},
+        }
+    return out
+
+
+def judge_intraday_screen(item, parsed) -> tuple:
+    """인트라데이 피처 스크린 판정 — 사전등록 문턱을 실행 전에 고정한 그대로 적용한다.
+
+      정보있음 : 어떤 호라이즌에 |IC 평균| >= min_delta_ic AND |t| >= min_t 인 피처가 있고
+                 그 호라이즌의 n_dates >= min_dates
+      판정불가 : 위를 만족할 수 있는 호라이즌의 n_dates 가 min_dates 미만(표본 부족)
+                 → **결과를 보고 문턱을 낮추지 않는다**(관찰-후-재현 규율)
+      노이즈   : 표본은 충분한데 통과 피처가 없음
+    ⚠ 분기는 항목 플래그 `intraday_test` 로 한다(다른 규칙으로 조용히 폴백하지 않게).
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    test = item.get("intraday_test") or "feature_ic"
+    if test != "feature_ic":
+        return "판정불가", f"알 수 없는 intraday_test={test!r}", None
+    min_d = float(item.get("min_delta_ic") or 0.03)
+    min_t = float(item.get("min_t") or 2.0)
+    min_n = int(item.get("min_dates") or 20)
+    hz = parsed.get("horizons") or {}
+    lines, best_abs, max_n = [], None, 0
+    for h in sorted(hz):
+        b = hz[h] or {}
+        nd = int(b.get("n_dates") or 0)
+        max_n = max(max_n, nd)
+        ic, tt = b.get("best_ic"), b.get("best_ic_t")
+        ba = b.get("best_auc")
+        lines.append("%s: n_dates %d · 최강 %s (IC %s · t %s · AUC %s)"
+                     % (h, nd, b.get("best_feature"),
+                        None if ic is None else round(ic, 4),
+                        None if tt is None else round(tt, 2),
+                        None if ba is None else round(ba, 4)))
+        if (isinstance(ic, (int, float)) and nd >= min_n and abs(ic) >= min_d
+                and isinstance(tt, (int, float)) and abs(tt) >= min_t):
+            best_abs = abs(ic) if best_abs is None else max(best_abs, abs(ic))
+    detail = " | ".join(lines) + f" · 사전문턱 |IC|>={min_d} & |t|>={min_t} & n_dates>={min_n}"
+    if best_abs is not None:
+        return "정보있음", detail + " → 문턱 통과 피처 있음", round(best_abs, 4)
+    if max_n < min_n:
+        return "판정불가", detail + f" → 표본 부족(n_dates {max_n} < {min_n}) — 문턱을 낮추지 않는다", None
+    return "노이즈", detail + " → 문턱 통과 피처 없음", None
+
+
 def parse_factor_money_screen(path, mtime_floor) -> dict:
     """고전 팩터 랭킹 정보 스크린(scripts/factor_money_screen.py --out) 파서.
 
@@ -2241,6 +2346,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_regime_ic_screen(item, parsed)
     if kind == "champion_scorecard":
         return judge_champion_scorecard(item, parsed)
+    if kind == "intraday_screen":
+        return judge_intraday_screen(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 

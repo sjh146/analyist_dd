@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-06T02:06:41+09:00",
+  "updated_at": "2026-10-06T06:12:59+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12773,6 +12773,46 @@
       },
       "finding": "CG126 의 저변동 국면 IC 우위는 서로소 2표본에서 재현되지 않았다(하나는 부호 반전) → 국면 조건화 축 종결. 이로써 XR11 재개 조건까지 닫혀, 모델측 레버는 0 이다(잔여=데이터 축).",
       "setup_needed": null
+    },
+    {
+      "id": "CG128",
+      "title": "인트라데이(분봉) 피처 사전 스크린 — 데이터 축(CG101) 첫 측정 (장마감 30분 구간 · 표본 5일)",
+      "status": "done",
+      "priority": 1,
+      "from_research": null,
+      "arm": null,
+      "counterfactual": "null(해시 기반 결정적 난수)·return_1d·gap·day_range(일봉 유도, 같은 행) · 동전 AUC 0.5",
+      "baseline": null,
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/intraday_feature_screen.py --json-out /app/reports/overnight/cg128_intraday_screen.json'",
+      "metric": "intraday_screen",
+      "intraday_test": "feature_ic",
+      "min_delta_ic": 0.03,
+      "min_t": 2.0,
+      "min_dates": 20,
+      "est_minutes": 2,
+      "hypothesis": "수집기 결함(XR26)으로 분봉이 장마감 30분(15:01~15:30)만 쌓이지만, 이 구간은 '종가 동시호가 전 매매압력'이라는 별개 정보 클래스다. 30봉에서 유도한 l30_*(ret·range·vwap_dev·slope·vol_share·tv_share·up_ratio·realvol) 가 다음날(h1)/5일(h5) 방향에 대해 일봉 유도 대조군(return_1d·gap·day_range)과 잡음 바닥(null)을 넘는 날짜별 횡단면 IC/AUC 를 갖는가. 수집기 수리 승인 전에 '축의 기대값'을 먼저 채점한다.",
+      "success": "사전등록: 날짜별 IC |평균| >= 0.03 AND |t| >= 2 AND n_dates >= 20 인 피처 >= 1개 → '정보있음'. n_dates < 20 이면 판정불가(문턱 하향 금지).",
+      "expected": "장마감 30분만으로는 폴드/세션 표본이 5일에 그쳐(현 DB 6거래일) 유의 검정이 불가하다 → 1차는 '판정불가(표본 부족)'가 정상이며, XR26(전 구간 수집) 승인 후 누적되면 같은 도구로 재판정한다.",
+      "cost": "저(읽기 전용 2분). DB 분봉 45,120행·301종목·6거래일.",
+      "note": "도구 scripts/intraday_feature_screen.py(2026-10-06 신설, 읽기 전용). ⚠ 이 항목은 '결과를 보고 문턱을 낮추지 않는다' — 표본이 차면 같은 사전문턱으로 재판정한다. XR26 승인 전에는 데이터 축 전체가 이 5일 표본에 묶여 있다.",
+      "attempts": [
+        {
+          "ts": "2026-10-06T06:12:59+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "h1: n_dates 4 · 최강 return_1d (IC -0.1052 · t -2.61 · AUC 0.4718) | h5: n_dates 0 · 최강 l30_ret (IC None · t None · AUC None) · 사전문턱 |IC|>=0.03 & |t|>=2.0 & n_dates>=20 → 표본 부족(n_dates 4 < 20) — 문턱을 낮추지 않는다",
+          "log": "",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "판정불가",
+        "detail": "h1: n_dates 4 · 최강 return_1d (IC -0.1052 · t -2.61 · AUC 0.4718) | h5: n_dates 0 · 최강 l30_ret (IC None · t None · AUC None) · 사전문턱 |IC|>=0.03 & |t|>=2.0 & n_dates>=20 → 표본 부족(n_dates 4 < 20) — 문턱을 낮추지 않는다",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     }
   ],
   "updated": "2026-10-05T09:30:00+09:00"
