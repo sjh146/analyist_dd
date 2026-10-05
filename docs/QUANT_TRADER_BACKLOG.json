@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-05T08:42:15+09:00",
+  "updated_at": "2026-10-05T09:25:43+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -29,7 +29,7 @@
       "cost": "저",
       "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
       "result": {
-        "ts": "2026-10-02T09:26:05+09:00",
+        "ts": "2026-10-05T09:25:43+09:00",
         "value": 0.0,
         "check": "0.0 >= 1.0",
         "verdict": "미달",
@@ -130,7 +130,7 @@
     {
       "id": "T5",
       "title": "건당 기대값 흑자 전환",
-      "status": "failed",
+      "status": "pending",
       "priority": 5,
       "command": "python3 scripts/trader_cycle.py --probe expectancy",
       "metric": "expectancy_krw",
@@ -216,7 +216,7 @@
     {
       "id": "T8",
       "title": "피드 지정가가 최신 종가와 벌어졌는가 (close_price 편차)",
-      "status": "failed",
+      "status": "pending",
       "priority": 8,
       "command": "python3 scripts/trader_cycle.py --probe feed_price_dev",
       "metric": "feed_price_dev_pct",
