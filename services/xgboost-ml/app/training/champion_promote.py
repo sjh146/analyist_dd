@@ -315,6 +315,25 @@ def promote(
         if why:
             result["status"] = "kept_incumbent"
             result["reason"] = "돈 기준 게이트 거부: " + why
+            # ⚠ 실측 갭 수리(2026-10-05 CG122): 종전엔 이 분기에서 **판정 대상 수치가 통째로
+            # 비었다** — 아래 result.update({...}) 는 게이트 **뒤**에 있어서, 돈 기준으로 거부된
+            # 후보의 요약 JSON 은 status·reason 만 있고 auc·champion_baseline 이 전부 null 이었다
+            # (실측: cg122_promote.json → auc null · baseline null). 감사·재검증에 필요한
+            # '무엇을 막았는가'가 사라지므로 거부 분기에서도 같은 키를 채운다.
+            _base = _champion_baseline(champion_dir, legacy_baseline_cap)
+            result.update({
+                "candidate_auc": round(cand_auc, 4),
+                "candidate_metric": cand_metric,
+                "candidate_robust_oos_auc": (robust_oos or {}).get("value"),
+                "champion_auc_before": round(_read_champion_auc(champion_dir), 4),
+                "champion_baseline": round(float(_base["value"]), 4),
+                "champion_baseline_source": _base["source"],
+                "model_aucs": meta.get("model_aucs", {}),
+                "n_rows": meta.get("n_rows"),
+                "n_features": meta.get("n_features"),
+                "up_rate": meta.get("up_rate"),
+                "retrained_at": meta.get("retrained_at"),
+            })
             logger.warning("promote skipped: %s", result["reason"])
             return result
     baseline = _champion_baseline(champion_dir, legacy_baseline_cap)
@@ -453,13 +472,13 @@ def main() -> int:
     ap.add_argument("--require-expectancy", action="store_true",
                     help="체결 가능 OOS 순기대 증거가 없거나 기준 미달이면 승격 거부")
     ap.add_argument("--min-expectancy-pct", type=float, default=0.0,
-                    help="후보 순기대 하한(%p). 기본 0 = 양수 요구")
+                    help="후보 순기대 하한(%%p). 기본 0 = 양수 요구")
     ap.add_argument("--min-expectancy-sessions", type=int, default=40,
                     help="최소 세션 수(얇은 표본의 운값 배제)")
     ap.add_argument("--min-expectancy-trades", type=int, default=30,
                     help="최소 표본(후보 행) 수")
     ap.add_argument("--min-expectancy-improvement-pct", type=float, default=0.1,
-                    help="챔피언 기준선(같은 프로토콜) 대비 최소 개선폭(%p)")
+                    help="챔피언 기준선(같은 프로토콜) 대비 최소 개선폭(%%p)")
     ap.add_argument("--require-robust", action="store_true",
                     help="다중 폴드 OOS 지표(robust_oos.json) 없이는 승격하지 않는다")
     args = ap.parse_args()
@@ -500,6 +519,12 @@ def main() -> int:
             "n_features": result.get("n_features"),
             "up_rate": result.get("up_rate"),
             "retrained_at": result.get("retrained_at"),
+            # ⚠ 실측 갭 수리(2026-10-05 CG122): 승격을 실제로 막은 **돈 기준 게이트의 구조화
+            # 증거**(순기대 %p·세션·거래·앞/뒤 절반·챔피언 대비)와 라이브 스코어 게이트가
+            # payload 에서 빠져 있어, 구동기 파서가 원장에 실을 수 없었다(원장엔 prose 사유만).
+            "expectancy_gate": result.get("expectancy_gate"),
+            "live_score_gate": result.get("live_score_gate"),
+            "candidate_robust_oos": result.get("candidate_robust_oos"),
             "decided_at": datetime.now().isoformat(timespec="seconds"),
         }
         with open(args.summary_out, "w") as f:

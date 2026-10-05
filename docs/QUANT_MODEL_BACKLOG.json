@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-05T20:07:00+09:00",
+  "updated_at": "2026-10-05T22:04:38+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12446,7 +12446,7 @@
     },
     {
       "id": "CG121",
-      "status": "needs_setup",
+      "status": "pending",
       "priority": 2,
       "title": "모델 vs 팩터 IC 우위의 최종 판정 — CG120 덤프(~140세션)에서 짝 ΔIC ≥ +0.01 AND t ≥ 2 인가 [회색지대 종결]",
       "hypothesis": "CG117(시드0·80세션) ΔIC +0.0455(t 1.81) 와 CG119(시드7·80세션) ΔIC +0.0436(t 1.63) 는 효과크기가 ~+0.044 로 두 번 일치했으나 세션ΔIC sd≈0.24 라 80세션 SE≈0.027 로 t≥2 에 못 미쳤다 (필요 세션 n≥119). CG120 이 같은 레시피(시드0·동일 학습구간)에서 dates-per-fold 8→14 로 세션을 ~140 으로 키우면 SE≈0.020 → 같은 효과크기에서 t≈2.2 가 되어 회색지대가 **방향 무관하게** 닫힌다. Δ 가 0 으로 붕괴하면 'ML vs 팩터 IC 우위 없음' 으로 축을 종결한다.",
@@ -12462,7 +12462,58 @@
       "est_minutes": 5,
       "pairs": null,
       "setup_needed": "CG120 완료 대기 — ① 원장에서 CG120 rc=0 확인 ② `docker exec stock_xgboost_ml ls -la /app/reports/overnight/cg120_q05_all.jsonl` 로 덤프 존재 확인 ③ 이 항목을 status pending 으로 승격 ④ `python3 scripts/model_engineer_cycle.py --start CG121` — 덤프가 없으면 승격하지 말 것(빈 덤프로 즉시 실패해 원장에 잡음만 남는다).",
-      "note": "등록 2026-10-05 19:0x (엔지니어 세션). 계기: 18:00 틱 미전달분(CG118·CG119) 재보고 시 CG118(배포 챔피언·30세션) ΔIC −0.0129(t −0.41) vs CG119(q05 시드7·80세션) ΔIC +0.0436(t 1.63) 로 **부호가 갈렸고**, CG117(시드0·80세션) +0.0455(t 1.81) 와 합치면 '모델이 팩터보다 ~+0.044 낫다'가 두 번 재현됐지만 전부 t<2 다 — 노이즈로 닫기도, 신호로 열기도 불가한 회색지대다. CG120(est 130분)이 검정력을 올리므로 이 항목은 그 **판정기**다(CG120 success 가 이미 '덤프 생성'을 1차 산출물로 규정). ⚠ 두 arm 을 한 커맨드에 넣지 말 것 — 구동기는 첫 `--out` 만 읽는다. ⚠ 판정 분기 플래그(paired_vs_factor)를 빠뜨리면 verdict 가 조용히 CG115(패널 멀티팩터) 규칙으로 폴백한다(CG119 실측 수리)."
+      "note": "등록 2026-10-05 19:0x (엔지니어 세션). 계기: 18:00 틱 미전달분(CG118·CG119) 재보고 시 CG118(배포 챔피언·30세션) ΔIC −0.0129(t −0.41) vs CG119(q05 시드7·80세션) ΔIC +0.0436(t 1.63) 로 **부호가 갈렸고**, CG117(시드0·80세션) +0.0455(t 1.81) 와 합치면 '모델이 팩터보다 ~+0.044 낫다'가 두 번 재현됐지만 전부 t<2 다 — 노이즈로 닫기도, 신호로 열기도 불가한 회색지대다. CG120(est 130분)이 검정력을 올리므로 이 항목은 그 **판정기**다(CG120 success 가 이미 '덤프 생성'을 1차 산출물로 규정). ⚠ 두 arm 을 한 커맨드에 넣지 말 것 — 구동기는 첫 `--out` 만 읽는다. ⚠ 판정 분기 플래그(paired_vs_factor)를 빠뜨리면 verdict 가 조용히 CG115(패널 멀티팩터) 규칙으로 폴백한다(CG119 실측 수리). | 2026-10-05 22:1x: 구동기 next_item 이 depends_on 을 존중하도록 수리하여(자체점검 _depends_on_test.py 9/9) CG121 을 pending 으로 승격했다 — setup_needed 의 수동 4단계(덤프 확인 후 수동 승격)가 자동화됐다. CG120 이 done(원장 rc=0)이 되는 틱에 착수한다. 덤프가 없으면 시작하지 않으므로 빈 덤프 실패가 발생하지 않는다.",
+      "depends_on": [
+        "CG120"
+      ]
+    },
+    {
+      "id": "CG122",
+      "status": "done",
+      "priority": 3,
+      "affects_model": true,
+      "title": "저녁 파이프라인 챌린저(champion_cand) 승격 게이트 판정 — dry-run + 돈 기준(require-expectancy)",
+      "baseline": "champion/robust_auc.json = 0.5513(단일분할 인샘플) · champion/robust_oos.json = robust_auc 0.4908 · 순기대 -0.182%p/세션(t -0.81, 세션 87, 거래 1340) · 표본 -0.1066/-0.2557(neither)",
+      "arm": "champion_cand(2026-10-05 저녁 파이프라인 재학습분: 199피처 · 학습 2026-07-07~10-05 · n_rows 11137 · val ensemble_auc 0.5580 · robust_oos robust_auc 0.5278 · 순기대 -0.2445%p(t -1.04, 세션 87, 거래 1340) · 표본 -0.1149/-0.3711(neither))",
+      "counterfactual": "현행 챔피언(173피처) — 같은 프로토콜 robust 0.4908 · 순기대 -0.182%p",
+      "hypothesis": "저녁 파이프라인이 만든 후보가 승격 요건을 만족하는가. 단일분할 val 은 +0.0067(0.5580>0.5513) 올랐고 OOS AUC 도 +0.0370(0.5278>0.4908) 이지만 **순기대는 더 나쁘다**(-0.2445 < -0.182) → 하드룰(돈 기준)에서 거부될 것으로 예상.",
+      "evidence": "파이프라인 실측(oos_evidence_champion_cand.json·robust_oos.json, 2026-10-05 21:2x KST): cand robust_auc 0.5278 folds=[0.525,0.537,0.522] excl=2 · champion 0.4908 folds=[0.561,0.5,0.412] excl=2 · 둘 다 순기대 음수.",
+      "method": "프로덕션 게이트와 동일 커맨드에 --require-expectancy 를 켠다(스킬 최우선 규칙 #4: 승격 판단은 champion_promote --require-expectancy 로만). champion/ 무수정(dry-run).",
+      "command": "docker exec stock_xgboost_ml python /app/app/training/champion_promote.py --candidate /app/app/models/champion_cand --champion /app/app/models/champion --dry-run --require-expectancy --summary-out /app/reports/overnight/cg122_promote.json",
+      "check": "rc==0 AND cg122_promote.json 의 status 존재",
+      "check_target": "rc == 0",
+      "metric": "champion_promote_dryrun",
+      "est_minutes": 1,
+      "success": "게이트 판정이 status·사유와 함께 기록된다. 판정은 status=would_promote 일 때만 승격(사람 단계 아님) — kept_incumbent 면 현행 유지가 정답이고 그 사유가 돈 지표로 남는다.",
+      "expected": "kept_incumbent — '돈 기준 게이트 거부: 순기대 -0.245%p ≤ 문턱 …; 분할표본 불안정; 챔피언 -0.182%p 대비 개선 부족'",
+      "risk": "낮음 — dry-run(무수정) · 수 초. CG120 실행 중이지만 CPU 를 쓰지 않는 JSON 비교다.",
+      "note": "AUC 만 오른 후보는 승격 금지(스킬 최우선 규칙). 단일분할 val ↔ 다중폴드 OOS 순위상관 -0.81 실측 근거.",
+      "attempts": [
+        {
+          "ts": "2026-10-05T22:04:38+09:00",
+          "rc": 0,
+          "verdict": "후보 생성·게이트 거부",
+          "detail": "dry-run status=kept_incumbent · 사유: 돈 기준 게이트 거부: 순기대 -0.244%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.1149 / 뒤 -0.3711); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG122_20261005-220411.log",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "후보 생성·게이트 거부",
+        "detail": "dry-run status=kept_incumbent · 후보 AUC 0.5580 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11137 · 양성률 0.4585 · 사유: 돈 기준 게이트 거부: 순기대 -0.244%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.1149 / 뒤 -0.3711); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요) | 단일분할 val 0.5580 vs 기준선 0.5513(val 기준 would_promote) · OOS robust 0.5278 vs 챔피언 0.4908(+0.0370) · 순기대 -0.2445%p vs -0.182%p → 돈 기준 거부",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0,
+        "val_auc": 0.558,
+        "val_baseline": 0.5513,
+        "oos_robust_auc": 0.5278,
+        "champion_oos_robust_auc": 0.4908,
+        "expectancy_pct": -0.2445,
+        "champion_expectancy_pct": -0.182,
+        "sessions": 87,
+        "trades": 1340
+      }
     }
   ],
   "updated": "2026-10-05T09:30:00+09:00"

@@ -1848,3 +1848,27 @@ T6 '코드 작성·푸시' 승인(09-30 18:16 `bd086a3` 로 이미 커밋·푸�
 - **수집 신선도**: market_data 3,112,373행(최신 **10-02**) · minute_bars 10-02 · disclosures 214,982(rcept 최신 10-02) · foreign_institutional 1,051종목/145,347행 · ownership 953/2,078 · krx_short_selling 205종목/16,979행 · krx_derivatives 3,149행. **10-05 는 휴장**(캘린더 등재 + 피드 발행기가 휴장 가드로 빈 리스트 발행) → 결번 **0**.
 - **크론**: DART 18:10(콜 9 · 삽입 451, 2차 실행 0 = 멱등) · 공매도/프로그램 19:30 · KRX 파생 19:40 · 매크로 19:50 · event features 19:11 — 전부 `[claim]` 줄 확인. R27 check **0**(14일 내 미신고 러너 0) · R25 check **0**.
 - **사람/승인**: ② ⓐ**R21 문턱·쿼터 결정**(권고 B = 실행 상한 1,000콜로 주기 1.6일 — KIS 앱키 **일일 호출 한도** 정보 필요) ⓑR17 원천 3종 확대 + SNS 크론 신설 ⓒR26 상한가 필터. ③ 직접(대행 불가) **없음**. ① 차단: R14 는 엔지니어 exp_panel 캐시 재빌드 대기.
+
+
+### 모델엔지니어 (2026-10-05 22:0x 일일 잡 — 챌린저 승격 게이트: **돈 기준 거부**, 현행 유지 / 게이트 증거 소실 수리, 실측)
+- **북극성**: 로버스트 **0.5870** vs 등록 기준선 **0.5406** = **Δ+0.0464** · **무개선 연속 0사이클**(누적 미달 59/67 · 무효 69) · 직전 개선 **CG107 @2026-10-05T05:22:37**.
+  ⚠ 이 0.5870 은 **비교 불가 비교**다(arm=CG89 Q5s_120_150 = q0.05·유니버스 슬라이스 vs 기준선=q0.30·게이트 ON) — CG104(needs_setup, 리뷰보드 승인 대기)가 정확히 이 결함을 지목한다.
+  **배포 경로의 정직한 OOS 는 오늘 실측으로 0.4908(챔피언)·0.5278(후보)** 이다.
+- **저녁 파이프라인**(10-05 20:00 → 21:48 KST, `reports/full_pipeline_dd_20261005_2000.log`): Phase 2 후보 재학습 완료(`champion_cand` · 199피처 · 11,137행 · 학습 07-07~10-05 · val ensemble_auc **0.5580**) + 월요일 챔피언 기준선 갱신(`champion/robust_oos.json` 0.4908).
+- **🔴 후보 기각 — 3중 근거**(CG122, `champion_promote --dry-run --require-expectancy`):
+  | 지표 (프로토콜) | 후보 champion_cand | 현행 챔피언 | 판정 |
+  |---|---|---|---|
+  | 단일분할 val AUC (인샘플, 하드룰 #1 로 판정 금지) | 0.5580 | 0.5513 | +0.0067 → 표면상 통과(naive dry-run = `would_promote`) |
+  | 다중폴드 OOS robust AUC (rel h5, 80종목, 5창 중 2창 학습겹침 제외) | 0.5278 [0.525/0.537/0.522] | 0.4908 [0.561/0.500/0.412] | +0.0370 (AUC 는 올랐다) |
+  | **체결 가능 OOS 순기대 %p/세션** (수수료 왕복 0.21%p, 87세션·1,340거래) | **−0.2445** (t −1.04 · 앞/뒤 −0.1149/−0.3711 = neither) | **−0.1820** (t −0.81 · −0.1066/−0.2557 = neither) | **후보가 더 나쁘다 → 거부** |
+  - 게이트 사유(원문): `돈 기준 게이트 거부: 순기대 -0.244%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.1149 / 뒤 -0.3711); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요)`
+  - **파이프라인 자체 게이트도 독립적으로 차단**(L11799): `[gate-live-score] 차단: 후보 신호 0건(문턱 0.55 초과) · 최대 0.4882 — 챔피언 신호 8건` → 승격 단계(champion_promote)가 **실행되지 않았다**(`reports/ml_result.json` 10-02 값 그대로).
+  - 교훈(재확인): AUC +0.0370 이 순기대 **−0.0625%p 악화**와 동시에 나타났다 — n=8 실측(스피어만 −0.81·AUC↔기대 상관 없음)의 재현. **AUC 만 오른 후보 승격 금지**(스킬 최우선 규칙 #4).
+- **🔧 정합성 수리 2건(자율·검증 완료)**:
+  ① `champion_promote.py`: 돈 기준 게이트로 **거부된** 후보의 요약 JSON 이 `status`·`reason` 만 남기고 `auc`·`champion_baseline`·`expectancy_gate` 가 **전부 null** 이었다(거부 분기가 `result.update(...)` **앞**에서 return) → 거부 분기에서도 판정 수치를 채우고, `main()` payload 에 `expectancy_gate`/`live_score_gate`/`candidate_robust_oos` 를 추가. 부수로 `--help` 가 help 문자열 `%p` 를 argparse %-보간해 `ValueError` 로 죽던 것 수정(`%%p`).
+     검증: `python3 scripts/_promote_gate_summary_test.py` **13/13 PASS**(수리 전 ③ 이 실패: auc null) · `champion_promote --help` rc=0.
+  ② 구동기: `parse_champion_promote_dryrun` 이 게이트 구조화 증거를 원장에 싣게 하고, **`next_item` 이 `depends_on` 을 존중**하도록 구현(선행 미완 항목을 조용히 건너뛰고, 선행 done 틱에 착수 — 완료 판정은 백로그 status + **원장 rc=0** fallback).
+     검증: `scripts/_depends_on_test.py` **9/9 PASS** + 회귀 13종 PASS(`_next_item_eta`·`_promote_dryrun_metric` 41/41·`_summary_path` 19·`_attempts_norm`·`_undelivered_report`·`_recreate_window`·`_pipeline_guard` 19·`_eta_market`·`_cycle_alive`·`_cycle_refusal`·`_paired_judge`·`_judge_baseline_paired`).
+- **핸드오프 자동화**: **CG121 을 pending 으로 승격**(`depends_on: ["CG120"]`) — setup_needed 의 수동 4단계(덤프 확인 후 손으로 승격)를 depends_on 이 대체한다. CG120 은 22:00:45 착수·정상 진행(덤프는 완료 시 기록) → 완료 틱에 CG121(모델 vs 팩터 ΔIC 최종 판정)이 자동 착수한다.
+- **누수 신호**(step 5): `dq_feature_stock_constant_ratio` **0.3354**(기준선 0.38·warn 0.35 아래) · `market_level_count` 26 · `null_ratio_max` 0.999 · `coverage_illusion` 36 · 살아있는 199/횡단면 138 — **누수 게이트 위반 없음**.
+- **위임**: 돈 지표 계측기 5종의 **거짓 양성** 리스크 리뷰를 Claude Code 에 위임(`reports/claude_review_money_tools.md`, 읽기 전용) — 결과는 다음 세션이 파일:라인 근거를 확인해 채택/기각.

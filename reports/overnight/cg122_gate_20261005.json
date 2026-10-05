@@ -1,0 +1,126 @@
+{
+  "item": "CG122",
+  "date": "2026-10-05",
+  "kst_time": "2026-10-05 22:04~22:06 KST",
+  "question": "저녁 파이프라인이 만든 후보(champion_cand)를 승격할 것인가?",
+  "verdict": "승격 금지 — 현행 챔피언 유지 (kept_incumbent)",
+  "candidate": {
+    "dir": "app/models/champion_cand",
+    "retrained_at": "2026-10-05T12:20:15Z(=21:20 KST, 저녁 파이프라인 Phase 2)",
+    "n_features": 199,
+    "n_rows": 11137,
+    "up_rate": 0.4585,
+    "train_window": [
+      "2026-07-07",
+      "2026-10-05"
+    ],
+    "label_kind": "h1_direction (생산 recipe 그대로)",
+    "horizon": 5,
+    "model_aucs": {
+      "xgboost": 0.519,
+      "lightgbm": 0.5472,
+      "catboost": 0.5601
+    },
+    "val_ensemble_auc": 0.558,
+    "oos_robust_auc": 0.5278,
+    "oos_folds": [
+      0.525,
+      0.537,
+      0.522
+    ],
+    "oos_windows_excluded": 2,
+    "expectancy_pct": -0.2445,
+    "expectancy_t": -1.04,
+    "n_sessions": 87,
+    "n_trades": 1340,
+    "halves": {
+      "front_pct": -0.1149,
+      "back_pct": -0.3711,
+      "stable": "neither",
+      "split_date": "2026-07-28"
+    }
+  },
+  "champion": {
+    "dir": "app/models/champion",
+    "auc_txt": 0.551318,
+    "baseline_used_by_gate": {
+      "value": 0.5513,
+      "source": "robust_auc.json",
+      "note": "단일분할 인샘플(ensemble_auc on val split, n_rows=12629) — 하드룰 #1 에 따라 판정에 쓰지 않는다"
+    },
+    "oos_robust_auc": 0.4908,
+    "oos_folds": [
+      0.561,
+      0.5,
+      0.412
+    ],
+    "oos_windows_excluded": 2,
+    "expectancy_pct": -0.182,
+    "expectancy_t": -0.81,
+    "n_sessions": 87,
+    "n_trades": 1340,
+    "halves": {
+      "front_pct": -0.1066,
+      "back_pct": -0.2557,
+      "stable": "neither"
+    },
+    "robust_oos_recorded_at": "2026-10-05T12:37:23Z(월요일 갱신 — full_pipeline_dd.sh Phase 2)"
+  },
+  "gate_runs": [
+    {
+      "cmd": "champion_promote --dry-run (naive)",
+      "summary": "services/xgboost-ml/reports/overnight/cg122_promote_naive.json",
+      "status": "would_promote",
+      "candidate_auc": 0.558,
+      "champion_baseline": 0.5513,
+      "meaning": "단일분할 val 기준으로는 +0.0067 → 표면상 통과"
+    },
+    {
+      "cmd": "champion_promote --dry-run --require-expectancy (권위)",
+      "summary": "services/xgboost-ml/reports/overnight/cg122_promote.json",
+      "status": "kept_incumbent",
+      "reason": "돈 기준 게이트 거부: 순기대 -0.244%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.1149 / 뒤 -0.3711); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요)",
+      "expectancy_gate": {
+        "present": true,
+        "pct": -0.2445,
+        "sessions": 87,
+        "trades": 1340,
+        "champion_pct": -0.182,
+        "t": -1.04
+      }
+    }
+  ],
+  "pipeline_own_gate": {
+    "source": "reports/full_pipeline_dd_20261005_2000.log L11799-11800",
+    "result": "[gate-live-score] 차단: 후보 신호 0건(문턱 0.55 초과) · 최대 0.4882 — 챔피언 신호 8건 → 승격 단계(champion_promote) 자체가 실행되지 않음(ml_result.json 무갱신)"
+  },
+  "judgment": {
+    "rule": "스킬 최우선 규칙 #4 — 승격 판단은 champion_promote --require-expectancy 로만. AUC 만 오른 후보는 승격 금지로 기록.",
+    "evidence": "① 단일분할 val +0.0067 은 통과했지만 OOS AUC 이득(+0.0370)과 함께 **순기대가 더 나빠졌다**(-0.2445 vs 챔피언 -0.1820, 둘 다 음수). ② 두 모델 모두 순기대 음수·분할표본 neither = 돈 엣지 없음. ③ 파이프라인 라이브 스코어 게이트도 독립적으로 차단(후보 0.55 초과 0건 vs 챔피언 8건 = MT116 유형).",
+    "conclusion": "3중(단일분할-외 지표·돈 기준·라이브 스코어)으로 현행 유지가 정답. 후보는 기각.",
+    "not_promoted": true
+  },
+  "code_fixes_same_session": [
+    {
+      "file": "services/xgboost-ml/app/training/champion_promote.py",
+      "fix": "① 돈 기준 게이트 거부 분기에서도 candidate_auc·champion_baseline·model_aucs 등 판정 수치를 result 에 채운다(종전: 요약 JSON 이 전부 null) ② main() payload 에 expectancy_gate/live_score_gate/candidate_robust_oos 추가(종전: 승격을 막은 증거가 산출물에서 누락) ③ --help 가 help 문자열의 '%p' 를 argparse %-보간해 ValueError 로 죽던 것 수정('%%p')",
+      "verify": "scripts/_promote_gate_summary_test.py 13/13 PASS · champion_promote --help rc=0"
+    },
+    {
+      "file": "scripts/model_engineer_cycle.py",
+      "fix": "① parse_champion_promote_dryrun 이 expectancy_gate/live_score_gate/candidate_robust_oos 를 원장에 싣는다 ② next_item 이 depends_on 을 존중(선행 미완 항목 건너뜀; 백로그 status 뿐 아니라 원장 rc=0 도 완료로 인정) — CG121 자동 착수 경로",
+      "verify": "scripts/_depends_on_test.py 9/9 PASS + 회귀 13종 PASS"
+    }
+  ],
+  "next": [
+    "CG120(실행 중, ~00:1x 종료 예정) → CG121(짝 ΔIC 최종 판정) 이 depends_on 으로 자동 후속"
+  ],
+  "generated_at": "2026-10-05T22:10:00+09:00",
+  "evidence_files": [
+    "services/xgboost-ml/reports/overnight/cg122_promote.json",
+    "services/xgboost-ml/reports/overnight/cg122_promote_naive.json",
+    "services/xgboost-ml/app/models/champion_cand/robust_oos.json",
+    "services/xgboost-ml/app/models/champion/robust_oos.json",
+    "data/reports/me_cycle/logs/me_cycle_CG122_20261005-220550.log"
+  ]
+}

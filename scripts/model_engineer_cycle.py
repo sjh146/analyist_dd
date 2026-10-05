@@ -599,6 +599,24 @@ def guards(force=False, item=None) -> tuple:
     return True, "ok"
 
 
+def _dep_done(dep_id, backlog, ledger=None) -> bool:
+    """선행 항목이 실제로 **끝났는가** — 백로그 status 뿐 아니라 원장 rc=0 도 본다.
+
+    왜(실측 2026-10-05): 백로그 갱신이 원장 기록 **뒤**에 있으므로, 갱신에서 죽으면
+    '원장엔 rc=0 인데 백로그는 pending'(반쪽 상태)이 된다(2026-10-01 CG38 실측). 선행 판정을
+    status 만으로 하면 그때 후속이 영원히 대기한다 → 원장도 함께 본다.
+    """
+    for it in backlog.get("items", []):
+        if it.get("id") == dep_id and it.get("status") in ("done",):
+            return True
+    try:
+        if ledger is None:
+            ledger = load_ledger()
+    except Exception:
+        return False
+    return any(r.get("id") == dep_id and r.get("rc") == 0 for r in ledger)
+
+
 def next_item(backlog, force=False):
     """다음 실행 후보. **ETA 가드에 걸리는 항목은 건너뛴다.**
 
@@ -610,7 +628,22 @@ def next_item(backlog, force=False):
     """
     pend = [i for i in backlog["items"] if i.get("status") == "pending"]
     pend.sort(key=lambda i: (i.get("priority", 99), i["id"]))
+    _led = None
     for i in pend:
+        deps = i.get("depends_on") or []
+        if deps:
+            if _led is None:
+                try:
+                    _led = load_ledger()
+                except Exception:
+                    _led = []
+            missing = [d for d in deps if not _dep_done(d, backlog, _led)]
+            if missing:
+                # 실측(2026-10-05 CG121): 선행 미완 항목을 그냥 pending 으로 올리면 **빈 산출물로
+                # 즉시 실패**해 원장에 잡음만 남는다(CG121 은 CG120 덤프가 없으면 즉시 실패).
+                # depends_on 이 선언돼 있으면 여기서 조용히 건너뛰고, 선행이 done 이 되는 틱에 시작한다.
+                log(f"{i['id']}: 선행 미완({', '.join(missing)}) → 건너뜀")
+                continue
         if not i.get("command"):
             log(f"경고: {i['id']} 는 pending 인데 command 가 없다 → 건너뜀"
                 f"{' (setup: ' + str(i.get('setup_needed'))[:80] + ')' if i.get('setup_needed') else ''}")
@@ -1041,6 +1074,14 @@ def parse_champion_promote_dryrun(path, mtime_floor) -> dict:
         "n_rows": d.get("n_rows"), "n_features": d.get("n_features"),
         "up_rate": d.get("up_rate"), "retrained_at": d.get("retrained_at"),
         "decided_at": d.get("decided_at"),
+        # ⚠ 실측 갭 수리(2026-10-05 CG122): 종전엔 status·reason 만 실어, 승격을 실제로 막은
+        # **돈 기준 게이트의 구조화 증거**(expectancy_gate: pct·sessions·trades·halves·
+        # champion_pct)와 라이브 스코어 게이트가 원장에서 통째로 사라졌다(요약 JSON 에는 있는데
+        # 원장에는 prose 사유만). 승격/보류 판정의 근거 수치를 원장에서 직접 읽을 수 있어야
+        # 다음 역할(트레이더)이 재검증 없이 신뢰할 수 있다.
+        "expectancy_gate": d.get("expectancy_gate"),
+        "live_score_gate": d.get("live_score_gate"),
+        "candidate_robust_oos": d.get("candidate_robust_oos"),
         "summary_mtime": mt,
     }
 
