@@ -76,6 +76,10 @@ m.running_pid = lambda *a, **k: None
 m.peer_running = lambda: (None, None)
 m.container_up = lambda: True
 m.load1 = lambda: 1.0
+# 저녁 파이프라인 동시 실행 가드(2026-10-05 신설)는 이 테스트의 대상이 아니다 — 실제 파이프라인이
+# 도는 시각에 테스트를 돌리면 est 420 허용 케이스가 새 가드로 거부되어 거짓 FAIL 이 난다.
+# (스킬 교훈: 새 가드는 같은 커밋에서 기존 회귀 테스트에 stub 을 넣어야 거짓 빨간불이 안 뜬다)
+m.pipeline_in_flight = lambda: (None, None)
 stub_now(at(2026, 9, 30, 20, 0))
 ok, why = m.guards(False, {"est_minutes": 12})
 chk("20:00 재생성 창 -> 거부(기존 동작 회귀)", (ok, "재생성" in why), (False, True))

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-05T18:08:39+09:00",
+  "updated_at": "2026-10-05T20:07:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -7961,7 +7961,7 @@
     {
       "id": "XR24",
       "title": "[리서처 R24] [트레이더 환류] data_gap '당일 휴장' 오탐 — 거래일을 휴장 캘린더에 기록 (2026-10-01 실측)",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 8,
       "from_research": "R24",
       "arm": null,
@@ -7976,7 +7976,12 @@
       "cost": "저(KIS 1콜, 약 1초)",
       "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
       "promoted_from": "handoff",
-      "promoted_at": "2026-10-02T07:00:35+09:00"
+      "promoted_at": "2026-10-02T07:00:35+09:00",
+      "result": {
+        "verdict": "수리/배선 완료",
+        "detail": "수리 완료(실측 2026-10-05) — scripts/data_gap.py 에 ① 당일 휴장 확정 시각 가드(장 마감 15:30+여유 = 15:40 이전엔 당일을 휴장으로 확정하지 않음) ② KIS CTCA0903R 교차확인 ③ 판별불가일 때 '휴장'으로 단정 금지 구현 · data/krx_holidays.json 에서 오탐 2026-10-01 제거 확인(2026-10-05 대체휴일·10-09 한글날은 유지) · 상시 감시는 트레이더 T10.",
+        "ts": "2026-10-05T20:07:00+09:00"
+      }
     },
     {
       "id": "CG55",
@@ -8197,7 +8202,7 @@
     {
       "id": "XR25",
       "title": "[리서처 R25] DART 공시 정기 러너 — 스케줄 확인 완료(10-01), 신선도 상시 감시",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 8,
       "from_research": "R25",
       "arm": null,
@@ -8212,7 +8217,12 @@
       "cost": null,
       "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
       "promoted_from": "handoff",
-      "promoted_at": "2026-10-02T15:35:23+09:00"
+      "promoted_at": "2026-10-02T15:35:23+09:00",
+      "result": {
+        "verdict": "수리/배선 완료",
+        "detail": "러너 배선 완료(실측 2026-10-05) — /etc/cron.d/analyist_dd: 평일 18:10 (B,D,E,I·당월 창, 예산 200콜) + 토 18:10 --regular(A 포함 3개월). 실측 10-05 18:10 실행 rc=0(콜 9 · 신규 삽입 0 = 이미 최신) · disclosures 214,982행 · max(rcept_dt)=2026-10-02(=직전 거래일, 10-03 개천절/10-05 대체휴일) → 신선도 유지 중. 남은 것: 신선도 자동 경보는 리서처 DQ 지표 영역(별도 배선 필요).",
+        "ts": "2026-10-05T20:07:00+09:00"
+      }
     },
     {
       "id": "CG60",

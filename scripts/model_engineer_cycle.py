@@ -408,6 +408,68 @@ def in_recreate_window(dt=None) -> bool:
     return (RECREATE_HOUR, 0) <= t < (RECREATE_HOUR, RECREATE_GRACE_MIN)
 
 
+# ── 저녁 파이프라인(full_pipeline_dd.sh) 동시 실행 가드 ─────────────────────────
+# 왜(실측 2026-10-05 20:0x): 파이프라인은 평일 20:00 에 시작해 실측상 21:40~23:20 에 끝난다.
+# 그 안에 Phase 2 '챔피언 재학습'(=학습 1건)이 들어 있는데, 시작 시점의 load1 가드는 파이프라인이
+# 아직 **수집 단계**일 때 통과한다(실측 그 시각 load1=2.2 < 3.5) → est 130분짜리 실험이 재학습과
+# 정면으로 겹쳐 돌면 서로 3~20배 느려지고(같은 패널·config 가 유휴 7s/cell vs 경쟁 155s/cell),
+# 컨테이너 timeout 여유가 1.5배뿐인 항목은 그대로 잘려 결과를 잃는다(하드규칙 5 직렬화).
+# 짧은 항목(est < PIPELINE_LONG_MIN)은 종전대로 통과시킨다 — 수집 단계는 가볍고, 막으면
+# 큐 전체가 몇 시간씩 굶는다.
+PIPELINE_SCRIPTS = ("full_pipeline_dd.sh", "evening_pipeline.sh")
+PIPELINE_LONG_MIN = 60      # 이 길이(분) 이상은 파이프라인 실행 중에 시작하지 않는다(--force 예외)
+# '실행 중'으로 인정할 첫 토큰(인터프리터/래퍼). 그 밖의 첫 토큰(cat·ls …)이 스크립트 이름을
+# 인자로 가진 경우는 '읽는 중'이지 '실행 중'이 아니다.
+_PIPELINE_RUNNERS = {"bash", "sh", "dash", "zsh", "nohup", "setsid", "timeout", "env",
+                     "python", "python3"}
+
+
+def _iter_cmdlines():
+    """(pid, cmdline '\0' 구분 원문) — 이 이미지엔 쓸 만한 `ps` 플래그가 없다(스킬 교훈)."""
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/cmdline", "rb") as fh:
+                raw = fh.read().decode("utf-8", "replace")
+        except OSError:
+            continue
+        yield int(name), raw
+
+
+def pipeline_pid_from_cmdlines(cmdlines, self_pids=()):
+    """실행 중인 저녁 파이프라인 (pid, name). 없으면 (None, None).  [순수 함수 — 테스트 대상]
+
+    자기매칭 방지(`pkill -f`·/proc 스캔 함정의 재판): ①self_pids 제외 ②argv 경계는 '\\0' 로
+    (셸 `-c '<긴 문자열>'` 은 argv 원소 1개이므로 공백 split 으로 쪼개면 오탐한다)
+    ③공백 포함 토큰 제외 ④첫 토큰이 인터프리터/래퍼일 때만 '실행 중'으로 인정.
+    """
+    for pid, raw in cmdlines:
+        if pid in self_pids:
+            continue
+        argv = [a for a in raw.split("\0") if a]
+        if not argv:
+            continue
+        head = argv[0].rsplit("/", 1)[-1]
+        for k, tok in enumerate(argv):
+            if any(c.isspace() for c in tok):
+                # 셸 -c 의 명령 문자열은 argv 원소 1개다 — 첫 단어만 본다(`cd /repo && … | head` 같은
+                # 진단용 셸이 스크립트 이름을 품고 있어도 '실행 중'으로 오탐하지 않기 위해서다).
+                first = tok.split()[0] if tok.split() else ""
+                if first and first.rsplit("/", 1)[-1] in PIPELINE_SCRIPTS and \
+                        (k == 0 or head in _PIPELINE_RUNNERS):
+                    return pid, first.rsplit("/", 1)[-1]
+                continue
+            if tok.rsplit("/", 1)[-1] in PIPELINE_SCRIPTS and (k == 0 or head in _PIPELINE_RUNNERS):
+                return pid, tok.rsplit("/", 1)[-1]
+    return None, None
+
+
+def pipeline_in_flight():
+    """(pid, name) — 저녁 파이프라인이 **실행 중**이면 그 정보. 자기·부모 pid 는 제외."""
+    return pipeline_pid_from_cmdlines(_iter_cmdlines(), self_pids={os.getpid(), os.getppid()})
+
+
 def load1():
     try:
         return os.getloadavg()[0]
@@ -500,6 +562,18 @@ def guards(force=False, item=None) -> tuple:
     blocked, why = eta_blocks(item)
     if blocked and not force:
         return False, why
+    # ── 저녁 파이프라인 실행 중 + 긴 실험 = 직렬화 위반(하드규칙 5) ──────────────────
+    # 위치가 중요하다: eta_blocks 와 **같은 성격**(지금 시작하면 손해 · 기다리면 된다)이라
+    # --force 로는 통과시킨다 — u3_launcher.sh 가 20:35~21:00 창에 `--start <ID> --force` 로
+    # 긴 항목을 명시적으로 강행하는 설계를 막으면 안 된다. 반대로 틱(force=False)은 막힌다.
+    if not force:
+        _p, _pname = pipeline_in_flight()
+        _est = (item or {}).get("est_minutes") if isinstance(item, dict) else None
+        if _p and isinstance(_est, (int, float)) and _est >= PIPELINE_LONG_MIN:
+            return False, (f"저녁 파이프라인 실행 중(pid={_p}, {_pname}) — est {_est:g}분 ≥ "
+                           f"{PIPELINE_LONG_MIN}분 항목은 시작하지 않음(4코어 직렬화: 수집·챔피언 "
+                           f"재학습과 동시 실행 시 서로 3~20배 느려져 컨테이너 timeout 에 잘린다)"
+                           f" · 다음 틱에서 재시도")
     # --force 로도 뚫지 않는다(2026-09-29 수리): 예전 술어는 `market_hours() and not force`
     # 라서 --force 가 장중 가드를 그대로 통과했다 — 아래 load 가드 주석의 "장중은 force 로도
     # 뚫지 않는다"와 코드가 어긋나 있었다. 장중엔 트레이더·피드가 CPU 우선이고 그건 사람이
@@ -2878,11 +2952,14 @@ def tick(force=False):
         print("→ 이 결과를 사용자에게 3부 형식으로 보고하고, 필요하면 다음 가설을 설계하라.")
         return 0
 
-    ok, why = guards(force)
+    # 후보를 **먼저** 고른 뒤 가드에 넘긴다: 가드 중에는 항목 길이(est_minutes)에 의존하는 것
+    # (저녁 파이프라인 동시 실행)이 있어, item 없이 부르면 그 가드가 판단을 못 하고 다음 단계
+    # (start_background→execute)에서 rc=3 으로 죽어 틱이 '기동 실패'처럼 보인다(2026-10-05).
+    it = next_item(load_backlog(), force)
+    ok, why = guards(force, it)
     if not ok:
         print(f"대기: {why}")
         return 0
-    it = next_item(load_backlog(), force)
     if not it:
         # 규칙 6 을 **기계적으로** 만든다: 예전엔 "새 가설을 설계하라" 한 줄만 찍혀서 틱 에이전트가
         # needs_setup·핸드오프를 찾아 헤매거나 그냥 넘어갔다(실측 2026-10-01: 남은 핸드오프 12건).
