@@ -138,6 +138,11 @@ if [ -x "$CLAUDE_DS" ]; then
   # build 는 저작이 목적이므로 쓰기 도구를 **명시 허용**한다 — 허용하지 않으면 권한 프롬프트에서
   # 멈춰 무출력 타임아웃이 난다(설계상 사람이 없는 자율 실행이므로 프롬프트에 기댈 수 없다).
   [ "${ALLOW_WRITE:-0}" -eq 1 ] && CLAUDE_ARGS=(--allowedTools "Read" "Grep" "Glob" "Edit" "Write" "Bash" "${CLAUDE_ARGS[@]}")
+  # 실측(2026-10-05): --allowedTools 만으로는 비대화형(-p)에서 Write 가 **실제로 실행되지 않았다**
+  # (응답 텍스트만 내고 파일 없음 → 위임이 소득 0. 그래서 Claude Code 는 저작 작업에서 0바이트에 가까웠다).
+  # 사람이 없는 자율 실행이라 권한 프롬프트에 기댈 수 없으므로 명시적으로 권한을 건너뛴다.
+  # 안전은 다른 층이 담당한다: 금지경로 가드(scripts/protected_paths.py) + worktree 격리(improve_dispatch).
+  [ "${ALLOW_WRITE:-0}" -eq 1 ] && CLAUDE_ARGS=(--dangerously-skip-permissions "${CLAUDE_ARGS[@]}")
   # 리포 밖 계약 코드(trader-agent)도 읽을 수 있게 열어 준다.
   [ -d "$EXTRA_DIR" ] && CLAUDE_ARGS=(--add-dir "$EXTRA_DIR" "${CLAUDE_ARGS[@]}")
   echo "ask_claude: [1차] Claude Code mode=$MODE timeout=${TIMEOUT_S}s stall=${STALL_S}s" >&2
