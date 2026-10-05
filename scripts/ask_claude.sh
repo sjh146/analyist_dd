@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# ask_claude.sh — 지적 작업을 Claude Code(+gstack)에 위임하고, 실패하면 opencode 로 자동 폴백.
+# ask_claude.sh — 지적 작업을 Claude Code(+gstack)에 위임한다. **단독 백엔드**(2026-10-05 opencode 제거).
 #
 # 역할 분담 (3안 하이브리드)
 #   Hermes     : 오케스트레이션·스케줄·게이트·검증·보고 (크론 5개)
 #   이 스크립트 : 코드 리뷰 / 근본원인 조사 / 스펙 같은 **지적 작업** 위임 + 파일 증거화
 #   1차 백엔드  : Claude Code + gstack (Anthropic 프로토콜 → DeepSeek)
-#   2차 백엔드  : opencode (OpenAI 프로토콜 → DeepSeek) — 1차가 실패할 때만
+#   백엔드      : Claude Code 단독. 실패하면 폴백 없이 중단(rc=1) — 원인을 고치고 재실행한다.
 #
 # WHY 폴백 + 무출력 감시: 위임이 한쪽 장애로 멈추면 자율 루프가 멈춘다. 실측 2026-09-25:
 #   Claude Code 리뷰가 6분36초 경과에 **CPU 22초**(=대부분 API/도구 대기)로 출력 0바이트였다.
@@ -22,7 +22,7 @@
 #   ASK_CLAUDE_STALL_S   무출력 허용 시간(기본 180초) — 넘으면 중단하고 다음 백엔드로
 #   ASK_CLAUDE_PROJ      작업 디렉터리(기본 /home/jhshi/analyist_dd)
 #   ASK_CLAUDE_MIN_BYTES 성공으로 볼 최소 출력(기본 40)
-#   ASK_CLAUDE_CLAUDE_BIN / ASK_CLAUDE_OPENCODE_BIN  테스트용 교체
+#   ASK_CLAUDE_CLAUDE_BIN  테스트용 교체(구 ASK_CLAUDE_OPENCODE_BIN 은 제거됨)
 #
 
 # ── 금지 경로 가드 (2026-10-04) ────────────────────────────────────────────────
@@ -162,28 +162,10 @@ else
   BACKENDS+=("claude:missing")
 fi
 
-# ── 2차: opencode ────────────────────────────────────────────────────────────
-OC_BIN="${ASK_CLAUDE_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.local/bin/opencode")}"
-if [ -x "$OC_BIN" ]; then
-  OC_ARGS=(run --pure --dir "$PROJ")
-  [ -n "$OC_AGENT" ] && OC_ARGS+=(--agent "$OC_AGENT")
-  OC_ARGS+=("$FULL_PROMPT")
-  echo "ask_claude: [2차] opencode mode=$MODE agent=${OC_AGENT:-default}" >&2
-  run_bounded opencode "$OUT.stderr.oc" "$OC_BIN" "${OC_ARGS[@]}"
-  RC=$?
-  BYTES=$(wc -c <"$TMP" 2>/dev/null || echo 0)
-  BACKENDS+=("opencode:rc=$RC,${BYTES}b")
-  if [ "$RC" -eq 0 ] && [ "$BYTES" -ge "$MIN_BYTES" ]; then
-    mv "$TMP" "$OUT"
-    printf 'backend=opencode\n%s\n' "${BACKENDS[*]}" > "$OUT.backend"
-    echo "ask_claude: 완료(opencode 폴백) → $OUT ($BYTES bytes)"
-    exit 0
-  fi
-  rm -f "$TMP"
-else
-  BACKENDS+=("opencode:missing")
-fi
-
-printf 'backend=none\n%s\n' "${BACKENDS[*]}" > "$OUT.backend"
-echo "ask_claude: 두 백엔드 모두 실패 — 위임 없이 본업 계속 (${BACKENDS[*]})" >&2
+# ── 2차: opencode 폴백 제거 (2026-10-05, 사용자 지시: claude code 오케스트레이션만 사용) ──
+# 실측: 1차 Claude Code 의 저작 실패는 **권한 차단**이 원인이었고, --dangerously-skip-permissions
+# 로 수리했다(검증: backend=claude · rc=0 · 2086바이트 · py_compile 통과 · CCPROBE_OK).
+# 즉 폴백이 필요했던 이유가 제거되었으므로 2차 백엔드를 없앤다. 되돌리려면 /tmp/ask_claude.bak 참조.
+BACKENDS+=("opencode:removed")
+echo "ask_claude: [2차 백엔드 없음] Claude Code 실패 → 위임 중단(rc=1). 원인을 고치고 재실행하라." >&2
 exit 1
