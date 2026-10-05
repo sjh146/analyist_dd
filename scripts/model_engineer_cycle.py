@@ -836,6 +836,16 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: panel_leak_gate 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "regime_ic_screen":
+        # 시장 국면별 랭크 IC 분해 화면(scripts/regime_ic_screen.py --json-out). CG126/CG127.
+        # 왜 전용 metric 인가(2026-10-06): 모델측 AUC 축 전부와 돈 축이 닫힌 뒤 남은 유일한
+        # '재개 조건'이 XR11 노트의 국면 조건화였다. 스키마가 IC·국면버킷·ΔIC 라 기존 파서에
+        # 담기지 않는다(CG43/CG10 함정 방지). ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: regime_ic_screen 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -1207,6 +1217,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_policy_compare(spath, mtime_floor)
     if kind == "panel_leak_gate":
         return parse_panel_leak_gate(spath, mtime_floor)
+    if kind == "regime_ic_screen":
+        return parse_regime_ic_screen(spath, mtime_floor)
     if kind == "champion_scorecard":
         return parse_champion_scorecard(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
@@ -1923,6 +1935,112 @@ def judge_rank_ic_money(item, parsed) -> tuple:
     return "노이즈", detail + " — 미검출(검출 바닥 이하 또는 부호 불일치)", round(m, 4)
 
 
+def parse_regime_ic_screen(path, mtime_floor) -> dict:
+    """시장 국면별 랭크 IC 분해(scripts/regime_ic_screen.py --json-out) 파서. CG126/CG127.
+
+    스키마: {metric_name, arm, arm_jsonl, fillable, fillable_filter, n_rows, n_sessions_total,
+             all, trend:{up,down}, volatility:{low,mid,high},
+             delta_ic_up_minus_down, delta_t, delta_ic_vol_low_minus_rest, delta_t_vol,
+             thresholds:{min_delta_ic,min_t,min_sessions}, verdict, detail}
+    버킷 = rank_ic_money._agg 산출: {n_sessions, mean_ic, sd_ic, t, pos_session_share,
+             first_half_ic, second_half_ic, pool_mean_fwd_pct}
+    ⚠ per_exp 를 만들지 않는다 — scoreboard 가 'arm 폴드 평균(AUC)' 로 오독한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if d.get("error"):
+        return {"error": d["error"], "summary_mtime": mt}
+    if not d.get("all") or d["all"].get("n_sessions") is None:
+        return {"error": "all.n_sessions 없음(집계 실패)", "summary_mtime": mt}
+    return {
+        "metric_name": d.get("metric_name") or "regime_ic_screen",
+        "arm": d.get("arm"), "arm_jsonl": d.get("arm_jsonl"),
+        "fillable": d.get("fillable"), "fillable_filter": d.get("fillable_filter"),
+        "n_rows": d.get("n_rows"), "n_sessions_total": d.get("n_sessions_total"),
+        "n_sessions_no_regime": d.get("n_sessions_no_regime"),
+        "all": d.get("all"), "trend": d.get("trend"), "volatility": d.get("volatility"),
+        "delta_ic_up_minus_down": d.get("delta_ic_up_minus_down"),
+        "delta_t": d.get("delta_t"),
+        "delta_ic_vol_low_minus_rest": d.get("delta_ic_vol_low_minus_rest"),
+        "delta_t_vol": d.get("delta_t_vol"),
+        "thresholds": d.get("thresholds"),
+        "tool_verdict": d.get("verdict"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_regime_ic_screen(item, parsed) -> tuple:
+    """국면 조건화 판정 — **항목 플래그 `regime_test` 로 분기**(없으면 판정불가).
+
+      regime_test="trend_up_vs_down" : |ΔIC(up−down)| >= min_delta_ic AND |t| >= min_t  (양측)
+      regime_test="vol_low_vs_rest"  : ΔIC(vol low−rest) >= +min_delta_ic AND t >= min_t  (단측 양)
+
+    공통: 두 버킷 세션수 >= min_sessions. 미달이면 '노이즈' = 국면 조건화 정보 없음.
+    ⚠ '요약 블록 존재'로 분기하면 미등록 실행이 조용히 다른 규칙으로 폴백해 verdict 가 뒤집힌다
+    (CG119 교훈) → 플래그가 없으면 판정불가로 세운다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    test = item.get("regime_test")
+    if not test:
+        return "판정불가", "regime_test 플래그 없음(등록 누락) — 판정 규칙 미지정", None
+    th = parsed.get("thresholds") or {}
+    min_d = float(item.get("min_delta_ic") or th.get("min_delta_ic") or 0.03)
+    min_t = float(item.get("min_t") or th.get("min_t") or 2.0)
+    min_n = int(item.get("min_sessions") or th.get("min_sessions") or 15)
+    allb = parsed.get("all") or {}
+
+    def _g(d, k):
+        v = d.get(k)
+        return None if v is None else round(v, 4)
+
+    def _gt(d, k):
+        v = d.get(k)
+        return None if v is None else round(v, 2)
+
+    base = ("all IC %s(t %s, n %s)" % (_g(allb, "mean_ic"), _gt(allb, "t"), allb.get("n_sessions")))
+    if test == "vol_low_vs_rest":
+        dl, tt = parsed.get("delta_ic_vol_low_minus_rest"), parsed.get("delta_t_vol")
+        vb = parsed.get("volatility") or {}
+        n_low = (vb.get("low") or {}).get("n_sessions") or 0
+        n_rest = ((vb.get("mid") or {}).get("n_sessions") or 0) + ((vb.get("high") or {}).get("n_sessions") or 0)
+        detail = ("ΔIC(vol low−rest) %s · t %s · n low/rest %s/%s · %s"
+                  % (None if dl is None else round(dl, 4), None if tt is None else round(tt, 2),
+                     n_low, n_rest, base))
+        ok = (dl is not None and tt is not None and dl >= min_d and tt >= min_t
+              and n_low >= min_n and n_rest >= min_n)
+        if ok:
+            return "신호있음", detail + f" — 저변동 국면 IC 우위(단측 Δ≥+{min_d}, t≥{min_t})", round(dl, 4)
+        return "노이즈", detail + f" — 저변동 국면 우위 미재현(단측 Δ≥+{min_d}·t≥{min_t} 미달)", (
+            None if dl is None else round(dl, 4))
+    if test != "trend_up_vs_down":
+        return "판정불가", f"알 수 없는 regime_test={test!r}", None
+    dd, tt = parsed.get("delta_ic_up_minus_down"), parsed.get("delta_t")
+    tb = parsed.get("trend") or {}
+    n_up = (tb.get("up") or {}).get("n_sessions") or 0
+    n_dn = (tb.get("down") or {}).get("n_sessions") or 0
+    detail = ("ΔIC(up−down) %s · t %s · n up/down %s/%s · %s"
+              % (None if dd is None else round(dd, 4), None if tt is None else round(tt, 2),
+                 n_up, n_dn, base))
+    ok = (dd is not None and tt is not None and abs(dd) >= min_d and abs(tt) >= min_t
+          and n_up >= min_n and n_dn >= min_n)
+    if ok:
+        return "신호있음", detail + f" — 국면 의존 IC(|Δ|≥{min_d}, |t|≥{min_t})", round(dd, 4)
+    return "노이즈", detail + f" — 국면 의존 IC 미검출(|Δ|≥{min_d}·|t|≥{min_t} 미달)", (
+        None if dd is None else round(dd, 4))
+
+
 def parse_factor_money_screen(path, mtime_floor) -> dict:
     """고전 팩터 랭킹 정보 스크린(scripts/factor_money_screen.py --out) 파서.
 
@@ -2119,6 +2237,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_policy_compare(item, parsed)
     if kind == "panel_leak_gate":
         return judge_panel_leak_gate(item, parsed)
+    if kind == "regime_ic_screen":
+        return judge_regime_ic_screen(item, parsed)
     if kind == "champion_scorecard":
         return judge_champion_scorecard(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})

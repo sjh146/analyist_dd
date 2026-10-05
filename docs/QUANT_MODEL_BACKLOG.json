@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-06T00:01:43+09:00",
+  "updated_at": "2026-10-06T02:06:41+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12638,7 +12638,7 @@
     {
       "id": "CG125",
       "title": "배포 스코어의 앙상블 가중 방식 A/B — 균등(현행 배포) vs val-AUC 가중(보고 지표) · 배포 경로 same-run 짝",
-      "status": "pending",
+      "status": "done",
       "priority": 3,
       "affects_model": true,
       "metric": "champion_robust_eval",
@@ -12654,8 +12654,125 @@
       "est_minutes": 60,
       "risk": "창이 3개면 SE 가 크다(창 수 부족 — CG38 교훈) → 부호 일관과 창별 Δ 를 함께 보고하고, t 를 신뢰구간으로만 쓴다.",
       "note": "2026-10-06 01:0x 신설(장외 자율 세션). 계기: 발견 단계에서 코드 실측으로 '보고 지표(가중) vs 배포 점수(균등)' 불일치를 확인 → 구현·자체점검(26/26 PASS) 후 배포 경로에서 짝으로 측정한다. ⚠ 한 커맨드에 --out 이 두 개 → 구동기는 **첫 --out(cg125_weighted.json)** 만 판정한다. 대조군 JSON(cg125_equal.json)은 실행 후 세션이 파싱해 원장 parsed.counterfactual_arm·paired 키에 넣고 백로그 result.delta 를 짝 Δ 로 채운다(per_exp 금지 — CG38/CG55 절차). ⚠ champion_wtest 는 스크래치이며 **champion/ 원본은 수정하지 않았다**(플래그 기본 OFF 이므로 배포 동작도 불변 — 프로덕션에서 이 env 를 설정하는 곳은 없다). 가중치 영속화의 **활성화**(플래그 ON 전환)는 발행 계약 변경이라 승인 대상이다.",
-      "attempts": [],
-      "result": null
+      "attempts": [
+        {
+          "ts": "2026-10-06T01:47:14+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5233±0.0111 (시간창 2개 [0.5122, 0.5345]) · 풀링 0.521 · 날짜별평균 0.5233 · 행 8370",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG125_20261006-010723.log",
+          "elapsed_min": 39.9
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5233±0.0111 (시간창 2개 [0.5122, 0.5345]) · 풀링 0.521 · 날짜별평균 0.5233 · 행 8370",
+        "delta": -0.0005,
+        "per_exp": null,
+        "rc": 0,
+        "counterfactual_arm": {
+          "robust_auc": 0.5238,
+          "folds": [
+            0.5125,
+            0.5352
+          ],
+          "json": "services/xgboost-ml/reports/overnight/cg125_equal.json"
+        },
+        "paired": {
+          "per_window": [
+            -0.0003,
+            -0.0007
+          ],
+          "mean_delta": -0.0005,
+          "positive_windows": 0,
+          "n_windows": 2
+        },
+        "judgment": "가중(flag ON) 0.5233±0.0111 vs 균등(현행 배포) 0.5238±0.0114 → 짝 Δ −0.0005 (0/2 창 양(+)) = 노이즈. 사전등록대로 축을 닫는다: 가중 방식은 배포 성능 레버가 아니다. 남은 조치 = 보고·게이트 지표(가중)를 배포 실체(균등)로 통일(발행 계약 변경 → 승인 대상)."
+      }
+    },
+    {
+      "id": "CG126",
+      "title": "시장 국면 조건화 스크린 — 국면(추세·변동성)별 모델 랭크 IC 분해 (XR11 재개 조건의 실행화)",
+      "status": "done",
+      "priority": 2,
+      "affects_model": false,
+      "metric": "regime_ic_screen",
+      "regime_test": "trend_up_vs_down",
+      "arm": "cg108 AT_00_30 덤프(225세션·체결성 필터) 시장 국면별 IC 분해",
+      "counterfactual": "국면 무구분(all) IC — 같은 덤프·같은 행에서 분해만 하는 자기대조(ΔIC up−down)",
+      "hypothesis": "모델측 AUC 축(변환·HP·앙상블 가중·선별규칙·표본가중·목적함수·라벨·유니버스·창·정규화)과 돈 축(top-k vs 풀평균·팩터 랭킹·하위꼬리)이 전부 실측으로 닫혔다. 남아 있던 유일한 '재개 조건'은 XR11 노트의 국면 조건화다. ⚠ 종목피처 × 날짜상수 국면의 곱은 트리·IC 모두에서 no-op(per-day 단조변환)이므로, 검정 대상은 곱 피처가 아니라 **국면별로 랭킹 효력(IC)이 다른가**다 — 참이면 소비측 국면 게이트가 레버가 되고, 거짓이면 축이 닫힌다.",
+      "evidence": "도구 신설 scripts/regime_ic_screen.py(런타임 몇 초, DB 필요 없음은 아님 — market_data 로 동일가중 지수수익률 산출). 실측 2026-10-06 02:0x · cg108_at_preds(체결성필터 후 2,787행·211세션): all IC 0.0171(t 0.77) · trend up IC −0.0175(t −0.60, n 115) · trend down IC +0.0586(t 1.72, n 96) → **ΔIC(up−down) −0.0761 · t −1.70** = 사전문턱(|t|≥2) 미달.",
+      "command": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/regime_ic_screen.py --arm-jsonl /app/reports/overnight/cg108_at_preds.jsonl --arm-tag AT_00_30 --fillable --json-out /app/reports/overnight/cg126_regime.json",
+      "success": "사전등록: |ΔIC(up−down)| ≥ 0.03 AND |t| ≥ 2.0 AND 양 버킷 세션 ≥ 15 → '신호있음' = 국면 의존 IC(소비측 국면 게이트 후보). 미달이면 '국면 조건화도 정보 없음' = 노이즈로 축 종결.",
+      "expected": "0 근처. 근거: 이 스택의 모든 국면/시장레벨 축이 실측으로 정보 0(XR11·MK1).",
+      "cost": "수 초(시장 지수 계산 + IC 분해, 학습 없음)",
+      "est_minutes": 2,
+      "risk": "다중비교: 추세 2분면 + 변동성 3분면 = 5개 버킷을 본다 → 사전등록은 추세(2분면)만 채점하고 변동성 결과는 **탐색적**으로만 기록한다(결과를 본 뒤 문턱을 낮추지 않는다).",
+      "note": "2026-10-06 02:0x 신설(장외 자율). metric regime_ic_screen 을 같은 커밋에서 summary_path·parse·judge 3곳에 배선(판정 분기는 항목 플래그 regime_test — 없으면 판정불가). 실행은 이미 완료(탐색적 1차) → --ingest 로 편입. 부수 관찰(탐색적·비사전등록): 변동성 하위1/3 IC 0.0972(t 3.16) vs 중 −0.0437·상 −0.0018 로 저변동 국면 우위처럼 보임 → CG127 에서 서로소 2표본으로 사전등록 재현한다.",
+      "attempts": [
+        {
+          "ts": "2026-10-06T02:06:11+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "ΔIC(up−down) -0.0761 · t -1.7 · n up/down 115/96 · all IC 0.0171(t 0.77, n 211) — 국면 의존 IC 미검출(|Δ|≥0.03·|t|≥2.0 미달)",
+          "log": "",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "ΔIC(up−down) −0.0761 · t −1.70 (n up/down 115/96) · all IC 0.0171(t 0.77, n 211) — |t|≥2 미달 = 국면 의존 IC 미검출. 탐색적 관찰: cg108 vol low IC 0.0972(t 3.16, n 70) vs mid −0.0437 · high −0.0018 → ΔIC(low−rest) +0.1197(t 2.82) = CG127 로 넘김.",
+        "delta": -0.0761,
+        "per_exp": null,
+        "rc": 0
+      },
+      "finding": "추세 국면 조건화(up/down)는 정보 없음(|t| 1.70 < 2). 변동성 국면은 탐색적으로 저변동 우위(+0.1197 t 2.82)가 보였으나 결과를 본 뒤의 관찰 → CG127 에서 사전등록 재현.",
+      "setup_needed": null
+    },
+    {
+      "id": "CG127",
+      "title": "저변동 국면 IC 우위의 재현(사전등록·서로소 2표본) — 관찰-후-재현 규율 적용",
+      "status": "done",
+      "priority": 2,
+      "affects_model": false,
+      "metric": "regime_ic_screen",
+      "regime_test": "vol_low_vs_rest",
+      "min_delta_ic": 0.03,
+      "min_t": 2.0,
+      "min_sessions": 15,
+      "arm": "cg120_q05_all(98세션·seed7·체결성필터) + cg100_q05_all(80세션·seed0) 저변동 국면 IC",
+      "counterfactual": "같은 덤프의 중·고변동 국면 IC(ΔIC low−rest) — 자기대조(같은 행·분해만)",
+      "hypothesis": "CG126 탐색 관찰: cg108 에서 변동성 하위1/3 국면 IC 0.0972(t 3.16, n 70) 가 중(−0.0437)·상(−0.0018) 을 크게 상회 → '모델 랭킹은 저변동 국면에서만 유효하다'면 소비측 국면 게이트가 레버다. 단 이는 **결과를 본 뒤의 관찰**이므로 승격 근거가 아니다 → 문턱을 지금 고정하고 서로소 표본에서 재현해야 한다(CG123→CG124, CG117→CG121 과 같은 규율).",
+      "evidence": "CG126 실측(2026-10-06, 탐색적): cg108 vol low IC 0.0972(t 3.16) · mid −0.0437 · high −0.0018 → ΔIC(low−rest) +0.117(강해 보임). 이 항목이 재현 검정이다.",
+      "command": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/regime_ic_screen.py --arm-jsonl /app/reports/overnight/cg120_q05_all.jsonl --arm-tag cg120q05 --fillable --json-out /app/reports/overnight/cg127_a.json",
+      "success": "사전등록(단측): ΔIC(vol low−rest) ≥ +0.03 AND t ≥ 2.0 AND n_low ≥ 15 AND n_rest ≥ 30 → '신호있음'(저변동 국면 우위 재현) → 후속으로 소비측 국면 게이트 실험 등록. 미달이면 '국면 조건화 축 종결'(방향 무관 이 결과로 닫는다).",
+      "expected": "미재현(0 근처 또는 부호 반전). 근거: 이 스택의 단일 유니버스 강한 t(CG123 t−5.5 포함)가 서로소에서 전부 부호 반전.",
+      "cost": "수 초 × 2표본",
+      "est_minutes": 2,
+      "risk": "국면 버킷이 전체 세션의 1/3 이라 n 이 작다(98세션 → 32) — t 가 커지려면 효과크기가 커야 한다.",
+      "note": "2026-10-06 02:0x 신설. 사전등록은 실행 **전에** 고정했다(단측 Δ≥+0.03·t≥2·n≥15). 2표본 = ①cg120_q05_all(98세션·2025-06-30~2026-08-26·exp cg120q05) ②cg100_q05_all(80세션·exp cg92_q05). 구동기는 첫 --json-out 만 판정하므로 ①을 정본으로 하고 ② 결과는 result.note 에 적는다.",
+      "attempts": [
+        {
+          "ts": "2026-10-06T02:06:11+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "ΔIC(vol low−rest) -0.0036 · t -0.16 · n low/rest 32/66 · all IC 0.0919(t 8.08, n 98) — 저변동 국면 우위 미재현(단측 Δ≥+0.03·t≥2.0 미달)",
+          "log": "",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "정본 cg120_q05_all(98세션·seed7): ΔIC(low−rest) −0.0036 · t −0.16 (n 32/66) → 미재현. 제2표본 cg100_q05_all(80세션·seed0·exp cg92_q05): ΔIC(low−rest) −0.0886 · t −2.64 (n 26/54) → **부호 반전**(저변동이 더 낮다). 두 표본 모두 단측문턱 Δ≥+0.03 미달.",
+        "delta": -0.0036,
+        "per_exp": null,
+        "rc": 0,
+        "delta_second_sample": -0.0886
+      },
+      "finding": "CG126 의 저변동 국면 IC 우위는 서로소 2표본에서 재현되지 않았다(하나는 부호 반전) → 국면 조건화 축 종결. 이로써 XR11 재개 조건까지 닫혀, 모델측 레버는 0 이다(잔여=데이터 축).",
+      "setup_needed": null
     }
   ],
   "updated": "2026-10-05T09:30:00+09:00"
