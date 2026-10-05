@@ -53,6 +53,21 @@ SIGNAL_DELTA = 0.02
 NO_IMPROVE_CYCLES = 3      # 사이클 3회 연속 무개선 → 사람 개입 요청
 NO_TRADE_DAYS = 3          # 3거래일 신규 진입 없음 → 회전 정지 경고
 
+# ── CG104 (리뷰보드 승인 2026-10-05 22:4x): 대조 가능성(comparability) 필터 ────
+# 종전 best_robust 는 **전 이력 모든 arm 의 최고 mean**(max-over-arms)이라, 라벨 kind·q·게이트가
+# 기준선과 다른 arm 이 섞여 거짓 돌파를 만들었다. 실측(2026-10-05): 최고 arm = CG89 의
+# Q5s_120_150 0.5870(q0.05 · 서로소 슬라이스 [120:150)) vs 기준선 0.5406(q0.30·게이트 OFF) →
+# "Δ+0.0464 개선"으로 표기됐지만 q0.05 의 행 집합은 q0.30 의 **부분집합**이라 과제 정의가 다르고
+# (스킬 하드규칙 ①), 유니버스 교체만으로 폴드 평균이 Δ0.0287 움직인다(하드규칙: 사전문턱 +0.02 는
+# 잡음 바닥 아래) → 비교 자체가 성립하지 않는다. 그래서 기준선 태그와 라벨 kind·q·게이트(core_only)·
+# 호라이즌이 일치하는 arm 만 best_robust·무개선 카운터에 계상한다. 태그를 해석할 수 없는 arm
+# (옛 기록·미등록 config)은 종전대로 포함하되 '미분류'로 각주에 남긴다 — 소급 오탐을 완전히 막지는
+# 못한다는 사실을 숨기지 않기 위해서다. 기준선 값(BASELINE_ROBUST)은 재계산 전후 보존된다.
+BASELINE_ARM = "LS_quant_q30_h5"
+BASELINE_TAGS = {"kind": "quantile", "q": 0.30, "core_only": False, "horizon": 5}
+ARM_CONFIGS_PATH = os.path.join(PROJ, "scripts/wf_label_sweep.py")
+_ARM_TAGS_CACHE: dict | None = None
+
 
 # ── 공통 ────────────────────────────────────────────────────────────────────
 def _docker_cat(path: str) -> str | None:
@@ -196,6 +211,7 @@ def engineer_stanza() -> dict:
           "baseline": BASELINE_ROBUST, "baseline_name": BASELINE_NAME,
           "delta": None, "last_verdict": None, "no_improve_cycles": 0,
           "no_improve_streak": 0, "last_improve": None,
+          "best_excluded": None, "comparability": None,
           "source": f"{ME_LEDGER} + /app/app/models/champion/auc.txt", "alerts": []}
 
     auc = _docker_cat("/app/app/models/champion/auc.txt")
@@ -213,16 +229,40 @@ def engineer_stanza() -> dict:
     # 실행에서 온 최댓값은 [미검증 최고 arm] 으로 표기한다(0/신호로 위장하지 않는다).
     best, best_std, best_exp = None, None, None
     best_rec = None
+    best_x = None          # 최고 '대조 불가' arm — best_robust 에서 제외하되 각주로 남긴다(CG104)
+    n_cmp, n_incmp, n_unclass = 0, 0, 0
+    cmp_panels: set = set()
+    best_panel = None
     for rec in _jsonl(ME_LEDGER):
-        parsed = rec.get("parsed") or {}
-        per = (parsed.get("per_exp") or {}) if isinstance(parsed, dict) else {}
-        for exp, val in per.items():
-            if not isinstance(val, dict):
+        _panel = str(((rec.get("parsed") or {}).get("config") or {}).get("panel") or "?").rsplit("/", 1)[-1]
+        for arm, val, ok, why in _rec_arm_entries(rec):
+            mean = float(val["mean"])
+            if ok is True:
+                n_cmp += 1
+                cmp_panels.add(_panel)
+            elif ok is None:
+                n_unclass += 1
+            else:
+                n_incmp += 1
+                if best_x is None or mean > best_x["mean"]:
+                    best_x = {"mean": round(mean, 4), "arm": arm, "id": rec.get("id"),
+                              "ts": rec.get("ts"), "reason": why}
                 continue
-            mean = val.get("mean")
-            if isinstance(mean, (int, float)) and (best is None or mean > best):
-                best, best_std, best_exp = float(mean), val.get("std"), exp
+            if best is None or mean > best:
+                best, best_std, best_exp = mean, val.get("std"), arm
                 best_rec = rec
+                best_panel = _panel
+    st.update({"comparability": {
+        "filter": "kind·q·core_only·horizon·유니버스슬라이스 (기준선 태그와 일치하는 arm 만 계상)",
+        "baseline_arm": BASELINE_ARM, "baseline_tags": dict(BASELINE_TAGS),
+        "arms_comparable": n_cmp, "arms_incomparable": n_incmp, "arms_unclassified": n_unclass,
+        "panels_comparable": sorted(cmp_panels), "best_panel": best_panel,
+        "best_excluded": best_x}})
+    if best_x is not None:
+        st["best_excluded"] = best_x
+    if best_panel:
+        st["comparability"]["note"] = ("패널(창)은 기준선 패널이 원장에 기록돼 있지 않아 필터하지 않고 "
+                                       "각주로만 남긴다 — 창은 실측상 레버가 아니다(2026-09-30 U3b/d).")
     if best is not None:
         st.update({"best_robust": round(best, 4),
                    "best_robust_std": round(float(best_std), 4) if isinstance(best_std, (int, float)) else None,
@@ -269,13 +309,123 @@ def engineer_stanza() -> dict:
     return st
 
 
-def _rec_best_mean(rec: dict) -> float | None:
+def _arm_tags_registry() -> dict:
+    """wf_label_sweep.CONFIGS 를 **실행하지 않고** AST 로 읽어 {arm_id: tags} 를 만든다.
+
+    왜 AST 인가: 스코어보드는 호스트 python3 로 돌고 이 호스트엔 numpy 가 없어
+    `import wf_label_sweep` 이 `ModuleNotFoundError` 로 죽는다(실측 2026-10-05).
+    파싱 실패(비리터럴 항목·파일 부재)면 빈 dict → 필터는 '미분류'로 폴백한다.
+    """
+    global _ARM_TAGS_CACHE
+    if _ARM_TAGS_CACHE is not None:
+        return _ARM_TAGS_CACHE
+    reg: dict = {}
+    try:
+        import ast
+        with open(ARM_CONFIGS_PATH, encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        node = None
+        for n in tree.body:
+            if isinstance(n, ast.Assign) and any(
+                    isinstance(t, ast.Name) and t.id == "CONFIGS" for t in n.targets):
+                node = n.value
+        for c in (ast.literal_eval(node) if node is not None else []):
+            if isinstance(c, dict) and c.get("id"):
+                sl = c.get("codes_slice")
+                reg[c["id"]] = {
+                    "kind": c.get("kind"), "q": c.get("q"),
+                    "horizon": c.get("horizon"),
+                    "core_only": bool(c.get("core_only")),
+                    "select": c.get("select"),
+                    "codes_slice": tuple(sl) if isinstance(sl, (list, tuple)) else None,
+                }
+    except Exception:
+        reg = {}
+    _ARM_TAGS_CACHE = reg
+    return reg
+
+
+def _baseline_universe() -> dict:
+    """기준선(BASELINE_ROBUST·BASELINE_ARM)을 만든 기록의 유니버스(패널·days·limit)를 원장에서 찾는다.
+
+    리뷰보드 기준에 '유니버스'가 포함된다 — 실측: 기준선 0.5406 은 L1/L2 의
+    panel_420_asofpatch(d420·limit50)에서 나왔는데, 최고 arm U3 은 같은 arm 이름을
+    panel_995(d995)에서 재측정한 0.5557 이다(창 교체만으로 Δ0.0151). 창이 레버가 아님은
+    실측으로 확인됐지만(2026-09-30 U3b/d), 유니버스가 다르면 같은 과제가 아니므로 계상하지 않는다.
+    파생 실패(기록 없음)면 빈 dict → 유니버스 검사는 건너뛰고 각주로만 남긴다(기준선 값은 보존).
+    """
+    for rec in _jsonl(ME_LEDGER):
+        per = ((rec.get("parsed") or {}).get("per_exp") or {})
+        v = per.get(BASELINE_ARM)
+        if (isinstance(v, dict) and isinstance(v.get("mean"), (int, float))
+                and abs(float(v["mean"]) - BASELINE_ROBUST) < 1e-9):
+            cfg = (rec.get("parsed") or {}).get("config") or {}
+            return {"panel": str(cfg.get("panel") or "?").rsplit("/", 1)[-1],
+                    "days": cfg.get("days"), "limit": cfg.get("limit"), "source": rec.get("id")}
+    return {}
+
+
+_UNIV_CACHE: dict | None = None
+
+
+def _record_universe(cfg: dict) -> dict:
+    return {"panel": str(cfg.get("panel") or "?").rsplit("/", 1)[-1],
+            "days": cfg.get("days"), "limit": cfg.get("limit")}
+
+
+def arm_comparability(arm: str, val: dict, cfg: dict | None = None) -> tuple[bool | None, str]:
+    """기준선과 대조 가능한 arm 인가 → (True/False/None, 사유).
+
+    None = 태그 미해석(미등록 config) → 종전대로 계상하고 각주에 '미분류'로 남긴다.
+    라벨 kind·horizon 은 per_exp 항목(그 런의 실측값)을 우선하고, q·게이트·유니버스는 config 에서 온다.
+    cfg(그 기록의 실행 인자)가 주어지면 패널·days·limit 도 기준선과 대조한다.
+    """
+    global _UNIV_CACHE
+    t = _arm_tags_registry().get(arm)
+    if t is None:
+        return None, "config 미등록(태그 미해석)"
+    kind = val.get("kind", t.get("kind"))
+    horizon = val.get("horizon", t.get("horizon"))
+    bad = []
+    if kind != BASELINE_TAGS["kind"]:
+        bad.append(f"라벨kind {kind}≠{BASELINE_TAGS['kind']}")
+    if t.get("q") != BASELINE_TAGS["q"]:
+        bad.append(f"q {t.get('q')}≠{BASELINE_TAGS['q']}")
+    if t.get("core_only") != BASELINE_TAGS["core_only"]:
+        bad.append(f"게이트 {'ON' if t.get('core_only') else 'OFF'}≠"
+                   f"{'ON' if BASELINE_TAGS['core_only'] else 'OFF'}")
+    if horizon != BASELINE_TAGS["horizon"]:
+        bad.append(f"h{horizon}≠h{BASELINE_TAGS['horizon']}")
+    if t.get("codes_slice") is not None:
+        bad.append(f"유니버스 슬라이스 {tuple(t['codes_slice'])}")
+    if cfg:
+        if _UNIV_CACHE is None:
+            _UNIV_CACHE = _baseline_universe()
+        bu = _UNIV_CACHE
+        if bu.get("panel"):
+            u = _record_universe(cfg)
+            if (u["panel"], u["days"], u["limit"]) != (bu["panel"], bu["days"], bu["limit"]):
+                bad.append(f"유니버스 {u['panel']}/d{u['days']}/L{u['limit']}"
+                           f"≠{bu['panel']}/d{bu['days']}/L{bu['limit']}")
+    return (not bad), ", ".join(bad)
+
+
+def _rec_arm_entries(rec: dict) -> list[tuple[str, dict, bool | None, str]]:
     parsed = rec.get("parsed")
     per = (parsed.get("per_exp") or {}) if isinstance(parsed, dict) else {}
-    vals: list[float] = []
-    for v in per.values():
-        if isinstance(v, dict) and isinstance(v.get("mean"), (int, float)):
-            vals.append(float(v["mean"]))
+    cfg = (parsed.get("config") or {}) if isinstance(parsed, dict) else {}
+    out = []
+    for arm, val in per.items():
+        if not isinstance(val, dict) or not isinstance(val.get("mean"), (int, float)):
+            continue
+        ok, why = arm_comparability(arm, val, cfg)
+        out.append((arm, val, ok, why))
+    return out
+
+
+def _rec_best_mean(rec: dict) -> float | None:
+    """그 기록의 **대조 가능한** arm 최고 mean. 대조 불가(False)만 제외, 미분류(None)는 포함."""
+    vals = [float(v["mean"]) for _a, v, ok, _r in _rec_arm_entries(rec) if ok is not False]
     return max(vals) if vals else None
 
 
@@ -368,6 +518,10 @@ def fmt(st: dict, with_source: bool = True) -> str:
                  f"±{e['best_robust_std'] if e['best_robust_std'] is not None else '?'}"
                  f" ({e['best_exp']}) vs 기준선 {_num(e.get('baseline'), '.4f')} → Δ{d:+.4f} [{mark}]"
                  f" | 챔피언 단일분할 {_num(e.get('champion_single'))}{src}")
+    _cx = e.get("best_excluded")
+    if _cx:
+        L.append(f"   ↳ 대조 불가 제외(CG104): 최고 {_cx['arm']} {_cx['mean']:.4f} ({_cx['id']})"
+                 f" — {_cx['reason']} (기준선 {_num(e.get('baseline'), '.4f')} 보존)")
     _ax = r.get("alive_xsec_features")
     _extra = f" (횡단면 {_num(_ax, '.0f')})" if isinstance(_ax, (int, float)) else ""
     L.append(f"🔬 퀀트리서처: DQ {r['status'] or 'n/a'} | 살아있는 피처 "
@@ -423,6 +577,15 @@ def main() -> int:
               f"{s.get('no_improve_streak')}사이클 (누적 미달 {s['no_improve_cycles']}/{s.get('measured_cycles')}"
               f"·무효 {s.get('invalid_cycles')})"
               + (f" | 직전 개선 {_li.get('id')} @{_li.get('ts')}" if _li else ""))
+        _cx = s.get("best_excluded")
+        if _cx:
+            _c = s["comparability"]
+            print(f"  ↳ 대조 불가 제외(CG104): 최고 {_cx['arm']} {_cx['mean']:.4f} ({_cx['id']}) — "
+                  f"{_cx['reason']} · 대조가능 arm {_c['arms_comparable']}"
+                  f"/불가 {_c['arms_incomparable']}/미분류 {_c['arms_unclassified']}"
+                  f" · 대조가능 패널 {','.join(_c.get('panels_comparable') or []) or '?'}")
+        if s.get("best_robust") is None and (s.get("comparability") or {}).get("arms_incomparable"):
+            print(f"  ↳ 대조 가능한 arm 없음 → best_robust 미산출 (기준선 값 보존: {s.get('baseline')})")
         for x in s["alerts"]:
             print(f"  ⚠ {x}")
         return 0

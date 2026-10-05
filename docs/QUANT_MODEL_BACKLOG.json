@@ -147,17 +147,37 @@
       "id": "CG104",
       "title": "[측정정합성] 스코어보드 best_robust 가 과제정의·유니버스가 다른 arm 을 기준선(q0.30)과 직접 비교해 거짓 돌파를 만든다 — 프로토콜 수정",
       "hypothesis": "스코어보드 북극성이 '로버스트 0.5870 vs 기준선 0.5406 (Δ+0.0464) · 무개선 0사이클' 로 뜨지만, 0.5870 의 출처는 원장 top per_exp 스캔으로 **CG89 의 Q5s_120_150**(q0.05·서로소 유니버스 슬라이스[120:150) = 유동성 최하위 30종목, std 0.0519)이다. 기준선 0.5406 은 q0.30·게이트 ON. 스킬 하드규칙: ① q0.05 의 행 집합은 q0.30 의 부분집합이라 과제 정의가 다르고 AUC 직접 비교 금지 ② 유니버스 교체만으로 폴드 평균이 Δ0.0287 움직인다(사전문턱 +0.02 는 잡음 바닥 아래). 즉 Δ+0.0464 는 개선이 아니라 서로 다른 과제·유니버스 AUC 를 나란히 놓은 산물이다. 돈 지표도 양쪽 다 엣지 없음(q0.05 Δ≤+0.23 t<1.1 / q0.30 Δ+0.462 t 0.81, CG103).",
-      "command": null,
+      "command": "python3 scripts/_scoreboard_comparability_test.py && python3 scripts/quant_scoreboard.py --stanza engineer",
       "metric": null,
       "counterfactual": "현행: 원장 per_exp 전체의 최고 mean 을 무조건 best_robust 로 채택(대조 가능성 미검사)",
       "success": "① 대조 불가 arm(라벨 kind·q·게이트·유니버스가 기준선과 다름)은 무개선 카운터·best_robust 에서 제외되고 ② 그 사실이 로그 각주로 남으며 ③ 기존 기준선 값은 재계산 전후 보존된다.",
-      "est_minutes": null,
+      "est_minutes": 1,
       "priority": 2,
-      "status": "pending",
+      "status": "done",
       "setup_needed": "`scripts/quant_scoreboard.py` 는 공유 파일 — 스킬상 '스코어보드 기준선/프로토콜 변경' = 리뷰보드 승인 대상. 승인 후 대조 가능성 필터(라벨 kind·q·게이트·유니버스 태그 비교) 구현 + 회귀. 실측 근거: 원장 최고 per_exp = CG89 Q5s_120_150 0.5870(q0.05·유니버스슬라이스) vs 기준선 0.5406(q0.30·게이트 ON) = 비교 불가 비교.",
       "added": "2026-10-05 02:0x (엔지니어 — 북극성 거짓 돌파 진단)",
       "attempts": [],
-      "note": "[리뷰보드 승인 2026-10-05 22:4x] 스코어보드 best_robust 프로토콜 수정 승인 — 대조 불가 arm(라벨 kind·q·게이트·유니버스가 기준선과 다름) 제외 + 로그 각주 + 기준선 보존. command 를 저작해 실행하라. 근거: docs/QUANT_BOARD.md 2026-10-05 블록 ③-3/⑤-1."
+      "note": "[리뷰보드 승인 2026-10-05 22:4x] 스코어보드 best_robust 프로토콜 수정 승인 — 대조 불가 arm(라벨 kind·q·게이트·유니버스가 기준선과 다름) 제외 + 로그 각주 + 기준선 보존. command 를 저작해 실행하라. 근거: docs/QUANT_BOARD.md 2026-10-05 블록 ③-3/⑤-1. | 2026-10-05 23:0x 엔지니어 구현·검증 완료(커밋 포함) — quant_scoreboard.py 에 arm_comparability/_baseline_universe/_rec_arm_entries 배선, 각주 출력(engineer stanza·fmt), 자체점검 20/20 PASS. 부수 수리: tests/test_scoreboard_best_arm_source.py 1건은 필터로 Q5s_30_60 arm 이 제외되므로 neutral arm 이름으로 계약만 검증하도록 갱신(CG104 규약 주석).",
+      "result": {
+        "verdict": "수리완료",
+        "detail": "대조 가능성 필터 구현 — 기준선 태그(kind=quantile·q=0.30·core_only=False·h5) 및 유니버스(panel_420_asofpatch.npz/d420/L50, L1/L2 기록에서 파생)와 일치하는 arm 만 best_robust·무개선 카운터에 계상. 거짓 돌파 제거: 종전 0.5870(CG89 Q5s_120_150·q0.05·슬라이스·panel_prod200) → 0.5519(TR_rank_h5·panel_420_asofpatch, Δ+0.0113=노이즈). 대조가능 arm 50 / 불가 275 / 미분류 5(종전 계상 유지) · 기준선 0.5406 보존.",
+        "measured": {
+          "best_robust_before": 0.587,
+          "best_robust_after": 0.5519,
+          "baseline": 0.5406,
+          "delta_after": 0.0113,
+          "arms_comparable": 50,
+          "arms_incomparable": 275,
+          "arms_unclassified": 5,
+          "no_improve_streak_after": 19,
+          "best_excluded": {
+            "arm": "Q5s_120_150",
+            "id": "CG89",
+            "mean": 0.587
+          }
+        },
+        "test": "scripts/_scoreboard_comparability_test.py 20/20 PASS"
+      }
     },
     {
       "id": "L1",

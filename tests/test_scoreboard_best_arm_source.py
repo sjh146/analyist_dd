@@ -52,13 +52,16 @@ def _state(m, engine):
 
 
 def test_noise_record_best_arm_is_not_labelled_signal(tmp_path):
+    # ⚠ CG104(2026-10-05, 리뷰보드 승인) 이후 'Q5s_30_60' 같은 q0.05·게이트ON·슬라이스 arm 은
+    # 비교가능성 필터로 best_robust 에서 **제외**된다 → 여기서는 필터를 타지 않는 arm 이름을 써서
+    # '출처·표기' 계약만 검증한다(비교가능성 자체는 scripts/_scoreboard_comparability_test.py 담당).
     m = _load()
     base = m.BASELINE_ROBUST
     m.ME_LEDGER = _write(tmp_path, [
-        _rec("2026-09-29T03:27:41+09:00", "CG24", "노이즈", base + 0.0314, exp="Q5s_30_60"),
+        _rec("2026-09-29T03:27:41+09:00", "CG24", "노이즈", base + 0.0314, exp="XX_arm"),
     ])
     st = m.engineer_stanza()
-    assert st["best_exp"] == "Q5s_30_60"
+    assert st["best_exp"] == "XX_arm"
     assert st["best_rec_id"] == "CG24"
     assert st["best_validated"] is False
     out = m.fmt(_state(m, st))

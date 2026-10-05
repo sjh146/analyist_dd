@@ -1,5 +1,5 @@
 {
-  "ts": "2026-10-02T22:41:12+09:00",
+  "ts": "2026-10-05T23:06:01+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
@@ -12,10 +12,10 @@
     "expectancy_krw": -482,
     "avg_return_pct": -1.52,
     "open_positions": 0,
-    "days_since_entry": 3.3,
+    "days_since_entry": 6.3,
     "alerts": [
       "순손익 마이너스 -1,446원 — 기대값 -482원/건",
-      "신규 진입 3.3일 없음 (보유 0종목) — 돈이 도는 회전이 멈춤"
+      "신규 진입 6.3일 없음 (보유 0종목) — 돈이 도는 회전이 멈춤"
     ],
     "error": null
   },
@@ -23,34 +23,63 @@
     "role": "engineer",
     "north": "로버스트 AUC (다중폴드 평균)",
     "champion_single": 0.551318,
-    "best_robust": 0.5727,
-    "best_robust_std": 0.076,
-    "best_exp": "Q5s_30_60",
-    "best_rec_id": "CG24",
-    "best_rec_ts": "2026-09-29T03:27:41+09:00",
+    "best_robust": 0.5519,
+    "best_robust_std": 0.0333,
+    "best_exp": "TR_rank_h5",
+    "best_rec_id": "TR1",
+    "best_rec_ts": "2026-09-26T06:08:31+09:00",
     "best_rec_verdict": "노이즈",
     "best_validated": false,
     "baseline": 0.5406,
     "baseline_name": "LS_quant_q30_h5 (h5·분위0.3·top30)",
-    "delta": 0.0321,
-    "last_verdict": "게이트 통과(승격후보 생성) — 단 OOS 짝 실측은 회귀",
-    "no_improve_cycles": 47,
-    "no_improve_streak": 12,
-    "last_improve": {
-      "ts": "2026-09-29T03:27:41+09:00",
-      "id": "CG24"
+    "delta": 0.0113,
+    "last_verdict": "후보 생성·게이트 거부",
+    "no_improve_cycles": 19,
+    "no_improve_streak": 19,
+    "last_improve": null,
+    "best_excluded": {
+      "mean": 0.587,
+      "arm": "Q5s_120_150",
+      "id": "CG89",
+      "ts": "2026-10-04T01:10:59+09:00",
+      "reason": "q 0.05≠0.3, 게이트 ON≠OFF, 유니버스 슬라이스 (120, 150), 유니버스 panel_prod200.npz/d420/L50≠panel_420_asofpatch.npz/d420/L50"
+    },
+    "comparability": {
+      "filter": "kind·q·core_only·horizon·유니버스슬라이스 (기준선 태그와 일치하는 arm 만 계상)",
+      "baseline_arm": "LS_quant_q30_h5",
+      "baseline_tags": {
+        "kind": "quantile",
+        "q": 0.3,
+        "core_only": false,
+        "horizon": 5
+      },
+      "arms_comparable": 50,
+      "arms_incomparable": 275,
+      "arms_unclassified": 5,
+      "panels_comparable": [
+        "panel_420_asofpatch.npz"
+      ],
+      "best_panel": "panel_420_asofpatch.npz",
+      "best_excluded": {
+        "mean": 0.587,
+        "arm": "Q5s_120_150",
+        "id": "CG89",
+        "ts": "2026-10-04T01:10:59+09:00",
+        "reason": "q 0.05≠0.3, 게이트 ON≠OFF, 유니버스 슬라이스 (120, 150), 유니버스 panel_prod200.npz/d420/L50≠panel_420_asofpatch.npz/d420/L50"
+      },
+      "note": "패널(창)은 기준선 패널이 원장에 기록돼 있지 않아 필터하지 않고 각주로만 남긴다 — 창은 실측상 레버가 아니다(2026-09-30 U3b/d)."
     },
     "source": "/home/jhshi/analyist_dd/data/reports/model_engineer_ledger.jsonl + /app/app/models/champion/auc.txt",
     "alerts": [
-      "로버스트 AUC 가 12사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
+      "로버스트 AUC 가 19사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
     ],
-    "measured_cycles": 50,
-    "invalid_cycles": 35
+    "measured_cycles": 19,
+    "invalid_cycles": 118
   },
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20261002-220007.json",
+    "sample": "dq_20261005-220046.json",
     "status": "ok",
     "warns": [],
     "breaches": [],
@@ -58,14 +87,14 @@
     "alive_xsec_features": 138.0,
     "dead_features": 35.0,
     "stock_constant_ratio": 0.3353658536585366,
-    "news_freshness_hours": 0.00020840194444444443,
-    "rows_delivered": 2475110.0,
+    "news_freshness_hours": 0.0005666725,
+    "rows_delivered": 3183413.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
     "alerts": []
   },
   "needs_human": [
     "[trader] 순손익 마이너스 -1,446원 — 기대값 -482원/건",
-    "[trader] 신규 진입 3.3일 없음 (보유 0종목) — 돈이 도는 회전이 멈춤",
-    "[engineer] 로버스트 AUC 가 12사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
+    "[trader] 신규 진입 6.3일 없음 (보유 0종목) — 돈이 도는 회전이 멈춤",
+    "[engineer] 로버스트 AUC 가 19사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
   ]
 }
