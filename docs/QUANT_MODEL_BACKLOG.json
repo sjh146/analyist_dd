@@ -12287,6 +12287,24 @@
         "per_exp": null,
         "rc": 0
       }
+    },
+    {
+      "id": "CG117",
+      "title": "모델 IC vs 팩터 IC 의 **같은 행 짝** 비교 — ML 이 고전 팩터 대비 정보 우위가 있는가",
+      "status": "needs_setup",
+      "priority": 2,
+      "affects_model": false,
+      "arm": "배포/스윕 모델 예측(덤프) vs 같은 (code,date) 행의 멀티팩터 점수 — 세션별 IC 짝",
+      "counterfactual": "무작위 랭킹(IC 0) · 교차패널 비교는 금지(실측 U1/CG5: 코드 교집합 3종목에서 부호 반전)",
+      "hypothesis": "CG115 실측: 고전 팩터 합성의 횡단면 IC(value +0.0436 t4.25 · lowvol +0.0524 t4.08 · multifactor +0.0275 t3.12)가 모델 측 IC(배포 챔피언 +0.0165 t0.94 · q0.05 +0.0560 t4.53, CG113)와 같은 자릿수거나 더 강하다. 그런데 두 수치는 **유니버스·세션·행 도메인이 다르다**(교차패널 비교 = 무효). ML 을 유지할 근거는 '같은 행에서 팩터보다 정보가 많다'는 것이므로 그것만 짝으로 재면 된다.",
+      "success": "사전등록: 같은 세션·같은 (code,date) 행에서 짝 ΔIC = IC(모델) − IC(멀티팩터) ≥ +0.01 **AND** t ≥ 2 → '모델 우위 있음'(파이프라인 유지 근거). 미달이면 'ML 은 팩터 대비 정보 우위 없음'으로 기록하고 모델 복잡도(앙상블·피처 213개) 유지 근거를 재검토한다. ⚠ IC 는 순기대가 아니다(승격 근거 아님).",
+      "expected": "미지 — 양쪽 IC 가 t≈3~4 로 비슷해 Δ≈0 이면 '복잡도 대비 이득 없음'이 된다.",
+      "cost": "구현 30분 + 실행 1분(읽기 전용)",
+      "est_minutes": 5,
+      "setup_needed": "① scripts/factor_money_screen.py 에 `--arm-jsonl <dump>` 추가: 덤프(champion_robust_eval --dump-all, 예 /app/reports/overnight/cg95_q05_all.jsonl)의 (stock_code, prediction_date) 집합에 대해 팩터 점수를 산출(패널 가격·재무 as-of 재사용)하고 ② 세션별 Spearman IC 를 모델 IC 와 **짝지어** ΔIC·t·부호검정을 출력(rank_ic_money.py 의 paired 블록과 스키마 정렬) ③ 덤프 유니버스가 panel_prod200 과 다르면 교집합 (code,date) 만 쓰고 **교집합 크기·종목수**를 산출물에 명시(교차패널 비교 금지 규율). metric factor_money_screen 의 parse/judge 에 `paired_vs_factor` 키를 추가(per_exp 미생성).",
+      "note": "CG115/CG116(CG114 돈 축 종결 후속)의 직접 후속. 착수 전 확인: 덤프 파일 실재 여부(`ls services/xgboost-ml/reports/overnight/*_all.jsonl`) 와 그 덤프의 라벨·유니버스 태그.",
+      "added": "2026-10-05T16:11:37+09:00 (엔지니어 — 모델 vs 팩터 정보량 분해, 같은 행 짝 설계)",
+      "attempts": []
     }
   ],
   "updated": "2026-10-05T09:30:00+09:00"
