@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-05T22:04:38+09:00",
+  "updated_at": "2026-10-06T00:01:43+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12453,7 +12453,7 @@
     },
     {
       "id": "CG120",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "title": "모델 vs 팩터 IC 우위의 검정력 보강 — q0.05 arm 덤프를 80→~140세션으로 재생성(CG117/CG119 회색지대 해소)",
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 12000 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 10 --dates-per-fold 14 --stocks 300 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg120_q05_all.jsonl --dump-tag cg120q05 --dump-all --out /app/reports/overnight/cg120_q05_robust.json'",
@@ -12463,11 +12463,28 @@
       "est_minutes": 130,
       "pairs": null,
       "setup_needed": null,
-      "note": "등록 2026-10-05 18:2x (엔지니어). CG117/CG119 의 회색지대(t 1.81·1.63)는 표본 부족 때문이다 — 효과크기 +0.044, SD 0.24, t≥2 에 n≥119 세션 필요. 명령은 CG95/CG100 과 **동일 레시피**(model-dir·label·train-start/end·universe-seed 0)에서 dates-per-fold 만 8→14 로 키운 것(10폴드×14=140일). 실측 속도 0.86 분/cell(CG95: 80cell 69분) → est 130분. ETA 가드가 20:00 재생성 창을 넘는 시작을 막으므로 밤 창에 착수된다. 덤프가 도착하면 CG121(짝 ΔIC)을 등록하라 — 이 항목의 metric(champion_robust_eval)은 AUC 창만 기록한다."
+      "note": "등록 2026-10-05 18:2x (엔지니어). CG117/CG119 의 회색지대(t 1.81·1.63)는 표본 부족 때문이다 — 효과크기 +0.044, SD 0.24, t≥2 에 n≥119 세션 필요. 명령은 CG95/CG100 과 **동일 레시피**(model-dir·label·train-start/end·universe-seed 0)에서 dates-per-fold 만 8→14 로 키운 것(10폴드×14=140일). 실측 속도 0.86 분/cell(CG95: 80cell 69분) → est 130분. ETA 가드가 20:00 재생성 창을 넘는 시작을 막으므로 밤 창에 착수된다. 덤프가 도착하면 CG121(짝 ΔIC)을 등록하라 — 이 항목의 metric(champion_robust_eval)은 AUC 창만 기록한다.",
+      "attempts": [
+        {
+          "ts": "2026-10-05T23:15:49+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5847±0.0500 (시간창 7개 [0.6356, 0.5410, 0.5954, 0.6333, 0.6361, 0.5038, 0.5479]) · 풀링 0.5848 · 날짜별평균 0.5847 · 행 2934",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG120_20261005-220046.log",
+          "elapsed_min": 75.0
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5847±0.0500 (시간창 7개 [0.6356, 0.5410, 0.5954, 0.6333, 0.6361, 0.5038, 0.5479]) · 풀링 0.5848 · 날짜별평균 0.5847 · 행 2934",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG121",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "title": "모델 vs 팩터 IC 우위의 최종 판정 — CG120 덤프(~140세션)에서 짝 ΔIC ≥ +0.01 AND t ≥ 2 인가 [회색지대 종결]",
       "hypothesis": "CG117(시드0·80세션) ΔIC +0.0455(t 1.81) 와 CG119(시드7·80세션) ΔIC +0.0436(t 1.63) 는 효과크기가 ~+0.044 로 두 번 일치했으나 세션ΔIC sd≈0.24 라 80세션 SE≈0.027 로 t≥2 에 못 미쳤다 (필요 세션 n≥119). CG120 이 같은 레시피(시드0·동일 학습구간)에서 dates-per-fold 8→14 로 세션을 ~140 으로 키우면 SE≈0.020 → 같은 효과크기에서 t≈2.2 가 되어 회색지대가 **방향 무관하게** 닫힌다. Δ 가 0 으로 붕괴하면 'ML vs 팩터 IC 우위 없음' 으로 축을 종결한다.",
@@ -12486,7 +12503,24 @@
       "note": "등록 2026-10-05 19:0x (엔지니어 세션). 계기: 18:00 틱 미전달분(CG118·CG119) 재보고 시 CG118(배포 챔피언·30세션) ΔIC −0.0129(t −0.41) vs CG119(q05 시드7·80세션) ΔIC +0.0436(t 1.63) 로 **부호가 갈렸고**, CG117(시드0·80세션) +0.0455(t 1.81) 와 합치면 '모델이 팩터보다 ~+0.044 낫다'가 두 번 재현됐지만 전부 t<2 다 — 노이즈로 닫기도, 신호로 열기도 불가한 회색지대다. CG120(est 130분)이 검정력을 올리므로 이 항목은 그 **판정기**다(CG120 success 가 이미 '덤프 생성'을 1차 산출물로 규정). ⚠ 두 arm 을 한 커맨드에 넣지 말 것 — 구동기는 첫 `--out` 만 읽는다. ⚠ 판정 분기 플래그(paired_vs_factor)를 빠뜨리면 verdict 가 조용히 CG115(패널 멀티팩터) 규칙으로 폴백한다(CG119 실측 수리). | 2026-10-05 22:1x: 구동기 next_item 이 depends_on 을 존중하도록 수리하여(자체점검 _depends_on_test.py 9/9) CG121 을 pending 으로 승격했다 — setup_needed 의 수동 4단계(덤프 확인 후 수동 승격)가 자동화됐다. CG120 이 done(원장 rc=0)이 되는 틱에 착수한다. 덤프가 없으면 시작하지 않으므로 빈 덤프 실패가 발생하지 않는다.",
       "depends_on": [
         "CG120"
-      ]
+      ],
+      "attempts": [
+        {
+          "ts": "2026-10-06T00:01:43+09:00",
+          "rc": 0,
+          "verdict": "모델 우위 없음",
+          "detail": "같은 (code,date) 행 짝 · 덤프 cg120q05 · 종목 300(panel 교집합 33) · 세션 98 · 모델 IC +0.0929(t 7.83) vs 팩터 IC +0.1260(t 6.34) · ΔIC -0.0331(t -1.47, 양세션 53.1%, 동점 0, 부호검정 p 0.6137) · 채점행 10361 — 사전등록 미달(IC 기준·순기대 아님)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG121_20261006-000108.log",
+          "elapsed_min": 0.6
+        }
+      ],
+      "result": {
+        "verdict": "모델 우위 없음",
+        "detail": "같은 (code,date) 행 짝 · 덤프 cg120q05 · 종목 300(panel 교집합 33) · 세션 98 · 모델 IC +0.0929(t 7.83) vs 팩터 IC +0.1260(t 6.34) · ΔIC -0.0331(t -1.47, 양세션 53.1%, 동점 0, 부호검정 p 0.6137) · 채점행 10361 — 사전등록 미달(IC 기준·순기대 아님)",
+        "delta": -0.0331,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG122",
@@ -12535,6 +12569,36 @@
         "sessions": 87,
         "trades": 1340
       }
+    },
+    {
+      "id": "CG123",
+      "title": "팩터 합성점수의 체결가능 top-k 순기대 vs 풀평균 — 모델이 못 낸 돈 엣지를 멀티팩터 랭킹이 내는가",
+      "status": "done",
+      "priority": 1,
+      "metric": "fillable_topk_vs_pool",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg122_factor.jsonl --arm-tag cg120q05_factor --control-jsonl /app/reports/overnight/cg120_q05_all.jsonl --control-tag cg120q05 --k 3,5,10,20 --horizon 5 --sides top,bottom --json-out /app/reports/overnight/cg122_factor_vs_pool.json'",
+      "counterfactual": "세션 풀 평균(무작위 k 기대 = 널 기준선) — CG95~CG99 와 동일 프로토콜(수수료 0.21%p·체결성 필터)",
+      "success": "사전등록(CG95 와 동일·이동 없음): k=3 과 k=5 둘 다 arm 순기대>0 · Δ(arm−풀평균)≥+0.1%p/세션 · t≥2 · 분할 both_positive → '신호있음'. 미달이면 '노이즈'.",
+      "setup_needed": null,
+      "est_minutes": 5,
+      "note": "등록 2026-10-06 00:2x (엔지니어). CG121 종결(모델 IC 0.0929 < 팩터 IC 0.1260 · ΔIC −0.0331 t−1.47)의 직접 후속 — '모델이 못 뽑는가 vs 데이터에 돈 정보가 없는가' 대조군. 같은 (code,date) 행·같은 프로토콜. factor_money_screen.py 에 --dump-factor-scores 신설(팩터 합성점수를 덤프 스키마 jsonl 로; 결측 행은 행집합 동일 유지 위해 중립 0.0 채움). 관찰(사전등록 아님): 하위 k(최악 팩터점수) 바스켓이 풀평균을 크게 하회(k5 Δ−3.489 t−5.49 · k10 −2.636 t−6.48 · k20 −1.903 t−6.65) → 팩터 점수의 '음의 방향' 정보는 강하다(제외필터 후보). 단 롱 온리 top-k 는 널 미검출.",
+      "added": "2026-10-06T00:07:40+09:00",
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm cg120q05_factor · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 98 · k=3 arm -0.911%p/세션 · 풀평균 -0.792 · Δ(arm−풀) -0.119(t -0.13) · 양세션 46.9% · 분할 neither [-1.413/-0.410] ✗ · k=5 arm -0.214%p/세션 · 풀평균 -0.792 · Δ(arm−풀) +0.579(t 0.78) · 양세션 53.1% · 분할 unstable [+0.517/-0.944] ✗ · 풀평균 t -1.54 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+        "delta": -0.1195,
+        "per_exp": null,
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-10-06T00:07:40+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm cg120q05_factor · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 98 · k=3 arm -0.911%p/세션 · 풀평균 -0.792 · Δ(arm−풀) -0.119(t -0.13) · 양세션 46.9% · 분할 neither [-1.413/-0.410] ✗ · k=5 arm -0.214%p/세션 · 풀평균 -0.792 · Δ(arm−풀) +0.579(t 0.78) · 양세션 53.1% · 분할 unstable [+0.517/-0.944] ✗ · 풀평균 t -1.54 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+          "elapsed_min": 5.0
+        }
+      ]
     }
   ],
   "updated": "2026-10-05T09:30:00+09:00"

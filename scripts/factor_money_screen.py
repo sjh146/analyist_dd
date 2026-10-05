@@ -357,6 +357,51 @@ def run_paired_block(a):
     ok = (stats.get("t") is not None and stats.get("mean_delta_ic") is not None
           and stats["mean_delta_ic"] >= min_d and stats["t"] >= min_t)
     verdict = "모델 우위 있음" if ok else "모델 우위 없음"
+
+    # ── 팩터 합성점수 덤프 (CG122): fillable_topk_expectancy 의 arm 으로 쓴다 ──────
+    dump_factor_scores = getattr(a, "dump_factor_scores", None)
+    if dump_factor_scores:
+        fmap = {}
+        try:
+            with open(a.arm_jsonl, encoding="utf-8") as fh2:
+                for ln in fh2:
+                    ln = ln.strip()
+                    if not ln:
+                        continue
+                    try:
+                        r2 = json.loads(ln)
+                    except json.JSONDecodeError:
+                        continue
+                    c2 = r2.get("code") or r2.get("stock_code")
+                    d2 = r2.get("date")
+                    if c2 is not None and d2:
+                        fmap[(str(c2).zfill(6), str(d2)[:10])] = int(r2.get("fold") or 0)
+        except OSError:
+            pass
+        # 행 집합을 모델 덤프와 **동일**하게 유지해야 널(풀평균) 기준선이 같아진다:
+        # 팩터 결측 행은 제외하지 않고 중립(0.0)으로 채운다(문서화).
+        tag_f = (a.arm_tag or os.path.basename(a.arm_jsonl)) + "_factor"
+        rows_written, n_neutral = 0, 0
+        dd_dir = os.path.dirname(dump_factor_scores)
+        if dd_dir:
+            os.makedirs(dd_dir, exist_ok=True)
+        with open(dump_factor_scores, "w", encoding="utf-8") as fh3:
+            for _, r in d.iterrows():
+                c = str(r["code"]).zfill(6)
+                dt = str(pd.Timestamp(r["date"]).date())
+                mf = r["multifactor"]
+                yp = float(mf) if pd.notna(mf) else 0.0
+                if not pd.notna(mf):
+                    n_neutral += 1
+                fr = r["fwd_ret"]
+                fh3.write(json.dumps({
+                    "exp": tag_f, "fold": fmap.get((c, dt), 0), "date": dt, "code": c,
+                    "y_true": None, "y_pred": yp,
+                    "fwd_ret": (float(fr) if pd.notna(fr) else None),
+                }, ensure_ascii=False) + "\n")
+                rows_written += 1
+        print(f"[dump] 팩터 합성점수 {rows_written}행(중립채움 {n_neutral}) → {dump_factor_scores} (exp={tag_f})")
+
     return {
         "arm": a.arm_tag or os.path.basename(a.arm_jsonl), "arm_jsonl": a.arm_jsonl,
         "fillable": bool(a.fillable), "filter": filt,
@@ -393,6 +438,10 @@ def main():
     ap.add_argument("--min-delta-ic", type=float, default=0.01,
                     help="paired 판정 ΔIC 문턱(기본 +0.01)")
     ap.add_argument("--min-t", type=float, default=2.0, help="paired 판정 t 문턱(기본 2.0)")
+    ap.add_argument("--dump-factor-scores",
+                    help="멀티팩터 합성점수를 champion_robust_eval --dump-all 스키마 jsonl 로 저장 "
+                         "(y_pred=multifactor). fillable_topk_expectancy 의 arm 덤프로 써서 "
+                         "'팩터 랭킹의 돈 정보(vs 풀평균)'를 모델과 같은 행에서 채점한다(CG122)")
     a = ap.parse_args()
 
     df = load_panel(a.panel)
