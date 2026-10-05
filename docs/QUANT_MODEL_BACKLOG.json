@@ -12599,6 +12599,36 @@
           "elapsed_min": 5.0
         }
       ]
+    },
+    {
+      "id": "CG124",
+      "title": "팩터 합성점수 '하위꼬리'(최악 팩터점수 k) 음의 신호의 서로소 유니버스 재현 — CG123 관찰이 재현되는가",
+      "status": "done",
+      "priority": 1,
+      "metric": "fillable_topk_expectancy",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg124_factor_s7.jsonl --arm-tag cg100q05_factor --control-jsonl /app/reports/overnight/cg100_q05_all.jsonl --control-tag cg92_q05 --k 3,5,10,20 --horizon 5 --primary-side bottom --sides bottom --json-out /app/reports/overnight/cg124_factor_bottom_s7.json'",
+      "counterfactual": "세션 풀 평균(무작위 k 기대) — 같은 프로토콜(체결성+수수료 0.21%p), 시드7 서로소 유니버스(cg100 덤프 행)",
+      "success": "사전등록(관찰 후 고정): k=5 와 k=10 **둘 다** Δ(bottom-k − 풀평균) ≤ −0.1%p/세션 AND t ≤ −2 → '재현(음의 방향 신호)'. 하나라도 미달이면 '미재현 = 노이즈'(CG117→CG119→CG121 과 동일 규율).",
+      "setup_needed": null,
+      "est_minutes": 5,
+      "note": "등록·실행 2026-10-06 00:2x (엔지니어). CG123(시드0·98세션)에서 관찰된 팩터 하위꼬리 하회(k5 Δ−3.49 t−5.49 · k10 −2.64 t−6.48)를 **관찰이므로 그대로 승격하지 않고** 서로소 유니버스(시드7·80세션)에서 재현 검정했다. factor_money_screen --dump-factor-scores 로 시드7 덤프(cg100_q05_all) 위 팩터 점수를 만들고 같은 도구·같은 프로토콜로 bottom-k 를 채점.",
+      "added": "2026-10-06T00:10:05+09:00",
+      "result": {
+        "verdict": "미재현·노이즈",
+        "detail": "시드7(서로소 유니버스) · 세션 80 · exit close_h h5 · Δ(bottom-k − 풀평균): k3 -0.786(t -1.01) · k5 +0.160(t 0.23) · k10 -0.641(t -1.49) · k20 -0.386(t -1.11) — 사전등록(k5·k10 둘 다 ≤−0.1%p AND t≤−2) 미충족 → **미재현 = 하위꼬리 신호는 노이즈**",
+        "delta": 0.1597,
+        "per_exp": null,
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-10-06T00:10:05+09:00",
+          "rc": 0,
+          "verdict": "미재현·노이즈",
+          "detail": "시드7(서로소 유니버스) · 세션 80 · exit close_h h5 · Δ(bottom-k − 풀평균): k3 -0.786(t -1.01) · k5 +0.160(t 0.23) · k10 -0.641(t -1.49) · k20 -0.386(t -1.11) — 사전등록(k5·k10 둘 다 ≤−0.1%p AND t≤−2) 미충족 → **미재현 = 하위꼬리 신호는 노이즈**",
+          "elapsed_min": 5.0
+        }
+      ]
     }
   ],
   "updated": "2026-10-05T09:30:00+09:00"
