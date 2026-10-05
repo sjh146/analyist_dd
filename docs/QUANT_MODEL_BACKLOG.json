@@ -474,7 +474,7 @@
     {
       "id": "XR2",
       "title": "[리서처 R2] institution_ownership_pct 소스 발굴 (현재 100% 결측)",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 8,
       "from_research": "R2",
       "arm": null,
@@ -489,7 +489,12 @@
       "cost": "조사 1~3시간",
       "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
       "promoted_from": "handoff",
-      "promoted_at": "2026-10-02T02:00:28+09:00"
+      "promoted_at": "2026-10-02T02:00:28+09:00",
+      "result": {
+        "verdict": "소스 없음 확정(수리·배선 불필요)",
+        "detail": "실측(2026-10-05 21:0x, 운영 DB): ownership 2,078행 · institution_ownership_pct 비영 0(foreign_ownership_pct 2,006) · supply_market_features 1,082,213행 중 institution_ownership_pct 비영 0. 기존 감사 data/reports/r13_dead_feature_audit.json(2026-09-29) 도 bucket=source_absent('KIS 현재가에 기관 지분율 필드 없음(R2 확정)'). → 성공조건 ②('소스 없음' 결론) 충족. 제안: institution_ownership_pct 를 죽은 피처 목록에서 제거(패널 컬럼으로 두면 전행 0 = 무정보 127/213 에 포함).",
+        "ts": "2026-10-05T21:02:36+09:00"
+      }
     },
     {
       "id": "XR1",
@@ -4327,7 +4332,7 @@
     {
       "id": "XR3",
       "title": "[리서처 R3] 수급 이력 확장: foreign_institutional 343 → 800종목",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 8,
       "from_research": "R3",
       "arm": null,
@@ -4342,7 +4347,12 @@
       "cost": "사이클당 최대 400콜(약 15분~1시간), 총 8~12시간 분할",
       "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라. ⚠ 2026-09-28: XR3 는 R3 러너의 **명령 결함**(래퍼 인자 형식 + 종목 유니버스 미지정)으로 실패한 실행에서 자동 생성됐다. 수급 데이터는 아직 준비되지 않았다(foreign_institutional 343종목 / 목표 500). R3 재실행이 성공하기 전에는 이 항목의 command·대조군을 채우지 마라.",
       "promoted_from": "handoff",
-      "promoted_at": "2026-10-02T03:00:13+09:00"
+      "promoted_at": "2026-10-02T03:00:13+09:00",
+      "result": {
+        "verdict": "충족 — 기준 500종목 초과",
+        "detail": "실측(2026-10-05 21:0x, DB): foreign_institutional 145,347행 · 종목 1,051개(목표 500) · 기간 2025-08-14~2026-10-02. 종목 커버리지 기준 충족(수집 로그의 source/stored/new_rows 자기신고 기록은 리서처 러너 영역). 남은 것: 피처 투입 시 종목당 시계열 두께·패널 구간 정합 확인.",
+        "ts": "2026-10-05T21:02:36+09:00"
+      }
     },
     {
       "id": "CG17",
@@ -6211,7 +6221,7 @@
     {
       "id": "XR10",
       "title": "[리서처 R10] 수급·시장·모멘텀 피처 19개 부활 (보유 테이블만으로 계산)",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 8,
       "from_research": "R10",
       "arm": null,
@@ -6226,7 +6236,12 @@
       "cost": "계산·검증 1~2시간",
       "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
       "promoted_from": "handoff",
-      "promoted_at": "2026-10-02T04:00:23+09:00"
+      "promoted_at": "2026-10-02T04:00:23+09:00",
+      "result": {
+        "verdict": "데이터 기준 충족 + ML 임팩트 축은 종결",
+        "detail": "실측(2026-10-05 21:0x, DB) supply_market_features 1,082,213행 비영: relative_strength 1,078,278 · krx_advance_decline_ratio 1,079,576 · market_breadth 1,079,577 · bb_position 1,008,264 · momentum_3_12m 153,542 · foreign_net_buy_5d 119,753 · institution_net_buy_5d 97,357 · short_selling_ratio 2,373 · foreign/retail_ownership_pct ~1,000 → '5개 이상 nonzero' 충족. 소스 자체가 없어 0 인 3개는 XR2·CG73 소관(institution_ownership_pct·short_interest_ratio·days_to_cover). ML 임팩트는 이미 종결: L3(closed_rejected) · CG67(disclosure 부활 → 학습행렬 비트 동일 Δ0.0000) · CG76(희소 피처 선별 도메인 짝 Δ −0.0012 = 노이즈). '부활 = 성능' 아님.",
+        "ts": "2026-10-05T21:02:36+09:00"
+      }
     },
     {
       "id": "CG29",
@@ -6764,7 +6779,7 @@
     {
       "id": "XR12",
       "title": "[리서처 R12] 재무 비율 피처 19개 부활 (기간유형 구분 선행)",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 8,
       "from_research": "R12",
       "arm": null,
@@ -6779,7 +6794,12 @@
       "cost": "2~3시간(기간유형 구분 포함)",
       "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
       "promoted_from": "handoff",
-      "promoted_at": "2026-10-02T05:00:31+09:00"
+      "promoted_at": "2026-10-02T05:00:31+09:00",
+      "result": {
+        "verdict": "충족 — 재무 nonzero + rcept as-of 격자 구현·검증(ML 임팩트는 노이즈)",
+        "detail": "실측(2026-10-05 21:0x, DB): financial_ratio_features 779,914행 · 2,571종목 · rcept_dt 755,574(96.9%) · 기간유형 분리 작동(annual 707,579 / 그 밖 72,335) · 비영 컬럼: quality_f_score 778,892 · value_pbr 754,073 · quality_roa 726,013 · quality_roe 725,839 · quality_debt_ratio_change 696,418 · value_ev_ebit 504,835 · value_per 473,586(≥3 충족) · trade_date 최신 2026-09-29 = 시장 최신과 동일. as-of 격자 교체 도구 patch_panel_fin_rcept.py 구현·검증(미래 rcept 셀 0·교체 증명), 게이트 ON A/B CG105 짝 Δ 0.0000(재무 16컬럼 top30 선별 미진입 = 학습행렬 비트 동일). 잔여: value_ncav 0(소스 없음).",
+        "ts": "2026-10-05T21:02:36+09:00"
+      }
     },
     {
       "id": "U3c",
