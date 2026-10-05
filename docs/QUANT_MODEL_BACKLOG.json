@@ -2087,7 +2087,7 @@
     {
       "id": "L5b",
       "title": "record_strategy_run 배선 수정 (strategy_runs 미기록)",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 2,
       "affects_model": true,
       "detail": "sys.path 에 /app/app 누락 → 'No module named scripts.record_strategy_run'. 한 줄 수정.",
@@ -2097,7 +2097,12 @@
         "op": ">=",
         "value": 5
       },
-      "setup_needed": "팩터/전략 코드(sys.path 배선)는 이 역할 소유가 아니다 — 구현 전 사용자 승인 필요(services/backtester·strategy-agents·job_runner 소유)"
+      "setup_needed": "팩터/전략 코드(sys.path 배선)는 이 역할 소유가 아니다 — 구현 전 사용자 승인 필요(services/backtester·strategy-agents·job_runner 소유)",
+      "result": {
+        "verdict": "수리 확인(실물 검증으로 닫음)",
+        "detail": "수리 확인 완료(닫음) — 실측(2026-10-06 01:0x, 운영 DB): strategy_runs 35행 · 2026-09-23~2026-10-05 (최근 거래일까지 기록됨) → '미기록' 증상은 해소. check_target(factor_reports/real-backtest-*.json ≥ 5)도 stock_job_runner 에서 5 로 충족. 배선 수정이 다른 역할 파일이었으므로 이 역할은 실물 확인만 했다(수정 없음).",
+        "delta": null
+      }
     },
     {
       "id": "L5c",
@@ -12629,6 +12634,28 @@
           "elapsed_min": 5.0
         }
       ]
+    },
+    {
+      "id": "CG125",
+      "title": "배포 스코어의 앙상블 가중 방식 A/B — 균등(현행 배포) vs val-AUC 가중(보고 지표) · 배포 경로 same-run 짝",
+      "status": "pending",
+      "priority": 3,
+      "affects_model": true,
+      "metric": "champion_robust_eval",
+      "arm": "champion_wtest + ENSEMBLE_USE_STORED_WEIGHTS=1 (val-AUC 가중)",
+      "counterfactual": "champion_wtest (플래그 OFF = 균등 평균 = 현행 배포 동작) — 같은 런·같은 창·같은 유니버스 시드",
+      "hypothesis": "학습 경로는 meta.ensemble_auc·auc.txt 를 val-AUC **가중** 평균으로 보고하지만 EnsembleModel.load() 는 가중치를 복원하지 않아 배포 추론은 **균등** 평균이었다 → 승격 게이트가 비교하는 지표와 실제로 도는 점수가 다른 함수다. 가중치를 영속화하고(ensemble_weights.json) 플래그로 켜면 둘 다 같은 함수가 된다 — 그 동일화가 배포 경로 OOS 를 유의하게 바꾸는가?",
+      "evidence": "① 코드 실측(2026-10-06): retrain_champion.py 는 probs += w*model.predict 로 **가중** AUC 를 auc.txt·meta.ensemble_auc 에 쓰지만, EnsembleModel.load() 는 val_weights 를 복원하지 않아 predict 의 weight = val_weights.get(name, 1.0) 이 전부 1.0 = **균등 평균**이었다(모델 디렉터리에 가중치 파일 없음). ② 같은 챔피언 모델·같은 입력 스모크(2026-10-06): 균등 prob 0.341984 vs 가중 0.338768 (Δ−0.0032). ③ MT116 프로브 실측(2026-10-02): 배포 챔피언 max conf 균등 0.4733 vs 가중 0.4798 = **+0.0065** — 서브모델 AUC 격차가 큰 챔피언(0.5236/0.5663/0.5262)일수록 두 값이 벌어진다. ④ 스윕 지표(HP3)에서는 가중 vs 균등 Δ+0.0004 로 노이즈였지만 **배포 경로(챔피언 고정 모델)에서의 짝 측정은 기록상 0회**다. ⑤ 현재 챔피언 model_aucs = xgb 0.5492 / lgb 0.5448 / cat 0.5185 (robust_auc.json, recorded_at 2026-10-02T02:44) → 가중치 0.0492/0.0448/0.0185.",
+      "method": "가중치 영속화 구현·검증 완료(2026-10-06, 커밋 예정): ensemble_model.py 에 save_weights/load_weights + ENV ENSEMBLE_USE_STORED_WEIGHTS(기본 OFF = 종전 배포 동작 비트 동일), retrain_champion 이 학습 시 ensemble_weights.json 을 남기고 meta 에 ensemble_auc_deployed_substance(균등값)·ensemble_weight_usage 를 기록. 자체점검 `_ensemble_weights_test.py` 26/26 PASS. 실측은 **챔피언 원본을 건드리지 않고** 스크래치 사본 (app/models/champion_wtest — champion 복사 + 위 가중치 파일)에서 플래그 ON/OFF 두 런을 같은 창·같은 유니버스로 돌려 짝 비교한다(1단계 --out = 판정 대상 = 가중 arm).",
+      "command": "docker exec -e PYTHONPATH=/app -e ENSEMBLE_USE_STORED_WEIGHTS=1 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_wtest --label-kind rel --horizon 5 --folds 3 --dates-per-fold 14 --stocks 300 --universe training --universe-seed 0 --train-start 2026-06-25 --train-end 2026-09-23 --out /app/reports/overnight/cg125_weighted.json' && docker exec -e PYTHONPATH=/app stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_wtest --label-kind rel --horizon 5 --folds 3 --dates-per-fold 14 --stocks 300 --universe training --universe-seed 0 --train-start 2026-06-25 --train-end 2026-09-23 --out /app/reports/overnight/cg125_equal.json'",
+      "success": "짝 Δ = 가중 − 균등 ≥ +0.02 이고 창 부호 일관(양(+) ≥ 2/3) → '보고 지표 = 배포 실체' 동일화가 배포 성능 레버' → 배포 가중 활성화(승인 대상)로 올린다. |Δ| < 0.02 면 **가중 방식은 배포 성능 레버가 아니다**로 축을 닫고, 대신 보고·게이트 지표를 배포 실체(균등) 기준으로 통일하는 정합성 수리만 남긴다(방향 무관 이 결과로 축을 닫는다).",
+      "expected": "0 근처. 근거: 스윕 지표 HP3 Δ+0.0004, max-conf Δ+0.0065. 이 항목의 목적은 '성능 개선'이 아니라 **보고 지표와 배포 점수의 동일성 여부**를 배포 경로에서 확정하는 것이다.",
+      "cost": "평가 2회 × 3폴드×14일×300종목(학습 0 · 모델 재사용) ≈ 30~60분",
+      "est_minutes": 60,
+      "risk": "창이 3개면 SE 가 크다(창 수 부족 — CG38 교훈) → 부호 일관과 창별 Δ 를 함께 보고하고, t 를 신뢰구간으로만 쓴다.",
+      "note": "2026-10-06 01:0x 신설(장외 자율 세션). 계기: 발견 단계에서 코드 실측으로 '보고 지표(가중) vs 배포 점수(균등)' 불일치를 확인 → 구현·자체점검(26/26 PASS) 후 배포 경로에서 짝으로 측정한다. ⚠ 한 커맨드에 --out 이 두 개 → 구동기는 **첫 --out(cg125_weighted.json)** 만 판정한다. 대조군 JSON(cg125_equal.json)은 실행 후 세션이 파싱해 원장 parsed.counterfactual_arm·paired 키에 넣고 백로그 result.delta 를 짝 Δ 로 채운다(per_exp 금지 — CG38/CG55 절차). ⚠ champion_wtest 는 스크래치이며 **champion/ 원본은 수정하지 않았다**(플래그 기본 OFF 이므로 배포 동작도 불변 — 프로덕션에서 이 env 를 설정하는 곳은 없다). 가중치 영속화의 **활성화**(플래그 ON 전환)는 발행 계약 변경이라 승인 대상이다.",
+      "attempts": [],
+      "result": null
     }
   ],
   "updated": "2026-10-05T09:30:00+09:00"

@@ -10,6 +10,18 @@ from .catboost_model import CatBoostModel
 
 logger = logging.getLogger(__name__)
 
+# val-AUC 가중치를 모델 디렉터리에 저장하는 파일명.
+WEIGHTS_FILENAME = "ensemble_weights.json"
+# 저장된 가중치를 **추론에 사용할지** 결정하는 env 플래그. 기본 OFF = 균등 평균(종전 배포 동작과
+# 비트 동일). 실측(2026-10-02 MT116): 학습 경로는 meta.ensemble_auc·auc.txt 를 val-AUC **가중**
+# 평균으로 보고하지만, load() 는 가중치를 복원하지 않아 배포 추론은 **균등** 평균이었다 →
+# 보고 지표(승격 게이트 입력)와 실제 배포 점수가 다른 함수였다. 이 플래그를 켜면 그 간극이 닫힌다.
+ENV_USE_STORED_WEIGHTS = "ENSEMBLE_USE_STORED_WEIGHTS"
+
+
+def _use_stored_weights() -> bool:
+    return os.environ.get(ENV_USE_STORED_WEIGHTS, "").strip().lower() in ("1", "true", "yes", "on")
+
 
 class EnsembleModel:
     """
@@ -148,7 +160,62 @@ class EnsembleModel:
             model_path = f"{path}/{name}_model.pkl"
             model.save(model_path)
             paths.append(model_path)
+        # val-AUC 가중치를 함께 저장한다(부산물 — 추론 동작은 ENV 플래그가 켜지기 전까지 불변).
+        self.save_weights(path)
         return paths
+
+    def save_weights(self, path: Optional[str] = None) -> Optional[str]:
+        """val-AUC 가중치를 ``{path}/ensemble_weights.json`` 으로 저장한다.
+
+        가중치가 없으면(학습 전) 아무것도 쓰지 않는다. 저장 자체는 예측을 바꾸지 않는다 —
+        사용 여부는 ``load_weights`` 의 ENV 플래그가 결정한다.
+        """
+        if path is None:
+            path = "models"
+        if not self.val_weights:
+            return None
+        fp = os.path.join(path, WEIGHTS_FILENAME)
+        try:
+            os.makedirs(path, exist_ok=True)
+            with open(fp, "w") as f:
+                json.dump({k: float(v) for k, v in self.val_weights.items()}, f, indent=2)
+            logger.info("Saved ensemble weights to %s", fp)
+            return fp
+        except Exception as e:  # 저장 실패가 학습을 막지 않는다
+            logger.warning("Failed to save ensemble weights to %s: %s", fp, e)
+            return None
+
+    def load_weights(self, path: Optional[str] = None) -> dict:
+        """저장된 가중치를 읽어 (플래그가 켜져 있으면) 채택한다.
+
+        기본(플래그 OFF)은 **빈 dict** 를 돌려준다 → ``predict``/``predict_single`` 의
+        ``weight = val_weights.get(name, 1.0)`` 이 전부 1.0 이 되어 **균등 평균**(종전 배포
+        동작과 비트 동일)이 된다. ``ENSEMBLE_USE_STORED_WEIGHTS=1`` 일 때만 파일 내용을 쓴다.
+        파일이 없거나 깨졌으면 조용히 균등 경로로 폴백하고 로그를 남긴다.
+        """
+        if path is None:
+            path = "models"
+        fp = os.path.join(path, WEIGHTS_FILENAME)
+        if not os.path.exists(fp):
+            return {}
+        try:
+            with open(fp, "r") as f:
+                raw = json.load(f)
+            weights = {str(k): float(v) for k, v in (raw or {}).items()}
+        except Exception as e:
+            logger.warning("Failed to read ensemble weights %s (%s) — 균등 평균으로 폴백", fp, e)
+            return {}
+        if not weights:
+            return {}
+        if not _use_stored_weights():
+            logger.info(
+                "ensemble weights found at %s but %s is off — 균등 평균(배포 동작) 사용",
+                fp, ENV_USE_STORED_WEIGHTS,
+            )
+            return {}
+        self.val_weights = weights
+        logger.info("Using stored ensemble weights: %s", weights)
+        return weights
 
     def save_feature_names(self, feature_names: list, path: str = None):
         if path is None:
@@ -184,6 +251,8 @@ class EnsembleModel:
                 logger.warning(f"Failed to load {name} model: {e}")
         if loaded > 0:
             self._is_trained = True
+        # 저장된 val-AUC 가중치 복원(기본 OFF = 균등 평균 — 종전 배포 동작과 동일).
+        self.load_weights(path)
 
     def feature_importance(self) -> dict:
         all_importances = {}

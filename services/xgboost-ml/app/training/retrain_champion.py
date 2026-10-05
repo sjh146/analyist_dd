@@ -306,6 +306,29 @@ def retrain_champion(
         json.dump(canonical, f)
     with open(os.path.join(out_dir, "auc.txt"), "w") as f:
         f.write(f"{ens_auc:.6f}\n")
+    # 배포 실체 = **균등 평균** — EnsembleModel.load() 는 val 가중치를 복원하지 않고(그리고
+    # ENSEMBLE_USE_STORED_WEIGHTS 기본 OFF), 추론은 weight=1.0 경로를 탄다. 즉 위 ens_auc(가중)는
+    # 승격 게이트가 비교하는 값이지만 실제로 도는 점수가 아니다 → 두 값을 함께 남긴다.
+    ens_auc_equal = ens_auc
+    if X_val is not None and len(X_val) > 10:
+        _eq = np.zeros(len(X_val))
+        _n_eq = 0
+        for name, model in models:
+            if weights.get(name) is None:
+                continue
+            _eq += model.predict(X_val)
+            _n_eq += 1
+        if _n_eq > 0:
+            try:
+                ens_auc_equal = roc_auc_score(y_val, _eq / _n_eq)
+            except Exception:
+                ens_auc_equal = ens_auc
+    # 가중치 파일 저장 — 배포 가중을 켤 때(승인 대상) 바로 쓸 수 있게 부산물로 남긴다.
+    try:
+        with open(os.path.join(out_dir, "ensemble_weights.json"), "w") as f:
+            json.dump({k: float(v) for k, v in weights.items() if v is not None}, f, indent=2)
+    except Exception as e:
+        logger.warning("ensemble weights 저장 실패: %s", e)
     meta = {
         "retrained_at": datetime.now().isoformat(timespec="seconds"),
         "n_rows": int(len(df)),
@@ -315,6 +338,8 @@ def retrain_champion(
         "n_features": int(len(canonical)),
         "model_aucs": aucs,
         "ensemble_auc": round(float(ens_auc), 4),
+        "ensemble_auc_deployed_substance": round(float(ens_auc_equal), 4),
+        "ensemble_weight_usage": "equal",
         "val_frac": val_frac,
         "seed": seed,
         # 학습 데이터 구간 — champion_robust_eval 이 이 값으로 **학습구간과 겹치는 평가창을
