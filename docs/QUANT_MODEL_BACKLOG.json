@@ -153,10 +153,11 @@
       "success": "① 대조 불가 arm(라벨 kind·q·게이트·유니버스가 기준선과 다름)은 무개선 카운터·best_robust 에서 제외되고 ② 그 사실이 로그 각주로 남으며 ③ 기존 기준선 값은 재계산 전후 보존된다.",
       "est_minutes": null,
       "priority": 2,
-      "status": "needs_setup",
+      "status": "pending",
       "setup_needed": "`scripts/quant_scoreboard.py` 는 공유 파일 — 스킬상 '스코어보드 기준선/프로토콜 변경' = 리뷰보드 승인 대상. 승인 후 대조 가능성 필터(라벨 kind·q·게이트·유니버스 태그 비교) 구현 + 회귀. 실측 근거: 원장 최고 per_exp = CG89 Q5s_120_150 0.5870(q0.05·유니버스슬라이스) vs 기준선 0.5406(q0.30·게이트 ON) = 비교 불가 비교.",
       "added": "2026-10-05 02:0x (엔지니어 — 북극성 거짓 돌파 진단)",
-      "attempts": []
+      "attempts": [],
+      "note": "[리뷰보드 승인 2026-10-05 22:4x] 스코어보드 best_robust 프로토콜 수정 승인 — 대조 불가 arm(라벨 kind·q·게이트·유니버스가 기준선과 다름) 제외 + 로그 각주 + 기준선 보존. command 를 저작해 실행하라. 근거: docs/QUANT_BOARD.md 2026-10-05 블록 ③-3/⑤-1."
     },
     {
       "id": "L1",
