@@ -1903,6 +1903,13 @@ def judge_factor_money_screen(item, parsed) -> tuple:
     if parsed.get("error"):
         return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
     pv = parsed.get("paired_vs_factor")
+    if pv and not item.get("paired_vs_factor"):
+        # 등록 누락 가드(실측 2026-10-05 CG119): 요약에 짝 블록이 있으면 그 항목은 **짝 판정 대상**이다.
+        # 플래그가 없다고 CG115(패널 팩터) 규칙으로 조용히 폴백하면 로그의 "= 모델 우위 없음" 과
+        # 원장 verdict("정보있음") 가 어긋난다 → 잘못된 verdict 대신 판정불가로 세우고 등록을 고친다.
+        return ("판정불가",
+                "항목에 paired_vs_factor 플래그가 없는데 요약에 짝 블록이 있다 — 등록 누락(수리 필요)",
+                None)
     if item.get("paired_vs_factor"):
         # CG117 짝 경로: 같은 (code,date) 행에서 ΔIC = IC(모델) − IC(멀티팩터) 를 판정한다.
         # ⚠ IC 는 순기대가 아니다 — 승격 근거가 아니라 'ML 이 팩터 대비 정보 우위가 있는가'의

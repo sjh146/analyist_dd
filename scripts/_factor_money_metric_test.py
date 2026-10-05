@@ -212,10 +212,16 @@ def main():
     blk6["paired"] = {"n_sessions": 1, "error": "공통 세션 부족(>=2 필요)"}
     v6, _, _ = m.judge_factor_money_screen(item117, _p117(blk6))
     check("공통 세션 부족 → 판정불가", v6 == "판정불가", v6)
-    # 분기 격리: 플래그 없는 항목은 기존 CG115 규칙(multifactor IC) 으로
+    # 분기 격리: 플래그 없는데 짝 블록이 있으면 '등록 누락'이다 — CG115 규칙으로 조용히 폴백하지 않는다.
+    # (2026-10-05 CG119 실측 계약 변경: 폴백하면 로그 "모델 우위 없음" vs 원장 "정보있음" 이 어긋났다.
+    #  종전 이 검사는 v7 == "정보있음" 을 기대했다 — 그 기대가 곧 결함이었다.)
     v7, _, _ = m.judge_factor_money_screen({"id": "CG115", "metric": "factor_money_screen"},
                                            _p117(paired_block()))
-    check("paired_vs_factor 플래그 없으면 CG115 규칙(정보있음)", v7 == "정보있음", v7)
+    check("플래그 없는데 짝 블록 있음 → 판정불가(등록 누락)", v7 == "판정불가", v7)
+    # 진짜 CG115(짝 블록 자체가 없는 요약)는 종전대로 패널 규칙을 쓴다(회귀)
+    v7b, _, _ = m.judge_factor_money_screen({"id": "CG115", "metric": "factor_money_screen"},
+                                            m.parse_factor_money_screen(good, 0.0))
+    check("짝 블록 없는 CG115 요약 → 정보있음(기존 규칙 유지)", v7b == "정보있음", v7b)
     # 짝 블록 없이 플래그만 있으면 판정불가(조용히 CG115 규칙으로 떨어지지 않는다)
     v8, _, _ = m.judge_factor_money_screen(item117, m.parse_factor_money_screen(good, 0.0))
     check("플래그만 있고 짝 블록 없음 → 판정불가", v8 == "판정불가", v8)

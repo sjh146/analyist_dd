@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-05T17:09:08+09:00",
+  "updated_at": "2026-10-05T18:08:39+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12332,7 +12332,7 @@
       "id": "CG118",
       "title": "배포 챔피언 vs 멀티팩터 같은 행 짝 IC — 배포 모델이 팩터 대비 정보 우위가 있는가",
       "hypothesis": "CG117 은 **스윕 arm(q0.05)** 을 쓴다. 배포 경로 검증은 배포 모델의 덤프로 따로 재야 한다 — CG113 실측: 배포 챔피언 IC +0.0165(t 0.94) vs q0.05 +0.0560(t 4.53). 챔피언이 팩터(+0.0062~+0.0275)보다 낮으면 'ML 유지 근거'가 약해진다.",
-      "status": "pending",
+      "status": "done",
       "priority": 3,
       "affects_model": false,
       "arm": "배포 챔피언 덤프(cg112_champ_all.jsonl, 5,950행·30세션) vs 같은 행 멀티팩터 점수",
@@ -12349,7 +12349,70 @@
       "check": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_factor_paired_test.py",
       "note": "CG117 의 자매 항목(같은 도구·같은 프로토콜, arm 만 배포 덤프). 덤프가 30세션뿐이므로 CG117(80세션) 보다 검정력이 낮다는 사실을 결과에 함께 적는다.",
       "added": "2026-10-05T17:2x (엔지니어 — CG117 셋업 구현과 동시 등록, 배포 경로 대조)",
-      "attempts": []
+      "attempts": [
+        {
+          "ts": "2026-10-05T18:01:53+09:00",
+          "rc": 0,
+          "verdict": "모델 우위 없음",
+          "detail": "같은 (code,date) 행 짝 · 덤프 champ · 종목 199(panel 교집합 39) · 세션 30 · 모델 IC +0.0171(t 0.84) vs 팩터 IC +0.0299(t 1.12) · ΔIC -0.0129(t -0.41, 양세션 50.0%, 동점 0, 부호검정 p 1.0) · 채점행 2595 — 사전등록 미달(IC 기준·순기대 아님)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG118_20261005-180047.log",
+          "elapsed_min": 1.1
+        }
+      ],
+      "result": {
+        "verdict": "모델 우위 없음",
+        "detail": "같은 (code,date) 행 짝 · 덤프 champ · 종목 199(panel 교집합 39) · 세션 30 · 모델 IC +0.0171(t 0.84) vs 팩터 IC +0.0299(t 1.12) · ΔIC -0.0129(t -0.41, 양세션 50.0%, 동점 0, 부호검정 p 1.0) · 채점행 2595 — 사전등록 미달(IC 기준·순기대 아님)",
+        "delta": -0.0129,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG119",
+      "title": "모델 vs 팩터 IC 우위의 서로소 유니버스 재현 — q0.05 arm(시드7)에서 CG117 ΔIC +0.0455(t 1.81 회색지대)가 재현되는가",
+      "status": "done",
+      "priority": 1,
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python scripts/factor_money_screen.py --panel app/models/wf/panel_prod200.npz --horizon 5 --fillable --arm-jsonl /app/reports/overnight/cg100_q05_all.jsonl --arm-tag q05s7 --out reports/overnight/cg119_paired_q05_seed7.json'",
+      "metric": "factor_money_screen",
+      "counterfactual": "무작위 랭킹(IC 0) — 짝 비교는 같은 (code,date) 행의 멀티팩터 IC. CG117(시드0) 값과 나란히 읽는다.",
+      "success": "사전등록(문턱 이동 없음): 같은 세션·같은 (code,date) 행 짝 ΔIC = IC(모델) − IC(멀티팩터) ≥ +0.01 AND t ≥ 2 → '모델 우위 재현'. CG117 은 Δ+0.0455(t 1.81, 80세션)로 t 미달(회색지대)이었고 CG118(배포 챔피언, 30세션)은 Δ−0.0129(t −0.41)로 반대부호였다 → 서로소 유니버스(시드7)에서 재현되면 2표본 근거로 '모델 우위 있음', 미달이면 'ML vs 팩터 IC 우위' 축을 종결(닫음). ⚠ IC 는 순기대가 아니다(승격 근거 아님) — 이 항목은 파이프라인 복잡도 유지 근거만 판정한다.",
+      "est_minutes": 6,
+      "pairs": null,
+      "setup_needed": null,
+      "note": "등록 2026-10-05 18:1x (엔지니어). CG117 후속. 덤프 cg100_q05_all.jsonl(시드7·300종목) 이미 존재 → 신규 학습비용 0. CG114 가 같은 시드7 덤프로 하위꼬리 축을 재현검정한 선례가 있다(도구 재사용).",
+      "attempts": [
+        {
+          "ts": "2026-10-05T18:08:39+09:00",
+          "rc": 0,
+          "verdict": "모델 우위 없음",
+          "detail": "같은 (code,date) 행 짝 · 덤프 q05s7(시드7·300종목) · 세션 80 · 모델 IC +0.0812(t 5.09) vs 팩터 IC +0.0376(t 1.52) · ΔIC +0.0436(t 1.63, 양(+) 56.2% · 부호검정 p 0.3143) · 채점행 8327 — 사전등록(Δ≥+0.01 AND t≥2) 미달",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG119_20261005-180751.log",
+          "elapsed_min": 0.8,
+          "corrected": "2026-10-05T18:1x 등록 누락(paired_vs_factor 플래그) → 패널 규칙으로 오판정. 플래그 수리 후 짝 규칙으로 재판정."
+        }
+      ],
+      "result": {
+        "verdict": "모델 우위 없음",
+        "detail": "같은 (code,date) 행 짝 · 덤프 q05s7(시드7·300종목) · 세션 80 · 모델 IC +0.0812(t 5.09) vs 팩터 IC +0.0376(t 1.52) · ΔIC +0.0436(t 1.63, 양(+) 56.2% · 부호검정 p 0.3143) · 채점행 8327 — 사전등록(Δ≥+0.01 AND t≥2) 미달",
+        "delta": 0.0436,
+        "paired": true,
+        "note": "CG117(시드0) Δ+0.0455(t 1.81) 와 효과크기는 일치(둘 다 ~+0.044)하나 t 는 둘 다 <2 — 80세션·세션ΔIC sd≈0.24 로 검정력 부족. 배포 챔피언(CG118, 30세션)은 Δ−0.0129(t −0.41) 반대부호."
+      },
+      "paired_vs_factor": true
+    },
+    {
+      "id": "CG120",
+      "status": "pending",
+      "priority": 1,
+      "title": "모델 vs 팩터 IC 우위의 검정력 보강 — q0.05 arm 덤프를 80→~140세션으로 재생성(CG117/CG119 회색지대 해소)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 12000 python scripts/champion_robust_eval.py --model-dir app/models/wf/cg92_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 10 --dates-per-fold 14 --stocks 300 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg120_q05_all.jsonl --dump-tag cg120q05 --dump-all --out /app/reports/overnight/cg120_q05_robust.json'",
+      "metric": "champion_robust_eval",
+      "counterfactual": "CG117(시드0·80세션) ΔIC +0.0455(t 1.81) · CG119(시드7·80세션) ΔIC +0.0436(t 1.63) — 두 재현 모두 효과크기 ~+0.044 로 일치하나 t<2(세션ΔIC sd≈0.24, 80세션 SE≈0.027)",
+      "success": "1차 산출물은 **덤프**(이 항목의 AUC 판정은 부차적이다). 성공 = cg120_q05_all.jsonl 이 세션 ≥120 으로 생성. 이후 CG121(같은 도구·같은 문턱 ΔIC≥+0.01 AND t≥2)로 판정한다: Δ 가 ~+0.044 로 유지되면 t≈2.2 → '모델 우위 있음'(파이프라인 유지 근거), Δ 가 0 으로 붕괴하면 축 종결. ⚠ IC 는 순기대가 아니다(승격 근거 아님). **방향 무관 이 결과로 축을 닫는다.**",
+      "est_minutes": 130,
+      "pairs": null,
+      "setup_needed": null,
+      "note": "등록 2026-10-05 18:2x (엔지니어). CG117/CG119 의 회색지대(t 1.81·1.63)는 표본 부족 때문이다 — 효과크기 +0.044, SD 0.24, t≥2 에 n≥119 세션 필요. 명령은 CG95/CG100 과 **동일 레시피**(model-dir·label·train-start/end·universe-seed 0)에서 dates-per-fold 만 8→14 로 키운 것(10폴드×14=140일). 실측 속도 0.86 분/cell(CG95: 80cell 69분) → est 130분. ETA 가드가 20:00 재생성 창을 넘는 시작을 막으므로 밤 창에 착수된다. 덤프가 도착하면 CG121(짝 ΔIC)을 등록하라 — 이 항목의 metric(champion_robust_eval)은 AUC 창만 기록한다."
     }
   ],
   "updated": "2026-10-05T09:30:00+09:00"
