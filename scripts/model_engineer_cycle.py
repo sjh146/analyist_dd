@@ -654,6 +654,22 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: rank_ic_money 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "factor_money_screen":
+        # 고전 팩터(가치·퀄리티·모멘텀·저변동·멀티팩터) **랭킹 정보** 스크린 —
+        # scripts/factor_money_screen.py --out (CG115). 왜 전용 metric 인가(2026-10-05):
+        # 모델 랭킹의 돈 방향 정보 축이 닫힌 뒤(CG114) 남은 질문은 '정보가 데이터에 없는가,
+        # 모델이 못 뽑는가'이고 팩터는 그 대조군이다. 스키마가 다르다(factors{...}).
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+        out = _out_arg(command or "")
+        if out:
+            return _container_path_to_host(out)
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/factor_money_screen.json")
+    if kind == "factor_money_fillable":
+        # 같은 스크립트의 --fillable 실행(CG116): top-k vs 세션 풀평균(널 기준선) 돈 판정.
+        out = _out_arg(command or "")
+        if out:
+            return _container_path_to_host(out)
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/factor_money_screen_fillable.json")
     if kind == "blend_eval":
         # 라벨 다양성 앙상블(scripts/blend_eval.py --out). CG56.
         # 왜 전용 metric 인가(실측 2026-10-01): 요약 스키마가 champion_robust_eval 과 **다르다**
@@ -1062,6 +1078,10 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "rank_ic_money":
         return parse_rank_ic_money(spath, mtime_floor)
+    if kind == "factor_money_screen":
+        return parse_factor_money_screen(spath, mtime_floor)
+    if kind == "factor_money_fillable":
+        return parse_factor_money_fillable(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
@@ -1788,6 +1808,126 @@ def judge_rank_ic_money(item, parsed) -> tuple:
     return "노이즈", detail + " — 미검출(검출 바닥 이하 또는 부호 불일치)", round(m, 4)
 
 
+def parse_factor_money_screen(path, mtime_floor) -> dict:
+    """고전 팩터 랭킹 정보 스크린(scripts/factor_money_screen.py --out) 파서.
+
+    스키마: {panel:{file,rows,codes,from,to,horizon}, asof:{...},
+             factors:{<name>:{coverage, ic:{n,mean,sd,t,pos_share,first_half,second_half},
+                              decile_spread_pct:{...}, top_decile_mean_pct:{...},
+                              bottom_decile_mean_pct:{...}}}, note}
+    ⚠ per_exp 를 만들지 않는다 — scoreboard 가 'arm 폴드 평균(AUC)' 로 오독한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    fac = d.get("factors") or {}
+    mf = (fac.get("multifactor") or {}).get("ic") or {}
+    if not fac or mf.get("mean") is None:
+        return {"error": "factors.multifactor.ic.mean 없음(집계 실패)", "summary_mtime": mt}
+    return {"metric_name": "factor_money_screen",
+            "panel": d.get("panel"), "asof": d.get("asof"),
+            "factors": fac, "fillable": d.get("fillable"),
+            "note": d.get("note"), "summary_mtime": mt}
+
+
+def parse_factor_money_fillable(path, mtime_floor) -> dict:
+    """체결성 필터 ON 팩터 top-k vs 풀평균(CG116) — 같은 파일의 `fillable` 블록을 요구한다."""
+    d = parse_factor_money_screen(path, mtime_floor)
+    if d.get("error"):
+        return d
+    if not (d.get("fillable") or {}).get("factors"):
+        return {"error": "fillable 블록 없음(--fillable 미지정으로 실행됨)", "summary_mtime": d.get("summary_mtime")}
+    return d
+
+
+def judge_factor_money_fillable(item, parsed) -> tuple:
+    """체결성 필터 ON 팩터 top-k vs 세션 풀평균 판정 — 사전등록(CG116):
+
+      **멀티팩터 top-k(k=3·5 둘 다) Δ(바스켓 − 풀평균) ≥ +0.1 %p/세션 AND t ≥ 2**
+      → '신호있음'(팩터 랭킹이 무작위 k 를 이긴다 = 베타 초과). 미달이면 '노이즈'.
+
+    널 기준선은 세션 풀평균이다(AUC 의 '동전 0.5' 에 해당) — arm vs arm 만 보면 베타와
+    구분되지 않는다(실측 CG95: arm·대조군 둘 다 +2%p/세션 = 시장 베타).
+    ⚠ 승격 근거가 아니다(패널 유니버스 스크린 — 소비 정책·체결 경로 검증은 별도).
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    fl = parsed.get("fillable") or {}
+    mf = ((fl.get("factors") or {}).get("multifactor") or {}).get("top", {}).get("k", {})
+    if not mf:
+        return "판정불가", "fillable.factors.multifactor.top.k 없음", None
+    min_d = float(item.get("min_delta_pct") or 0.1)
+    min_t = float(item.get("min_t") or 2.0)
+    ks = item.get("ks") or [3, 5]
+    desc, ok_all = [], True
+    for k in ks:
+        v = mf.get(str(k)) or {}
+        d, t = v.get("mean_delta_pct"), v.get("t")
+        desc.append("k=%s Δ%+.3f%%p(t %s, 양세션 %s%%)"
+                    % (k, d if d is not None else float("nan"), t,
+                       None if v.get("pos_share") is None else round(v["pos_share"] * 100, 1)))
+        if d is None or d < min_d or (t or 0) < min_t:
+            ok_all = False
+    pool = ((((fl.get("factors") or {}).get("multifactor") or {}).get("top") or {})
+            .get("pool_mean_pct") or {})
+    detail = ("체결성 필터 ON · 유지 %s/%s행 · 널=세션 풀평균 %+.3f%%p(t %s) · %s"
+              % ((fl.get("filter") or {}).get("rows_kept"), (fl.get("filter") or {}).get("rows_total"),
+                 pool.get("mean_delta_pct") or 0.0, pool.get("t"),
+                 " · ".join(desc)))
+    if ok_all:
+        return "신호있음", detail + " — 팩터 랭킹이 무작위 k(풀평균)를 이긴다(베타 초과)", \
+            round((mf.get(str(ks[0])) or {}).get("mean_delta_pct") or 0.0, 4)
+    return "노이즈", detail + " — 사전문턱 미달(베타 초과 미검출)", \
+        round((mf.get(str(ks[0])) or {}).get("mean_delta_pct") or 0.0, 4)
+
+
+def judge_factor_money_screen(item, parsed) -> tuple:
+    """팩터 스크린 판정 — 사전등록(CG115): **멀티팩터 횡단면 IC > 0 이고 t ≥ 2** 이면
+    '정보있음' = 고전 팩터 랭킹에 횡단면 정보가 있다(모델 대조군). 미달이면 '노이즈'.
+
+    ⚠ 이 판정은 **순기대가 아니다**(체결성 필터·수수료 미적용) → 승격 근거가 될 수 없다.
+    분위 스프레드 부호는 detail 에 함께 싣는다(비단조 진단용): IC 가 양(+)인데
+    top−bottom 스프레드가 음(−)이면 랭킹이 단조가 아니라는 신호다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    fac = parsed.get("factors") or {}
+    mf = fac.get("multifactor") or {}
+    ic, sp = (mf.get("ic") or {}), (mf.get("decile_spread_pct") or {})
+    m, t = ic.get("mean"), ic.get("t")
+    if m is None:
+        return "판정불가", "multifactor.ic.mean 없음", None
+    min_t = float(item.get("min_t") or 2.0)
+    parts = []
+    for name in ("value_score", "quality_score", "momentum_score", "lowvol_score"):
+        v = fac.get(name) or {}
+        vi, vs = (v.get("ic") or {}), (v.get("decile_spread_pct") or {})
+        if vi.get("mean") is None:
+            continue
+        parts.append("%s IC %+.4f(t %s) 스프레드 %+.2f%%p(t %s)"
+                     % (name, vi["mean"], vi.get("t"),
+                        vs.get("mean") or 0.0, vs.get("t")))
+    detail = ("멀티팩터 IC %+.4f(t %s, n %s, 양세션 %s%%) · 스프레드 %+.2f%%p(t %s) · %s"
+              % (m, t, ic.get("n"),
+                 None if ic.get("pos_share") is None else round(ic["pos_share"] * 100, 1),
+                 sp.get("mean") or 0.0, sp.get("t"), " | ".join(parts)))
+    ok = m > 0 and (t or 0) >= min_t
+    if ok:
+        return ("정보있음",
+                detail + " — 고전 팩터 랭킹에 횡단면 정보(순기대 아님·승격 근거 아님)", round(m, 4))
+    return ("노이즈", detail + " — 미검출(문턱 이하)", round(m, 4))
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
@@ -1807,6 +1947,10 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_fillable_topk_vs_pool(item, parsed)
     if kind == "rank_ic_money":
         return judge_rank_ic_money(item, parsed)
+    if kind == "factor_money_screen":
+        return judge_factor_money_screen(item, parsed)
+    if kind == "factor_money_fillable":
+        return judge_factor_money_fillable(item, parsed)
     if kind == "forward_scorecard":
         return judge_forward_scorecard(item, parsed)
     if kind == "calibration_probe":
