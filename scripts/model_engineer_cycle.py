@@ -1837,6 +1837,7 @@ def parse_factor_money_screen(path, mtime_floor) -> dict:
     return {"metric_name": "factor_money_screen",
             "panel": d.get("panel"), "asof": d.get("asof"),
             "factors": fac, "fillable": d.get("fillable"),
+            "paired_vs_factor": d.get("paired_vs_factor"),
             "note": d.get("note"), "summary_mtime": mt}
 
 
@@ -1901,6 +1902,43 @@ def judge_factor_money_screen(item, parsed) -> tuple:
     """
     if parsed.get("error"):
         return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    pv = parsed.get("paired_vs_factor")
+    if item.get("paired_vs_factor"):
+        # CG117 짝 경로: 같은 (code,date) 행에서 ΔIC = IC(모델) − IC(멀티팩터) 를 판정한다.
+        # ⚠ IC 는 순기대가 아니다 — 승격 근거가 아니라 'ML 이 팩터 대비 정보 우위가 있는가'의
+        #    복잡도 유지 근거 판정이다. per_exp 를 만들지 않는다(scoreboard 오독 방지).
+        # 분기 기준은 **항목 플래그**다: 플래그가 있는데 요약에 짝 블록이 없으면(예: --arm-jsonl
+        # 없이 실행) CG115 규칙으로 조용히 폴백하지 않고 판정불가로 세운다 — 잘못된 판정 방지.
+        if not pv or pv.get("error") or not pv.get("paired"):
+            why = ((pv or {}).get("error") if isinstance(pv, dict) else None) \
+                or "요약에 paired_vs_factor 없음(--arm-jsonl 없이 실행됨)"
+            return "판정불가", f"paired 블록 없음 — {why}", None
+        pa = pv["paired"]
+        if pa.get("error"):
+            return "판정불가", f"paired 집계 불가 — {pa['error']}", None
+        d, t = pa.get("mean_delta_ic"), pa.get("t")
+        min_d = float(item.get("min_delta_ic") or 0.01)
+        min_t = float(item.get("min_t") or 2.0)
+        im = pv.get("ic_model") or {}
+        iff = pv.get("ic_factor") or {}
+        u, r = pv.get("universe") or {}, pv.get("rows") or {}
+        detail = ("같은 (code,date) 행 짝 · 덤프 %s · 종목 %s(panel 교집합 %s) · 세션 %s · "
+                  "모델 IC %+.4f(t %s) vs 팩터 IC %+.4f(t %s) · ΔIC %+.4f(t %s, 양세션 %s%%, "
+                  "동점 %s, 부호검정 p %s) · 채점행 %s"
+                  % (pv.get("arm"), u.get("dump_codes"), u.get("panel_code_overlap"),
+                     pa.get("n_sessions"),
+                     im.get("mean") or 0.0, im.get("t"),
+                     iff.get("mean") or 0.0, iff.get("t"),
+                     d or 0.0, t,
+                     None if pa.get("pos_session_share") is None
+                     else round(pa["pos_session_share"] * 100, 1),
+                     pa.get("n_tied"), pa.get("sign_p"), r.get("scored")))
+        ok = d is not None and d >= min_d and (t or -9) >= min_t
+        dnum = float(d) if d is not None else 0.0
+        if ok:
+            return ("모델 우위 있음", detail + " — 사전등록 충족(IC 기준·순기대 아님·승격 근거 아님)",
+                    round(dnum, 4))
+        return ("모델 우위 없음", detail + " — 사전등록 미달(IC 기준·순기대 아님)", round(dnum, 4))
     fac = parsed.get("factors") or {}
     mf = fac.get("multifactor") or {}
     ic, sp = (mf.get("ic") or {}), (mf.get("decile_spread_pct") or {})

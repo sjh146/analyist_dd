@@ -160,7 +160,67 @@ def main():
     vf3, _, _ = m.judge_factor_money_fillable({**itemf, "ks": [3, 5, 10]}, pf3)
     check("ks=[3,5,10] 로 k10(t1.4) 추가하면 노이즈", vf3 == "노이즈", vf3)
 
-    for f in (bad, good):
+    # ── CG117: 덤프 짝(모델 IC vs 팩터 IC) 경로 ────────────────────────────────
+    extra = []
+
+    def paired_block(dic=0.032, t=3.4, msess=78, tied=2, err=None):
+        b = {"arm": "cg95_q05", "arm_jsonl": "/app/reports/overnight/cg95_q05_all.jsonl",
+             "fillable": True,
+             "filter": {"max_day_chg_pct": 25.0, "min_value": 1e9, "min_price": 1000.0,
+                        "rows_total": 23858, "rows_kept": 12123, "kept_share": 0.508},
+             "universe": {"dump_codes": 300, "matched_codes": 296,
+                          "panel_code_overlap": 41, "dates": 80},
+             "rows": {"dump": 23858, "matched": 23650, "scored": 12100, "sessions_used": msess},
+             "ic_model": {"n": msess, "mean": 0.0560, "sd": 0.11, "t": 4.53, "pos_share": 0.66,
+                          "first_half": 0.02, "second_half": 0.09},
+             "ic_factor": {"n": msess, "mean": 0.0275, "sd": 0.10, "t": 3.12, "pos_share": 0.61,
+                           "first_half": 0.02, "second_half": 0.04},
+             "paired": {"n_sessions": msess, "n_tied": tied, "mean_delta_ic": dic, "sd": 0.09,
+                        "t": t, "pos_session_share": 0.62, "sign_pos": 47, "sign_n": msess - tied,
+                        "sign_p": 0.02, "first_half_delta": 0.02, "second_half_delta": 0.04},
+             "prereg": "ΔIC ≥ +0.01 AND t ≥ 2.0", "verdict": "모델 우위 있음", "note": "짝 비교"}
+        if err:
+            b = {"error": err}
+        return b
+
+    def _p117(blk):
+        p_ = write_tmp({**payload(), "paired_vs_factor": blk})
+        extra.append(p_)
+        return m.parse_factor_money_screen(p_, 0.0)
+
+    item117 = {"id": "CG117", "metric": "factor_money_screen", "paired_vs_factor": True}
+    p117 = _p117(paired_block())
+    check("paired_vs_factor 파싱 통과", p117.get("paired_vs_factor") is not None, list(p117.keys()))
+    check("paired 경로도 per_exp 미생성", "per_exp" not in p117)
+    v117, d117, dv117 = m.judge_factor_money_screen(item117, p117)
+    check("ΔIC +0.032 · t 3.4 → 모델 우위 있음", v117 == "모델 우위 있음", v117)
+    check("paired delta = ΔIC", dv117 == 0.032, dv117)
+    check("detail 에 행 짝·교집합·부호검정 명시",
+          "같은 (code,date) 행 짝" in d117 and "panel 교집합 41" in d117 and "부호검정 p" in d117,
+          d117[:160])
+
+    v2, _, _ = m.judge_factor_money_screen(item117, _p117(paired_block(dic=0.005)))
+    check("ΔIC +0.005 < +0.01 → 모델 우위 없음", v2 == "모델 우위 없음", v2)
+    v3, _, _ = m.judge_factor_money_screen(item117, _p117(paired_block(dic=0.05, t=1.5)))
+    check("ΔIC 충족·t 1.5 < 2 → 모델 우위 없음(둘 다 필요)", v3 == "모델 우위 없음", v3)
+    v4, _, _ = m.judge_factor_money_screen({**item117, "min_delta_ic": 0.05},
+                                           _p117(paired_block(dic=0.032)))
+    check("item min_delta_ic=0.05 로 조이면 미달", v4 == "모델 우위 없음", v4)
+    v5, _, _ = m.judge_factor_money_screen(item117, _p117(paired_block(err="market_data 없음")))
+    check("paired 블록 error → 판정불가", v5 == "판정불가", v5)
+    blk6 = paired_block()
+    blk6["paired"] = {"n_sessions": 1, "error": "공통 세션 부족(>=2 필요)"}
+    v6, _, _ = m.judge_factor_money_screen(item117, _p117(blk6))
+    check("공통 세션 부족 → 판정불가", v6 == "판정불가", v6)
+    # 분기 격리: 플래그 없는 항목은 기존 CG115 규칙(multifactor IC) 으로
+    v7, _, _ = m.judge_factor_money_screen({"id": "CG115", "metric": "factor_money_screen"},
+                                           _p117(paired_block()))
+    check("paired_vs_factor 플래그 없으면 CG115 규칙(정보있음)", v7 == "정보있음", v7)
+    # 짝 블록 없이 플래그만 있으면 판정불가(조용히 CG115 규칙으로 떨어지지 않는다)
+    v8, _, _ = m.judge_factor_money_screen(item117, m.parse_factor_money_screen(good, 0.0))
+    check("플래그만 있고 짝 블록 없음 → 판정불가", v8 == "판정불가", v8)
+
+    for f in (bad, good) + tuple(extra):
         try:
             os.remove(f)
         except OSError:
