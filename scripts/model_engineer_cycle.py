@@ -3113,11 +3113,60 @@ def promote_handoffs(backlog, limit=1):
     return changed
 
 
+def refresh_scorecard_if_stale(max_age_hours=6.0):
+    """배포 챔피언 검증 성적표가 낡았으면 재생성한다(트레이더 계약 2번 — MT49 후속).
+
+    실측(2026-10-06): `data/reports/model_engineer_scorecard.json` 이 2026-10-05T03:16:51 값
+    (promote_dryrun = CG9b @10-02 · candidate_auc 0.6173)으로 굳어 있었는데, 트레이더 틱은 그
+    파일에 필드가 있으면 계약 2 충족으로 읽어 **낡은 값을 최신으로 오보**했다. 성적표는
+    `champion_scorecard.py` 를 아무도 주기적으로 돌리지 않아 생성 시점 이후로 갱신되지 않는다
+    → 틱이 스스로 갱신한다(파일 읽기만 하는 스크립트라 수 초 — 비블로킹 유지).
+
+    낡음 판정은 두 축이다: ① mtime 경과(max_age_hours) ② **원장 최신 기록보다 오래됨**
+    (자정 직후처럼 6h 이내여도 promote_dryrun 이 옛 기록을 가리킬 수 있다).
+
+    반환: 사람이 읽을 한 줄(항상 문자열 — 틱 출력에 성적표 상태가 보이게).
+    """
+    try:
+        mtime = os.path.getmtime(SCORECARD)
+    except OSError:
+        mtime = 0.0
+    age_h = (time.time() - mtime) / 3600.0 if mtime else None
+    newest = 0.0
+    for r in load_ledger(limit=50):
+        ts = _parse_ts(r.get("ts"))
+        if ts is not None:
+            newest = max(newest, ts.timestamp())
+    content_stale = newest > (mtime + 60)          # 60s 여유(쓰기 순서 경쟁)
+    if age_h is not None and age_h <= max_age_hours and not content_stale:
+        return f"성적표: 최신(age {age_h:.1f}h)"
+    try:
+        proc = subprocess.run(
+            [sys.executable, os.path.join(PROJ, "scripts", "champion_scorecard.py")],
+            capture_output=True, text=True, timeout=120,
+        )
+    except Exception as e:                          # noqa: BLE001 — 성적표 갱신 실패가 틱을 막지 않는다
+        return f"성적표 재생성 실패({type(e).__name__}: {e}) — 옛 값을 유지한다"
+    if proc.returncode != 0:
+        return (f"성적표 재생성 rc={proc.returncode} — 옛 값을 유지한다"
+                f"(성적표 부재·손상이 기록을 막지 않는다)")
+    try:
+        with open(SCORECARD, encoding="utf-8") as f:
+            rep = json.load(f)
+        pd = rep.get("promote_dryrun") or {}
+        return (f"성적표 재생성: dry-run {pd.get('record_id')}@{pd.get('record_ts')} "
+                f"status={pd.get('status')} · 폴드 {rep.get('fold_stats', {}).get('n_folds')}개")
+    except Exception:                               # noqa: BLE001
+        return "성적표 재생성 완료(요약 파싱 실패)"
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
         print(ns)
     print(f"  런처: {ensure_launcher()}")
+    # 성적표(MK49)가 낡으면 여기서 재생성한다 — 트레이더 계약 2번이 옛 값을 최신으로 오보하는 것을 막는다.
+    print(f"  {refresh_scorecard_if_stale()}")
     # 이전 틱이 '보고 처리'했지만 크론 실행이 전달 실패한 기록을 되돌린다 → 아래 unreported 블록이
     # 같은 결과를 다시 출력한다(영구 소실 방지). 실측 2026-09-30: 제공자 불통 4시간 동안 U3 소실.
     for line in check_undelivered_reports():

@@ -1,6 +1,6 @@
 {
   "metric_name": "champion_scorecard",
-  "generated_at": "2026-10-05T03:16:51",
+  "generated_at": "2026-10-06T22:06:15",
   "champion_dir": "services/xgboost-ml/app/models/champion",
   "champion_auc_txt": 0.551318,
   "insample": {
@@ -19,18 +19,18 @@
   "fold_stats": {
     "protocol": "3-fold 연속 시간창, h=5 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=5거래일",
     "folds": [
-      0.5374,
-      0.5513,
-      0.4766
+      0.4899,
+      0.5635,
+      0.491
     ],
-    "mean": 0.5218,
-    "std": 0.0324,
-    "min": 0.4766,
-    "max": 0.5513,
-    "fold_win_rate": 0.667,
+    "mean": 0.5148,
+    "std": 0.0344,
+    "min": 0.4899,
+    "max": 0.5635,
+    "fold_win_rate": 0.333,
     "n_folds": 3,
-    "measured_at": "2026-10-01T07:16:40",
-    "source": "ledger:CG55"
+    "measured_at": "2026-10-04T18:33:25",
+    "source": "ledger:CG106"
   },
   "purge": {
     "policy": "라벨 참조일 기준 h거래일 purge(wf_wave.py·wf_label_sweep.py) — 달력 h일이 아니라 그 종목의 h번째 미래 '행'의 날짜 기준",
@@ -38,24 +38,24 @@
     "observed": {
       "n_label_ref_purged": 43,
       "n_folds_counted": 5,
-      "exp": "CO_core30_h5",
-      "source": "services/xgboost-ml/reports/overnight/cg105_arm_summary.json",
-      "finished_at": "2026-10-04T18:14:30+00:00"
+      "exp": "CO_rank_h5",
+      "source": "services/xgboost-ml/reports/overnight/cg130_summary.json",
+      "finished_at": "2026-10-06T08:19:02+00:00"
     }
   },
   "promote_dryrun": {
-    "status": "would_promote",
-    "reason": "dry-run: incumbent left untouched",
-    "candidate_auc": 0.6173,
+    "status": "kept_incumbent",
+    "reason": "돈 기준 게이트 거부: 순기대 -0.119%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.2371 / 뒤 -0.0031); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요)",
+    "candidate_auc": 0.5882,
     "champion_baseline": 0.5513,
     "baseline_source": "robust_auc.json",
-    "record_id": "CG9b",
-    "record_ts": "2026-10-02T22:01:51+09:00"
+    "record_id": "CG132",
+    "record_ts": "2026-10-06T22:03:34+09:00"
   },
   "money": {
     "metric": "robust_auc",
-    "robust_auc": 0.501,
-    "auc_pooled": 0.4998,
+    "robust_auc": 0.4908,
+    "auc_pooled": 0.4869,
     "folds": 5,
     "horizon": 5,
     "label_kind": "rel",
@@ -69,7 +69,7 @@
       "stable": "neither",
       "split_date": "2026-07-28"
     },
-    "created_at": "2026-10-04T04:23:36",
+    "created_at": "2026-10-05T12:37:23",
     "source": "services/xgboost-ml/app/models/champion/robust_oos.json"
   }
 }
