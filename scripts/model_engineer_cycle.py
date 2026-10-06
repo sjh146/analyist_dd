@@ -131,6 +131,9 @@ def load_ledger(limit=None):
 
 
 SCORECARD = os.path.join(PROJ, "data", "reports", "model_engineer_scorecard.json")
+# 배포 경로 전방(forward) 성적표 — ml_predictions × 실현 선행수익(CG68/CG75 계측기).
+FORWARD_SCORECARD = os.path.join(PROJ, "services", "xgboost-ml", "reports", "overnight",
+                                 "forward_scorecard.json")
 
 
 def validation_block():
@@ -3160,6 +3163,66 @@ def refresh_scorecard_if_stale(max_age_hours=6.0):
         return "성적표 재생성 완료(요약 파싱 실패)"
 
 
+def _forward_needs_refresh(mtime, now, max_age_hours=20.0) -> bool:
+    """전방 성적표를 재생성해야 하는가 — mtime 축만(내용 축 없음: 매일 행이 늘어난다)."""
+    if not mtime:                                   # 파일 부재(mtime=0)
+        return True
+    return (now - mtime) / 3600.0 > max_age_hours
+
+
+def _forward_summary_line(path) -> str:
+    """전방 성적표 JSON 을 한 줄로 요약(파싱 실패는 예외 없이 문자열로)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception as e:                          # noqa: BLE001
+        return f"전방 성적표 파싱 실패({type(e).__name__})"
+    res = d.get("result") or {}
+    parts = []
+    for h in ("h1", "h5"):
+        w = res.get(h) or {}
+        auc = w.get("pooled_auc")
+        top, allr = w.get("top10_ret_mean"), w.get("all_ret_mean")
+        parts.append(
+            f"{h} n_dates {w.get('n_dates')} · pooled {auc if auc is None else round(float(auc), 4)} · "
+            f"top10 {'n/a' if top is None else format(float(top), '+.4%')}"
+            f" vs 전체 {'n/a' if allr is None else format(float(allr), '+.4%')}")
+    return "전방 성적표: " + " | ".join(parts)
+
+
+def refresh_forward_scorecard_if_stale(max_age_hours=20.0, path=None):
+    """배포 경로 **전방(forward)** 성적표가 하루 넘게 낡았으면 재측정한다(읽기 전용, ~14초).
+
+    WHY (2026-10-06 실측): CG75 의 사전등록 판정은 `n_dates ≥ 10` 을 요구하는데, 전방 성적표를
+    주기적으로 돌리는 배선이 없었다(크론 추가는 승인 대상). ml_predictions 는 매일 4,340행씩
+    쌓이지만 **아무도 계측기를 다시 돌리지 않아** 표본이 늘어나도 판정이 영원히 '표본부족' 에
+    머무른다(CG75 는 done 으로 닫혀 재실행되지 않는다). → 틱이 스스로 하루 1회 갱신한다.
+
+    실측 소요 14.1초(2026-10-07, 컨테이너), 출력 파일은 컨테이너 root 소유 → **읽기만** 한다.
+
+    반환: 사람이 읽을 한 줄(항상 문자열).
+    """
+    p = path or FORWARD_SCORECARD
+    try:
+        mtime = os.path.getmtime(p)
+    except OSError:
+        mtime = 0.0
+    if not _forward_needs_refresh(mtime, time.time(), max_age_hours):
+        age_h = (time.time() - mtime) / 3600.0
+        return f"전방 성적표: 최신(age {age_h:.1f}h) — {_forward_summary_line(p)}"
+    cmd = ["docker", "exec", "-e", "PYTHONPATH=/app", "stock_xgboost_ml", "python",
+           "/app/scripts/forward_scorecard.py", "--out",
+           "/app/reports/overnight/forward_scorecard.json"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    except Exception as e:                          # noqa: BLE001 — 계측 실패가 틱을 막지 않는다
+        return f"전방 성적표 재측정 실패({type(e).__name__}: {e}) — 옛 값을 유지한다"
+    if proc.returncode != 0:
+        return (f"전방 성적표 재측정 rc={proc.returncode} — 옛 값을 유지한다"
+                f"(마지막 줄: {(proc.stderr or proc.stdout or '').strip().splitlines()[-1:] })")
+    return _forward_summary_line(p)
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
@@ -3167,6 +3230,9 @@ def tick(force=False):
     print(f"  런처: {ensure_launcher()}")
     # 성적표(MK49)가 낡으면 여기서 재생성한다 — 트레이더 계약 2번이 옛 값을 최신으로 오보하는 것을 막는다.
     print(f"  {refresh_scorecard_if_stale()}")
+    # 전방(forward) 성적표 — 배포 경로의 유일한 전방 검증인데 아무도 주기 실행하지 않아
+    # 표본이 늘어도 '표본부족' 에 머물렀다(CG75). 틱이 하루 1회 갱신한다(읽기 전용, ~14초).
+    print(f"  {refresh_forward_scorecard_if_stale()}")
     # 이전 틱이 '보고 처리'했지만 크론 실행이 전달 실패한 기록을 되돌린다 → 아래 unreported 블록이
     # 같은 결과를 다시 출력한다(영구 소실 방지). 실측 2026-09-30: 제공자 불통 4시간 동안 U3 소실.
     for line in check_undelivered_reports():
