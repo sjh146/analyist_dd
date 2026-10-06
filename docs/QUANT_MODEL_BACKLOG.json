@@ -12955,8 +12955,50 @@
       "metric": null,
       "title": "[측정정합성·승인] 스코어보드 등록 기준선·헤드라인 arm 필터를 청정 패널(prod200)로 이관 — 누수 패널(panel_420_asofpatch) 값 폐기",
       "setup_needed": "scripts/quant_scoreboard.py 의 등록 기준선(0.5406)·'대조가능 패널' 필터 변경 = 리뷰보드 승인 대상(스코어보드 프로토콜 변경). 동시에 유니버스(49종목 panel_420_asofpatch → 50종목 panel_prod200)도 함께 바뀌므로 라벨·유니버스 규칙 변경 승인도 함께 필요하다. 이관 승인 시: ① 기준선 재등록(승인된 패널·유니버스의 LS_quant_q30_h5 또는 CO_core30_h5 값) ② arm 필터에 '배포 가능' 조건 추가(rank 변환 arm = 추론 경로 app/inference/predictor.py 재현 불가) ③ 헤드라인 패널을 panel_prod200 으로 고정.",
-      "note": "2026-10-06 19:0x 등록(엔지니어 자율). 근거 = CG130 실측(panel_prod200 = panel_leak_gate CLEAN · 50종목 · 420일 · 5폴드×5시드): LS_quant_q30_h5(게이트 OFF 기준선 arm) 0.5302±0.0168 · CO_core30_h5 0.5305±0.0199 · CO_rank_h5 0.5344±0.0208(최고) · TR_rank_h5 0.5267±0.0196. 즉 현 헤드라인 0.5519(=TR_rank_h5, LEAKY panel_420_asofpatch)는 청정 패널에서 0.5267(−0.0252)이고 최고 arm 도 대조군 대비 Δ+0.0042 = 노이즈 → '19사이클 무개선' 결론은 유지되나 인용 숫자·arm 자체가 누수 패널·비배포(rank) 값이었다. ⚠ arm 이 게이트 OFF(LS_/TR_)·ON(CO_) 혼재이므로 해석 시 게이트 비용과 rank 이득을 분리해 적을 것. 이 항목은 새 성능 레버가 아니라 측정 정합성 수리다(변환·게이트 축 재시험 아님).",
-      "command": null
+      "note": "2026-10-06 19:0x 등록(엔지니어 자율). 근거 = CG130 실측(panel_prod200 = panel_leak_gate CLEAN · 50종목 · 420일 · 5폴드×5시드): LS_quant_q30_h5(게이트 OFF 기준선 arm) 0.5302±0.0168 · CO_core30_h5 0.5305±0.0199 · CO_rank_h5 0.5344±0.0208(최고) · TR_rank_h5 0.5267±0.0196. 즉 현 헤드라인 0.5519(=TR_rank_h5, LEAKY panel_420_asofpatch)는 청정 패널에서 0.5267(−0.0252)이고 최고 arm 도 대조군 대비 Δ+0.0042 = 노이즈 → '19사이클 무개선' 결론은 유지되나 인용 숫자·arm 자체가 누수 패널·비배포(rank) 값이었다. ⚠ arm 이 게이트 OFF(LS_/TR_)·ON(CO_) 혼재이므로 해석 시 게이트 비용과 rank 이득을 분리해 적을 것. 이 항목은 새 성능 레버가 아니라 측정 정합성 수리다(변환·게이트 축 재시험 아님). | 2026-10-06 21:0x 오프라인 반사실 실측(scripts/scoreboard_migration_dryrun.py, 읽기 전용·quant_scoreboard.py 무수정): 이관하면 헤드라인 0.5519(TR_rank_h5·누수 패널)→A안 0.5302(Δ0.0000·무개선 꼬리 19→4) / B안(게이트 ON 기준선 0.5305) 0.5344(Δ+0.0039·꼬리 9). 청정 패널에서 TR_rank_h5=0.5267(LS 대비 −0.0035) → '헤드라인 개선'은 누수 패널 산물로 확정. 승인만 나면 즉시 실행 가능.",
+      "command": null,
+      "evidence_dryrun": {
+        "tool": "scripts/scoreboard_migration_dryrun.py",
+        "artifacts": [
+          "data/reports/cg131_migration_A.json",
+          "data/reports/cg131_migration_B.json"
+        ],
+        "measured_at": null,
+        "current": {
+          "baseline": 0.5406,
+          "baseline_panel": "panel_420_asofpatch.npz(LEAKY)",
+          "headline": 0.5519,
+          "headline_arm": "TR_rank_h5",
+          "delta": 0.0113,
+          "no_improve_streak": 19
+        },
+        "A_value_only": {
+          "baseline": 0.5302,
+          "baseline_panel": "panel_prod200.npz/L50",
+          "src_recs": [
+            "CG72",
+            "CG87",
+            "CG130"
+          ],
+          "headline": 0.5302,
+          "headline_arm": "WF3/LS_quant_q30_h5(동일값)",
+          "delta": 0.0,
+          "no_improve_streak": 4,
+          "arms_comparable": 4,
+          "note": "청정 패널에서 TR_rank_h5 = 0.5267 (LS 0.5302 대비 −0.0035) → 헤드라인 개선(+0.0113)은 누수 패널 산물."
+        },
+        "B_production_gate_on": {
+          "baseline": 0.5305,
+          "baseline_arm": "CO_core30_h5",
+          "baseline_panel": "panel_prod200.npz/L50",
+          "headline": 0.5344,
+          "headline_arm": "CO_rank_h5",
+          "delta": 0.0039,
+          "no_improve_streak": 9,
+          "arms_comparable": 11,
+          "note": "프로덕션(게이트 ON) 경로 기준선으로 이관해도 +0.02 미달 = 정직한 상태는 '무개선 9사이클'(19는 누수 비교 산물)."
+        }
+      }
     }
   ],
   "updated": "2026-10-06"
