@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-06T17:19:35+09:00",
+  "updated_at": "2026-10-06T22:03:34+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12998,6 +12998,37 @@
           "arms_comparable": 11,
           "note": "프로덕션(게이트 ON) 경로 기준선으로 이관해도 +0.02 미달 = 정직한 상태는 '무개선 9사이클'(19는 누수 비교 산물)."
         }
+      }
+    },
+    {
+      "id": "CG132",
+      "title": "저녁 파이프라인 챌린저(champion_cand, 2026-10-06 재학습) 승격 게이트 판정 — dry-run + 돈 기준(require-expectancy)",
+      "status": "done",
+      "priority": 1,
+      "kind": "measure",
+      "metric": "champion_promote_dryrun",
+      "command": "docker exec stock_xgboost_ml python /app/app/training/champion_promote.py --candidate /app/app/models/champion_cand --champion /app/app/models/champion --dry-run --require-expectancy --summary-out /app/reports/overnight/cg132_promote.json",
+      "counterfactual": "현행 챔피언(app/models/champion, 199피처, auc 0.551318) — 같은 프로토콜 OOS 순기대 −0.182%p",
+      "success": "게이트 판정이 status·사유와 함께 기록된다. status=would_promote 일 때만 승격(사람 단계 아님) — kept_incumbent 면 현행 유지가 정답이고 그 사유가 돈 지표(순기대 %p/세션·표본·분할표본)로 남는다.",
+      "hypothesis": "파이프라인 Phase 2 가 오늘(10-06) champion_cand 를 재학습했다(n=11812·199피처·단일분할 ens 0.5882). 단일분할 AUC 는 OOS 순위와 반대(−0.81)이므로 게이트는 돈 기준으로만 본다. 파이프라인 자체 live-score 게이트는 이미 차단(후보 신호 0건·max 0.5098 vs 챔피언 22건) · robust_oos 순기대 −0.1188%p(t −0.71·분할표본 neither) → 종전과 같이 거부가 예상되나, 판정을 원장에 남긴다.",
+      "note": "2026-10-06 22:0x 등록(엔지니어 일일 잡). CG122(10-05 후보)와 동일 절차의 일일 반복 항목. summary_path 확인: services/xgboost-ml/reports/overnight/cg132_promote.json",
+      "est_minutes": 3,
+      "attempts": [
+        {
+          "ts": "2026-10-06T22:03:34+09:00",
+          "rc": 0,
+          "verdict": "후보 생성·게이트 거부",
+          "detail": "dry-run status=kept_incumbent · 후보 AUC 0.5882 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11812 · 양성률 0.4727 · 사유: 돈 기준 게이트 거부: 순기대 -0.119%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.2371 / 뒤 -0.0031); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG132_20261006-220334.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "후보 생성·게이트 거부",
+        "detail": "dry-run status=kept_incumbent · 후보 AUC 0.5882 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11812 · 양성률 0.4727 · 사유: 돈 기준 게이트 거부: 순기대 -0.119%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.2371 / 뒤 -0.0031); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
       }
     }
   ],
