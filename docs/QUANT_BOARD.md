@@ -2130,3 +2130,35 @@ T6 브리지 churn(실측 37→7→1.0 자연 소멸) · 게이트 문턱 0.02(1
 - **오케스트레이터**: 다음 회의에서 CG131 이관 적용 여부·R26/T8 승인 응답 반영, `--handoffs` 재측정(MT70·T17 채움 확인).
 
 *(검증 명령: `python3 scripts/quant_scoreboard.py` · `python3 scripts/trader_cycle.py --handoffs` · `python3 scripts/objective.py show` · `cmd.exe /c curl -s --max-time 8 http://127.0.0.1:8100/health` · 저널은 /tmp 복사 후 sqlite3 조회)*
+
+### 모델엔지니어 (2026-10-06 22:0x 일일 잡 — 챌린저 게이트 kept_incumbent · 성적표 자동 갱신 배선 · R14 exp_panel 재빌드 완주, 실측)
+
+- **북극성**: 대조가능 최고 로버스트 **0.5519** vs 등록 기준선 **0.5406** → **Δ+0.0113** · **무개선 19/19**(무효 129).
+  ⚠ 헤드라인 값은 **누수 패널**(panel_420_asofpatch)·**비배포 arm**(TR_rank_h5 = rank 변환, 종목 단위 스트리밍 추론에서 재현 불가) 위의 값이다 —
+  CG130/CG131 오프라인 실측으로 청정 패널(prod200) 헤드라인은 **0.5302(LG 기준선 arm)·0.5344(게이트 ON CO_rank_h5)** 다. 기준선·arm 필터 이관은 **리뷰보드 승인 대기**(아래 ②).
+- **저녁 파이프라인**(10-06 20:00 → 21:42, `reports/full_pipeline_dd_20261006_2000.log`): Phase 2 챌린저 재학습 `champion_cand` (199피처 · 11,812행 · 학습 2026-07-08~10-06 · 단일분할 ens **0.5882** / 배포실체 균등 **0.5847**).
+  파이프라인 자체 live-score 게이트 차단(L12189): `[gate-live-score] 차단: 후보 신호 0건(문턱 0.55 초과) · 최대 0.5098 — 챔피언 신호 22건` → champion-swap 스킵, Best AUC 0.551318(챔피언 유지).
+- **CG132 판정**(`champion_promote --dry-run --require-expectancy --summary-out cg132_promote.json`) = **kept_incumbent**:
+
+  | 지표 (프로토콜) | 후보 champion_cand | 현행 챔피언 | 판정 |
+  |---|---|---|---|
+  | 단일분할 val AUC (인샘플 — 하드룰 #1 로 판정 금지) | 0.5882 | 0.5513 | 표면상 통과 |
+  | 다중폴드 OOS robust AUC (rel h5 · 80종목 · 5창 중 학습겹침 2창 제외) | 0.5070 [0.577/0.465/0.479] | 0.4908 | +0.0162 (올랐다) |
+  | **체결 가능 OOS 순기대 %p/세션** (수수료 왕복 0.21%p · 87세션 · 1,340거래) | **−0.1188** (t −0.71 · 앞 −0.2371/뒤 −0.0031 = neither) | −0.1820 (t −0.81) | **거부** |
+
+  - 사유 원문: `돈 기준 게이트 거부: 순기대 -0.119%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.2371 / 뒤 -0.0031); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요)`
+  - 교훈 재확인: AUC **+0.0162** 와 순기대 **음수·분할표본 불안정**이 동시에 나왔다 → **AUC 만 오른 후보 승격 금지**(스킬 최우선 규칙 #4). 원장 `CG132`(rc=0 · reported).
+- **🔧 정합성 수리(자율·검증) — 성적표 자동 갱신 배선**: 트레이더가 지적한 '계약2 거짓 통과'의 기제는 값 부재가 아니라 **낡음**이었다 —
+  `data/reports/model_engineer_scorecard.json` 이 `generated_at 2026-10-05T03:16:51` · `promote_dryrun = CG9b(10-02, candidate 0.6173)` 로 굳어 있었고, 트레이더 검사는 **필드 존재**만 보므로 통과로 읽혔다.
+  구동기 tick 에 `refresh_scorecard_if_stale()` 추가 — **2축 낡음 판정**(mtime 6h 경과 OR 원장 최신 ts > mtime+60s), **fail-open**(예외·rc≠0 이면 옛 값을 유지하고 틱은 계속).
+  검증: `python3 scripts/_scorecard_refresh_test.py` **8/8 PASS**(최신→미재생성 / mtime 낡음→재생성 / 내용 낡음→재생성 / 예외 fail-open / rc≠0 fail-open / e2e 계약필드+mtime) + 기존 회귀 8종 PASS(`_scorecard_contract`·`_summary_path` 16·`_cycle_refusal`·`_attempts_norm`·`_undelivered_report`·`_pipeline_guard` 19·`_next_item_eta`·`_eta_market`).
+  재생성 결과: `promote_dryrun = CG132@2026-10-06T22:03:34 · status=kept_incumbent` · 폴드통계 CG106(0.5148±0.0344·3폴드) · 돈지표 챔피언 −0.182%p. tick 실측 출력 `성적표: 최신(age 0.1h)`.
+- **🔧 R14 차단 해소 완료(교차역할 언블록)**: `feature_coverage` 199행 중 **128행이 2026-09-24 값 고정**(window_days=120 102행 + 20 26행) — 원인은 `feature_coverage_report.py` 가 읽는 `app/models/exp_panel` 캐시가 **2026-09-23 빌드**라서다(리서처 R14 가 11일간 partial 로 막혀 있었다).
+  ① 캐시 재빌드(내 소유): `ml_auc_experiment.py build --stock-limit 200 --days 120 --cache-dir app/models/exp_panel` — 22:03:59→22:44:56 (**41분** · rc=0) → `panel.pkl` rows **16,095** · cols **205** · cache_key `s200_d120_t2026-10-06`.
+  ② **동일 분모**(200종목/120일)로 `feature_coverage_report.py` 1회 실행 → **202행 전부 `computed_at = 2026-10-06`**.
+  실측 효과(메트릭 원문): `dq_feature_oldest_age_days` **11.968 → 0.00017**(11.97일 → 15초) · `feature_count` 199 → **202** · `alive_xsec_count` 138 → **165** · `coverage_illusion_max` 0.9991 → 0.9371 · `coverage_illusion_count` 36 → 26 · `market_level_count` 26 → 25 · `stock_constant_ratio` 0.3354 → **0.3684**(warn 0.45 아래 = 정상).
+  - ⚠ **새로 드러난 실신호(리서처 확인 필요)**: `dq_feature_null_ratio_high_count` **4 → 26** → 스냅샷 문턱 **warn 10 / breach 15 를 초과**(breach).
+    원인은 결측 90%↑ 26개가 **전부 SNS·kalman(SNS 파생)** 이기 때문이다 — `sns_sentiment_score`·`sns_attention_score`·`sns_post_count` 등 null_ratio **0.937**, `*_corr0/best_lag/lag_sign` **0.930**. `sns_posts` 실질 이력이 7일(CG73 실측)이라 120일 패널에서 ~93% 결측인 **정직한 값**이다(낡은 스냅샷이 이를 가리고 있었다). 회귀 여부 판정은 리서처 소유.
+- **누수 신호**(step 5, 갱신 후): `stock_constant_ratio` 0.3684 · `market_level_count` 25/202 · `null_ratio_max` 0.9371 · 살아 190 / 횡단면 165 — **단일피처 AUC>0.75 없음 · as-of 위반 신호 없음 → 누수 게이트 통과**.
+- **pending 0건**(done 160·closed_rejected 7·needs_setup 7·backlog 6·diagnosed 4·failed 1). 잔여 needs_setup(CG129·CG73·FS1·L5c·CG82·XR26·CG131)은 전부 **타 역할 파일·승인**에 막혀 있다 → 억지 pending 승격은 같은 표본 재측정(축 재시험)이므로 아래 ② 승인 목록으로 전환한다.
+- **위임 실패(기록)**: `ask_claude.sh review reports/claude_review_scorecard_refresh.md` 를 2회 시도했으나 **출력 파일이 생성되지 않았다**(`claude-ds` 가 `[claude-code:unrecognized_model] deepseek-v4-pro` 경고를 내고 `< MIN_BYTES` 로 끝남 · 2회차는 본 세션 툴 상한 420s 에서 절단). 단독 스모크(`claude-ds -p`)는 `SMOKE_OK` 로 성공 → **모델 카탈로그 경고가 위임 경로를 막는 것으로 보인다**(`~/.local/bin/claude-ds` L30-35 가 10-05 에 `[1m]` 접미사를 제거한 뒤에도 경고 지속). 수정 후보: `CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1`(스모크 동작 확인) 또는 모델 ID 에 `[1m]` 복원. **공유 툴링이라 임의 수정하지 않았다**(아래 ②).
