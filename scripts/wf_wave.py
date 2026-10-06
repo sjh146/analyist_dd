@@ -37,6 +37,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 
 import extra_experiments as ex  # noqa: E402
 import train_curated as tc  # noqa: E402
+import panel_meta  # noqa: E402  (RB2/F3: 완성 패널 재사용 시 '빌드 조건' 검증)
 
 ml = ex._load_driver()
 _ORIG_SELECT = tc.select_curated_features
@@ -286,6 +287,22 @@ def build_panel(cache, limit, days, log=print, end_date=None, universe="curated"
         df["date"] = [str(d) for d in z["dates"]]
         df["stock_code"] = [str(c) for c in z["codes"]]
         df["price"] = z["price"].astype(float)
+        # RB2/F3 — '완성된 npz 재사용' 경로에도 코드/조건 검증을 건다. 종전에는 파일명만 보고
+        # 재사용해 ① 피처 코드 변경 후 옛 패널 ② 유니버스·구간 변경 요청에 옛 파일 이 조용히
+        # 통과했다(값은 그럴듯하게 나온다 = 조용한 스냅샷 불일치). 기본은 **경고**이고
+        # PANEL_META_STRICT=1 일 때만 불일치를 예외로 올린다(사이드카 없는 레거시 패널은 막지 않음).
+        _req = {"universe": universe, "universe_seed": universe_seed, "limit": limit,
+                "days": days, "end_date": end_date,
+                "universe_opts": {k: v for k, v in universe_opts.items() if v is not None}}
+        _pm = panel_meta.verify(cache, request=_req,
+                                current_code_sig=ml.FeaturePipeline._feature_code_sig())
+        log(panel_meta.format_line(_pm["status"], _pm["diffs"], _pm["meta"]))
+        if _pm.get("error"):
+            log(f"panel meta 읽기 실패({_pm['error']}) — 빌드 조건 미검증으로 진행")
+        if panel_meta.should_fail(_pm["status"], panel_meta.env_strict()):
+            raise RuntimeError(
+                "panel meta 불일치(PANEL_META_STRICT=1): " + " | ".join(_pm["diffs"]) +
+                f"  ({cache}) — 재빌드하거나 --panel 경로를 새로 지정하라.")
         log(f"panel cache 재사용: {df.shape} ({cache})")
         return df, names
 
@@ -340,6 +357,26 @@ def build_panel(cache, limit, days, log=print, end_date=None, universe="curated"
         codes=df["stock_code"].astype(str).values,
         price=df["price"].values.astype(np.float64))
     log(f"panel cache 저장: {cache}")
+    # RB2/F3 — 사이드카에 '빌드 조건'을 남긴다. 다음 실행이 이 npz 를 재사용할 때
+    # 요청 조건(유니버스·구간·종목수)과 현재 피처 코드 서명을 대조해 불일치를 경고한다.
+    try:
+        panel_meta.write_meta(cache, {
+            "code_sig": sig_at_start,
+            "universe": universe,
+            "universe_seed": universe_seed,
+            "universe_opts": {k: v for k, v in universe_opts.items() if v is not None},
+            "limit": limit,
+            "days": days,
+            "end_date": end_date,
+            "start_date": start.strftime("%Y-%m-%d"),
+            "end_date_actual": end.strftime("%Y-%m-%d"),
+            "n_rows": int(len(df)),
+            "n_codes": int(df["stock_code"].nunique()),
+            "n_features": int(len(available)),
+            "builder": "wf_wave.build_panel",
+        })
+    except Exception as e:                       # noqa: BLE001 — 메타 실패가 빌드를 죽이지 않게
+        log(f"panel meta 저장 실패({type(e).__name__}: {e}) — 빌드는 계속")
     # 성공했으면 체크포인트는 지운다(다음 유니버스 실행이 옛 진척을 물려받지 않도록).
     for suf in (".rows.pkl", ".meta.json"):
         try:
