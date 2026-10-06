@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-06T16:15:00+09:00",
+  "updated_at": "2026-10-06T17:19:35+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -9592,8 +9592,8 @@
     {
       "id": "CG75",
       "title": "전방(forward) 배포 경로 신호의 사전등록 판정 — 표본 누적 후 모델버전 짝 비교 (CG68 계측기 승격)",
-      "status": "backlog",
-      "priority": 3,
+      "status": "done",
+      "priority": 2,
       "affects_model": true,
       "arm": "배포 챔피언(현행) — 전방 pooled/daily AUC + top-k 실현수익",
       "counterfactual": "동전(0.5) + 전체평균 실현수익(all_ret_mean)",
@@ -9604,11 +9604,26 @@
       "success": "n_dates ≥ 10 거래일에서 h5 전방 pooled AUC ≥ 0.52 **그리고** top-10 실현수익 ≥ all_ret_mean (동시 충족). 미달이면 '배포 경로 전방 신호 없음'으로 종결하고 배포 모델 교체 근거로 쓰지 않는다.",
       "expected": "미지 — 창 기반 OOS 가 0.44~0.53 이므로 전방도 비슷할 가능성이 크다. 다만 이 지표만이 승격/롤백의 실거래 성적을 말할 수 있다.",
       "cost": "실행 1분(읽기 전용) · 표본 누적에 거래일 10일 필요",
-      "est_minutes": 1,
+      "est_minutes": 2,
       "setup_needed": "① 일 1회 실행 배선(크론 추가 = 승인 대상) 또는 사람이 장 마감 후 수동 실행 ② 표본 누적 대기(n_dates ≥ 10) ③ model_version 귀속(2026-10-03 구현) 이후에만 승격/롤백 전후 짝 비교가 성립. ④ [완료 2026-10-03] metric 'forward_scorecard' 를 model_engineer_cycle 의 summary_path/parse_by_metric/judge_by_metric 에 등록했다 — 파서는 `windows` 키로 싣고 per_exp 는 만들지 않는다(스코어보드 오독 방지), n_dates 미달은 '표본부족'(판정 보류)로 조기 종결을 막는다. 검증: `python3 scripts/_forward_scorecard_metric_test.py` 19/19 PASS.",
-      "note": "2026-10-03 16:0x 신설(주말 자율 세션). **오늘 착수하지 않는 이유**: 오늘 다시 돌려도 같은 5일을 재측정할 뿐이라 Δ=0 이고 '실험을 돌렸다'만 남는다 → precondition 을 명시하고 backlog 로 둔다. 재개 조건이 충족되면 judge 배선과 함께 pending 으로 승격한다(단일 런 비교 금지 — 표본 누적 후 짝 판정). | 2026-10-03 18:1x 갱신(주말 자율 세션): metric 배선(④)을 완료해 pending 승격 시 '판정불가→done' 함정(CG43/CG10)이 닫혔다. 현재 실측 표본 = ml_predictions 37,378행·9거래일(09-22~10-02, model_version 전부 v1.0)이고 전방 성적표 최신 산출물(10-03 07:06)은 h5 n_dates=2 · h1 n_dates=5 로 min_dates 10 에 미달한다 → 재개 조건(②)은 아직 미충족, status 는 backlog 유지. 다음 행동: n_dates ≥ 10 이 되는 시점(≈1~2거래일 누적)에 pending 으로 승격하고 ①(일 1회 실행 배선) 승인을 요청한다.",
-      "result": null,
-      "attempts": 0,
+      "note": "2026-10-03 16:0x 신설(주말 자율 세션). **오늘 착수하지 않는 이유**: 오늘 다시 돌려도 같은 5일을 재측정할 뿐이라 Δ=0 이고 '실험을 돌렸다'만 남는다 → precondition 을 명시하고 backlog 로 둔다. 재개 조건이 충족되면 judge 배선과 함께 pending 으로 승격한다(단일 런 비교 금지 — 표본 누적 후 짝 판정). | 2026-10-03 18:1x 갱신(주말 자율 세션): metric 배선(④)을 완료해 pending 승격 시 '판정불가→done' 함정(CG43/CG10)이 닫혔다. 현재 실측 표본 = ml_predictions 37,378행·9거래일(09-22~10-02, model_version 전부 v1.0)이고 전방 성적표 최신 산출물(10-03 07:06)은 h5 n_dates=2 · h1 n_dates=5 로 min_dates 10 에 미달한다 → 재개 조건(②)은 아직 미충족, status 는 backlog 유지. 다음 행동: n_dates ≥ 10 이 되는 시점(≈1~2거래일 누적)에 pending 으로 승격하고 ①(일 1회 실행 배선) 승인을 요청한다. | 2026-10-06 17:0x 갱신(엔지니어 자율): 재개 조건 ② 충족 — DB 실측 ml_predictions 50,407행·12거래일(2026-09-22~10-05, 전부 model_version v1.0). 직전 산출물(10-05 16:02)은 h1 n_dates=5·h5 n_dates=2 로 min_dates 10 미달이었으나 이제 h1 이 임계 근처다 → 표본을 갱신해 재판정한다. 판정기는 n_dates<10 이면 '표본부족'(보류)로 조기 종결을 막는다.",
+      "result": {
+        "verdict": "표본부족",
+        "detail": "h5 전방 pooled AUC 0.5497(날짜별 0.5455) · n_dates 2 · n_pairs 6511 · top10 실현수익 +2.2336% vs 전체평균 +2.8103% — n_dates 2 < 10 → 판정 보류(표본 누적 대기)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-10-06T17:03:06+09:00",
+          "rc": 0,
+          "verdict": "표본부족",
+          "detail": "h5 전방 pooled AUC 0.5497(날짜별 0.5455) · n_dates 2 · n_pairs 6511 · top10 실현수익 +2.2336% vs 전체평균 +2.8103% — n_dates 2 < 10 → 판정 보류(표본 누적 대기)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG75_20261006-170229.log",
+          "elapsed_min": 0.6
+        }
+      ],
       "forward_horizon": 5,
       "min_dates": 10,
       "min_auc": 0.52
@@ -12832,6 +12847,106 @@
       "note": "선행 조건: XR26(수집기 소유·승인 대상) 수리 + 분봉 백필. XR26 미수리 상태로 이 항목을 pending 으로 올리면 같은 30봉 표본을 다시 재는 무의미한 실행이 된다(억지 실행 = 축 재시험). metric intraday_screen 은 CG128 에서 구동기 배선 완료(파서·판정기·경로·자체점검 16/16).",
       "attempts": [],
       "result": null
+    },
+    {
+      "id": "CG130",
+      "title": "청정 패널(prod200)에서 스코어보드 헤드라인 arm·기준선 동시 재측정 — 게이트×rank 2×2 분해 (기준선 이관 근거)",
+      "hypothesis": "스코어보드 로버스트 헤드라인 0.5519(TR_rank_h5, 게이트 OFF)·기록 기준선 0.5406(LS_quant_q30_h5)은 둘 다 **누수 패널**(panel_420_asofpatch — panel_leak_gate LEAKY) 위의 값이다. 청정 패널(panel_prod200)에서 같은 런·같은 프로토콜로 게이트×rank 2×2 를 재면 ① 게이트 비용 ② rank 이득 ③ 두 값의 격차가 각각 어떻게 되는가?",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --limit 50 --folds 5 --seeds 5 --only LS_quant_q30_h5,TR_rank_h5,CO_core30_h5,CO_rank_h5 --out /app/reports/overnight/cg130_sweep.jsonl --summary-out /app/reports/overnight/cg130_summary.json'",
+      "metric": "wf_sweep_summary",
+      "counterfactual": "LS_quant_q30_h5 (같은 런·청정 패널·게이트 OFF 기준선)",
+      "success": "청정 패널에서 TR_rank_h5 − LS_quant_q30_h5 5폴드 평균 Δ ≥ +0.02 이고 폴드승률 ≥ 0.8 이면 '헤드라인 유지'. 미달이면 '헤드라인은 누수 패널 산물'로 기록하고 스코어보드 기준선·arm 필터를 청정 패널로 이관하는 승인 근거로 쓴다",
+      "status": "done",
+      "priority": 2,
+      "est_minutes": 15,
+      "note": "2026-10-06 17:0x 신설(엔지니어 자율). 근거: 스코어보드 헤드라인(0.5519)과 기준선(0.5406)이 모두 panel_420_asofpatch(LEAKY) 위 값이고, 청정 참조치는 CG87(panel_prod200) = LS_quant_q30_h5 0.5302 · CO_core30_h5 0.5305 · CO_smooth_d1_h5 0.5355 뿐(rank arm 미측정). 즉 'Δ0.0113'·'19사이클 무개선'이 누수 패널·비배포 arm 위의 수치인지 청정 패널에서 확인해야 기준선 이관(리뷰보드 승인) 판단이 성립한다. ⚠ 이 항목은 성능 레버가 아니라 **측정 정합성 수리**다 — rank 축(TR3 종결)·게이트 축(CG26 종결)을 재시험하는 것이 아니고, 스코어보드 비교의 두 끝점을 같은 청정 패널로 옮겨 '대조 가능' 상태로 만드는 것이다. 패널 청정성은 CG85(panel_leak_gate) = panel_prod200 CLEAN 실측. arm 이 게이트 OFF(LS_/TR_)·ON(CO_) 혼재이므로 해석 시 게이트 비용과 rank 이득을 분리해 적을 것.",
+      "attempts": [
+        {
+          "ts": "2026-10-06T17:19:35+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "[arm 미지정] LS_quant_q30_h5 제외 최고 CO_rank_h5 0.5344 vs LS_quant_q30_h5 0.5302 → Δ+0.0042",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG130_20261006-170406.log",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "[arm 미지정] LS_quant_q30_h5 제외 최고 CO_rank_h5 0.5344 vs LS_quant_q30_h5 0.5302 → Δ+0.0042",
+        "delta": 0.0042,
+        "per_exp": {
+          "LS_quant_q30_h5": {
+            "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5326,
+              0.5543,
+              0.5017,
+              0.5305,
+              0.5317
+            ],
+            "mean": 0.5302,
+            "std": 0.0168,
+            "min": 0.5017,
+            "max": 0.5543,
+            "fold_win_rate": 1.0
+          },
+          "TR_rank_h5": {
+            "desc": "피처 날짜별 횡단면 rank(pct) — 시장레벨 성분 제거",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5295,
+              0.5548,
+              0.4933,
+              0.5287,
+              0.5271
+            ],
+            "mean": 0.5267,
+            "std": 0.0196,
+            "min": 0.4933,
+            "max": 0.5548,
+            "fold_win_rate": 0.8
+          },
+          "CO_core30_h5": {
+            "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5235,
+              0.5574,
+              0.4974,
+              0.5334,
+              0.5408
+            ],
+            "mean": 0.5305,
+            "std": 0.0199,
+            "min": 0.4974,
+            "max": 0.5574,
+            "fold_win_rate": 0.8
+          },
+          "CO_rank_h5": {
+            "desc": "core48 게이트 ON + rank 변환(스무딩 없음) — 게이트 안에서 rank 단독 효과",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5349,
+              0.557,
+              0.4959,
+              0.5373,
+              0.5469
+            ],
+            "mean": 0.5344,
+            "std": 0.0208,
+            "min": 0.4959,
+            "max": 0.557,
+            "fold_win_rate": 0.8
+          }
+        },
+        "rc": 0
+      }
     }
   ],
   "updated": "2026-10-06"
