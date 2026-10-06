@@ -101,6 +101,11 @@ SPECS = [
     ("dq_feature_null_ratio_high_count", "max", 10.0, 15.0, "결측90%↑ 피처 수(기준선 8)"),
     ("dq_feature_coverage_illusion_max", "max", None, None, "커버리지 착시 최대(정보용)"),
     ("dq_feature_null_ratio_max", "max", None, None, "피처 결측 최대(정보용)"),
+    # ⚠ R14 배선(2026-10-06): 이 값은 **단조 증가**한다 — MIN(computed_at) 이 2026-09-24 18:11 에
+    #   고정된 128행을 가리켜 정체가 진행 중이다(실측 이력: 0.89일@09-25 → 11.9일@10-06, +1일/일).
+    #   증가 중인 값에는 기준선이 없어(스킬: "문턱을 잡기 전에 값이 변하는지 먼저 봐라") 임계값을
+    #   주지 않는다 — 낮게 잡으면 해소 전까지 매 틱 발화해 무시되고(상시 발화 함정), 높게 잡으면 근거가 없다.
+    #   대신 ALWAYS_REPORT 로 **매 틱 한 줄 보고**한다(정체 = 조용한 공전 금지). 문턱 신설은 리뷰보드 안건.
     ("dq_feature_oldest_age_days", "max", None, None, "가장 오래된 피처 측정 나이(일)"),
     ("dq_feature_market_level_count", "max", None, None, "시장레벨 피처 수"),
     ("dq_padding_rows_before_listing", "max", None, 0.0, "상장 전 행(padding)"),
@@ -118,6 +123,14 @@ SPECS = [
     #   (정보용 — 인구가 늘면 함께 늘어난다). 문턱이 필요해지면 실측 기준선 위에 잡아라.
     ("dq_feature_alive_xsec_count", "max", None, None, "횡단면 변별력 있는 살아있는 피처(시장레벨 제외)"),
 ]
+
+# ── 상시 보고(정보용이지만 매 틱 보여야 하는 것) ──────────────────────────────
+# 임계값 판정(ok/warn/breach)과 **별개**로, 정체처럼 '조용히 진행되는' 신호는 매 틱 한 줄로 올린다.
+# 2026-10-05 리뷰보드 ③-7: dq_feature_oldest_age_days 는 지표엔 잡히는데 틱 보고에 한 번도 뜨지 않아
+# R14(feature_coverage 09-24 고정 128행) 정체가 11일간 아무 틱에도 보고되지 않았다.
+ALWAYS_REPORT = {
+    "dq_feature_oldest_age_days": " — R14 feature_coverage 정체(09-24 고정 128행) 감시",
+}
 
 # 차트 라벨은 영문으로 쓴다 — 이 WSL 에는 한글 폰트가 없어 글리프가 전부 깨진다
 # (실측 2026-09-25: "Glyph ... missing from current font" 경고가 라벨 수만큼 발생).
@@ -494,6 +507,11 @@ def main():
         v = "없음" if m["value"] is None else f"{m['value']:g}"
         mark = {"ok": "OK  ", "warn": "WARN", "breach": "위반", "info": "·   ", "nodata": "데이터X"}[m["status"]]
         print(f"  [{mark}] {m['label']:22s} {v:>12s}")
+    # [정보] 상시 보고 — '·' 접두어가 곧 틱(researcher_cycle.snapshot_brief)이 뽑아 가는 형식이다.
+    for _n, _note in ALWAYS_REPORT.items():
+        _m = snap["metrics"].get(_n) or {}
+        _v = "없음" if _m.get("value") is None else f"{_m['value']:.2f}"
+        print(f"· [정보] {_m.get('label', _n)}({_n})={_v}{_note}")
     if breaches:
         print(f"  ★ 위반 {len(breaches)}: " + " | ".join(breaches))
     if warns:
