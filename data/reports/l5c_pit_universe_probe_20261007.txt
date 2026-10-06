@@ -1,0 +1,50 @@
+L5c 오프라인 증명 — 팩터 유니버스 필터의 '현재값 조회' 누수 크기 (읽기 전용)
+================================================================================
+측정 2026-10-07 02:05 KST · 도구 scripts/_l5c_pit_universe_probe.py
+실행: docker exec -e PYTHONPATH=/app -e POSTGRES_PASSWORD=*** stock_xgboost_ml \
+        python /app/scripts/_l5c_pit_universe_probe.py
+DB: stock_trading.market_data 3,116,107행 · 3,973종목 · 2023-01-02~2026-10-06
+필터 임계: universe.py 상수 그대로 (MIN_MARKET_CAP 5e10 · MIN_AVG_TRADING_VALUE 1e9 · 30행)
+
+[probe] DB now_max_trade_date = 2026-10-06 · stocks=4343 · market_data stocks w/30행=3973
+
+asof        | now전체 PIT전체 | 공집합 | now만(누수포함) | PIT만(누락) | 자카드
+2025-12-30 |    853    674 |    674 |    179 |      0 | 0.790   (누수 축: 시총 52종목 · 거래대금 169종목)
+2026-03-31 |    853    753 |    753 |    100 |      0 | 0.883   (누수 축: 시총 40종목 · 거래대금 89종목)
+2026-06-30 |    853    756 |    756 |     97 |      0 | 0.886   (누수 축: 시총 32종목 · 거래대금 86종목)
+2026-09-15 |    853    785 |    785 |     68 |      0 | 0.920   (누수 축: 시총 10종목 · 거래대금 66종목)
+
+해석
+----
+1) **현행 필터는 asof 를 전혀 반영하지 않는다** — 모든 리밸런싱 날짜에서 유니버스가
+   정확히 853종목으로 동일하다(= 오늘 값으로 계산). PIT 로 계산하면 674→785 로
+   날짜에 따라 변한다. 즉 'point-in-time' 이라는 docstring 과 달리 실제로는 상수 집합이다.
+2) 누수 방향은 단방향 — PIT-only(=현행이 누락한 종목) 0. 현행은 항상 PIT 의 상위집합이며
+   과거 시점에 최대 **179종목(21%)** 을 더 포함한다(2025-12-30).
+3) 누수 축 분해: 거래대금 축이 지배(169/89/86/66), 시총 하한이 보조(52/40/32/10).
+4) 함의: 5전략 백테스트의 각 리밸런싱이 '그 시점 거래 가능 집합'이 아니라
+   '오늘 유동성 상위 집합'을 쓴다 → 팩터 성과가 낙관 편향(미래 유동성 정보).
+
+수리 사양(승인 시 즉시 적용 가능 — 다른 역할 파일이라 승인 대상)
+---------------------------------------------------------------
+A. services/strategy-agents/app/factors/universe.py:55
+   -  avg_trading_value = storage.get_avg_trading_value(code, days=30)
+   +  avg_trading_value = storage.get_avg_trading_value_asof(code, days=30, asof_date=asof_date)
+   ★ PIT 게터는 **이미 존재**한다: app/storage/postgres_storage.py:133
+     get_avg_trading_value_asof(asof_date=...) — `trade_date <= asof_date` 로 최근 30행 AVG.
+     (get_avg_trading_value 는 asof=None 위임이라 그대로 두면 '오늘 기준'이 된다.)
+   호환: 테스트 스텁(get_avg_trading_value 만 있는 mock)을 위해 hasattr/try-fallback 유지 권장.
+B. 시총 하한(line 54 `storage.get_market_caps()` → stocks.market_cap 현재값):
+   PIT 프록시 `cap_now × close_price(asof)/close_price(now)` 로 대체하거나,
+   L5c 제목대로 시총 하한을 제거하고 PIT 거래대금만 기준으로 삼는다.
+   (프록시는 증자·감자 미반영 = 근사. 하한 자체는 5e10 로 유지.)
+C. 회귀: services/strategy-agents/tests/test_universe.py 재실행 + 5전략 재측정.
+   ⚠ A 만 적용하고 B 를 두면 누수의 21~25% (시총 축) 가 남는다.
+
+한계(정직)
+----------
+- 본 프로브는 시총 + 거래대금 두 축만 모델링했다(≥1분기 재무·≥252일 상장은
+  이미 asof 를 쓰므로 누수 아님 — FinancialSnapshot.get_history(asof_date),
+  get_first_trade_date 는 PIT 정상).
+- 시총 PIT 은 가격비 프록시(주식수 변화 무시).
+- 거래대금 30행 창의 기준일은 각 종목의 마지막 거래일(결측일 허용).
