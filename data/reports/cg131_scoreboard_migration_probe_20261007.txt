@@ -1,0 +1,58 @@
+CG131 오프라인 증명 — 스코어보드 등록 기준선·헤드라인 arm 을 청정 패널로 이관
+생성: 2026-10-07 05:0x KST (모델 엔지니어 자율, 읽기 전용 증거 — 스코어보드 자체는 미변경)
+
+[왜 이 증명이 필요한가]
+북극성 헤드라인은 "로버스트 0.5519(TR_rank_h5) vs 등록 기준선 0.5406 → Δ0.0113 · 19사이클 무개선"이다.
+그런데 (a) 비교 패널 `panel_420_asofpatch.npz` 는 as-of 수리(2026-10-02 CG63) **이전 빌드**이고,
+(b) 헤드라인 arm `TR_rank_h5` 는 횡단면 rank 변환이라 배포 추론 경로에서 재현 불가다.
+= 헤드라인 수치가 '누수 패널 + 비배포 arm' 위에 서 있다. 이관은 스코어보드 프로토콜 변경이라
+리뷰보드 승인 대상이므로, 승인 즉시 실행할 수 있도록 수치·사양을 여기 고정한다.
+
+[실측 1 — 패널 청정성 (scripts/panel_leak_gate.py, 2026-10-07 05:02 KST live)]
+  panel_420_asofpatch.npz  rows=13609 cols=210 종목49 2025-07-31~2026-09-23 → LEAKY
+      누수지문(종목당 유니크 중앙 1, 비영 69.8~100%):
+        value_per · value_pbr · value_psr · value_pcr · quality_roa · quality_score
+        · quality_f_score · quality_asset_growth
+  panel_prod200.npz        rows=54800 cols=213 종목200 2025-08-04~2026-09-23 → CLEAN
+  → 등록 기준선(0.5406)이 누수 패널 위의 값임을 도구로 재확인.
+
+[실측 2 — 같은 config 를 청정 패널에서 재면 얼마인가 (CG87, 같은 런·5폴드×5시드)]
+  등록 기준선 config  LS_quant_q30_h5(panel_420_asofpatch) = 0.5406
+  같은 config         LS_quant_q30_h5(panel_prod200)      = 0.5302±0.0168 (folds 0.5326/0.5543/0.5017/0.5305/0.5317)
+  → 패널 교체만으로 Δ −0.0104. 즉 등록 기준선 0.5406 은 누수 패널 값이며 청정값은 0.5302 다.
+
+[실측 3 — 청정 패널에서 '배포 가능' 최고 arm 과의 같은-런 짝]
+  CG87 같은 런(panel_prod200·5폴드×5시드):
+    CO_core30_h5   0.5305±0.0199  Δ+0.0003  (게이트 ON 대조군, 배포 가능)
+    CO_smooth_d1_h5 0.5355±0.0143 Δ+0.0053  (게이트 ON+라벨스무딩+depth1, rank 없음 = 추론계약 무변경)
+  → 청정 패널에서 배포 가능한 최고 arm 도 사전문턱 +0.02 미달 = 노이즈.
+
+[실측 4 — 헤드라인 arm 은 배포 불가]
+  TR_rank_h5 = 횡단면 rank 변환. 추론은 종목 단위 스트리밍:
+  services/xgboost-ml/app/inference/predictor.py:137  def predict(self, stock_code, date=None)
+    → :143 features = self.feature_pipeline.build_features(stock_code, date)
+    → :146 [features.get(f, 0.0) for f in feature_names]
+  날짜별 횡단면 rank 는 '그날 다른 종목 값'이 필요한데 이 경로엔 없다 → 재현 불가(스킬 기록과 일치).
+  또 rank 축 자체는 이미 여러 번 종결(150종목 전이 −0.0109 CG5 · 구간짝 −0.0057 CG14 · +0.0010 CG69).
+
+[결론]
+  이관(누수 패널 폐기 + 비배포 arm 제외 + 기준선 재등록)을 해도 **판정은 뒤집히지 않는다**:
+  청정 패널 배포가능 최고 Δ = +0.0053(노이즈) → 19사이클 '무개선' 결론 유지.
+  즉 이관은 성능 판정 변경이 아니라 **측정 정합성 수리**다(위험이 낮고, 지금 헤드라인이
+  누수 패널·비배포 arm 이라는 사실만 제거한다). "새 레버 필요" 승격 요청은 그대로 유지된다.
+
+[승인 시 실행할 정확한 변경 — scripts/quant_scoreboard.py]
+  ① 등록 기준선 재등록: baseline 0.5406(누수 패널·asofpatch) → 청정 패널 실측값
+     기준 arm 태그는 그대로 LS_quant_q30_h5, 값만 panel_prod200 실측 0.5302 로 (또는 배포 대조군
+     CO_smooth_d1_h5 0.5355 를 기준선으로). ⚠ 둘 중 무엇을 기준선으로 삼을지는 승인 대상.
+  ② arm 필터에 '배포 가능' 조건 추가: rank 계열 arm(TR_rank_*) 제외 → 헤드라인에서 TR_rank_h5 탈락.
+  ③ panels_comparable / best_panel 을 panel_prod200.npz 로 고정.
+  ⚠ 필수 안전장치: ②로 arm 집합이 바뀌면 **arm 도 같은 청정 패널에서 재측정**해야 한다.
+    기준선만 내리고 arm 을 누수 패널(높은 값) 위에 두면 Δ 가 부풀어 '거짓 개선'이 생긴다
+    (CG104 형 '대조 불가' 사고). 실측상 청정 패널 최고 배포가능 Δ = +0.0053 이므로 그 위험은 실질적으로 없다.
+
+[재현 명령]
+  docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/panel_leak_gate.py \
+      --panels panel_420_asofpatch.npz,panel_prod200.npz \
+      --json-out /app/reports/overnight/cg131_panel_gate.json
+  (CG87 청정 패널 3-arm: 백로그 CG87 command 그대로)
