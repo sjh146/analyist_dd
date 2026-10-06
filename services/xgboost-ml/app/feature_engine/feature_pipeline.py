@@ -27,6 +27,8 @@ from app.feature_engine.bayes_factor_features import BayesFactorFeatures
 from app.feature_engine.news_event_features import NewsEventFeatures
 from app.feature_engine.sns_feature_bundle import SnsFeatureBundle
 from app.feature_engine.sns_feature_bundle import feature_names as sns_feature_names
+from app.feature_engine.intraday_features import IntradayFeatures
+from app.feature_engine.intraday_features import feature_names as intraday_feature_names
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,12 @@ class FeaturePipeline:
         self.kalman = KalmanFeatureFilter()
         self.bayes_factors = BayesFactorFeatures()
         self.news_events = NewsEventFeatures()
+        # 인트라데이(분봉) 피처 — 데이터 축(CG101) 준비물. **기본 OFF**(env INTRADAY_FEATURES=1).
+        # 현 minute_bars 는 수집기 결함(XR26)으로 15:01~15:30 30봉·6~7일 표본뿐이라 상시 열로 넣으면
+        # 무정보 열만 늘어난다 → 수집기 수리·백필 후 패널 재빌드 또는 patch_panel_intraday 로 켠다.
+        self.use_intraday = str(os.environ.get("INTRADAY_FEATURES", "")).strip().lower() in (
+            "1", "true", "yes", "on")
+        self.intraday = IntradayFeatures() if self.use_intraday else None
         self.pg_conn = pg_conn
         self.neo4j_conn = neo4j_conn
         if self.neo4j_conn is None:
@@ -168,6 +176,10 @@ class FeaturePipeline:
         # Real sentiment from stock_sentiment table
         sentiment = self._get_stock_sentiment(stock_code, date)
         features.update(sentiment)
+
+        # 인트라데이(분봉) 피처 — 당일 세션(≤15:30)만 쓴다(as-of). 기본 OFF(env INTRADAY_FEATURES=1).
+        if self.intraday is not None and self.pg_conn is not None:
+            features.update(self.intraday.get_all_features(stock_code, self.pg_conn, str(date)[:10]))
 
         # Quality score (F-Score from financial data, 0~1) — as-of 기준일을 넘긴다(위와 같은 이유).
         features["quality_score"] = self.scorer.get_f_score(stock_code, self.pg_conn, date=str(date))
@@ -1276,6 +1288,10 @@ class FeaturePipeline:
             "event_treasury_5d", "event_exec_change_5d", "event_partnership_5d",
             "event_macro_5d", "event_market_liquidity_5d", "event_disaster_5d",
             "theme_exposure_5d",
+
+            # Intraday(minute bar) features — opt-in only (env INTRADAY_FEATURES=1).
+            # 기본 OFF: env 미설정이면 목록이 종전과 **비트 동일**하다(패널 스키마 변경 없음).
+            *(intraday_feature_names() if self.use_intraday else []),
         ])
 
     def set_db_connections(self, pg_conn=None, neo4j_conn=None):
