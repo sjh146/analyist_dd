@@ -129,6 +129,32 @@ def _read_robust_oos(candidate_dir: str):
         return None
 
 
+def _fill_rejection_evidence(result: Dict, *, cand_auc: float, cand_metric: str,
+                             robust_oos, meta: Dict, champion_dir: str,
+                             legacy_baseline_cap: float) -> None:
+    """거부 분기의 요약에 '무엇을 막았는가'를 채운다(감사·재검증용).
+
+    WHY (2026-10-05 CG122 실측): 종전엔 돈 기준 거부 분기에서 판정 대상 수치가 통째로 비어
+    요약 JSON 에 status·reason 만 남았다(auc null · baseline null). 하한 게이트(2026-10-08
+    CG135)도 같은 이유로 같은 키를 채운다 — 거부된 후보의 AUC·기준선·robust 값이 사라지면
+    '무엇이 얼마나 모자랐는가'를 사후에 재판정할 수 없다.
+    """
+    base = _champion_baseline(champion_dir, legacy_baseline_cap)
+    result.update({
+        "candidate_auc": round(cand_auc, 4),
+        "candidate_metric": cand_metric,
+        "candidate_robust_oos_auc": (robust_oos or {}).get("value"),
+        "champion_auc_before": round(_read_champion_auc(champion_dir), 4),
+        "champion_baseline": round(float(base["value"]), 4),
+        "champion_baseline_source": base["source"],
+        "model_aucs": meta.get("model_aucs", {}),
+        "n_rows": meta.get("n_rows"),
+        "n_features": meta.get("n_features"),
+        "up_rate": meta.get("up_rate"),
+        "retrained_at": meta.get("retrained_at"),
+    })
+
+
 def _expectancy_verdict(candidate, champion, *, min_pct: float, min_sessions: int,
                         min_trades: int, min_improvement: float):
     """돈 기준(체결 가능 OOS 순기대) 증거로 승격 가부를 판정한다.
@@ -244,6 +270,8 @@ def promote(
     min_expectancy_trades: int = 30,
     min_expectancy_improvement_pct: float = 0.1,
     require_robust: bool = False,
+    min_robust_auc: Optional[float] = None,
+    min_expectancy_t: Optional[float] = None,
 ) -> Dict:
     """Compare a trained candidate against the incumbent and promote if better.
 
@@ -269,6 +297,8 @@ def promote(
         "min_improvement": min_improvement,
         "legacy_baseline_cap": legacy_baseline_cap,
         "max_std": max_std,
+        "min_robust_auc": min_robust_auc,
+        "min_expectancy_t": min_expectancy_t,
     }
 
     latest_result = _latest_training_result(candidate_dir)
@@ -336,6 +366,48 @@ def promote(
             })
             logger.warning("promote skipped: %s", result["reason"])
             return result
+
+    # ── 정직 하한 게이트 (2026-10-08, CG135) — 기본 None = 프로덕션 무변경 ─────────
+    # WHY(실측): `config/objective.json` 의 `goal.acceptance` 는 `min_robust_auc: 0.5` ·
+    # `min_live_signals: 1` 을 선언하는데 **어떤 .py/.sh 도 읽지 않는다**(grep 0건, 2026-10-07 실측).
+    # 사후 실례 = CG133: 후보 `robust_oos.json` 값 **0.4737 < 0.5** 인데 dry-run 이
+    # `would_promote` 를 냈다(비교 대상이 in-sample `ensemble_auc` 0.6083 이었고 그 하한
+    # `min_auc=0.53` 은 `full_pipeline_dd.sh` 에 하드코딩). 같은 후보의 순기대 t 는 **0.73**
+    # (95% CI 0 포함)이었는데 `_expectancy_verdict` 에는 t 요건이 없다 — 닫을 때는 t≥2 를 쓰면서
+    # 열 때는 안 쓰는 비대칭이다. 두 하한을 **명시 플래그로만** 강제한다(기본 None = 종전 동작 비트 동일).
+    # 정책 선택(A 강제 / B 은퇴)은 게이트 문턱 변경이라 리뷰보드 승인 대상 → 코드는 준비, 플래그는 OFF.
+    if min_robust_auc is not None:
+        rob = (robust_oos or {}).get("value")
+        if rob is None or float(rob) < float(min_robust_auc):
+            result["status"] = "kept_incumbent"
+            result["reason"] = (
+                "다중 폴드 OOS AUC 하한 미달: 후보 "
+                + ("없음(robust_oos.json 부재)" if rob is None else f"{float(rob):.4f}")
+                + f" < {float(min_robust_auc):.4f} "
+                "(objective.json goal.acceptance.min_robust_auc)")
+            _fill_rejection_evidence(result, cand_auc=cand_auc, cand_metric=cand_metric,
+                                     robust_oos=robust_oos, meta=meta,
+                                     champion_dir=champion_dir,
+                                     legacy_baseline_cap=legacy_baseline_cap)
+            logger.warning("promote skipped: %s", result["reason"])
+            return result
+    if min_expectancy_t is not None:
+        t_val = None if robust_oos is None else robust_oos.get("expectancy_t")
+        if t_val is None or float(t_val) < float(min_expectancy_t):
+            result["status"] = "kept_incumbent"
+            result["reason"] = (
+                "순기대 유의성 하한 미달: 후보 t "
+                + ("없음(robust_oos.json 에 expectancy_t 없음)" if t_val is None
+                   else f"{float(t_val):.2f}")
+                + f" < {float(min_expectancy_t):.2f} — 순기대가 0 과 구별되지 않는다"
+                "[사후 실례 CG133 t 0.73 · 95% CI 0 포함]")
+            _fill_rejection_evidence(result, cand_auc=cand_auc, cand_metric=cand_metric,
+                                     robust_oos=robust_oos, meta=meta,
+                                     champion_dir=champion_dir,
+                                     legacy_baseline_cap=legacy_baseline_cap)
+            logger.warning("promote skipped: %s", result["reason"])
+            return result
+
     baseline = _champion_baseline(champion_dir, legacy_baseline_cap)
     champ_auc = float(baseline["value"])
     # 라이브 스코어 게이트 상태는 항상 결과에 남긴다(승격 여부와 무관하게 관측 가능하게).
@@ -481,6 +553,13 @@ def main() -> int:
                     help="챔피언 기준선(같은 프로토콜) 대비 최소 개선폭(%%p)")
     ap.add_argument("--require-robust", action="store_true",
                     help="다중 폴드 OOS 지표(robust_oos.json) 없이는 승격하지 않는다")
+    # ── 정직 하한 게이트 (2026-10-08, CG135) — 기본 None = 종전 동작 비트 동일 ──
+    ap.add_argument("--min-robust-auc", type=float, default=None,
+                    help="후보 robust_oos.json 의 robust_auc 하한. 미지정 = 미강제(종전 동작). "
+                         "objective.json goal.acceptance.min_robust_auc(0.5)를 강제할 때 쓴다")
+    ap.add_argument("--min-expectancy-t", type=float, default=None,
+                    help="후보 순기대 t 통계량 하한. 미지정 = 미강제(종전 동작). "
+                         "t<2 = 순기대가 0 과 구별되지 않음")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -500,6 +579,8 @@ def main() -> int:
         min_expectancy_trades=args.min_expectancy_trades,
         min_expectancy_improvement_pct=args.min_expectancy_improvement_pct,
         require_robust=args.require_robust,
+        min_robust_auc=args.min_robust_auc,
+        min_expectancy_t=args.min_expectancy_t,
     )
 
     if args.summary_out:
@@ -525,6 +606,8 @@ def main() -> int:
             "expectancy_gate": result.get("expectancy_gate"),
             "live_score_gate": result.get("live_score_gate"),
             "candidate_robust_oos": result.get("candidate_robust_oos"),
+            "acceptance_floors": {"min_robust_auc": result.get("min_robust_auc"),
+                                  "min_expectancy_t": result.get("min_expectancy_t")},
             "decided_at": datetime.now().isoformat(timespec="seconds"),
         }
         with open(args.summary_out, "w") as f:
