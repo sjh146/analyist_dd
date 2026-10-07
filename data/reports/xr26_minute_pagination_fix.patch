@@ -1,0 +1,50 @@
+--- a/services/kis-collector/kis_app/collectors/minute_collector.py
++++ b/services/kis-collector/kis_app/collectors/minute_collector.py
+@@ -4,9 +4,10 @@
+ 필요하므로 당일 분봉은 마감 후 수집으로 충분. 실시간 수집은 쌍둥이 실시간
+ 분봉에서 별도 처리).
+ 
+-페이지네이션: 1회 응답 최대 100건(FID_CNT). 응답은 시간 내림차순(최신 우선)
+-이므로, ``FID_INPUT_HOUR=153000`` 시작 → 페이지의 최저 시각 −1분을 다음 요청
+-기준으로 과거로 진행. ``090000`` 도달 / 배치 < FID_CNT / max_pages 방어로 종료.
++페이지네이션: 1회 응답은 30건 고정(fid_cnt 파라미터는 이 엔드포인트에서 무시된다).
++응답은 시간 내림차순(최신 우선)이므로, ``FID_INPUT_HOUR=153000`` 시작 → 페이지의
++최저 시각 −1분을 다음 요청 기준으로 과거로 진행. ``090000`` 도달 / 직전 페이지보다
++짧은 배치 / max_pages 방어로 종료.
+ """
+ from __future__ import annotations
+ 
+@@ -20,8 +21,8 @@
+ MARKET_OPEN_TIME = "090000"
+ MARKET_CLOSE_TIME = "153000"
+ FID_PERIOD_1MIN = "0"       # FID_PERIOD_DIV: 0 = 1분봉
+-FID_CNT_DEFAULT = 100       # 1회 응답 최대 건수
+-MAX_PAGES_DEFAULT = 10      # 안전장치 (정규장 391분 → 100건×4페이지면 충분)
++FID_CNT_DEFAULT = 30        # 1회 응답 실제 상한 — 이 엔드포인트는 fid_cnt 를 줘도 30행 고정(XR26)
++MAX_PAGES_DEFAULT = 14      # 안전장치 (정규장 391분 ÷ 30행 = 13.03페이지 → 14페이지)
+ 
+ 
+ def parse_minute_bars(resp, target_date=None):
+@@ -69,6 +70,7 @@
+         excd = market_to_excd(market)
+         bars = []
+         seen = set()
++        page_size = None          # 직전 페이지 실측 크기(요청값이 아니라 실측으로 종료 판정)
+         reference = MARKET_CLOSE_TIME
+         for page in range(1, int(max_pages) + 1):
+             resp = self._client.get_minute_chart(
+@@ -87,7 +89,13 @@
+             if not page_bars:
+                 break  # 데이터 없음
+             oldest = min(b["time"] for b in page_bars)
+-            if len(page_bars) < int(fid_cnt) or oldest == MARKET_OPEN_TIME:
++            # 마지막 페이지 판정은 '요청값(fid_cnt)'이 아니라 '직전 페이지의 실측 크기'로 한다.
++            # KIS 당일분봉조회는 fid_cnt 를 무시하고 30행 고정으로 응답하므로, 요청값(100)과
++            # 비교하면 첫 페이지에서 항상 break 한다(XR26, 2026-10-08 — minute_bars 가
++            # 15:01~15:30 30봉만 적재되어 09:00~15:00 구간이 구조적으로 누락).
++            if page_size is None:
++                page_size = len(page_bars)
++            if len(page_bars) < page_size or oldest == MARKET_OPEN_TIME:
+                 break  # 마지막 페이지
+             nxt = add_minutes(oldest, -1)
+             if nxt >= reference:
