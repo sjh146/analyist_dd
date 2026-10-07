@@ -13106,13 +13106,13 @@
       "status": "done",
       "kind": "measure",
       "title": "CG133 후보의 실제 승격 시도(비-dry-run) — 라이브 스코어 게이트가 배포 경로를 지키는가 (MT116 재검증)",
-      "hypothesis": "CG133 dry-run 은 would_promote 였지만 champion_promote 의 dry_run 분기는 live_score_gate 검사 **앞에서** 반환한다 → 실제 승격 경로는 게이트 토큰 status=blocked(후보 신호 0건·최대 0.506 < 문턱 0.55, 챔피언 6건)로 차단될 것. 즉 MT116(2026-10-01: AUC 0.5548 승격 → 소비자 3세션 무진입) 방어가 실제로 작동하는지 확인한다.",
+      "hypothesis": "CG133 dry-run 은 would_promote 였지만 champion_promote 는 라이브 스코어 게이트를 L342-343 에서 **읽어 기록만** 하고 차단은 비-dry-run 경로(L417-419, dry-run 조기반환 L410-414 뒤)에서만 한다 → 실제 승격 경로는 토큰 status=blocked(후보 신호 0건·최대 0.506 < 문턱 0.55, 챔피언 6건)로 차단될 것. MT116(2026-10-01: AUC 0.5548 승격 → 소비자 3세션 무진입) 방어가 실제로 작동하는지 확인한다.",
       "command": "docker exec stock_xgboost_ml python /app/app/training/champion_promote.py --candidate /app/app/models/champion_cand --champion /app/app/models/champion --require-expectancy --summary-out /app/reports/overnight/cg134_promote_real.json",
       "counterfactual": "현행 챔피언 app/models/champion (199피처, auc 0.551318, robust_oos 0.4908, 순기대 −0.182%p)",
       "metric": "champion_promote_dryrun",
       "success": "게이트 판정(status·사유·라이브 스코어 게이트)이 기록된다. blocked_live_score 면 현행 유지가 정답(후보 live 신호 0건 vs 챔피언 6건)이고 그 사유가 돈 지표·라이브 분포와 함께 원장에 남아야 한다. promoted 로 기록되면 즉시 docker restart stock_xgboost_ml + 사람 승인 절차로 올린다.",
       "est_minutes": 3,
-      "note": "2026-10-07 22:0x 등록(엔지니어 일일 잡). CG133(dry-run would_promote · 후보 AUC 0.6083 · 순기대 +0.157%p t0.73 · 분할표본 both_positive)의 후속 실행 — dry-run 이 통과했으므로 비-dry-run 경로의 판정을 원장에 남긴다. summary_path 확인: services/xgboost-ml/reports/overnight/cg134_promote_real.json",
+      "note": "2026-10-07 22:0x 등록(엔지니어 일일 잡). CG133(dry-run would_promote · 후보 AUC 0.6083 · 순기대 +0.157%p t0.73 · 분할표본 both_positive)의 후속 실행 — dry-run 이 통과했으므로 비-dry-run 경로의 판정을 원장에 남긴다. summary_path 확인: services/xgboost-ml/reports/overnight/cg134_promote_real.json [정정 2026-10-07 22:1x: 최초 문구가 'dry-run 이 live 게이트 검사 **앞에서** 반환'이라고 적었으나 실측은 반대다 — 라이브 게이트는 L342-343 에서 읽히고, 차단만 L417-419(조기반환 뒤)에 있다. 등록 문구의 사실오류를 실행 후 파일:라인 대조로 잡아 정정.]",
       "attempts": [
         {
           "ts": "2026-10-07T22:03:02+09:00",

@@ -211,6 +211,21 @@ def main():
         check("13b) 최신 실행이 failed 면 되돌림", bool(msgs) and out[0]["reported"] is False,
               f"msgs={msgs} reported={out[0]['reported']}")
 
+    # 14) [2026-10-07 실측 CG133] reported_at 이 tz 없이(naive) 적힌 기록 → 죽지 않고 KST 로 해석해
+    #     창 안이면 정상 판정(되돌림). 종전엔 naive-aware 뺄셈 TypeError 로 **틱 전체가 중단**됐다
+    #     (check_undelivered_reports 는 tick() 이 try 없이 호출한다).
+    with tempfile.TemporaryDirectory() as tmp:
+        msgs, out = run(m, tmp, [("testjob", BASE, "failed", None)],
+                        [rec("CG133", "2026-09-30T05:00:10")])       # tz 없음 = naive
+        check("14) naive reported_at → 크래시 없음 + 되돌림",
+              bool(msgs) and out[0]["reported"] is False,
+              f"msgs={msgs} reported={out[0]['reported']}")
+    # 14b) 파서 단위: naive 는 KST 로 붙는다(값 불변·해석만 통일)
+    d = m._parse_ts("2026-09-30T05:00:10")
+    check("14b) _parse_ts: naive → aware(KST)",
+          d is not None and d.tzinfo is not None and d.utcoffset().total_seconds() == 9 * 3600,
+          f"got={d!r}")
+
     print(f"=== {'ALL PASS' if not FAILS else str(len(FAILS)) + ' FAIL'} ===")
     return 1 if FAILS else 0
 

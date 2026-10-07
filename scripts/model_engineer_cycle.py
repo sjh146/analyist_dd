@@ -184,10 +184,22 @@ def cron_job_id():
 
 
 def _parse_ts(s):
+    """ISO 시각 → aware datetime. **tz 없는 값은 KST 로 간주**한다(원장 규약).
+
+    WHY(실측 2026-10-07 22:1x, CG133): 세션이 원장 `reported_at` 을 tz 없이(`2026-10-07T22:01:52`)
+    적어 두자 `check_undelivered_reports()` 의 `rt - st` 가
+    `TypeError: can't subtract offset-naive and offset-aware datetimes` 로 죽었다. 이 함수는
+    **틱(tick())이 try 없이 호출**하므로 예외가 그대로 올라가 틱 전체(보고·다음 항목 착수·런처 유지)를
+    중단시킨다 — 데이터 표기 하나가 자율 루프를 세우는 구조였다. 원장·실행 DB 의 시각 규약은 KST 이므로
+    naive 는 KST 로 붙여 aware 로 통일한다(값을 바꾸지 않고 해석만 맞춘다).
+    """
     try:
-        return datetime.fromisoformat(str(s))
+        dt = datetime.fromisoformat(str(s))
     except (TypeError, ValueError):
         return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=KST)
+    return dt
 
 
 def _exec_history(job_id, limit=60):
