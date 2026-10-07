@@ -1,0 +1,49 @@
+# MT189 단타 소비 배선 · MT70 swing R1 문턱 — 오프라인 증명 (읽기 전용)
+# 생성: 2026-10-07T17:09:44+09:00  · 엔진 = quant-model-engineer
+# 레포(엔지니어) = /home/jhshi/analyist_dd
+# 레포(트레이더 소비자) = /mnt/c/Users/jhshi/analyist_dd/trader-agent
+
+## 1. 피드 측 — 후보가 발행되는가 (data/feed/screener_latest.json)
+  generated_at = 2026-10-07T15:06:52+09:00 · source = analyist_dd
+  · close      n=20  score_kind=['screener'] top10avg=89.7300 (min 85.90 max 90.00) signal_date=['2026-10-06']
+  · swing      n=20  score_kind=['calibrated_prob'] top10avg=61.9070 (min 55.24 max 68.64) signal_date=['2026-10-06']
+  · daytrading n=20  score_kind=['composite'] top10avg=63.6600 (min 61.30 max 64.70) signal_date=['2026-10-06']
+
+## 2. 소비자 체인 — 라이브 루프가 읽는 screener 목록 (트레이더 레포)
+  runner/config.py:213: screeners: List[str] = field(default_factory=lambda: ["close", "swing"])
+  runner/config.py:225: r1_min_avg_score: Dict[str, float] = field(
+  runner/config.py:421: def engine_config(self) -> Config:
+  runner/config.py:433: screener_names=list(self.screeners),
+  trader_core/config.py:224: screener_names: List[str] = field(
+  trader_core/engine.py:319: for screener in self.config.screener_names:
+  loop_start_bg.bat:27: start "trader-loop" /min "%PY%" -u run_market_loop.py run --loop --live --yes --feed http://127.0.0.1:8090/screener_latest.json >> loop.out.log 2>> loop.err.log
+  run_market_loop.py:136: return cfg.apply_params()
+
+## 3. strategy_params.json — apply_params 가 마지막에 적용하는 오버라이드
+  keys = ['generated_at', 'reviewed_trades']  (screeners 키 없음)
+
+## 4. R1 문턱 대조 — 피드 kind 별 현재값
+  close     : kind=screener · 문턱 r1_min_avg_score['close']=88.0
+  swing     : kind=calibrated_prob · 문턱 r1_min_avg_prob['swing']=0.58
+  daytrading: kind=composite → _declared_score_kind 폴백('screener') → r1_min_avg_score 에
+              키 없음 → rules.apply_r1 이 `continue` = **R1 게이트 없음(무제한)**
+  → daytrading top10avg=63.6600 (spread 3.40 — 좁아 문턱 선별력 낮음)
+  → swing top10 avg prob 0.6191 vs 0.58 → PASS(문턱 위)   [MT70 현행 실측]
+
+## 5. 결론
+  · 피드 측은 정상: daytrading 20건이 score_kind=composite 로 발행된다(커밋 8725d12).
+  · 소비자 측 결함: 라이브 루프 = run_market_loop.py(RunnerConfig) 이고 RunnerConfig.screeners
+    기본값이 ['close','swing'] → engine_config() 가 trader_core Config 의 3-스크리너 기본값
+    (trader_core/config.py:225 = ['close','swing','daytrading'])을 **덮어쓴다**
+    → engine.py:319 순회 대상에서 daytrading 이 빠진다(평가 0).
+  · MT70: swing R1 은 현재 문턱 위(PASS) — '피드가 문턱 아래'는 재현되지 않는다.
+
+## 6. 수리 사양(승인 시 즉시 적용 — 트레이더 소유·실주문 경로 확장)
+  A(권장) runner/config.py:213  screeners 기본값에 "daytrading" 추가
+  B       strategy_params.json 에 "screeners": ["close","swing","daytrading"] 추가
+          (apply_params 가 CLI 뒤에 적용되므로 유효 — 단 tools/review.py 재작성 시 키 보존 확인)
+  C       loop_start_bg.bat 의 run_market_loop.py 인자에 --screener close,swing,daytrading
+  + R1   runner/config.py:225 r1_min_avg_score 에 "daytrading": <문턱> 추가(없으면 무제한 통과)
+  검증   ① python3 -c "from runner.config import RunnerConfig;print(RunnerConfig().apply_params().screeners)"
+         ② 위 명령이 ['close','swing','daytrading'] 을 출력
+         ③ 루프 재기동 후 저널에 screener='daytrading' 결정 행이 생긴다(현재 0건)
