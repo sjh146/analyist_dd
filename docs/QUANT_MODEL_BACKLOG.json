@@ -13130,6 +13130,24 @@
         "per_exp": null,
         "rc": 0
       }
+    },
+    {
+      "id": "CG135",
+      "status": "needs_setup",
+      "priority": 2,
+      "affects_model": false,
+      "title": "[측정정합성·승인] objective.json acceptance 의 min_robust_auc(0.5)·min_live_signals(1) 이 '선언만' 되고 어떤 코드도 읽지 않는다 — robust AUC 미달 후보가 돈 게이트를 통과",
+      "hypothesis": "단일 진실원(config/objective.json)의 acceptance 가 선언한 기준과 실제 강제되는 기준이 다르면, 게이트 판정이 자기신고가 된다. 실측상 min_robust_auc·min_live_signals 는 소비처가 0곳이다.",
+      "evidence": "실측(2026-10-07 23:0x, 읽기 전용): ① `grep -rn min_robust_auc` 결과가 config/objective.json · data/state/objective_state.json · 실험 grid 복사본(data/reports/experiments/grid_*.json) 에만 있고 **어떤 .py/.sh 도 읽지 않는다**(min_live_signals 동일). ② 사후 실례 = CG133(원장 2026-10-07T22:00:13, champion_cand): robust_oos.json value **0.4737 < 0.5** 인데 champion_promote dry-run status=would_promote. robust 값이 비교에 쓰이지 않은 이유는 gates.promote_require_robust=false 이고, 실제 통과에 쓰인 min_auc=0.53 은 scripts/full_pipeline_dd.sh:415 의 **하드코딩**이며 비교 대상도 in-sample ensemble_auc 0.6083(= 강제되면 0.4737 로 거부됐다). 즉 objective.json 의 `min_robust_auc: 0.5` 는 어느 경로에서도 검사되지 않는다. ③ 같은 후보가 돈 게이트도 통과했다(순기대 +0.157%p/세션 · 양분할 +0.1156/+0.1975) — 그런데 `_expectancy_verdict`(app/training/champion_promote.py:132-170)에 **t 요건이 없다** → expectancy_t **0.73** 로 통과했다(다른 모든 축은 사전문턱 t≥2 로 종결해 왔다 = 닫을 때보다 열 때가 느슨한 비대칭).",
+      "method": "① 각 acceptance 키의 소비처를 grep 으로 전수 확인(선언↔구현 1:1 대조) ② CG133 후보 케이스로 실제 우회 경로를 재현(champion_promote 함수 인자·플래그 추적) ③ 둘 중 하나를 결정 — A) 강제: promote_flags 가 `--min-robust-auc 0.5` 를 내보내고 후보 robust_oos.json.value 로 검사(부족 시 거부) + 선택적으로 `--min-expectancy-t` 신설 ④ B) 은퇴: robust AUC 는 프로토콜 의존이라(같은 모델이 프로토콜 교체로 0.10 폭 변동 — 실측 2026-09-30/CG55) 기준으로 부적합 → objective.json 에서 min_robust_auc 제거(선언 정리)하고 t≥2 를 expectancy 에 추가.",
+      "success": "objective.json `goal.acceptance` 의 모든 키가 코드에서 실제로 읽히거나(강제) 선언에서 제거되어 더 이상 존재하지 않는다(은퇴). 검증: 키별 grep 소비처 0곳 아님 + 자체점검 `_objective_enforcement_test.py`(선언 키 ⊆ 소비 키) PASS.",
+      "counterfactual": "현행: min_robust_auc·min_live_signals 미강제 · expectancy 게이트 t 요건 없음(비교대상 in-sample ensemble_auc, min_auc=0.53 하드코딩)",
+      "setup_needed": "수정 대상이 **게이트 문턱·발행 계약**(config/objective.json · scripts/objective.py promote_flags · app/training/champion_promote.py)이라 **리뷰보드 승인 대상**이다. 승인 시 즉시 구현 가능(강제 A안 / 은퇴 B안 중 결정만 받으면 코드·회귀·커밋은 이 역할). ⚠ trade-off: 강제 A안을 켜면 현 기준선(config 대비)으로는 어떤 후보도 승격 불가가 될 수 있다(robust OOS 0.44~0.49 실측) — 그것이 정직한 상태일 수도 있고(모델 엣지 없음), 기준값 자체가 프로토콜 의존이라 부당할 수도 있다.",
+      "note": "2026-10-07 23:0x 등록(엔지니어 자율). 스코어보드 이관(CG131)과 같은 성격의 **측정 정합성** 항목이며 새 성능 레버가 아니다. CG133/CG134 는 이미 사람 검토 대상(승격 후보 생성 → 라이브 스코어 차단)이므로 이 항목은 '게이트 신뢰도'만 다룬다.",
+      "metric": null,
+      "command": null,
+      "est_minutes": null,
+      "cost": "구현 1~2시간 + 회귀 테스트(강제/은퇴 어느 쪽이든)"
     }
   ],
   "updated": "2026-10-06"
