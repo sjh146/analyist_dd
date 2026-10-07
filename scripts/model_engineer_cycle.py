@@ -3136,6 +3136,18 @@ def promote_handoffs(backlog, limit=1):
     return changed
 
 
+def _scorecard_generated_at(path):
+    """성적표 JSON 의 `generated_at`(내용 기준 시각). 부재·손상·미상 필드는 None."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:                               # noqa: BLE001 — 부재·손상은 mtime 축으로 폴백
+        return None
+    if not isinstance(d, dict):
+        return None
+    return _parse_ts(d.get("generated_at"))
+
+
 def refresh_scorecard_if_stale(max_age_hours=6.0):
     """배포 챔피언 검증 성적표가 낡았으면 재생성한다(트레이더 계약 2번 — MT49 후속).
 
@@ -3145,8 +3157,15 @@ def refresh_scorecard_if_stale(max_age_hours=6.0):
     `champion_scorecard.py` 를 아무도 주기적으로 돌리지 않아 생성 시점 이후로 갱신되지 않는다
     → 틱이 스스로 갱신한다(파일 읽기만 하는 스크립트라 수 초 — 비블로킹 유지).
 
-    낡음 판정은 두 축이다: ① mtime 경과(max_age_hours) ② **원장 최신 기록보다 오래됨**
-    (자정 직후처럼 6h 이내여도 promote_dryrun 이 옛 기록을 가리킬 수 있다).
+    실측(2026-10-07, 트레이더 환류 '계약2 라벨/내용 시각 불일치'): **mtime 축만 쓰면 git 트래킹
+    파일에서 오보가 난다** — 이 성적표는 추적 파일이라 checkout·restore·일괄 복원이 **내용 변화
+    없이 mtime 만 갱신**한다(실측: 내용 generated_at=2026-10-06T22:06 인데 mtime=10-07 15:11 →
+    틱이 'age 1.8h 최신' 으로 읽어 재생성을 건너뛰고, 트레이더는 17h 낡은 내용을 최신 라벨로
+    받았다). → 낡음 판정의 기준 시각은 **내용(generated_at)** 으로 두고, 내용을 못 읽을 때만
+    mtime 으로 폴백한다.
+
+    낡음 판정은 두 축이다: ① 내용(generated_at — 없으면 mtime) 경과(max_age_hours)
+    ② **원장 최신 기록보다 오래됨**(자정 직후처럼 6h 이내여도 promote_dryrun 이 옛 기록을 가리킨다).
 
     반환: 사람이 읽을 한 줄(항상 문자열 — 틱 출력에 성적표 상태가 보이게).
     """
@@ -3154,15 +3173,22 @@ def refresh_scorecard_if_stale(max_age_hours=6.0):
         mtime = os.path.getmtime(SCORECARD)
     except OSError:
         mtime = 0.0
-    age_h = (time.time() - mtime) / 3600.0 if mtime else None
+    gen = _scorecard_generated_at(SCORECARD)
+    if gen is not None:
+        anchor, anchor_label = gen.timestamp(), f"내용 {gen.isoformat(timespec='seconds')}"
+    else:
+        anchor = mtime
+        anchor_label = ("mtime " + datetime.fromtimestamp(mtime).isoformat(timespec="seconds")
+                        if mtime else "기준 없음")
+    age_h = (time.time() - anchor) / 3600.0 if anchor else None
     newest = 0.0
     for r in load_ledger(limit=50):
         ts = _parse_ts(r.get("ts"))
         if ts is not None:
             newest = max(newest, ts.timestamp())
-    content_stale = newest > (mtime + 60)          # 60s 여유(쓰기 순서 경쟁)
+    content_stale = newest > (anchor + 60)         # 60s 여유(쓰기 순서 경쟁)
     if age_h is not None and age_h <= max_age_hours and not content_stale:
-        return f"성적표: 최신(age {age_h:.1f}h)"
+        return f"성적표: 최신({anchor_label} · age {age_h:.1f}h)"
     try:
         proc = subprocess.run(
             [sys.executable, os.path.join(PROJ, "scripts", "champion_scorecard.py")],

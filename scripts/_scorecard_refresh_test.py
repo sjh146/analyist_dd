@@ -9,6 +9,10 @@
   ④ 재생성 실패(예외·비정상 종료)는 **fail-open** — 예외를 올리지 않고 옛 값을 유지한다
   ⑤ 실제 champion_scorecard.py 가 rc=0 으로 계약 필드(folds·mean·purge·promote_dryrun)를 쓴다
   ⑥ 틱이 이 함수를 실제로 호출한다(배선 확인 — 함수만 있고 미배선이면 아무 효과가 없다)
+  ⑦ **내용(generated_at)이 낡았는데 mtime 만 최신**이면 재생성한다(git checkout/restore 로 추적
+     파일의 mtime 이 갱신되는 실환경 — 2026-10-07 트레이더 환류)
+  ⑧ 내용이 최신이면 mtime 이 낡아도 재생성하지 않는다(기준은 내용)
+  ⑨ generated_at 이 부재·파싱불가면 mtime 축으로 폴백하고 죽지 않는다
 
 실행(호스트 python3 — 도커 불필요):
     python3 scripts/_scorecard_refresh_test.py
@@ -111,6 +115,40 @@ def main() -> int:
     with _with_stubs(scard, [{"ts": old_ts}], stub_fail):
         out = me.refresh_scorecard_if_stale()
     check("④b rc≠0 → fail-open", "rc=1" in out, out)
+
+    # ⑦ git mtime bump — 내용(generated_at)은 20h 낡았는데 mtime 만 최신인 경우.
+    #    2026-10-07 트레이더 환류('계약2 라벨/내용 시각 불일치')의 실측 재현: 추적 파일이
+    #    checkout/restore 로 내용 변화 없이 mtime 만 갱신되면 종전 mtime 축은 '최신'으로 오보했다.
+    def _write_scard(gen_iso):
+        json.dump({"generated_at": gen_iso,
+                   "promote_dryrun": {"record_id": "OLD", "record_ts": gen_iso,
+                                      "status": "would_promote"},
+                   "fold_stats": {"n_folds": 3}}, open(scard, "w", encoding="utf-8"))
+
+    _write_scard(datetime.fromtimestamp(time.time() - 20 * 3600).isoformat(timespec="seconds"))
+    os.utime(scard, None)                       # mtime = now (git checkout 이 갱신한 것처럼)
+    calls["n"] = 0
+    with _with_stubs(scard, [{"ts": old_ts}], stub_ok):
+        out = me.refresh_scorecard_if_stale()
+    check("⑦ 내용(생성시각) 20h 낡음 + mtime 최신 → 재생성", calls["n"] == 1, out)
+
+    # ⑧ 내용이 최신이면 mtime 이 낡아도(restore 로 옛 mtime) 재생성하지 않는다 — 기준은 내용.
+    _write_scard(datetime.fromtimestamp(time.time() - 3600).isoformat(timespec="seconds"))
+    os.utime(scard, (old_mtime, old_mtime))
+    calls["n"] = 0
+    with _with_stubs(scard, [{"ts": old_ts}], stub_ok):
+        out = me.refresh_scorecard_if_stale()
+    check("⑧ 내용 최신 + mtime 48h → 재생성 안 함(내용이 기준)",
+          calls["n"] == 0 and out.startswith("성적표: 최신"), out)
+
+    # ⑨ generated_at 이 파싱 불가·부재면 mtime 축으로 폴백(죽지 않는다).
+    json.dump({"generated_at": "not-a-date", "promote_dryrun": {"record_id": "OLD"},
+               "fold_stats": {"n_folds": 3}}, open(scard, "w", encoding="utf-8"))
+    os.utime(scard, None)
+    calls["n"] = 0
+    with _with_stubs(scard, [{"ts": old_ts}], stub_ok):
+        out = me.refresh_scorecard_if_stale()
+    check("⑨ generated_at 파싱불가 → mtime 폴백(최신이면 재생성 안 함)", calls["n"] == 0, out)
 
     # ⑤ 실제 스크립트 e2e (레포 정본 파일에 씀)
     real_out = me.SCORECARD
