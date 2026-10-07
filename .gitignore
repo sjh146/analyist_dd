@@ -68,6 +68,9 @@ secrets*
 # ── 런타임 상태 (사이클 구동기: pidfile·state·로그) ──────────────
 data/reports/me_cycle/
 data/reports/res_cycle/
+# 리서처 런타임 원장(실행기록) — 추적 중이면 git 조작(checkout/restore)이
+# 미커밋 실행기록을 되돌려 소실된다(실측 R30: 10-06 16:01~10-07 06:00 7건 부재).
+data/reports/researcher_ledger.jsonl
 
 # ── 파생 산출물 (재생성 가능 — 저장소 비대 방지) ────────────────
 data/reports/dq_snapshots/
