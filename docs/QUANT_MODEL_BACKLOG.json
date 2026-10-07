@@ -13148,6 +13148,19 @@
       "command": null,
       "est_minutes": null,
       "cost": "구현 1~2시간 + 회귀 테스트(강제/은퇴 어느 쪽이든)"
+    },
+    {
+      "id": "CG136",
+      "title": "동일 런 짝 평가 — 10-07 챌린저(champion_cand 199피처) vs 현행 챔피언(173피처)을 같은 창·같은 프로토콜로 재측정 (매일 반복되는 승격 판정의 실제 근거)",
+      "status": "pending",
+      "priority": 1,
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3300 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --out app/reports/overnight/cg136_cand.json && OMP_NUM_THREADS=2 timeout 3300 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --out app/reports/overnight/cg136_champ.json'",
+      "metric": "champion_robust_eval",
+      "counterfactual": "app/models/champion (현행 배포·173피처·auc.txt 0.551318) — 같은 런·같은 창·같은 유니버스(training)·같은 라벨(rel h5)",
+      "success": "후보−챔피언 짝 Δ(같은 창·같은 런)를 폴드별로 산출한다. Δ≥+0.02(사전문턱)면 후보 우위로 승격 검토 대상, Δ<0 이면 현행 유지가 정답. AUC 단독 판정 금지 — 순기대(%p/세션)·표본·앞/뒤 절반 부호를 함께 보고한다.",
+      "est_minutes": 60,
+      "note": "2026-10-08 01:0x 등록(엔지니어 자율 틱). 근거: CG122→CG132→CG133→CG134 로 매일 반복되는 승격 판정이 **단일 val split(인샘플) AUC** 만 비교해 왔다(CG133: 후보 ensemble_auc 0.6083 vs 기준선 0.5513 → would_promote). 그런데 두 모델의 robust_oos.json 은 **서로 다른 런(10-05 / 10-07)** 이라 짝 비교가 아니다 — 후보 0.4737 vs 챔피언 0.4908(프로토콜 동일·n_sessions 87 동일) = Δ−0.0171 로 부호가 인샘플과 **반대**다(CG9c 패턴). 두 값을 대조 가능한 짝으로 확정하는 것이 이 항목의 목적이다. 두 모델을 한 커맨드에서 연속 실행해 창을 고정한다(첫 --out = 판정 대상 = 후보). 구동기 판정은 첫 --out(cand) 만 읽으므로 챔피언 JSON 은 실행 후 세션이 파싱해 원장 parsed.counterfactual_arm/paired 에 넣는다(per_exp 금지 — 스코어보드 오독). ⚠ 챔피언 배포 실체는 199피처가 아니라 **173피처**(feature_names.json 173 · auc.txt 0.551318 · robust_auc.json protocol n_rows=12629=09-23 학습분)다 — CG134 note 의 '199피처' 는 오기다.",
+      "attempts": []
     }
   ],
   "updated": "2026-10-06"
