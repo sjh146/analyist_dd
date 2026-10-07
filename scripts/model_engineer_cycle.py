@@ -2412,7 +2412,7 @@ def failure_cause(rc, started=None, log_path=None):
     않았다 → 원인 진단에 로그를 다시 열어야 했다.
     """
     if rc == 1:
-        pat = ("빌드 중 피처 코드 변경", "체크포인트 무시", "RuntimeError", "Error", "Traceback")
+        pat = ("빌드 중 피처 코드 변경", "체크포인트 무시", "PanelLockBusy", "RuntimeError", "Error", "Traceback")
         tail = ""
         try:
             if log_path:
@@ -2451,6 +2451,31 @@ def failure_cause(rc, started=None, log_path=None):
     if rc == 124:
         return "timeout(124) — 작업이 타임아웃을 초과(진행률 대비 타임아웃이 짧았는지 확인하라)"
     return f"종료코드 {rc}"
+
+
+def backlog_status_after(rc, cause, gate_rc5, n_attempts):
+    """사이클 종료 후 백로그 status 결정(순수 함수 — 자체점검 `_backlog_status_test.py`).
+
+    반환: (status, resume_note|None). status ∈ {'done','pending','failed'}.
+
+    원칙(이 역할의 실측 교훈): **인프라 사고는 가설의 결과가 아니다** — 컨테이너 재생성(137)·
+    타임아웃(124)·빌드 중 피처 코드 변경·패널 락 보류(PanelLockBusy)는 'failed' 로 굳히지 않고
+    pending 으로 되돌려 다음 틱이 다시 집게 한다(최대 RETRY_MAX 회). 가드/보류를 실행실패로
+    남기면 무개선 카운터·'새 레버 필요' 판단이 오염된다.
+    """
+    cause = cause or ""
+    code_churn = rc == 1 and "피처 코드 변경" in cause
+    panel_busy = rc == 1 and "PanelLockBusy" in cause
+    if rc == 0 or gate_rc5:
+        return "done", None
+    if (rc in (137, 124) or code_churn or panel_busy) and n_attempts < RETRY_MAX:
+        if code_churn:
+            return "pending", ("코드 프리즈 후 재빌드 — u3_launcher 프리플라이트가 "
+                               "피처 코드 120분 무편집 시 착수")
+        if panel_busy:
+            return "pending", "패널 락 해제 후 재시도(다른 프로세스가 같은 --panel 보유)"
+        return "pending", "체크포인트 재개"
+    return "failed", None
 
 
 # ── 판정 (요약 JSON 에서 직접 계산 — 로그 문구·winner 기준 금지) ───────────────
@@ -2708,21 +2733,16 @@ def execute(item, force=False):
                     "ts": rec["ts"], "rc": rc, "verdict": verdict, "detail": detail,
                     "log": rec["log"], "elapsed_min": rec["elapsed_min"],
                 })
-                code_churn = rc == 1 and "피처 코드 변경" in cause
-                if rc == 0 or gate_rc5:
-                    it["status"] = "done"
-                elif (rc in (137, 124) or code_churn) and len(it["attempts"]) < RETRY_MAX:
-                    # 인프라 사고(컨테이너 재생성·타임아웃·빌드 중 피처 코드 변경)는 가설의 결과가 아니다
-                    # → pending 으로 되돌려 다시 돌린다(최대 RETRY_MAX 회). 코드 변경 건은 이제
-                    # feature_pipeline 이 조기 중단하므로 소실이 몇 분으로 줄고, 착수는 u3_launcher 의
-                    # 프리플라이트(피처 코드 120분 안정)가 담당한다.
+                # 인프라 사고(컨테이너 재생성·타임아웃·빌드 중 피처 코드 변경·패널 락 보류)는
+                # 가설의 결과가 아니다 → pending 으로 되돌려 다시 돌린다(최대 RETRY_MAX 회).
+                # 결정 로직은 순수 함수로 뽑아 자체점검한다(scripts/_backlog_status_test.py).
+                st, resume = backlog_status_after(rc, cause, gate_rc5, len(it["attempts"]))
+                if st == "pending":
                     it["status"] = "pending"
-                    resume = ("코드 프리즈 후 재빌드 — u3_launcher 프리플라이트가 피처 코드 120분 무편집 시 착수"
-                              if code_churn else "체크포인트 재개")
                     it["retry_note"] = (f"{rec['ts']} rc={rc} 소실 → 재시도 "
                                         f"{len(it['attempts'])}/{RETRY_MAX} ({resume})")
                 else:
-                    it["status"] = "failed"
+                    it["status"] = st
                 it["result"] = {"verdict": verdict, "detail": detail, "delta": delta,
                                 "per_exp": per or None, "rc": rc}
         save_backlog(b)
