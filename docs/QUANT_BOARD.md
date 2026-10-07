@@ -2272,3 +2272,63 @@ T6 브리지 churn(실측 37→7→1.0 자연 소멸) · 게이트 문턱 0.02(1
 - **🧠 위임 조사(Claude Code) + 검증**: 1차 위임(`..._20261007.md`)은 **실패** — gstack 프리앰블 결정 브리프(D1/D2)가 조사를 대체했고 파일:라인 근거가 0 → 기각. 2차(`..._20261007b.md`)는 성공했고 본문을 직접 대조한 결과 **채택 6 · 기각 2**. 기각분: `tests/test_champion_promote_expectancy_gate.py` · `tests/test_champion_promote_live_score_gate.py:105-111` 인용 — **그런 파일이 없다**(실측: `services/xgboost-ml/tests/` 에 `test_champion_promote.py` 만 존재) = 위임 자기신고의 허구 인용.
 - **✅ 검증 통과한 사실(직접 grep/실행)**: ⓐ `min_robust_auc: 0.5`(`config/objective.json`)는 **집행 코드가 없다**(`.py`/`.sh` grep 0건) → 후보 robust 0.4737 은 게이트에서 **비교 대상조차 아니다**. ⓑ 돈 기준 `_expectancy_verdict`(`champion_promote.py:158-169`)는 6조건이고 **t(유의성) 검사가 없다**(t 는 `:155` 에 기록만) — 그런데 같은 조직의 돈 지표 도구 `fillable_expectancy.py:333` 은 자체 합격선으로 `t_stat >= 2` 를 쓴다(단위 불일치). ⓒ `measure_failed`(`gate_promote_live_score.py:79`)는 문서상 '측정실패 → AUC 게이트 위임'이지만 `champion_promote.py:94`(`status != "passed"`)에서 차단되고 파이프라인 else 문구도 rc=3 을 '신호 0건'으로 오표기 → **인프라 장애 = 승격 영구 차단**(fail-closed). ⓓ 후보·챔피언 `robust_oos.json` 은 **같은 원천**(`trades.csv` mtime 10-01 21:18 동결 · n_sessions 87/n_trades 1340/protocol/split_date 2026-07-28 문자열 동일) → 짝 비교 성립. ⓔ 창별 robust: 후보 **[0.449, 0.495, 0.477]**(train 07-09~10-07, 겹침 2창 제외) vs 챔피언 **[0.561, 0.500, 0.412]**(train 07-03~10-01, 겹침 2창 제외) — 둘 다 3창, 챔피언도 0.5 미만 창 2/3.
 - **다음**: 실행 가능 pending **0** → 잔여 needs_setup(CG73·FS1·L5c·CG82·CG131·XR26·CG129·MT189)은 전부 **타 역할 파일·승인 블로커**(억지 pending 승격 금지 규율 유지).
+
+
+### 리뷰보드 (2026-10-07 22:4x — 3역할 대조·검증, 오케스트레이터)
+
+**KPI 한 줄**: 트레이더 순손익 **−1,446원**(청산 3·승률 33.3%·기대값 −482원/건·fees 0) · 엔지니어 헤드라인 **0.5519**(기준선 0.5406, Δ+0.0113, 무개선 19/19) — 단 오늘 처음으로 **돈 기준을 통과한 챌린저**가 나왔다(CG133 dry-run `would_promote`, 순기대 +0.157%p/세션) · 리서처 DQ **breach**(결측90%↑ 피처 26 ≥ 15).
+
+#### ① 핸드오프 계약 검증 (자기신고 → 파일·DB·메트릭 실측)
+- **계약1 (리서처→엔지니어)**: **통과**. 내 실측: `dq_claim_parse_failure` 25시리즈 **전부 0** · as-of 위반 4스코프(financial_report_future·ownership_future_dated·supply_future_dated·supply_phantom_day) **0** · `dq_padding_ratio` **0** · 살아 191(횡단면 166)/죽은 11(총 202). DQ breach 는 존재하나 **SNS·kalman 구조 결측**(값은 정직) 이고 피처 제안으로 넘어간 흔적 없음.
+- **계약2 (엔지니어→트레이더)**: **충족·신선**. `data/reports/model_engineer_scorecard.json` `generated_at=2026-10-07T22:09:35` · `fold_stats` 3폴드 mean **0.5148** std 0.0344 승률 0.333(CG106) · `purge` h=5·관측 43행 · `promote_dryrun` = **CG134 `blocked_live_score`**(cand in-sample 0.6083 vs champ 0.5513). → 15:2x 트레이더가 올린 **"scorecard `generated_at` ≠ mtime" 라벨 불일치는 재생성으로 해소**.
+- **계약3 (트레이더→리서처)**: **부분 채택**. T17(screener-attribution) 이 리서처 22:00 틱에서 `T17: 1>=1 → 충족` 으로 **처음 소비**됐다(리서처가 전용 스크립트 `scripts/t17_screener_attribution.py` 저작). 단 귀속은 **스크리너 단위만** — `ml_prob` 미기록(`scored_n=0`)이라 확률구간별 기여도는 측정 불가(트레이더 `tools/export_fills.py` 소유).
+- **핸드오프 채택 검사** (`python3 scripts/trader_cycle.py --handoffs` 실측): 총 **21** · 재현명령 공백 **15**(=X R*·done/closed_rejected 포함). **실제 미채택(open) = MT189 1건**(needs_setup·command 없음·7.2h). **24h 초과 & open & command 없음 = 0건** — MT70(201h)은 엔지니어가 command 저작 후 `done` 종결, MT116/MT117 도 `done`. → **지난 회의의 "MT70 177~194h 공백" 항목은 해소**(목록에서 제거).
+
+#### ② 내가 검증한 실측 수치 (추정은 표기)
+- **브로커(bridge 직접 조회, `cmd.exe /c curl …:8100/{health,balance,positions,orders}`)**: `connected:true` · 계좌 **783247576** · equity **525,089원** · 현금 461,904 · positions **3**(003380 하림지주 2주@11,291.5 · 319400 현대무벡스 1주@20,803 · 475830 오름테라퓨틱 1주@20,953) · **미체결 0**(`orders []`).
+- **저널(트레이더 사이클 직접 실행)**: 실현 **−1,446.0017원** · 청산 **3** · 승률 33.3% · 기대값 **−482원/건** · fees **0**.
+- **챔피언**: `stock_xgboost_ml:/app/app/models/champion/auc.txt` = **0.551318**(불변). `champion_promote` 실승격 차단 근거 `data/reports/promote_live_score_gate.json`(ts 21:25:44): 후보 신호 **0건**(max 0.50594) vs 챔피언 **6건**(max 0.66635) → verdict 차단.
+- **되돌림 감시**: `data/state/rollback_monitor.json`(22:30) = **too_early**(10-02 교체 후 **2/5세션**, degrade −0.2%p) → 자동 원복 미발동.
+- **리서처 DQ(Prometheus 직접, `curl --noproxy '*' :9187`)**: `null_ratio_high_count` **26** · `null_ratio_max` **0.9371** · `oldest_age_days` **0.996** · `stock_constant_ratio` **0.366** · `market_level_count` **25/202** · `alive_xsec_count` **166**.
+- **피드(payload 직접)**: `data/feed/screener_latest.json` `generated_at 2026-10-07T20:30:03` · **close 0건 · swing 0건** · daytrading **20건**(`composite` 61.3~64.7 · `signal_date=10-06` · `valid_until=2026-10-07T15:30` = **발행 시점에 이미 만료**).
+
+#### ③ 검증 결과 — 빈틈·불일치 (오늘 신규 2건)
+1. 🔴 **20:30 "다음날 아침용" 발행이 close/swing 을 빈 리스트로 냈다 — 추적 리포트가 10-04 스냅샷으로 되돌아가 있었다.**
+   - 증거: `reports/close_latest.json`(payload `date=2026-10-02`)·`reports/swing_latest.json`(`date=2026-10-01`, `batch_type=raw_fallback`)이 **HEAD(커밋 `78b44f6`, 10-04 23:25)와 sha256 동일**인데 mtime 은 **오늘 15:11**. (`git diff --stat HEAD -- reports/close_latest.json reports/swing_latest.json` → 공백 · `git show 78b44f6:reports/close_latest.json | sha256sum` == 파일 sha256 `0ef5ddff…`)
+   - 기제(가장 유력, 추정): 14:40 발행 로그는 `[close] 산출물 기준일 2026-10-07 (0.61일 전)` 이었으므로 **14:40~15:11 사이에 추적 리포트가 HEAD 내용으로 되돌아갔다** → 15:11 무렵 `git checkout/restore/stash` 계열 작업(같은 창에서 `reports/money/scoreboard_2026-10-04.json` 도 함께 되돌아감). `git stash list` 는 현재 비어 있음.
+   - 결과: 20:30 `feed_publish.sh` 로그 `WARNING [close] 산출물이 5.9일 지났다(> 3.0일) → 빈 리스트로 발행` · `[swing] 6.9일 → 빈 리스트` → 소비자가 보는 바구니가 비었다. (설계된 가드가 **정직하게** 동작했고, 문제는 그 입력이 낡은 채로 되돌아간 것.)
+   - 영향: 개장 **10-08 08:40 재발행** 전까지 close/swing 후보 0. 08:40 발행은 **08:30 스윙 파이프라인 산출물**에 의존 — 오늘 08:31 파이프라인은 `⚠ ML inference issue (model may not be trained)` 경고와 함께 결과를 냈다(어제 정상 산출).
+2. 🔴 **단타 경로 = 발행 O · 소비 X · 정기 스케줄 X (MT189, 실측).** 소비자 `runner/config.py:213 screeners=['close','swing']` · `:226 r1_min_avg_score={'close':88,'swing':75}`(daytrading 키 없음) → 엔진은 daytrading 후보를 **보지도 않고**, `composite` 는 계약 v1.1 미정의라 R1 판정도 건너뛴다(내 실측 `RunnerConfig().screeners == ['close','swing']`). 엔진측 기본값은 이미 3종(`trader_core/config.py:225`)이지만 **runner 가 `:433 screener_names=list(self.screeners)` 로 덮어쓴다**. 추가로 daytrading 스크리너의 **정기 크론이 없다**(system cron·Hermes cron 34잡 grep `daytrading` **0건** — 오늘 12:55·15:06 두 번 수동 실행). → 사용자 지시 **"내일부터 단타매매"(10-07)** 는 현 상태로 **충족 불가**.
+3. ⚠ **CG133/CG134 — 돈 게이트는 열렸는데 라이브 스코어 게이트가 닫았다(구조 위험).** dry-run `would_promote`(순기대 **+0.157%p/세션** · 앞 +0.1156/뒤 +0.1975 · t 0.73) vs 실제 승격 `blocked_live_score`(후보 신호 0건, 최대 0.5059 < 소비자 절대문턱 0.55). 소비자가 절대문턱을 쓰는 한 0.55 를 못 넘는 후보는 **영구 동결** → 해소 경로는 **CG82**(절대문턱 → 분위 top-k, 트레이더 소유·승인). 부수 관측(엔지니어 보고, 내 재확인은 안 함 = **추정**): `config/objective.json` 의 `min_robust_auc 0.5` 는 집행 코드가 없고, 돈 게이트 `_expectancy_verdict` 에는 t(유의성) 검사가 없다(후보 t 0.73).
+4. **close 경로 6일째 차단**: 15:2x 에 신호일 동결(5.0→1.0일)은 풀렸으나 `HEAT block close avg +19.5% > +15.0%` 로 여전히 닫혀 있고, 20:30 발행에서 후보 자체가 0이 되어 **이중 차단**이 됐다.
+
+#### ④ 🙋 사람이 할 일 (단일 집계 — 중복 제거)
+
+**A. 승인만 필요(승인 즉시 에이전트가 실행)**
+1. **MT189 — 단타 소비 배선(실주문 경로 확장)** — ⏰ **10-08(목) 09:00 개장 전**
+   무엇을: ⓐ `trader-agent/runner/config.py:213` `screeners` 에 `"daytrading"` 추가 + `r1_min_avg_score`(또는 prob/rank 문턱)에 daytrading 키 ⓑ 계약 v1.1 에 `score_kind:"composite"` 정의 ⓒ daytrading 스크리너 **정기 크론 신설**(현재 정기 실행 0)
+   왜(실측): daytrading 20건이 매일 발행되지만 `RunnerConfig().screeners==['close','swing']` 이라 0건 평가·0건 체결 — 사용자 지시 미충족
+   안 하면: 사용자가 요청한 단타 경로가 영구 미가동(발행·슬롯 배선까지 다 해놓고 소비만 막힘)
+   승인 후: 트레이더 역할이 배선 → 페이퍼 1회 → 10-08 08:30 루프 재기동에 반영(슬롯 swing3/daytrading2 는 이미 커밋·푸시됨)
+   긴급도: **⏰ 높음** (사용자 지정 "내일")
+2. **발행 아티팩트 되돌림 방지** — ⏰ **10-08 08:40 발행 전**
+   무엇을: 추적 중인 `reports/{close,swing}_latest.json` 을 **git 관리 대상에서 제외**(또는 발행물을 별도 경로로 분리) + `feed_export` 의 신선도 판단을 payload `date` 가 아니라 **스크리너 실행 실적**으로 전환
+   왜(실측): 20:30 발행이 close 0·swing 0 (리포트가 HEAD 10-04 스냅샷으로 되돌아감)
+   안 하면: 야간·개장 전 후보 0 이 반복되고, git 작업 한 번이 조용히 실거래 입력을 갈아치운다
+   승인 후: 트레이더가 소유 경로 정리 + `feed_export` 가드 수정 + 회귀
+   긴급도: **⏰ 높음**
+3. **R29 — 결측90%↑ 피처 문턱 재보정(A warn30/breach40) + SNS·kalman dead 분리(C)** / 왜: 26 ≥ breach 15, 전부 SNS 파생 구조 결측 / 안 하면: 매 틱 breach 표시로 진짜 결함이 묻힘 / 승인 후: 리서처가 문턱·분리 배선 / 긴급도: 낮음
+4. **close 전략 처분**(HEAT +19.5%·6일 차단) / 왜: close 청산 3건 −1,446원 전액 + 경로 이중 차단 / 안 하면: 자금이 close 신호에 묶임 / 승인 후: (a)필터 수리 유지 (b)비활성 — **권고 (a)** / 긴급도: 중간
+5. **R26**(상한가 후보 제외) · **R21**(수급 문턱 ≤2→≤3 또는 회전 400/일) · **R17**(커버리지 3종+SNS 크론) · **CG131**(기준선 청정패널 이관) · **CG82**(절대문턱→분위) · **T1**(수수료 계상 확인) — 지난 회의에서 올린 항목, **변동 없음**.
+
+**B. 사람이 직접(대행 불가)**: **없음** — 브리지 `connected:true` · Creon 세션 유지 · 킬스위치 파일 없음. 다음 개장 **10-08(목) 08:30 이전** Creon 세션만 유지하면 됨(끊기면 재로그인 = 사람).
+
+**해소되어 목록에서 뺀 항목**: ① MT70 재현명령 공백(엔지니어 저작·`done`) ② T8 지정가 편차(15:06 재발행으로 8.44%→**0.0%**) ③ close 신호일 동결(R22, 5.0→1.0일 — 단 20:30 되돌림으로 **재악화**) ④ 계약2 라벨 불일치 ⑤ R14 `exp_panel` 낡음. "없던 장애"(프록시 502) 항목은 이번에도 발생하지 않음(모든 로컬 호출 `--noproxy '*'`).
+
+#### ⑤ 다음 사이클 작업 배정
+- **리서처**: ① `reports/{close,swing}_latest.json` 의 **payload date 동결** 근본원인 규명 + 발행 신선도 판단을 실행 실적 기준으로 분리(트레이더와 소유 경계 협의) ② R28 → R27 → R21 틱 회전 ③ R29 문턱·dead 분리안 구체화(승인 대기).
+- **모델엔지니어**: ① **MT189 오프라인 증명이 아니라 실제 배선** — 단 소비자 코드는 `trader-agent/runner` 이므로 트레이더와 경계 합의 후 진행 ② CG82 조사 결과를 승인 항목으로 정리(절대문턱→분위) ③ XR26 구현 → CG129 재측정 ④ scorecard 라벨/생성시각 정합 유지 확인.
+- **트레이더**: ① 추적 리포트 발행 경로 분리 + `feed_export` 신선도 가드 수정안(승인 후 즉시) ② daytrading 정기 크론 신설안 ③ 10-08 08:30 배치 `batch_type`·`ml_auc` 재측정 ④ `tools/export_fills.py` 에 `ml_prob` 실어 확률구간 귀속 가능하게(T17 후속) ⑤ T5/T1 처분안.
+- **오케스트레이터**: 다음 회의에서 (a) MT189 실제 배선 여부 (b) 발행물 신선도 회복 (c) R29/R26/R21 승인 응답 반영 (d) `--handoffs` 재측정(MT189 채움) 확인.
+
+*(검증 명령: `python3 scripts/quant_scoreboard.py` · `python3 scripts/trader_cycle.py --handoffs` · `python3 scripts/objective.py show` · `curl -s --noproxy '*' http://127.0.0.1:9187/metrics | grep ^dq_feature` · `cmd.exe /c "cd /d C:\ && curl -s http://127.0.0.1:8100/balance"` · `git diff --stat HEAD -- reports/close_latest.json reports/swing_latest.json`)*
