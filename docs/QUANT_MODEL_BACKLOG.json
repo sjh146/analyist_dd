@@ -13040,6 +13040,25 @@
       "success": "각 항목에 '악화 유도 → 가드가 막거나 명시 실패' 1회 이상 실측(예: 같은 패널 경로 동시 2프로세스 → 두 번째가 명시 실패/대기 로그).",
       "metric": null,
       "note": "RB2 에서 분리(2026-10-07). F3 는 done. 이 항목은 범위 미확정·미착수 — 착수 시 command/counterfactual/success 를 채워 pending 으로 승격하라(현재 상태로 pending 승격 금지: command 없음)."
+    },
+    {
+      "id": "MT189",
+      "title": "단타(daytrading) 경로 소비 배선 — 피드는 발행되나 엔진 screeners 목록에 없어 평가 0",
+      "status": "needs_setup",
+      "priority": 6,
+      "from_trader": "daytrading-consumer-screener-missing",
+      "created_at": "2026-10-07T15:30:22+09:00",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": null,
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "2026-10-07 15:06 라이브 피드에 daytrading 20건(composite 61.3~64.7) 발행됨(커밋 8725d12). 그러나 소비자 RunnerConfig.screeners 기본값=['close','swing'] (runner/config.py:213) 이고 engine.py:319 가 screener_names 만 순회 → daytrading 후보는 R1/계획 단계에서 아예 평가되지 않는다. 실측: python3 -c \"from runner.config import RunnerConfig; print(RunnerConfig().screeners)\" -> ['close','swing']. 또 score_kind='composite' 는 계약 v1.1 미정의 → _declared_score_kind 가 'screener' 로 폴백하나 daytrading 이 r1_min_avg_score dict({close:88,swing:75}) 에 없어 R1 판정 자체를 건너뛴다(R1 무제한). 사용자 요청('내일부터 단타매매')을 만족하려면 screeners 에 daytrading 추가 + composite 문턱(또는 R1 배선) 필요.",
+      "evidence": "트레이더 사이클 요구: 2026-10-07 15:06 라이브 피드에 daytrading 20건(composite 61.3~64.7) 발행됨(커밋 8725d12). 그러나 소비자 RunnerConfig.screeners 기본값=['close','swing'] (runner/config.py:213) 이고 engine.py:319 가 screener_names 만 순회 → daytrading 후보는 R1/계획 단계에서 아예 평가되지 않는다. 실측: python3 -c \"from runner.config import RunnerConfig; print(RunnerConfig().screeners)\" -> ['close','swing']. 또 score_kind='composite' 는 계약 v1.1 미정의 → _declared_score_kind 가 'screener' 로 폴백하나 daytrading 이 r1_min_avg_score dict({close:88,swing:75}) 에 없어 R1 판정 자체를 건너뛴다(R1 무제한). 사용자 요청('내일부터 단타매매')을 만족하려면 screeners 에 daytrading 추가 + composite 문턱(또는 R1 배선) 필요.",
+      "success": null,
+      "expected": "미지",
+      "cost": null,
+      "note": "트레이더가 요구한 자료 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다."
     }
   ],
   "updated": "2026-10-06"
