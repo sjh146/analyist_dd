@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """analyist_dd → trader-agent 피드 스냅샷 발행 (trader-agent/FEED_CONTRACT.md 준수).
 
-무엇을: 종가/스윙 스크리너 산출물(reports/*_latest.json)을 계약 형식
+무엇을: 종가/스윙/단타 스크리너 산출물(reports/*_latest.json)을 계약 형식
         (data/feed/screener_latest.json)으로 합쳐 원자적으로 교체한다.
 왜:     trader-agent 의 ScreenerFeedClient 가 이 URL/파일만 폴링한다. 계약을 벗어나면
         (신선도·가격·점수 누락) 엔진 게이트가 후보를 조용히 버린다.
+        daytrading(2026-10-07 추가, docs/spec_daytrading_feed.md): 피드 candidates 에
+        daytrading 키가 없어 트레이더가 단타 후보를 평가조차 못 했다(저널 실측 2026-10-07:
+        decisions = swing 2,483건 · daytrading 0건). sources 에 "daytrading" 을 추가해
+        reports/daytrading_latest.json(daytrading_screener --json-out 산출물)을 발행한다.
+        실측 조회: data/feed/screener_latest.json 의 candidates 키는 {close, swing} 뿐
+        (2026-10-07T14:40 발행본), reports/daytrading_latest.json 은 아직 존재하지 않음.
 
 계약 준수 포인트:
 - generated_at 은 발행 시각(KST, tz 포함 ISO-8601) — 과거 값 재사용 시 전 후보 차단
-- 전략별 키 분리: close / swing (섞지 않는다)
+- 전략별 키 분리: close / swing / daytrading (섞지 않는다)
+- daytrading 점수는 0~100 복합점수 → score_kind="composite" 로 발행하고 calibrated_prob
+  변환은 하지 않는다(모델 확률은 model_prob 필드로 분리 보존 — spec §1)
 - close_price 는 주문 지정가로 그대로 쓰인다 → 누락 시 market_data 최근 종가로 채운다
 - score 내림차순 정렬(엔진이 위에서부터 상위 N 만 집행)
 - 6자리 숫자 코드만. 위반 항목은 버리고 로그로 남긴다
@@ -44,6 +52,7 @@ CODE_RE = re.compile(r"^\d{6}$")
 DEFAULT_SOURCES = {
     "close": os.path.join(PROJ, "reports", "close_latest.json"),
     "swing": os.path.join(PROJ, "reports", "swing_latest.json"),
+    "daytrading": os.path.join(PROJ, "reports", "daytrading_latest.json"),
 }
 STATS_CANDIDATES = [
     os.path.join(PROJ, "data", "reports", "screener_stats.json"),
@@ -176,8 +185,12 @@ def valid_until_for(screener, signal_date, publish_dt):
 
     * close  : 발행일 15:30 KST — 그날 종가 진입창(14:50-15:25)까지만 유효
     * swing  : signal_date + 5일 15:30 KST (모델 라벨 지평 h5 와 같은 길이)
+    * daytrading: 발행일 15:30 KST — close 와 동일한 창. 후보는 직전 거래일 일봉으로
+      계산하고 **발행 당일** 매수하므로(실측 2026-10-07 산출물: signal_date=10-06,
+      당일 매수 대상) signal_date 가 아니라 발행일에 고정한다. swing 의 else(+5일) 창을
+      물려받으면 사흘 전 단타 신호가 신선한 것처럼 나간다.
     """
-    if screener == "close":
+    if screener in ("close", "daytrading"):
         base = publish_dt.replace(hour=15, minute=30, second=0, microsecond=0)
     else:
         anchor = _signal_date(signal_date) or publish_dt.date()
@@ -193,6 +206,7 @@ def build_items(screener, payload, prev_closes, publish_dt=None, universe=None,
     ``score`` 의 **의미**를 ``score_kind`` 로 함께 선언한다(계약 §5):
     모델 확률(calibrated_prob)과 스크리너 점수(screener)는 스케일이 달라서
     소비자의 R1 문턱이 한 값으로 판단하면 경로가 조용히 닫힌다.
+    daytrading 은 0~100 복합점수 → ``composite`` 로 선언하고 변환하지 않는다.
 
     ``universe`` ({code: confidence}) 가 주어지면 후보별 ``rank_pct``(모델 분포 내 백분위)와
     ``universe_size`` 를 붙인다. ``score_mode="rank_pct"`` 면 ``score`` 자체를 백분위로 바꾼다
@@ -200,7 +214,12 @@ def build_items(screener, payload, prev_closes, publish_dt=None, universe=None,
     """
     publish_dt = publish_dt or datetime.now(KST)
     universe = universe or {}
-    raw = payload.get("candidates") or []
+    if screener == "daytrading":
+        # 단타 산출물은 candidates 가 아니라 items 키다(daytrading_screener --json-out
+        # 계약: {"generated_at","source","items":[...]} — spec_daytrading_feed.md §2).
+        raw = payload.get("items") or payload.get("candidates") or []
+    else:
+        raw = payload.get("candidates") or []
     items, dropped = [], []
     for row in raw:
         code = str(row.get("stock_code") or "").strip().lstrip("A")
@@ -214,7 +233,12 @@ def build_items(screener, payload, prev_closes, publish_dt=None, universe=None,
             dropped.append((code, "가격 없음(게이트 6 차단 대상)"))
             continue
         conf = None
-        if screener == "swing":
+        if screener == "daytrading":
+            # 0~100 복합점수(칼만30+모델30+거래량20+변동성20). 모델 확률이 아니므로
+            # calibrated_prob 변환을 하지 않고 score_kind="composite" 로 선언한다
+            # (spec_daytrading_feed.md §1). 모델 확률은 아래에서 model_prob 로 분리 보존.
+            score, score_kind = _num(row.get("score")), "composite"
+        elif screener == "swing":
             conf = _num(row.get("confidence"))
             if conf is not None and 0 <= conf <= 1:
                 score, score_kind = conf * 100.0, "calibrated_prob"
@@ -251,6 +275,16 @@ def build_items(screener, payload, prev_closes, publish_dt=None, universe=None,
             item["ml_prob"] = round(float(conf), 4)
         if payload.get("auc") not in (None, ""):
             item["ml_auc"] = payload.get("auc")
+        # 단타: 모델 확률은 복합점수의 구성요소일 뿐이다. calibrated_prob 로 혼동되지 않게
+        # 별도 필드 model_prob 로 보존하고, 산출물의 slope_permille·volume_ratio 도
+        # 그대로 전달한다(소비자가 추세 강도·거래량 비율로 추가 판단). 산출물 스키마가
+        # model_prob 키를 항상 갖고 있으므로(모델 미가용 시 null) 키 자체를 유지한다.
+        if screener == "daytrading":
+            mp = _num(row.get("model_prob"))
+            item["model_prob"] = None if mp is None else round(float(mp), 4)
+            for extra in ("slope_permille", "volume_ratio"):
+                if row.get(extra) not in (None, ""):
+                    item[extra] = row[extra]
         # 백분위(모델 분포 내 상대 순위) — 유니버스 산출물이 있을 때만 계산한다.
         if universe:
             conf_for_rank = conf if (conf is not None and 0 <= conf <= 1) else score / 100.0
@@ -286,6 +320,29 @@ def load_stats():
 HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
 
 
+def _record_feed_claim(source_rows, claimed_rows, persisted_rows, note=""):
+    """피드 발행 1회의 자기신고(3분리)를 dq_runner_claim 에 남긴다(dq_claim.record_claim 재사용).
+
+    source_rows   : 소스 산출물이 준 후보 행수 합(수신)
+    claimed_rows  : build_items 가 만들어낸 행수 합(파서 생성 — 게이트 전)
+    persisted_rows: 실제 발행 파일에 든 행수 합(상위N·퇴화·신뢰도 게이트 적용 후)
+    발행은 파일 산출이라 DB 없는 환경이 정상이므로, 자기신고 실패는 WARN 만 남기고
+    발행을 깨지 않는다(dq_claim 설계 규약: "자기신고 실패가 수집을 깨면 안 된다").
+    """
+    try:
+        from dq_claim import _open_conn, record_claim  # noqa: PLC0415 — psycopg2 지연 import 규약
+        conn = _open_conn()
+        try:
+            record_claim(conn, runner="feed_export", table_name="screener_feed",
+                         source_rows=source_rows, claimed_rows=claimed_rows,
+                         persisted_rows=persisted_rows, note=note)
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("자기신고(3분리) 기록 실패(%s: %s) — 발행에는 영향 없음",
+                       type(e).__name__, e)
+
+
 def is_krx_holiday(day) -> bool:
     """``data/krx_holidays.json`` 에 그 날짜가 휴장일로 등록돼 있으면 True.
 
@@ -319,6 +376,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="trader-agent 피드 스냅샷 발행")
     ap.add_argument("--close", default=DEFAULT_SOURCES["close"])
     ap.add_argument("--swing", default=DEFAULT_SOURCES["swing"])
+    ap.add_argument("--daytrading", default=DEFAULT_SOURCES["daytrading"],
+                    help="단타 산출물(daytrading_screener --json-out) 경로")
     ap.add_argument("--output", default=FEED_PATH)
     ap.add_argument("--dry-run", action="store_true", help="쓰지 않고 검증/분포만 출력")
     ap.add_argument("--no-stats", action="store_true", help="scoring_summary 생략")
@@ -351,7 +410,7 @@ def main(argv=None):
                        "(소비자는 휴장 달력이 없어 신선한 피드면 매수를 시도한다): %s",
                        publish_date.isoformat(), HOLIDAY_PATH)
 
-    sources = {"close": args.close, "swing": args.swing}
+    sources = {"close": args.close, "swing": args.swing, "daytrading": args.daytrading}
     payloads = {}
     for key, path in sources.items():
         if holiday:
@@ -386,7 +445,7 @@ def main(argv=None):
 
     codes = set()
     for p in payloads.values():
-        for row in (p.get("candidates") or []):
+        for row in (p.get("candidates") or p.get("items") or []):
             c = str(row.get("stock_code") or "").strip().lstrip("A")
             if CODE_RE.match(c):
                 codes.add(c)
@@ -395,12 +454,14 @@ def main(argv=None):
 
     candidates = {}
     publish_dt = datetime.now(KST)
-    for key in ("close", "swing"):
+    built_counts = {}
+    for key in ("close", "swing", "daytrading"):
         payload = payloads.get(key, {})
         universe = load_universe(key, [payload.get("date"), publish_dt.date().isoformat()])
         mode = args.swing_score_mode if key == "swing" else "native"
         items = (build_items(key, payload, prev_closes, publish_dt, universe, mode)
                  if key in payloads else [])
+        built_counts[key] = len(items)
         if universe:
             ranked = sum(1 for item in items if item.get("rank_pct") is not None)
             logger.info("[%s] rank_pct 부여 %d/%d건 (universe_size=%d, score_mode=%s)",
@@ -470,6 +531,21 @@ def main(argv=None):
     stats = None if args.no_stats else load_stats()
     if stats:
         feed["scoring_summary"] = {"screener_stats": stats}
+
+    # 자기신고(3분리): 소스 수신 → 파서 생성 → 실제 저장. 게이트로 일부가 빠지는 것이
+    # 정상이라 claimed(build_items 합)와 persisted(최종 발행 합)는 다를 수 있다.
+    # 아무 일도 안 한 실행(소스 0건)은 남기지 않는다 — dq_claim 규약.
+    if not args.dry_run:
+        src_total = sum(len(p.get("candidates") or p.get("items") or [])
+                        for p in payloads.values())
+        claimed_total = sum(built_counts.values())
+        persisted_total = sum(len(b["items"]) for b in candidates.values())
+        if src_total or claimed_total:
+            _record_feed_claim(src_total, claimed_total, persisted_total,
+                               note="close=%d swing=%d daytrading=%d"
+                                    % (built_counts.get("close", 0),
+                                       built_counts.get("swing", 0),
+                                       built_counts.get("daytrading", 0)))
 
     # 검증 + 분포 요약 (계약 §5: 점수가 좁게 뭉치면 문턱·상위 N 선별이 무의미)
     ok = True
