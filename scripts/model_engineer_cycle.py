@@ -1258,7 +1258,8 @@ def parse_forward_scorecard(path, mtime_floor) -> dict:
     """배포 경로 전방 성적표(scripts/forward_scorecard.py --out)를 파싱한다.
 
     스키마: {"generated_at", "predictions_rows", "model_versions", "result": {"h1": {...}, "h5": {...}}}
-    각 창 = {n_pairs, n_dates, pooled_auc, daily_auc_mean, daily_auc_list, top10_ret_mean, all_ret_mean}.
+    각 창 = {n_pairs, n_dates, pooled_auc, daily_auc_mean, daily_auc_list, top10_ret_mean, all_ret_mean}
+    + (CG137) money / money_filter — 체결성 필터·수수료·널 기준선 순기대 블록(창별 그대로 통과시킨다).
 
     ⚠ `per_exp` 를 만들지 않는다 — scoreboard 는 원장 per_exp 전체를 'arm 폴드 평균(AUC)'으로
     읽어 best_robust·무개선 카운터를 만든다(2026-09-29 CG31 사고). 여기 값은 AUC·수익 혼합이라
@@ -1284,7 +1285,8 @@ def parse_forward_scorecard(path, mtime_floor) -> dict:
             continue
         windows[str(k)] = {f: v.get(f) for f in
                            ("n_pairs", "n_dates", "skipped", "pooled_auc", "daily_auc_mean",
-                            "daily_auc_list", "base_rate_up", "top10_ret_mean", "all_ret_mean")}
+                            "daily_auc_list", "base_rate_up", "top10_ret_mean", "all_ret_mean",
+                            "money", "money_filter")}
     out = {"summary_mtime": mt, "generated_at": d.get("generated_at"),
            "predictions_rows": d.get("predictions_rows"),
            "model_versions": d.get("model_versions"), "windows": windows}

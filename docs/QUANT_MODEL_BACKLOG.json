@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-08T02:02:48+09:00",
+  "updated_at": "2026-10-08T07:05:01+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -13178,6 +13178,38 @@
         "rc": 0
       },
       "counterfactual_value": 0.5354
+    },
+    {
+      "id": "CG137",
+      "title": "[측정정합성] 전방 성적표에 체결성 필터·수수료·널 기준선 순기대(money) 블록 신설 — 배포경로 전방 수치를 최우선 규칙(돈 지표)과 정합",
+      "status": "done",
+      "priority": 2,
+      "owner": "engineer",
+      "metric": "forward_scorecard",
+      "forward_horizon": 5,
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/forward_scorecard.py --out /app/reports/overnight/forward_scorecard.json'",
+      "counterfactual": "필터 OFF(기존 top10_ret_mean) + 널 기준선 = 그 날 체결가능 후보 풀평균(pool_net_mean_pct)",
+      "success": "창별 money 블록(체결성 필터·수수료 왕복 0.21%p·풀평균 널 기준선·Δ/t/분할표본) 산출 + 자체점검 _forward_scorecard_money_test.py 27/27 PASS. 성능 판정은 CG75 사전등록(n_dates>=10) 유지 — 이 항목은 계측기 정합성 수리다.",
+      "est_minutes": 1,
+      "note": "2026-10-08 07:0x 등록(엔지니어 자율). 왜: 종전 전방 성적표 창에는 체결성 필터가 없는 top10_ret_mean/all_ret_mean 만 있어 최우선 규칙(2026-10-04: '체결성 필터 없이 계산한 기대값은 보고 금지' · 수수료 왕복 0.21%p 차감)과 어긋났다. 구현: fillable_topk_expectancy 와 같은 정의(상한가/급등 >=25%·>=29.9% 제외, 거래대금 >=10억) + 수수료 상수는 fillable_expectancy 에서 import(단일 진실원) + 풀평균 널 기준선 + 세션별 Δ/t/앞뒤 절반. 실측(같은 런, 59,093 예측행): h1 kept 5,477/25,623(21.4%) · no_filter_data 6,968 · top-k 순기대 +0.052%p vs 풀 +0.357%p → Δ -0.305%p(t -0.32, 7세션, 부호 3/7) · h5 kept 2,294/10,239(22.4%) · top-k +1.663%p vs 풀 +3.313%p → Δ -1.65%p(t -0.99, 3세션, 부호 1/3). 즉 배포경로 전방에서도 모델 top-10 이 '체결가능 후보 동일가중 풀'보다 낮다 = CG96~CG100(백테스트 돈 축 종결)과 같은 방향. ⚠ 수수료는 Δ 에서 상쇄된다(top/pool 동일 차감) — 수수료가 걸리는 곳은 절대 수준(topk_net_mean_pct>0)이다. ⚠ 표본은 아직 n_dates 7(h1)/3(h5) 로 CG75 사전등록(n_dates>=10) 미달 → 판정은 '표본부족'(보류).",
+      "attempts": [
+        {
+          "ts": "2026-10-08T07:05:01+09:00",
+          "rc": 0,
+          "verdict": "표본부족",
+          "detail": "h5 전방 pooled AUC 0.5355(날짜별 0.5302) · n_dates 3 · n_pairs 10239 · top10 실현수익 +2.0556% vs 전체평균 +2.9756% — n_dates 3 < 10 → 판정 보류(표본 누적 대기)",
+          "log": "data/reports/me_cycle/logs/cg137_forward_money.log",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "표본부족",
+        "detail": "h5 전방 pooled AUC 0.5355(날짜별 0.5302) · n_dates 3 · n_pairs 10239 · top10 실현수익 +2.0556% vs 전체평균 +2.9756% — n_dates 3 < 10 → 판정 보류(표본 누적 대기)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     }
   ],
   "updated": "2026-10-06"
