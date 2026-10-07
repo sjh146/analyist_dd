@@ -108,6 +108,12 @@ check("판정: kept_incumbent", v, "후보 생성·게이트 거부")
 check("판정: 거부 사유가 detail 에 남는다", "floor 0.53" in d, True)
 v, _, _ = m.judge_promote_dryrun(it, {"status": "invalid_candidate", "reason": "no model"})
 check("판정: invalid_candidate", v, "후보 무효")
+# ⚠ CG134(2026-10-07): 보고용 매핑 갭 수리 — 비-dry-run 경로의 라이브 스코어 게이트 차단은
+# '판정불가'가 아니다(게이트가 작동해 승격을 막은 것이 정답).
+v, d, _ = m.judge_promote_dryrun(it, {"status": "blocked_live_score",
+                                      "reason": "라이브 스코어 게이트 미통과 — 승격 거부: 게이트 판정이 passed 가 아니다"})
+check("판정: blocked_live_score", v, "게이트 통과·라이브 스코어 차단(미승격)")
+check("판정: 라이브 차단 사유가 detail 에 남는다", "라이브 스코어 게이트 미통과" in d, True)
 v, d, _ = m.judge_promote_dryrun(it, {"error": "요약 파일 없음"})
 check("판정: 파서 오류 → 판정불가", v, "판정불가")
 check("판정: 오류 문구 전달", d, "요약 파일 없음")

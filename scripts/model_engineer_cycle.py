@@ -1189,9 +1189,14 @@ def judge_promote_dryrun(item, parsed) -> tuple:
         parts.append(f"양성률 {parsed['up_rate']}")
     if parsed.get("reason"):
         parts.append(f"사유: {parsed['reason']}")
+    # ⚠ 실측 갭 수리(2026-10-07 CG134): 비-dry-run 경로는 dry-run 분기 **뒤**에서
+    # 라이브 스코어 게이트를 검사한다(champion_promote L~404) → 후보가 AUC·돈 기준을 모두
+    # 통과해도 토큰이 blocked 면 status="blocked_live_score" 로 끝난다. 종전 매핑에 이 키가
+    # 없어 "판정불가" 로 기록됐다 — 그러면 '게이트가 막았다'는 사실이 원장에서 사라진다.
     verdict = {"would_promote": "게이트 통과(승격후보 생성)",
                "kept_incumbent": "후보 생성·게이트 거부",
                "promoted": "승격됨(비-dry-run)",
+               "blocked_live_score": "게이트 통과·라이브 스코어 차단(미승격)",
                "invalid_candidate": "후보 무효"}.get(st, "판정불가")
     return verdict, " · ".join(parts), None
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-06T22:03:34+09:00",
+  "updated_at": "2026-10-07T22:03:02+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -13073,7 +13073,7 @@
     {
       "id": "CG133",
       "priority": 1,
-      "status": "pending",
+      "status": "done",
       "title": "저녁 파이프라인 챌린저(2026-10-07 재학습) 승격 게이트 판정 — dry-run + 돈 기준(require-expectancy)",
       "hypothesis": "저녁 파이프라인(20:00)이 재학습한 challenger 는 인샘플 AUC 가 챔피언보다 높아도(전일 0.5882 vs 0.5513) 돈 기준(순기대 %p/세션·분할표본)을 통과하지 못할 수 있다. 매일 게이트 판정을 원장에 남겨 'AUC 만 오른 후보'의 승격을 계속 차단한다.",
       "command": "docker exec stock_xgboost_ml python /app/app/training/champion_promote.py --candidate /app/app/models/champion_cand --champion /app/app/models/champion --dry-run --require-expectancy --summary-out /app/reports/overnight/cg133_promote.json",
@@ -13081,7 +13081,55 @@
       "metric": "champion_promote_dryrun",
       "success": "게이트 판정이 status·사유와 함께 기록된다. status=would_promote 일 때만 후보 자격이 있고(실제 승격은 사람 단계), kept_incumbent 면 현행 유지가 정답이며 그 사유가 돈 지표(순기대 %p/세션·표본·분할표본)로 남아야 한다.",
       "est_minutes": 90,
-      "note": "2026-10-07 21:0x 등록(엔지니어 자율 틱). CG122(10-05)·CG132(10-06)와 동일 절차의 일일 반복 항목. est 90분(≥60)으로 둔 이유: 구동기 pipeline_in_flight 가드가 저녁 파이프라인(retrain_champion ~20:37 시작) 실행 중에는 이 항목을 시작하지 못하게 막아, 후보 재생성이 끝난 뒤 틱에서만 돌게 한다(구버전 후보를 재판정하는 중복 기록 방지). summary_path 확인: services/xgboost-ml/reports/overnight/cg133_promote.json. 전일(CG132) 결과: dry-run kept_incumbent · 후보 AUC 0.5882 vs 챔피언 0.5513 · 순기대 -0.119%p ≤ 문턱 0.000 · 분할표본 불안정(앞 -0.2371/뒤 -0.0031) → 게이트가 AUC-only 후보를 정상 거부."
+      "note": "2026-10-07 21:0x 등록(엔지니어 자율 틱). CG122(10-05)·CG132(10-06)와 동일 절차의 일일 반복 항목. est 90분(≥60)으로 둔 이유: 구동기 pipeline_in_flight 가드가 저녁 파이프라인(retrain_champion ~20:37 시작) 실행 중에는 이 항목을 시작하지 못하게 막아, 후보 재생성이 끝난 뒤 틱에서만 돌게 한다(구버전 후보를 재판정하는 중복 기록 방지). summary_path 확인: services/xgboost-ml/reports/overnight/cg133_promote.json. 전일(CG132) 결과: dry-run kept_incumbent · 후보 AUC 0.5882 vs 챔피언 0.5513 · 순기대 -0.119%p ≤ 문턱 0.000 · 분할표본 불안정(앞 -0.2371/뒤 -0.0031) → 게이트가 AUC-only 후보를 정상 거부.",
+      "attempts": [
+        {
+          "ts": "2026-10-07T22:00:13+09:00",
+          "rc": 0,
+          "verdict": "게이트 통과(승격후보 생성)",
+          "detail": "dry-run status=would_promote · 후보 AUC 0.6083 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11820 · 양성률 0.4616 · 사유: dry-run: incumbent left untouched",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG133_20261007-220012.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "게이트 통과(승격후보 생성)",
+        "detail": "dry-run status=would_promote · 후보 AUC 0.6083 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11820 · 양성률 0.4616 · 사유: dry-run: incumbent left untouched",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG134",
+      "priority": 1,
+      "status": "done",
+      "kind": "measure",
+      "title": "CG133 후보의 실제 승격 시도(비-dry-run) — 라이브 스코어 게이트가 배포 경로를 지키는가 (MT116 재검증)",
+      "hypothesis": "CG133 dry-run 은 would_promote 였지만 champion_promote 의 dry_run 분기는 live_score_gate 검사 **앞에서** 반환한다 → 실제 승격 경로는 게이트 토큰 status=blocked(후보 신호 0건·최대 0.506 < 문턱 0.55, 챔피언 6건)로 차단될 것. 즉 MT116(2026-10-01: AUC 0.5548 승격 → 소비자 3세션 무진입) 방어가 실제로 작동하는지 확인한다.",
+      "command": "docker exec stock_xgboost_ml python /app/app/training/champion_promote.py --candidate /app/app/models/champion_cand --champion /app/app/models/champion --require-expectancy --summary-out /app/reports/overnight/cg134_promote_real.json",
+      "counterfactual": "현행 챔피언 app/models/champion (199피처, auc 0.551318, robust_oos 0.4908, 순기대 −0.182%p)",
+      "metric": "champion_promote_dryrun",
+      "success": "게이트 판정(status·사유·라이브 스코어 게이트)이 기록된다. blocked_live_score 면 현행 유지가 정답(후보 live 신호 0건 vs 챔피언 6건)이고 그 사유가 돈 지표·라이브 분포와 함께 원장에 남아야 한다. promoted 로 기록되면 즉시 docker restart stock_xgboost_ml + 사람 승인 절차로 올린다.",
+      "est_minutes": 3,
+      "note": "2026-10-07 22:0x 등록(엔지니어 일일 잡). CG133(dry-run would_promote · 후보 AUC 0.6083 · 순기대 +0.157%p t0.73 · 분할표본 both_positive)의 후속 실행 — dry-run 이 통과했으므로 비-dry-run 경로의 판정을 원장에 남긴다. summary_path 확인: services/xgboost-ml/reports/overnight/cg134_promote_real.json",
+      "attempts": [
+        {
+          "ts": "2026-10-07T22:03:02+09:00",
+          "rc": 0,
+          "verdict": "게이트 통과·라이브 스코어 차단(미승격)",
+          "detail": "dry-run status=blocked_live_score · 후보 AUC 0.6083 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11820 · 양성률 0.4616 · 사유: 라이브 스코어 게이트 미통과 — 승격 거부: 게이트 판정이 passed 가 아니다(status=blocked, 후보 신호 0건(문턱 0.55 초과, 챔피언 6건, 최대 0.5059415998692809))",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG134_20261007-220301.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "게이트 통과·라이브 스코어 차단(미승격)",
+        "detail": "dry-run status=blocked_live_score · 후보 AUC 0.6083 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11820 · 양성률 0.4616 · 사유: 라이브 스코어 게이트 미통과 — 승격 거부: 게이트 판정이 passed 가 아니다(status=blocked, 후보 신호 0건(문턱 0.55 초과, 챔피언 6건, 최대 0.5059415998692809))",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     }
   ],
   "updated": "2026-10-06"
