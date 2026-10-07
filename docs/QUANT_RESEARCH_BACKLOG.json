@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-07T00:04:47+09:00",
+  "updated_at": "2026-10-08T00:03:38+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -564,7 +564,20 @@
         "value": 1,
         "unit": "환류 경로 건강(1=정상 · 0=미달)"
       },
-      "check_note": "source of truth = `data/reports/trader_fill_stats.json`(ingest_trader_fills.py, jhshi crontab 평일 16:40). 판정: 리포트 없음/파싱불가=0 · generated_at 5일 초과 낡음=0(적재 크론 정지) · 닫힌 거래 n>0 인데 by_screener 비었거나 라벨 없는 키 존재=0(귀속 붕괴) · 닫힌 거래 0건=1(무거래는 결함 아님). 5일 = 금 16:40→월 휴장 시 최대 간격(주말·연휴를 결함으로 세지 않는다). ★ 확률구간(ml_prob) 귀속 여부는 **정보 줄**로만 찍는다 — 그 필드를 채우는 주체는 트레이더라 미달로 세우면 '고쳐도 못 통과하는 check' 가 된다."
+      "check_note": "source of truth = `data/reports/trader_fill_stats.json`(ingest_trader_fills.py, jhshi crontab 평일 16:40). 판정: 리포트 없음/파싱불가=0 · generated_at 5일 초과 낡음=0(적재 크론 정지) · 닫힌 거래 n>0 인데 by_screener 비었거나 라벨 없는 키 존재=0(귀속 붕괴) · 닫힌 거래 0건=1(무거래는 결함 아님). 5일 = 금 16:40→월 휴장 시 최대 간격(주말·연휴를 결함으로 세지 않는다). ★ 확률구간(ml_prob) 귀속 여부는 **정보 줄**로만 찍는다 — 그 필드를 채우는 주체는 트레이더라 미달로 세우면 '고쳐도 못 통과하는 check' 가 된다.",
+      "attempts": [
+        {
+          "ts": "2026-10-07T22:00:27+09:00",
+          "rc": 0,
+          "detail": "T17: 1 >= 1 → 충족"
+        }
+      ],
+      "result": {
+        "detail": "T17: 1 >= 1 → 충족",
+        "check_value": 1.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_T17_20261007-220027.log"
+      }
     },
     {
       "id": "R22",
@@ -784,13 +797,18 @@
           "ts": "2026-10-07T00:00:44+09:00",
           "rc": 0,
           "detail": "R21: 4 <= 2 → 미달"
+        },
+        {
+          "ts": "2026-10-08T00:01:21+09:00",
+          "rc": 0,
+          "detail": "R21: 2 <= 2 → 충족"
         }
       ],
       "result": {
-        "detail": "R21: 4 <= 2 → 미달",
-        "check_value": 4.0,
+        "detail": "R21: 2 <= 2 → 충족",
+        "check_value": 2.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R21_20261007-000030.log"
+        "log": "data/reports/res_cycle/logs/res_R21_20261008-000106.log"
       },
       "setup_needed": [
         "R21 감시 문턱/회전 주기 결정 필요 — 실측 2026-10-02 16:0x: 회전 = 250종목/일(호출 상한 500) ÷ 유니버스 794종목 = 3.18거래일 주기 → 수집이 완벽해도 꼬리 지연의 정상값이 3거래일이라 check(≤2)가 매 틱 2↔3 을 오간다(전량 스윕 직후에만 2). 선택지: (A) check 를 ≤3 으로 완화(문턱 변경 = 리뷰보드 승인) (B) 일일 호출 상한을 400종목/일(=800콜)로 확대해 주기를 2일로 단축(KIS 일일 한도 확인 필요). 권고 = (B). 어느 쪽이든 결정 전까지 이 줄은 오탐으로 읽어야 한다."
@@ -1114,6 +1132,31 @@
       ],
       "cost": "30분",
       "success": "결측>90% 살아있는 피처 수가 문턱 대비 해석 가능해지고(재보정 또는 dead 처리), SNS 신선도·커버리지 결함이 R17 로 단일 추적된다."
+    },
+    {
+      "id": "R30",
+      "title": "리서처 원장 JSONL 실행기록 소실 — 10-06 16:01~10-07 06:00 7건 부재(백로그 attempts 에는 존재)",
+      "status": "done",
+      "priority": 8,
+      "affects_model": false,
+      "kind": "investigate",
+      "hypothesis": "data/reports/researcher_ledger.jsonl 이 **git 추적 파일**인데, 마지막 커밋(309799d 'researcher(tick): 10-06 15:35 장마감') 이후의 미커밋 append 가 사라졌다. 현재 파일 끝이 커밋 판본(10-06T15:35:47 R21)과 정확히 일치하고 그 뒤(10-07 15:35~) 기록은 남아 있어, ①전체파일 재작성(base._rewrite_ledger) 경합 또는 ②git 조작(stash/checkout/restore)에 의한 되돌림으로 보인다. 원장은 런타임 산출물인데 형제 경로(res_cycle/·dq_snapshots/·me_cycle/·hygiene/)는 전부 .gitignore 인 반면 원장 2개(researcher·model_engineer)만 추적된다 — 이 비대칭이 사고 경로다.",
+      "evidence": "실측 2026-10-07 22:0x (읽기 전용): 원장 51행. 백로그 attempts 에는 R25 10-06T16:01:19 · R28 10-06T18:01:18 · R27 10-06T22:00:48 · R21 10-07T00:00:44 · R25 10-07T15:35:38 이 있으나, 원장에는 10-06T15:35:47(R21) 다음이 10-07T15:35:38(R25) — 그 사이 7건 부재. 실행 로그는 전부 존재(data/reports/res_cycle/logs/, 예: res_R21_20261007-000030.log 끝줄 '종료 rc=0 … 미달: R21: 4 <= 2'). git stash list 비어 있음·reflog 에 reset 없음 → 원인 미확정(위 2후보). 영향: R21 10-07 00:00 check=4(회전 유니버스 최대 지연 4거래일, 문턱 ≤2)는 역대 최악값이었는데 한 번도 보고되지 못했다(동시각 재측정은 2=통과, 수급 백필이 따라잡음).",
+      "method": "택일 후 적용: (A) 원장을 형제 경로처럼 런타임 산출물화(.gitignore + git rm --cached) (B) base._rewrite_ledger 호출 전 재로드·(ts,id) 병합으로 경합 제거 (C) 커밋 스냅샷 유지 + 소실 감지(백로그 attempts ↔ 원장 diff) 경보 추가.",
+      "command": null,
+      "check": null,
+      "check_target": null,
+      "setup_needed": [],
+      "cost": null,
+      "success": null,
+      "attempts": [],
+      "result": {
+        "detail": "[해소 — 승인 불필요] 방법 (A) 적용: data/reports/researcher_ledger.jsonl 를 런타임 산출물로 .gitignore 처리 + git rm --cached (commit fa5f9e9). 근거(실측 2026-10-08 00:0x): ① 원장이 추적 상태였고 git status 에 ' M' 로 미커밋 → 다른 역할 tick 의 checkout/restore 한 번이면 미커밋 append 가 되돌아간다(소실 창 10-06 16:01~10-07 06:00 등 7건과 정합). ② 형제 런타임 경로(me_cycle/·res_cycle/·dq_snapshots/·hygiene/)는 전부 이미 gitignore — 원장 2개(researcher·model_engineer)만 추적된 비대칭이 사고 경로였다. ③ 읽는 쪽(researcher_cycle.py·quant_scoreboard.py·improve_queue.py)은 전부 작업 파일 경로로만 읽고 git show/log 사용처 0건 → 추적 해제는 기능 영향 0. 검증: 작업 파일 52행 무손실(백업 대조 동일), git check-ignore 매칭 확인, push 완료.",
+        "method_applied": "A",
+        "commit": "fa5f9e9",
+        "remaining": "B(base._rewrite_ledger 재로드·(ts,id) 병합 — 전량 재작성 경합 제거)와 C(커밋 스냅샷 아카이브)는 (A) 후 재발이 확인될 때만 적용. 현재는 (A)로 소실 벡터 제거.",
+        "model_engineer_ledger": "주의(핸드오프 후보): data/reports/model_engineer_ledger.jsonl 도 동일하게 추적 상태 → 같은 소실 벡터. 소유자가 달라 리서처가 직접 수정하지 않음(§2)."
+      }
     }
   ]
 }
