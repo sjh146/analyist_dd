@@ -1,6 +1,6 @@
 {
   "metric_name": "champion_scorecard",
-  "generated_at": "2026-10-07T17:04:01",
+  "generated_at": "2026-10-07T22:09:35",
   "champion_dir": "services/xgboost-ml/app/models/champion",
   "champion_auc_txt": 0.551318,
   "insample": {
@@ -44,13 +44,13 @@
     }
   },
   "promote_dryrun": {
-    "status": "kept_incumbent",
-    "reason": "돈 기준 게이트 거부: 순기대 -0.119%p ≤ 문턱 +0.000%p; 분할표본 불안정(앞 -0.2371 / 뒤 -0.0031); 챔피언 -0.182%p 대비 개선 부족(≥ +0.1%p 필요)",
-    "candidate_auc": 0.5882,
+    "status": "blocked_live_score",
+    "reason": "라이브 스코어 게이트 미통과 — 승격 거부: 게이트 판정이 passed 가 아니다(status=blocked, 후보 신호 0건(문턱 0.55 초과, 챔피언 6건, 최대 0.5059415998692809))",
+    "candidate_auc": 0.6083,
     "champion_baseline": 0.5513,
     "baseline_source": "robust_auc.json",
-    "record_id": "CG132",
-    "record_ts": "2026-10-06T22:03:34+09:00"
+    "record_id": "CG134",
+    "record_ts": "2026-10-07T22:03:02+09:00"
   },
   "money": {
     "metric": "robust_auc",
