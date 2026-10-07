@@ -13034,12 +13034,13 @@
     {
       "id": "RB2b",
       "priority": 4,
-      "status": "backlog",
+      "status": "done",
       "title": "캐시 재사용 하드닝 잔여 — 동시성(락 없는 패널 동시 재사용)·중복명 index 붕괴",
       "hypothesis": "RB2 의 F3(사이드카 검증)만 구현됐다. 남은 둘: ① 두 프로세스가 같은 --panel 경로로 동시에 재사용/빌드하면 한쪽이 다른 쪽 파일을 읽는 사고(구동기 락은 '사이클' 단위일 뿐 같은 패널 경로를 강제하지 않는다) ② 피처명 중복 (__dupN)이 값 기준 index 매핑을 깨뜨리는 경로가 남아 있는지(현재는 dedupe_names 로 이름만 유일화).",
       "success": "각 항목에 '악화 유도 → 가드가 막거나 명시 실패' 1회 이상 실측(예: 같은 패널 경로 동시 2프로세스 → 두 번째가 명시 실패/대기 로그).",
       "metric": null,
-      "note": "RB2 에서 분리(2026-10-07). F3 는 done. 이 항목은 범위 미확정·미착수 — 착수 시 command/counterfactual/success 를 채워 pending 으로 승격하라(현재 상태로 pending 승격 금지: command 없음)."
+      "note": "RB2 에서 분리(2026-10-07). F3 는 done. 이 항목은 범위 미확정·미착수 — 착수 시 command/counterfactual/success 를 채워 pending 으로 승격하라(현재 상태로 pending 승격 금지: command 없음).",
+      "result": "수리 완료(2026-10-07 16:0x 엔지니어 자율). ① **패널 경로 advisory 락**(`scripts/panel_meta.py::PanelLock` — reader=SH·builder=EX, 비블로킹 기본, `PANEL_LOCK_WAIT=<초>` 로 대기, fcntl 없는 플랫폼은 생략) + `wf_wave.build_panel` 을 래퍼로 감싸 배선(npz 있으면 SH, 없으면 EX). 이제 같은 `--panel` 경로에 두 프로세스가 동시에 들어가면 즉시 `PanelLockBusy` 로 **명시 실패**한다 — 조용히 겹쳐 돌지 않는다(2026-10-04 CG92 pair/s 5.05→1.16 사고의 구조적 차단). ② **중복명 index**: `dedupe_names` 가 패널 경계에서 이름을 유일화하고 재사용 경로가 `X.shape[1]==len(names)` 를 강제하므로, 남아 있던 `feature_names.index(f)` 2곳(wf_label_sweep L1093·L1181)은 유일 이름 위에서 안전하다(자체점검 18·19). 검증: `scripts/_panel_lock_test.py` — 호스트 14/14 · 컨테이너 19/19 PASS(e2e: EX중EX 차단 · SH중SH 공존 · SH중EX 차단 · 신규 빌드는 DB 진입 전 차단 · 중복 라벨 dedupe 규약). 추가 실측: 컨테이너 자식 SIGKILL 후 **stale 락 없음**(재획득 성공 — 락은 fd 기반이라 커널이 해제). build_panel e2e: 빌드(EX) rows=177 rc=0 68.8s · 재사용(SH) 0.0s rc=0. 회귀: _panel_meta_test 39/39(호스트)·45/45(컨테이너 e2e) · _derived_feature_test 전부 PASS · _drop_dup_test ALL PASS · _ic_select_test 13/0 · _summary_path_test 16/0 · _paired_judge_test 6/6."
     },
     {
       "id": "MT189",

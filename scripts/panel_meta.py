@@ -38,9 +38,16 @@
 import json
 import os
 import tempfile
+import time
 from datetime import datetime
 
+try:                                     # POSIX 전용. 비-POSIX(예: Windows 파이썬)에선 잠금 생략.
+    import fcntl
+except ImportError:                      # pragma: no cover
+    fcntl = None
+
 META_SUFFIX = ".build_meta.json"
+LOCK_SUFFIX = ".lock"
 
 # 요청 조건 중 사이드카와 비교할 키(hard). 순서는 로그 가독성용.
 REQUEST_KEYS = ("universe", "universe_seed", "limit", "days", "end_date", "universe_opts")
@@ -213,3 +220,127 @@ def format_line(status, diffs, meta=None):
                 ") — 값이 달라졌을 수 있으니 같은 경로로 A/B 하는지 확인하라")
     return ("⚠ panel meta 불일치(스냅샷이 다름) — 이 npz 는 지금 요청과 다른 조건으로 만들어졌다: "
             + " | ".join(diffs) + " → 재빌드하거나 요청을 맞춰라(조용한 스냅샷 불일치 방지)")
+
+
+# ---------------------------------------------------------------------------
+# 패널 경로 단위 advisory 락 (백로그 RB2b ①)
+#
+# 왜 필요한가 (이 역할의 실측 사고 목록):
+#   `build_panel` 은 '완성 npz 재사용'과 '신규 빌드' 두 길로 들어간다. 둘 다 **같은 경로**를
+#   쓰는데 프로세스 간 조정이 없었다(구동기 락은 '사이클' 단위일 뿐 특정 --panel 경로를 강제하지
+#   않는다). 그래서 다음이 구조적으로 가능하다 — 그리고 값은 그럴듯하게 나온다:
+#     ① 두 프로세스가 같은 --panel 을 동시에 빌드 → 같은 체크포인트에 교차 저장,
+#        실측(2026-10-04 CG92) pair/s 5.05 → 1.16 으로 반토막(한쪽은 timeout 잔존 프로세스였다).
+#     ② 한쪽이 빌드 중인 경로를 다른 쪽이 재사용 → 반쯤/옛 상태를 읽는 조용한 스냅샷 불일치.
+#     ③ 같은 덤프·산출물 경로에 동시 쓰기 → 로그/결과가 섞인다(2026-10-04 q05 평가 3중 기동).
+#
+# 설계(반드시 유지):
+#   · 락 파일은 패널 옆 `<cache>.lock` — 락 **대상**은 패널 경로다.
+#   · **reader 는 shared(SH), builder 는 exclusive(EX)**. 완성 패널을 여러 프로세스가 읽는 것은
+#     무해하므로 SH-SH 는 공존하고, 빌드(EX)만 reader 와 상호배타다. 이래야 정상 재사용이
+#     서로 막히지 않는다.
+#   · 기본은 **비블로킹**이다 — 못 잡으면 즉시 `PanelLockBusy` 로 **명시 실패**한다(조용히 겹쳐
+#     돌지 않는다). 기다리려면 env `PANEL_LOCK_WAIT=<초>`.
+#   · 락은 fd 기반이라 프로세스가 죽으면(SIGKILL 포함) 커널이 자동 해제한다 — stale 락이 없다.
+#   · fcntl 이 없는 플랫폼에선 잠금을 생략하고 경고만 남긴다(측정을 막지 않는다).
+# ---------------------------------------------------------------------------
+
+class PanelLockBusy(RuntimeError):
+    """다른 프로세스가 같은 패널 경로를 빌드/사용 중이라 잠금을 못 잡았다."""
+
+
+def lock_path(cache):
+    """패널 경로 → 락 파일 경로."""
+    return cache + LOCK_SUFFIX
+
+
+def _lock_wait_sec():
+    """PANEL_LOCK_WAIT(초). 파싱 실패/미설정 → 0(즉시 실패)."""
+    try:
+        return max(0.0, float(os.environ.get("PANEL_LOCK_WAIT", "0")))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+class PanelLock:
+    """패널 경로 단위 advisory 락.
+
+    mode: 'ex'(빌드/쓰기) | 'sh'(완성 패널 읽기 재사용)
+    사용: `with PanelLock(cache, mode='ex', log=log): ...`
+    """
+
+    def __init__(self, cache, mode="ex", log=print, wait=None):
+        if mode not in ("ex", "sh"):
+            raise ValueError(f"mode 는 'ex'|'sh' 여야 한다: {mode!r}")
+        self.cache = cache
+        self.mode = mode
+        self.log = log
+        self.wait = _lock_wait_sec() if wait is None else max(0.0, float(wait))
+        self.path = lock_path(cache)
+        self.fd = None
+
+    def _holder_hint(self):
+        try:
+            with open(self.path, "r", encoding="utf-8") as f:
+                txt = " ".join(f.read().split())
+            return f" · 보유자: {txt}" if txt else ""
+        except OSError:
+            return ""
+
+    def acquire(self):
+        if fcntl is None:
+            self.log("panel lock: fcntl 없음(비-POSIX) — 잠금 생략")
+            return self
+        d = os.path.dirname(self.path)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o644)
+        flag = fcntl.LOCK_EX if self.mode == "ex" else fcntl.LOCK_SH
+        deadline = time.time() + self.wait
+        while True:
+            try:
+                fcntl.flock(self.fd, flag | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.time() >= deadline:
+                    try:
+                        os.close(self.fd)
+                    finally:
+                        self.fd = None
+                    what = "빌드" if self.mode == "ex" else "사용"
+                    raise PanelLockBusy(
+                        f"다른 프로세스가 같은 패널({self.cache})을 {what} 중이다 — 잠금을 못 잡았다"
+                        + self._holder_hint()
+                        + ". 중복 실행은 같은 체크포인트 교차 저장(pair/s 반토막)이나 반쯤 쓰인 "
+                          "패널 read 를 만든다. 기다리려면 PANEL_LOCK_WAIT=<초> 를 주라.")
+                time.sleep(0.2)
+        try:                              # 보유자 힌트(디버깅용 — 락 semantics 와 무관)
+            os.ftruncate(self.fd, 0)
+            os.write(self.fd, (
+                f"pid={os.getpid()} mode={self.mode} "
+                f"at={datetime.now().isoformat(timespec='seconds')}\n").encode("utf-8"))
+        except OSError:
+            pass
+        return self
+
+    def release(self):
+        if self.fd is None:
+            return
+        try:
+            if fcntl is not None:
+                try:
+                    fcntl.flock(self.fd, fcntl.LOCK_UN)
+                except OSError:
+                    pass
+        finally:
+            try:
+                os.close(self.fd)
+            finally:
+                self.fd = None
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, *exc):
+        self.release()
+        return False

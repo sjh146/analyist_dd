@@ -260,7 +260,27 @@ def select_panel_codes(pg, limit, universe="curated", universe_seed=0, log=print
 
 def build_panel(cache, limit, days, log=print, end_date=None, universe="curated",
                 universe_seed=0, **universe_opts):
-    """패널 캐시를 만들거나 재사용한다.
+    """패널을 만들거나 재사용한다 — **패널 경로 단위 advisory 락**으로 감싼 공개 진입점.
+
+    백로그 RB2b ①: 같은 `--panel` 경로에 두 프로세스가 동시에 들어가면 ①같은 체크포인트 교차
+    저장(실측 CG92 pair/s 5.05→1.16) ②반쯤 쓰인 패널 read ③같은 산출물 동시 쓰기가 가능했다
+    (구동기 락은 '사이클' 단위라 특정 패널 경로를 강제하지 않는다).
+      · 기존 npz 가 있으면 **shared(SH)** — 정상 재사용끼리는 서로 막지 않는다.
+      · 없으면 **exclusive(EX)** — 빌드 중에는 같은 경로의 다른 사용을 즉시 거부한다.
+    못 잡으면 `panel_meta.PanelLockBusy` 로 **명시 실패**한다(조용히 겹쳐 돌지 않는다).
+
+    동작 상세(구간 고정·유니버스 옵션·체크포인트 재개 등)는 `_build_panel_locked` 참조.
+    """
+    mode = "sh" if os.path.exists(cache) else "ex"
+    with panel_meta.PanelLock(cache, mode=mode, log=log):
+        return _build_panel_locked(cache, limit, days, log=log, end_date=end_date,
+                                   universe=universe, universe_seed=universe_seed,
+                                   **universe_opts)
+
+
+def _build_panel_locked(cache, limit, days, log=print, end_date=None, universe="curated",
+                        universe_seed=0, **universe_opts):
+    """패널 캐시를 만들거나 재사용한다(호출자가 락을 이미 잡았다고 가정).
 
     end_date: 빌드 구간의 끝 날짜(YYYY-MM-DD). 기본 None = 실행 시각(now).
       ⚠ 왜 필요한가(실측 2026-09-28): 구간이 `end=now` 로 매일 하루씩 밀리므로 **체크포인트가
