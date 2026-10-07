@@ -6209,21 +6209,29 @@
     {
       "id": "MT70",
       "title": "swing 확률 피드가 소비자 R1 문턱 아래 — 전략 경로 차단",
-      "status": "diagnosed",
+      "status": "done",
       "priority": 4,
       "from_trader": "swing-r1-prob-below-threshold",
       "created_at": "2026-09-29T13:28:38+09:00",
       "arm": null,
-      "counterfactual": null,
+      "counterfactual": "swing top10 평균확률 < r1_min_avg_prob['swing']=0.58 (R1 차단 조건)",
       "baseline": null,
-      "command": null,
+      "command": "python3 scripts/_feed_consumer_probe.py",
       "metric": "wf_sweep_summary",
       "hypothesis": "2026-09-29 13:25 실측: 피드 swing 후보 20건 score_kind=calibrated_prob, 확률 0.5038~0.6245 (평균 0.550), ml_auc 0.551. 소비자(runner.config.r1_min_avg_prob=0.58)가 평균확률로 판정해 'R1 block swing: avg prob 0.550 < 0.58' 로 오늘 하루 swing 진입이 전면 차단됐다(decisions 600건 전부 차단). 문턱을 낮추는 것은 전략 파라미터라 사람 승인 사항이므로, 측면에서는 모델 확률 분포(보정 후 평균 0.550)가 문턱 위로 올라오는 것이 엔지니어 소유 해결책이다.",
       "evidence": "트레이더 사이클 요구: 2026-09-29 13:25 실측: 피드 swing 후보 20건 score_kind=calibrated_prob, 확률 0.5038~0.6245 (평균 0.550), ml_auc 0.551. 소비자(runner.config.r1_min_avg_prob=0.58)가 평균확률로 판정해 'R1 block swing: avg prob 0.550 < 0.58' 로 오늘 하루 swing 진입이 전면 차단됐다(decisions 600건 전부 차단). 문턱을 낮추는 것은 전략 파라미터라 사람 승인 사항이므로, 측면에서는 모델 확률 분포(보정 후 평균 0.550)가 문턱 위로 올라오는 것이 엔지니어 소유 해결책이다.",
       "success": null,
       "expected": "미지",
       "cost": null,
-      "note": "근거(2026-10-04): ① CG83 — 절대문턱 0.55 는 정직 보정(Platt, cross-fitted)으로도 성립 불가(보정 후 p90 0.5378·max 0.6364 → 문턱 초과 선택이 raw 37.0%→6.2% 로 줄어든다) ② CG96~CG100 — 모델 엣지 자체가 없음. 소비 정책을 절대문턱→분위 top-k 로 바꾸는 것은 트레이더 소유 파일(scripts/swing_screener.py·signal_validator) = 승인 대상(CG82 ①)."
+      "note": "근거(2026-10-04): ① CG83 — 절대문턱 0.55 는 정직 보정(Platt, cross-fitted)으로도 성립 불가(보정 후 p90 0.5378·max 0.6364 → 문턱 초과 선택이 raw 37.0%→6.2% 로 줄어든다) ② CG96~CG100 — 모델 엣지 자체가 없음. 소비 정책을 절대문턱→분위 top-k 로 바꾸는 것은 트레이더 소유 파일(scripts/swing_screener.py·signal_validator) = 승인 대상(CG82 ①). | 2026-10-07 17:1x 엔지니어 자율 — 재현명령 저작 + 현행 실측(오프라인·읽기 전용, `scripts/_feed_consumer_probe.py` → `data/reports/feed_consumer_probe_20261007.txt`): swing top10 평균확률 0.6191 ≥ 0.58 = PASS(문턱 위). close top10평균 89.73 ≥ 88 = PASS. daytrading 은 composite → r1_min_avg_score 에 키 없음 → apply_r1 continue = R1 무제한(MT189 로 이관).",
+      "result": "[현행 재현 안 됨] 피드 2026-10-07T15:06:52 기준 swing 20건 top10 평균확률 0.6191 ≥ R1 문턱 0.58 → R1 통과(차단 없음). 2026-09-29 의 '0.550 < 0.58' 차단은 재현되지 않는다 — 문턱은 코드 상수가 아니라 **피드 분포 의존**이라 재현 명령을 남기고 닫는다(재발 시 같은 명령이 BLOCK 을 출력한다). 남은 소비정책 이슈(절대문턱→분위 top-k)는 CG82(트레이더 소유·승인).",
+      "attempts": [
+        {
+          "ts": "2026-10-07T17:1x+09:00",
+          "outcome": "done",
+          "detail": "재현명령 저작 + 현행 실측 PASS(0.6191 >= 0.58)"
+        }
+      ]
     },
     {
       "id": "MT71",
@@ -13059,7 +13067,8 @@
       "success": null,
       "expected": "미지",
       "cost": null,
-      "note": "트레이더가 요구한 자료 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다."
+      "note": "트레이더가 요구한 자료 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. | 2026-10-07 17:1x 엔지니어 자율 — 오프라인 증명 완료(읽기 전용, 실주문·KIS 호출 없음)로 승인 즉시 적용 가능 상태. 트레이더 진단(15:2x)은 정확: RunnerConfig.screeners=['close','swing'] 가 trader_core 의 daytrading 포함 기본값을 덮는다. 부수 확인: R1 에 daytrading 키가 없어 게이트 없음(무제한) — screeners 만 열면 20건이 그대로 계획 단계로 들어간다(문턱 동반 추가 권장).",
+      "setup_needed": "수리 대상은 **트레이더 레포(실주문 경로 확장 = 승인 대상)** 이나 사양·증거는 확정(2026-10-07 오프라인 증명: `scripts/_feed_consumer_probe.py` → `data/reports/feed_consumer_probe_20261007.txt`). 확정 사실: ① 피드 정상 — daytrading 20건이 score_kind=composite(61.3~64.7)로 발행된다(커밋 8725d12) ② 라이브 루프는 `run_market_loop.py run --loop --live --yes --feed http://127.0.0.1:8090/screener_latest.json`(loop_start_bg.bat:27, --screener 인자 없음) → RunnerConfig.screeners 기본값 ['close','swing'](runner/config.py:213) → engine_config() 가 trader_core 의 3-스크리너 기본값(trader_core/config.py:225 = ['close','swing','daytrading'])을 **덮어쓴다** → engine.py:319 순회에서 daytrading 이 빠져 평가 0. 수리안 3개(택1): A(권장) runner/config.py:213 기본값에 'daytrading' 추가 · B strategy_params.json 에 \"screeners\": [\"close\",\"swing\",\"daytrading\"] 추가(apply_params 가 CLI 뒤에 적용 — 단 tools/review.py 재작성 시 키 보존 확인 필요) · C loop_start_bg.bat 에 --screener close,swing,daytrading. + R1 문턱: runner/config.py:225 r1_min_avg_score 에 'daytrading': <문턱> 추가(없으면 apply_r1 이 continue → 무제한 통과; spread 3.4 로 선별력 낮음). 검증: ① `python3 -c \"from runner.config import RunnerConfig;print(RunnerConfig().apply_params().screeners)\"` → ['close','swing','daytrading'] ② 루프 재기동(내일 08:30) 후 저널에 screener='daytrading' 결정행 > 0(현재 0건)."
     }
   ],
   "updated": "2026-10-06"
