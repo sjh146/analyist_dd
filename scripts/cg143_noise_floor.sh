@@ -34,7 +34,9 @@ run a1 "$ANCHOR_A"
 run a2 "$ANCHOR_A"
 run b1 "$ANCHOR_B"
 
-python3 - "$HOSTOUT" "$ANCHOR_A" "$ANCHOR_B" <<'PY' >>"$LOG" 2>&1
+# 집계는 **컨테이너 안**에서 한다: services/xgboost-ml/reports/overnight 는 컨테이너(root)가
+# 소유해 호스트 사용자(jhshi)가 쓸 수 없다(실측 2026-10-09 05:0x PermissionError). 읽기는 644 라 문제없다.
+docker exec -i stock_xgboost_ml python3 - "$OUTDIR" "$ANCHOR_A" "$ANCHOR_B" <<'PY' >>"$LOG" 2>&1
 import json, os, sys
 host, a, b = sys.argv[1], sys.argv[2], sys.argv[3]
 

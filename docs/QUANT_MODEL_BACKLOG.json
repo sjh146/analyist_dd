@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-09T05:05:20+0900",
+  "updated_at": "2026-10-09T05:10:32+0900",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -13375,7 +13375,31 @@
       ],
       "verify_cmd": "python3 -c \"import json;d=json.load(open('services/xgboost-ml/reports/overnight/cg143_noise_floor.json'));print(d['determinism_same_anchor'],d['auc'],d['anchor_shift_delta'],d['verdict'])\"",
       "added": "2026-10-09",
-      "note": "2026-10-09 엔지니어 자율(장외 루프). 발단: 원장의 champion_robust_eval 25행을 전수 집계하니 **배포 챔피언(모델 2026-09-24 이후 불변)** 의 재측정이 0.4935~0.5448(폭 0.0513 · std 0.0148 · n=13)였고, 명시적 동일 프로토콜 문자열('same-run 3-window OOS (rel h5, 60 stocks, purge=5)')의 1일 차 2회가 CG136 0.5354 → CG139 0.5127 = Δ0.0227 이었다. 사전문턱 +0.02 와 같은 크기 → 지금까지의 '신호있음'(CG4/CG6/CG17/CG19/CG20/CG21 등)과 '무개선 19사이클' 카운터 모두 잡음과 구분 불가일 수 있다. 이 항목은 새 AUC 레버가 아니라 **계측기 검정**이다(그래서 affects_model=false). 배경 함정: script 의 trading_dates() 앵커가 CURRENT_DATE - 7d 라 창이 매일 밀리고, 유동성 유니버스도 최근 120거래일 기준이라 함께 밀린다 — CG142(학습 유니버스 87% 재추첨)와 같은 계열의 '실행 시각 = 창' 문제다. ⚠ 이 항목이 끝나면 판정 결과에 따라 ②(리뷰보드 승인) 항목을 올린다."
+      "note": "2026-10-09 엔지니어 자율(장외 루프). 발단: 원장의 champion_robust_eval 25행을 전수 집계하니 **배포 챔피언(모델 2026-09-24 이후 불변)** 의 재측정이 0.4935~0.5448(폭 0.0513 · std 0.0148 · n=13)였고, 명시적 동일 프로토콜 문자열('same-run 3-window OOS (rel h5, 60 stocks, purge=5)')의 1일 차 2회가 CG136 0.5354 → CG139 0.5127 = Δ0.0227 이었다. 사전문턱 +0.02 와 같은 크기 → 지금까지의 '신호있음'(CG4/CG6/CG17/CG19/CG20/CG21 등)과 '무개선 19사이클' 카운터 모두 잡음과 구분 불가일 수 있다. 이 항목은 새 AUC 레버가 아니라 **계측기 검정**이다(그래서 affects_model=false). 배경 함정: script 의 trading_dates() 앵커가 CURRENT_DATE - 7d 라 창이 매일 밀리고, 유동성 유니버스도 최근 120거래일 기준이라 함께 밀린다 — CG142(학습 유니버스 87% 재추첨)와 같은 계열의 '실행 시각 = 창' 문제다. ⚠ 이 항목이 끝나면 판정 결과에 따라 ②(리뷰보드 승인) 항목을 올린다. | 2026-10-09 05:0x 수동 1차 런 완료(결정성 PASS · 앵커 이동 Δ0.0175). 다음 틱이 같은 명령을 재실행해 원장에 판정을 남긴다(재현 확인 겸).",
+      "pilot_result": {
+        "ran_at": "2026-10-09T05:04~05:10+09:00",
+        "who": "engineer(자율, 수동 1차 런)",
+        "determinism_same_anchor": true,
+        "auc": {
+          "a1_anchor_20261007": 0.4531,
+          "a2_anchor_20261007": 0.4531,
+          "b1_anchor_20261006": 0.4356
+        },
+        "folds": {
+          "a1": [
+            0.4595,
+            0.4467
+          ],
+          "b1": [
+            0.4091,
+            0.4621
+          ]
+        },
+        "anchor_shift_delta": 0.0175,
+        "pre_registered_bucket": "0.01~0.02 = 부분 잡음",
+        "conclusion": "① 프로토콜은 **결정적**(같은 앵커 2회 비트 동일 — 폴드 AUC 목록까지 동일). ② 앵커 1일 이동만으로 같은 모델이 Δ0.0175(0.4531→0.4356) 흔들린다 = 사전문턱 +0.02 의 0.88배. 원장의 동일 프로토콜 1일 차 Δ0.0227(CG136/139)·유니버스 정체 잡음 0.0287(CG46)과 합치면 **잡음바닥 ≈ 0.018~0.029 = 문턱과 동급**. ③ 이 config 는 유동성 60종목(ETF/ETN 25개·학습유니버스 교집합 1)이라 절대 수준(0.43~0.45)이 낮다 — 잡음 추정용이지 성능치가 아니다.",
+        "artifact": "services/xgboost-ml/reports/overnight/cg143_noise_floor.json (+ cg143_a1/a2/b1.json)"
+      }
     }
   ],
   "updated": "2026-10-09"

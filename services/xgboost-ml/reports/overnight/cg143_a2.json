@@ -1,0 +1,55 @@
+{
+  "model_dir": "app/models/champion",
+  "window_anchor": "2026-10-07",
+  "protocol": "2-fold 연속 시간창, h=5 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=5거래일",
+  "label_kind": "rel",
+  "label_q": null,
+  "universe": {
+    "mode": "liquidity",
+    "n": 60,
+    "n_etf_etn": 25,
+    "overlap_train200": 1
+  },
+  "metric": "cross_sectional_auc_mean",
+  "robust_auc": 0.4531,
+  "train_start": "2026-07-03",
+  "train_end": "2026-10-01",
+  "oos_only": true,
+  "windows_excluded": [
+    [
+      "2026-06-23",
+      "2026-09-28"
+    ]
+  ],
+  "n_windows_excluded": 1,
+  "auc_std_across_folds": 0.0064,
+  "folds": [
+    {
+      "fold": 1,
+      "window": [
+        "2025-12-04",
+        "2026-03-09"
+      ],
+      "n_dates": 5,
+      "auc_mean": 0.4595,
+      "auc_std": 0.06
+    },
+    {
+      "fold": 2,
+      "window": [
+        "2026-03-17",
+        "2026-06-15"
+      ],
+      "n_dates": 5,
+      "auc_mean": 0.4467,
+      "auc_std": 0.1585
+    }
+  ],
+  "dates_scored": 10,
+  "rows_scored": 545,
+  "auc_pooled": 0.4561,
+  "auc_per_date_mean": 0.4531,
+  "model_aucs": null,
+  "errors": 0,
+  "measured_at": "2026-10-08T20:07:40"
+}
