@@ -879,6 +879,12 @@ def summary_path(kind, command=None):
         # 스키마가 folds/robust_auc 가 아니라 결정성·앵커이동 Δ 라 기존 파서에 안 담긴다.
         # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg143_noise_floor.json")
+    if kind == "protocol_noise_curve":
+        # 프로토콜 잡음바닥 **스케일링**(scripts/cg144_noise_curve.sh — 앵커 1·2·5·7거래일). CG144.
+        # 왜 전용 metric 인가(2026-10-09): CG143 의 단일 1일 차 Δ(0.0175)만으로는 '이동폭이 커지면
+        # 문턱을 넘나'를 알 수 없다 — 그 곡선이 일 단위 판정 가능성(= 문턱 재정의 필요성)을 결정한다.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg144_noise_curve.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -1039,6 +1045,36 @@ def parse_protocol_noise_floor(path, mtime_floor) -> dict:
         "folds": d.get("folds"), "windows": d.get("windows"),
         "verdict": verdict, "summary_mtime": mt,
     }
+
+
+def parse_protocol_noise_curve(path, mtime_floor) -> dict:
+    """프로토콜 잡음바닥 **스케일링** 요약(scripts/cg144_noise_curve.sh)을 파싱한다 (CG144).
+
+    스키마: {base_anchor, anchors{d0..d7}, auc{tag}, deltas{tag vs d0}, folds{tag},
+             max_abs_delta, pre_registered_threshold, verdict}
+    ⚠ **per_exp 를 만들지 않는다** — 값이 AUC 자체가 아니라 앵커 이동 잡음이라 스코어보드에
+    넣으면 가짜 개선이 난다(parse_protocol_noise_floor 와 동형).
+    """
+    if not path or not os.path.exists(path):
+        return {"error": "요약 파일 없음", "path": path}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    errs = d.get("errors") or {}
+    if errs or (d.get("auc") or {}).get("d0") is None:
+        return {"error": f"런 실패(앵커 {d.get('anchors')})", "errors": errs, "summary_mtime": mt}
+    return {"metric_name": d.get("metric"), "protocol": d.get("config"),
+            "base_anchor": d.get("base_anchor"), "anchors": d.get("anchors"),
+            "auc": d.get("auc"), "deltas": d.get("deltas"), "folds": d.get("folds"),
+            "max_abs_delta": d.get("max_abs_delta"),
+            "threshold": d.get("pre_registered_threshold"),
+            "verdict": d.get("verdict"), "summary_mtime": mt}
 
 
 def parse_champion_seed_family(path, mtime_floor) -> dict:
@@ -1308,6 +1344,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_intraday_screen(spath, mtime_floor)
     if kind == "protocol_noise_floor":
         return parse_protocol_noise_floor(spath, mtime_floor)
+    if kind == "protocol_noise_curve":
+        return parse_protocol_noise_curve(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -2390,9 +2428,55 @@ def judge_factor_money_screen(item, parsed) -> tuple:
     return ("노이즈", detail + " — 미검출(문턱 이하)", round(m, 4))
 
 
+def judge_protocol_noise_floor(item, parsed) -> tuple:
+    """CG143 — 프로토콜 재현 잡음바닥(계측기 검정). 모델 팔 실험이 **아니다**.
+
+    ⚠ delta 는 항상 None 을 돌려준다: 여기 숫자는 '성능 개선폭'이 아니라 '같은 모델을 하루 옮겼을 때의
+    흔들림'이라 무개선 카운터·스코어보드 개선 판정에 넣으면 가짜 신호가 난다(parsed 에 per_exp 를
+    일부러 안 싣는 이유와 동형). 판정 문구는 파서가 만든 결정성/문턱 비교 결과를 그대로 쓴다.
+
+    왜 필요(실측 2026-10-09 06:05 CG143): 파서(`parse_protocol_noise_floor`)는 배선돼 있었지만
+    `judge_by_metric` 에 분기가 없어 `judge_per({})` 로 흘러 **원장 헤드라인 verdict 가 '판정불가',
+    detail ''** 로 기록됐다 — 유효한 실측(rc=0·요약 정상)이 판정 없이 남았다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    auc = parsed.get("auc") or {}
+    folds = parsed.get("folds") or {}
+    anchors = parsed.get("anchors") or {}
+    shift, thr = parsed.get("anchor_shift_delta"), parsed.get("threshold")
+    det = bool(parsed.get("determinism_same_anchor"))
+    verdict = parsed.get("verdict") or "판정불가"
+    detail = (f"결정성 {'OK' if det else '위반'}"
+              f" · 앵커 {anchors.get('A')}→{anchors.get('B')} Δ{shift} (사전문턱 {thr})"
+              f" · AUC a1/a2/b1 {auc.get('a1')}/{auc.get('a2')}/{auc.get('b1')}"
+              f" · 폴드 a1 {folds.get('a1')} b1 {folds.get('b1')}"
+              f" · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관")
+    return verdict, detail, None
+
+
+def judge_protocol_noise_curve(item, parsed) -> tuple:
+    """CG144 — 앵커 이동폭별 잡음 곡선. 계측기 검정이라 delta=None(개선 카운터·스코어보드 무관)."""
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    verdict = parsed.get("verdict") or "판정불가"
+    auc = parsed.get("auc") or {}
+    deltas = parsed.get("deltas") or {}
+    auc_s = " ".join(f"{k}:{auc[k]}" for k in sorted(auc))
+    d_s = " ".join(f"{k}:{deltas.get(k)}" for k in sorted(deltas))
+    detail = (f"기준 앵커 {parsed.get('base_anchor')} · AUC {auc_s} · Δ(vs d0) {d_s}"
+              f" · 최대 |Δ| {parsed.get('max_abs_delta')} (사전문턱 {parsed.get('threshold')})"
+              f" · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관")
+    return verdict, detail, None
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
+    if kind == "protocol_noise_floor":
+        return judge_protocol_noise_floor(item, parsed)
+    if kind == "protocol_noise_curve":
+        return judge_protocol_noise_curve(item, parsed)
     if kind == "blend_eval":
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":
