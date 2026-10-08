@@ -174,6 +174,10 @@ def _select_stocks(pg, limit: int, mode: str = "recency") -> List[str]:
     """재학습 유니버스 — ETF/ETN 제외 + (mode) 선택 (universe.py 참조).
 
     mode 기본 "recency" = 현행 동작 비트 동일. "liquidity" 는 CG57 실험용(일평균 거래대금 상위).
+
+    ⚠ 유니버스 동결(2026-10-09): 기본 창은 `now − 60일` 이라 **날짜가 바뀌면 재학습 표본이
+    통째로 재추첨**된다(실측: 적격 5종목 차이 → 선택 200종목 교집합 26/200). 재현이 필요하면
+    `UNIVERSE_ASOF_DATE=YYYY-MM-DD` 를 설정하라 — 창이 그 날짜 기준으로 고정된다(미설정 = 현행).
     """
     from app.training.universe import select_training_universe
 

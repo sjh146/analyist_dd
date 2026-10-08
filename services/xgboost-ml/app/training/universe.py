@@ -12,6 +12,7 @@ reproducible.
 """
 
 import logging
+import os
 import random
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -59,7 +60,20 @@ def _fetch_eligible(pg, date_from: str, min_days: int) -> List[dict]:
 
 
 def _default_date_from(days: int = 60) -> str:
-    return (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    """적격 창 시작일 = (UNIVERSE_ASOF_DATE | 오늘) − days.
+
+    유니버스 동결(측정 정합성, 2026-10-09 실측): 종전 구현은 `datetime.now() − days` 라
+    **날짜가 바뀌면 창이 미끄러지고**, 적격 집합이 아주 조금만 달라져도(실측: 2,652 vs 2,657행
+    = 5종목 차이) `rng.shuffle(eligible)` 의 **입력 순서**가 바뀌어 `top[:limit]` 이 통째로
+    재추첨된다 → 같은 seed=0 인데도 선택 200종목의 교집합이 26/200(=87% 교체)이었다.
+    그 결과 (a) 프로덕션 재학습 유니버스가 매일 다른 표본이 되고(패널은 end-date 고정이라
+    평가 표본과 최대 31/200 만 일치), (b) '같은 유니버스' 를 전제한 실험 비교가 표본 교체와
+    뒤섞인다. `UNIVERSE_ASOF_DATE=YYYY-MM-DD` 를 지정하면 창이 고정돼 유니버스가 재현된다.
+    미설정이면 종전과 **비트 동일**(현행 유지) — 동결 여부는 운영 결정이다.
+    """
+    asof = os.environ.get("UNIVERSE_ASOF_DATE")
+    ref = datetime.strptime(asof, "%Y-%m-%d") if asof else datetime.now()
+    return (ref - timedelta(days=days)).strftime("%Y-%m-%d")
 
 
 def _fetch_liquid(pg, date_from: str, min_days: int, window_days: int = 60) -> List[dict]:

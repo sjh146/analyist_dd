@@ -1,0 +1,66 @@
+유니버스 시간 안정성 실측 — 2026-10-09 (엔지니어 자율, 장외 루프)
+==============================================================================
+재현:
+  docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_universe_stability_probe.py
+  docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_cg141_scope_probe.py
+  docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_universe_pin_test.py
+
+[1] _universe_stability_probe.py — 패널 vs 프로덕션 학습 유니버스
+------------------------------------------------------------------------------
+[default(now-60)] n=200 ∩panel=31 sample=['000390', '000590', '001420', '001800']
+[2026-08-03]      n=200 ∩panel=56 sample=['000120', '000150', '000215', '000760']
+[2026-08-10]      n=200 ∩panel=31 sample=['000390', '000590', '001420', '001800']
+[2026-09-27]      n=0   ∩panel=0  sample=[]
+  default ∩ 2026-08-03 = 26/200
+  default ∩ 2026-08-10 = 200/200     ← 같은 date_from 이면 완전 동일(원인은 날짜 하나)
+  default ∩ 2026-09-27 = 0/200
+eligible[now-60 → date_from 2026-08-09]: 2652종목
+eligible[date_from 2026-08-03]          : 2657종목     ← 적격 풀이 5종목(0.19%) 차이
+
+→ 같은 seed=0 인데 선택 200종목 교집합 26/200 = **87% 교체**.
+  메커니즘: 적격 정렬은 latest 내림차순이고 2,541/2,652 종목이 같은 latest(=동률 그룹)라
+  `eligible[:600]` 컷이 동률 그룹 내부를 자른다 → 컷 경계가 한 칸만 밀려도
+  `rng.shuffle(eligible)` 의 입력 순서가 달라져 top[:200] 이 통째로 재추첨된다.
+  (결정성 자체는 2026-10-01 수리 이후 유지 — 같은 실행·같은 date_from 이면 동일.
+   문제는 **date_from 이 날짜와 함께 미끄러지는 것**이다.)
+
+[2] _cg141_scope_probe.py — 공매도 수집 범위
+------------------------------------------------------------------------------
+panel codes: 200
+현행 수집(유동성 상위 200): n=200 ∩ panel = 10
+학습 유니버스(recency seed0 200): n=200 ∩ panel = 31
+두 목록 상호 교집합: 15
+krx_short_selling: 210종목 · 2026-05-26~2026-10-07
+krx_short_selling ∩ panel = 11          ← 기존 기록 11/200 재현(방법 검증)
+[판정] 학습 유니버스 스코프 전환 시 패널 커버리지 31/200 → ≥90% FAIL
+
+→ CG141 의 처방("수집 목록을 select_training_universe 에 맞춰라")은 그대로는 성립하지 않는다:
+  목표 집합 자체가 매일 바뀌므로(위 [1]) 수집기가 쫓아갈 수 있는 고정 표적이 아니다.
+  선행은 '유니버스 동결'이고, 그 다음에 수집 목록을 동결 목록에 맞춘다.
+
+[3] _universe_pin_test.py — 동결 수리 자체점검 (7/7 PASS)
+------------------------------------------------------------------------------
+  PASS default == now-60 (2026-08-09)                        ← 미설정 = 현행 비트 동일
+  PASS asof-60 — UNIVERSE_ASOF_DATE=2026-10-02 → 2026-08-03  ← 창 고정
+  PASS 동결 2회 동일 n=200 / PASS 동결 200종목                ← 프로세스 간 재현
+  PASS 미동결 2회 동일(같은 날) n=200                         ← 결정성 유지
+  PASS 날짜 민감도: asof 2026-10-02 vs 2026-10-09 교집합 = 26/200 (13.0% 유지)
+  결과: PASS=7 FAIL=0
+기존 회귀: _universe_determinism_test ALL PASS · _universe_mode_test 전부 PASS
+
+[4] 데이터 축 전수 스크린 재측정 (_data_axis_scan.py, 2026-10-09)
+------------------------------------------------------------------------------
+패널: panel_prod200.npz — 200종목 · 213피처 · 54,800행 · 2025-08-04~2026-09-23
+DB 테이블 39개 중 패널 종목 교집합 상위:
+  market_data/stock_prices 200/200 · supply_market_features 200/200(이미 사용)
+  event_features 191 · disclosures 191 · financial_ratio_features 190(이미 사용) ·
+  macro_features·krx_trading = 시장레벨(횡단면 투입 금지)
+부분 커버(재개 불가): foreign_institutional 87/200(IC 무정보) · sns_posts 22/200 ·
+  news_events 15/200 · krx_short_selling 11/200 · minute_bars 23/200(15:01~15:30만)
+→ 2026-10-04 결론 유지: **패널 구간을 덮는 미사용 PIT 원천은 없다.** 새 레버는 수집 확장뿐.
+
+[5] 변경 파일
+------------------------------------------------------------------------------
+  services/xgboost-ml/app/training/universe.py   (_default_date_from: UNIVERSE_ASOF_DATE 지원)
+  services/xgboost-ml/app/training/retrain_champion.py (_select_stocks docstring 경고)
+  scripts/_universe_stability_probe.py · _cg141_scope_probe.py · _data_axis_scan.py · _universe_pin_test.py
