@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-04T15:51:22",
+  "updated": "2026-10-08T10:44:29",
   "tasks": [
     {
       "id": "Q20261004-01",
@@ -22,6 +22,77 @@
       "source": "objective_state.top_lever",
       "claimed_at": "2026-10-04T13:46:24",
       "finished_at": "2026-10-04T13:58:19"
+    },
+    {
+      "id": "Q20261008-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-10-08T03:30:38",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-10-08T03:30:38",
+      "finished_at": "2026-10-08T03:30:40"
+    },
+    {
+      "id": "Q20261008-02",
+      "title": "trader: 청산 exit_ts 가 '다음 세션 시가'로 기록되는 시각 버그 (475830 실측)",
+      "why": "2026-10-07 청산 1건의 exit_ts 가 2026-10-08T09:02:31 로 기록됐다. 그러나 브로커 보유(2종목)와 저널 미청산(2행)이 일치하므로 청산은 10-07 에 실제 발생했다. exit_reason='tick stop', exit_price=19660, pnl=-1490, screener=swing. '다음 세션 시가 + 약 2분' 컨벤션이 exit_ts 필드에 잘못 들어간 것으로 의심된다. 영향: 감사 원장·되돌림 판정·체결성 통계의 시각 왜곡.",
+      "acceptance": [
+        "재현 케이스에서 exit_ts 가 실제 청산 시각(KST)으로 기록되고, 회귀 테스트가 실패→통과. trader-agent/** 이므로 자동 병합 금지, 사람 검토 후 적용."
+      ],
+      "protected": true,
+      "priority": 1,
+      "state": "todo",
+      "attempts": 0,
+      "max_attempts": 2,
+      "commit": null,
+      "note": null,
+      "created": "2026-10-08T10:44:29",
+      "source": ""
+    },
+    {
+      "id": "Q20261008-03",
+      "title": "trader: 진입 거부 응답(order_no=0, '10766 신규주문이 거부되었습니다')이 체결로 기록되는 불일치",
+      "why": "475830 행의 order_resp_json = {order_no: 0, message: '10766 신규주문이 거부되었습니다.(ordss.cststkord.ats.cp)'} 인데 그 종목은 실제 보유됐다가 10-07 청산됐다. 2026-10-06 09:00 진입 3건 중 거부 응답이 체결로 승격되는 경로가 있다는 뜻이며, 319400 사고(계류 주문을 거부로 오판)와 같은 계열의 상태기계 결함이다.",
+      "acceptance": [
+        "order_no=0 또는 거부 메시지 응답은 filled 로 기록되지 않고 rejected/unknown 으로 남는다(테스트로 고정). trader-agent/** 이므로 사람 검토 후 적용."
+      ],
+      "protected": true,
+      "priority": 1,
+      "state": "todo",
+      "attempts": 0,
+      "max_attempts": 2,
+      "commit": null,
+      "note": null,
+      "created": "2026-10-08T10:44:29",
+      "source": ""
+    },
+    {
+      "id": "Q20261008-04",
+      "title": "trader: 청산 후 fees=0 — 수수료·세금 계상 미반영(10-07 청산 1건)",
+      "why": "475830 청산 행 fees=0.0. 16:05 자동 계상 틱이 배선돼 있으나 오늘 청산분에 반영되지 않았다. 과거 09-30 청산은 브로커 API(CpTd6032)가 당일만 제공해 복구 불가이므로 신규 청산부터의 당일 계상이 유일한 경로다.",
+      "acceptance": [
+        "당일 청산 행의 fees/세금이 계상되거나, 불가하면 원장에 사유가 남는다(추측 금지)."
+      ],
+      "protected": true,
+      "priority": 2,
+      "state": "todo",
+      "attempts": 0,
+      "max_attempts": 2,
+      "commit": null,
+      "note": null,
+      "created": "2026-10-08T10:44:29",
+      "source": ""
     }
   ]
 }
