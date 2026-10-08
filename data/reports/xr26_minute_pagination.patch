@@ -1,26 +1,42 @@
 diff --git a/services/kis-collector/kis_app/collectors/minute_collector.py b/services/kis-collector/kis_app/collectors/minute_collector.py
-index 72e4416..c282745 100644
+index 72e4416..31a6836 100644
 --- a/services/kis-collector/kis_app/collectors/minute_collector.py
 +++ b/services/kis-collector/kis_app/collectors/minute_collector.py
-@@ -21,7 +21,7 @@ MARKET_OPEN_TIME = "090000"
+@@ -4,9 +4,11 @@
+ 필요하므로 당일 분봉은 마감 후 수집으로 충분. 실시간 수집은 쌍둥이 실시간
+ 분봉에서 별도 처리).
+ 
+-페이지네이션: 1회 응답 최대 100건(FID_CNT). 응답은 시간 내림차순(최신 우선)
+-이므로, ``FID_INPUT_HOUR=153000`` 시작 → 페이지의 최저 시각 −1분을 다음 요청
+-기준으로 과거로 진행. ``090000`` 도달 / 배치 < FID_CNT / max_pages 방어로 종료.
++페이지네이션: 1회 응답은 **30건 고정**(``fid_cnt`` 파라미터는 이 엔드포인트에서 무시된다).
++응답은 시간 내림차순(최신 우선)이므로, ``FID_INPUT_HOUR=153000`` 시작 → 페이지의 최저
++시각 −1분을 다음 요청 기준으로 과거로 진행. ``090000`` 도달 / 진행 없음 / max_pages 방어로 종료.
++⚠ 종료 판정에 '요청값(fid_cnt)'을 쓰면 안 된다 — 30 < 100 이 항상 참이라 1페이지에서
++조기 종료되어 15:01~15:30 30봉만 적재된다(XR26 실측 결함).
+ """
+ from __future__ import annotations
+ 
+@@ -20,8 +22,8 @@ logger = logging.getLogger("kis_collector.minute")
+ MARKET_OPEN_TIME = "090000"
  MARKET_CLOSE_TIME = "153000"
  FID_PERIOD_1MIN = "0"       # FID_PERIOD_DIV: 0 = 1분봉
- FID_CNT_DEFAULT = 100       # 1회 응답 최대 건수
+-FID_CNT_DEFAULT = 100       # 1회 응답 최대 건수
 -MAX_PAGES_DEFAULT = 10      # 안전장치 (정규장 391분 → 100건×4페이지면 충분)
-+MAX_PAGES_DEFAULT = 20      # 안전장치 (정규장 391분 ÷ 실측 30봉/페이지 ≈ 14페이지 → 여유 20)
++FID_CNT_DEFAULT = 30        # 1회 응답 실제 상한 — 이 엔드포인트는 fid_cnt 를 줘도 30행 고정(XR26)
++MAX_PAGES_DEFAULT = 20      # 안전장치 (정규장 391분 ÷ 실측 30행 = 13.03 → 14페이지, 여유 20)
  
  
  def parse_minute_bars(resp, target_date=None):
-@@ -87,8 +87,12 @@ class MinuteCollector:
+@@ -87,8 +89,11 @@ class MinuteCollector:
              if not page_bars:
                  break  # 데이터 없음
              oldest = min(b["time"] for b in page_bars)
 -            if len(page_bars) < int(fid_cnt) or oldest == MARKET_OPEN_TIME:
 -                break  # 마지막 페이지
-+            # XR26: KIS 당일분봉조회는 fid_cnt(=100)와 무관하게 1회 최대 30봉만
-+            # 돌려준다 → `len(page_bars) < fid_cnt` 로 종료를 판정하면 매일
-+            # 1페이지(30봉=15:01~15:30)에서 조기 종료된다. 종료는 '개장 도달'과
-+            # '진행 없음'으로만 판정한다.
++            # XR26: KIS 당일분봉조회는 fid_cnt(=100)와 무관하게 1회 최대 30봉만 돌려준다 →
++            # `len(page_bars) < fid_cnt` 로 종료를 판정하면 매일 1페이지(15:01~15:30)에서
++            # 조기 종료된다. 종료는 '개장 도달'과 '진행 없음'으로만 판정한다.
 +            if oldest <= MARKET_OPEN_TIME:
 +                break  # 개장 시각 도달 = 마지막 페이지
              nxt = add_minutes(oldest, -1)

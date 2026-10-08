@@ -27,7 +27,7 @@ import types
 REPO = pathlib.Path(__file__).resolve().parents[1]
 REL = "services/kis-collector/kis_app/collectors/minute_collector.py"
 SRC = REPO / REL
-PATCH = REPO / "data/reports/xr26_minute_pagination_fix.patch"
+PATCH = REPO / "data/reports/xr26_minute_pagination.patch"   # 단일 권위 패치(2026-10-09 단일화)
 
 MARKET_OPEN = "090000"
 MARKET_CLOSE = "153000"

@@ -2909,6 +2909,41 @@ def north_star(role):
         return ""
 
 
+def money_baseline_note(path=None):
+    """배포 챔피언의 **돈 기준** 실측 한 줄 (참고용 — 기준선·판정 대체 아님).
+
+    WHY(2026-10-09, 엔지니어 자율): 틱 헤드라인(`north_star`)은 스코어보드 best_robust =
+    등록 기준선 태그와 맞는 arm 중 최고값인데, 그 arm 은 (a) 배포 불가(rank 변환 = 종목 단위
+    스트리밍 추론에서 재현 불가) (b) 누수 패널(panel_420_asofpatch) 값일 수 있다. 즉 19사이클
+    '무개선' 경보의 인용 숫자와 **실제 배포 챔피언의 돈 기준 성적**은 다른 자로 잰 값이다.
+    실측(2026-10-09 04:0x): 스코어보드 헤드라인 0.5519(AUC) vs 배포 챔피언 돈 기준
+    robust_auc 0.4908 · 순기대 −0.182%p/세션(t −0.81) — 후자가 매매에 걸리는 숫자다.
+    그래서 매 틱에 후자를 함께 찍는다(값을 바꾸지 않는 표시 전용 — 기준선·카운터 불변).
+    """
+    p = path or os.path.join(PROJ, "services/xgboost-ml/app/models/champion/robust_oos.json")
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return "  돈 기준(배포 챔피언): robust_oos.json 없음 — 돈 지표 미측정"
+    h = d.get("halves") or {}
+    age = ""
+    try:
+        dt = datetime.fromisoformat(d["created_at"])
+        now = now_kst()
+        if dt.tzinfo is None and now.tzinfo is not None:
+            dt = dt.replace(tzinfo=now.tzinfo)      # 기록은 KST 벽시계(naive)로 쓴다
+        age = f" · age {(now - dt).total_seconds() / 86400:.1f}d"
+    except (KeyError, TypeError, ValueError):
+        pass
+    return ("  돈 기준(배포 챔피언·참고, 판정 아님): 로버스트 {ra} · 순기대 {ex}%p"
+            "(t {t}) · {ns}세션/{nt}거래 · 앞 {fp}/뒤 {bp}({st}){age}").format(
+        ra=d.get("robust_auc"), ex=d.get("expectancy_pct"), t=d.get("expectancy_t"),
+        ns=d.get("n_sessions"), nt=d.get("n_trades"),
+        fp=h.get("front_pct"), bp=h.get("back_pct"), st=h.get("stable"),
+        age=age)
+
+
 def _elapsed_note(started):
     """시작 시각 → '경과 2h16m'. 파싱 실패하면 빈 문자열(틱은 절대 죽지 않는다)."""
     try:
@@ -3292,6 +3327,7 @@ def tick(force=False):
     ns = north_star("engineer")
     if ns:
         print(ns)
+    print(money_baseline_note())
     print(f"  런처: {ensure_launcher()}")
     # 성적표(MK49)가 낡으면 여기서 재생성한다 — 트레이더 계약 2번이 옛 값을 최신으로 오보하는 것을 막는다.
     print(f"  {refresh_scorecard_if_stale()}")

@@ -20,7 +20,7 @@
 - 승인하면(정확한 명령):
   ```
   cd /home/jhshi/analyist_dd
-  git apply -p1 data/reports/xr26_minute_pagination_fix.patch
+  git apply -p1 data/reports/xr26_minute_pagination.patch   # 단일 권위 패치(2026-10-09 단일화) · 적용 지침 data/reports/xr26_README.md
   python3 scripts/_xr26_fix_verify.py     # 7/7 PASS (2026-10-08 16:0x 재확인)
   ```
   주의: 호출량 종목당 1콜 → 약 14콜(KIS 당일분봉 API = 당일분만 제공).
