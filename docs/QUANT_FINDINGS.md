@@ -566,3 +566,7 @@
 - **남은 레버**: 값 피처의 역사를 채우려면 원천 백필이 필요하다. `financial_ratio_features`
   (PIT·rcept_dt, 2025-06-16~2026-09-29, 패널 49종목 중 40종목)가 대안 소스로 존재하나
   구간이 패널 창보다 짧다 → 리서처 핸드오프(XR12 재무비율 부활·XR25 DART 러너)와 함께 다뤄야 한다.
+
+## [트레이더 환류 holiday-selfheal-removes-real-holiday] [트레이더 환류] 휴장일이 캘린더에서 삭제된다 — data_gap 자가치유가 tr_day_yn 오독으로 진짜 휴장(2026-10-09 한글날) 제거  (2026-10-09 08:24)
+- 근거: 실측(2026-10-09 04:15 cron_data_gap_backfill.log:26): '휴장 캘린더 정정: 2026-10-09 제거 (KIS 국내휴장일조회 = 거래일)'. 즉 한글날(금, KRX 휴장)이 캘린더에서 삭제됐다. 뿌리: scripts/data_gap.py kis_is_trading_day() 가 'opnd_yn=="Y" or tr_day_yn=="Y"' 로 판정하는데, KIS CTCA0903R 의 tr_day_yn 은 휴장·주말에도 'Y'(실측: 10-03토/10-04일/10-05대체공휴일/10-09한글날/10-10토/10-11일/09-25추석 전부 tr_day_yn=Y, 반면 이 날들 opnd_yn=N·bzdy_yn=N). 그래서 find_gaps() 의 자가치유 블록('if today_s in holidays and kis_is_trading_day(today_s): holidays.discard(today_s)')이 R24 를 고치려고 넣은 것인데, 진짜 휴장일을 매번 거래일로 오독해 **휴장 당일 아침에 캘린더에서 지운다**. 검증(직접 KIS 호출): 20261009 opnd_yn=N tr_day_yn=Y bzdy_yn=N / 20261008 거래일 opnd_yn=Y tr_day_yn=Y bzdy_yn=Y / 20261012 거래일 opnd_yn=Y bzdy_yn=Y. 정정안: 판정을 opnd_yn=='Y'(또는 bzdy_yn=='Y') 단독으로. 현재 worktree 의 data/krx_holidays.json 은 HEAD 대비 2026-10-09 가 빠져 있다(git diff). 트레이더 영향: feed_export 휴장 가드가 오늘(휴장일)을 거래일로 보아 피드를 발행했고, trader_core/profiles.py:185 는 'exchange holidays are not'(주말만 skip) 이라 루프를 켜면 휴장일에 주문을 시도한다.
+- 리서처 백로그: `T33`
