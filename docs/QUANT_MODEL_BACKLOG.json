@@ -11878,6 +11878,9 @@
       "baseline": null,
       "command": null,
       "metric": "dq_feature_coverage",
+      "ready_patch": "data/reports/xr26_minute_pagination.patch",
+      "verify_cmd": "bash scripts/_xr26_verify.sh",
+      "ready_note_engineer": "2026-10-09 02:0x 엔지니어 자율 — 적용준비 완료(패치 산출물만; 수집기 파일은 리서처 소유라 미적용). 패치 내용: minute_collector.py ① MAX_PAGES_DEFAULT 10→20(391분÷30봉≈14페이지) ② 종료조건 `len(page_bars) < fid_cnt(=100)` 제거(항상 참이라 1페이지에서 break = 결함) → `oldest <= MARKET_OPEN_TIME`(개장 도달) + 기존 '진행 없음' 가드로만 종료. 자체점검 scripts/_xr26_pagination_test.py = **12/12 PASS**(30봉/페이지 mock 에서 전 구간 391봉·pages=14·09:00봉 포함·중복0). 결함 재현 대조: 패치 전 같은 테스트 **7/12(30봉·pages=1·min_time=150100)** → 테스트가 실제로 결함을 검출. `git apply --check -p1` rc=0 · 검증 후 대상 파일 원복 확인(git status clean). ⚠ 실 KIS 호출 검증(수리 후 종목당 1콜→≈14콜·net_guard)은 수집기 소유자 몫 — 이 역할은 호출하지 않았다. 선행 해소 시 CG129(인트라데이 피처 스크린)를 pending 으로 승격한다.",
       "hypothesis": "minute_bars 가 매일 15:01~15:30 30봉만 담기는 것은 '이력 부족'이 아니라 **수집기 페이지네이션 결함**이다. KIS 당일분봉조회(FHKST03010200)는 코드가 건수 파라미터를 보내지 않아 1회 30봉이 상한인데, `MinuteCollector.collect_stock` 의 종료조건이 `len(page_bars) < fid_cnt(=100)` 이라 **첫 페이지(30봉)에서 항상 break** 한다 → 09:00~15:00 구간은 구조적으로 수집되지 않는다.",
       "evidence": "① DB 실측(2026-10-05 00:0x): minute_bars = 45,000행/301종목, `\"time\"<= '093000'` **0행** · 30분(15:01~15:30) 외 0행, 거래일별 9,000행(300종목×30봉) 정확히 일치. ② 코드: services/kis-collector/kis_app/collectors/minute_collector.py:24 FID_CNT_DEFAULT=100 · :90 `if len(page_bars) < int(fid_cnt) or oldest==MARKET_OPEN_TIME: break` · client(kis_client.py:398-404) params 에 건수 파라미터 없음. ③ 오프라인 재현(/tmp/mbrepro/repro.py, 실 API 무호출): 30봉 페이지 mock → 저장 30봉 1페이지 / 100봉 페이지 mock → 저장 391봉 4페이지 = **결함은 종료조건**임을 확정. ④ 기존 테스트(tests/test_kis_minute.py)의 mock 이 fid_cnt 만큼 반환하는 이상적 가정이라 실동작을 못 잡았다.",
       "success": "① 같은 종목·같은 날 collect_stock 이 09:00~15:30 전 구간(≈391봉)을 반환·저장한다 ② 30봉 페이지만 반환하는 mock 에서도 페이지네이션이 전진한다(회귀테스트 추가) ③ minute_bars 에 `\"time\" <= '093000'` 행이 생긴다(현재 0행).",
@@ -12952,7 +12955,7 @@
       "expected": "미지 — 유일하게 미측정인 데이터 클래스",
       "cost": "백필(밤 1회 ≈4,200콜) + 스크린 2분",
       "est_minutes": 5,
-      "note": "선행 조건: XR26(수집기 소유·승인 대상) 수리 + 분봉 백필. XR26 미수리 상태로 이 항목을 pending 으로 올리면 같은 30봉 표본을 다시 재는 무의미한 실행이 된다(억지 실행 = 축 재시험). metric intraday_screen 은 CG128 에서 구동기 배선 완료(파서·판정기·경로·자체점검 16/16). | 2026-10-06 23:0x 선행조건 추가(실측): ① 수집 유니버스 ∩ 패널 유니버스 = **23/200종목** ② 현행 패널 종료일 2026-09-23 < 분봉 수집 구간(09-23~10-06, 실질은 09-28 이후) → 겹침 **0행**. 즉 XR26 수리·백필만으로는 부족하고 **인트라데이 구간을 덮는 패널(또는 패널 확장)** 이 함께 필요하다. 준비물 ②(피처 빌더 `intraday_features.py` 18종 + `patch_panel_intraday.py`)는 완료(자체점검 28/28 PASS).",
+      "note": "선행 조건: XR26(수집기 소유·승인 대상) 수리 + 분봉 백필. XR26 미수리 상태로 이 항목을 pending 으로 올리면 같은 30봉 표본을 다시 재는 무의미한 실행이 된다(억지 실행 = 축 재시험). metric intraday_screen 은 CG128 에서 구동기 배선 완료(파서·판정기·경로·자체점검 16/16). | 2026-10-06 23:0x 선행조건 추가(실측): ① 수집 유니버스 ∩ 패널 유니버스 = **23/200종목** ② 현행 패널 종료일 2026-09-23 < 분봉 수집 구간(09-23~10-06, 실질은 09-28 이후) → 겹침 **0행**. 즉 XR26 수리·백필만으로는 부족하고 **인트라데이 구간을 덮는 패널(또는 패널 확장)** 이 함께 필요하다. 준비물 ②(피처 빌더 `intraday_features.py` 18종 + `patch_panel_intraday.py`)는 완료(자체점검 28/28 PASS). | 2026-10-09 02:0x 엔지니어 자율 — XR26 **패치 산출물 준비 완료**(ready_patch=data/reports/xr26_minute_pagination.patch · verify_cmd=`bash scripts/_xr26_verify.sh` · 자체점검 12/12 PASS, 결함 대조 7/12=30봉·pages=1). 남은 선행조건: ⓐ 승인 후 패치 적용·재수집(수집기 소유자, 실 KIS 호출) ⓑ 인트라데이 구간을 덮는 패널. 둘 다 해소되면 pending 으로 승격한다.",
       "attempts": [],
       "result": null
     },
