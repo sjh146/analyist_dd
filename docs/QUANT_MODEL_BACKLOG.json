@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-08T07:05:01+09:00",
+  "updated_at": "2026-10-08T22:03:04+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -11,6 +11,53 @@
     "needs_setup 항목은 명령이 준비되기 전 실행하지 않는다(구동기가 건너뛴다)."
   ],
   "items": [
+    {
+      "id": "CG138",
+      "title": "저녁 파이프라인 챌린저(2026-10-08 재학습, val AUC 0.6308) 승격 게이트 판정 — dry-run + 돈 기준(require-expectancy)",
+      "status": "done",
+      "priority": 1,
+      "kind": "measure",
+      "owner": "engineer",
+      "metric": "champion_promote_dryrun",
+      "command": "docker exec stock_xgboost_ml python /app/app/training/champion_promote.py --candidate /app/app/models/champion_cand --champion /app/app/models/champion --dry-run --require-expectancy --summary-out /app/reports/overnight/cg138_promote.json",
+      "counterfactual": "app/models/champion (현행 배포·auc.txt 0.551318·173피처)",
+      "success": "dry-run status/live gate 판정을 원장에 남긴다. would_promote 이면 후속 짝 OOS(CG139)로 넘긴다. AUC 단독 승격 금지.",
+      "est_minutes": 5,
+      "hypothesis": "저녁 파이프라인(20:00)이 10-08 재학습한 challenger 는 인샘플 val AUC 가 챔피언보다 훨씬 높아도(0.6308 vs 0.5513) 돈 기준·라이브 스코어 게이트를 통과하지 못할 것이다. 매일 게이트 판정을 원장에 남겨 'AUC 만 오른 후보'의 승격을 계속 차단한다.",
+      "note": "2026-10-08 22:0x 등록(엔지니어 자율 틱). CG122(10-05)·CG132(10-06)·CG133(10-07)와 동일 절차의 일일 반복 항목. 후보 실측(파이프라인 산출·21:08 재학습·21:26 견고평가): auc.txt 0.630784 · training-result 2026-07-10~10-08 · 199피처 · ensemble_auc 0.6308(xgb 0.6173·lgb 0.6277·cat 0.4933) · robust_oos.json 0.4834(expectancy +0.1343%p t0.59·n87세션·front +0.3383 / back −0.0651 unstable). ⚠ 후보 robust_oos 는 파이프라인이 만든 값이고 챔피언 robust_oos(0.4908)와 **다른 런**이라 짝 비교가 아니다 — 짝 판정은 CG139 가 한다. summary_path 확인: services/xgboost-ml/reports/overnight/cg138_promote.json.",
+      "attempts": [
+        {
+          "ts": "2026-10-08T22:03:04+09:00",
+          "rc": 0,
+          "verdict": "후보 생성·게이트 거부",
+          "detail": "dry-run status=kept_incumbent · 후보 AUC 0.6308 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11752 · 양성률 0.4514 · 사유: 돈 기준 게이트 거부: 분할표본 불안정(앞 0.3383 / 뒤 -0.0651)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG138_20261008-220303.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "후보 생성·게이트 거부",
+        "detail": "dry-run status=kept_incumbent · 후보 AUC 0.6308 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11752 · 양성률 0.4514 · 사유: 돈 기준 게이트 거부: 분할표본 불안정(앞 0.3383 / 뒤 -0.0651)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG139",
+      "title": "동일 런 짝 평가 — 10-08 챌린저(champion_cand 199피처·val AUC 0.6308) vs 현행 챔피언(173피처)을 같은 창·같은 프로토콜로 재측정",
+      "status": "pending",
+      "priority": 2,
+      "kind": "measure",
+      "owner": "engineer",
+      "metric": "champion_robust_eval",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3300 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --out app/reports/overnight/cg139_cand.json && OMP_NUM_THREADS=2 timeout 3300 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 10 --stocks 60 --out app/reports/overnight/cg139_champ.json'",
+      "counterfactual": "app/models/champion — 같은 런·같은 창·같은 유니버스(training)·같은 라벨(rel h5)",
+      "success": "후보−챔피언 짝 Δ(같은 창·같은 런)를 폴드별로 산출한다. Δ≥+0.02(사전문턱)면 승격 검토 대상, Δ<0 이면 현행 유지가 정답. AUC 단독 판정 금지 — 순기대(%p/세션)·표본·앞/뒤 절반 부호를 함께 보고한다.",
+      "est_minutes": 60,
+      "hypothesis": "10-08 챌린저의 인샘플 val AUC 0.6308 은 과적합이고, 같은 창·같은 런 짝 OOS 에서는 챔피언을 넘지 못할 것이다(CG136 의 10-07 후보 Δ−0.0171 과 같은 패턴).",
+      "note": "2026-10-08 22:0x 등록(엔지니어 자율 틱). 근거: 매일 반복되는 승격 판정이 단일 val split(인샘플) AUC 만 비교해 왔다(10-08 후보 0.6308 vs 기준선 0.5513 → AUC 만 보면 승격). 후보 학습구간 2026-07-10~10-08(meta data_start/data_end) 겹침 창은 champion_robust_eval 이 자동 제외한다. 두 모델을 **한 커맨드에서 연속 실행**해 창을 고정하고 첫 --out(cg139_cand.json)이 판정 대상이 된다 — 대조군 JSON(cg139_champ.json)은 실행 후 세션이 파싱해 counterfactual_value 로 채운다(CG38/CG55/CG136 절차). summary_path 확인: services/xgboost-ml/app/reports/overnight/cg139_cand.json. U3 뒤 우선순위로 est 60분(CG136 실측 8.7분의 7배 여유)."
+    },
     {
       "id": "CG105",
       "title": "재무 컬럼 as-of 정렬 — 실제 공시 접수일(rcept_dt) 격자(R12)로 교체 시 AUC (XR1/R12 ML 임팩트)",
@@ -13223,5 +13270,5 @@
       }
     }
   ],
-  "updated": "2026-10-06"
+  "updated": "2026-10-08"
 }
