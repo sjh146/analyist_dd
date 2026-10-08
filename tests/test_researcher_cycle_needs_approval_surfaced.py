@@ -54,3 +54,30 @@ def test_empty_values_produce_nothing():
 
 def test_blank_entries_filtered():
     assert rc.approval_asks({"setup_needed": ["A", "", "  "]}) == ["A"]
+
+
+def test_needs_approval_with_no_text_falls_back_to_title():
+    """status=needs_approval 인데 문구가 비면 제목으로라도 올라와야 한다 — R31 누락 경로.
+
+    WHY (실측 2026-10-08): 트레이더가 핸드오프로 등록한 R31 은 status=needs_approval 인데
+    setup_needed=[] · needs=None 이라 **어떤 틱 보고에도 안 올라왔다**(close 후보 0건 3일째·
+    daytrading 지정가 17.45% 편차를 사용자가 못 봄). 다른 역할이 등록한 승인 항목은 문구
+    관례를 안 따를 수 있다 → 두 필드가 다 비어도 침묵 금지.
+    """
+    asks = rc.approval_asks({"id": "R31", "status": "needs_approval",
+                             "title": "피드 원천 산출물 git 추적 되돌림"})
+    assert len(asks) == 1, asks
+    assert "피드 원천 산출물 git 추적 되돌림" in asks[0]
+
+
+def test_needs_approval_with_text_does_not_get_fallback():
+    """문구가 있으면 대체 문구를 덧붙이지 않는다(중복·잡음 금지)."""
+    asks = rc.approval_asks({"status": "needs_approval", "needs": "실제 승인 문구",
+                             "title": "제목"})
+    assert asks == ["실제 승인 문구"]
+
+
+def test_non_approval_empty_stays_silent():
+    """pending/failed 등은 빈 문구면 여전히 아무 줄도 만들지 않는다(오탐 금지)."""
+    assert rc.approval_asks({"status": "pending", "title": "T"}) == []
+    assert rc.approval_asks({"status": "failed"}) == []

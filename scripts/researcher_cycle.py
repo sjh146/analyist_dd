@@ -600,6 +600,12 @@ def approval_asks(item):
     for s in _as_text_list(item.get("needs")):
         if s not in out:
             out.append(s)
+    if not out and item.get("status") == "needs_approval":
+        # 안전망(2026-10-08): 두 필드가 다 비면 needs_approval 인데도 보고가 **침묵**한다.
+        # 다른 역할(트레이더)이 핸드오프로 등록한 항목(R31)이 그랬다 — '자동 추출이라 누락이
+        # 없다'는 전제가 문구 하나 비는 것만으로 깨진다. 제목으로 대체해 최소한 보이게 한다.
+        out.append("[문구 미기재 — 제목으로 대체] "
+                   + str(item.get("title") or item.get("id") or "?"))
     return out
 
 
