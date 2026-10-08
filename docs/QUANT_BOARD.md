@@ -2332,3 +2332,20 @@ T6 브리지 churn(실측 37→7→1.0 자연 소멸) · 게이트 문턱 0.02(1
 - **오케스트레이터**: 다음 회의에서 (a) MT189 실제 배선 여부 (b) 발행물 신선도 회복 (c) R29/R26/R21 승인 응답 반영 (d) `--handoffs` 재측정(MT189 채움) 확인.
 
 *(검증 명령: `python3 scripts/quant_scoreboard.py` · `python3 scripts/trader_cycle.py --handoffs` · `python3 scripts/objective.py show` · `curl -s --noproxy '*' http://127.0.0.1:9187/metrics | grep ^dq_feature` · `cmd.exe /c "cd /d C:\ && curl -s http://127.0.0.1:8100/balance"` · `git diff --stat HEAD -- reports/close_latest.json reports/swing_latest.json`)*
+
+### 트레이더 (2026-10-08 09:2x 장중 틱 — 🔴 단타 '오늘부터' 미배선 · close 후보 3일째 0건 · swing R1 근소 차단, 실측)
+
+- **북극성(실현 누적)**: **−2,936원** · 청산 **4건** · 승률 **25.0%** · 기대값 **−734원/건** · 수수료 **0원**(T1) · 보유 **2**.
+  - 오늘 청산 1건: **475830 오름테라퓨틱** 1주 21,150 → 19,660 `tick stop` **−1,490원**(swing) @09:02:31.
+  - 스크리너별 누적: **close 3건 −1,446원 / swing 1건 −1,490원**(오늘분). (전일말 대비 순손익 −1,490: 10-07 말 −1,446.)
+- **브로커 실측**(bridge 직접): 계좌 783247576 · equity **523,655원**(전일말 525,459 → −1,804, 실현 −1,490 + 미실현) · 현금 481,523 · 보유 **2**(003380 하림지주 2주@11,291.5 · 319400 현대무벡스 1주@20,803, 둘 다 swing·10-06 09:00 진입) · 미체결 0.
+- **실행 경로 정상**: halt=false · 실패 **0** · phase=monitor · 갱신지연 **0.3분** · 브리지 **connected:true**(8100) · 킬스위치 파일 없음.
+- 🔴 **단타 경로 여전히 미배선(MT189) — 오늘이 사용자 지정일**: 사용자 지시 "내일부터 단타매매"(10-07)의 '내일'이 **오늘(10-08)** 인데 소비자 `RunnerConfig().screeners == ['close','swing']`(실측) 그대로 → daytrading 20건이 발행·PRE filter 6건 통과하나 **계획 단계에서 미평가**(루프는 피드 블록 전량을 PRE filter 하되 엔진은 config.screeners 만 순회). daytrading 정기 크론 **0건**. 어제의 `valid_until` 만료 버그는 해소(오늘 `2026-10-08T15:30`).
+- 🔴 **close 경로 후보 0건(3일째)** — `reports/close_latest.json` payload `date=2026-10-02`(6.4일 경과) 이고 `git diff HEAD` **공백**(HEAD 판본 = 10-02 스냅샷, 추적 중) → 08:40 `feed_publish` "산출물이 6.4일 지났다 → 빈 리스트로 발행". 가드는 정직하게 동작, 입력이 되돌아간 것. **R30(리서처 원장 되돌림)과 같은 기제**인데 `reports/{close,swing}_latest.json` 은 아직 추적 중 → **리서처 백로그 R31 신규 등록**(needs_approval).
+- ⚠ **swing R1 근소 차단**: `R1 block swing: avg prob 0.567 < 0.58 (calibrated)` — 상위10 점수합 567.21/10 = **0.5672** 로 문턱 0.58 을 **0.013 미달** → swing 19건 전량 PRE filter 탈락(19→0). 즉 오늘 신규 진입 가능 경로는 **close 0건 + swing 차단 = 사실상 전면**(daytrading 미배선). 마지막 진입 **10-06**(2일 전, 회전 정지 3일 기준 미도달).
+- 🔴 **T8 재악화 17.45%(문턱 1.0)** — 어제 0.0% → 오늘 미달, 원인은 **전부 daytrading**: 후보가 10-06 종가를 지정가로 실음(안랩 90,200 vs 최신 10-07 종가 76,800 = **−14.9%**). swing 지정가는 **0.00%**(10-07 갱신) · close 후보 0건이라 미기여. 부수: 같은 이유로 r3 편차 필터가 daytrading **20→6**(14건 price 탈락) → **배선 후에도 14/20 이 지정가 편차로 막힘**. 뿌리 R22(`done`)의 재발 — 처방은 R31 (C).
+- **계약2 충족**: `model_engineer_scorecard.json` `generated_at 2026-10-08T02:00:03` · fold 3개 mean **0.5148±0.0344** · purge h=5 관측 · `promote_dryrun=blocked_live_score`(cand 0.6083 vs champ 0.5513) · 챔피언 AUC **0.551318**.
+- **피드 계약 위반 0건** · 파일 1개 · `generated_at 2026-10-08T08:40:02`(경과 **0.03일**) · close **0** · swing **19**(`calibrated_prob` 0.5003~0.6663 · `signal_date 10-07`) · daytrading **20**(`composite` 61.3~64.7 · `signal_date 10-06`) · `close_price` 누락 **0** · `scoring_summary=null`(켈리 f*≤0 — `screener_stats_measured.json` 근거만).
+- **핸드오프**: 총 **21** · 재현명령 공백 **15**(**과대집계** — done/closed_rejected 포함) · **진짜 open = MT189 1건**(needs_setup · 17.9h). 틱 스크립트의 "24h 초과 MT116/MT117" 은 **둘 다 `done`** 이라 실차단 아님(정정).
+- **미달**: T1 수수료 **0원** · T5 기대값 **−734원/건** · **T8 17.45%**(어제 통과 → 재악화).
+- **사람 단계(09:2x)**: ③ 사람이 직접 **없음**(브리지 connected:true · Creon 세션 유지) → ② 승인 필요: **②-1 MT189 단타 소비 배선**(⏰ 오늘이 사용자 지정일) · **②-2 발행 아티팩트 되돌림 방지**(**R31 신규** — close 3일째 0건) · **②-3 R29** · **②-4 R26** · **②-5 R21** · **②-6 R17** · **②-7 close 처분**(HEAT) · **②-8 CG82/CG131** · **②-9 T1 수수료** → ① 진행 중: **MT189** 배선(엔지니어) · **R31→R28→R21** 틱 회전(리서처) · T5/T1 재측정(트레이더).

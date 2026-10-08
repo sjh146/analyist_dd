@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-08T00:03:38+09:00",
+  "updated_at": "2026-10-08T09:28:51+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -912,7 +912,7 @@
         "detail": "R25: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R25_20261007-153537.log"
+        "log": "data/reports/res_cycle/logs/res_R25_20261008-020017.log"
       },
       "recurring": true,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
@@ -960,6 +960,11 @@
         },
         {
           "ts": "2026-10-07T15:35:38+09:00",
+          "rc": 0,
+          "detail": "R25: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-10-08T02:00:19+09:00",
           "rc": 0,
           "detail": "R25: 0 <= 0 → 충족"
         }
@@ -1044,13 +1049,18 @@
           "ts": "2026-10-07T18:00:25+09:00",
           "rc": 0,
           "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-10-08T06:01:10+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R27: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R27_20261007-180025.log"
+        "log": "data/reports/res_cycle/logs/res_R27_20261008-060110.log"
       }
     },
     {
@@ -1103,13 +1113,18 @@
           "ts": "2026-10-07T16:01:19+09:00",
           "rc": 0,
           "detail": "R28: 2 >= 1 → 충족"
+        },
+        {
+          "ts": "2026-10-08T04:00:34+09:00",
+          "rc": 0,
+          "detail": "R28: 3 >= 1 → 충족"
         }
       ],
       "result": {
-        "detail": "R28: 2 >= 1 → 충족",
-        "check_value": 2.0,
+        "detail": "R28: 3 >= 1 → 충족",
+        "check_value": 3.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R28_20261007-160118.log"
+        "log": "data/reports/res_cycle/logs/res_R28_20261008-040032.log"
       },
       "setup_needed": [],
       "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 -m pytest -q tests/test_r28_yf_claim_check.py tests/test_yf_claim_from_phase_log.py && /usr/bin/python3 scripts/r28_yf_claim_check.py"
@@ -1156,6 +1171,28 @@
         "commit": "fa5f9e9",
         "remaining": "B(base._rewrite_ledger 재로드·(ts,id) 병합 — 전량 재작성 경합 제거)와 C(커밋 스냅샷 아카이브)는 (A) 후 재발이 확인될 때만 적용. 현재는 (A)로 소실 벡터 제거.",
         "model_engineer_ledger": "주의(핸드오프 후보): data/reports/model_engineer_ledger.jsonl 도 동일하게 추적 상태 → 같은 소실 벡터. 소유자가 달라 리서처가 직접 수정하지 않음(§2)."
+      }
+    },
+    {
+      "id": "R31",
+      "title": "[트레이더 환류] 피드 원천 산출물 git 추적 되돌림 — reports/close_latest.json payload date 10-02 동결 3일째(close 후보 0건) · daytrading 지정가 10-06 고정",
+      "status": "needs_approval",
+      "priority": 2,
+      "affects_model": false,
+      "kind": "fix",
+      "hypothesis": "R30 에서 리서처 원장(researcher_ledger.jsonl)은 'git 추적 산출물 → 되돌림' 기제로 미커밋 append 가 소실되는 사고였고, 방법 (A)(.gitignore + git rm --cached)로 수리됐다. 그런데 피드 발행의 **원천**인 reports/{close,swing}_latest.json 도 여전히 git 추적 파일(git ls-files 확인)이라 같은 기제가 재발한다 — 10-07 14:40 발행 로그는 close 산출물 기준일 2026-10-07(0.61일 전)이었는데 15:11 mtime 시점 HEAD 판본(date=2026-10-02)으로 되돌아갔고, 이후 20:30·10-08 08:40 발행이 연속 '빈 리스트'로 나갔다.",
+      "evidence": "실측 2026-10-08 09:3x: (1) reports/close_latest.json payload date=2026-10-02 · mtime 10-07 15:11 · `git diff --stat HEAD` 공백(=HEAD 판본과 동일) · `git ls-files` 추적됨. (2) reports/swing_latest.json date=2026-10-07 · mtime 10-08 08:31 · HEAD 대비 211+/210- (오늘 파이프라인이 갱신). (3) reports/cron_feed_publish.log 10-08 08:40 `WARNING [close] 산출물이 6.4일 지났다(> 3.0일) — 빈 리스트로 발행` → 데이터/피드/screener_latest.json close 후보 **0건**(3일째). (4) 같은 발행물 daytrading signal_date **2~2일 전(10-06)** → `--probe feed_price_dev` **17.45%**(문턱 1.0, 어제 0.0%): 최대 편차 안랩 90,200 vs 10-07 종가 76,800(−14.9%). swing 은 0.00%(10-07 갱신). (5) r3 편차 필터가 daytrading 20→6(14건 price 탈락) — 배선 후에도 14/20 이 지정가 편차로 막힌다.",
+      "method": "택일 후 적용: (A) reports/{close,swing,daytrading}_latest.json 을 런타임 산출물화(.gitignore + git rm --cached) — R30 (A) 와 동일 처방 [권고] (B) 발행 신선도 판단을 payload `date` 가 아니라 스크리너 실행 실적(마지막 성공 run ts)으로 전환 (C) daytrading 산출물의 `signal_date`/`close_price` 를 실제 검출 거래일 종가로 갱신(현재 2일 전 고정).",
+      "command": null,
+      "check": null,
+      "check_target": null,
+      "setup_needed": [],
+      "cost": "1시간",
+      "success": "개장 전 발행물에서 close 후보 >= 1건이고, reports/*_latest.json payload date 가 발행일 기준 1거래일 이내이며, `feed_price_dev` <= 1.0% (모든 스크리너).",
+      "provenance": {
+        "source": "trader_cycle 2026-10-08 09:2x 틱",
+        "from": "trader",
+        "measured_at": "2026-10-08 09:35"
       }
     }
   ]
