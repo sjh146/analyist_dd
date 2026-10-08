@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-08T22:03:04+09:00",
+  "updated_at": "2026-10-08T22:15:22+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -46,7 +46,7 @@
     {
       "id": "CG139",
       "title": "동일 런 짝 평가 — 10-08 챌린저(champion_cand 199피처·val AUC 0.6308) vs 현행 챔피언(173피처)을 같은 창·같은 프로토콜로 재측정",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "kind": "measure",
       "owner": "engineer",
@@ -56,7 +56,38 @@
       "success": "후보−챔피언 짝 Δ(같은 창·같은 런)를 폴드별로 산출한다. Δ≥+0.02(사전문턱)면 승격 검토 대상, Δ<0 이면 현행 유지가 정답. AUC 단독 판정 금지 — 순기대(%p/세션)·표본·앞/뒤 절반 부호를 함께 보고한다.",
       "est_minutes": 60,
       "hypothesis": "10-08 챌린저의 인샘플 val AUC 0.6308 은 과적합이고, 같은 창·같은 런 짝 OOS 에서는 챔피언을 넘지 못할 것이다(CG136 의 10-07 후보 Δ−0.0171 과 같은 패턴).",
-      "note": "2026-10-08 22:0x 등록(엔지니어 자율 틱). 근거: 매일 반복되는 승격 판정이 단일 val split(인샘플) AUC 만 비교해 왔다(10-08 후보 0.6308 vs 기준선 0.5513 → AUC 만 보면 승격). 후보 학습구간 2026-07-10~10-08(meta data_start/data_end) 겹침 창은 champion_robust_eval 이 자동 제외한다. 두 모델을 **한 커맨드에서 연속 실행**해 창을 고정하고 첫 --out(cg139_cand.json)이 판정 대상이 된다 — 대조군 JSON(cg139_champ.json)은 실행 후 세션이 파싱해 counterfactual_value 로 채운다(CG38/CG55/CG136 절차). summary_path 확인: services/xgboost-ml/app/reports/overnight/cg139_cand.json. U3 뒤 우선순위로 est 60분(CG136 실측 8.7분의 7배 여유)."
+      "note": "2026-10-08 22:0x 등록(엔지니어 자율 틱). 근거: 매일 반복되는 승격 판정이 단일 val split(인샘플) AUC 만 비교해 왔다(10-08 후보 0.6308 vs 기준선 0.5513 → AUC 만 보면 승격). 후보 학습구간 2026-07-10~10-08(meta data_start/data_end) 겹침 창은 champion_robust_eval 이 자동 제외한다. 두 모델을 **한 커맨드에서 연속 실행**해 창을 고정하고 첫 --out(cg139_cand.json)이 판정 대상이 된다 — 대조군 JSON(cg139_champ.json)은 실행 후 세션이 파싱해 counterfactual_value 로 채운다(CG38/CG55/CG136 절차). summary_path 확인: services/xgboost-ml/app/reports/overnight/cg139_cand.json. U3 뒤 우선순위로 est 60분(CG136 실측 8.7분의 7배 여유).",
+      "attempts": [
+        {
+          "ts": "2026-10-08T22:12:58+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5417±0.0117 (시간창 3개 [0.5480, 0.5253, 0.5517]) · 풀링 0.5319 · 날짜별평균 0.5417 · 행 1752",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG139_20261008-220309.log",
+          "elapsed_min": 9.8
+        }
+      ],
+      "result": {
+        "verdict": "후보 우위(+0.0290) — 3/3 창 양(+)·사전문턱 초과",
+        "delta": 0.029,
+        "detail": "후보 0.5417±0.0117 (folds [0.548, 0.5253, 0.5517]) vs 챔피언 0.5127±0.0146 (folds [0.5049, 0.5001, 0.5331]) · 짝 Δ +0.0290±0.0127 · 승 3/3 · 행 1752 · 창 3개(2025-12~2026-05) · 양팔 모두 학습구간 겹침 창 2개 제외. ⚠ 같은 챔피언 일일 표류 −0.0227(10-07 0.5354 → 10-08 0.5127) → 창 수 확대 재측정(CG140) 전에는 승격 근거 아님.",
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG140",
+      "title": "CG139 짝 Δ(+0.0290·3/3 창)의 창 수 민감도 — 같은 두 모델을 10폴드×5일(8창)로 재측정",
+      "status": "pending",
+      "priority": 2,
+      "kind": "measure",
+      "owner": "engineer",
+      "metric": "champion_robust_eval",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3300 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --universe training --label-kind rel --horizon 5 --folds 10 --dates-per-fold 5 --stocks 60 --out app/reports/overnight/cg140_cand.json && OMP_NUM_THREADS=2 timeout 3300 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --universe training --label-kind rel --horizon 5 --folds 10 --dates-per-fold 5 --stocks 60 --out app/reports/overnight/cg140_champ.json'",
+      "counterfactual": "app/models/champion — 같은 런·같은 창 구성(10폴드×5일)·같은 유니버스(training 60)·같은 라벨(rel h5)",
+      "success": "CG139 의 짝 Δ +0.0290(창 3개)이 창 구성을 바꿔도 유지되는가. 8창에서 Δ≥+0.02 이고 창 승률 ≥2/3 이면 '창 구성 특이 아님(후보 우위 재현)', 부호가 뒤섞이면 '노이즈'로 닫는다. AUC 단독 승격 금지 — 승격 판정은 돈 기준 게이트(CG138 이 이미 거부: 분할표본 불안정 front +0.3383 / back −0.0651).",
+      "est_minutes": 30,
+      "hypothesis": "CG139 의 Δ+0.0290 은 창 3개·일일 표류(−0.0227) 위의 값이므로 창을 8개로 늘리면 부호가 뒤섞이거나 크기가 문턱 아래로 내려갈 것이다(사전문턱 +0.02 는 3창 설계에 비해 창 수가 늘면 더 엄격하게 적용된다).",
+      "note": "2026-10-08 22:2x 등록(엔지니어 일일 잡). 근거: CG139 실측(2026-10-08 22:12, 9.8분) 후보 0.5417±0.0117[folds 0.548/0.5253/0.5517] vs 챔피언 0.5127±0.0146[folds 0.5049/0.5001/0.5331] → 짝 Δ +0.0290±0.0127(3/3 창 양(+), 사전문턱 +0.02 초과). 그런데 **같은 챔피언을 같은 프로토콜로 10-07 에 재면 0.5354(CG136) vs 오늘 0.5127 = −0.0227 표류**(모델 무변경, 폴드2 만 0.5772→0.5001) → 단일 런 3창 pair 로는 확정 불가. 창 구성을 5f×10d(30 채점일) → 10f×5d(8창)로 바꿔 같은 두 모델을 재측정한다(재학습 없음 — 같은 .pkl). 첫 --out(cg140_cand.json)이 판정 대상, 대조군(cg140_champ.json)은 세션이 파싱해 counterfactual_value 로 채운다(CG38/CG55/CG136/CG139 절차). summary_path 확인: services/xgboost-ml/app/reports/overnight/cg140_cand.json."
     },
     {
       "id": "CG105",
