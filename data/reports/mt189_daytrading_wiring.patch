@@ -1,0 +1,17 @@
+--- a/runner/config.py
++++ b/runner/config.py
+@@ -209,8 +209,12 @@
+     # Ignore ticks older than this (a stalled realtime feed must not fire).
+     tick_watch_max_age_seconds: float = 5.0
+ 
+-    # --- screeners (v1 trades close + swing only) --------------------- #
+-    screeners: List[str] = field(default_factory=lambda: ["close", "swing"])
++    # --- screeners ---------------------------------------------------- #
++    # 2026-10-07 사용자 승인(경로별 슬롯 swing 3 / daytrading 2)의 후속 배선.
++    # trader_core.Config.screeners 기본값(["close","swing","daytrading"])과 일치시킨다 —
++    # 종전 ["close","swing"] 는 러너 기본값이 engine_config() 로 엔진 기본값을 덮어써
++    # daytrading 후보가 계획 단계에서 평가조차 되지 않았다(MT189).
++    screeners: List[str] = field(default_factory=lambda: ["close", "swing", "daytrading"])
+ 
+     # --- per-screener strategy profiles ------------------------------- #
+     # Each candidate list is traded with its own mechanic (entry window,
