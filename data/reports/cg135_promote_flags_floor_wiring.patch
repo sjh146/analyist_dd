@@ -1,0 +1,31 @@
+--- a/scripts/objective.py
++++ b/scripts/objective.py
+@@ -109,8 +109,15 @@
+         flags.append(f"--min-expectancy-pct {acc.get('min_expectancy_pct', 0.0)}")
+         flags.append(f"--min-expectancy-sessions {acc.get('min_sample_sessions', 40)}")
+         flags.append(f"--min-expectancy-trades {acc.get('min_sample_trades', 30)}")
++        # 하한 t(순기대가 0 과 구별되는가)는 기본 미강제 — 리뷰보드가 gates.promote_require_expectancy_t
++        # 를 켜고 acceptance.min_expectancy_t 를 선언할 때만 나간다(켜기 전엔 프로덕션 비트 동일).
++        if g.get("promote_require_expectancy_t"):
++            flags.append(f"--min-expectancy-t {acc.get('min_expectancy_t', 2.0)}")
+     if g.get("promote_require_robust"):
+         flags.append("--require-robust")
++        # 선언만 되고 어떤 코드도 읽지 않던 acceptance.min_robust_auc(0.5)를 하한으로 배선한다.
++        # 게이트가 false 인 현행에선 아무것도 안 나가므로 프로덕션 무변경(champion_promote 기본 None).
++        flags.append(f"--min-robust-auc {acc.get('min_robust_auc', 0.5)}")
+     return flags
+ 
+ 
+--- a/tests/test_objective.py
++++ b/tests/test_objective.py
+@@ -69,7 +69,9 @@
+     """champion_promote 가 실제로 받는 인자만 내보낸다(모르는 플래그 = 파이프라인 실패)."""
+     flags = obj_mod.promote_flags(_valid_obj())
+     allowed = {"--require-expectancy", "--min-expectancy-pct", "--min-expectancy-sessions",
+-               "--min-expectancy-trades", "--require-robust"}
++               "--min-expectancy-trades", "--require-robust",
++               # CG135(2026-10-08): 하한 배선 — champion_promote 가 이미 받는 인자(기본 None).
++               "--min-robust-auc", "--min-expectancy-t"}
+     for f in flags:
+         head = f.split()[0]
+         assert head.startswith("--") and head in allowed, flags

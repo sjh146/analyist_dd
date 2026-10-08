@@ -1,0 +1,80 @@
+--- a/scripts/quant_scoreboard.py
++++ b/scripts/quant_scoreboard.py
+@@ -47,8 +47,18 @@
+ # 챔피언(현행) 단일분할 AUC 와 **최고 로버스트 기준선**.
+ # 기준선은 라벨·유니버스 실험에서 실측된 최선값(LS_quant_q30_h5, h5·분위0.3·top30).
+ # 신호 판정은 폴드 표준편차(±0.03)를 감안해 **+0.02 이상**만 인정한다.
+-BASELINE_ROBUST = 0.5406
+-BASELINE_NAME = "LS_quant_q30_h5 (h5·분위0.3·top30)"
++#
++# CG131 이관(2026-10-08, 리뷰보드 승인 대상 — 패치만 준비됨):
++# 종전 0.5406 은 **누수 패널** panel_420_asofpatch.npz 위의 값이다(panel_leak_gate → LEAKY:
++# value_per·quality_roa 등 재무 8컬럼이 종목당 유니크 1 = as-of 수리 이전 빌드). 청정 패널
++# panel_prod200.npz 에서 같은 런·같은 config 로 재면 0.5302±0.0168(CG87, 5폴드×5시드) →
++# 패널 교체만으로 Δ−0.0104. 증거: data/reports/cg131_scoreboard_migration_probe_20261007.txt.
++# ⚠ 리뷰보드가 고를 수 있는 두 값(둘 다 청정 패널·같은 런 실측, 판정은 뒤집히지 않는다):
++#   (A) 0.5302 = LS_quant_q30_h5, 게이트 OFF(기록 기준선 경로) — 현 태그 유지, 아래 값.
++#   (B) 0.5355 = CO_smooth_d1_h5, 게이트 ON(프로덕션 경로) → BASELINE_TAGS 의 core_only=True,
++#       BASELINE_ARM 교체가 함께 필요하다(그쪽은 재현 명령이 다르다).
++BASELINE_ROBUST = 0.5302
++BASELINE_NAME = "LS_quant_q30_h5 (h5·분위0.3·top30) · panel_prod200(청정)"
+ SIGNAL_DELTA = 0.02
+ NO_IMPROVE_CYCLES = 3      # 사이클 3회 연속 무개선 → 사람 개입 요청
+ NO_TRADE_DAYS = 3          # 3거래일 신규 진입 없음 → 회전 정지 경고
+--- a/scripts/quant_scoreboard.py
++++ b/scripts/quant_scoreboard.py
+@@ -337,6 +337,9 @@
+                     "horizon": c.get("horizon"),
+                     "core_only": bool(c.get("core_only")),
+                     "select": c.get("select"),
++                    # 배포 가능성 판정용(CG131): rank 변환은 날짜별 횡단면 값이라
++                    # 종목 단위 스트리밍 추론(app/inference/predictor.py:137)에서 재현 불가.
++                    "transform": c.get("transform"),
+                     "codes_slice": tuple(sl) if isinstance(sl, (list, tuple)) else None,
+                 }
+     except Exception:
+--- a/scripts/quant_scoreboard.py
++++ b/scripts/quant_scoreboard.py
+@@ -398,6 +398,12 @@
+         bad.append(f"h{horizon}≠h{BASELINE_TAGS['horizon']}")
+     if t.get("codes_slice") is not None:
+         bad.append(f"유니버스 슬라이스 {tuple(t['codes_slice'])}")
++    # CG131(2026-10-08): 횡단면 rank 변환 arm 은 배포 추론 경로에서 재현할 수 없다
++    # (predictor.predict 은 종목 1개·날짜 1개로 벡터를 만든다 — 날짜별 횡단면 rank 불가).
++    # 종전 헤드라인 TR_rank_h5 0.5519 가 여기 해당했고, rank 축 자체도 여러 번 종결됐다
++    # (150종목 전이 −0.0109 CG5 · 구간짝 −0.0057 CG14 · +0.0010 CG69).
++    if t.get("transform") == "rank":
++        bad.append("rank 변환(추론 경로 재현 불가·비배포)")
+     if cfg:
+         if _UNIV_CACHE is None:
+             _UNIV_CACHE = _baseline_universe()
+--- a/scripts/_scoreboard_comparability_test.py
++++ b/scripts/_scoreboard_comparability_test.py
+@@ -49,9 +49,15 @@
+     ok, why = q.arm_comparability("LS_quant_q30_h5", P,
+                                   {"panel": "/app/app/models/wf/panel_995.npz", "days": 995, "limit": 50})
+     check("2g 유니버스(패널·days) 상이 → 대조 불가", ok is False and "유니버스" in why, why)
++    # CG131 이관 후 기준선 유니버스는 청정 패널 panel_prod200 이다(종전 asofpatch).
++    ok, why = q.arm_comparability("LS_quant_q30_h5", P,
++                                  {"panel": "/app/app/models/wf/panel_prod200.npz", "days": 420, "limit": 50})
++    check("2h 기준선 유니버스(청정 패널) → 대조가능", ok is True, why)
+     ok, why = q.arm_comparability("LS_quant_q30_h5", P,
+                                   {"panel": "/app/app/models/wf/panel_420_asofpatch.npz", "days": 420, "limit": 50})
+-    check("2h 기준선 유니버스 → 대조가능", ok is True, why)
++    check("2i 누수 패널(asofpatch) → 대조 불가(값 폐기)", ok is False and "유니버스" in why, why)
++    ok, why = q.arm_comparability("TR_rank_h5", P)
++    check("2j rank 변환 arm → 배포 불가로 대조 제외", ok is False and "rank" in why, why)
+ 
+     # ── 3. _rec_best_mean 이 대조 불가 arm 을 제외한다 ─────────────────────────────
+     incmp = {"parsed": {"per_exp": {"Q5s_120_150": {"mean": 0.99, "kind": "quantile", "horizon": 5}}}}
+--- a/scripts/_scoreboard_comparability_test.py
++++ b/scripts/_scoreboard_comparability_test.py
+@@ -67,7 +67,7 @@
+ 
+     # ── 4. 실 원장: 거짓 돌파가 사라지고 기준선 값이 보존된다 ────────────────────────
+     s = q.engineer_stanza()
+-    check("4a 기준선 값 보존", q.BASELINE_ROBUST == 0.5406, str(q.BASELINE_ROBUST))
++    check("4a 기준선 값 = 청정 패널 실측", q.BASELINE_ROBUST == 0.5302, str(q.BASELINE_ROBUST))
+     check("4b best_robust 가 거짓 돌파(q0.05 슬라이스 0.5870)가 아니다",
+           s.get("best_robust") != 0.587, str(s.get("best_robust")))
+     check("4c 최고 대조불가 arm 이 각주로 남는다",

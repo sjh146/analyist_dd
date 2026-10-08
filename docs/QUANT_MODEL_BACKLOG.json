@@ -13006,7 +13006,10 @@
           "arms_comparable": 11,
           "note": "프로덕션(게이트 ON) 경로 기준선으로 이관해도 +0.02 미달 = 정직한 상태는 '무개선 9사이클'(19는 누수 비교 산물)."
         }
-      }
+      },
+      "ready_patch": "data/reports/cg131_scoreboard_migration.patch",
+      "verify_cmd": "python3 scripts/_cg131_migration_verify.py",
+      "ready_note": "2026-10-08 적용준비 완료(오프라인 검증 14/14 PASS · `git apply --check -p1` rc=0). 현행: 기준선 0.5406(누수 패널) → 헤드라인 0.5519(TR_rank_h5, 비배포 rank arm) Δ+0.0113 · 무개선 꼬리 19 → 이관 후: 기준선 0.5302(청정 panel_prod200) → 헤드라인 0.5302 Δ0.0000 · 무개선 꼬리 4. 패치에 포함된 것: ① BASELINE_ROBUST 0.5406→0.5302 ② arm 태그 레지스트리에 transform 노출 ③ arm_comparability 에 'rank 변환 = 비배포' 제외 조건 ④ 짝 회귀테스트(_scoreboard_comparability_test) 2h/2i/2j·4a 갱신. ⚠ 리뷰보드가 (B)안(게이트 ON 기준선 CO_smooth_d1_h5 0.5355)을 고르면 BASELINE_ARM·BASELINE_TAGS.core_only 도 함께 바꿔야 한다(그 경우 헤드라인 0.5344 CO_rank_h5 Δ−0.0011 — rank 제외 조건이 있으면 더 내려간다)."
     },
     {
       "id": "CG132",
@@ -13149,7 +13152,10 @@
       "metric": null,
       "command": null,
       "est_minutes": null,
-      "cost": "구현 1~2시간 + 회귀 테스트(강제/은퇴 어느 쪽이든)"
+      "cost": "구현 1~2시간 + 회귀 테스트(강제/은퇴 어느 쪽이든)",
+      "ready_patch": "data/reports/cg135_promote_flags_floor_wiring.patch",
+      "verify_cmd": "python3 scripts/_cg135_wiring_verify.py",
+      "ready_note": "2026-10-08 적용준비 완료(오프라인 검증 14/14 PASS · `git apply --check -p1` rc=0). objective.py 는 protected_paths 라 이 역할이 적용할 수 없다 — 승인 즉시 git apply 한 줄. 패치 내용: promote_flags 가 ① promote_require_robust=true 일 때 --min-robust-auc (acceptance.min_robust_auc=0.5) ② promote_require_expectancy_t=true(신규 키) 일 때 --min-expectancy-t(acceptance.min_expectancy_t, 기본 2.0)를 내보낸다. 두 플래그 모두 champion_promote 에서 이미 지원(기본 None = 프로덕션 비트 동일)이고 게이트가 false 인 현행 objective.json 에서는 **출력이 종전과 완전히 동일**(검증 ③)하다. 적용 절차: ① git apply -p1 <패치> ② config/objective.json gates 에 promote_require_robust=true(+키 min_robust_auc 0.5) 및/또는 promote_require_expectancy_t=true(+min_expectancy_t 2.0) 선언 ③ python3 scripts/objective.py promote-flags 로 실제 출력 확인."
     },
     {
       "id": "CG136",
