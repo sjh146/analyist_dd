@@ -82,7 +82,30 @@ def auc(y: list[int], p: list[float]) -> float:
     return (rank_sum - pos * (pos + 1) / 2.0) / (pos * neg)
 
 
-def trading_dates(conn, n_dates: int) -> list[str]:
+def trading_dates(conn, n_dates: int, asof_date: str | None = None) -> list[str]:
+    """최근 n_dates 거래일(내림차순).
+
+    asof_date=None 이면 **현행과 비트 동일**(앵커 = CURRENT_DATE).
+    asof_date='YYYY-MM-DD' 를 주면 그 날짜를 앵커로 창을 **고정**한다.
+
+    왜(2026-10-09 실측): 앵커가 CURRENT_DATE 라 하루만 지나도 표본 창이 통째로 밀린다
+    → 같은 모델을 같은 프로토콜로 재도 값이 달라져 '기준선 대비 Δ'가 사과(모델)와
+    오렌지(창)를 섞는다. 배포 챔피언(2026-09-24 이후 모델 불변) 재측정 13회 실측:
+    0.4935~0.5448(폭 0.0513) · 명시적 동일 프로토콜 2회(CG136/139) Δ0.0227 —
+    사전문턱 +0.02 와 같은 크기다. 창 고정으로 일 단위 비교를 성립시킨다.
+    """
+    if asof_date:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT trade_date FROM market_data
+                WHERE close_price > 0
+                  AND trade_date <= %(anchor)s::date - INTERVAL '7 days'
+                ORDER BY trade_date DESC LIMIT %(n)s
+                """,
+                {"anchor": asof_date, "n": n_dates},
+            )
+            return [r[0].strftime("%Y-%m-%d") for r in cur.fetchall()]
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -220,6 +243,11 @@ def main() -> int:
                          "구간)도 채점 대상에 포함된다 — 컷오프를 과거로 고정해 학습한 모델을 "
                          "그 이후 창에서 평가할 때 필요하다. 미지정 시 meta 의 data_end")
     ap.add_argument("--model-dir", default="app/models/champion")
+    ap.add_argument("--asof-date", dest="asof_date", default=None,
+                    help="창 앵커(YYYY-MM-DD) — 주면 표본 거래일 창을 그 날짜 기준으로 **고정**한다"
+                         "(미지정 = 현행 비트 동일, 앵커=CURRENT_DATE). 왜(2026-10-09 실측): 앵커가 "
+                         "오늘이면 하루만 지나도 창이 밀려 같은 모델·같은 프로토콜의 값이 0.4935~0.5448 "
+                         "로 흔들린다(폭 0.0513) — 일 단위 Δ 비교가 성립하지 않는다.")
     ap.add_argument("--universe", choices=("liquidity", "training"), default="liquidity",
                     help="표본 유니버스 선택. liquidity=유동성 상위(현행 프로토콜·기본값), "
                          "training=select_training_universe(학습 경로와 동형 — ETF/ETN·파생 제외). "
@@ -273,12 +301,14 @@ def main() -> int:
     )
     # 창 크기: 폴드당 h 간격 날짜를 dates-per-fold 개 뽑을 수 있게 창을 넉넉히(≈2배) 잡는다.
     span = args.dates_per_fold * 2 * args.folds
-    dates_desc = trading_dates(conn, max(span + 5 * args.horizon, 200))
+    dates_desc = trading_dates(conn, max(span + 5 * args.horizon, 200), asof_date=args.asof_date)
     if not dates_desc:
         logger.error("거래일을 찾지 못했습니다")
         return 2
     dates_asc = sorted(dates_desc)
-    logger.info("거래일 %d개 확보 (%s ~ %s)", len(dates_asc), dates_asc[0], dates_asc[-1])
+    logger.info("거래일 %d개 확보 (%s ~ %s) — 창 앵커 %s",
+                len(dates_asc), dates_asc[0], dates_asc[-1],
+                args.asof_date or "CURRENT_DATE(현행)")
 
     chunk = max(1, len(dates_asc) // args.folds)
     windows = [dates_asc[i * chunk:(i + 1) * chunk] for i in range(args.folds)]
@@ -486,6 +516,7 @@ def main() -> int:
                  "quantile": f"분위 꼬리 q={args.label_q}(가운데 제외)"}[args.label_kind]
     payload = {
         "model_dir": args.model_dir,
+        "window_anchor": args.asof_date,   # None = CURRENT_DATE(현행). 값이 있으면 창이 고정됐다
         "protocol": (f"{len(fold_stats)}-fold 연속 시간창, h={args.horizon} "
                      f"{_lbl_desc} 라벨, "
                      f"크로스섹션 AUC, purge={args.horizon}거래일"),

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-09T04:05:22+09:00",
+  "updated_at": "2026-10-09T05:05:20+0900",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -13350,7 +13350,33 @@
       "setup_needed": "동결 수리 코드는 **완료**(services/xgboost-ml/app/training/universe.py::_default_date_from — UNIVERSE_ASOF_DATE 미설정이면 현행 비트 동일, 자체점검 7/7 PASS). 남은 것은 **운영 결정 = 유니버스 규칙 변경이라 리뷰보드 승인 대상**: ① .env 에 `UNIVERSE_ASOF_DATE=<고정일>` 추가(또는 재학습 크론 환경에 export) ② 더 강한 형태로는 고정 유니버스 목록을 산출물(json)로 커밋하고 학습·수집이 그것을 읽게 한다(CG141 수집 정합의 전제). 승인하면 내가 2줄 배선·회귀·커밋한다.",
       "note": "2026-10-09 엔지니어 자율(장외 루프). 실측: eligible 2652(date_from 2026-08-09) vs 2657(2026-08-03) = 5종목 차이 → 같은 seed=0 선택 200종목 교집합 **26/200(87% 교체)**. date_from 을 같게 하면 200/200 완전 동일 → 원인은 날짜 하나뿐. panel_prod200(2026-10-02 빌드, --universe prod --end-date 2026-09-27)과 오늘 기본 유니버스의 교집합은 31/200, 빌드 당시 창(2026-08-03)으로 되돌려도 56/200 — 즉 **패널 유니버스는 오늘 DB 에서 재현되지 않는다**. 증거·재현: data/reports/universe_stability_probe_20261009.txt · scripts/_universe_stability_probe.py · scripts/_cg141_scope_probe.py. 회귀: _universe_determinism_test ALL PASS · _universe_mode_test 전부 PASS · _universe_pin_test 7/7 PASS. ⚠ 컨테이너에 pytest 모듈이 없어 스킬의 pytest 명령은 실행 불가(대신 위 3개 자체점검으로 검증). 이 항목은 새 성능 레버가 아니라 측정 정합성 수리다.",
       "attempts": []
+    },
+    {
+      "id": "CG143",
+      "title": "프로토콜 재현 잡음바닥 실측 — 동일 모델·동일 프로토콜이 하루 만에 얼마나 흔들리는가 (사전문턱 +0.02 의 타당성 검정)",
+      "status": "pending",
+      "priority": 1,
+      "kind": "측정정합성",
+      "affects_model": false,
+      "arm": "배포 챔피언(app/models/champion, 2026-09-24 이후 모델 불변) — 새 성능 레버가 아니라 계측기 검정",
+      "counterfactual": "현행(창 앵커=CURRENT_DATE, 무고정) — 매일 표본 창·유니버스가 함께 밀리는 프로토콜",
+      "baseline": "원장 champion_robust_eval 재측정 13회(같은 모델): 0.4935~0.5448 (폭 0.0513 · std 0.0148) · 명시적 동일 프로토콜 1일 차 2회(CG136 0.5354 / CG139 0.5127) Δ0.0227",
+      "command": "bash scripts/cg143_noise_floor.sh",
+      "metric": "protocol_noise_floor",
+      "est_minutes": 20,
+      "est_minutes_note": "컨테이너 런 3회(각 ~5분): 고정 앵커 2회 + 앵커 1일 차 1회. 모두 같은 모델(배포 챔피언)이라 학습 없음 → CPU 부하는 평가만.",
+      "hypothesis": "창 앵커가 CURRENT_DATE 라 하루만 지나도 표본 창(최근 200거래일)과 유동성 유니버스(최근 120거래일 top-60)가 함께 밀린다 → 모델을 바꾸지 않아도 로버스트 AUC 가 흔들린다. 새 옵션 champion_robust_eval.py --asof-date(2026-10-09 신설)로 창을 고정해 ① 결정성(같은 앵커 2회 비트 동일) ② 앵커 1일 이동 잡음(Δ) 을 분리 측정한다.",
+      "success": "사전등록(변경 금지): ① 결정성 — 같은 앵커 2회의 robust_auc 와 폴드 AUC 목록이 **비트 동일**해야 한다(아니면 '프로토콜 비결정성 결함'으로 규명, 문턱 논의 이전 문제). ② 잡음바닥 — 앵커 1일 차 Δ. Δ >= 0.02 → '사전문턱 +0.02 는 프로토콜 잡음과 구분 불가' 로 판정하고 문턱·프로토콜 재정의(리뷰보드 승인) 근거로 올린다. Δ < 0.01 → 문턱 유지 가능. 0.01~0.02 → '부분 잡음'으로 기록하고 창 수 확대를 다음 레버로 둔다.",
+      "expected": "원장 실측(CG136/139)이 같은 모델·같은 프로토콜 문자열에서 1일 차 Δ0.0227 을 보였으므로 Δ >= 0.02(=문턱) 가 유력하다. 즉 '19사이클 무개선' 카운터와 과거 '신호있음' 판정 다수가 **모델 신호가 아니라 창 이동 잡음**일 수 있다는 결론으로 갈 가능성이 크다.",
+      "cost": "저(읽기 전용 평가 3회). DB 조회 + 배포 챔피언 추론만.",
+      "evidence": [
+        "scripts/champion_robust_eval.py --asof-date 신설(기본값 None = 현행 비트 동일) · scripts/_robust_asof_pin_test.py 13/13 PASS",
+        "services/xgboost-ml/reports/overnight/cg143_noise_floor.json(집계) · cg143_a1/a2/b1.json(런별)"
+      ],
+      "verify_cmd": "python3 -c \"import json;d=json.load(open('services/xgboost-ml/reports/overnight/cg143_noise_floor.json'));print(d['determinism_same_anchor'],d['auc'],d['anchor_shift_delta'],d['verdict'])\"",
+      "added": "2026-10-09",
+      "note": "2026-10-09 엔지니어 자율(장외 루프). 발단: 원장의 champion_robust_eval 25행을 전수 집계하니 **배포 챔피언(모델 2026-09-24 이후 불변)** 의 재측정이 0.4935~0.5448(폭 0.0513 · std 0.0148 · n=13)였고, 명시적 동일 프로토콜 문자열('same-run 3-window OOS (rel h5, 60 stocks, purge=5)')의 1일 차 2회가 CG136 0.5354 → CG139 0.5127 = Δ0.0227 이었다. 사전문턱 +0.02 와 같은 크기 → 지금까지의 '신호있음'(CG4/CG6/CG17/CG19/CG20/CG21 등)과 '무개선 19사이클' 카운터 모두 잡음과 구분 불가일 수 있다. 이 항목은 새 AUC 레버가 아니라 **계측기 검정**이다(그래서 affects_model=false). 배경 함정: script 의 trading_dates() 앵커가 CURRENT_DATE - 7d 라 창이 매일 밀리고, 유동성 유니버스도 최근 120거래일 기준이라 함께 밀린다 — CG142(학습 유니버스 87% 재추첨)와 같은 계열의 '실행 시각 = 창' 문제다. ⚠ 이 항목이 끝나면 판정 결과에 따라 ②(리뷰보드 승인) 항목을 올린다."
     }
   ],
-  "updated": "2026-10-08"
+  "updated": "2026-10-09"
 }

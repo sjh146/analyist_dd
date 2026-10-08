@@ -869,6 +869,16 @@ def summary_path(kind, command=None):
             return _container_path_to_host(out.strip("'\""))
         log("경고: regime_ic_screen 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "protocol_noise_floor":
+        # 프로토콜 **재현 잡음바닥** (scripts/cg143_noise_floor.sh — 고정 앵커 반복). CG143.
+        # 왜 전용 metric 인가(2026-10-09 실측): 창 앵커가 CURRENT_DATE 라 하루만 지나도 표본 창·
+        # 유니버스가 통째로 밀린다 → 배포 챔피언(2026-09-24 이후 **모델 불변**)을 같은 계열
+        # 프로토콜로 재측정한 13회가 0.4935~0.5448(폭 0.0513), 명시적 동일 프로토콜 1일 차
+        # 2회(CG136/139) Δ0.0227 = **사전문턱 +0.02 와 같은 크기**다. 이 값이 문턱보다 크면
+        # 그동안의 '신호있음' 판정 다수가 잡음과 구분 불가라는 뜻 → 문턱·프로토콜 재정의 근거.
+        # 스키마가 folds/robust_auc 가 아니라 결정성·앵커이동 Δ 라 기존 파서에 안 담긴다.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg143_noise_floor.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -983,6 +993,51 @@ def parse_champion_robust(path, mtime_floor) -> dict:
         "rows_scored": d.get("rows_scored"), "dates_scored": d.get("dates_scored"),
         "errors": (d.get("errors") or [])[:5],
         "summary_mtime": mt,
+    }
+
+
+def parse_protocol_noise_floor(path, mtime_floor) -> dict:
+    """프로토콜 재현 잡음바닥 요약(scripts/cg143_noise_floor.sh)을 파싱한다 (CG143, 2026-10-09).
+
+    스키마: {determinism_same_anchor, auc{a1,a2,b1}, anchor_shift_delta, folds{a1,b1},
+             windows{a1,b1}, pre_registered_threshold, verdict}
+    ⚠ **per_exp 를 만들지 않는다** — scoreboard 는 원장의 parsed.per_exp 전체를 'arm 폴드 평균'으로
+    읽어 best_robust·무개선 카운터를 만든다. 여기 값은 AUC 자체가 아니라 **잡음 추정치**라
+    per_exp 로 넣으면 가짜 돌파/가짜 개선이 난다(CG31 사고와 동형).
+    """
+    if not path or not os.path.exists(path):
+        return {"error": "요약 파일 없음", "path": path}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    errs = d.get("errors") or {}
+    if errs or d.get("auc", {}).get("a1") is None:
+        return {"error": f"런 실패(앵커 {d.get('anchors')})", "errors": errs, "summary_mtime": mt}
+    shift = d.get("anchor_shift_delta")
+    thr = float(d.get("pre_registered_threshold", 0.02))
+    det = bool(d.get("determinism_same_anchor"))
+    if not det:
+        verdict = "결정성 위반 — 프로토콜 비결정성 결함"
+    elif shift is not None and float(shift) >= thr:
+        verdict = "잡음바닥 >= 문턱 — 사전문턱 +0.02 는 잡음과 구분 불가"
+    else:
+        verdict = "잡음바닥 < 문턱"
+    return {
+        "metric_name": d.get("metric"), "protocol": d.get("config"),
+        "anchors": d.get("anchors"),
+        "determinism_same_anchor": det,
+        "auc": d.get("auc"),
+        "anchor_shift_delta": shift,
+        "threshold": thr,
+        "noise_over_threshold": (shift is not None and float(shift) >= thr),
+        "folds": d.get("folds"), "windows": d.get("windows"),
+        "verdict": verdict, "summary_mtime": mt,
     }
 
 
@@ -1251,6 +1306,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_scorecard(spath, mtime_floor)
     if kind == "intraday_screen":
         return parse_intraday_screen(spath, mtime_floor)
+    if kind == "protocol_noise_floor":
+        return parse_protocol_noise_floor(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
