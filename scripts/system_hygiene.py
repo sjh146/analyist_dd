@@ -162,6 +162,36 @@ def flapping_delta(cur, prev):
     return out
 
 
+def _prev_zombie_count():
+    """직전 점검의 호스트 좀비 개수(없으면 None)."""
+    try:
+        with open(os.path.join(OUTDIR, "latest.json"), encoding="utf-8") as f:
+            zs = json.load(f).get("zombies")
+        return len(zs) if isinstance(zs, list) else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def zombie_decision(cur_n, prev_n):
+    """좀비 판정 — 누적값이 아니라 **증가분**으로 위반을 건다(순수 함수).
+
+    왜(실측 2026-10-09): stock_xgboost_ml 컨테이너 PID 1 이 subprocess(timeout/python)를 reap
+    하지 않아 좀비가 9 → 17 로 계단 상승했다. 좀비는 컨테이너를 재시작하기 전까지 **줄지 않으므로**
+    누적값에 breach 문턱(10)을 걸면 한 번 넘어간 뒤 영원히 매 점검 breach 로 남는다
+    (RestartCount 함정·기준선 위 문턱과 같은 얼굴 — flapping_delta 와 동일 원리).
+    직전 관측이 없으면(첫 관측) 증가의 증거가 없으므로 breach 로 올리지 않는다.
+    반환: (level, delta) — level ∈ {"breach","warn",None}, delta = cur_n - prev_n (모르면 None).
+    """
+    if prev_n is None:
+        return ("warn" if cur_n >= TH["zombie_warn"] else None), None
+    delta = cur_n - prev_n
+    if cur_n >= TH["zombie_breach"] and delta > 0:
+        return "breach", delta
+    if cur_n >= TH["zombie_warn"]:
+        return "warn", delta
+    return None, delta
+
+
 def check_docker():
     info = {}
     df = sh("docker system df --format '{{.Type}}|{{.TotalCount}}|{{.Size}}|{{.Reclaimable}}'")
@@ -304,12 +334,21 @@ def main():
     orphans = check_orphan_pidfiles()
 
     warns, breaches = [], []
-    if len(zs) >= TH["zombie_breach"]:
-        owners = sorted({z.get("container", "?") for z in zs})
-        breaches.append(f"좀비 {len(zs)}개 (부모: {', '.join(owners)})")
-    elif len(zs) >= TH["zombie_warn"]:
-        owners = sorted({z.get("container", "?") for z in zs})
-        warns.append(f"좀비 {len(zs)}개 누적 (부모: {', '.join(owners)})")
+    zlevel, zdelta = zombie_decision(len(zs), _prev_zombie_count())
+    if zlevel:
+        owners = sorted({z.get("container", "?") for z in zs}) or ["?"]
+        if zdelta is None:
+            growth = "기준선"
+        elif zdelta > 0:
+            growth = f"+{zdelta}"
+        elif zdelta < 0:
+            growth = str(zdelta)
+        else:
+            growth = "정체"
+        if zlevel == "breach":
+            breaches.append(f"좀비 {len(zs)}개({growth}) (부모: {', '.join(owners)})")
+        else:
+            warns.append(f"좀비 {len(zs)}개 누적({growth}) (부모: {', '.join(owners)})")
     if dinfo["containers_stopped"] > 0:
         warns.append(f"정지 컨테이너 {dinfo['containers_stopped']}개")
     if dinfo["unhealthy"]:
