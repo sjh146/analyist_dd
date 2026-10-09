@@ -2494,3 +2494,34 @@ T6 브리지 churn(실측 37→7→1.0 자연 소멸) · 게이트 문턱 0.02(1
 - **엔지니어**: ① CG141 등록 — CG140 의 "창 구성 특이" 결론을 창 **10개 이상 공통 교집합** 프로토콜로 고정(측정 표류 −0.0227 을 문서화한 뒤 창 최소 요건을 프로토콜에 못박기) ② 청정 패널(prod200) 기준선에서 챌린저 재측정 — 누수 패널 헤드라인(0.5519)을 회의 근거로 쓰지 않기 ③ 무개선 19/19 → 새 레버는 데이터 축(리서처 신규 피처)임을 확인.
 
 *리뷰보드 판정 기준: 순기대(%p/세션) · 표본 · 분할표본. AUC 상승은 승인 사유가 아니다.*
+
+
+### 트레이더 (2026-10-09 09:2x 장중 틱 — 🚨 한글날 휴장인데 루프가 실주문 모드로 가동 · 북극성 조회 2종 불일치, 실측)
+
+- **북극성(실현 누적)**: **−1,447원** · 청산 **4건** · 승률 **25.0%** · 기대값 **−362원/건** · 수수료 **0원** · 보유 **2**. (10-08 표기 −2,936원 → **−1,447원 정정** — 개선 아님: 475830 `fees=−1,489` 음수 백필을 리뷰보드가 `fees=0`으로 되돌린 결과. `trader_ledger.jsonl` 09:25 행 = `−1447.0017`.)
+- **스크리너별 실현**: close **3건 −1,446원** / swing **1건 −1원**(=475830 브로커 net). 저널 실측(`trade_journal.sqlite3` 복사본 read) `sum(pnl)=−1,447.0017` · `sum(fees)=0` · 6행(청산 4 · 보유 2).
+- **실행 경로**: halt=**False** · 실패 **0** · phase=monitor · 갱신지연 **0.1분**(`loop_state 2026-10-09T09:25:56`) · 브리지 **True** · 킬스위치 없음. ⚠ 단 `market_open=true` · `dry_run=false` · `daily.date=2026-10-09`.
+- 🚨 **휴장일 실주문 가동(신규·트레이더 관점)**: 오늘 **10-09 = 한글날 KRX 휴장**(KIS `opnd_yn=N`)인데 `data/krx_holidays.json` 에서 10-09 가 **삭제**됨(worktree `git diff` 실측 — HEAD 에는 있고 worktree 에 없다; 04:15 `cron_data_gap_backfill`). 파급: ⓐ `feed_export` 휴장 가드가 오늘을 거래일로 보고 피드 발행(`generated_at 2026-10-09T08:40:02`) ⓑ `trader-agent/trader_core/profiles.py:185` 는 'exchange holidays are not'(주말만 skip) → 루프가 휴장일 **실주문 모드**로 가동. **단 주문 0건** — close 20→0 · swing 16→0; daytrading 20→5 이나 `screeners=['close','swing']` 이라 미배선(decisions 0 · acted 0).
+  - **뿌리**: `scripts/data_gap.py:220` 자가치유 `if today in holidays and kis_is_trading_day(today): discard` 인데 `kis_is_trading_day()` 가 `opnd_yn=='Y' or tr_day_yn=='Y'` — **tr_day_yn 은 휴장·주말도 'Y'** → 진짜 휴장을 매일 거래일로 오독해 휴장 당일 아침 캘린더에서 지운다. 정정안: `opnd_yn`(또는 `bzdy_yn`) 단독 판정.
+  - **이미 등록**: 리서처 백로그 **T33** `holiday-selfheal-removes-real-holiday`(08:24 · from_trader · `docs/QUANT_FINDINGS.md`). 캘린더·`data_gap` 은 **리서처 소유** → 수리는 리서처. 다만 **실주문 경로 안전** 영향이라 ② 승인 항목으로 올린다(휴장일 루프 정지 = 주문경로 비활성 = **사람 필수**).
+- ⚠ **북극성 조회 2종 불일치(신규)**: `quant_scoreboard --stanza trader` = **−2,936원** vs `trader_cycle --status`/저널 = **−1,447원**. 원인: 스코어보드가 저널 `pnl` 컬럼이 아니라 `(exit_price−price)×qty` 로 재계산하는데, id4(475830)의 `price=21150`/`exit_price=19660` 이 **체결가가 아니라 주문가·tick 트리거**(차 −1,490 vs 브로커 net −1, 1,489원 불일치). → 스킬이 지정한 북극성 조회가 실현손익을 **−1,489원 과대** 표기. 소유: **트레이더**(저널 가격 필드를 체결가로 채우거나, 스코어보드가 `pnl` 을 읽도록 통일).
+- ⚠ **`trader_fill_stats.json` `fees=−1,489` 잔존**: 10-08 16:40 생성본 `all.fees=−1489`·`swing.fees=−1489` — 리뷰보드가 지시한 PG `trader_fills`·`data/fills` 정리가 **미완**(저널은 `fees=0`). `net_pnl −1447`·기대값 −361.8 은 정상. 16:40 재적재 시 재발. 소유: **트레이더**.
+- **계약2 충족**: scorecard `generated_at 2026-10-09T07:00:22` · fold **0.5148±0.0344**(3폴드·승률 0.333) · purge h=5 · `promote_dryrun=kept_incumbent`(CG138 · 돈게이트 '분할표본 불안정') · 챔피언 AUC **0.551318**.
+- **피드 계약 위반 0건** · 파일 1개 · `generated_at 2026-10-09T08:40:02`(경과 0.03일) · close **20**(screener 87.0~92.3) · swing **16**(`calibrated_prob` 50.0~61.84) · daytrading **20**(`composite` · signal_date 10-06) · `close_price` 누락 0 · `scoring_summary={}`(켈리 f*≤0).
+- **미달**: **T1** 수수료 0원(프로브 0.0 < 1.0, failed) · **T5** 기대값 −362원/건 · **T8** 지정가 편차 23.06%(10-08 실측, 미해소).
+- **핸드오프**: 총 **22** · unfilled **16**(과대집계 — done/closed_rejected 포함) · 24시간 초과 3건 = **MT116**(168.0h · done · 명령없음) · **MT117**(163.9h · done · 명령없음) · **MT189**(41.9h · needs_setup). 진짜 open = MT189 · MT71(diagnosed) · T17(pending).
+- **사람 단계(09:2x)**: ③ 사람이 직접 **없음**(브리지 True · Creon 세션 유지 · 킬스위치 없음 — 단 ②의 휴장 루프 정지를 원하면 사람이 `trader-agent/kill_switch.txt`) → ② 승인·사람: **휴장일 실주문 루프 정지 + 휴장 캘린더 정정(T33)** · MT189 단타 배선 · R26/R31 · close/swing R1 문턱(리뷰보드 불승인 유지) · T1 fee write/read 계약 → ① 진행 중: 리서처 T33 수리·R21→R25→R28→R27 틱 회전 / 트레이더 — 스코어보드·저널 정합·fill_stats 정리·475830 체결가 재확인.
+
+
+### 트레이더 (2026-10-09 11:2x 장중 틱 — 🎌 한글날 휴장 지속 · 실질 변화 없음(실측 갱신만), 실측)
+
+- **북극성(실현 누적)**: **−1,447원** · 청산 **4건** · 승률 **25.0%** · 기대값 **−362원/건** · 수수료 **0원** · 보유 **2** (09:2x 대비 변동 없음). `trader_ledger.jsonl` 11:25:40 행 = `north_krw −1447.0017`.
+- **스크리너별 실현**: close **3건 −1,446원** / swing **1건 −1원**(변동 없음).
+- **실행 경로**: halt=**False** · 실패 **0** · phase=monitor · 갱신지연 **3.6분**(`loop_state.updated_at 11:22:05` · 5분 주기 정상 범위) · 브리지 **True** · 킬스위치 없음. `market_open=true`·`dry_run=false`·`daily.entries=0`(=휴장일 무주문 · 단 주문경로는 **실주문 모드 유지** — 09:2x 신규 항목 지속).
+- **차단 사유(루프 실측)**: `R1 block close: avg 87.1 < 88.0`(변동 없음) · `R1 block swing: avg prob 0.547 < 0.58`(09:2x 0.567 → **0.547 하락**) · `PRE filter close 20→0 / swing 16→0(stale·blocked) / daytrading 20→5(price)` — 단타는 미배선(`screeners=['close','swing']`)이라 안전.
+- **계약2 충족**: scorecard `generated_at 2026-10-09T07:00:22` · fold **0.5148±0.0344**(3폴드·승률 0.333) · purge h=5 · `promote_dryrun=kept_incumbent`(CG138 · 돈게이트 '분할표본 불안정' 앞 0.3383/뒤 −0.0651) · 챔피언 AUC **0.551318**. **미비 항목 없음.**
+- **피드 계약 위반 0건** · 파일 1개 · `generated_at 2026-10-09T08:40:02`(경과 0.12일) · close **20**(screener 80.1~92.3 · signal_date 10-07) · swing **16**(`calibrated_prob` 50.22~61.84 · 10-08) · daytrading **20**(`composite` · 10-06) · `close_price` 누락 0 · `scoring_summary` 없음(켈리 f*≤0).
+- **미달**: **T5** 기대값 −361.75원/건(11:25 프로브 · failed) · **T1** 수수료 0원(failed) · **T8** 지정가 편차 23.06%(10-08 실측 · 미해소).
+- **미해소(이월)**: ⓐ 스코어보드 −2,936 vs 저널/원장 −1,447(475830 가격필드=주문가·tick 트리거) ⓑ `trader_fill_stats.json fees=−1489` 잔존(10-08 16:40본) ⓒ T33 휴장 캘린더 자기치유(리서처). 셋 다 09:2x 신규/보고분 — 이 틱 변동 없음.
+- **핸드오프**: 총 **22** · unfilled **16** · 24시간 초과 3건 = **MT116**(170.0h·done·명령없음) · **MT117**(165.9h·done·명령없음) · **MT189**(43.9h·needs_setup). 신규 **T33**(3.0h·backlog·명령없음 · 08:24 from_trader).
+- **사람 단계(11:2x)**: ③ 사람이 직접 **없음**(브리지 True · Creon 세션 유지 · 킬스위치 없음) → ② 승인·사람: **휴장일 실주문 루프 정지(T33 — 주문경로 비활성=사람 필수)** · MT189 단타 배선 · R26/R31 · close/swing R1 문턱(리뷰보드 불승인 유지) · T1 fee write/read 계약 → ① 진행 중: 리서처 T33 수리·틱 회전 / 트레이더 — 스코어보드·저널 정합·fill_stats 정리·475830 체결가 재확인.
