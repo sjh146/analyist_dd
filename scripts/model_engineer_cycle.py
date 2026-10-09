@@ -885,6 +885,15 @@ def summary_path(kind, command=None):
         # 문턱을 넘나'를 알 수 없다 — 그 곡선이 일 단위 판정 가능성(= 문턱 재정의 필요성)을 결정한다.
         # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg144_noise_curve.json")
+    if kind == "protocol_pair_anchor":
+        # 앵커 **평균** 짝 Δ 실측(scripts/cg145_pair_anchor.sh — 산출물 접두는 `TAGPFX=` env). CG145/CG146.
+        # 왜 전용 metric 인가(2026-10-09 실측): CG143/144 는 '같은 모델의 레벨'이 앵커만 옮겨도
+        # 최대 |Δ| 0.0597(사전문턱의 3배) 로 흔들림을 보였다. 남은 질문은 '두 arm 을 같은 앵커에서
+        # **짝으로** 재면 그 공통분이 상쇄돼 Δ 가 안정되는가'이고, 그게 승격 판정 문턱의 근거다.
+        # 요약 파일명이 실행마다 TAGPFX 로 달라지므로 커맨드에서 뽑는다(고정 경로면 이전 실측을 잃는다).
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 값이 AUC 자체가 아니라 앵커 잡음이다.
+        pfx = _env_arg(command or "", "TAGPFX") or "cg145"
+        return os.path.join(PROJ, f"services/xgboost-ml/reports/overnight/{pfx}_pair_anchor.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -911,6 +920,19 @@ def _arg(command: str, flag: str) -> str:
             return parts[i + 1].strip("'\"")
         if p.startswith(flag + "="):
             return p.split("=", 1)[1].strip("'\"")
+    return ""
+
+
+def _env_arg(command: str, name: str) -> str:
+    """커맨드 접두의 `NAME=값` 환경변수 할당을 뽑는다(없으면 빈 문자열).
+
+    예: `ANCHORS="..." TAGPFX=cg146 bash scripts/cg145_pair_anchor.sh` → "cg146".
+    산출물 접두가 env 로 바뀌는 래퍼 스크립트의 요약 경로를 정하기 위한 것 — 경로를 고정하면
+    실행마다 같은 파일을 덮어써 이전 실측을 잃는다(champion_robust_eval 에서 실측한 함정).
+    """
+    for tok in (command or "").split():
+        if tok.startswith(name + "=") and not tok.startswith("--"):
+            return tok.split("=", 1)[1].strip("'\"")
     return ""
 
 
@@ -1075,6 +1097,45 @@ def parse_protocol_noise_curve(path, mtime_floor) -> dict:
             "max_abs_delta": d.get("max_abs_delta"),
             "threshold": d.get("pre_registered_threshold"),
             "verdict": d.get("verdict"), "summary_mtime": mt}
+
+
+def parse_protocol_pair_anchor(path, mtime_floor) -> dict:
+    """앵커 **평균** 짝 Δ 요약(scripts/cg145_pair_anchor.sh)을 파싱한다 (CG145/CG146, 2026-10-09).
+
+    스키마: {metric, anchors{tag:date}, arms{name:dir}, config, auc{tag/arm}, folds{tag/arm},
+             level_mean/level_std{arm}, pair_delta{tag}, pair_delta_mean, pair_delta_std,
+             anchor_threshold_pass[tag:x|O], anchors_over_threshold, sign_consistent,
+             pre_registered_threshold, verdict, errors}
+    ⚠ **per_exp 를 만들지 않는다** — 값이 AUC 자체가 아니라 '앵커를 옮겼을 때의 짝 Δ'라
+    스코어보드에 넣으면 가짜 개선이 난다(parse_protocol_noise_floor 와 동형).
+    """
+    if not path or not os.path.exists(path):
+        return {"error": "요약 파일 없음", "path": path}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    errs = d.get("errors") or {}
+    if errs or not d.get("pair_delta"):
+        return {"error": f"런 실패(앵커 {d.get('anchors')})", "errors": errs, "summary_mtime": mt}
+    return {
+        "metric_name": d.get("metric"), "protocol": d.get("config"),
+        "anchors": d.get("anchors"), "arms": d.get("arms"), "pair": d.get("pair"),
+        "auc": d.get("auc"), "folds": d.get("folds"),
+        "level_mean": d.get("level_mean"), "level_std": d.get("level_std"),
+        "pair_delta": d.get("pair_delta"),
+        "pair_delta_mean": d.get("pair_delta_mean"), "pair_delta_std": d.get("pair_delta_std"),
+        "anchor_threshold_pass": d.get("anchor_threshold_pass"),
+        "anchors_over_threshold": d.get("anchors_over_threshold"),
+        "sign_consistent": d.get("sign_consistent"),
+        "threshold": d.get("pre_registered_threshold"),
+        "verdict": d.get("verdict"), "summary_mtime": mt,
+    }
 
 
 def parse_champion_seed_family(path, mtime_floor) -> dict:
@@ -1346,6 +1407,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_protocol_noise_floor(spath, mtime_floor)
     if kind == "protocol_noise_curve":
         return parse_protocol_noise_curve(spath, mtime_floor)
+    if kind == "protocol_pair_anchor":
+        return parse_protocol_pair_anchor(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -2470,6 +2533,31 @@ def judge_protocol_noise_curve(item, parsed) -> tuple:
     return verdict, detail, None
 
 
+def judge_protocol_pair_anchor(item, parsed) -> tuple:
+    """CG145/CG146 — 앵커 **평균** 짝 Δ(계측기 검정). 모델 팔 실험이 **아니다**.
+
+    ⚠ delta 는 항상 None 을 돌려준다: 숫자가 '성능 개선폭'이 아니라 '앵커를 옮겼을 때의 짝 Δ
+    안정성'이라 무개선 카운터·스코어보드에 넣으면 가짜 신호가 난다(parsed 에 per_exp 를 일부러
+    안 싣는 이유와 동형). 판정 문구는 스크립트가 사전등록 규칙으로 만든 verdict 를 그대로 쓴다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    verdict = parsed.get("verdict") or "판정불가"
+    pd_ = parsed.get("pair_delta") or {}
+    dm, ds = parsed.get("pair_delta_mean"), parsed.get("pair_delta_std")
+
+    def _f(v):
+        return f"{v:+.4f}" if isinstance(v, (int, float)) else str(v)
+
+    d_s = " ".join(f"{k}:{_f(pd_[k])}" for k in sorted(pd_))
+    detail = (f"앵커 {len(pd_)}개 짝 Δ {d_s} · 평균 {_f(dm)}±{ds}"
+              f" · 문턱통과 {parsed.get('anchors_over_threshold')}/{len(pd_)}"
+              f" ({parsed.get('anchor_threshold_pass')}) · 부호일관 {parsed.get('sign_consistent')}"
+              f" · 레벨 std {parsed.get('level_std')}"
+              f" · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관")
+    return verdict, detail, None
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
@@ -2477,6 +2565,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_protocol_noise_floor(item, parsed)
     if kind == "protocol_noise_curve":
         return judge_protocol_noise_curve(item, parsed)
+    if kind == "protocol_pair_anchor":
+        return judge_protocol_pair_anchor(item, parsed)
     if kind == "blend_eval":
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":
