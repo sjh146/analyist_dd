@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-08T21:20:00+09:00",
+  "updated_at": "2026-10-09T21:14:41+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1097,7 +1097,8 @@
         "check_value": 0.0,
         "rc": 0,
         "log": "data/reports/res_cycle/logs/res_R27_20261008-220058.log"
-      }
+      },
+      "note": " || **[2026-10-09 21:1x 스캔 — 자기신고 미배선 러너 목록]** 크론이 실제로 돌리는데 dq_runner_claim 행을 만들지 않는 수집 경로 3개(배선조차 없음, R23 텍스트 휴리스틱에도 걸린다): ① `kis_backfill_range.py`(kis_backfill.sh) — record_claim 문자열 0 ② `run_close_job.py`(close_job.sh) — 컨테이너 내부라 dq_claim.py 모듈 부재(R28 유형 → phase 로그 브리지 필요) ③ `run_swing_job.py`(swing_pipeline.sh 도 동일, claim 브리지 0). 다음 사이클: ②③은 full_pipeline_dd.sh 의 `scripts/yf_claim_from_phase_log.py` 를 그대로 재사용, ①은 러너 내부 배선(크론 파일 무수정)."
     },
     {
       "id": "R28",
@@ -1159,13 +1160,18 @@
           "ts": "2026-10-08T21:14:25+09:00",
           "rc": 0,
           "detail": "R28: 4 >= 1 → 충족"
+        },
+        {
+          "ts": "2026-10-09T15:35:28+09:00",
+          "rc": 0,
+          "detail": "R28: 4 >= 1 → 충족"
         }
       ],
       "result": {
         "detail": "R28: 4 >= 1 → 충족",
         "check_value": 4.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R28_20261008-211423.log"
+        "log": "data/reports/res_cycle/logs/res_R28_20261009-153525.log"
       },
       "setup_needed": [],
       "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 -m pytest -q tests/test_r28_yf_claim_check.py tests/test_yf_claim_from_phase_log.py && /usr/bin/python3 scripts/r28_yf_claim_check.py"
@@ -1241,7 +1247,7 @@
     {
       "id": "T33",
       "title": "[트레이더 환류] 휴장일이 캘린더에서 삭제된다 — data_gap 자가치유가 tr_day_yn 오독으로 진짜 휴장(2026-10-09 한글날) 제거",
-      "status": "backlog",
+      "status": "done",
       "priority": 1,
       "from_trader": "holiday-selfheal-removes-real-holiday",
       "created_at": "2026-10-09T08:24:47+09:00",
@@ -1253,7 +1259,17 @@
       "evidence": "트레이더 사이클 환류: 실측(2026-10-09 04:15 cron_data_gap_backfill.log:26): '휴장 캘린더 정정: 2026-10-09 제거 (KIS 국내휴장일조회 = 거래일)'. 즉 한글날(금, KRX 휴장)이 캘린더에서 삭제됐다. 뿌리: scripts/data_gap.py kis_is_trading_day() 가 'opnd_yn==\"Y\" or tr_day_yn==\"Y\"' 로 판정하는데, KIS CTCA0903R 의 tr_day_yn 은 휴장·주말에도 'Y'(실측: 10-03토/10-04일/10-05대체공휴일/10-09한글날/10-10토/10-11일/09-25추석 전부 tr_day_yn=Y, 반면 이 날들 opnd_yn=N·bzdy_yn=N). 그래서 find_gaps() 의 자가치유 블록('if today_s in holidays and kis_is_trading_day(today_s): holidays.discard(today_s)')이 R24 를 고치려고 넣은 것인데, 진짜 휴장일을 매번 거래일로 오독해 **휴장 당일 아침에 캘린더에서 지운다**. 검증(직접 KIS 호출): 20261009 opnd_yn=N tr_day_yn=Y bzdy_yn=N / 20261008 거래일 opnd_yn=Y tr_day_yn=Y bzdy_yn=Y / 20261012 거래일 opnd_yn=Y bzdy_yn=Y. 정정안: 판정을 opnd_yn=='Y'(또는 bzdy_yn=='Y') 단독으로. 현재 worktree 의 data/krx_holidays.json 은 HEAD 대비 2026-10-09 가 빠져 있다(git diff). 트레이더 영향: feed_export 휴장 가드가 오늘(휴장일)을 거래일로 보아 피드를 발행했고, trader_core/profiles.py:185 는 'exchange holidays are not'(주말만 skip) 이라 루프를 켜면 휴장일에 주문을 시도한다.",
       "success": null,
       "cost": null,
-      "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다."
+      "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다. || **[수리 완료 2026-10-09 21:1x — 리서처]** scripts/data_gap.py: 판정을 bzdy_yn/opnd_yn 단독으로(_parse_kis_trading_day 순수함수 분리) · 응답 행은 bass_dt 로 선택 · 판별필드 없으면 None(거래일 단정 금지) · save_holidays 들여쓰기를 HEAD 판본과 일치(전면 diff 방지). 커밋 80c4805 푸시. 검증: ① 실호출 R24 프로브 `DEFECTS=0` (오늘 2026-10-09 KIS 거래일=False · 캘린더 포함=True) ② `data_gap.py backfill` 1회 재실행 → '휴장 캘린더 정정' 줄 없음 · 캘린더 26항목 유지 ③ pytest 신규 7건 + 관련 34건 PASS.",
+      "result": {
+        "fixed_at": "2026-10-09T21:1x+09:00",
+        "commit": "80c4805",
+        "root_cause": "KIS CTCA0903R 의 tr_day_yn 은 휴장·주말에도 'Y'(실측 10-03토·10-05·10-09한글날·10-10토·10-11일 전부 Y) — 반면 bzdy_yn/opnd_yn 은 거래일 Y / 휴장·주말 N. 종전 판정 `opnd_yn=='Y' or tr_day_yn=='Y'` 는 모든 날짜를 거래일로 만들어 find_gaps 자가치유가 진짜 휴장을 당일 아침에 삭제했다.",
+        "fix": "scripts/data_gap.py: 판정을 bzdy_yn/opnd_yn 단독으로(_parse_kis_trading_day 순수함수 분리) · 응답 행은 bass_dt 로 선택 · 판별필드 없으면 None(거래일 단정 금지) · save_holidays 들여쓰기를 HEAD 판본과 일치(전면 diff 방지).",
+        "data_restore": "data/krx_holidays.json 에 2026-10-09 복원 → HEAD 와 byte-identical(git diff 공백, 26항목).",
+        "verified": "① 실호출 R24 프로브 `DEFECTS=0` (오늘 2026-10-09 KIS 거래일=False · 캘린더 포함=True) ② `data_gap.py backfill` 1회 재실행 → '휴장 캘린더 정정' 줄 없음 · 캘린더 26항목 유지 ③ pytest 신규 7건 + 관련 34건 PASS.",
+        "regression": "tests/test_data_gap_kis_holiday_parse.py (실측 KIS 응답 고정 — 종전 테스트는 kis_is_trading_day 를 monkeypatch 로 치환해 파서를 한 번도 실행하지 않아 이 결함을 통과시켰다).",
+        "residual": "트레이더 루프가 휴장일에도 실주문 모드로 도는 문제(trader_core/profiles.py:185 주말만 skip)는 **사람 승인 항목**(주문경로 비활성) — 리서처 소유 아님. 오늘 파급은 피드 발행(생성됨)·루프 실주문 모드였으나 주문 0건(R1 차단)."
+      }
     }
   ]
 }
