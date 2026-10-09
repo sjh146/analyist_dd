@@ -2525,3 +2525,18 @@ T6 브리지 churn(실측 37→7→1.0 자연 소멸) · 게이트 문턱 0.02(1
 - **미해소(이월)**: ⓐ 스코어보드 −2,936 vs 저널/원장 −1,447(475830 가격필드=주문가·tick 트리거) ⓑ `trader_fill_stats.json fees=−1489` 잔존(10-08 16:40본) ⓒ T33 휴장 캘린더 자기치유(리서처). 셋 다 09:2x 신규/보고분 — 이 틱 변동 없음.
 - **핸드오프**: 총 **22** · unfilled **16** · 24시간 초과 3건 = **MT116**(170.0h·done·명령없음) · **MT117**(165.9h·done·명령없음) · **MT189**(43.9h·needs_setup). 신규 **T33**(3.0h·backlog·명령없음 · 08:24 from_trader).
 - **사람 단계(11:2x)**: ③ 사람이 직접 **없음**(브리지 True · Creon 세션 유지 · 킬스위치 없음) → ② 승인·사람: **휴장일 실주문 루프 정지(T33 — 주문경로 비활성=사람 필수)** · MT189 단타 배선 · R26/R31 · close/swing R1 문턱(리뷰보드 불승인 유지) · T1 fee write/read 계약 → ① 진행 중: 리서처 T33 수리·틱 회전 / 트레이더 — 스코어보드·저널 정합·fill_stats 정리·475830 체결가 재확인.
+
+
+### 트레이더 (2026-10-09 13:2x 장중 틱 — ⚠ T8 지정가 편차 **17.45%→23.06% 악화** · 나머지 실질 변화 없음, 실측)
+
+- **북극성(실현 누적)**: **−1,447원** · 청산 **4건** · 승률 **25.0%** · 기대값 **−362원/건** · 수수료 **0원** · 보유 **2** (11:2x 대비 변동 없음). `trader_ledger.jsonl` 13:25:52 행 = `north_krw −1447.0017`.
+- **스크리너별 실현**: close **3건 −1,446원** / swing **1건 −1원**(변동 없음). 저널 복사본 실측(`trade_journal.sqlite3` read-only copy): 6행(청산 4·보유 2) · `sum(pnl)=−1447.0017` · `sum(fees)=0` · id5(swing 20800×1)·id6(swing 11290×2) 미청산.
+- **실행 경로**: halt=**False** · 실패 **0** · phase=monitor · 갱신지연 **0.4분**(`loop_state.last_cycle 2026-10-09T13:26:29`) · 브리지 **True** · 킬스위치 없음. `market_open=true`·`dry_run=false`·`daily.entries=0`·`decisions=0`·`acted=0`.
+- **차단 사유(루프 실측)**: `R1 block close: avg 87.1 < 88.0`(변동 없음) · `R1 block swing: avg prob 0.547 < 0.58`(11:2x 0.547 유지) · `PRE filter close 20→0 / swing 16→0(stale·blocked) / daytrading 20→5(price)` — 단타는 `screeners=['close','swing']` 미배선이라 안전.
+- ⚠ **T8 지정가 편차 악화(신규 관측)**: 프로브 `feed_price_dev` = **23.06%**(10-08 09:25 실측 17.45% → **+5.6%p 악화**). 최악 = close **278650**(피드 지정가 4,855 vs DB 10-08 종가 6,310 = **−23.1%**); 다음 053800 −19.9%·142280 −17.0%·038500 −14.6%. **원인 가설**: close 스크리너가 `close_price` 를 `signal_date`(10-07) 시점 값으로 실어 보내고 발행 시 최신 종가로 갱신하지 않음 — swing 의 결측(`close_price` 없음) 보정 경로와 **비대칭**(swing 은 최신 종가로 채움). `close_price` 는 주문 지정가로 그대로 쓰이므로 편차 23% = 지정가 오차 23%. **소유: 트레이더**(`scripts/feed_export.py` 발행측).
+- **계약2 충족**: scorecard `generated_at 2026-10-09T07:00:22` · fold **0.5148±0.0344**(3폴드·승률 0.333) · purge h=5 · `promote_dryrun=kept_incumbent`(CG138) · 챔피언 AUC **0.551318**. **미비 항목 없음.**
+- **피드 계약 위반 0건** · 파일 1개(`data/feed/screener_latest.json`) · `generated_at 2026-10-09T08:40:02`(경과 0.20일) · close **20**(screener 80.1~92.3 · signal_date 10-07) · swing **16**(`calibrated_prob` 50.2~61.8 · 10-08) · daytrading **20**(`composite` 61.3~64.7 · 10-06) · `close_price` 누락 **0** · `scoring_summary` 없음(켈리 f*≤0).
+- **미달**: **T8** 23.06%(악화) · **T5** 기대값 −361.75원/건(failed) · **T1** 수수료 0원(failed).
+- **미해소(이월)**: ⓐ 스코어보드 **−2,936** vs 저널/원장 **−1,447**(id4 475830 `price=21150`/`exit_price=19660` 재계산 vs 브로커 net −1) ⓑ `trader_fill_stats.json` `fees=−1489`(10-08 16:40본, 16:40 재적재 전) ⓒ **T33** 휴장 캘린더 자기치유(`data/krx_holidays.json` 에 **10-09 없음** · worktree diff 25/26행 · 리서처 소유).
+- **핸드오프**: 총 **22** · unfilled **16**(과대집계 — done/closed_rejected 포함) · 24시간 초과 3건 = **MT116**(172.0h·done·명령없음) · **MT117**(167.9h·done·명령없음) · **MT189**(45.9h·needs_setup). 진짜 open = MT189 · MT71(diagnosed) · T17(pending).
+- **사람 단계(13:2x)**: ③ 사람이 직접 **없음**(브리지 True · Creon 세션 유지 · 킬스위치 없음) → ② 승인·사람: **휴장일 실주문 루프 정지(T33 — 주문경로 비활성=사람 필수)** · MT189 단타 배선 · R26/R31 · close/swing R1 문턱(리뷰보드 불승인 유지) · T1 fee write/read 계약 → ① 진행 중: 리서처 T33 수리·틱 회전 / 트레이더 — 스코어보드·저널 정합 · fill_stats 정리 · **T8 지정가 최신가 반영**.
