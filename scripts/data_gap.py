@@ -62,7 +62,7 @@ def save_holidays(days):
     os.makedirs(os.path.dirname(HOLIDAY_PATH), exist_ok=True)
     tmp = HOLIDAY_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(sorted(days), f, ensure_ascii=False, indent=1)
+        json.dump(sorted(days), f, ensure_ascii=False, indent=2)
     os.replace(tmp, HOLIDAY_PATH)
 
 
@@ -147,6 +147,28 @@ def holiday_confirmable(d):
     return d != date.today().isoformat() or datetime.now() >= datetime.combine(date.today(), time(*HOLIDAY_CONFIRM_HHMM))
 
 
+def _parse_kis_trading_day(rows, d):
+    """KIS 국내휴장일조회(CTCA0903R) output 행에서 '거래일인가'를 판정한다(순수 함수 — 네트워크 없음).
+
+    ⚠ 실측 2026-10-09(한글날, KRX 휴장): ``tr_day_yn`` 은 **휴장·주말에도 'Y'** 였다
+    (10-03 토 · 10-05 대체휴일 · 10-09 한글날 · 10-10 토 · 10-11 일 · 09-25 추석 전부 tr_day_yn=Y).
+    반면 ``bzdy_yn``(영업일여부)·``opnd_yn``(개장일여부)은 거래일 'Y' / 휴장·주말 'N' 로 정확히 갈렸다.
+    → 판정자는 bzdy_yn/opnd_yn 이며 tr_day_yn 은 **절대 쓰지 않는다**(쓰면 모든 휴장이 거래일로
+    오독되어 자가치유가 진짜 휴장을 당일 아침에 캘린더에서 지운다 — 실측 T33).
+    응답 행은 기준일부터의 목록이므로 기준일 행을 우선 선택하고, 판별 필드가 하나도 없으면
+    None(판별불가) 을 돌려준다 — '휴장'으로 단정하지 않는다(오탐이 실제 손해).
+    """
+    d8 = d.replace("-", "")
+    row = next((r for r in rows if r.get("bass_dt") == d8), rows[0] if rows else None)
+    if not row:
+        return None
+    vals = [row.get(k) for k in ("bzdy_yn", "opnd_yn")]
+    vals = [v for v in vals if v in ("Y", "N")]
+    if not vals:
+        return None
+    return any(v == "Y" for v in vals)
+
+
 def kis_is_trading_day(d):
     """KIS 국내휴장일조회(CTCA0903R): True=거래일 / False=휴장 / None=판별불가.
 
@@ -181,8 +203,8 @@ def kis_is_trading_day(d):
         except Exception:  # noqa: BLE001 — 가드 문제로 휴장일 판별을 못 하면 오탐이 된다
             pass
         with urllib.request.urlopen(req, timeout=15) as r:
-            out = json.loads(r.read())["output"][0]
-        return out.get("opnd_yn") == "Y" or out.get("tr_day_yn") == "Y"
+            rows = json.loads(r.read()).get("output") or []
+        return _parse_kis_trading_day(rows, d)
     except Exception as exc:  # noqa: BLE001 - 판별 실패는 '휴장'이 아니다(오탐 방지)
         print("KIS 휴장일조회 판별 불가({0}): {1}".format(d, exc))
         return None
