@@ -1,6 +1,6 @@
 {
   "metric_name": "champion_scorecard",
-  "generated_at": "2026-10-09T06:00:17",
+  "generated_at": "2026-10-09T22:00:34",
   "champion_dir": "services/xgboost-ml/app/models/champion",
   "champion_auc_txt": 0.551318,
   "insample": {
