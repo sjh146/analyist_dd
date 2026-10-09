@@ -89,7 +89,20 @@ class DailyCollector:
                 raw = resp.get("output2") if isinstance(resp, dict) else None
                 if raw is None and isinstance(resp, dict):
                     raw = resp.get("output")
-                summary["recv"] += len(raw) if isinstance(raw, list) else 0
+                # source(recv) = **대상일** 원시 행만 센다.
+                # WHY(실측 2026-10-09 07:50): data_gap 휴장 프로브가 `--job daily --date <오늘>
+                # --limit 1` 로 장 개시 전 당일을 조회하면 KIS 는 output2 에 **전일 봉 1건**을
+                # 돌려준다(당일 봉은 아직 없음). 종전엔 len(raw)=1 을 source 로 세어 claimed=0 과
+                # 만나 `source>0 AND claimed=0` → `dq_claim_parse_failure=1` 이 매 영업일 07:50
+                # 발생했다(정상 no_data 실행이 파서 버그로 오보). 파서(parse_daily_bars)의 계약이
+                # '대상일 행'이므로 수신량도 대상일로 한정한다 — 그래야 '대상일 행이 있는데 0행 파싱'
+                # (=진짜 키/필드 불일치)만 잡히고, '다른 날짜 행뿐'은 no_data 로 남는다.
+                # (필드명 자체가 바뀌는 유형은 신선도 메트릭이 잡는다 — 자기신고의 역할이 아니다.)
+                if isinstance(raw, list):
+                    summary["recv"] += sum(
+                        1 for r in raw
+                        if isinstance(r, dict)
+                        and str(r.get("stck_bsop_date") or "") == str(target_date))
                 rows = parse_daily_bars(resp, target_date=target_date)
                 # 미완성 봉(장 개시 전·장중 당일 봉, 미래 날짜)은 적재하지 않는다.
                 # KIS 는 장 개시 전 당일 조회에 '전일 종가 = 시/고/저/종가, 거래량 0' 인

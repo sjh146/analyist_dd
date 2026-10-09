@@ -331,6 +331,53 @@ class TestDailyCollector:
         assert summary == {"ok": 2, "no_data": 0, "fail": 0, "total": 2, "quota_hit": False,
                            "unfinished": 0, "recv": 2, "bars": 2}
 
+    def test_recv_counts_only_target_date_rows(self):
+        """비대상일 행(전일 봉)만 온 no_data 프로브 응답은 source(recv)=0 이어야 한다.
+
+        실측 2026-10-09 07:50: data_gap 휴장 프로브가 `--job daily --date <오늘> --limit 1` 로
+        장 개시 전 당일을 조회하면 KIS 가 전일 봉 1건을 돌려준다. 종전엔 len(raw)=1 을 source 로
+        세어 claimed=0 과 만나 `dq_claim_parse_failure=1` 오보가 매 영업일 났다.
+        """
+        class FakeClient:
+            def get_daily_chart(self, symbol, excd, d1, d2, count=1):
+                # 대상일(20261009)이 아닌 전일(20261008) 봉 1건만 온 경우
+                return {"rt_cd": "0", "output2": [
+                    {"stck_bsop_date": "20261008", "stck_clpr": "1000"}]}
+
+        class FakeStorage:
+            def get_universe(self):
+                return [("005930", "KOSPI")]
+
+            def save_market_data(self, code, rows):
+                raise AssertionError("no_data 인데 저장이 호출되면 안 됨")
+
+        s = DailyCollector(FakeClient(), FakeStorage()).collect("20261009")
+        assert s["recv"] == 0        # source=0 → parse_failure(=source>0 AND claimed=0) 아님
+        assert s["no_data"] == 1
+        assert s["bars"] == 0 and s["unfinished"] == 0
+
+    def test_recv_counts_target_date_row_even_if_parse_drops_it(self):
+        """대상일 행인데 파서가 0행이면 recv>0·claimed=0 → 진짜 파서 실패로 남아야 한다.
+
+        (2026-09-24 유형의 '응답은 왔는데 0행'을 놓치지 않는지 회귀 방어.)
+        """
+        class FakeClient:
+            def get_daily_chart(self, symbol, excd, d1, d2, count=1):
+                # stck_bsop_date 는 대상일이나 종가 누락 → parse_daily_bars 가 스킵
+                return {"rt_cd": "0", "output2": [
+                    {"stck_bsop_date": d1, "stck_clpr": ""}]}
+
+        class FakeStorage:
+            def get_universe(self):
+                return [("005930", "KOSPI")]
+
+            def save_market_data(self, code, rows):
+                raise AssertionError("0행인데 저장이 호출되면 안 됨")
+
+        s = DailyCollector(FakeClient(), FakeStorage()).collect("20261009")
+        assert s["recv"] == 1        # source>0
+        assert s["bars"] == 0 and s["unfinished"] == 0   # claimed=0 → parse_failure 검출 유지
+
     def test_limit_truncates_universe(self):
         class FakeClient:
             def get_daily_chart(self, *a, **k):
