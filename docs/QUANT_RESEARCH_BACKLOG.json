@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-09T21:14:41+09:00",
+  "updated_at": "2026-10-09T21:28:17+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1090,13 +1090,18 @@
           "ts": "2026-10-08T22:00:58+09:00",
           "rc": 0,
           "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-10-09T21:27:58+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R27: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R27_20261008-220058.log"
+        "log": "data/reports/res_cycle/logs/res_R27_20261009-212757.log"
       },
       "note": " || **[2026-10-09 21:1x 스캔 — 자기신고 미배선 러너 목록]** 크론이 실제로 돌리는데 dq_runner_claim 행을 만들지 않는 수집 경로 3개(배선조차 없음, R23 텍스트 휴리스틱에도 걸린다): ① `kis_backfill_range.py`(kis_backfill.sh) — record_claim 문자열 0 ② `run_close_job.py`(close_job.sh) — 컨테이너 내부라 dq_claim.py 모듈 부재(R28 유형 → phase 로그 브리지 필요) ③ `run_swing_job.py`(swing_pipeline.sh 도 동일, claim 브리지 0). 다음 사이클: ②③은 full_pipeline_dd.sh 의 `scripts/yf_claim_from_phase_log.py` 를 그대로 재사용, ①은 러너 내부 배선(크론 파일 무수정)."
     },
@@ -1261,15 +1266,26 @@
       "cost": null,
       "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다. || **[수리 완료 2026-10-09 21:1x — 리서처]** scripts/data_gap.py: 판정을 bzdy_yn/opnd_yn 단독으로(_parse_kis_trading_day 순수함수 분리) · 응답 행은 bass_dt 로 선택 · 판별필드 없으면 None(거래일 단정 금지) · save_holidays 들여쓰기를 HEAD 판본과 일치(전면 diff 방지). 커밋 80c4805 푸시. 검증: ① 실호출 R24 프로브 `DEFECTS=0` (오늘 2026-10-09 KIS 거래일=False · 캘린더 포함=True) ② `data_gap.py backfill` 1회 재실행 → '휴장 캘린더 정정' 줄 없음 · 캘린더 26항목 유지 ③ pytest 신규 7건 + 관련 34건 PASS.",
       "result": {
-        "fixed_at": "2026-10-09T21:1x+09:00",
+        "detail": "[수리 완료 2026-10-09 21:1x] 커밋 80c4805. 뿌리: KIS CTCA0903R 의 tr_day_yn 은 휴장·주말에도 'Y'(실측 10-03토·10-05·10-09한글날·10-10토·10-11일 전부 Y)인데 bzdy_yn/opnd_yn 은 거래일 Y / 휴장·주말 N — 종전 판정 `opnd_yn=='Y' or tr_day_yn=='Y'` 가 모든 날짜를 거래일로 만들어 find_gaps 자가치유가 진짜 휴장을 당일 아침에 삭제했다. 수리: 판정을 bzdy_yn/opnd_yn 단독(_parse_kis_trading_day 분리)·응답 행은 bass_dt 로 선택·판별필드 없으면 None·save_holidays 들여쓰기 HEAD 정합. data/krx_holidays.json 에 10-09 복원(HEAD 와 byte-identical, 26항목). 검증: ① 실호출 R24 DEFECTS=0 ② data_gap.py backfill 재실행 → '휴장 캘린더 정정' 줄 없음 ③ 회귀 7건+관련 34건 PASS. 잔여(비소유): 트레이더 루프가 휴장일에도 실주문 모드(profiles.py:185) — 사람 승인 항목.",
         "commit": "80c4805",
-        "root_cause": "KIS CTCA0903R 의 tr_day_yn 은 휴장·주말에도 'Y'(실측 10-03토·10-05·10-09한글날·10-10토·10-11일 전부 Y) — 반면 bzdy_yn/opnd_yn 은 거래일 Y / 휴장·주말 N. 종전 판정 `opnd_yn=='Y' or tr_day_yn=='Y'` 는 모든 날짜를 거래일로 만들어 find_gaps 자가치유가 진짜 휴장을 당일 아침에 삭제했다.",
-        "fix": "scripts/data_gap.py: 판정을 bzdy_yn/opnd_yn 단독으로(_parse_kis_trading_day 순수함수 분리) · 응답 행은 bass_dt 로 선택 · 판별필드 없으면 None(거래일 단정 금지) · save_holidays 들여쓰기를 HEAD 판본과 일치(전면 diff 방지).",
-        "data_restore": "data/krx_holidays.json 에 2026-10-09 복원 → HEAD 와 byte-identical(git diff 공백, 26항목).",
-        "verified": "① 실호출 R24 프로브 `DEFECTS=0` (오늘 2026-10-09 KIS 거래일=False · 캘린더 포함=True) ② `data_gap.py backfill` 1회 재실행 → '휴장 캘린더 정정' 줄 없음 · 캘린더 26항목 유지 ③ pytest 신규 7건 + 관련 34건 PASS.",
-        "regression": "tests/test_data_gap_kis_holiday_parse.py (실측 KIS 응답 고정 — 종전 테스트는 kis_is_trading_day 를 monkeypatch 로 치환해 파서를 한 번도 실행하지 않아 이 결함을 통과시켰다).",
-        "residual": "트레이더 루프가 휴장일에도 실주문 모드로 도는 문제(trader_core/profiles.py:185 주말만 skip)는 **사람 승인 항목**(주문경로 비활성) — 리서처 소유 아님. 오늘 파급은 피드 발행(생성됨)·루프 실주문 모드였으나 주문 0건(R1 차단)."
+        "fixed_at": "2026-10-09T21:15+09:00",
+        "regression": "tests/test_data_gap_kis_holiday_parse.py"
       }
+    },
+    {
+      "id": "R32",
+      "title": "postgres 백엔드 SIGPIPE 크래시 → 전 백엔드 재초기화('recovery mode') 2회(2026-10-09) — 근본원인 + 러너 실패 무기록(조용한 사망) 감시",
+      "status": "backlog",
+      "priority": 3,
+      "affects_model": false,
+      "kind": "investigate",
+      "hypothesis": "postgres backend 가 signal 13(Broken pipe)으로 죽으면 postmaster 가 전 백엔드를 재초기화하고 그 몇 초 창에 접속하는 클라이언트가 'the database system is in recovery mode' 로 전부 죽는다. 러너가 이 시각에 걸리면 예외로 사망하고 **claim 을 남기지 못해** dq_claim_* 이 침묵한다(parse_failure 는 source>0 AND claimed==0 만 잡는다) → 크론 로그 트레이스백만 남고 어떤 틱도 보고하지 않는다(조용한 사망).",
+      "evidence": "실측 2026-10-09 (postgres json 로그 = root interop grep, `docker logs` 는 5.8GB 라 타임아웃): ① 16:02:35 KST(07:02:35 UTC) `server process (PID 780311) was terminated by signal 13: Broken pipe` → 16:02:43 reinitializing ② 18:10:56 KST(09:10:56 UTC) PID 787707 동일 → 09:10:57 reinitializing. 컨테이너 RestartCount=0(StartedAt 10-02) = 도커 재시작이 아니라 **in-place crash recovery**, PANIC 0회(로그 grep -c). 파급 실측: 18:10:17 시작한 DART 공시 백필이 `psycopg2.OperationalError: ... FATAL: the database system is in recovery mode` 로 18:10:5x 사망(reports/cron_dart_disclosures.log:106) → disclosures 최신 216150(10-08) 정지. 같은 창(16:02)에 리서처·엔지니어 틱이 예정돼 있었고 원장에 15:35:28 이후 기록 0건. 두 크래시 모두 **정시 크론(:0x분) 클라이언트가 도는 시각**과 일치한다(추정 — 인과 확정 아님).",
+      "method": "① 크래시 시각의 클라이언트 프로세스(틱·러너 — 강제 kill 여부, `timeout`/docker exec timeout)와 대조해 'mid-query 클라이언트 사망 → backend SIGPIPE' 가설을 검증한다. ② 러너가 DB 연결 실패로 예외 사망할 때 **종료코드/claim 을 남기는** 방법을 설계한다(현재 dart 러너는 예외로 죽으면 아무 흔적이 없다). ③ 'recovery mode' 발생 횟수·시각을 이력화해 재발을 감시한다(root 전용 로그 → 읽기 비용 주의). 참고: json 로그가 5.8GB 로 커져 회전(log-opts max-size)도 후보.",
+      "command": null,
+      "metric": null,
+      "check": null,
+      "note": "2026-10-09 21:1x 리서처 일일 점검에서 발견. 같은 틱에서 DART 를 1회 재실행해 당일 회차를 복구했다(콜 21 / 소스 1979 / 신규 12 — 테이블 216150→216162). DB 는 현재 healthy(스크랩 up=1 · 지연 5.6s · 6m 6/6 성공). psycopg2.OperationalError/`recovery mode` 는 infra 신호라 리서처가 직접 고치지 않고 조사·감시 항목으로 남긴다(운영 DB 컨테이너·compose 변경은 승인 범위)."
     }
   ]
 }
