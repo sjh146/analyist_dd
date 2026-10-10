@@ -1,0 +1,84 @@
+{
+  "panel_universe": 200,
+  "axes": [
+    {
+      "axis": "intraday",
+      "items": [
+        "CG129",
+        "CG101"
+      ],
+      "ready": false,
+      "blocking": "XR26(수집기 소유) 분봉 페이지네이션 미수리",
+      "measured": {
+        "pairs": 2404,
+        "median_bars_per_day": 30.0,
+        "n_dates": 9,
+        "panel_cover_frac": 0.115
+      },
+      "thresholds": {
+        "median_bars_per_day": 300,
+        "n_dates": 20,
+        "panel_cover_frac": 0.75
+      }
+    },
+    {
+      "axis": "short_selling",
+      "items": [
+        "CG141"
+      ],
+      "ready": false,
+      "blocking": "수집 범위(수집기 소유)·이력 누적 필요",
+      "measured": {
+        "n_rows": 17988,
+        "n_codes": 210,
+        "n_days": 92,
+        "span": "2026-05-26~2026-10-08",
+        "panel_cover_frac": 0.055
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 250
+      }
+    },
+    {
+      "axis": "news::news_events",
+      "items": [
+        "CG73",
+        "CG60"
+      ],
+      "ready": false,
+      "blocking": "커버리지(패널 유니버스)·이력(≥400d) 동시 필요",
+      "measured": {
+        "n_rows": 9721,
+        "n_codes": 287,
+        "n_days": 192,
+        "span": "2026-04-01~2026-10-10",
+        "panel_cover_frac": 0.075
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 400
+      }
+    },
+    {
+      "axis": "news::sns_posts",
+      "items": [
+        "CG73",
+        "CG60"
+      ],
+      "ready": false,
+      "blocking": "커버리지(패널 유니버스)·이력(≥400d) 동시 필요",
+      "measured": {
+        "n_rows": 384821,
+        "n_codes": 309,
+        "n_days": 190,
+        "span": "2018-10-22~2026-09-30",
+        "panel_cover_frac": 0.11
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 400
+      }
+    }
+  ]
+}

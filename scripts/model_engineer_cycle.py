@@ -3554,6 +3554,44 @@ def refresh_forward_scorecard_if_stale(max_age_hours=20.0, path=None):
     return _forward_summary_line(p)
 
 
+def data_axis_readiness_note(promote=True):
+    """남은 데이터 축(인트라데이·공매도·뉴스)의 준비도를 DB 실측으로 채점하고, 준비되면 pending 승격.
+
+    WHY: 구동기 규칙 6 은 "pending 이 비면 셋업을 구현해 pending 으로 승격하라"고 하지만, 남은 세
+    축의 선행 조건은 **내가 만들 수 없는 수집 데이터**다. 사람이 매 틱 "이제 됐나"를 재확인하는
+    대신 문턱을 기계적으로 채점한다(scripts/data_axis_readiness.py). 준비된 축이 나오면 그 항목을
+    pending 으로 올려 다음 틱이 착수하게 한다 — 이것이 규칙 6 의 자동화다.
+    보조 기능이므로 실패해도 틱을 죽이지 않는다(읽기 전용·예외 흡수).
+    """
+    try:
+        import data_axis_readiness as dar
+    except Exception as e:                          # noqa: BLE001
+        return [f"  데이터 축 준비도: 점검 불가({type(e).__name__}: {str(e)[:80]})"]
+    try:
+        pc = dar.panel_codes()
+        axes = dar.evaluate(pc)
+    except Exception as e:                          # noqa: BLE001
+        return [f"  데이터 축 준비도: 점검 실패({type(e).__name__}: {str(e)[:100]})"]
+    out = []
+    for ax in axes:
+        flag = "READY" if ax["ready"] else "BLOCKED"
+        detail = " · ".join(f"{k}={v}" for k, v in ax["measured"].items())
+        out.append(f"  · {ax['axis']} [{flag}] {detail}")
+        if ax["ready"]:
+            out.append(f"    → {', '.join(ax['items'])} 착수 가능(대조군·문턱은 항목에 기재됨)")
+    if promote and any(a["ready"] for a in axes):
+        try:
+            b = load_backlog()
+            ch = dar.promote(axes, b)
+            if ch:
+                save_backlog(b)
+                for iid, st in ch:
+                    out.append(f"  → 데이터 축 자동 승격: {iid} → {st}")
+        except Exception as e:                      # noqa: BLE001
+            out.append(f"  → 승격 실패({type(e).__name__}: {str(e)[:80]})")
+    return out
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
@@ -3694,6 +3732,11 @@ def tick(force=False):
         else:
             print("  → 구현이 끝나면 그 항목을 pending 으로 바꾸고 command·counterfactual·success·"
                   "est_minutes 를 채워라(그러면 다음 틱이 착수한다).")
+        # 데이터 축 준비도 — 남은 3축(인트라데이·공매도·뉴스)의 선행은 **수집 데이터**라 내가 만들 수
+        # 없다. 사람이 "이제 됐나"를 매번 확인하는 대신 DB 실측으로 채점하고, 문턱을 넘으면 그 항목을
+        # pending 으로 자동 승격한다(자율: 실험 등록). 미달이면 막는 숫자를 남긴다.
+        for line in data_axis_readiness_note():
+            print(line)
         return 0
     start_background(it["id"], force)
     print(f"시작: {it['id']} — {it['title']} (기대 {it.get('expected')}, 비용 {it.get('cost')})")
