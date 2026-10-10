@@ -894,6 +894,18 @@ def summary_path(kind, command=None):
         # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 값이 AUC 자체가 아니라 앵커 잡음이다.
         pfx = _env_arg(command or "", "TAGPFX") or "cg145"
         return os.path.join(PROJ, f"services/xgboost-ml/reports/overnight/{pfx}_pair_anchor.json")
+    if kind == "scale_regime_audit":
+        # 배포 스코어 스케일 체제 감사(scripts/scale_regime_audit.py --json-out). CG162.
+        # 왜 전용 metric 인가(2026-10-11 자율 신설): 전방 16일 중 9일에 전 종목 confidence 최대가
+        # 소비 절대문턱 0.55 에 **한 행도 닿지 않았다**(10-02~10-08 7일 연속, max 0.2277~0.2944).
+        # 이 기간 '무진입'은 신호 품질이 아니라 점수 스케일 체제 문제다(앞 구간 14~15% 도달 → 0%).
+        # 기존 파서(wf_sweep=폴드 AUC, forward_scorecard=top10 수익)에는 이 날짜별 상태가 안 담긴다.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 가 'arm 폴드 AUC' 로 오독한다) — 날짜별 상태는
+        # `per_date` 로 싣고, 판정 입력은 trailing_blocked_streak 다.
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/scale_regime_audit.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -1409,6 +1421,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_protocol_noise_curve(spath, mtime_floor)
     if kind == "protocol_pair_anchor":
         return parse_protocol_pair_anchor(spath, mtime_floor)
+    if kind == "scale_regime_audit":
+        return parse_scale_regime_audit(spath, mtime_floor)
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -2558,9 +2572,71 @@ def judge_protocol_pair_anchor(item, parsed) -> tuple:
     return verdict, detail, None
 
 
+def parse_scale_regime_audit(path, mtime_floor) -> dict:
+    """배포 스코어 스케일 체제 감사(scripts/scale_regime_audit.py --json-out) 파서. CG162.
+
+    스키마: {generated_at_kst, summary:{threshold,n_dates,span,blocked_dates,degenerate_dates,
+             trailing_blocked_streak,verdict}, per_date:[{date,n,n_distinct,min,p50,p90,max,
+             n_ge_threshold,frac_ge_threshold,state,model_version}, ...], model_inventory:[...]}
+    ⚠ per_exp 를 만들지 않는다 — scoreboard 가 'arm 폴드 평균(AUC)' 로 오독한다.
+    판정 입력은 summary.trailing_blocked_streak(최근 연속 구조적 무진입 일수)이다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    summ = d.get("summary") or {}
+    if not summ or summ.get("n_dates") is None:
+        return {"error": "summary 없음(집계 실패)", "summary_mtime": mt}
+    per_date = d.get("per_date") or []
+    return {"metric_name": "scale_regime_audit", "summary": summ,
+            "blocked_dates": summ.get("blocked_dates") or [],
+            "degenerate_dates": summ.get("degenerate_dates") or [],
+            "trailing_blocked_streak": summ.get("trailing_blocked_streak"),
+            "last_state": (per_date[-1].get("state") if per_date else None),
+            "last_date": (per_date[-1].get("date") if per_date else None),
+            "per_date": per_date, "generated_at_kst": d.get("generated_at_kst"),
+            "summary_mtime": mt}
+
+
+def judge_scale_regime_audit(item, parsed) -> tuple:
+    """배포 스코어 스케일 체제 감사 판정 — 소비 관점 결함(문턱 도달 0행)의 현재 진행 여부.
+
+    사전등록(항목 success): ① 감사가 매 발행일 실행되고 날짜별 상태를 남긴다
+    ② 신규 'blocked' 날짜 0 ③ 재시작 직후 첫 발행이 정상 스케일이다.
+    판정: 최근 연속 blocked/degenerate(trailing_blocked_streak) > 0 → '경보'(진행 중),
+    0 이면 '정상'(직전 스트릭이 있었다면 복구로 기록). 요약 없음/미갱신 → '판정불가'.
+
+    ⚠ 승격 근거가 아니다(성능 레버 아님 · affects_model=False) — 측정 정합성 감사다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    s = parsed.get("summary") or {}
+    streak = parsed.get("trailing_blocked_streak")
+    streak = int(streak) if isinstance(streak, (int, float)) else 0
+    nb, nd = len(parsed.get("blocked_dates") or []), len(parsed.get("degenerate_dates") or [])
+    span = s.get("span") or [None, None]
+    base = (f"감사 {s.get('n_dates')}일({span[0]}~{span[1]}) · blocked {nb}일 · degenerate {nd}일 · "
+            f"최근연속 blocked {streak} · 스크립트 판정: {s.get('verdict')} · 문턱 {s.get('threshold')}")
+    if streak > 0:
+        return "경보", base + " → 구조적 무진입 진행 중(문턱 도달 0행)", None
+    return "정상", base + " → 현재 문턱 도달 정상(신규 blocked 없음)", None
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
+    if kind == "scale_regime_audit":
+        return judge_scale_regime_audit(item, parsed)
     if kind == "protocol_noise_floor":
         return judge_protocol_noise_floor(item, parsed)
     if kind == "protocol_noise_curve":

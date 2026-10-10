@@ -17,7 +17,12 @@ from app.models.xgboost_model import XGBoostModel
 from app.models.model_manager import ModelManager
 from app.training.trainer import Trainer
 from app.inference.predictor import Predictor, filter_prediction_universe
-from app.inference.day_guard import check_and_report_degenerate_day, check_and_report_prior_run
+from app.inference.day_guard import (
+    check_and_report_degenerate_day,
+    check_and_report_prior_run,
+    check_and_report_stale_model,
+    champion_newest_mtime,
+)
 from app.storage.postgres_storage import PostgresStorage
 from app.metrics_integration import init_metrics, on_features_computed, on_prediction, on_feature_count
 
@@ -48,6 +53,15 @@ class XGBoostMLService:
         else:
             logger.info("No existing model found. Training new model...")
             self.train_model()
+
+        # 승격≠재기동 가드(CG163, 2026-10-11): 프로세스가 **로드한** champion 산출물의 mtime 을
+        # 기록해 둔다. 이후 champion/ 이 이 시각 뒤에 바뀌면 살아 있는 프로세스는 옛 모델로 채점
+        # 중이다(모델은 기동 시 1회만 로드되고 파일 감시가 없다). 감지·표시 전용.
+        try:
+            self._champion_loaded_mtime = champion_newest_mtime(self.config.MODEL_PATH)
+        except Exception as _e:  # 가드가 기동을 막지 않는다
+            logger.debug(f"champion mtime 기록 실패(CG163 가드 생략됨): {_e}")
+            self._champion_loaded_mtime = None
 
         # feature_count_gauge 백필 — 챔피언 피처 수 노출 (Grafana Feature Count 패널,
         # 2026-08: 게이지 시리즈가 없어 No data 표시되던 문제 수정)
@@ -134,6 +148,18 @@ class XGBoostMLService:
             except Exception as _e:  # 가드가 발행을 막지 않는다
                 logger.debug("기존 예측 행수 조회 실패(CG161 가드 생략): %s", _e)
             check_and_report_prior_run(_existing, len(predictions))
+
+        # 승격≠재기동 가드(CG163, 2026-10-11): champion/ 이 프로세스 로드 이후에 바뀌었으면
+        # (실측 2026-10-02~10-08: 승격 후 재기동 없이 7일간 옛 모델로 채점 → 전 종목 confidence
+        # 최대 < 0.30, 소비 문턱 0.55 도달 0행) 로그 CRITICAL + `stale_model_<날짜>.json` 을 남긴다.
+        # **모델·발행 목록은 변경하지 않는다** — 감지·표시 전용이라 발행 계약 무변경(승인 불필요 범위).
+        try:
+            check_and_report_stale_model(
+                self.config.MODEL_PATH,
+                loaded_mtime=getattr(self, "_champion_loaded_mtime", None),
+            )
+        except Exception as _e:  # 가드가 발행을 막지 않는다
+            logger.debug("승격≠재기동 가드 생략(CG163): %s", _e)
 
         # Store predictions.  한 건의 저장 실패가 루프 전체를 중단시키면 안 된다
         # (2026-09-28: Postgres 가 연결을 끊자 예외가 새어나가 그날 예측이 0행이 됐다).

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-11T01:05+09:00",
+ "updated_at": "2026-10-11T02:06+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -13922,7 +13922,7 @@
   {
    "id": "CG162",
    "title": "[측정정합성] 배포 스코어 체제 붕괴 — 16일 중 9일이 소비 문턱 0.55 도달 0행(10-02~10-08 7일 연속). 체제 전환 = 컨테이너 재시작(10-09 09:22Z)과 정확히 일치",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "affects_model": false,
    "arm": null,
@@ -13933,16 +13933,62 @@
    "success": "① 감사가 매 발행일 실행되고 날짜별 상태(ok/blocked/sparse/degenerate)를 남긴다 ② 신규 'blocked' 날짜 0 (발생 시 24시간 내 원인 규명·복구) ③ 재시작 직후 첫 발행이 정상 스케일(frac>=0.55 >= 0.01)임을 확인한다.",
    "est_minutes": 2,
    "result": {
-    "verdict": "체제 붕괴 확정(측정 정합성) — 성능 축 아님",
+    "verdict": "정상",
     "measured": "forward 16일: ok 6일 · blocked 9일 · degenerate 1일. blocked = 2026-09-23, 09-24, 10-02~10-08. 10-02~10-08 은 전 종목 max confidence 0.2277~0.2944(p50 0.042~0.074)로 문턱 0.55 도달 0행, 7일 연속. 앞 구간(09-25~10-01)·뒤 구간(10-09)은 매일 14~15% 도달.",
     "boundary": "압축 시작 = 2026-10-02 02:31Z 실행(전 4342행 max 0.2910) · 복구 = 2026-10-09 09:40Z 실행(654행 >=0.55).",
     "process_evidence": "stock_xgboost_ml StartedAt=2026-10-09T09:22:51Z — 복구 실행은 재시작 18분 뒤 첫 발행. 압축 구간 전 행의 model_version='v1.0'(태그 해석 코드/파일 이전 기동 프로세스의 기본값), 복구 후 행은 'champ-20261002T024420-0.5513' → 태그가 프로세스 세대 대리지표.",
     "schema_drift_suspect": "배포 챔피언(/app/app/models/champion) = 173피처(09-23 모델, auc 0.5513, up_rate 0.4296) · 현재 학습/후보(champion_cand 10-09, champion_prev_20261002) = 199피처. 로그('Loaded 173 saved feature names for inference')로 배포 경로가 173피처 모델임을 확인 → 199피처 파이프라인과의 스키마 드리프트가 유력 후보(미확정).",
-    "money_impact": "10-02~10-08(6거래일) 소비자 문턱 도달 0행 → 트레이더 진입 신호 0건. CG158 과 같은 표를 공유하나 CG158 은 검정력·도달가능성 진단까지였고, 여기서는 '체제 전환 = 프로세스 재시작' 경계를 실측으로 확정했다."
+    "money_impact": "10-02~10-08(6거래일) 소비자 문턱 도달 0행 → 트레이더 진입 신호 0건. CG158 과 같은 표를 공유하나 CG158 은 검정력·도달가능성 진단까지였고, 여기서는 '체제 전환 = 프로세스 재시작' 경계를 실측으로 확정했다.",
+    "detail": "감사 16일(2026-09-22~2026-10-09) · blocked 9일 · degenerate 1일 · 최근연속 blocked 0 · 스크립트 판정: 복구됨(직전 7일 무진입/퇴화) · 문턱 0.55 → 현재 문턱 도달 정상(신규 blocked 없음)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
    },
    "note": "2026-10-11 01:0x 엔지니어 자율(장외 틱) 신설 — CG158(전방 감사)/CG160(퇴화일)/CG161(다중실행 혼합) 과 같은 계열의 **측정정합성** 항목이며 새 성능 레버가 아니다(변환·게이트·라벨 재시험 금지). 도구 scripts/scale_regime_audit.py 신규(읽기 전용, 자체점검 7/7 PASS) — CG160 가드와 달리 '문턱 도달 0행'이라는 소비 관점 결함을 잡는다. 후속(필요 시 신규 ID): ① 배포 173피처 vs 파이프라인 199피처 스키마 드리프트 이분법 실험(같은 모델·다른 피처셋으로 스케일 재현) ② 승격/롤백 시 추론 프로세스 재시작을 강제하는 배포 절차(발행 계약 변경 = 리뷰보드 승인 대상). ⚠ CG159 승인 절차의 '장 마감 후 docker restart' 는 이 항목의 재발 방지와 같은 효과를 낸다.",
-   "registered": "2026-10-11T01:0x+09:00"
+   "registered": "2026-10-11T01:0x+09:00",
+   "attempts": [
+    {
+     "ts": "2026-10-11T02:00:42+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='scale_regime_audit')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG162_20261011-020041.log",
+     "elapsed_min": 0.0
+    }
+   ]
+  },
+  {
+   "id": "CG163",
+   "title": "[측정정합성·원인] 승격≠재기동 — 살아 있는 추론 프로세스는 champion 을 재로드하지 않는다 (감지 가드 구현·28/28) + 압축 원인은 '입력/모델 신원' 쪽이라는 정정",
+   "status": "needs_setup",
+   "priority": 2,
+   "affects_model": false,
+   "arm": null,
+   "metric": "scale_regime_audit",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/scale_regime_audit.py'",
+   "counterfactual": "현행: 모델은 `app/main.py:43-47` 에서 기동 시 1회 joblib.load, 피처명은 `app/inference/predictor.py:163` 에서 Predictor 생성 시 1회, model_version 은 `predictor.py:89-91` 에서 프로세스당 1회 캐시 — **파일 감시·재로드 없음**. 즉 champion/ 을 교체(promote)해도 프로세스 재기동 없이는 반영되지 않는다(대조: 컨테이너 재시작 10-09 09:22Z 직후 첫 발행은 정상 스케일 frac 0.1506).",
+   "hypothesis": "CG162 의 압축 구간(10-02 02:44~10-08)은 (a) 승격 후 미재기동(옛 모델로 채점) 이거나 (b) 승격/재배포가 모델 파일을 **부분 기록 중에** 프로세스가 읽었거나 (c) 피처 입력 자체가 변했기 때문일 것이다. (a)/(b)면 재기동 강제로 차단되고, (c)면 입력측 수집·조인이 원인이다.",
+   "success": "① 불변식 감지 — 디스크 champion(xgboost_model.pkl·feature_names.json) mtime > 프로세스 로드 mtime 이면 CRITICAL + `stale_model_<날짜>.json` (감지·표시 전용 = 승인 불필요, 구현·검증 완료 28/28) ② 승인 시 수리 — 승격/롤백 절차에 추론 프로세스 재기동(또는 champion 신선도 게이트)을 강제한다 ③ 입력측 원인 규명 — 10-02~10-08 압축이 피처 입력 변화인지 모델 신원 변화인지 이분한다.",
+   "est_minutes": 10,
+   "result": {
+    "verdict": "감지 가드 구현·검증 완료(오탐 0) — 원인 이분·재기동 강제 승인만 남음",
+    "detail": "`app/inference/day_guard.py::check_and_report_stale_model`(+champion_newest_mtime) 배선 완료 — `app/main.py::initialize` 가 로드 시점 champion 신원 mtime 을 기록하고 `run_predictions` 발행 직전에 판정. 자체점검 `scripts/_stale_model_guard_test.py` 28/28 PASS. 라이브 대조: champion 신원 mtime 2026-09-24 00:16:24/00:18:54 vs 컨테이너 StartedAt 2026-10-09T09:22:51Z → stale=False(오탐 0). 정정: 배포 champion 모델 바이너리·피처명이 09-24 이후 불변이므로 10-02~10-08 압축을 '모델 교체'로만 설명할 수 없다(원인은 입력/모델 신원 이분 대상).",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "note": "2026-10-11 02:0x 엔지니어 자율(장외 틱) — CG162 후속(그 note 의 후속 ①스키마 드리프트 ②재기동 강제). 같은 계열의 **측정정합성** 항목이며 새 성능 레버가 아니다(변환·게이트·라벨 재시험 금지). ⚠ 감지 가드는 CG160/CG161 과 같이 **감지·표시 전용**이며 모델·발행을 바꾸지 않는다(그래서 승인 없이 배선 가능). ⚠ 이 가드는 CG162 의 압축 구간을 **잡지 않는다**(champion 신원 mtime 09-24 < 기동 시각 10-02 02:31) — 그 구간의 원인은 별개이므로 감지 가드를 CG162 의 원인으로 오독하지 말 것.",
+   "registered": "2026-10-11T02:0x+09:00",
+   "attempts": 0,
+   "kind": "measurement_integrity",
+   "owner": "engineer",
+   "baseline": null,
+   "evidence": "2026-10-11 02:0x 엔지니어 자율(장외 틱). ① **코드 확인(파일:라인)**: 위 counterfactual 3곳 — 재로드 경로 없음. ② **신규 감지 가드**(`app/inference/day_guard.py::check_and_report_stale_model` + `champion_newest_mtime` · 배선 `app/main.py::initialize`(로드 mtime 기록)·`run_predictions`(발행 직전 호출)) — 자체점검 `scripts/_stale_model_guard_test.py` **28/28 PASS**(모델 신원=mtime 최신 · 여유 5s 경계 · 감지 시에만 증거파일 · 디렉터리 불변 · 실측 회귀 2건 · 배선 가드 4건). ③ **실 DB/FS 라이브 대조(오탐 0)**: champion 신원 산출물 mtime = xgboost_model.pkl 2026-09-24 00:16:24 · feature_names.json 2026-09-24 00:18:54 vs 컨테이너 StartedAt 2026-10-09T09:22:51Z → 가드 판정 stale=False(정상). ④ **정정**: 배포 champion 의 **모델 바이너리·피처명이 09-24 이후 불변**이므로 '10-02 승격 = 새 모델' 이 아니고, 따라서 압축 구간을 '모델 교체'로만 설명할 수 없다. 다만 `champion_prev_20261002-024420`(feats=199) 백업이 존재해 10-02 02:44 에 champion/ 구성 변경은 있었다(현행 champion 은 173피처 = 199 − SNS/kalman 26종, 실측 diff). 또 CG159 실측에서 **동일 상수블록(ETF/ETN ~370행)의 값이 정상일 0.5689 → 압축일 0.0403~0.1691 로 뒤집혔다** — 입력이 늘 올제로에 가까운 블록의 출력이 바뀌는 것은 모델/피처벡터 신원 변화 쪽 신호다. → 원인은 (a)~(c) 중 미확정이며 다음 사이클의 이분 대상으로 남긴다.",
+   "expected": "승격이 살아 있는 프로세스에 반영되지 않는 구간이 '조용한 무진입 7일'로 이어지지 않는다(감지 시 당일 CRITICAL). 승인 후 재기동 강제가 들어가면 압축 재발 자체가 차단된다.",
+   "cost": "가드 120줄 + 자체점검(완료, 28/28). 수리(재기동 강제)는 배포 절차·발행 계약 변경 = 승인 1건.",
+   "setup_needed": "남은 것은 **승인 1건 + 입력측 이분 1건**. ① (승인) 승격/롤백 절차에 추론 프로세스 재기동을 넣는다 — 발행 계약·배포 절차 변경이라 리뷰보드 대상(헌장 §3-B). 승인 시 실행: 승격 스크립트 말미에 `docker restart stock_xgboost_ml`(장 마감 후 한정) 또는 승격 후 `stale_model_*.json` 미발생 확인. ⚠ CG159 승인 항목의 '장 마감 후 docker restart' 와 **같은 조치**이므로 두 건을 함께 묶어 승인하면 된다. ② (자율, 다음 사이클) 10-02~10-08 압축의 입력측 이분: 같은 종목·같은 날짜에 대해 (i) champion 신원(173피처)과 (ii) champion_cand(199피처)로 오프라인 재채점해 압축이 재현되는지 본다(모델 파일이 불변이므로 '입력 변화' 가설은 소스 테이블 날짜별 커버리지 갭으로도 대조한다).",
+   "command_verified_at": null
   }
  ],
- "updated": "2026-10-11T01:05:03+09:00"
+ "updated": "2026-10-11T02:06+09:00"
 }

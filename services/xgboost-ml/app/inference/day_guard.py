@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from collections import Counter
 from datetime import datetime
 from typing import Dict, Optional, Sequence
@@ -42,6 +43,15 @@ FILE_PREFIX = "degenerate_day_"
 PRIOR_RUN_FILE_PREFIX = "prior_run_"
 MIN_DISTINCT_RATIO = 0.01  # distinct(confidence)/n 하한 — 이 미만이면 '사실상 단일값'
 _ROUND_NDIGITS = 6
+
+# 모듈 임포트 시각 = 프로세스 기동 시각의 대리값. `app/main.py` 가 기동 직후 이 모듈을 임포트한다.
+PROCESS_START_TS = time.time()
+# 승격≠재기동 가드(CG163) — 프로세스가 실제로 **로드하는** 산출물만 본다.
+# (robust_auc.json 은 평가 러너가 수시로 다시 쓴다 → 신원 판정에서 제외한다. 그것은 '태그 신선도'이지
+#  '모델 신선도'가 아니다 — `predictor.py:89-91` 의 version 캐시는 별개 이슈.)
+CHAMPION_ARTIFACTS = ("xgboost_model.pkl", "feature_names.json")
+STALE_MODEL_FILE_PREFIX = "stale_model_"
+STALE_MTIME_TOLERANCE_S = 5.0
 
 
 def _as_confidence(value) -> Optional[float]:
@@ -218,5 +228,125 @@ def check_and_report_prior_run(
         out["report_path"] = path
     except Exception as exc:  # noqa: BLE001
         logger.error("재실행 증거 파일 기록 실패(dir=%s): %s", target_dir, exc)
+        out["report_error"] = str(exc)
+    return out
+
+
+def _kst(ts: Optional[float]) -> Optional[str]:
+    """epoch → KST 문자열(로깅·증거용)."""
+    if not ts:
+        return None
+    from datetime import timedelta, timezone
+
+    return datetime.fromtimestamp(float(ts), tz=timezone(timedelta(hours=9))).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+
+def champion_newest_mtime(champion_dir: str) -> Optional[float]:
+    """champion 디렉터리에서 **프로세스가 로드하는** 산출물들의 최신 mtime(없으면 None).
+
+    CHAMPION_ARTIFACTS = xgboost_model.pkl · feature_names.json (= 모델 신원).
+    """ 
+    newest: Optional[float] = None
+    for name in CHAMPION_ARTIFACTS:
+        try:
+            mt = os.path.getmtime(os.path.join(champion_dir, name))
+        except Exception:  # noqa: BLE001
+            continue
+        if newest is None or mt > newest:
+            newest = mt
+    return newest
+
+
+def stale_model_reason(
+    artifact_mtime: Optional[float],
+    loaded_mtime: Optional[float],
+    *,
+    tolerance_s: float = STALE_MTIME_TOLERANCE_S,
+) -> Optional[str]:
+    """디스크의 champion 이 로드 시점 **이후**에 바뀌었는가(프로세스가 옛 모델을 들고 있는가).
+
+    loaded_mtime 이 None 이면 판정 불가(None). tolerance_s 는 '기동 → load' 지연 오탐 여유.
+    실측(2026-10-02): 승격이 프로세스 기동 13분 뒤에 일어나 tolerance 밖이었다.
+    """
+    if artifact_mtime is None or loaded_mtime is None:
+        return None
+    try:
+        if float(artifact_mtime) > float(loaded_mtime) + float(tolerance_s):
+            return "champion_newer_than_process"
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def check_and_report_stale_model(
+    champion_dir: str,
+    *,
+    loaded_mtime: Optional[float] = None,
+    process_start_ts: Optional[float] = None,
+    tolerance_s: float = STALE_MTIME_TOLERANCE_S,
+    date: Optional[str] = None,
+    report_dir: Optional[str] = None,
+) -> Dict:
+    """승격≠재기동 감지·표시(CG163). 반환 = 판정 dict(테스트·감사용). 예외를 밖으로 던지지 않는다.
+
+    불변식: **살아 있는 추론 프로세스는 디스크의 현재 champion 을 들고 있어야 한다.**
+    모델은 `app/main.py:43-47` 에서 기동 시 1회 joblib.load 되고 피처명은
+    `app/inference/predictor.py:163` 에서 Predictor 생성 시 1회 로드되며 **파일 감시·재로드가 없다**
+    → champion/ 을 교체(promote)해도 프로세스를 재기동하지 않으면 옛 모델로 계속 채점한다.
+    실측 근거(CG162): 2026-10-02 02:31 실행 이후 7일간 전 종목 confidence 최대 < 0.30(소비 문턱 0.55
+    도달 0행)이고, 10-09 09:22Z 컨테이너 재시작 직후 첫 발행은 정상 스케일이었다(frac 0.1506).
+
+    **모델·발행을 바꾸지 않는다**(감지·표시 전용 = 승인 불필요 범위). 수리(승격 시 프로세스 재기동
+    강제, 또는 champion 신선도 게이트)는 배포 절차·발행 계약 변경이라 리뷰보드 승인 대상이다.
+    """
+    ref = loaded_mtime if loaded_mtime is not None else process_start_ts
+    if ref is None:
+        ref = PROCESS_START_TS
+    try:
+        artifact_mtime = champion_newest_mtime(champion_dir)
+    except Exception:  # noqa: BLE001
+        artifact_mtime = None
+    reason = stale_model_reason(artifact_mtime, ref, tolerance_s=tolerance_s)
+    resolved_date = date or datetime.now().strftime("%Y-%m-%d")
+
+    out = {
+        "metric": "stale_model_guard",
+        "date": resolved_date,
+        "stale": reason is not None,
+        "reason": reason,
+        "champion_dir": champion_dir,
+        "champion_artifacts": list(CHAMPION_ARTIFACTS),
+        "champion_mtime": artifact_mtime,
+        "champion_mtime_kst": _kst(artifact_mtime),
+        "loaded_mtime": ref,
+        "loaded_mtime_kst": _kst(ref),
+        "tolerance_s": tolerance_s,
+        "report_path": None,
+        "checked_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    if reason is None:
+        return out
+
+    logger.critical(
+        "승격≠재기동 감지(%s): champion 산출물이 프로세스 로드 이후에 바뀌었다 "
+        "(champion %s > load %s, 여유 %.0fs) — **살아 있는 프로세스는 옛 모델로 채점 중**이다. "
+        "재기동 전까지 발행 스코어가 승격 모델이 아니다(모델·발행은 변경하지 않는다).",
+        reason, out["champion_mtime_kst"], out["loaded_mtime_kst"], tolerance_s,
+    )
+    target_dir = (
+        report_dir
+        or os.environ.get(DEGENERATE_DAY_REPORT_DIR_ENV)
+        or DEFAULT_REPORT_DIR
+    )
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        path = os.path.join(target_dir, f"{STALE_MODEL_FILE_PREFIX}{resolved_date}.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(out, fh, ensure_ascii=False, indent=2, sort_keys=True)
+        out["report_path"] = path
+    except Exception as exc:  # noqa: BLE001
+        logger.error("승격≠재기동 증거 파일 기록 실패(dir=%s): %s", target_dir, exc)
         out["report_error"] = str(exc)
     return out
