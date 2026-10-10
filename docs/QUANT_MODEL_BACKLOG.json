@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-11T05:04:30+09:00",
+ "updated_at": "2026-10-11T06:22:42+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -14076,7 +14076,107 @@
     "per_exp": null,
     "rc": 1
    }
+  },
+  {
+   "id": "CG167",
+   "title": "[돈 지표·배포정합] CG166 후보(193피처·서빙정합)의 체결가능 순기대를 **같은 런 짝**으로 측정 — 19사이클 무개선 이후 첫 '배포 가능' 후보의 돈 검정",
+   "status": "done",
+   "priority": 1,
+   "kind": "money_metric",
+   "owner": "engineer",
+   "affects_model": false,
+   "from_experiment": "CG166",
+   "arm": "champion_cand_cg166(193피처·--drop-serving-blind-features) — 체결성 필터 ON top-k",
+   "counterfactual": "배포 champion(173피처, 2026-09-23 학습) — **같은 런에서 함께 채점**(같은 앵커·같은 세션·같은 유니버스 = 짝 대조군)",
+   "baseline": "배포 champion 감사 프로토콜(10-05): robust 0.4908 · 순기대 −0.182%p(t −0.81) · 87세션/1340거래 · 앞 −0.1066/뒤 −0.2557(neither) · 등록 기준선 0.5406(누수 패널·다른 프로토콜 = 대조 불가)",
+   "hypothesis": "CG166 후보는 서빙 입력계와 학습 입력계가 일치하는 첫 후보이고, 감사 프로토콜에서 배포 champion(0.4908)보다 0.0443 높은 0.5351 을 냈다. 그 격차는 프로토콜·모델이 서로 달라 직접 대조가 아니므로, **같은 런·같은 세션**에서 짝으로 재면 돈(체결가능 순기대 %p/세션)으로도 격차가 나타날 것이다. 반대로 돈으로는 격차가 사라지면 CG164 ①은 '정합 회복'일 뿐 성능 이득이 아니라고 기록한다.",
+   "evidence": "2026-10-11 05:0x~06:0x 엔지니어 자율(장외 틱). (1) CG166 rc=0(35.9분) 실측: 로버스트 0.5351±0.0100(폴드 0.5287/0.5274/0.5493 · min 0.5274 · max 0.5493 · 폴드 std 0.0538/0.1039/0.1045) · 풀링 0.5248 · 30일/2161행 · 채점 유니버스 = 유동성 80종목(ETF/ETN 27 · 학습유니버스 교집합 4) = 크로스도메인 채점(CG37 과 같은 성격). (2) 성공조건 ① 충족 확인: 후보 feature_names 193개 · rank_* 0개 — 서빙이 공급 못 하는 피처가 모델 입력에서 사라졌다(training-result 의 dropped_serving_blind 6개). (3) 프로토콜 간 격차 실측: **같은 배포 champion** 인데 감사 프로토콜(model_metric_protocol_audit, 10-05) 0.4908 vs champion_robust_eval(09-29, 5폴드) 0.5302 → 로버스트 프로토콜 간 폭 0.0394 = 사전문턱 +0.02 의 2배. 즉 CG166 의 '기준선 대비 Δ−0.0055' 는 서로 다른 패널·폴드수·유니버스를 넘나든 값이라 **대조 불가**(CG145·CG156 과 같은 이유) → 같은 런 짝만 유효. (4) 그 대조군이 돈 기준선이다: 배포 champion 순기대 −0.182%p/세션(음수) → '후보가 챔피언을 이긴다'와 '후보가 돈이 된다'는 별개 질문이며 둘 다 이 런에서 함께 나온다.",
+   "success": "사전문턱(`champion_promote --require-expectancy`·CG95/CG96 과 동일 단위, `fillable_topk_vs_pool` 판정): k=3 **과** k=5 둘 다 (a) 후보 순기대 > 0 (b) 짝 Δ(후보 top-k − 그날 체결가능 풀평균) ≥ +0.1%p/세션 (c) 짝 t ≥ 2 (d) 분할표본 앞/뒤 both_positive. 전부 충족 → '신호있음' → 별도 승격 검토 항목 등록(이 루프에서 승격 금지). 하나라도 미달 → '노이즈' 로 닫고 CG166 후보는 '배포정합 기록'으로만 남긴다. 부수 기록(판정 아님): 같은 런 짝 Δ vs 배포 챔피언(k=3·5) 도 함께 보고한다.",
+   "metric": "fillable_topk_vs_pool",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand_cg166 --asof-date 2026-10-08 --dump-preds /app/reports/overnight/cg167_cand_all.jsonl --dump-all --dump-tag cg166 --out /app/reports/overnight/cg167_cand_robust.json && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --asof-date 2026-10-08 --dump-preds /app/reports/overnight/cg167_champ_all.jsonl --dump-all --dump-tag champion --out /app/reports/overnight/cg167_champ_robust.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg167_cand_all.jsonl --arm-tag cg166 --control-jsonl /app/reports/overnight/cg167_champ_all.jsonl --control-tag champion --k 3,5 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg167_money.json'",
+   "est_minutes": 40,
+   "cost": "로버스트 평가 2회(각 80종목·5폴드·10일·--dump-all) + 돈 집계 1회 ≈ 25~40분 · 재학습 없음",
+   "created_at": "2026-10-11T06:05:18+09:00",
+   "note": "2026-10-11 06:0x 엔지니어 자율(장외 틱) — CG166 결과 도착 직후 등록. pending 큐가 비어 있어 스킬 규칙 4에 따라 다음 가설을 스스로 설계했다. 왜 이 축인가: 조정 축(피처변환·HP·유니버스·라벨)은 실측 상한 +0.011 로 닫혀 있고(청정 패널 재측정에서도 노이즈), 데이터 축은 원천 확보(CG73)가 선행이라 오늘 돌릴 수 없다. 남은 미측정 축은 '배포 정합'과 '돈 지표' 다 — CG166 후보는 서빙 스큐 0 인 첫 후보인데 돈 지표가 없다(이 역할 최우선 규칙상 이대로 둘 수 없다). 앵커는 --asof-date 2026-10-08 로 고정(CG143: 앵커가 오늘이면 하루만 지나도 같은 모델 값이 0.4935~0.5448 로 흔들린다). 두 arm 이 서로 다른 런이므로 신호가 나오면 다음 단계에서 CG145(앵커평균)대로 앵커 2~3개로 재측정한다.",
+   "attempts": [
+    {
+     "ts": "2026-10-11T06:18:09+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm cg166 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 30 · k=3 arm +3.885%p/세션 · 풀평균 +3.317 · Δ(arm−풀) +0.567(t 0.64) · 양세션 63.3% · 분할 both_positive [+2.168/+5.601] ✗ · k=5 arm +3.251%p/세션 · 풀평균 +3.317 · Δ(arm−풀) -0.067(t -0.07) · 양세션 70.0% · 분할 both_positive [+3.546/+2.955] ✗ · 풀평균 t 3.69 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG167_20261011-060521.log",
+     "elapsed_min": 12.8
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm cg166 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 30 · k=3 arm +3.885%p/세션 · 풀평균 +3.317 · Δ(arm−풀) +0.567(t 0.64) · 양세션 63.3% · 분할 both_positive [+2.168/+5.601] ✗ · k=5 arm +3.251%p/세션 · 풀평균 +3.317 · Δ(arm−풀) -0.067(t -0.07) · 양세션 70.0% · 분할 both_positive [+3.546/+2.955] ✗ · 풀평균 t 3.69 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+    "delta": 0.5672,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG168",
+   "title": "[승격준비·게이트] CG166 후보의 승격 증거팩 생성 + `--require-expectancy` 게이트 판정 — 같은 런 짝 AUC +0.0294(사전문턱 초과)가 실제로 게이트를 통과하는가, 통과한다면 그 통과가 베타(시장상승)로 열리는가",
+   "status": "done",
+   "priority": 1,
+   "kind": "promotion_evidence",
+   "owner": "engineer",
+   "affects_model": false,
+   "from_experiment": "CG167",
+   "arm": "champion_cand_cg166(193피처·서빙정합, 2026-10-08 창 학습)",
+   "counterfactual": "배포 champion(173피처, 2026-09-23 학습) — 승격 게이트가 비교하는 현행 기준선",
+   "baseline": "CG167 같은 런 짝(앵커 2026-10-08 · liquidity-80 · 3폴드 30세션): 후보 0.5089±0.0073 vs 챔피언 0.4795±0.0679 → Δ +0.0294(폴드 승률 2/3 · 폴드별 −0.0480/+0.0129/+0.1235). 돈(체결성 ON · exit close_h h5 · 30세션): 후보 k=3 +3.885%p vs 풀평균 +3.317 → Δ +0.567(t 0.64) · k=5 Δ −0.067(t −0.07) = 베타 초과 미검출.",
+   "hypothesis": "후보는 서빙 정합(rank_* 0)과 같은 런 짝 AUC 우위(+0.0294)를 동시에 갖춘 첫 후보이고, 돈 지표는 후보·챔피언 모두 시장 베타(top-k Δ vs 풀평균 ≈ 0)에 지배된다. 따라서 승격 게이트(`--require-expectancy`: 순기대>0 · 챔피언 대비 +0.1%p)는 **통과하되 그 통과가 엣지가 아니라 베타일 가능성**이 크다 — 그 경우 문제는 후보가 아니라 **게이트의 검정력**(CG111 검출 바닥 k=3 sd ±0.415%p/세션 > 문턱 +0.1%p 의 4배)이다.",
+   "evidence": "2026-10-11 06:0x 엔지니어 자율(장외 틱). CG167 rc=0(12.8분) 실측 — ① 같은 런·같은 앵커·같은 유니버스·같은 30세션에서 두 arm 을 채점했다(champion_robust_eval --dump-all × 2 + fillable_topk_expectancy 짝 집계). ② AUC: 후보 0.5089±0.0073(폴드 0.5111/0.4991/0.5166 · pooled 0.5057 · 2158행) vs 배포 챔피언 0.4795±0.0679(폴드 0.5591/0.4862/0.3931 · pooled 0.4755) → **짝 Δ +0.0294(사전문턱 +0.02 초과)** 이고 후보의 폴드 std 가 9.3배 작다. ③ 돈: 필터 ON 30세션에서 arm k=3 +3.885%p/세션·k=5 +3.251 vs 널(풀평균) +3.317 → Δ(arm−풀) k=3 +0.567(t 0.64)·k=5 −0.067(t −0.07) = 검출 바닥 이하(CG111: k=3 sd ±0.415 는 225세션이라 30세션에선 ±1.1 수준). 챔피언 대비는 k=3 +1.379(t 0.88)·k=5 +1.756(t 1.36) = 둘 다 t<2. ④ 그래서 'AUC +0.0294' 는 사실이지만 **돈으로는 미검출**이다 — 게이트가 돈 기준만 보면 β에 열리고, AUC 기준만 보면 열린다. 어느 쪽인지 지금 장치로는 판정되지 않으므로 증거팩을 만들어 **게이트가 실제로 무엇을 보고 열리는지**를 실측한다.",
+   "success": "① 증거팩 생성: `app/models/champion_cand_cg166/robust_oos.json`(감사 프로토콜 · 순기대%p · t · 세션 · 분할표본) + `ml_result_cg168.json`(게이트 status·사유·후보/챔피언 비교). ② 판정 기록: status=would_promote 면 '게이트 통과'로 적고 **동시에** 그 통과의 근거가 베타인지 구분하기 위해 후보 순기대 t 와 대조군 순기대 t 를 함께 실어 사람 판단에 넘긴다(이 루프에서 승격 금지). status=kept_incumbent/거부면 사유를 원장에 남긴다. ③ 승인 요청 근거 생성: 게이트가 t 요건 없이 열리면 `--min-expectancy-t 2` 추가 또는 문턱 재정의를 ②(승인) 로 올린다.",
+   "metric": "champion_promote_dryrun",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/model_metric_protocol_audit.py --models \"[[\\\"cg166\\\",\\\"app/models/champion_cand_cg166\\\"]]\" --topk 3 --folds 5 --dates-per-fold 10 --stocks 80 --horizon 5 --label-kind rel --robust-oos-out /app/app/models/champion_cand_cg166/robust_oos.json --out /app/app/reports/cg168_cand_audit.json && OMP_NUM_THREADS=2 timeout 900 python -u -m app.training.champion_promote --candidate app/models/champion_cand_cg166 --champion app/models/champion --dry-run --require-expectancy --require-robust --min-robust-auc 0.5 --summary-out /app/app/reports/ml_result_cg168.json'",
+   "est_minutes": 25,
+   "cost": "감사 1회(80종목·5폴드·10일·1모델) + 게이트 dry-run(재학습 없음). CPU 4코어 직렬.",
+   "created_at": "2026-10-11T06:22:28+09:00",
+   "note": "2026-10-11 06:2x 엔지니어 자율 — CG167 판정(노이즈) 직후 등록. 돈 축은 CG111/CG113/CG155 로 이미 '검출 바닥' 한계가 실측돼 있고(150종목 확대에도 베타 초과 미검출 = CG155 에서 축 종결), 조정 축은 상한 +0.011 로 닫혀 있다 → 지금 남은 것은 **배포 정합**과 **승격 게이트의 판정 정합성**이다. 이 항목은 승격을 하지 않는다(dry-run 전용). 목적은 (a) 후보의 돈 증거팩을 남겨 사람 판단에 넘길 자료를 만들고 (b) 게이트가 어떤 기준으로 열리는지, 그 기준이 베타와 구분되는지를 실측하는 것. ⚠ 선행 실측: 배포 champion 은 173피처(09-23 학습)로 현재 파이프라인(199)보다 26피처 뒤처져 있고, 같은 런 짝에서 후보보다 AUC 가 0.0294 낮다 — '배포 모델이 파이프라인보다 낡았다'는 사실 자체가 사람 검토 대상이다.",
+   "attempts": [
+    {
+     "ts": "2026-10-11T06:22:42+09:00",
+     "rc": 0,
+     "verdict": "후보 생성·게이트 거부",
+     "detail": "dry-run status=kept_incumbent · 후보 AUC 0.5284 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11436 · 양성률 0.4527 · 사유: 돈 기준 게이트 거부: 분할표본 불안정(앞 -0.1333 / 뒤 0.3106)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG168_20261011-062232.log",
+     "elapsed_min": 0.2
+    }
+   ],
+   "result": {
+    "verdict": "후보 생성·게이트 거부",
+    "detail": "dry-run status=kept_incumbent · 후보 AUC 0.5284 · 챔피언 0.5513 · 기준선 0.5513 · 기준선 출처 robust_auc.json · 학습행 11436 · 양성률 0.4527 · 사유: 돈 기준 게이트 거부: 분할표본 불안정(앞 -0.1333 / 뒤 0.3106)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG169",
+   "title": "[배포정합·유니버스 교차검정] CG166 후보 vs 배포 챔피언 짝을 **학습 유니버스(training·seed0)** 에서 재측정 — AUC +0.03~0.04 우위가 유니버스를 바꿔도 유지되는가",
+   "status": "pending",
+   "priority": 1,
+   "kind": "deploy_integrity",
+   "owner": "engineer",
+   "affects_model": false,
+   "from_experiment": "CG168",
+   "arm": "champion_cand_cg166(193피처·서빙정합) vs 배포 champion(173피처) — 같은 런·같은 앵커·**같은 유니버스**로 두 arm 채점",
+   "counterfactual": "같은 런의 배포 champion(두 arm 동시 채점 = 짝). CG167/CG168 은 유동성 유니버스(80종목 중 ETF/ETN 27 · 학습유니버스 교집합 4)에서 쟀다 — 여기서는 학습 경로와 동형인 유니버스로 바꾼 **같은 런**. ",
+   "baseline": "유동성 유니버스 실측(CG167): 0.5089±0.0073 vs 0.4795±0.0679 → Δ+0.0294 · 감사 프로토콜(CG168): 0.5284 vs 0.4908 → Δ+0.0376",
+   "hypothesis": "CG167(유동성 유니버스)과 CG168(감사 프로토콜)이 서로 다른 두 계측기에서 같은 방향의 우위(+0.0294 / +0.0376)를 냈다 → 그 우위가 **채점 유니버스 특이**가 아니라 모델 자체의 차이이면 학습 유니버스에서도 부호가 유지된다(실측 교훈 2026-09-28: 조정 축 신호는 유니버스에서 부호가 뒤집힌 전례가 있다 — CO_rank_smooth_d1_h5 는 49종목 패널에서 +0.0338 이었지만 150종목에서 전 성분 하회).",
+   "evidence": "2026-10-11 06:2x 엔지니어 자율. CG167 실측(같은 앵커 2026-10-08 · liquidity-80 · 3폴드/30세션 · 2158행): 후보 0.5089±0.0073 vs 챔피언 0.4795±0.0679 → Δ+0.0294(폴드 2/3) · 돈은 양쪽 다 베타 지배(k=3 Δ vs 풀평균 +0.567/t 0.64). CG168 실측(감사 프로토콜 · 5폴드·50일 · 87세션·1340거래): 후보 robust 0.5284(폴드 0.5311/0.5132/0.5409) · 순기대 **+0.0912%p**·t 0.51(챔피언 −0.182%p·t −0.81) → 게이트는 분할표본 불안정(앞 −0.1333/뒤 +0.3106)으로 **kept_incumbent**(승격 없음). 즉 우위는 두 계측기에서 재현됐지만 후보의 유니버스 특이성(교집합 4/80)은 아직 배제되지 않았다.",
+   "success": "① 같은 런 짝 Δ(학습 유니버스) 부호 유지 + 크기 보고(폴드별 Δ·승률 포함) — 부호가 유지되면 '모델 차이' 근거가 두 유니버스로 확장되고, 뒤집히면 '유니버스 특이'로 기록해 CG166 축을 닫는다. ② 돈 지표(체결성 ON top-k vs 풀평균, k=3·5) 도 함께 기록 — 검출 바닥(CG111 k=3 sd ±0.415/225세션) 표기 필수, 미검출이면 그대로 적는다(승격 근거 아님). ③ 부수 검증: UNIVERSE_ASOF_DATE=2026-10-08 로 유니버스가 동결되는지 로그로 확인(CG142 수리 실사용 검증 — 학습 유니버스가 매일 87% 재추첨되는 문제).",
+   "metric": "fillable_topk_vs_pool",
+   "command": "docker exec -e PYTHONPATH=/app -e UNIVERSE_ASOF_DATE=2026-10-08 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1500 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand_cg166 --universe training --universe-seed 0 --asof-date 2026-10-08 --dump-preds /app/reports/overnight/cg169_cand_train.jsonl --dump-all --dump-tag cg166 --out /app/reports/overnight/cg169_cand_train_robust.json && OMP_NUM_THREADS=4 timeout 1500 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --universe training --universe-seed 0 --asof-date 2026-10-08 --dump-preds /app/reports/overnight/cg169_champ_train.jsonl --dump-all --dump-tag champion --out /app/reports/overnight/cg169_champ_train_robust.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg169_cand_train.jsonl --arm-tag cg166 --control-jsonl /app/reports/overnight/cg169_champ_train.jsonl --control-tag champion --k 3,5 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg169_money.json'",
+   "est_minutes": 30,
+   "cost": "로버스트 평가 2회(학습유니버스 80종목·5폴드·10일·--dump-all) + 돈 집계 1회 — 패널 캐시가 있어 실측 12초~20분(MDE 로그 참조).",
+   "created_at": "2026-10-11T06:23:48+09:00",
+   "note": "2026-10-11 06:2x 엔지니어 자율 — CG167/CG168 결과 직후 등록(스킬 규칙 1(a): 신호가 있으면 그 설정을 다음 실험의 대조군으로 승격). CG166 정합 config(193피처·rank_* 0)는 이제 **기본 대조군**으로 쓴다. 승격은 이 루프가 하지 않는다 — CG168 의 robust_oos.json(순기대 +0.0912%p·87세션)이 사람 판단용 증거로 남았고, 배포 champion 이 파이프라인보다 26피처 뒤처진 상태(173 vs 199)라는 사실도 함께 보고한다."
   }
  ],
- "updated": "2026-10-11T04:15+09:00"
+ "updated": "2026-10-11T06:23+09:00"
 }
