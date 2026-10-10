@@ -141,13 +141,23 @@ def _create_labels_quantile(df: pd.DataFrame, horizon: int = 5,
     return out
 
 
+RANK_SOURCE_COLS = [
+    "return_5d", "return_20d", "volatility_20d",
+    "volume_ratio_5", "ma_position_5", "volume_ratio_20",
+]
+
+# CG164(2026-10-11) — 서빙 경로가 **공급할 수 없는** 피처 이름들.
+# predictor.predict 는 종목 1개·날짜 1개로 `features.get(f, 0.0)` 벡터를 만든다 → 날짜별
+# 횡단면 rank 는 그 경로에서 계산 불가이고 **항상 0.0** 이 된다(프로브 실측: champion 173개 중
+# 6개가 서빙에서 missing → 0.0 대체). 학습에만 있던 이름을 목록에 남기면 라이브 입력이
+# '학습이 본 적 없는 상수'가 되므로, 제거 재학습(--drop-serving-blind-features)의 대상이다.
+SERVING_BLIND_FEATURES = [f"rank_{c}" for c in RANK_SOURCE_COLS]
+
+
 def _add_cross_sectional_ranks(df: pd.DataFrame) -> pd.DataFrame:
     """Batch-level cross-sectional ranks, replicating
     FeaturePipeline.compute_cross_sectional_ranks / Trainer (trainer.py:107-118)."""
-    rank_cols = [
-        "return_5d", "return_20d", "volatility_20d",
-        "volume_ratio_5", "ma_position_5", "volume_ratio_20",
-    ]
+    rank_cols = list(RANK_SOURCE_COLS)
     date_col = "date" if "date" in df.columns else ("trade_date" if "trade_date" in df.columns else None)
     out = df.copy()
     if date_col is None:
@@ -196,6 +206,7 @@ def retrain_champion(
     horizon: int = 5,
     model_params: Optional[dict] = None,
     label_q: Optional[float] = None,
+    drop_serving_blind: bool = False,
 ) -> dict:
     """Core retrain (DB-free, testable): train 3 models on ONE canonical matrix.
 
@@ -240,6 +251,13 @@ def retrain_champion(
     # Canonical contract: the FULL sorted feature list, same order the screener
     # builds. Missing columns are 0-filled on BOTH sides (train + inference).
     canonical: List[str] = _FP().get_feature_names()
+    dropped_serving_blind: List[str] = []
+    if drop_serving_blind:
+        # CG164: 서빙이 공급할 수 없는 이름을 **모델 피처 목록에서도** 뺀다. 학습행렬에서만 빼고
+        # 목록에 남기면 서빙에서 0.0 으로 되살아난다(그게 지금 결함이다).
+        _blind = set(SERVING_BLIND_FEATURES)
+        dropped_serving_blind = [n for n in canonical if n in _blind]
+        canonical = [n for n in canonical if n not in _blind]
     X = np.zeros((len(df), len(canonical)), dtype=np.float32)
     for j, name in enumerate(canonical):
         if name in df.columns:
@@ -359,6 +377,9 @@ def retrain_champion(
         # 0 이 아니면 라벨 꼬리 과제다 — AUC 해석 시 '과제 정의가 다름'을 함께 적어야 한다.
         "n_middle_dropped": int(n_middle_dropped),
         "model_params_override": dict(model_params) if model_params else None,
+        # CG164 — 서빙 불가 피처 제거 재학습 여부와 실제로 뺀 이름(라이브 입력 정합 증거).
+        "drop_serving_blind": bool(drop_serving_blind),
+        "dropped_serving_blind": dropped_serving_blind,
     }
     meta_path = os.path.join(out_dir, f"training-result-{datetime.now():%Y%m%d-%H%M%S}.json")
     with open(meta_path, "w") as f:
@@ -401,6 +422,12 @@ def main() -> None:
                     help='모델 params 덮어쓰기 JSON. 예: \'{"max_depth":1,"learning_rate":0.05}\'. '
                          "각 모델 params 에 있는 키만 적용된다(기본 None = 현행).")
     ap.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
+    ap.add_argument("--drop-serving-blind-features", dest="drop_serving_blind",
+                    action="store_true",
+                    help="CG164: 서빙 경로가 공급할 수 없는 피처(횡단면 rank_* 6개 — predictor.predict "
+                         "가 종목 단위로 벡터를 만들어 항상 0.0 이 된다)를 **모델 피처 목록에서도** "
+                         "제외한 재학습. 기본 OFF = 현행과 비트 동일. 목록에 남긴 채 학습하면 "
+                         "라이브 입력이 '학습이 본 적 없는 상수'가 된다(학습·서빙 스큐).")
     ap.add_argument("--val-frac", type=float, default=0.2)
     ap.add_argument("--n-estimators", type=int, default=500)
     ap.add_argument("--checkpoint-path", default=None,
@@ -450,7 +477,8 @@ def main() -> None:
                                 label_kind=args.label_kind, horizon=args.horizon,
                                 label_q=args.label_q,
                                 model_params=(json.loads(args.model_params)
-                                              if args.model_params else None))
+                                              if args.model_params else None),
+                                drop_serving_blind=args.drop_serving_blind)
         print(json.dumps(meta, ensure_ascii=False, indent=2))
         print(f"CHAMPION -> {os.path.abspath(args.out_dir)}")
 

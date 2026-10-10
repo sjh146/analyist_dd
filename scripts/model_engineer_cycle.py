@@ -3702,6 +3702,40 @@ def source_axis_sweep_note(max_age_h=12, force=False):
     return out
 
 
+def source_freshness_note(max_age_h=1.0):
+    """배선된 피처 원천의 신선도 게이트 — 감지 전용(2026-10-11 CG165 후속).
+
+    WHY: 구동기의 미배선 스윕은 이름 그대로 **미배선** 원천만 본다. 그런데 실제로 12일간
+    조용히 멈춰 있던 것은 **배선된** 원천이었다(실측 2026-10-11: supply_market_features·
+    financial_ratio_features 2026-09-29 정지 = 09-30~10-08 6거래일 결손 · macro_features
+    09-28 정지, 그동안 다른 원천은 10-08 정상). 원천이 멈추면 서빙 피처가 낡은 값을 as-of 로
+    물고 입력이 조용히 바뀐다 — 사용자가 보는 지표에는 아무 흔적이 없다.
+    비용 ~6초(psql 8회). 증거가 max_age_h 이내면 재실행 없이 캐시만 읽는다.
+    """
+    try:
+        import source_freshness_gate as sfg
+    except Exception as e:                          # noqa: BLE001
+        return f"원천 신선도: 점검 불가({type(e).__name__}: {str(e)[:80]})"
+    try:
+        age = (time.time() - os.path.getmtime(sfg.EVID)) / 3600.0
+    except OSError:
+        age = None
+    try:
+        if age is None or age > max_age_h:
+            proc = subprocess.run(
+                [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                              "source_freshness_gate.py")],
+                capture_output=True, text=True, timeout=180, cwd=PROJ)
+            if proc.returncode != 0:
+                return (f"원천 신선도: 게이트 실행 실패 rc={proc.returncode} "
+                        f"({(proc.stderr or proc.stdout).strip()[-100:]}) — 감시 공백(경보 아님)")
+        with open(sfg.EVID, encoding="utf-8") as f:
+            res = json.load(f)
+    except Exception as e:                          # noqa: BLE001
+        return f"원천 신선도: 점검 불가({type(e).__name__}: {str(e)[:80]})"
+    return sfg.summary_line(res)
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
@@ -3713,6 +3747,9 @@ def tick(force=False):
     # 전방(forward) 성적표 — 배포 경로의 유일한 전방 검증인데 아무도 주기 실행하지 않아
     # 표본이 늘어도 '표본부족' 에 머물렀다(CG75). 틱이 하루 1회 갱신한다(읽기 전용, ~14초).
     print(f"  {refresh_forward_scorecard_if_stale()}")
+    # 배선된 원천의 신선도 — 미배선 스윕은 '배선된' 원천의 정지를 못 본다(2026-10-11 실측:
+    # 3개 피처 테이블이 09-28/29 정지 = 최대 7거래일 결손이 12일간 무보고). 감지 전용·캐시 1h.
+    print(f"  {source_freshness_note()}")
     # 이전 틱이 '보고 처리'했지만 크론 실행이 전달 실패한 기록을 되돌린다 → 아래 unreported 블록이
     # 같은 결과를 다시 출력한다(영구 소실 방지). 실측 2026-09-30: 제공자 불통 4시간 동안 U3 소실.
     for line in check_undelivered_reports():

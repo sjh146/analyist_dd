@@ -73,6 +73,8 @@ data/reports/res_cycle/
 data/reports/researcher_ledger.jsonl
 
 # ── 파생 산출물 (재생성 가능 — 저장소 비대 방지) ────────────────
+# 원천 신선도 게이트 증거 — 틱마다 재생성(내용은 틱 보고·백로그 note 에 남는다).
+data/reports/source_freshness.json
 data/reports/dq_snapshots/
 *.stderr
 *.npz.stale-*
