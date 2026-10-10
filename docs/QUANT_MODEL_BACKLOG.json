@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-10T20:0x+09:00",
+ "updated_at": "2026-10-10T23:1x+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -11,6 +11,30 @@
   "needs_setup 항목은 명령이 준비되기 전 실행하지 않는다(구동기가 건너뛴다)."
  ],
  "items": [
+  {
+   "id": "CG160",
+   "title": "[측정정합성·생산] 퇴화일 가드 — 하루 전체 예측이 단일 상수면 발행 전에 감지·표시 (09-22: 2,678행 전부 0.1429, 11초 배치)",
+   "status": "backlog",
+   "priority": 2,
+   "kind": "measurement_integrity",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "degenerate_day_guard",
+   "arm": null,
+   "baseline": null,
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/forward_live_audit.py'",
+   "counterfactual": "현행: PREDICTION_CONFIDENCE_THRESHOLD=0.0(config.py:28) 이라 **모든 행이 저장**되고, 하루 전체가 단일값이어도 경보 없이 그대로 ml_predictions 에 발행된다(소비자는 top-k 를 뽑을 수 없다).",
+   "success": "발행 직전(=save 루프 앞)에 당일 예측의 distinct(confidence)/n 을 계산해 ① distinct == 1 이거나 비율 < 1% 면 로그 CRITICAL + data/reports/degenerate_day_<date>.json 기록 ② **발행 목록 자체는 바꾸지 않는다**(계약 무변경 = 승인 불필요 범위). 자체점검으로 정상일에는 파일이 생기지 않고 퇴화 입력에서는 생기는 것을 증명한다.",
+   "hypothesis": "피처 파이프라인이 실패한 날은 전 종목 입력이 0/동일 → 모델이 **같은 확률**을 돌려주고, 그 값이 그대로 발행된다. 그런 날의 전방 AUC·top-k 는 정의상 정보가 0(날짜 AUC 0.5)이므로, 계측·소비가 그 날을 '모델 성능'으로 오독하지 않도록 발행 시점에 표시가 필요하다.",
+   "evidence": "2026-10-10 23:0x 엔지니어 자율 실측(읽기 전용, ml_predictions 일자별 집계): 2026-09-22 = 2,678행 · **distinct confidence 1** · 값 0.1429 전량 · created_at 09:34:57~09:35:08(**11초 배치, 장중**) — 정상일은 distinct 1,200~2,900/4,340 이다(09-25 2,916 · 10-09 2,934). 같은 표에서 추가 관측: (a) prediction_date 하나에 **여러 시각의 쓰기**가 섞인다(09-23 02:15:35~19:43:50 · 09-30 01:04:58~19:02:34) — 일자별 '발행 1회' 가정이 성립하지 않는다 (b) model_version 은 10-09 까지 전부 'v1.0'(식별자 미배선) → 10-02~10-08 의 confidence 최대값 붕괴(0.2277~0.2944, 09-25~10-01 은 0.7780~0.8914)가 **어느 모델 교체로 생겼는지 DB 로 구분 불가**(CG158·CG82 계열). 퇴화일 검출 자체는 forward_live_audit(CG158)에 이미 있다.",
+   "expected": "퇴화일이 '조용한 상수 발행' 대신 표시된 사건이 된다 — 전방 성적표·top-k 해석에서 그 날이 자동으로 각주 처리되고, 파이프라인 실패가 다음 날 발견되는 대신 당일 기록된다.",
+   "cost": "가드 5~10줄 + 자체점검. 발행 계약 무변경이라 승인 불필요.",
+   "est_minutes": 15,
+   "setup_needed": null,
+   "note": "2026-10-10 23:0x 엔지니어 자율(장외 틱) 신설 — 규칙 4(백로그에 실행 가능 pending 없음 → 다음 가설 설계)의 결과물. ⚠ 모델 축 실험이 아니다(변환·게이트·라벨 재시험 금지). 재현은 위 command 1줄(forward_live_audit 의 '퇴화 날짜' 항목) 또는 ml_predictions 일자별 distinct 집계. 다음 세션 착수 순서: ① 가드 구현+자체점검 ② 퇴화 입력 재현 테스트 ③ 로그·파일 형식 고정 후 크론/모니터 연결 여부는 리서처 DQ 와 합의(그 부분만 승인 대상).",
+   "attempts": 0,
+   "command_verified_at": null
+  },
   {
    "id": "CG159",
    "title": "[측정정합성·발행계약] 배포 예측 유니버스가 학습 유니버스와 다르다 — 매일 약 370행(ETN/ETF)이 단일 상수 confidence 로 발행된다",
