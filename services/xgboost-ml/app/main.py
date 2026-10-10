@@ -16,7 +16,7 @@ from app.feature_engine.feature_pipeline import FeaturePipeline
 from app.models.xgboost_model import XGBoostModel
 from app.models.model_manager import ModelManager
 from app.training.trainer import Trainer
-from app.inference.predictor import Predictor
+from app.inference.predictor import Predictor, filter_prediction_universe
 from app.storage.postgres_storage import PostgresStorage
 from app.metrics_integration import init_metrics, on_features_computed, on_prediction, on_feature_count
 
@@ -98,7 +98,8 @@ class XGBoostMLService:
         """Run daily predictions for all stocks."""
         logger.info("Running daily predictions...")
 
-        stocks = self.pg_storage.get_all_stocks()
+        # 배포 추론 유니버스(CG159): 기본 OFF = 종전과 비트 동일. 켜면 ETF/ETN 제외.
+        stocks = filter_prediction_universe(self.pg_storage.get_all_stocks())
         predictions = []
 
         import time as _time

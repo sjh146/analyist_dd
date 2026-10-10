@@ -14,6 +14,49 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# --- 배포 추론 유니버스 필터 (측정정합성, 2026-10-10 CG159) --------------------
+# WHY: 배포 추론은 `stocks` **전 종목**(실측 4,343)을 순회하는데 학습 유니버스
+# (`select_training_universe`)는 ETF/ETN 을 제외한다. 피처가 없는 종목은 올제로 벡터 →
+# 모델이 **같은 확률 상수**를 돌려주고 그 값이 하루 종일 동일하다(실측 2026-10-10:
+# 상수 블록 373행 중 369행이 ETN, 값 0.5689 = 소비 문턱 0.55 초과 → 그날 ≥0.55 대역의 56.8%).
+# 상수 행은 서로 순위를 정할 수 없고, 값이 문턱을 넘으면 **정보 없는 행이 후보**가 된다.
+# 기본값은 **현행 유지(OFF)** — 켜면 학습 유니버스와 같은 ETF/ETN 제외 규칙을 적용한다.
+# 발행 리스트가 바뀌는 변경이므로 **활성화는 리뷰보드 승인 대상**(감사:
+# scripts/prediction_constant_block_audit.py · 증거 data/reports/prediction_constant_block_audit_20261010.json).
+PREDICT_EXCLUDE_ETFETN_ENV = "PREDICT_EXCLUDE_ETFETN"
+_TRUTHY_VALUES = ("1", "true", "yes", "on", "y")
+
+
+def prediction_universe_excludes_etf_etn() -> bool:
+    """플래그가 켜졌는가. 미설정/거짓값이면 False = 종전과 **비트 동일**(무회귀)."""
+    return (os.environ.get(PREDICT_EXCLUDE_ETFETN_ENV) or "").strip().lower() in _TRUTHY_VALUES
+
+
+def filter_prediction_universe(stocks: List[Dict]) -> List[Dict]:
+    """배포 추론에 쓸 종목 목록. 플래그 OFF 면 **입력 그대로**(객체 동일) 돌려준다.
+
+    ON 이면 학습 유니버스와 같은 규칙(ETF/ETN 이름 패턴 제외 — `app.training.universe.is_etf_etn`)을
+    적용하되 **순서는 보존**한다(제거 외의 변경 금지). 자체점검: scripts/_predict_universe_filter_test.py.
+    """
+    if not prediction_universe_excludes_etf_etn():
+        return stocks
+    from app.training.universe import is_etf_etn  # 사용 시점 임포트(순환 임포트 방지)
+
+    kept: List[Dict] = []
+    dropped = 0
+    for s in stocks:
+        name = s.get("stock_name") if hasattr(s, "get") else None
+        if is_etf_etn(name):
+            dropped += 1
+            continue
+        kept.append(s)
+    logger.info(
+        "predict universe filter ON(%s): %d -> %d (ETF/ETN %d 제외)",
+        PREDICT_EXCLUDE_ETFETN_ENV, len(stocks), len(kept), dropped,
+    )
+    return kept
+
+
 try:
     import redis
 except ImportError:
@@ -166,7 +209,7 @@ class Predictor:
 
     def predict_all(self) -> List[Dict]:
         """Run predictions for all tracked stocks."""
-        stocks = self.storage.get_all_stocks()
+        stocks = filter_prediction_universe(self.storage.get_all_stocks())
         predictions = []
 
         for stock in stocks:

@@ -204,3 +204,43 @@ CG155 = CG154 산출물(150종목 · 5폴드×25일 · 같은 앵커 2026-10-07)
 ETF/ETN 제외. **ml_predictions 는 소비자(트레이더 swing 경로·forward_scorecard)가 있는 산출물 → 발행 리스트
 계약 변경 = 리뷰보드 승인 대상**(헌장 §3-B). 승인 시 기본 현행 유지 플래그로 배선 + 회귀 + 다음 발행일
 `block_rows_pct` 로 사후 확인.
+
+## 23:0x 틱 — CG159 **수리 배선 완료 + 효과 오프라인 증명**(승인만 남음)
+
+이번 틱의 자율 작업 = CG159 의 활성화를 **2줄짜리**로 만든 것(코드·회귀·효과 증명 완료).
+
+**배선(기본 OFF = 종전과 비트 동일)**
+- `app/inference/predictor.py` — `PREDICT_EXCLUDE_ETFETN` 플래그 + `filter_prediction_universe()` 추가.
+  OFF 면 **입력 객체를 그대로** 반환(자체점검 ②가 동일성까지 검사).
+- 적용 지점 2곳 = `predictor.py::predict_all` · **`app/main.py::run_predictions`**(실 배포 writer, 19:00 + 기동 시 실행).
+- 자체점검 `scripts/_predict_universe_filter_test.py` → **30/30 PASS**
+  (분류 sanity 8 · 거짓값 7종 객체동일성 7 · 참값 6 · 제거·순서보존 4 · 배선가드 2 · 실 DB 3).
+  실 DB: `stocks` **4,343 → 3,158행**(ETF/ETN **1,185** 제외).
+
+**효과(읽기 전용 실측 — `scripts/_cg159_filter_effect_probe.py`,
+증거 `services/xgboost-ml/reports/overnight/cg159_filter_effect.json`)**
+
+| 날짜 | 발행 행 | 상수 블록 | 그중 ETF/ETN | 필터 후 잔여 | ≥0.55 전 → 후 |
+|---|---|---|---|---|---|
+| 2026-09-25 | 4,340 | 373 | 369 (98.9%) | **4** | 657 → **212** |
+| 2026-09-27 | 4,340 | 371 | 369 (99.5%) | 2 | 650 → 203 |
+| 2026-09-29 | 4,340 | 370 | 369 (99.7%) | 1 | 607 → 180 |
+| 2026-09-30 | 4,341 | 371 | 370 (99.7%) | 1 | 625 → 189 |
+| 2026-10-01 | 4,342 | 371 | 370 (99.7%) | 1 | 635 → 201 |
+| 2026-10-09 | 4,343 | 371 | 369 (99.5%) | 2 | 654 → 218 |
+| 2026-10-02~10-08 | 4,343 | 369~372 | 369~372 (100%) | **0** | 0 → 0 (CG158 스케일 문제) |
+
+- 정상일 상수 블록은 **사실상 전부 ETF/ETN**(잔여 0~4행) → 필터 ON 이면 소멸.
+- **소비 문턱 ≥0.55 대역의 약 2/3 가 정보 없는 상수 ETF/ETN 행**이었다(657→212 = −67.7%).
+- ⚠ **한계 2일**: 09-22 는 2,678행 **전 종목 단일값 0.1429**(퇴화일 — 모델 자체가 상수를 냈고 ETF/ETN 은 25행) ·
+  09-23 은 블록 1,503 중 ETF/ETN 1,137(75.6%, 잔여 366). **이 필터는 퇴화일을 고치지 않는다** — 별개 결함.
+
+**승인 시 실행(2줄)**
+```bash
+printf '\nPREDICT_EXCLUDE_ETFETN=1\n' >> /home/jhshi/analyist_dd/.env
+docker restart stock_xgboost_ml                      # 장 마감 후(평일 15:30 이후)에만
+# 사후 확인(다음 발행일): 판정선 = ≥0.55 대역에서 상수 블록 비중 <5%
+docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/prediction_constant_block_audit.py'
+```
+무회귀 근거: 플래그 미설정이면 `filter_prediction_universe()` 가 입력 객체를 그대로 반환(30/30 PASS).
+
