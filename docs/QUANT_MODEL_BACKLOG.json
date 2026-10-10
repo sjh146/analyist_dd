@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-11T00:0x+09:00",
+ "updated_at": "2026-10-11T01:05+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -13918,7 +13918,31 @@
    "evidence": "data/reports/forward_live_audit_20261010.{json,md} · scripts/forward_live_audit.py(신규, 읽기 전용) · 입력 forward_scorecard.json(mtime 2026-10-10 01:01) · ml_predictions(읽기 전용)",
    "added": "2026-10-10T20:0x+09:00 (엔지니어 자율 — pending 0 · 전 needs_setup 승인/타역할 대기 · CG157 데이터 축 소진 후 남은 미측정 = '전방 계측기 검정력')",
    "note": "새 성능 레버가 아니라 계측기 항목이다. 승인 대상 연결: ① 소비 정책(절대 0.55 -> 분위 top-k) = trader 파일(CG82 ①) ② 전방 돈 판정 프로토콜(문턱·기준선 재등록) = CG145/CG156 과 같은 리뷰보드 배치 ③ 퇴화 날짜 처리(전방 AUC 표본에서 제외 또는 각주) = 측정 정합성(승인 불필요, 후속 수리 후보). 도구는 판정·기준선을 건드리지 않는다."
+  },
+  {
+   "id": "CG162",
+   "title": "[측정정합성] 배포 스코어 체제 붕괴 — 16일 중 9일이 소비 문턱 0.55 도달 0행(10-02~10-08 7일 연속). 체제 전환 = 컨테이너 재시작(10-09 09:22Z)과 정확히 일치",
+   "status": "pending",
+   "priority": 1,
+   "affects_model": false,
+   "arm": null,
+   "metric": "scale_regime_audit",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/scale_regime_audit.py'",
+   "counterfactual": "현행: 발행 스코어 '체제(regime)' 감시 없음 — CG160(퇴화일=하루 전체 단일값)은 압축 구간을 잡지 못한다(값은 다양: 10-02 nd=1460). CG159(상수블록=ETF/ETN)도 아니다.",
+   "hypothesis": "전방 16일 중 9일에 전 종목 confidence 최대가 소비자 절대문턱(0.55)에 한 행도 닿지 않았다(10-02~10-08 7일 연속). 이 기간 '무진입'은 신호 품질이 아니라 점수 스케일 체제 문제다. 체제 전환이 프로세스 세대 전환과 일치한다면 원인은 데이터 축이 아니라 모델 로딩/스코어 경로다.",
+   "success": "① 감사가 매 발행일 실행되고 날짜별 상태(ok/blocked/sparse/degenerate)를 남긴다 ② 신규 'blocked' 날짜 0 (발생 시 24시간 내 원인 규명·복구) ③ 재시작 직후 첫 발행이 정상 스케일(frac>=0.55 >= 0.01)임을 확인한다.",
+   "est_minutes": 2,
+   "result": {
+    "verdict": "체제 붕괴 확정(측정 정합성) — 성능 축 아님",
+    "measured": "forward 16일: ok 6일 · blocked 9일 · degenerate 1일. blocked = 2026-09-23, 09-24, 10-02~10-08. 10-02~10-08 은 전 종목 max confidence 0.2277~0.2944(p50 0.042~0.074)로 문턱 0.55 도달 0행, 7일 연속. 앞 구간(09-25~10-01)·뒤 구간(10-09)은 매일 14~15% 도달.",
+    "boundary": "압축 시작 = 2026-10-02 02:31Z 실행(전 4342행 max 0.2910) · 복구 = 2026-10-09 09:40Z 실행(654행 >=0.55).",
+    "process_evidence": "stock_xgboost_ml StartedAt=2026-10-09T09:22:51Z — 복구 실행은 재시작 18분 뒤 첫 발행. 압축 구간 전 행의 model_version='v1.0'(태그 해석 코드/파일 이전 기동 프로세스의 기본값), 복구 후 행은 'champ-20261002T024420-0.5513' → 태그가 프로세스 세대 대리지표.",
+    "schema_drift_suspect": "배포 챔피언(/app/app/models/champion) = 173피처(09-23 모델, auc 0.5513, up_rate 0.4296) · 현재 학습/후보(champion_cand 10-09, champion_prev_20261002) = 199피처. 로그('Loaded 173 saved feature names for inference')로 배포 경로가 173피처 모델임을 확인 → 199피처 파이프라인과의 스키마 드리프트가 유력 후보(미확정).",
+    "money_impact": "10-02~10-08(6거래일) 소비자 문턱 도달 0행 → 트레이더 진입 신호 0건. CG158 과 같은 표를 공유하나 CG158 은 검정력·도달가능성 진단까지였고, 여기서는 '체제 전환 = 프로세스 재시작' 경계를 실측으로 확정했다."
+   },
+   "note": "2026-10-11 01:0x 엔지니어 자율(장외 틱) 신설 — CG158(전방 감사)/CG160(퇴화일)/CG161(다중실행 혼합) 과 같은 계열의 **측정정합성** 항목이며 새 성능 레버가 아니다(변환·게이트·라벨 재시험 금지). 도구 scripts/scale_regime_audit.py 신규(읽기 전용, 자체점검 7/7 PASS) — CG160 가드와 달리 '문턱 도달 0행'이라는 소비 관점 결함을 잡는다. 후속(필요 시 신규 ID): ① 배포 173피처 vs 파이프라인 199피처 스키마 드리프트 이분법 실험(같은 모델·다른 피처셋으로 스케일 재현) ② 승격/롤백 시 추론 프로세스 재시작을 강제하는 배포 절차(발행 계약 변경 = 리뷰보드 승인 대상). ⚠ CG159 승인 절차의 '장 마감 후 docker restart' 는 이 항목의 재발 방지와 같은 효과를 낸다.",
+   "registered": "2026-10-11T01:0x+09:00"
   }
  ],
- "updated": "2026-10-10T18:04:40+09:00"
+ "updated": "2026-10-11T01:05:03+09:00"
 }

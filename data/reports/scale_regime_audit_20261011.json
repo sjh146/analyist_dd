@@ -1,0 +1,446 @@
+{
+ "generated_at_kst": "2026-10-10",
+ "summary": {
+  "threshold": 0.55,
+  "n_dates": 16,
+  "span": [
+   "2026-09-22",
+   "2026-10-09"
+  ],
+  "blocked_dates": [
+   "2026-09-23",
+   "2026-09-24",
+   "2026-10-02",
+   "2026-10-03",
+   "2026-10-04",
+   "2026-10-05",
+   "2026-10-06",
+   "2026-10-07",
+   "2026-10-08"
+  ],
+  "degenerate_dates": [
+   "2026-09-22"
+  ],
+  "trailing_blocked_streak": 0,
+  "verdict": "복구됨(직전 7일 무진입/퇴화)"
+ },
+ "per_date": [
+  {
+   "date": "2026-09-22",
+   "n": 2678,
+   "n_distinct": 1,
+   "min": 0.1429,
+   "p50": 0.1429,
+   "p90": 0.1429,
+   "max": 0.1429,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "degenerate",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-09-23",
+   "n": 4314,
+   "n_distinct": 1388,
+   "min": 0.0006,
+   "p50": 0.22335,
+   "p90": 0.3782,
+   "max": 0.4839,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-09-24",
+   "n": 4340,
+   "n_distinct": 1960,
+   "min": 0.0,
+   "p50": 0.32555,
+   "p90": 0.425,
+   "max": 0.5197,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-09-25",
+   "n": 4340,
+   "n_distinct": 2916,
+   "min": 0.0001,
+   "p50": 0.3002,
+   "p90": 0.5689,
+   "max": 0.7832,
+   "n_ge_threshold": 657,
+   "frac_ge_threshold": 0.1514,
+   "state": "ok",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-09-27",
+   "n": 4340,
+   "n_distinct": 2920,
+   "min": 0.0001,
+   "p50": 0.29455,
+   "p90": 0.5689,
+   "max": 0.778,
+   "n_ge_threshold": 650,
+   "frac_ge_threshold": 0.1498,
+   "state": "ok",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-09-29",
+   "n": 4340,
+   "n_distinct": 2872,
+   "min": 0.0001,
+   "p50": 0.26435,
+   "p90": 0.5689,
+   "max": 0.8219,
+   "n_ge_threshold": 607,
+   "frac_ge_threshold": 0.1399,
+   "state": "ok",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-09-30",
+   "n": 4341,
+   "n_distinct": 2907,
+   "min": 0.0001,
+   "p50": 0.2751,
+   "p90": 0.5689,
+   "max": 0.8109,
+   "n_ge_threshold": 625,
+   "frac_ge_threshold": 0.144,
+   "state": "ok",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-01",
+   "n": 4342,
+   "n_distinct": 2876,
+   "min": 0.0,
+   "p50": 0.2743,
+   "p90": 0.5689,
+   "max": 0.8914,
+   "n_ge_threshold": 635,
+   "frac_ge_threshold": 0.1462,
+   "state": "ok",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-02",
+   "n": 4343,
+   "n_distinct": 1460,
+   "min": 0.0001,
+   "p50": 0.0614,
+   "p90": 0.1335,
+   "max": 0.291,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-03",
+   "n": 4343,
+   "n_distinct": 1376,
+   "min": 0.0,
+   "p50": 0.0552,
+   "p90": 0.1227,
+   "max": 0.2944,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-04",
+   "n": 4343,
+   "n_distinct": 1382,
+   "min": 0.0,
+   "p50": 0.055,
+   "p90": 0.1227,
+   "max": 0.2944,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-05",
+   "n": 4343,
+   "n_distinct": 1280,
+   "min": 0.0,
+   "p50": 0.0507,
+   "p90": 0.15868000000000002,
+   "max": 0.2277,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-06",
+   "n": 4343,
+   "n_distinct": 1233,
+   "min": 0.0,
+   "p50": 0.0461,
+   "p90": 0.1019,
+   "max": 0.2445,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-07",
+   "n": 4343,
+   "n_distinct": 1374,
+   "min": 0.0,
+   "p50": 0.0418,
+   "p90": 0.1139,
+   "max": 0.2941,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-08",
+   "n": 4343,
+   "n_distinct": 1567,
+   "min": 0.0,
+   "p50": 0.0738,
+   "p90": 0.14338,
+   "max": 0.2809,
+   "n_ge_threshold": 0,
+   "frac_ge_threshold": 0.0,
+   "state": "blocked",
+   "model_version": "v1.0"
+  },
+  {
+   "date": "2026-10-09",
+   "n": 4343,
+   "n_distinct": 2934,
+   "min": 0.0,
+   "p50": 0.2727,
+   "p90": 0.5689,
+   "max": 0.8341,
+   "n_ge_threshold": 654,
+   "frac_ge_threshold": 0.1506,
+   "state": "ok",
+   "model_version": "champ-20261002T024420-0.5513"
+  }
+ ],
+ "model_inventory": [
+  {
+   "dir": "champion",
+   "newest_mtime_kst": "2026-10-05 21:37:23",
+   "newest_file": "robust_oos.json",
+   "n_features": 173,
+   "robust_auc.json": {
+    "robust_auc": 0.5513,
+    "metric": "ensemble_auc",
+    "auc_std": null,
+    "protocol": "ensemble_auc on candidate val split (n_rows=12629)",
+    "model_aucs": {
+     "xgboost": 0.5492,
+     "lightgbm": 0.5448,
+     "catboost": 0.5185
+    },
+    "recorded_at": "2026-10-02T02:44:20",
+    "replaced_baseline": 0.5548,
+    "replaced_source": "robust_auc.json"
+   },
+   "training-result-20261001-122645.json": {
+    "retrained_at": "2026-10-01T12:26:45",
+    "n_rows": 12053,
+    "n_train": 9642,
+    "n_val": 2411,
+    "up_rate": 0.4597,
+    "n_features": 199,
+    "model_aucs": {
+     "xgboost": 0.5236,
+     "lightgbm": 0.5663,
+     "catboost": 0.5262
+    },
+    "ensemble_auc": 0.5548,
+    "val_frac": 0.2,
+    "seed": 0,
+    "data_start": "2026-07-03",
+    "data_end": "2026-10-01",
+    "label_kind": "h1_direction",
+    "horizon": 5,
+    "model_params_override": null
+   },
+   "binaries": {
+    "xgboost_model.pkl": "2026-09-24 00:16:24",
+    "lightgbm_model.pkl": "2026-09-24 00:18:47",
+    "catboost_model.pkl": "2026-09-24 00:18:54"
+   }
+  },
+  {
+   "dir": "champion_backup_20260923",
+   "newest_mtime_kst": "2026-09-22 17:47:12",
+   "newest_file": "xgboost_model.pkl",
+   "n_features": 173,
+   "binaries": {
+    "xgboost_model.pkl": "2026-09-22 17:47:12",
+    "lightgbm_model.pkl": "2026-09-22 17:47:12",
+    "catboost_model.pkl": "2026-09-22 17:47:12"
+   }
+  },
+  {
+   "dir": "champion_cand",
+   "newest_mtime_kst": "2026-10-09 21:29:10",
+   "newest_file": "robust_oos.json",
+   "n_features": 199,
+   "binaries": {
+    "xgboost_model.pkl": "2026-10-09 21:09:08",
+    "lightgbm_model.pkl": "2026-10-09 21:09:09",
+    "catboost_model.pkl": "2026-10-09 21:09:12"
+   }
+  },
+  {
+   "dir": "champion_cand_fair",
+   "newest_mtime_kst": "2026-09-24 00:18:54",
+   "newest_file": "training-result-20260923-151854.json",
+   "n_features": 173,
+   "binaries": {
+    "xgboost_model.pkl": "2026-09-24 00:16:24",
+    "lightgbm_model.pkl": "2026-09-24 00:18:47",
+    "catboost_model.pkl": "2026-09-24 00:18:54"
+   }
+  },
+  {
+   "dir": "champion_prev_20260924-224249",
+   "newest_mtime_kst": "2026-09-22 17:47:12",
+   "newest_file": "xgboost_model.pkl",
+   "n_features": 173,
+   "binaries": {
+    "xgboost_model.pkl": "2026-09-22 17:47:12",
+    "lightgbm_model.pkl": "2026-09-22 17:47:12",
+    "catboost_model.pkl": "2026-09-22 17:47:12"
+   }
+  },
+  {
+   "dir": "champion_prev_20261001-122646",
+   "newest_mtime_kst": "2026-09-25 07:42:49",
+   "newest_file": "robust_auc.json",
+   "n_features": 173,
+   "robust_auc.json": {
+    "robust_auc": 0.5513,
+    "metric": "ensemble_auc",
+    "auc_std": null,
+    "protocol": "ensemble_auc on candidate val split (n_rows=12629)",
+    "model_aucs": {
+     "xgboost": 0.5492,
+     "lightgbm": 0.5448,
+     "catboost": 0.5185
+    },
+    "recorded_at": "2026-09-24T22:42:49",
+    "replaced_baseline": 0.53,
+    "replaced_source": "auc.txt(legacy, capped)"
+   },
+   "binaries": {
+    "xgboost_model.pkl": "2026-09-24 00:16:24",
+    "lightgbm_model.pkl": "2026-09-24 00:18:47",
+    "catboost_model.pkl": "2026-09-24 00:18:54"
+   }
+  },
+  {
+   "dir": "champion_prev_20261002-024420",
+   "newest_mtime_kst": "2026-10-04 13:41:43",
+   "newest_file": "robust_oos.json",
+   "n_features": 199,
+   "robust_auc.json": {
+    "robust_auc": 0.5548,
+    "metric": "ensemble_auc",
+    "auc_std": null,
+    "protocol": "ensemble_auc on candidate val split (n_rows=12053)",
+    "model_aucs": {
+     "xgboost": 0.5236,
+     "lightgbm": 0.5663,
+     "catboost": 0.5262
+    },
+    "recorded_at": "2026-10-01T12:26:46",
+    "replaced_baseline": 0.5513,
+    "replaced_source": "robust_auc.json"
+   },
+   "training-result-20261001-122645.json": {
+    "retrained_at": "2026-10-01T12:26:45",
+    "n_rows": 12053,
+    "n_train": 9642,
+    "n_val": 2411,
+    "up_rate": 0.4597,
+    "n_features": 199,
+    "model_aucs": {
+     "xgboost": 0.5236,
+     "lightgbm": 0.5663,
+     "catboost": 0.5262
+    },
+    "ensemble_auc": 0.5548,
+    "val_frac": 0.2,
+    "seed": 0,
+    "data_start": "2026-07-03",
+    "data_end": "2026-10-01",
+    "label_kind": "h1_direction",
+    "horizon": 5,
+    "model_params_override": null
+   },
+   "binaries": {
+    "xgboost_model.pkl": "2026-10-01 21:26:41",
+    "lightgbm_model.pkl": "2026-10-01 21:26:42",
+    "catboost_model.pkl": "2026-10-01 21:26:45"
+   }
+  },
+  {
+   "dir": "champion_wtest",
+   "newest_mtime_kst": "2026-10-06 01:05:29",
+   "newest_file": "ensemble_weights.json",
+   "n_features": 173,
+   "robust_auc.json": {
+    "robust_auc": 0.5513,
+    "metric": "ensemble_auc",
+    "auc_std": null,
+    "protocol": "ensemble_auc on candidate val split (n_rows=12629)",
+    "model_aucs": {
+     "xgboost": 0.5492,
+     "lightgbm": 0.5448,
+     "catboost": 0.5185
+    },
+    "recorded_at": "2026-10-02T02:44:20",
+    "replaced_baseline": 0.5548,
+    "replaced_source": "robust_auc.json"
+   },
+   "training-result-20261001-122645.json": {
+    "retrained_at": "2026-10-01T12:26:45",
+    "n_rows": 12053,
+    "n_train": 9642,
+    "n_val": 2411,
+    "up_rate": 0.4597,
+    "n_features": 199,
+    "model_aucs": {
+     "xgboost": 0.5236,
+     "lightgbm": 0.5663,
+     "catboost": 0.5262
+    },
+    "ensemble_auc": 0.5548,
+    "val_frac": 0.2,
+    "seed": 0,
+    "data_start": "2026-07-03",
+    "data_end": "2026-10-01",
+    "label_kind": "h1_direction",
+    "horizon": 5,
+    "model_params_override": null
+   },
+   "binaries": {
+    "xgboost_model.pkl": "2026-09-24 00:16:24",
+    "lightgbm_model.pkl": "2026-09-24 00:18:47",
+    "catboost_model.pkl": "2026-09-24 00:18:54"
+   }
+  }
+ ]
+}
