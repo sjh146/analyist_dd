@@ -92,6 +92,31 @@ class PostgresStorage:
         finally:
             self._put_conn(conn)
 
+    def count_predictions_for_date(self, prediction_date: str) -> Optional[int]:
+        """해당 prediction_date 에 이미 저장된 예측 행 수(읽기 전용, 2026-10-11 CG161).
+
+        왜: `save_prediction` 은 ON CONFLICT DO NOTHING 이라 **같은 날짜를 두 번 실행하면 먼저
+        들어간 행이 이긴다** — 실측 2026-09-23 은 02:15 실행 2,770행(μ0.2843) + 19:43 실행
+        1,544행(μ0.1459)이 한 prediction_date 에 섞였다. 발행 직전에 '이미 있는 행 수'를 알면
+        그 혼합을 감지할 수 있다. 실패하면 None(가드는 발행을 막지 않는다).
+        """
+        conn = self._get_conn()
+        if not conn:
+            return None
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT count(*) FROM ml_predictions WHERE prediction_date = %s",
+                (prediction_date,),
+            )
+            row = cur.fetchone()
+            cur.close()
+            return int(row[0]) if row else 0
+        except Exception:  # noqa: BLE001
+            return None
+        finally:
+            self._put_conn(conn)
+
     def get_training_data(self, days: int = 365) -> Optional[pd.DataFrame]:
         """Get training data from market_data."""
         conn = self._get_conn()

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-10T23:1x+09:00",
+ "updated_at": "2026-10-11T00:0x+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -12,9 +12,38 @@
  ],
  "items": [
   {
+   "id": "CG161",
+   "title": "[측정정합성·생산] 한 prediction_date 가 두 실행의 **혼합 스냅샷**이다 — 기동 자동예측 + ON CONFLICT DO NOTHING (09-23: 02:15 2,770행 μ0.2843 + 19:43 1,544행 μ0.1459)",
+   "status": "needs_setup",
+   "priority": 2,
+   "kind": "measurement_integrity",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "prediction_run_mix_audit",
+   "arm": null,
+   "baseline": null,
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg161_run_mix_probe.py'",
+   "counterfactual": "현행: `save_prediction` 은 `ON CONFLICT (stock_code, prediction_date, model_version) DO NOTHING`(postgres_storage.py:153) 이고 `run_scheduled()` 는 기동 직후 `self.run_predictions()` 를 1회 실행한다(main.py:158) → 컨테이너 재시작·재배포마다 하루 예측이 한 번 더 돈다. **먼저 들어간 행이 이기므로** 두 번째 실행은 아직 없는 종목만 추가하고, 그 날짜의 행 집합이 두 실행 시점(피처·확률 스케일)의 혼합이 된다.",
+   "success": "① 감지: 발행 직전 '같은 날짜 기존 행수'를 읽어 0 < existing < n_new 면 CRITICAL + prior_run_<날짜>.json(구현 완료) ② 정책(승인 필요): 재실행 시 그 날짜를 **교체**(선행 행 삭제 또는 전체 덮어쓰기)하거나 기동 자동예측을 플래그화해 애초에 두 번 돌지 않게 한다. 판정선: 혼합 날짜 0일(향후 16거래일 관측) + `_cg161_run_mix_probe.py` 의 n_dates_multi_run(material) 0.",
+   "hypothesis": "전방 스코어카드·top-k 기대값·IC·감사(CG158)는 `prediction_date` 를 **단일 스냅샷**으로 가정해 날짜 단위로 집계한다. 그런데 하루에 두 실행이 있으면 그 날짜 안에 서로 다른 시점의 행이 섞여 날짜 단위 통계가 두 모집단의 혼합이 된다 — 이는 AUC 축이 아니라 **측정 축**의 결함이다.",
+   "evidence": "2026-10-11 00:0x 엔지니어 자율 실측(읽기 전용, `ml_predictions` 16일 61,238행 · 30분 간격 run 분할): 다중실행 4일(25%) — ① **09-23: 02:15 2,770행 μ0.2843 + 19:43 1,544행 μ0.1459(μ차 0.1384, 전체의 35.8%가 뒤 실행)** ② 09-30: 01:04 4,340행 μ0.2949 + 19:02 **1행** μ0.4742 ③ 10-01: 01:58 4,341행 μ0.2911 + 19:02 **1행** μ0.5081 ④ 10-02: 02:31 4,342행 μ0.0682 + 19:01 1행 μ0.0610. 중복 키 0건(rows == distinct stock_code, 16/16) = DO NOTHING 이 실제로 선행 행을 고정한다는 증거. 발행 시각 분포도 규칙적이지 않다(01:04·01:33·01:58·02:15·02:31·07:34·09:34·09:40·12:06·19:0x·20:06·21:12) → 기동 자동예측이 원인이라는 가설과 일치(장중 발행 2일: 09-25 12:06 · 10-09 09:40). 증거 data/reports/cg161_run_mix_probe.json.",
+   "expected": "혼합 날짜가 0이 되면 전방 성적표의 날짜별 통계가 단일 스냅샷이 되고, 'confidence 스케일 붕괴'(CG158)·'학습 밖 종목 상수 발행'(CG159)의 날짜별 진단도 오염 없이 읽힌다.",
+   "cost": "감지 가드 30줄 + 자체점검(완료). 교체 정책은 배선 2~5줄 + 승인 1건.",
+   "est_minutes": 25,
+   "setup_needed": "남은 것은 **승인 2건**(감지 가드는 이미 배선·검증 완료): ① 재실행 시 같은 (prediction_date, model_version) 의 기존 행을 **교체**(선행 DELETE 또는 UPSERT DO UPDATE) — 발행 데이터 변경·소비자 영향이라 리뷰보드 대상(헌장 §3-B). 위험: 장중 소비자가 이미 읽은 행이 바뀔 수 있다 → 승인 시 '장 마감 후에만 교체'로 제한한다. ② 기동 자동예측(main.py:158 `self.run_predictions()`)을 플래그화(`PREDICT_ON_STARTUP`, 기본 ON = 무회귀)하고 완전 예측셋이 이미 있으면 skip — 이것도 발행 동작 변경이라 승인 대상. 승인 시 내가 배선·회귀·커밋하고 `_cg161_run_mix_probe.py` 로 재측정한다.",
+   "result": {
+    "verdict": "감지 가드 구현·검증 완료(오탐 0) — 혼합 1일(09-23)을 실 DB 에서 정확히 잡고, 교체 정책만 승인 대기",
+    "detail": "구현: `app/inference/day_guard.py::check_and_report_prior_run`(단일 파일 규약 `prior_run_<날짜>.json`, partial_mix / rerun_no_add 구분, 감지·표시 전용 = DB·발행 목록 불변) + `PostgresStorage::count_predictions_for_date`(읽기 전용, 실패 시 None) + `app/main.py::run_predictions` 저장 루프 앞 배선. 자체점검 `scripts/_degenerate_day_guard_test.py` **39/39 PASS**(CG160 26건 + CG161 13건: 순수 판정 6 · 파일 규약 3 · 배선 4). 실 DB 프로브: 16일 중 다중실행 4일(material 1일) — 09-23 partial_mix(2,770→4,314). 교체 정책은 승인 대기(위 setup_needed).",
+    "rc": 0
+   },
+   "note": "2026-10-11 00:0x 엔지니어 자율(장외 틱) 신설 — CG160(퇴화일)과 같은 계열의 **측정정합성** 항목이며 새 성능 레버가 아니다(변환·게이트·라벨 재시험 금지). CG160 이 '하루 전체가 한 값'인 날을 잡는다면, 이 항목은 '하루가 두 실행의 혼합'인 날을 잡는다 — 둘 다 감지 전용이고 수리는 별개다. ⚠ 이 발견은 CG158(전방 확률 스케일 이상)·CG159(학습 밖 종목 상수 발행)와 같은 표(전방 감사)를 오염시킬 수 있으므로, 그 두 항목의 날짜별 수치를 인용할 때 다중실행 날짜는 각주가 필요하다.",
+   "attempts": 1,
+   "command_verified_at": null
+  },
+  {
    "id": "CG160",
    "title": "[측정정합성·생산] 퇴화일 가드 — 하루 전체 예측이 단일 상수면 발행 전에 감지·표시 (09-22: 2,678행 전부 0.1429, 11초 배치)",
-   "status": "backlog",
+   "status": "done",
    "priority": 2,
    "kind": "measurement_integrity",
    "owner": "engineer",
@@ -31,8 +60,13 @@
    "cost": "가드 5~10줄 + 자체점검. 발행 계약 무변경이라 승인 불필요.",
    "est_minutes": 15,
    "setup_needed": null,
-   "note": "2026-10-10 23:0x 엔지니어 자율(장외 틱) 신설 — 규칙 4(백로그에 실행 가능 pending 없음 → 다음 가설 설계)의 결과물. ⚠ 모델 축 실험이 아니다(변환·게이트·라벨 재시험 금지). 재현은 위 command 1줄(forward_live_audit 의 '퇴화 날짜' 항목) 또는 ml_predictions 일자별 distinct 집계. 다음 세션 착수 순서: ① 가드 구현+자체점검 ② 퇴화 입력 재현 테스트 ③ 로그·파일 형식 고정 후 크론/모니터 연결 여부는 리서처 DQ 와 합의(그 부분만 승인 대상).",
-   "attempts": 0,
+   "result": {
+    "verdict": "구현·검증 완료 — 가드는 실 DB 16일 중 퇴화 1일(2026-09-22)만 플래그(오탐 0)하고, 독립 감사(CG158 forward_live_audit)와 날짜·사유가 일치한다",
+    "detail": "가드 모듈 `app/inference/day_guard.py`(`check_and_report_degenerate_day` — 단일값/저분산<1% 판정, n<2 분모보호, NaN·결측 제외, 입력 불변) + `app/main.py::run_predictions` 의 **저장 루프 앞** 배선(발행 목록 불변 = 계약 무변경). 자체점검 `scripts/_degenerate_day_guard_test.py` **26/26 PASS** — 정상일 무파일 · 단일값(09-22 재현 2,678행 0.1429) 파일생성 · 저분산(5,000행 distinct 31=0.62%) · 경계 2% 비퇴화 · 0행/1행 비퇴화 · NaN 제외 후 n=50 · 입력 목록 미수정 · 날짜추론/명시우선 · main.py 배선 위치. 실 DB 프로브 `scripts/_cg160_guard_live_probe.py`: prediction_date **16일 · 플래그 1일(share 0.0625)** = 2026-09-22 single_value n=2678 distinct=1 최빈값 0.1429 → **오탐 0**. 교차확인 `forward_live_audit.py` 출력: '날짜 16 · 퇴화 1(0.0625) · [퇴화] 2026-09-22 n=2678 단일값=0.1429' = 동일. 증거: data/reports/cg160_guard_live_probe.json.",
+    "rc": 0
+   },
+   "note": "2026-10-10 23:0x 엔지니어 자율(장외 틱) 신설 — 규칙 4(백로그에 실행 가능 pending 없음 → 다음 가설 설계)의 결과물. ⚠ 모델 축 실험이 아니다(변환·게이트·라벨 재시험 금지). 재현은 위 command 1줄(forward_live_audit 의 '퇴화 날짜' 항목) 또는 ml_predictions 일자별 distinct 집계. 다음 세션 착수 순서: ① 가드 구현+자체점검 ② 퇴화 입력 재현 테스트 ③ 로그·파일 형식 고정 후 크론/모니터 연결 여부는 리서처 DQ 와 합의(그 부분만 승인 대상). | 2026-10-11 00:0x 엔지니어 자율 — ①②③ 구현·검증 완료(status done). 증거 파일 규약 확정: `/app/reports/degenerate_day_<YYYY-MM-DD>.json`(= 호스트 services/xgboost-ml/reports/…, 컨테이너 reports 는 .gitignore 라 호스트 사본 data/reports/cg160_guard_live_probe.json 만 커밋). 남은 것(이 항목 밖): (a) 경보 **소비** — `degenerate_day_*.json`/CRITICAL 로그를 리서처 DQ·알림으로 연결(배선 위치가 DQ 소유) (b) `PREDICTION_CONFIDENCE_THRESHOLD=0.0` 이라 퇴화일에도 4,340행이 저장된다는 별개 계약 이슈(손대지 않음). ⚠ 가드는 '감지·표시' 전용이며 퇴화를 **고치지 않는다**(모델 입력 실패 수리는 CG158/CG159 계열).",
+   "attempts": 1,
    "command_verified_at": null
   },
   {

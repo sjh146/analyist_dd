@@ -17,6 +17,7 @@ from app.models.xgboost_model import XGBoostModel
 from app.models.model_manager import ModelManager
 from app.training.trainer import Trainer
 from app.inference.predictor import Predictor, filter_prediction_universe
+from app.inference.day_guard import check_and_report_degenerate_day, check_and_report_prior_run
 from app.storage.postgres_storage import PostgresStorage
 from app.metrics_integration import init_metrics, on_features_computed, on_prediction, on_feature_count
 
@@ -114,6 +115,25 @@ class XGBoostMLService:
             except Exception as e:
                 logger.debug(f"Prediction failed for {stock['stock_code']}: {e}")
                 continue
+
+        # 퇴화일 가드(CG160, 2026-10-10): 하루 전체 예측이 단일 상수면(실측 2026-09-22: 2,678행 전부
+        # 0.1429 = 그날 AUC 정의상 0.5) 로그 CRITICAL + 증거 파일 `degenerate_day_<날짜>.json` 을 남긴다.
+        # **발행 목록은 변경하지 않는다** — 감지·표시 전용이라 발행 계약 무변경(승인 불필요 범위).
+        check_and_report_degenerate_day(predictions)
+
+        # 재실행 혼합 가드(CG161, 2026-10-11): 같은 prediction_date 에 이미 행이 있으면 경보.
+        # `save_prediction` 이 ON CONFLICT DO NOTHING 이라 **먼저 들어간 행이 고정**되고, 하루에 두 번
+        # 실행되면 그 날짜의 행 집합이 두 실행 시점의 혼합 스냅샷이 된다(실측 2026-09-23: 02:15
+        # 2,770행 μ0.2843 + 19:43 1,544행 μ0.1459). 감지·표시 전용 — DB·발행 목록 불변.
+        if predictions:
+            _existing = None
+            try:
+                _existing = self.pg_storage.count_predictions_for_date(
+                    predictions[0]["prediction_date"]
+                )
+            except Exception as _e:  # 가드가 발행을 막지 않는다
+                logger.debug("기존 예측 행수 조회 실패(CG161 가드 생략): %s", _e)
+            check_and_report_prior_run(_existing, len(predictions))
 
         # Store predictions.  한 건의 저장 실패가 루프 전체를 중단시키면 안 된다
         # (2026-09-28: Postgres 가 연결을 끊자 예외가 새어나가 그날 예측이 0행이 됐다).
