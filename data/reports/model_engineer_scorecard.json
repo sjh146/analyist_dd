@@ -1,6 +1,6 @@
 {
   "metric_name": "champion_scorecard",
-  "generated_at": "2026-10-09T22:00:34",
+  "generated_at": "2026-10-11T07:00:06",
   "champion_dir": "services/xgboost-ml/app/models/champion",
   "champion_auc_txt": 0.551318,
   "insample": {
@@ -38,19 +38,19 @@
     "observed": {
       "n_label_ref_purged": 43,
       "n_folds_counted": 5,
-      "exp": "CO_rank_h5",
-      "source": "services/xgboost-ml/reports/overnight/cg130_summary.json",
-      "finished_at": "2026-10-06T08:19:02+00:00"
+      "exp": "PO_const_h5",
+      "source": "services/xgboost-ml/reports/overnight/wf_fri20261009_summary.json",
+      "finished_at": "2026-10-09T13:19:11+00:00"
     }
   },
   "promote_dryrun": {
     "status": "kept_incumbent",
-    "reason": "돈 기준 게이트 거부: 분할표본 불안정(앞 0.3383 / 뒤 -0.0651)",
-    "candidate_auc": 0.6308,
+    "reason": "돈 기준 게이트 거부: 분할표본 불안정(앞 -0.1333 / 뒤 0.3106)",
+    "candidate_auc": 0.5284,
     "champion_baseline": 0.5513,
     "baseline_source": "robust_auc.json",
-    "record_id": "CG138",
-    "record_ts": "2026-10-08T22:03:04+09:00"
+    "record_id": "CG168",
+    "record_ts": "2026-10-11T06:22:42+09:00"
   },
   "money": {
     "metric": "robust_auc",

@@ -909,6 +909,18 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/scale_regime_audit.json")
+    if kind == "metric_audit_pair":
+        # 감사 프로토콜(scripts/model_metric_protocol_audit.py --out)의 **같은 런 짝** 판정. CG171.
+        # 왜 전용 metric 인가(2026-10-11 실측): 승격 게이트가 읽는 증거(robust_oos.json = 감사 도구
+        # 산출물)의 짝 Δ 를 구동기가 판정하지 못해, 챔피언 값은 10-05 파일을 **다른 런**에서 인용할
+        # 수밖에 없었다(CG168). 감사 산출물에는 arm 과 기준선이 **한 파일에** 들어 있는데(그게 이
+        # 도구의 존재 이유), 그걸 판정하는 metric kind 가 없었다 → 짝 Δ 가 원장에 남지 않는다.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 한 파일에 기준선 값도 함께 있어
+        # 그대로 per_exp 로 실으면 기준선이 '최고 arm' 으로 잡힌다(CG31·CG143 사고와 동형).
+        out = _out_arg(command or "")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/model_metric_protocol_audit.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -1426,6 +1438,10 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_protocol_pair_anchor(spath, mtime_floor)
     if kind == "scale_regime_audit":
         return parse_scale_regime_audit(spath, mtime_floor)
+    if kind == "metric_audit_pair":
+        return parse_metric_audit_pair(spath, mtime_floor,
+                                       arm_label=item.get("arm_label"),
+                                       control_label=item.get("control_label"))
     return {"error": f"parser 없음 (metric={kind!r})"}
 
 
@@ -2635,11 +2651,176 @@ def judge_scale_regime_audit(item, parsed) -> tuple:
     return "정상", base + " → 현재 문턱 도달 정상(신규 blocked 없음)", None
 
 
+def parse_metric_audit_pair(path, mtime_floor, arm_label=None, control_label=None) -> dict:
+    """감사 프로토콜(승격 표준)의 **같은 런 짝** 파서 (CG171, 2026-10-11 자율).
+
+    대상: `scripts/model_metric_protocol_audit.py --out <path>` 산출물.
+    스키마: {config{topk,max_day_chg,folds,dates_per_fold,stocks,horizon,label_kind,
+                   models[{label,dir}]}, single_split_auc{label}, train_windows{label},
+             a_live_signal{label}, b_robust_auc{label:{robust_auc,folds[],fold_detail[],
+                   auc_pooled,train_start,train_end,windows_excluded[]}},
+             c_net_expectancy{label:{n_rows_scored,n_sessions,avg_pct,median_pct,
+                   pos_sessions_pct,t_stat,n_trades,halves{front_pct,back_pct,stable,split_date}}}}
+
+    arm/control 은 item 의 `arm_label`/`control_label`(없으면 config.models 순서의 처음/마지막)로 정한다.
+    ⚠ **per_exp 를 만들지 않는다** — scoreboard 는 원장 `parsed.per_exp` 전체를 'arm 의 폴드 평균
+    AUC' 로 읽어 best_robust·무개선 카운터를 만든다. 감사 산출물은 한 파일에 arm 과 **기준선**이
+    함께 있어 그대로 실으면 기준선이 최고 arm 으로 잡힌다(CG31·CG143 사고와 동형). 짝 Δ 는
+    `pair` 로 싣는다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음", "path": path}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    cfg = d.get("config") or {}
+    labels = [m.get("label") for m in (cfg.get("models") or []) if m.get("label")]
+    if not labels:
+        return {"error": "config.models 없음(감사 산출물 형식 아님)", "summary_mtime": mt}
+    b = d.get("b_robust_auc") or {}
+    c = d.get("c_net_expectancy") or {}
+    if not b:
+        return {"error": "b_robust_auc 없음(감사 런 실패 — a/c 파트만 있는 부분 산출물)",
+                "labels": labels, "summary_mtime": mt}
+
+    def _f(v):
+        return float(v) if isinstance(v, (int, float)) else None
+
+    def _mean(xs):
+        xs = [x for x in xs if x is not None]
+        return round(statistics.fmean(xs), 6) if xs else None
+
+    def _std(xs):
+        xs = [x for x in xs if x is not None]
+        return round(statistics.pstdev(xs), 6) if len(xs) > 1 else (0.0 if xs else None)
+
+    arms = {}
+    for lb in labels:
+        bb = b.get(lb) or {}
+        cc = c.get(lb) or {}
+        folds = [f for f in (bb.get("folds") or []) if isinstance(f, (int, float))]
+        arms[lb] = {
+            "dir": next((m.get("dir") for m in (cfg.get("models") or []) if m.get("label") == lb), None),
+            "robust_auc": _f(bb.get("robust_auc")),
+            "auc_pooled": _f(bb.get("auc_pooled")),
+            "folds": folds, "n_folds": len(folds),
+            "fold_mean": _mean(folds), "fold_std": _std(folds),
+            "fold_min": (min(folds) if folds else None), "fold_max": (max(folds) if folds else None),
+            "train_window": (d.get("train_windows") or {}).get(lb),
+            "windows_excluded": bb.get("windows_excluded"),
+            "single_split_auc": _f((d.get("single_split_auc") or {}).get(lb)),
+            "expectancy_pct": _f(cc.get("avg_pct")), "expectancy_t": _f(cc.get("t_stat")),
+            "n_sessions": cc.get("n_sessions"), "n_trades": cc.get("n_trades"),
+            "pos_sessions_pct": _f(cc.get("pos_sessions_pct")), "halves": cc.get("halves"),
+            "live_gt_055": ((d.get("a_live_signal") or {}).get(lb) or {}).get("deployed_gt_0.55"),
+        }
+    out = {
+        "metric_name": "metric_audit_pair", "protocol": cfg, "labels": labels, "arms": arms,
+        "summary_mtime": mt, "threshold": 0.02,
+        "single_arm": len(labels) < 2,
+    }
+    if len(labels) >= 2:
+        al = arm_label if arm_label in labels else labels[0]
+        cl = control_label if control_label in labels else labels[-1]
+        assert al != cl  # arm/control 은 서로 다른 label 이어야 한다(중복 지정 = 설정 오류)
+        a, cc_ = arms[al], arms[cl]
+        fa, fc = a["folds"], cc_["folds"]
+        delta_folds = ([round(a_ - c_, 6) for a_, c_ in zip(fa, fc)] if len(fa) == len(fc) and fa else [])
+        dec = [(x > 0) for x in delta_folds]
+        dep = (round(a["expectancy_pct"] - cc_["expectancy_pct"], 6)
+               if (a["expectancy_pct"] is not None and cc_["expectancy_pct"] is not None) else None)
+        out["pair"] = {
+            "arm": al, "control": cl,
+            "delta_fold_mean": (round(a["fold_mean"] - cc_["fold_mean"], 6)
+                                if (a["fold_mean"] is not None and cc_["fold_mean"] is not None) else None),
+            "delta_reported": (round(a["robust_auc"] - cc_["robust_auc"], 6)
+                               if (a["robust_auc"] is not None and cc_["robust_auc"] is not None) else None),
+            "delta_folds": delta_folds,
+            "fold_win_rate": (round(sum(dec) / len(dec), 3) if dec else None),
+            "fold_std_ratio": (round(a["fold_std"] / cc_["fold_std"], 2)
+                               if (a["fold_std"] and cc_["fold_std"]) else None),
+            "delta_expectancy_pct": dep,
+            "arm_expectancy_pct": a["expectancy_pct"], "control_expectancy_pct": cc_["expectancy_pct"],
+            "arm_expectancy_t": a["expectancy_t"], "control_expectancy_t": cc_["expectancy_t"],
+            "n_sessions": a["n_sessions"] or cc_["n_sessions"],
+            "arm_halves": (a["halves"] or {}).get("stable"),
+            "control_halves": (cc_["halves"] or {}).get("stable"),
+            "arm_front_back": [(a["halves"] or {}).get("front_pct"), (a["halves"] or {}).get("back_pct")],
+        }
+    return out
+
+
+def judge_metric_audit_pair(item, parsed) -> tuple:
+    """감사 프로토콜 같은 런 짝 판정 — 사전등록 두 다리(AUC 다리 + 돈 다리)를 함께 요구한다.
+
+    사전등록(항목 success): 짝 Δ_auc(폴드 평균 차) ≥ +0.02 **그리고** 돈 다리(arm 순기대 > 0 ·
+    챔피언/대조 대비 ≥ +0.1%p · arm 분할표본 both_positive). 한쪽만 통과하면 '노이즈'로 닫고
+    어느 다리가 막았는지 숫자로 남긴다 — CG168 실측(짝 AUC +0.0294 통과 · 돈 미검출)에서
+    'AUC 만 오른 후보는 승격 금지'를 기계적으로 기록하기 위한 장치다(스킬 최우선 규칙).
+
+    ⚠ delta 는 항상 None 을 돌려준다: 한 파일에 arm 과 기준선이 함께 있어 값을 개선폭으로 실으면
+    스코어보드가 기준선을 '최고 arm' 으로 오독한다(parsed 에 per_exp 를 안 싣는 이유와 동형).
+    ⚠ 단일 arm 런(대조 없음)은 '대조 없음'으로 정직하게 남긴다(CG168 이 그 형태였다).
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    arms = parsed.get("arms") or {}
+    if parsed.get("single_arm") or not parsed.get("pair"):
+        lb = (parsed.get("labels") or ["?"])[0]
+        a = arms.get(lb) or {}
+        return ("대조 없음",
+                f"단일 arm 런({lb}) — 폴드 {a.get('folds')} 평균 "
+                f"{a.get('fold_mean')} · 순기대 {a.get('expectancy_pct')}%p(t {a.get('expectancy_t')}) "
+                f"· 세션 {a.get('n_sessions')} · 짝 판정 불가(같은 런에 대조 arm 필요)",
+                None)
+    thr = float(item.get("threshold") or parsed.get("threshold") or 0.02)
+    p = parsed["pair"]
+    df, dr = p.get("delta_fold_mean"), p.get("delta_reported")
+    dep = p.get("delta_expectancy_pct")
+    a_exp, c_exp = p.get("arm_expectancy_pct"), p.get("control_expectancy_pct")
+    auc_pass = (isinstance(df, float) and df >= thr)
+    wp = 0.1
+    money_pass = (isinstance(a_exp, float) and a_exp > 0
+                  and isinstance(dep, float) and dep >= wp
+                  and p.get("arm_halves") == "both_positive")
+    det_folds = " ".join(f"{x:+.4f}" for x in (p.get("delta_folds") or []))
+
+    def _n(v, fmt="{:+.4f}"):
+        return fmt.format(v) if isinstance(v, float) else "?"
+
+    detail = (f"arm {p['arm']} vs 대조 {p['control']} · 같은 런({parsed.get('protocol', {}).get('folds')}폴드"
+              f"×{parsed.get('protocol', {}).get('dates_per_fold')}일 · "
+              f"{parsed.get('protocol', {}).get('stocks')}종목 · top{parsed.get('protocol', {}).get('topk')})"
+              f" · 짝 Δ폴드 [{det_folds}] 평균 {_n(df)}(승률 {p.get('fold_win_rate')}, "
+              f"std비 {p.get('fold_std_ratio')}) · AUC Δ(보고값) {_n(dr)}"
+              f" · 순기대 arm {_n(a_exp, '{:+.4f}')}%p(t {p.get('arm_expectancy_t')}) vs 대조 "
+              f"{_n(c_exp, '{:+.4f}')}%p(t {p.get('control_expectancy_t')}) Δ {_n(dep)}"
+              f" · 세션 {p.get('n_sessions')} · 분할 arm {p.get('arm_halves')} {p.get('arm_front_back')}"
+              f" · 사전문턱: Δ_auc≥+{thr:.2f} AND arm>0 AND Δ≥+{wp}%p AND 분할 both_positive"
+              f" → AUC {'통과' if auc_pass else '미달'} / 돈 {'통과' if money_pass else '미달'}")
+    if auc_pass and money_pass:
+        return "짝 신호", detail + " → 사전등록 충족(승격 아님 — 별도 승인·게이트 절차)", None
+    if auc_pass and not money_pass:
+        return ("노이즈",
+                detail + " → AUC 만 오른 후보(돈 미검출): 스킬 최우선 규칙대로 **승격 금지**로 기록", None)
+    return "노이즈", detail + " → 사전등록 미충족", None
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
     if kind == "scale_regime_audit":
         return judge_scale_regime_audit(item, parsed)
+    if kind == "metric_audit_pair":
+        return judge_metric_audit_pair(item, parsed)
     if kind == "protocol_noise_floor":
         return judge_protocol_noise_floor(item, parsed)
     if kind == "protocol_noise_curve":
