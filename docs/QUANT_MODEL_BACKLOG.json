@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-11T06:22:42+09:00",
+ "updated_at": "2026-10-11T06:35:47+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -14158,7 +14158,7 @@
   {
    "id": "CG169",
    "title": "[배포정합·유니버스 교차검정] CG166 후보 vs 배포 챔피언 짝을 **학습 유니버스(training·seed0)** 에서 재측정 — AUC +0.03~0.04 우위가 유니버스를 바꿔도 유지되는가",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "deploy_integrity",
    "owner": "engineer",
@@ -14175,8 +14175,47 @@
    "est_minutes": 30,
    "cost": "로버스트 평가 2회(학습유니버스 80종목·5폴드·10일·--dump-all) + 돈 집계 1회 — 패널 캐시가 있어 실측 12초~20분(MDE 로그 참조).",
    "created_at": "2026-10-11T06:23:48+09:00",
-   "note": "2026-10-11 06:2x 엔지니어 자율 — CG167/CG168 결과 직후 등록(스킬 규칙 1(a): 신호가 있으면 그 설정을 다음 실험의 대조군으로 승격). CG166 정합 config(193피처·rank_* 0)는 이제 **기본 대조군**으로 쓴다. 승격은 이 루프가 하지 않는다 — CG168 의 robust_oos.json(순기대 +0.0912%p·87세션)이 사람 판단용 증거로 남았고, 배포 champion 이 파이프라인보다 26피처 뒤처진 상태(173 vs 199)라는 사실도 함께 보고한다."
+   "note": "2026-10-11 06:2x 엔지니어 자율 — CG167/CG168 결과 직후 등록(스킬 규칙 1(a): 신호가 있으면 그 설정을 다음 실험의 대조군으로 승격). CG166 정합 config(193피처·rank_* 0)는 이제 **기본 대조군**으로 쓴다. 승격은 이 루프가 하지 않는다 — CG168 의 robust_oos.json(순기대 +0.0912%p·87세션)이 사람 판단용 증거로 남았고, 배포 champion 이 파이프라인보다 26피처 뒤처진 상태(173 vs 199)라는 사실도 함께 보고한다.",
+   "attempts": [
+    {
+     "ts": "2026-10-11T06:35:47+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm cg166 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 30 · k=3 arm +0.285%p/세션 · 풀평균 +1.393 · Δ(arm−풀) -1.108(t -1.12) · 양세션 46.7% · 분할 unstable [-0.344/+0.914] ✗ · k=5 arm +1.008%p/세션 · 풀평균 +1.393 · Δ(arm−풀) -0.384(t -0.52) · 양세션 46.7% · 분할 unstable [-0.239/+2.256] ✗ · 풀평균 t 1.65 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG169_20261011-062348.log",
+     "elapsed_min": 12.0
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm cg166 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 30 · k=3 arm +0.285%p/세션 · 풀평균 +1.393 · Δ(arm−풀) -1.108(t -1.12) · 양세션 46.7% · 분할 unstable [-0.344/+0.914] ✗ · k=5 arm +1.008%p/세션 · 풀평균 +1.393 · Δ(arm−풀) -0.384(t -0.52) · 양세션 46.7% · 분할 unstable [-0.239/+2.256] ✗ · 풀평균 t 1.65 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+    "delta": -1.1076,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG170",
+   "title": "[측정정합성·승인] 승격 게이트의 AUC 다리가 **프로토콜 혼용**이다 — 후보는 다중폴드 robust_auc(0.5284), 챔피언 기준선은 단일분할 ensemble_auc(0.5513) → 구조적으로 통과 불가",
+   "status": "needs_setup",
+   "priority": 2,
+   "kind": "measurement_integrity",
+   "owner": "engineer",
+   "affects_model": false,
+   "from_experiment": "CG168",
+   "arm": null,
+   "counterfactual": "현행 champion_promote: 후보 증거가 robust_oos.json(다중폴드 크로스섹션 AUC)이어도 AUC 다리는 `champion_baseline`(= `app/models/champion/robust_auc.json` 의 **단일분할 ensemble_auc 0.5513**, 그 파일의 metric 필드도 'ensemble_auc')와 비교한다.",
+   "baseline": "CG168 dry-run 실측: 후보 robust_auc 0.5284 vs champion_baseline 0.5513(source robust_auc.json, metric ensemble_auc) · min_auc 0.53 · 판정 kept_incumbent. 과거 후보(10-09 21:30 ml_result.json)는 반대로 **둘 다 단일분할**(후보 ensemble_auc 0.5410 vs 0.5513)이라 같은 저울이었다.",
+   "hypothesis": "두 지표는 눈금이 다르다 — 로버스트(다중폴드·크로스섹션)는 단일분할 val AUC 보다 체계적으로 낮고(2026-10-02 실측: 두 지표 순위상관 −0.81, 챔피언 단일값 0.6131 은 이 이유로 동결), 그래서 후보가 로버스트 증거를 갖출수록 AUC 다리에서 **구조적으로 불리**하다. 즉 게이트가 '돈 기준'이 아니라 '눈금이 다른 AUC'에서 먼저 후보를 떨어뜨릴 수 있다 — 승격 판정 정합성 결함이다(CG135·CG131·CG145·CG156 과 같은 승인 배치).",
+   "evidence": "2026-10-11 06:2x 엔지니어 자율. `services/xgboost-ml/app/reports/ml_result_cg168.json`: candidate_robust_oos.metric='robust_auc'(0.5284, 프로토콜 '5-fold 연속 시간창…크로스섹션 AUC') vs champion_baseline 0.5513 source='robust_auc.json' — 그 파일은 metric='ensemble_auc'·protocol='ensemble_auc on candidate val split (n_rows=12629)'. 같은 파일 안에서 두 후보가 서로 다른 눈금으로 채점되고 있다(과거 ml_result.json 은 양쪽 단일분할). 부수 사실: 배포 champion 은 173피처(09-23 학습)로 현재 파이프라인 199피처보다 26피처 뒤처져 있다.",
+   "success": "① 게이트가 후보 증거의 눈금을 인식해 **같은 지표로만** 비교하도록 수리(후보 robust_oos.json 이 있으면 챔피언도 같은 프로토콜 값과 비교 — `--require-robust` 경로 강제 또는 champion_baseline 출처를 명시). ② 수리 전후로 같은 후보(CG166)의 dry-run 판정을 재현해 'AUC 다리 때문에 떨어졌는지'를 분리 기록. ③ 문턱·기준선 변경분은 리뷰보드 승인 대상이므로 승인 전에는 **감사·증거만** 남긴다.",
+   "metric": null,
+   "command": null,
+   "setup_needed": "감사 스크립트 `scripts/promote_gate_leg_audit.py` 신설(읽기 전용): `app/reports/ml_result*.json` 전량과 `app/models/*/robust_auc.json`·`robust_oos.json` 을 훑어 ① 후보 지표 눈금 ② 비교 기준선 눈금 ③ 눈금 불일치로 판정이 뒤집혔을 후보 수를 표로 낸다(산출물 data/reports/promote_gate_leg_audit_<날짜>.json). 수리 자체(champion_promote 비교 로직·문턱)는 게이트 변경이라 승인 후 실행.",
+   "est_minutes": 10,
+   "created_at": "2026-10-11T06:36:53+09:00",
+   "note": "2026-10-11 06:4x 엔지니어 자율 — CG168 dry-run 산출물에서 발견. 스킬 하드규칙 1('단일 분할 AUC는 판정·승격 기준선으로 쓰지 않는다')이 게이트 코드 안에서 위반되고 있는 형태다. CG131(스코어보드 기준선 청정 패널 이관)·CG135(objective.json acceptance 선언만)·CG145(앵커평균 프로토콜)·CG156(무개선 카운터 잡음바닥) 과 함께 **승인 배치**로 올린다."
   }
  ],
- "updated": "2026-10-11T06:23+09:00"
+ "updated": "2026-10-11T06:36+09:00"
 }
