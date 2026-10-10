@@ -111,7 +111,10 @@ def save_backlog(b):
     b["updated_at"] = now_kst().isoformat(timespec="seconds")
     tmp = BACKLOG + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(b, f, ensure_ascii=False, indent=2)
+        # indent=1 — 백로그 등록 스크립트(_add_cg*.py, _cg154_register.py 등)가 쓰는 관례와 맞춘다.
+        # 종전 indent=2 였는데 커밋된 파일은 indent=1 이라, 틱이 돌 때마다 14,050줄 전체가
+        # '변경'으로 잡혀 진짜 변경(수 줄)이 화이트스페이스 노이즈에 묻혔다(실측 2026-10-11 05:0x).
+        json.dump(b, f, ensure_ascii=False, indent=1)
     os.replace(tmp, BACKLOG)   # 원자적 교체 — 중간에 죽어도 백로그가 깨지지 않는다
 
 

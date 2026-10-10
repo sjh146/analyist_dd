@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-11T04:15+09:00",
+ "updated_at": "2026-10-11T05:04:30+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -14048,7 +14048,7 @@
    "arm": "champion_cand_cg166(199−6=193피처, --drop-serving-blind-features)",
    "baseline": "배포 champion(173피처·09-23 학습) · 등록 기준선 0.5406",
    "metric": "champion_robust_eval",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 16200 python -u app/training/retrain_champion.py --end-date 2026-10-08 --days 90 --stock-limit 200 --out-dir /app/app/models/champion_cand_cg166 --drop-serving-blind-features --checkpoint-path /app/app/models/wf/ckpt_cg166 && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand_cg166 --out app/reports/champion_robust_eval.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 16200 python -u -m app.training.retrain_champion --end-date 2026-10-08 --days 90 --stock-limit 200 --out-dir /app/app/models/champion_cand_cg166 --drop-serving-blind-features --checkpoint-path /app/app/models/wf/ckpt_cg166 && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand_cg166 --out app/reports/champion_robust_eval.json'",
    "counterfactual": "현행 배포 champion(173피처, 2026-09-23 학습 — rank_* 6개가 서빙에서 0.0) · 플래그 OFF 재학습(같은 구간)은 **대조군 arm** 으로만 의미가 있다(별도 예산 1회).",
    "hypothesis": "서빙이 공급할 수 없는 6개(rank_*)를 **모델 피처 목록에서도** 빼고 같은 구간 데이터로 재학습하면, 라이브 입력계와 학습 입력계가 일치한다(스큐 0). rank 축 자체의 신호 상한은 +0.011 로 닫혀 있으므로 **개선이 아니라 무회귀 + 정합 회복**을 기대값으로 둔다.",
    "evidence": "선행: CG164 evidence ② (플래그 구현·자체점검 6/6 PASS) · 프로브 실측(173 중 6개 missing). 재학습 구간은 --end-date 2026-10-08 로 **고정**(체크포인트 키 유지 — 매일 '오늘'로 밀면 매일 폐기).",
@@ -14057,9 +14057,25 @@
    "cost": "재학습 200종목×90일(≈18k 페어, 실측 ~1.3페어/s → 3.5~4.5h) + 로버스트 eval ~20분. 장외 창 필요.",
    "est_minutes": 260,
    "setup_needed": null,
-   "note": "2026-10-11 04:1x 엔지니어 자율(장외 틱) 신설 — CG164 setup ① 이 완료되어 실행 항목으로 분리했다. ⚠ 새 성능 레버 시험이 아니다(rank 축은 TR1/TR2/CG130 으로 닫힘). ⚠ 평일이면 15:35 이후 착수(장중 금지) · 컨테이너 timeout 은 실측 ETA(≈16200s)로 여유를 뒀다. ⚠ 다른 백필과 **동시 실행 금지**(4코어).",
+   "note": "2026-10-11 04:1x 엔지니어 자율(장외 틱) 신설 — CG164 setup ① 이 완료되어 실행 항목으로 분리했다. ⚠ 새 성능 레버 시험이 아니다(rank 축은 TR1/TR2/CG130 으로 닫힘). ⚠ 평일이면 15:35 이후 착수(장중 금지) · 컨테이너 timeout 은 실측 ETA(≈16200s)로 여유를 뒀다. ⚠ 다른 백필과 **동시 실행 금지**(4코어). | 2026-10-11 05:0x 자율 — 첫 실행이 rc=1·0.1분 만에 실패: `python app/training/retrain_champion.py` 파일경로 실행은 sys.path[0]=/app/app/training 이 되어 `ModuleNotFoundError: No module named 'app'`. 다른 성공 명령들(CG43/CG51/CG92)은 전부 `python -m app.training.retrain_champion` 모듈 형식이었다. `-m` 으로 교체(sys.path[0]=/app) — `-m ... --help` 로 전체 임포트 체인 정상 확인. champion_robust_eval.py 는 자체적으로 sys.path.insert(0,'/app')(L36)라 파일경로로도 정상.",
    "registered": "2026-10-11T04:15+09:00",
-   "attempts": 0
+   "attempts": [
+    {
+     "ts": "2026-10-11T05:01:02+09:00",
+     "rc": 1,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 1 — ModuleNotFoundError: No module named 'app'",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG166_20261011-050056.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "실행실패",
+    "detail": "측정값 없음 — 종료코드 1 — ModuleNotFoundError: No module named 'app'",
+    "delta": null,
+    "per_exp": null,
+    "rc": 1
+   }
   }
  ],
  "updated": "2026-10-11T04:15+09:00"
