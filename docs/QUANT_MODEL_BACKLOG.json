@@ -14040,7 +14040,7 @@
   {
    "id": "CG166",
    "title": "[배포정합·실행] 서빙 불가 피처(rank_* 6)를 제거한 재학습 + 로버스트 OOS — CG164 ① 실현",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "deploy_integrity",
    "owner": "engineer",
@@ -14057,7 +14057,7 @@
    "cost": "재학습 200종목×90일(≈18k 페어, 실측 ~1.3페어/s → 3.5~4.5h) + 로버스트 eval ~20분. 장외 창 필요.",
    "est_minutes": 260,
    "setup_needed": null,
-   "note": "2026-10-11 04:1x 엔지니어 자율(장외 틱) 신설 — CG164 setup ① 이 완료되어 실행 항목으로 분리했다. ⚠ 새 성능 레버 시험이 아니다(rank 축은 TR1/TR2/CG130 으로 닫힘). ⚠ 평일이면 15:35 이후 착수(장중 금지) · 컨테이너 timeout 은 실측 ETA(≈16200s)로 여유를 뒀다. ⚠ 다른 백필과 **동시 실행 금지**(4코어). | 2026-10-11 05:0x 자율 — 첫 실행이 rc=1·0.1분 만에 실패: `python app/training/retrain_champion.py` 파일경로 실행은 sys.path[0]=/app/app/training 이 되어 `ModuleNotFoundError: No module named 'app'`. 다른 성공 명령들(CG43/CG51/CG92)은 전부 `python -m app.training.retrain_champion` 모듈 형식이었다. `-m` 으로 교체(sys.path[0]=/app) — `-m ... --help` 로 전체 임포트 체인 정상 확인. champion_robust_eval.py 는 자체적으로 sys.path.insert(0,'/app')(L36)라 파일경로로도 정상.",
+   "note": "2026-10-11 04:1x 엔지니어 자율(장외 틱) 신설 — CG164 setup ① 이 완료되어 실행 항목으로 분리했다. ⚠ 새 성능 레버 시험이 아니다(rank 축은 TR1/TR2/CG130 으로 닫힘). ⚠ 평일이면 15:35 이후 착수(장중 금지) · 컨테이너 timeout 은 실측 ETA(≈16200s)로 여유를 뒀다. ⚠ 다른 백필과 **동시 실행 금지**(4코어). | 2026-10-11 05:0x 자율 — 첫 실행이 rc=1·0.1분 만에 실패: `python app/training/retrain_champion.py` 파일경로 실행은 sys.path[0]=/app/app/training 이 되어 `ModuleNotFoundError: No module named 'app'`. 다른 성공 명령들(CG43/CG51/CG92)은 전부 `python -m app.training.retrain_champion` 모듈 형식이었다. `-m` 으로 교체(sys.path[0]=/app) — `-m ... --help` 로 전체 임포트 체인 정상 확인. champion_robust_eval.py 는 자체적으로 sys.path.insert(0,'/app')(L36)라 파일경로로도 정상. | 2026-10-11 06:4x 자율 — 성공 실행(rc=0)이 원장에만 기록되고 항목은 실패 attempt 상태로 pending 에 남아 있었다(다음 틱이 36분짜리 재학습을 다시 걸 수 있는 상태) → 실측 결과로 done 전환·attempts 보강.",
    "registered": "2026-10-11T04:15+09:00",
    "attempts": [
     {
@@ -14067,15 +14067,24 @@
      "detail": "측정값 없음 — 종료코드 1 — ModuleNotFoundError: No module named 'app'",
      "log": "data/reports/me_cycle/logs/me_cycle_CG166_20261011-050056.log",
      "elapsed_min": 0.1
+    },
+    {
+     "ts": "2026-10-11T05:38:08+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "elapsed_min": 35.9,
+     "detail": "워크포워드 견고 AUC 0.5351±0.0100 (시간창 3개 [0.5287, 0.5274, 0.5493]) · 풀링 0.5248 · 날짜별평균 0.5351 · 행 2161",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG166_20261011-050212.log"
     }
    ],
    "result": {
-    "verdict": "실행실패",
-    "detail": "측정값 없음 — 종료코드 1 — ModuleNotFoundError: No module named 'app'",
+    "verdict": "배포정합 확보(성공조건 ①)·성능은 무회귀~노이즈",
+    "detail": "rc=0(35.9분) · 로버스트 0.5351±0.0100(폴드 0.5287/0.5274/0.5493 · 행 2161) — 다만 등록 기준선 0.5406 은 누수 패널·다른 도구의 값이라 대조 불가(프로토콜 간 격차 실측 0.0394). 성공조건 ① 충족: feature_names 193개 · rank_* 0개(dropped_serving_blind 6) → 라이브 입력계와 학습 입력계 일치. 같은 런 짝 실측(CG167/CG169): 유동성 유니버스 Δ+0.0294(폴드 2/3) · 학습 유니버스 Δ+0.0350(폴드 3/3) · 감사 프로토콜 0.5284 vs 챔피언 0.4908(10-05 대비). 돈은 전 계측기에서 베타 초과 미검출(CG167·CG169 '노이즈').",
     "delta": null,
     "per_exp": null,
-    "rc": 1
-   }
+    "rc": 0
+   },
+   "done_at": "2026-10-11T06:37:36+09:00"
   },
   {
    "id": "CG167",
