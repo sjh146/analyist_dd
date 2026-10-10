@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-10T16:00:56+09:00",
+  "updated_at": "2026-10-10T19:05+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -13781,6 +13781,38 @@
         "detail": "날짜 간 레벨 잡음바닥 최대 |Δ|0.0597 (문턱의 2.98배) · 무개선 카운터 Δ+0.0113 = 잡음바닥의 0.189배 → 비진단 · 짝 Δ 잡음 std ±0.0107 (문턱 초과 3/5 앵커) · 검정력: 짝 앵커 2개 / 레벨 앵커 36개",
         "rc": 0
       }
+    },
+    {
+      "id": "CG157",
+      "title": "미배선 원천 전수 스윕 — 패널 구간을 덮는 신규 정보원 0건(전 34테이블 열거) · 틱 자동 게이트 배선",
+      "status": "done",
+      "priority": 2,
+      "affects_model": false,
+      "arm": null,
+      "counterfactual": "등록 4축(data_axis_readiness 채점 범위: 인트라데이·공매도·뉴스·SNS) — '그 4축 말고 더 없나'는 지금까지 사람 기억으로 답했다(2026-10-04 전수 스크린 노트)",
+      "metric": "source_coverage_gate",
+      "command": "python3 scripts/source_coverage_sweep.py --json data/reports/source_coverage_sweep.json",
+      "hypothesis": "수집기·리서처가 원천을 계속 추가해 왔는데, 등록 4축 외에 패널 유니버스(200종목)를 덮는 시점가변 원천이 아직 남아 있을 수 있다. DB 전 테이블(34)을 (종목코드 컬럼 있음 · 날짜 컬럼 있음 · 커버리지≥0.75 · 거래일≥250) 게이트로 채점하면 '미지의 데이터 축'의 존재를 기억에 의존하지 않고 판정할 수 있다.",
+      "success": "게이트 통과 테이블 ≥1 이면 그 원천으로 피처 배선 실험을 등록한다. 0 이면 'DB 수준에서 데이터 축 소진'으로 기록하고(모델측 축은 19사이클 무개선으로 종결 상태 유지) 남은 레버는 수집뿐임을 확정한다.",
+      "result": {
+        "verdict": "데이터 축 소진(신규 후보 0)",
+        "detail": "전 34테이블 채점(스냅샷 panel_prod200.npz 54,800행×213피처 · 279일 2025-08-04~2026-09-23 · mtime 2026-10-02T18:25): 신규 후보 **0** · CLOSED(실측 무정보/부분커버 확정) 9 · WIRED(이미 피처 배선) 8 · MARKET_LEVEL(종목축 없음 → 횡단면 입력 불가) 12 · STATIC(종목상수·메타) 3 · EMPTY 7. 게이트에 가장 근접한 원천은 foreign_institutional(커버 0.435=87/200 · 279일) 인데 값 보유 338종목이고 단변량 IC +0.0045~+0.0082(t<0.7) 로 이미 무정보 실측됐다. 즉 '못 찾은 원천'이 아니라 '없는 정보'다(CG73 결론 재확인).",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      },
+      "evidence": "data/reports/source_coverage_sweep.json · 자체점검 scripts/_source_sweep_test.py 7/7 PASS · 구동기 배선 source_axis_sweep_note()(캐시 12h · 스윕 11초)",
+      "added": "2026-10-10T19:05+09:00 (엔지니어 자율 — pending 0 · needs_setup 승인 대기 상태에서 규칙 4/6)",
+      "attempts": [
+        {
+          "ts": "2026-10-10T19:05:49+09:00",
+          "rc": 0,
+          "verdict": "데이터 축 소진(신규 후보 0)",
+          "detail": "전 34테이블 채점 → 신규 후보 0. 재현: python3 scripts/source_coverage_sweep.py",
+          "elapsed_min": 0.2
+        }
+      ],
+      "note": "자율(실험 등록·실행·판정·축 종결). 이 항목은 성능 레버가 아니라 **게이트**다 — data_axis_readiness 는 등록 4축만 채점하므로 수집기가 새 원천을 붙여도 자동으로 알 길이 없었다(엔지니어가 'pending 없음'으로 밤을 넘기는 사각). 이제 틱이 12시간마다 전 테이블을 재채점하고, 게이트 통과 시 '피처 배선 실험 등록 필요'를 출력한다(규칙 6 자동화). 통과가 나오면 그 원천으로 command·counterfactual·success·est_minutes 를 채워 pending 등록하라."
     }
   ],
   "updated": "2026-10-10T18:04:40+09:00"

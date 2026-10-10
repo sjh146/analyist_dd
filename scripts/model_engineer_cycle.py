@@ -3592,6 +3592,40 @@ def data_axis_readiness_note(promote=True):
     return out
 
 
+def source_axis_sweep_note(max_age_h=12, force=False):
+    """미배선 원천 전수 스윕 게이트 — "그 4축 말고 더 없나?" 를 기계적으로 답한다.
+
+    data_axis_readiness 는 **이미 등록된** 4축(인트라데이·공매도·뉴스·SNS)만 채점한다.
+    수집기가 새 원천을 붙였는데 아무도 모르면 엔지니어는 'pending 없음' 상태로 밤을 넘긴다
+    (2026-10-04 전수 스크린은 **사람이 기억으로** 답한 것이다). 이 노트가 그 사각을 막는다.
+    비용: 전 테이블 스윕 ~11초 — 틱을 붙잡지 않도록 **증거 파일이 max_age_h 이내면 캐시만 읽는다**.
+    보조 기능이므로 실패해도 틱을 죽이지 않는다(읽기 전용·예외 흡수).
+    """
+    try:
+        import source_coverage_sweep as scs
+    except Exception as e:                          # noqa: BLE001
+        return [f"  미배선 원천 스윕: 점검 불가({type(e).__name__}: {str(e)[:80]})"]
+    try:
+        age = (time.time() - os.path.getmtime(scs.EVID)) / 3600.0
+    except OSError:
+        age = None
+    try:
+        if (not force) and age is not None and age <= max_age_h:
+            with open(scs.EVID, encoding="utf-8") as f:
+                res = json.load(f)
+            tag = f"캐시 {age:.1f}h"
+        else:
+            res = scs.sweep()
+            tag = "신규 실행"
+    except Exception as e:                          # noqa: BLE001
+        return [f"  미배선 원천 스윕: 실행 실패({type(e).__name__}: {str(e)[:100]})"]
+    out = [f"  미배선 원천 스윕({tag}): {scs.summary_line(res)}"]
+    if res.get("new_candidates"):
+        out.append("    → 새 원천이 게이트를 통과했다: 피처 배선 실험을 등록하라"
+                   "(command·counterfactual·success·est_minutes).")
+    return out
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
@@ -3736,6 +3770,9 @@ def tick(force=False):
         # 없다. 사람이 "이제 됐나"를 매번 확인하는 대신 DB 실측으로 채점하고, 문턱을 넘으면 그 항목을
         # pending 으로 자동 승격한다(자율: 실험 등록). 미달이면 막는 숫자를 남긴다.
         for line in data_axis_readiness_note():
+            print(line)
+        # 미배선 원천 전수 스윕 — '등록된 4축 말고 더 없나?' 를 기계적으로 답한다(위 노트의 사각).
+        for line in source_axis_sweep_note():
             print(line)
         return 0
     start_background(it["id"], force)

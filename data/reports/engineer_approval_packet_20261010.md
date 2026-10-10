@@ -107,3 +107,25 @@ CG155 = CG154 산출물(150종목 · 5폴드×25일 · 같은 앵커 2026-10-07)
 → **XR26 을 적용해도 백필이 끝나 median 봉수/일이 300 을 넘기 전에는 인트라데이 실험이 시작되지
 않는다**(그 전에 CG129 를 pending 으로 올리면 30봉 표본 재측정 = 무의미). 순서: 패치 적용 → 백필 →
 다음 틱이 자동 승격.
+
+## 19:0x 틱 추가 — CG157 미배선 원천 전수 스윕: 신규 정보원 0건(데이터 축 소진 확정)
+
+`data_axis_readiness` 는 등록 4축만 채점하므로 "그 4축 말고 더 없나?"는 지금까지 **사람 기억**으로
+답해 왔다(2026-10-04 전수 스크린). 그것을 재실행 가능한 게이트로 바꿨다:
+`scripts/source_coverage_sweep.py` + 구동기 `source_axis_sweep_note()`(12h 캐시 · 스윕 11초).
+게이트 = 종목코드 컬럼 ∧ 날짜 컬럼 ∧ 패널커버 ≥0.75 ∧ 거래일 ≥250.
+
+| 판정 | 수 | 내용 |
+|---|---|---|
+| NEW_CANDIDATE | **0** | 피처 배선 실험 등록 대상 없음 |
+| CLOSED | 9 | 실측 무정보/부분커버 확정 — foreign_institutional(커버 0.435 · 279일 · IC +0.0045~+0.0082 t<0.7 = 무정보) · ownership(9일) · minute_bars(XR26) · sns_posts(0.11) · news_events(0.075) · krx_short_selling(0.055) · stock_sentiment(3일) · news_event_extraction(4일) · sns_post_features |
+| WIRED | 8 | market_data·stock_prices·supply_market_features·financial_ratio_features·event_features·disclosures·financial_statements·ml_predictions |
+| MARKET_LEVEL | 12 | krx_derivatives·krx_program_trading·macro_features·macro_indicators 등 — 종목축이 없어 횡단면 입력 불가 |
+| STATIC / EMPTY | 3 / 7 | stocks·stock_vectors(종목상수) · 빈 테이블 |
+
+스냅샷: `panel_prod200.npz` 54,800행×213피처 · 279일(2025-08-04~2026-09-23) · mtime 2026-10-02T18:25.
+증거: `data/reports/source_coverage_sweep.{json,md}` · 자체점검 `scripts/_source_sweep_test.py` 7/7 PASS.
+
+**함의**: 모델측 축은 19사이클 무개선으로 닫혀 있고(단, 그 카운터는 잡음바닥 안 — CG156), 데이터
+축은 **DB 에 신규 원천이 없다**. 즉 남은 레버는 **수집(사람·수집기)뿐**이며, 이제 새 원천이 게이트를
+통과하면 틱이 자동으로 알려준다(규칙 6 자동화). 다음 실험은 XR26 적용 → 분봉 백필 이후에만 가능하다.

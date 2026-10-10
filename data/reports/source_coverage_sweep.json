@@ -1,0 +1,396 @@
+{
+ "ts": "2026-10-10T19:06:22+09:00",
+ "panel": "panel_prod200.npz",
+ "panel_snapshot": {
+  "shape": [
+   54800,
+   213
+  ],
+  "dates": 279,
+  "start": "2025-08-04",
+  "end": "2026-09-23",
+  "mtime": "2026-10-02T18:25:21"
+ },
+ "panel_universe": 200,
+ "min_cover": 0.75,
+ "min_days": 250,
+ "new_candidates": [],
+ "tables": [
+  {
+   "table": "foreign_institutional",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 148344,
+   "n_codes": 1071,
+   "n_days": 279,
+   "span": "2025-08-14~2026-10-08",
+   "panel_cover_n": 87,
+   "panel_cover_frac": 0.435,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "ownership",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 3080,
+   "n_codes": 973,
+   "n_days": 9,
+   "span": "2026-09-23~2026-10-08",
+   "panel_cover_n": 78,
+   "panel_cover_frac": 0.39,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "minute_bars",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 72120,
+   "n_codes": 301,
+   "n_days": 9,
+   "span": "2026-09-23~2026-10-08",
+   "panel_cover_n": 23,
+   "panel_cover_frac": 0.115,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "sns_post_features",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 16114,
+   "n_codes": 309,
+   "n_days": 190,
+   "span": "2018-10-22~2026-09-30",
+   "panel_cover_n": 22,
+   "panel_cover_frac": 0.11,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "sns_posts",
+   "code_col": "stock_code",
+   "date_col": "posted_at",
+   "rows": 384821,
+   "n_codes": 309,
+   "n_days": 190,
+   "span": "2018-10-22~2026-09-30",
+   "panel_cover_n": 22,
+   "panel_cover_frac": 0.11,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "news_events",
+   "code_col": "stock_code",
+   "date_col": "event_date",
+   "rows": 9750,
+   "n_codes": 287,
+   "n_days": 192,
+   "span": "2026-04-01~2026-10-10",
+   "panel_cover_n": 15,
+   "panel_cover_frac": 0.075,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "krx_short_selling",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 17988,
+   "n_codes": 210,
+   "n_days": 92,
+   "span": "2026-05-26~2026-10-08",
+   "panel_cover_n": 11,
+   "panel_cover_frac": 0.055,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "stock_sentiment",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 92,
+   "n_codes": 74,
+   "n_days": 3,
+   "span": "2026-10-08~2026-10-10",
+   "panel_cover_n": 6,
+   "panel_cover_frac": 0.03,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "news_event_extraction",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 700,
+   "n_codes": 60,
+   "n_days": 4,
+   "span": "2026-10-07~2026-10-10",
+   "panel_cover_n": 2,
+   "panel_cover_frac": 0.01,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "market_data",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 3123894,
+   "n_codes": 3973,
+   "n_days": 918,
+   "span": "2023-01-02~2026-10-08",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "ml_predictions",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 67779,
+   "n_codes": 4343,
+   "n_days": 16,
+   "span": "2026-09-22~2026-10-09",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "stock_prices",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 3055959,
+   "n_codes": 3973,
+   "n_days": 918,
+   "span": "2023-01-02~2026-10-08",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "supply_market_features",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 1082213,
+   "n_codes": 3934,
+   "n_days": 316,
+   "span": "2025-06-16~2026-09-29",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "disclosures",
+   "code_col": "stock_code",
+   "date_col": "rcept_dt",
+   "rows": 216199,
+   "n_codes": 3058,
+   "n_days": 430,
+   "span": "2025-01-02~2026-10-08",
+   "panel_cover_n": 191,
+   "panel_cover_frac": 0.955,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "event_features",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 216752,
+   "n_codes": 2705,
+   "n_days": 315,
+   "span": "2025-06-17~2026-10-08",
+   "panel_cover_n": 191,
+   "panel_cover_frac": 0.955,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "financial_ratio_features",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 779914,
+   "n_codes": 2571,
+   "n_days": 316,
+   "span": "2025-06-16~2026-09-29",
+   "panel_cover_n": 190,
+   "panel_cover_frac": 0.95,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "financial_statements",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 10370,
+   "n_codes": 2603,
+   "n_days": 2,
+   "span": "2026-09-22~2026-09-23",
+   "panel_cover_n": 190,
+   "panel_cover_frac": 0.95,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "stock_vectors",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 4343,
+   "n_codes": 4343,
+   "n_days": 5,
+   "span": "2026-09-22~2026-10-02",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "STATIC"
+  },
+  {
+   "table": "stocks",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 4343,
+   "n_codes": 4343,
+   "n_days": 5,
+   "span": "2026-09-22~2026-10-02",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "STATIC"
+  },
+  {
+   "table": "trader_fills",
+   "code_col": "code",
+   "date_col": null,
+   "rows": 4,
+   "panel_cover_n": 0,
+   "panel_cover_frac": 0.0,
+   "verdict": "STATIC"
+  },
+  {
+   "table": "dq_runner_claim",
+   "code_col": null,
+   "date_col": null,
+   "rows": 186,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "economic_events",
+   "code_col": null,
+   "date_col": "event_date",
+   "rows": 291,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "feature_coverage",
+   "code_col": null,
+   "date_col": null,
+   "rows": 202,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "futures_options",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 106,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "krx_derivatives",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 3242,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "krx_program_trading",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 212,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "krx_trading",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 504,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "macro_features",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 315,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "macro_indicators",
+   "code_col": null,
+   "date_col": "date",
+   "rows": 6334,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "news_analysis",
+   "code_col": null,
+   "date_col": "published_at",
+   "rows": 700,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "strategy_config",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 6,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "strategy_runs",
+   "code_col": null,
+   "date_col": null,
+   "rows": 43,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "foreign_investor_futures",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 0,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "position_theses",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 0,
+   "n_codes": 0,
+   "n_days": 0,
+   "span": null,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "positions",
+   "code_col": "stock_code",
+   "date_col": null,
+   "rows": 0,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "risk_management",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 0,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "thesis_verdicts",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 0,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "trade_orders",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 0,
+   "n_codes": 0,
+   "n_days": 0,
+   "span": null,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "us_market_data",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 0,
+   "verdict": "EMPTY"
+  }
+ ]
+}
