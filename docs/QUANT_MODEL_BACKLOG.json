@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-09T22:46:23+09:00",
+  "updated_at": "2026-10-10T16:00:56+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12352,7 +12352,7 @@
       "cost": "실행 1분(읽기 전용)",
       "est_minutes": 3,
       "evidence": "근거 체인: CG98/99(하위 k 힌트) → CG100(시드 7 재현 실패, t<2) → CG113(IC 프로파일 d1 t 2.08, 시드 0 표본). ⚠ 같은 데이터에서 이미 본 힌트의 재검정이므로 **blind 검정이 아니다** — 그래서 1회로 못박고 성공/실패 어느 쪽이든 이 항목으로 축을 닫는다(무한 재시도 금지).",
-      "note": "프로파일 산출은 스크립트 옵션이 아니라 기본 출력이다(profile.decile_edge_pct·topk_vs_pool) — 판정기는 IC 사전문턱만 보므로, 이 항목의 결론(d1 재현 여부)은 원장 parsed.profile 을 세션이 직접 읽어 기록한다. | 2026-10-05T16:07:18+09:00 세션 판정: 재현 실패 → 하위 꼬리 반전은 노이즈로 확정, **돈 축 최종 종결**(재시험 금지). 사전등록 조건(① d1 edge ≥ +0.1%p AND ② t ≥ 2 AND ③ d9·d10 t < 2) 중 ①·③ 이 동시에 깨졌다: seed7 d1 = -1.621%p (t -3.2233733143013064) 로 seed0(+1.380 · t 2.08)과 **부호 반전**, d9 t 2.031296449425039 (≥2 로 ③ 위반). IC 자체는 +0.0829 (t 5.3241798645114375) 로 양(+)이지만 유의 버킷이 최하위 분위에서 상위 분위로 옮겨간 것이 아니라 **부호가 뒤집혔다** = 서로소 유니버스에서 극단 꼬리는 재현되지 않는다(같은 데이터에서 이미 본 힌트의 비blind 재검정 1회 — 이 항목으로 닫는다).",
+      "note": "프로파일 산출은 스크립트 옵션이 아니라 기본 출력이다(profile.decile_edge_pct·topk_vs_pool) — 판정기는 IC 사전문턱만 보므로, 이 항목의 결론(d1 재현 여부)은 원장 parsed.profile 을 세션이 직접 읽어 기록한다. | 2026-10-05T16:07:18+09:00 세션 판정: 재현 실패 → 하위 꼬리 반전은 노이즈로 확정, **돈 축 최종 종결**(재시험 금지). 사전등록 조건(① d1 edge ≥ +0.1%p AND ② t ≥ 2 AND ③ d9·d10 t < 2) 중 ①·③ 이 동시에 깨졌다: seed7 d1 = -1.621%p (t -3.2233733143013064) 로 seed0(+1.380 · t 2.08)과 **부호 반전**, d9 t 2.031296449425039 (≥2 로 ③ 위반). IC 자체는 +0.0829 (t 5.3241798645114375) 로 양(+)이지만 유의 버킷이 최하위 분위에서 상위 분위로 옮겨간 것이 아니라 **부호가 뒤집혔다** = 서로소 유니버스에서 극단 꼬리는 재현되지 않는다(같은 데이터에서 이미 본 힌트의 비blind 재검정 1회 — 이 항목으로 닫는다). | 2026-10-09 23:1x 야간 틱 일관성 대조(신규 실험 아님·재시험 금지 준수): 새 산출물(cg150_*.jsonl, champion/champion_cand, exit next_open)에서 하위 k 를 다시 재 보니 k=3 Δ(bottom-k − 풀평균) -0.186(t -1.92) · k=5 -0.139(t -1.78) · k=10 -0.095(t -1.55) (|t|<2), bottom-k vs 챔피언 Δ -0.060(t -0.36) → **CG99/CG114 의 '하위 꼬리 반전 = 노이즈' 결론이 새 모델·새 exit 에서도 유지된다**(축 폐쇄 유효). 새 항목으로 등록하지 않는다.",
       "attempts": [
         {
           "ts": "2026-10-05T16:00:24+09:00",
@@ -13668,7 +13668,7 @@
       "expected": "평가 2런(≈14분) + 집계(≈1분)",
       "est_minutes": 30,
       "hypothesis": "CG149 의 t 1.70 은 세션 30 탓이지 효과 부재가 아니다 — 세션을 2배로 늘려도 부호(+0.589%p)가 유지되면 t≥2 에 도달한다.",
-      "note": "CG149 실측(2026-10-09 22:11): k3 Δ+0.589·t1.70·분할 both_positive, 사전문턱 t≥2 미달.",
+      "note": "CG149 실측(2026-10-09 22:11): k3 Δ+0.589·t1.70·분할 both_positive, 사전문턱 t≥2 미달. | 2026-10-09 23:1x 엔지니어 자율(야간 틱): **후보 승격 축 종결** — 후보(champion_cand)는 로버스트 AUC 짝 우위 +0.0291(5/5 앵커 부호일관, CG147)를 갖지만 돈 짝 Δ 는 +0.024%p/세션(t 0.13, 세션 100)이고 k=5 는 -0.092(t -0.72)다. 표본을 30→100 세션으로 3.3배 늘리자 CG149 의 +0.589%p(t1.70)가 소멸했다 → **AUC 만 오른 후보는 승격 금지(최우선 규칙 4)**, 이 축은 닫는다. 승격 후보 아님.",
       "attempts": [
         {
           "ts": "2026-10-09T22:46:23+09:00",
@@ -13686,7 +13686,102 @@
         "per_exp": null,
         "rc": 0
       }
+    },
+    {
+      "id": "CG154",
+      "title": "후보·챔피언 랭크 IC 의 검정력 경계 판정 — 같은 세션집합에서 종목수만 60→150 으로 늘려 IC t1.96 이 t≥2 로 확정되는가",
+      "status": "done",
+      "priority": 1,
+      "kind": "measure",
+      "owner": "engineer",
+      "affects_model": false,
+      "created_at": "2026-10-09T23:05:21+09:00",
+      "arm": "champion_cand vs champion (app/models/champion_cand vs app/models/champion · 같은 앵커 2026-10-07 · 같은 5폴드×25일 세션집합 · 150종목 · 체결성 필터 ON)",
+      "counterfactual": "CG153 실측(같은 dumps·60종목·n100): cand mean_IC +0.0451 · t 1.96 · 양세션 57.0% · 앞/뒤 0.0245/0.0657 · champ mean_IC 0.0000(t 0.0) · 짝 ΔIC +0.0293(t 0.82)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 5400 python -u scripts/champion_robust_eval.py --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 25 --stocks 150 --model-dir app/models/champion --asof-date 2026-10-07 --dump-preds /app/reports/overnight/cg154_champ.jsonl --dump-all --out /app/reports/overnight/cg154_champ.json && OMP_NUM_THREADS=2 timeout 5400 python -u scripts/champion_robust_eval.py --universe training --label-kind rel --horizon 5 --folds 5 --dates-per-fold 25 --stocks 150 --model-dir app/models/champion_cand --asof-date 2026-10-07 --dump-preds /app/reports/overnight/cg154_cand.jsonl --dump-all --out /app/reports/overnight/cg154_cand.json && python -u scripts/rank_ic_money.py --arm-jsonl /app/reports/overnight/cg154_cand.jsonl --arm-tag champion_cand --control-jsonl /app/reports/overnight/cg154_champ.jsonl --control-tag champion --fillable --json-out /app/reports/overnight/cg154_rank_ic.json'",
+      "metric": "rank_ic_money",
+      "success": "사전등록(도구 기본값, 변경 금지): arm mean_IC>0 · t≥2.0 · 양(+)세션≥55% · 앞/뒤 절반 모두 양(+) → '후보가 랭킹에 돈 방향 정보를 갖는다'(순기대의 필요조건). 미달이면 종목수 확대에도 미검출 = 후보 랭킹 정보 없음(축 종결). ⚠ IC 는 순기대가 아니다 — 승격 근거가 될 수 없다.",
+      "expected": "평가 2런(150종목×125일) ≈60~70분 + 집계 ≈2분 (동시 학습/평가 금지 · 구동기 lock 이 직렬화)",
+      "est_minutes": 90,
+      "hypothesis": "CG150 의 돈 지표는 세션수에 갇혀 검출바닥 Δ≈0.27%p/세션(arm-vs-pool)·0.38%p(arm-vs-control)인데 승격 문턱은 +0.1%p 다. 랭크 IC 는 같은 세션집합에서 세션당 종목수에 반비례해 sd_ic 가 줄어드므로(∝1/√n), 60→150종목이면 CG153 의 sd_ic 0.230 → ≈0.145 이고 같은 IC +0.0451 에서 t≈3.1 이 된다. 즉 '후보 랭킹 정보 없음'이 아니라 '검정력 부족'이었는지를 같은 조건에서 종목수만 늘려 판정한다.",
+      "note": "2026-10-09 23:1x 야간 틱 엔지니어 자율 등록. 왜 이 가설인가: 19사이클 무개선의 원인 후보는 ①정보가 없다 ②검정력이 없다 인데, 지금까지 돈 축은 검정력 부족으로 '미검출'과 '신호없음'을 구분하지 못했다(CG111: k=3 sd 0.415). IC 도구는 CG113 에서 t4.53 을 낸 전례(=같은 표본에서 검정력이 한 자릿수 높다)가 있고, 새 후보는 60종목에서 t1.96 으로 문턱에 붙어 있어 **가장 먼저 판정 가능해지는 경계 사례**다. 결과가 어느 쪽이든 결론이 선명하다: 신호있음 → 소비 정책(분위 top-k) 쪽으로 넘기고 승격은 별도 절차/미검출 → '후보 AUC 우위는 정적 틸트 산물'로 종결. 파생: CG155 가 같은 dumps 의 돈 번역을 맡는다.",
+      "attempts": [
+        {
+          "ts": "2026-10-10T00:08:16+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "체결성 필터 ON · 세션 100 · mean IC +0.0122 · t 0.68 · 양세션 48.0% · 앞/뒤 -0.0262/0.0505 · 상위10% 스프레드 근사 0.202%p · 대조 짝 ΔIC -0.0313(t -1.4, n 75) — 미검출(검출 바닥 이하 또는 부호 불일치)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG154_20261009-230524.log",
+          "elapsed_min": 62.9
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "체결성 필터 ON · 세션 100 · mean IC +0.0122 · t 0.68 · 양세션 48.0% · 앞/뒤 -0.0262/0.0505 · 상위10% 스프레드 근사 0.202%p · 대조 짝 ΔIC -0.0313(t -1.4, n 75) — 미검출(검출 바닥 이하 또는 부호 불일치)",
+        "delta": 0.0122,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG155",
+      "title": "CG154 산출물의 돈 번역 — 150종목 확대가 top-k 순기대 짝 Δ 의 검출바닥을 실제로 낮추는가",
+      "status": "done",
+      "priority": 3,
+      "kind": "measure",
+      "owner": "engineer",
+      "affects_model": false,
+      "created_at": "2026-10-09T23:05:21+09:00",
+      "arm": "champion_cand vs champion (CG154 와 같은 dumps · 같은 앵커 · 체결성 필터 ON · 수수료 왕복 0.21%p)",
+      "counterfactual": "CG150 실측(60종목·n100 세션: k3 Δ+0.024%p t0.13 → 노이즈)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg154_cand.jsonl --arm-tag champion_cand --control-jsonl /app/reports/overnight/cg154_champ.jsonl --control-tag champion --k 3,5,10 --exit next_open --horizon 5 --json-out /app/reports/overnight/cg154_money.json'",
+      "metric": "fillable_topk_expectancy",
+      "success": "사전등록(변경 금지 · 승격 표준과 동일 단위): k=3 과 k=5 둘 다 arm 순기대>0 & 짝 Δ(arm−대조군) ≥ +0.1%p/세션 & 짝 t ≥ 2 & arm 분할 both_positive → 신호있음. 미달이면 '종목수 60→150 확대(풀 중앙값 상승 = 바스켓 분산 감소)에도 베타 초과 미검출' 로 기록하고 후보 돈 축을 닫는다.",
+      "expected": "집계 1분(CG154 산출물 재사용 — 학습 없음)",
+      "est_minutes": 5,
+      "hypothesis": "CG150 의 k=3 짝 Δ 는 세션당 풀 중앙값 25종목에서 나왔다(풀 대부분이 필터로 탈락). CG154 는 같은 세션을 150종목으로 채점하므로 같은 k 에서 바스켓이 더 분산돼 per-session sd 가 줄고, 검출바닥(Δ sd)이 낮아진다 → 같은 효과크기에서 t 가 올라간다. 즉 '돈으로 번역되지 않는다'가 '번역할 검정력이 없었다'인지 확인한다.",
+      "note": "2026-10-09 23:1x 야간 틱 엔지니어 자율 등록. CG154 와 순서 의존(같은 jsonl 재사용) — priority 3 으로 CG154(1) 뒤에 돈다. CG154 미완주면 rc=2(파일 없음)로 실패한다(그 사실이 보고된다). 미리 보는 파일: /app/reports/overnight/cg154_cand.jsonl · cg154_champ.jsonl.",
+      "attempts": [
+        {
+          "ts": "2026-10-10T16:00:56+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm champion_cand vs 대조군 champion · exit next_open h5 · 수수료 왕복 0.21%p · 세션 100 · 풀 중앙값 55 · k=3 arm +0.066%p/세션 · 대조 -0.079 · Δ+0.080(t 0.43) · 양세션 55.0% · 분할 both_positive [+0.038/+0.094] ✗ · k=5 arm +0.059%p/세션 · 대조 +0.023 · Δ+0.027(t 0.2) · 양세션 55.0% · 분할 both_positive [+0.046/+0.071] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.035%p · Δ+0.349 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG155_20261010-160053.log",
+          "elapsed_min": 0.1
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm champion_cand vs 대조군 champion · exit next_open h5 · 수수료 왕복 0.21%p · 세션 100 · 풀 중앙값 55 · k=3 arm +0.066%p/세션 · 대조 -0.079 · Δ+0.080(t 0.43) · 양세션 55.0% · 분할 both_positive [+0.038/+0.094] ✗ · k=5 arm +0.059%p/세션 · 대조 +0.023 · Δ+0.027(t 0.2) · 양세션 55.0% · 분할 both_positive [+0.046/+0.071] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.035%p · Δ+0.349 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+        "delta": 0.0797,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG156",
+      "title": "[측정정합성·승인] 무개선 카운터의 잡음바닥 초과 검정 — '19사이클 무개선'은 측정 불가 구간에서 세어졌다",
+      "status": "needs_setup",
+      "priority": 1,
+      "kind": "measurement_integrity",
+      "owner": "engineer",
+      "metric": "noise_floor_verdict_audit",
+      "command": "python3 scripts/noise_floor_verdict_audit.py",
+      "counterfactual": "현행 카운터 = 각 사이클 최고 로버스트 arm 레벨 − 고정 기준선 0.5406 (날짜 간 레벨 비교, quant_scoreboard.py L52/L290)",
+      "success": "판정선을 앵커평균 짝 Δ(앵커 ≥2)로 정의하고, 날짜 간 레벨 카운터를 '비진단' 으로 표시(문턱·기준선 재등록 = 리뷰보드 승인)",
+      "est_minutes": 2,
+      "hypothesis": "무개선 카운터의 Δ 는 계측기 잡음바닥(앵커 이동만으로 나오는 |Δ|)보다 작아, 19사이클 무개선이 '새 레버 없음'인지 '측정 불가'인지 구분하지 못한다. 판정선을 앵커평균 짝 Δ 로 바꾸면 같은 결론을 측정 가능 구간에서 다시 말할 수 있다(사실 여부는 재측정으로 판정).",
+      "note": "2026-10-10 18:0x 엔지니어 자율(장외 틱) — 감사 실행 완료(코드·증거 커밋). 승인 대기 사유: 문턱·기준선 정의 변경 = 리뷰보드 대상이라 카운터를 내가 재등록할 수 없다(CG145·CG131 과 동일 배치). 실측: 날짜 간 레벨 잡음바닥(같은 champion·같은 config, 앵커만 1/2/5/7거래일 이동) |Δ| 0.0175/0.0469/0.0579/0.0597 = 등록 문턱 +0.02 의 최대 3.0배. 무개선 카운터의 실제 Δ = +0.0113(헤드라인 0.5519 − 기준선 0.5406) = 잡음바닥의 0.19배 → 비진단. 같은 런 짝 Δ 잡음(cg146, cand−champ): std ±0.0107 · 범위 0.0264 · 문턱 초과 3/5 앵커(부호는 5/5 일관) → 짝 프로토콜은 살아있고, 검정력 계산상 문턱 +0.02 를 2σ 로 분해하려면 짝은 앵커 2개, 날짜 간 레벨 비교는 앵커 36개 필요. 역사적 '신호있음' 16건 중 날짜 간 레벨 잡음바닥을 넘은 것은 2건(CG94·CG114)뿐이고 16건 전부가 짝 2σ 는 넘었다(단일앵커라 이후 청정 패널 재측정에서 노이즈로 뒤집힘 = CG89/CG91/CG92). 증거: data/reports/noise_floor_verdict_audit_20261010.{json,md} · 재현 명령 1줄.",
+      "setup_needed": "문턱·기준선 재등록은 리뷰보드 승인 대상이다(스코어보드 프로토콜 변경). 감사·증거·재현 스크립트는 완료 — 승인 시 ① quant_scoreboard.py 의 무개선 카운터를 '앵커평균 짝 Δ ≥ +0.02' 로 재정의(또는 날짜 간 레벨 카운터에 비진단 각주 강제) ② 등록 기준선·헤드라인 arm 을 청정 패널(prod200)·배포가능 arm 으로 이관(CG131 과 동일 커밋).",
+      "attempts": 0,
+      "result": {
+        "verdict": "날짜 간 레벨 잡음바닥 최대 |Δ| 0.0597 = 등록 문턱+0.02 의 3.0배 → 무개선 카운터의 Δ +0.0113 는 잡음바닥의 0.19배(측정 불가 구간)",
+        "delta": 0.0113,
+        "detail": "날짜 간 레벨 잡음바닥 최대 |Δ|0.0597 (문턱의 2.98배) · 무개선 카운터 Δ+0.0113 = 잡음바닥의 0.189배 → 비진단 · 짝 Δ 잡음 std ±0.0107 (문턱 초과 3/5 앵커) · 검정력: 짝 앵커 2개 / 레벨 앵커 36개",
+        "rc": 0
+      }
     }
   ],
-  "updated": "2026-10-09T20:03:15+09:00"
+  "updated": "2026-10-10T18:04:40+09:00"
 }
