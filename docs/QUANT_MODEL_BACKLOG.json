@@ -14492,6 +14492,28 @@
     "per_exp": null,
     "rc": 0
    }
+  },
+  {
+   "id": "CG177",
+   "title": "[배포 스코어 압축·원인 확정] CG175 가 못 가른 원인(서빙 모델 신원 vs 당시 입력 열화)을 원천 정지 시점(≤2026-09-29) 데이터로만 재채점해 가른다",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "measurement_integrity",
+   "owner": "engineer",
+   "affects_model": false,
+   "from_experiment": "CG175",
+   "arm": null,
+   "counterfactual": "CG175: 전체 데이터(백필 후)로 재채점 → champion mean 0.477·≥0.55 19.06% (발행본 mean 0.05~0.08·≥0.55 0행). 즉 현재 데이터로는 눌림이 재현되지 않는다.",
+   "baseline": "CG175 실측(2026-10-11, 5일·299행·짝 Δ +0.332 미재현) + CG165(배선 원천 3종 supply_market_features·financial_ratio_features·macro_features 가 09-29/09-28 정지, 10-08 까지 지연 6~7거래일).",
+   "hypothesis": "압축 구간(10-02~10-08)의 발행 입력은 정지한 원천(≤09-29 값)으로 만들어졌다. 그 시점 데이터만으로 같은 (종목,날짜)를 재채점했을 때 발행본(mean 0.05~0.08·≥0.55 0행)이 **재현되면 원인은 입력 열화**, 재현 안 되면 **서빙 모델 신원**이다.",
+   "evidence": "CG175 는 '재현되지 않는다'까지만 확정했고 원인은 분리하지 못했다(발행 시 features_used 스냅샷 전 행 빈 배열·CG164). CG165 의 원천 정지 시점이 압축 구간과 정확히 겹친다.",
+   "success": "① 원천 테이블을 trade_date ≤ 2026-09-29 로 제한한 재채점 분포를 내고 ② 발행본과 짝 비교: |짝 Δ평균| < 0.02 면 '입력 열화' 확정, |Δ| ≥ 0.02 로 여전히 높으면 '서빙 모델 신원' 확정 ③ 확정된 원인을 CG163(재기동)·CG165(원천 신선도 크론) 승인 자료에 연결. ⚠ 승격 근거 아님(진단).",
+   "setup_needed": "프로브 확장 필요: `scripts/_cg163_scale_bisect.py` 에 `--source-cutoff YYYY-MM-DD` 를 추가해 FeaturePipeline 입력을 그 날짜 이하로 제한(또는 정지 원천 3종만 고정 스냅샷으로 대체)하고, 같은 5일·같은 표본으로 재채점. 선행 확인: 세 원천 테이블에 적재시각(created_at 등)이 있어 '당시 존재한 행'을 실제로 복원할 수 있는지 — 없으면 원천 3종 컬럼을 NaN 처리한 A/B 로 대체(열화 방향만 검정).",
+   "est_minutes": 30,
+   "metric": "scale_bisect_probe",
+   "command": null,
+   "created_at": "2026-10-11T20:12:00+09:00",
+   "note": "2026-10-11 20:1x 엔지니어 자율 — CG175(미재현 확정)의 직접 후속. pending 큐가 비어 rule 4 에 따라 다음 가설 등록(setup 미구현 = needs_setup)."
   }
  ],
  "updated": "2026-10-11T06:37+09:00"
