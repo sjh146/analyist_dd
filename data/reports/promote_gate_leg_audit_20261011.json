@@ -1,0 +1,128 @@
+{
+ "generated_at": "2026-10-11T19:02:54",
+ "registered_baseline": {
+  "value": 0.5513,
+  "metric": "ensemble_auc",
+  "source": "champion/robust_auc.json",
+  "protocol": "ensemble_auc on candidate val split (n_rows=12629)",
+  "recorded_at": "2026-10-02T02:44:20"
+ },
+ "champion_matched_values": {
+  "single_split": {
+   "value": 0.5513,
+   "metric": "ensemble_auc",
+   "source": "robust_auc.json"
+  },
+  "robust": {
+   "value": 0.4908,
+   "metric": "robust_auc",
+   "source": "robust_oos.json",
+   "protocol": "5-fold 연속 시간창(폴드당 10일), h=5 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=h; 순기대는 체결성 필터(당일등락<25.0%)·수수료 왕복 0.21%p·top3 동일비중·익일 시가 청산"
+  }
+ },
+ "gate_runs": [
+  {
+   "candidate_auc": 0.541,
+   "candidate_metric": "ensemble_auc",
+   "candidate_family": "single_split",
+   "candidate_robust_oos": 0.4938,
+   "baseline": 0.5513,
+   "baseline_metric": "ensemble_auc",
+   "baseline_source": "robust_auc.json",
+   "baseline_family": "single_split",
+   "yardstick_mismatch": false,
+   "min_improvement": 0.02,
+   "delta_as_compared": -0.0103,
+   "file": "reports/ml_result.json",
+   "status": "kept_incumbent",
+   "reason": "candidate ensemble_auc 0.5410 did not beat champion baseline 0.5513 (robust_auc.json) (+0.0200 required)",
+   "decided_at": "2026-10-09T12:30:26",
+   "first_blocking_leg": "auc_beat",
+   "matched": {
+    "available": true,
+    "family": "single_split",
+    "baseline_value": 0.5513,
+    "baseline_source": "robust_auc.json",
+    "baseline_metric": "ensemble_auc",
+    "delta": -0.0103,
+    "min_improvement": 0.02,
+    "auc_leg_pass": false
+   },
+   "auc_leg_pass_as_compared": false,
+   "flip_if_matched": false
+  },
+  {
+   "candidate_auc": 0.5284,
+   "candidate_metric": "robust_auc",
+   "candidate_family": "robust",
+   "candidate_robust_oos": 0.5284,
+   "baseline": 0.5513,
+   "baseline_metric": "ensemble_auc",
+   "baseline_source": "robust_auc.json",
+   "baseline_family": "single_split",
+   "yardstick_mismatch": true,
+   "min_improvement": null,
+   "delta_as_compared": -0.0229,
+   "file": "services/xgboost-ml/app/reports/ml_result_cg168.json",
+   "status": "kept_incumbent",
+   "reason": "돈 기준 게이트 거부: 분할표본 불안정(앞 -0.1333 / 뒤 0.3106)",
+   "decided_at": "2026-10-10T21:22:42",
+   "first_blocking_leg": "money",
+   "matched": {
+    "available": true,
+    "family": "robust",
+    "baseline_value": 0.4908,
+    "baseline_source": "robust_oos.json",
+    "baseline_metric": "robust_auc",
+    "delta": 0.0376,
+    "min_improvement": 0.02,
+    "auc_leg_pass": true
+   },
+   "auc_leg_pass_as_compared": null,
+   "flip_if_matched": false
+  }
+ ],
+ "candidate_evidence": [
+  {
+   "dir": "services/xgboost-ml/app/models/champion",
+   "robust_auc": 0.4908,
+   "metric": "robust_auc",
+   "expectancy_pct": -0.182,
+   "expectancy_t": -0.81
+  },
+  {
+   "dir": "services/xgboost-ml/app/models/champion_cand",
+   "robust_auc": 0.4938,
+   "metric": "robust_auc",
+   "expectancy_pct": 0.1549,
+   "expectancy_t": 0.91
+  },
+  {
+   "dir": "services/xgboost-ml/app/models/champion_cand_cg166",
+   "robust_auc": 0.5284,
+   "metric": "robust_auc",
+   "expectancy_pct": 0.0912,
+   "expectancy_t": 0.51
+  },
+  {
+   "dir": "services/xgboost-ml/app/models/champion_prev_20261002-024420",
+   "robust_auc": 0.4838,
+   "metric": "robust_auc",
+   "expectancy_pct": -0.298,
+   "expectancy_t": -1.75
+  },
+  {
+   "dir": "services/xgboost-ml/app/models/champion_wtest",
+   "robust_auc": 0.4908,
+   "metric": "robust_auc",
+   "expectancy_pct": -0.182,
+   "expectancy_t": -0.81
+  }
+ ],
+ "summary": {
+  "n_gate_runs": 2,
+  "n_yardstick_mismatch": 1,
+  "n_flip_if_matched": 0,
+  "n_latent_mismatch_not_decisive": 1
+ }
+}
