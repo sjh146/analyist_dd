@@ -334,6 +334,55 @@ def part_b(models, pipeline, conn, args):
 
 
 # ── (c) close 경로 순기대값 (fillable_expectancy 계산 재사용, 모델별 top-K) ────────
+# ── (c) 세션별 짝 Δ (CG172, 2026-10-11 자율) ─────────────────────────────────────
+def _paired_session_delta(models, psess, args):
+    """모델 ≥2 일 때 **세션별 짝 Δ** 통계 (CG172).
+
+    왜 필요한가(실측 2026-10-11 CG171): part_c 의 주변(marginal) 순기대는 두 arm 각각의 '자기
+    세션 평균'이라 세션 공통분(시장 베타)이 상쇄되지 않는다 — arm +0.0912%p(t 0.51) vs 대조
+    −0.1674%p(t −0.75) → Δ +0.2586%p 인데 어느 쪽 t 도 1 미만이라 승격 문턱(t≥2)을 판정할
+    검정력이 없다. 같은 세션에서의 차(arm_s − control_s)를 쓰면 공통분이 사라진다.
+    arm = 첫 모델, control = 마지막 모델(구동기 parse 기본과 동일 순서 규약).
+    """
+    labels = [m[0] for m in models]
+    if len(labels) < 2:
+        return None
+    arm, control = labels[0], labels[-1]
+    da, dc = psess.get(arm) or {}, psess.get(control) or {}
+    common = sorted(set(da) & set(dc))
+    n = len(common)
+    if n < 2:
+        return None
+    delta = [da[d] - dc[d] for d in common]
+    mean = statistics.fmean(delta)
+    sd = statistics.stdev(delta) if n > 1 else 0.0
+    se = sd / (n ** 0.5) if n else 0.0
+    t = (mean / se) if se > 0 else 0.0
+    pos = sum(1 for x in delta if x > 0)
+    neg = sum(1 for x in delta if x < 0)
+    half = n // 2
+    front = statistics.fmean(delta[:half]) if half else 0.0
+    back = statistics.fmean(delta[half:]) if (n - half) else 0.0
+    stable = ("both_positive" if (front > 0 and back > 0)
+              else "neither" if (front <= 0 and back <= 0) else "unstable")
+    folds = {}
+    k = int(getattr(args, "folds", 0) or 0)
+    if k > 0 and n >= k:
+        bounds = [round(i * n / k) for i in range(k + 1)]
+        for i in range(k):
+            seg = delta[bounds[i]:bounds[i + 1]]
+            if seg:
+                folds[str(i + 1)] = f"{sum(1 for x in seg if x > 0)}/{len(seg)}"
+    return {
+        "arm": arm, "control": control, "n_sessions": n,
+        "delta_mean": round(mean, 4), "sd": round(sd, 4), "se": round(se, 4),
+        "t": round(t, 2), "pos": pos, "neg": neg, "ties": n - pos - neg,
+        "halves": {"front_pct": round(front, 4), "back_pct": round(back, 4), "stable": stable,
+                   "split_date": common[half] if half < len(common) else None},
+        "folds": folds,
+    }
+
+
 def part_c(models, pipeline, conn, args):
     t0 = time.time()
     # trades.csv 경로 해석: 컨테이너는 `data/reports` 를 마운트하지 않는다(실측 2026-10-04) →
@@ -344,9 +393,9 @@ def part_c(models, pipeline, conn, args):
     trades_path = next((p for p in candidates if p and os.path.exists(p)), None)
     if trades_path is None:
         print(f"[c] trades 없음 — 시도한 경로: {candidates}\n"
-              f"    (호스트에서 복사하라: cp data/reports/close_gate_probe/trades.csv "
+              f"(호스트에서 복사하라: cp data/reports/close_gate_probe/trades.csv "
               f"services/xgboost-ml/app/reports/close_gate_probe_trades.csv)", flush=True)
-        return {}
+        return {}, None
     t = fe.load_trades(trades_path)          # code/date 표준화 + score 열 포함
     rows = list(zip(t["code"].tolist(), t["date"].tolist()))
     print(f"[c] 후보 {len(rows)}행·{t['date'].nunique()}세션 — 피처 빌드 시작", flush=True)
@@ -354,6 +403,7 @@ def part_c(models, pipeline, conn, args):
     scores = score_models(models, feats_by_date)
 
     result = {}
+    psess = {}                     # label -> {date: 세션 net 평균} (짝 Δ 계산용, CG172)
     exit_col = fe.EXIT_COLS["next_open"]
     for label, _d, _ens, _names in models:
         m = scores[label]
@@ -364,6 +414,8 @@ def part_c(models, pipeline, conn, args):
         # fillable_expectancy 의 체결성 필터(당일등락 < +25%)
         tt = tt[tt["day_change_pct"] < args.max_day_chg]
         per_session, dates, _detail = fe.simulate(tt, args.topk, exit_col, ROUND_TRIP)
+        psess[label] = {str(dd): v for dd, v in zip(dates, per_session)
+                        if v is not None and v == v}
         st = fe.session_stats(per_session, dates)
         halves = fe.split_half(per_session, dates)
         result[label] = {
@@ -385,7 +437,12 @@ def part_c(models, pipeline, conn, args):
         print(f"[c] {label}: n={result[label]['n_rows_scored']} "
               f"세션={result[label]['n_sessions']} 순기대={result[label]['avg_pct']}% "
               f"t={result[label]['t_stat']}", flush=True)
-    return result
+    paired = _paired_session_delta(models, psess, args)
+    if paired:
+        print(f"[c] 짝 Δ(세션 {paired['n_sessions']}): {paired['arm']}−{paired['control']} "
+              f"평균 {paired['delta_mean']}%p t={paired['t']} (양 {paired['pos']}/음 {paired['neg']}) "
+              f"분할 {paired['halves']['stable']}", flush=True)
+    return result, paired
 
 
 # ── 상관 ─────────────────────────────────────────────────────────────────────────
@@ -495,13 +552,17 @@ def main(argv=None) -> int:
         out["b_robust_auc"] = part_b(models, pipeline, conn, args)
     if "c" not in skip:
         pipeline._cache.clear()
-        c_res = part_c(models, pipeline, conn, args)
+        c_res, c_paired = part_c(models, pipeline, conn, args)
         # ⚠ trades.csv 를 못 찾으면 part_c 가 **빈 dict** 를 돌려준다 → 그대로 넣으면 상관 계산이
         # 깨진다(실측 2026-10-04: KeyError 'n' 으로 15분 측정이 통째로 날아감). 비었으면 아예 뺀다.
         if c_res:
             out["c_net_expectancy"] = c_res
         else:
             print("[c] 건너뜀 — 순기대 증거 없이 저장한다(승격 게이트는 증거 없음으로 거부)", flush=True)
+        # 세션별 짝 Δ(CG172) — 모델 ≥2 일 때만. labels 키와 섞이면 correlate() 가 깨지므로
+        # c_net_expectancy 밖(top-level)에 둔다.
+        if c_paired:
+            out["c_paired"] = c_paired
 
     if all(k in out for k in ("a_live_signal", "b_robust_auc", "c_net_expectancy")):
         corr = correlate(out["a_live_signal"], out["b_robust_auc"], out["c_net_expectancy"])

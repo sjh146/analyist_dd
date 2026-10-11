@@ -2755,6 +2755,18 @@ def parse_metric_audit_pair(path, mtime_floor, arm_label=None, control_label=Non
             "control_halves": (cc_["halves"] or {}).get("stable"),
             "arm_front_back": [(a["halves"] or {}).get("front_pct"), (a["halves"] or {}).get("back_pct")],
         }
+        # 세션별 짝 Δ (CG172) — 감사 도구 part_c 가 모델 ≥2 일 때 top-level `c_paired` 로 싣는다.
+        # 있으면 돈 다리를 주변(marginal) 대신 **같은 세션 짝**으로 판정한다(시장 베타 상쇄).
+        cp = d.get("c_paired") or {}
+        if isinstance(cp, dict) and isinstance(cp.get("delta_mean"), (int, float)):
+            out["pair"]["expectancy_paired"] = {
+                "arm": cp.get("arm"), "control": cp.get("control"),
+                "delta_mean": _f(cp.get("delta_mean")), "sd": _f(cp.get("sd")),
+                "se": _f(cp.get("se")), "t": _f(cp.get("t")),
+                "pos": cp.get("pos"), "neg": cp.get("neg"), "ties": cp.get("ties"),
+                "n_sessions": cp.get("n_sessions"),
+                "halves": cp.get("halves"), "folds": cp.get("folds"),
+            }
     return out
 
 
@@ -2788,9 +2800,23 @@ def judge_metric_audit_pair(item, parsed) -> tuple:
     a_exp, c_exp = p.get("arm_expectancy_pct"), p.get("control_expectancy_pct")
     auc_pass = (isinstance(df, float) and df >= thr)
     wp = 0.1
-    money_pass = (isinstance(a_exp, float) and a_exp > 0
-                  and isinstance(dep, float) and dep >= wp
-                  and p.get("arm_halves") == "both_positive")
+    # 돈 다리 — 세션별 짝 Δ 가 있으면 그것으로 판정한다(CG172). 없으면 주변(marginal)로 폴백(무회귀).
+    pp = p.get("expectancy_paired") or {}
+    if isinstance(pp.get("delta_mean"), float) and isinstance(pp.get("t"), float):
+        ph = (pp.get("halves") or {}).get("stable")
+        money_pass = (isinstance(a_exp, float) and a_exp > 0
+                      and pp["delta_mean"] >= wp and abs(pp["t"]) >= 2.0
+                      and ph == "both_positive")
+        paired_line = (f" · 짝(같은 세션) Δ {pp['delta_mean']:+.4f}%p t {pp['t']} "
+                       f"(양 {pp.get('pos')}/음 {pp.get('neg')}) 분할 {ph} "
+                       f"폴드 {pp.get('folds')}")
+        money_path = "짝"
+    else:
+        money_pass = (isinstance(a_exp, float) and a_exp > 0
+                      and isinstance(dep, float) and dep >= wp
+                      and p.get("arm_halves") == "both_positive")
+        paired_line = ""
+        money_path = "주변"
     det_folds = " ".join(f"{x:+.4f}" for x in (p.get("delta_folds") or []))
 
     def _n(v, fmt="{:+.4f}"):
@@ -2804,7 +2830,8 @@ def judge_metric_audit_pair(item, parsed) -> tuple:
               f" · 순기대 arm {_n(a_exp, '{:+.4f}')}%p(t {p.get('arm_expectancy_t')}) vs 대조 "
               f"{_n(c_exp, '{:+.4f}')}%p(t {p.get('control_expectancy_t')}) Δ {_n(dep)}"
               f" · 세션 {p.get('n_sessions')} · 분할 arm {p.get('arm_halves')} {p.get('arm_front_back')}"
-              f" · 사전문턱: Δ_auc≥+{thr:.2f} AND arm>0 AND Δ≥+{wp}%p AND 분할 both_positive"
+              f"{paired_line}"
+              f" · 사전문턱[{money_path}]: Δ_auc≥+{thr:.2f} AND arm>0 AND Δ≥+{wp}%p AND 분할 both_positive"
               f" → AUC {'통과' if auc_pass else '미달'} / 돈 {'통과' if money_pass else '미달'}")
     if auc_pass and money_pass:
         return "짝 신호", detail + " → 사전등록 충족(승격 아님 — 별도 승인·게이트 절차)", None

@@ -37,7 +37,7 @@ def check(name, ok, info=""):
 
 
 def audit_doc(folds_a, folds_c, exp_a, exp_c, t_a, t_c, halves_a="both_positive",
-              halves_c="both_positive", n_sessions=87, labels=("arm", "ctl")):
+              halves_c="both_positive", n_sessions=87, labels=("arm", "ctl"), paired=None):
     def arm(lb, folds, exp, t, halves):
         return {
             "b_robust_auc": {lb: {"robust_auc": round(sum(folds) / len(folds), 4), "folds": folds,
@@ -60,6 +60,8 @@ def audit_doc(folds_a, folds_c, exp_a, exp_c, t_a, t_c, halves_a="both_positive"
         doc.setdefault(k, {}).update(v)
     for k, v in arm(labels[1], folds_c, exp_c, t_c, halves_c).items():
         doc.setdefault(k, {}).update(v)
+    if paired is not None:
+        doc["c_paired"] = paired
     return doc
 
 
@@ -147,6 +149,35 @@ def main() -> int:
     p = mec.parse_by_metric(it, bad, 0.0)
     v, d, dl = mec.judge_by_metric(it, p)
     check("⑦ b 파트 없는 산출물 → 판정불가", v == "판정불가", f"{v} · {d[:60]}")
+
+    # ⑧ 세션별 짝 Δ(CG172) 파싱 + 통과 — 감사 도구가 c_paired 를 실으면 돈 다리가 짝으로 판정된다
+    paired_ok = {"arm": "arm", "control": "ctl", "n_sessions": 30, "delta_mean": 0.35, "sd": 1.2,
+                 "se": 0.22, "t": 2.5, "pos": 18, "neg": 12, "ties": 0,
+                 "halves": {"front_pct": 0.1, "back_pct": 0.6, "stable": "both_positive",
+                            "split_date": "2026-03-03"},
+                 "folds": {"1": "6/10", "2": "6/10", "3": "6/10"}}
+    doc = audit_doc(folds_a, folds_c, exp_a=0.0912, exp_c=-0.182, t_a=0.51, t_c=-0.81, paired=paired_ok)
+    p = mec.parse_by_metric(it, write_tmp(doc), 0.0)
+    pp = (p.get("pair") or {}).get("expectancy_paired") or {}
+    check("⑧ c_paired 파싱(delta_mean·t)", pp.get("delta_mean") == 0.35 and pp.get("t") == 2.5, str(pp)[:90])
+    v, d, dl = mec.judge_by_metric(it, p)
+    check("⑧ 짝 통과(t≥2·both_positive) → 짝 신호", v == "짝 신호" and "사전문턱[짝]" in d, f"{v} · {d[-80:]}")
+
+    # ⑨ 우선순위: 주변은 통과하나 짝 t<2 → 돈 미달(짝이 주변을 덮는다)
+    weak = dict(paired_ok, t=1.6)
+    doc = audit_doc(folds_a, folds_c, exp_a=0.0912, exp_c=-0.182, t_a=0.51, t_c=-0.81, paired=weak)
+    p = mec.parse_by_metric(it, write_tmp(doc), 0.0)
+    v, d, dl = mec.judge_by_metric(it, p)
+    check("⑨ 짝 t<2 → 돈 미달(주변 통과 무시)", v == "노이즈" and "돈 미달" in d and "사전문턱[짝]" in d,
+          f"{v} · {d[-80:]}")
+
+    # ⑩ c_paired 없으면 주변 경로로 폴백(무회귀) — 판정 문구에 [주변] 표기
+    doc = audit_doc(folds_a, folds_c, exp_a=0.0912, exp_c=-0.182, t_a=0.51, t_c=-0.81)
+    p = mec.parse_by_metric(it, write_tmp(doc), 0.0)
+    check("⑩ c_paired 없음 → expectancy_paired 없음",
+          "expectancy_paired" not in (p.get("pair") or {}), str(p.get("pair", {}).keys()))
+    v, d, dl = mec.judge_by_metric(it, p)
+    check("⑩ 주변 폴백 표기", "사전문턱[주변]" in d, f"{v} · {d[-70:]}")
 
     n_fail = sum(1 for _, ok, _ in RESULTS if not ok)
     print(f"\n{len(RESULTS) - n_fail}/{len(RESULTS)} PASS")
