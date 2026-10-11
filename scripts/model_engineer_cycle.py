@@ -997,6 +997,19 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/scale_regime_audit.json")
+    if kind == "scale_bisect_probe":
+        # 배포 스코어 압축 원인 이분 프로브(scripts/_cg163_scale_bisect.py --out). CG175.
+        # 왜 전용 metric 인가(2026-10-11 자율 신설): 10-02~10-08 발행 confidence 가 전 종목
+        # mean 0.05~0.08·max 0.23~0.29 로 눌렸다(CG162). 원인 후보는 ①서빙 모델 신원 ②당시 입력
+        # 피처 열화인데, 발행 시 features_used 스냅샷이 **전 행 빈 배열**(CG164 실측)이라 사후
+        # 분리가 불가능하다. 이 프로브는 같은 (종목,날짜)를 오프라인 재채점해 발행본과 짝 비교한다
+        # — 확률 스케일 진단이라 기존 파서(AUC 폴드·전방 수익)에 담기지 않는다.
+        # ⚠ per_exp 를 만들지 않는다(scoreboard 가 'arm 폴드 AUC' 로 오독한다) — 판정 입력은
+        # summary.paired_delta.champion.mean_rescored_minus_published 다.
+        out = _arg(command or "", "--out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/app/reports/cg175_scale_bisect.json")
     if kind == "metric_audit_pair":
         # 감사 프로토콜(scripts/model_metric_protocol_audit.py --out)의 **같은 런 짝** 판정. CG171.
         # 왜 전용 metric 인가(2026-10-11 실측): 승격 게이트가 읽는 증거(robust_oos.json = 감사 도구
@@ -1526,6 +1539,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_protocol_pair_anchor(spath, mtime_floor)
     if kind == "scale_regime_audit":
         return parse_scale_regime_audit(spath, mtime_floor)
+    if kind == "scale_bisect_probe":
+        return parse_scale_bisect_probe(spath, mtime_floor)
     if kind == "metric_audit_pair":
         return parse_metric_audit_pair(spath, mtime_floor,
                                        arm_label=item.get("arm_label"),
@@ -2739,6 +2754,69 @@ def judge_scale_regime_audit(item, parsed) -> tuple:
     return "정상", base + " → 현재 문턱 도달 정상(신규 blocked 없음)", None
 
 
+def parse_scale_bisect_probe(path, mtime_floor) -> dict:
+    """배포 스코어 압축 원인 이분 프로브(scripts/_cg163_scale_bisect.py --out) 파서. CG175.
+
+    스키마: {probe, dates[], max_per_day, conf_ts, published_dist{date:{n,mean,max,p90,p95,
+             ge_055,ge_055_pct}}, sample{date:[{date,code,published,champion,cg166}, ...]},
+             summary{published_sample, rescored{label}, paired_delta{label}},
+             threshold_recovery, verdict, n_sample_rows, n_failures, elapsed_s}
+    ⚠ per_exp 를 만들지 않는다 — 값이 AUC 가 아니라 확률 스케일이라 scoreboard 가 오독한다.
+    판정 입력은 summary.paired_delta.champion.mean_rescored_minus_published 다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    summ = d.get("summary") or {}
+    if not summ or not d.get("verdict"):
+        return {"error": "summary/verdict 없음(집계 실패)", "summary_mtime": mt}
+    pd_ = summ.get("paired_delta") or {}
+    return {"metric_name": "scale_bisect_probe",
+            "verdict_text": d.get("verdict"),
+            "summary": summ,
+            "published_dist": d.get("published_dist") or {},
+            "champion_delta": (pd_.get("champion") or {}).get("mean_rescored_minus_published"),
+            "cg166_delta": (pd_.get("cg166") or {}).get("mean_rescored_minus_published"),
+            "n_sample_rows": d.get("n_sample_rows"), "n_failures": d.get("n_failures"),
+            "threshold_recovery": d.get("threshold_recovery"),
+            "dates": d.get("dates"), "summary_mtime": mt}
+
+
+def judge_scale_bisect_probe(item, parsed) -> tuple:
+    """배포 스코어 압축 원인 이분 프로브 판정 — 발행 눌림이 현재 (모델·피처)로 재현되는가.
+
+    사전등록(항목 success): ① 같은 프로토콜로 재채점 ② 발행본과 짝 비교로 원인 이분.
+    판정: |짝 Δ평균| < 0.02 → '재현됨'(눌림은 발행 시점 입력/모델 신원의 성질),
+    |Δ| ≥ 0.02 → '미재현'(후보 원인 = 모델 신원 또는 당시 입력 열화 · 스냅샷 부재로 분리 불가).
+    ⚠ 승격 근거가 아니다(성능 레버 아님 · affects_model=False) — 배포 정합 진단이다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    delta = parsed.get("champion_delta")
+    if delta is None:
+        return "판정불가", "짝 표본 없음(champion 짝 Δ 없음)", None
+    delta = float(delta)
+    summ = parsed.get("summary") or {}
+    pub = summ.get("published_sample") or {}
+    row = (summ.get("rescored") or {}).get("champion") or {}
+    base = (f"짝 Δ(champion−발행) {delta:+.4f} · 표본 {parsed.get('n_sample_rows')}행 · "
+            f"발행 ≥{item.get('conf_ts', 0.55)} {pub.get('ge_055_pct')}% → 재채점 "
+            f"{row.get('ge_055_pct')}% · 실패 {parsed.get('n_failures')}")
+    if abs(delta) < 0.02:
+        return "재현됨", base + " → 발행 눌림이 현재 (모델·피처)로 재현됨", None
+    return "미재현", base + f" → {parsed.get('verdict_text')}", None
+
+
 def parse_metric_audit_pair(path, mtime_floor, arm_label=None, control_label=None) -> dict:
     """감사 프로토콜(승격 표준)의 **같은 런 짝** 파서 (CG171, 2026-10-11 자율).
 
@@ -2934,6 +3012,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
     kind = item.get("metric")
     if kind == "scale_regime_audit":
         return judge_scale_regime_audit(item, parsed)
+    if kind == "scale_bisect_probe":
+        return judge_scale_bisect_probe(item, parsed)
     if kind == "metric_audit_pair":
         return judge_metric_audit_pair(item, parsed)
     if kind == "protocol_noise_floor":

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-11T19:05:00+09:00",
+ "updated_at": "2026-10-11T20:09:34+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -14417,7 +14417,7 @@
   {
    "id": "CG175",
    "title": "[배포 스코어 압축·원인 이분] 10-02~10-08 전 종목 confidence 최대가 소비 문턱(0.55)에 한 행도 못 닿았다 — 모델 신원(173피처 배포 vs 193피처 후보) 문제인가 입력(피처 원천) 문제인가를 오프라인 재채점으로 가른다",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 1,
    "kind": "measurement_integrity",
    "owner": "engineer",
@@ -14431,15 +14431,32 @@
    "success": "① 같은 (종목, 날짜) 셋에서 두 모델의 재채점 분포를 내고 발행본과 짝 비교(평균·최대·문턱 도달률) ② 배포 champion 재채점이 발행본과 일치(±0.02)하면 '입력/파이프라인' 문제로, 불일치하면 '서빙 모델 신원' 문제로 원인을 확정 ③ 후보 재채점이 문턱 도달률을 회복하면 그 크기를 수치로 기록(승격 근거가 아니라 배포 정합 진단) ④ 결과를 CG162/CG163 승인 자료에 연결.",
    "setup_needed": "읽기 전용 프로브 `scripts/_cg163_scale_bisect.py` 신설 필요: ① `predictions`(운영 DB)에서 2026-10-02~2026-10-08 의 (code, prediction_date, confidence) 발행본을 읽고 ② 같은 (code, date) 셋을 `app/feature_engine` 파이프라인으로 재구성해 `app/models/champion`·`app/models/champion_cand_cg166` 두 앙상블로 각각 `predict` ③ 날짜별 평균·최대·≥0.55 도달률을 표로 출력(+ `data/reports/scale_bisect_20261011.json`). ⚠ 실주문·서빙 프로세스는 건드리지 않는다(읽기 전용·오프라인). 컨테이너에 스크립트를 넣고 `--out` 을 붙이면 metric 등록(신규 kind 또는 기존 `scale_regime_audit`)까지 후속.",
    "est_minutes": 40,
-   "metric": null,
-   "command": null,
+   "metric": "scale_bisect_probe",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/_cg163_scale_bisect.py --max-per-day 30 --out /app/app/reports/cg175_scale_bisect.json'",
    "created_at": "2026-10-11T18:03:41+09:00",
-   "note": "2026-10-11 18:0x 엔지니어 자율 — CG163 의 '자율 반쪽'을 독립 항목으로 승격(승인 대기 항목과 분리해 추적). ⚠ 착수 전 컨테이너 `timeout` 과 est_minutes 를 정합시켜라(신설 가드가 경고한다)."
+   "note": "2026-10-11 18:0x 엔지니어 자율 — CG163 의 '자율 반쪽'을 독립 항목으로 승격(승인 대기 항목과 분리해 추적). ⚠ 착수 전 컨테이너 `timeout` 과 est_minutes 를 정합시켜라(신설 가드가 경고한다). / 2026-10-11 20:0x 엔지니어 자율 — **setup 구현 완료**: 프로브 `scripts/_cg163_scale_bisect.py` 신설 + 구동기 metric kind `scale_bisect_probe` 등록(파서·판정·자체점검). needs_setup→pending. 자체 사전실행(5일·299행·실패 0·71초) 결과: 발행본 mean 0.05~0.08·max 0.23~0.29·≥0.55 0행 vs 같은 (종목,날짜) 재채점 champion mean 0.477·max 0.658·≥0.55 19.06% → **짝 Δ +0.332 · 발행 눌림은 현재 (모델·피처)로 재현되지 않는다.** cg166 재채점 mean 0.430·≥0.55 0행(문턱 회복 없음). 원인은 서빙 모델 신원 vs 당시 입력 열화 중 하나(스냅샷 부재로 분리 불가·CG165 원천 정지와 시점 겹침).",
+   "attempts": [
+    {
+     "ts": "2026-10-11T20:09:34+09:00",
+     "rc": 0,
+     "verdict": "미재현",
+     "detail": "짝 Δ(champion−발행) +0.3320 · 표본 299행 · 발행 ≥0.55 0.0% → 재채점 19.06% · 실패 0 → 발행본 미재현 — 재채점 champion 이 발행본과 뚜렷이 다르다(짝 Δ평균 +0.3320, |Δ|≥0.02). 후보 원인 = ①서빙 모델 신원(당시 다른 모델) ②당시 입력 피처 열화(원천 정지). 이 프로브만으로는 분리 불가(발행 시 features_used 스냅샷 없음). 참고: CG165 원천 정지(supply/financial/macro 09-30~10-08)와 시점이 겹친다.",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG175_20261011-200811.log",
+     "elapsed_min": 1.4
+    }
+   ],
+   "result": {
+    "verdict": "미재현",
+    "detail": "짝 Δ(champion−발행) +0.3320 · 표본 299행 · 발행 ≥0.55 0.0% → 재채점 19.06% · 실패 0 → 발행본 미재현 — 재채점 champion 이 발행본과 뚜렷이 다르다(짝 Δ평균 +0.3320, |Δ|≥0.02). 후보 원인 = ①서빙 모델 신원(당시 다른 모델) ②당시 입력 피처 열화(원천 정지). 이 프로브만으로는 분리 불가(발행 시 features_used 스냅샷 없음). 참고: CG165 원천 정지(supply/financial/macro 09-30~10-08)와 시점이 겹친다.",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG176",
    "title": "[측정정합성·돈 다리] 돈 게이트가 읽는 챔피언 robust_oos.json 이 6일 낡았다(10-05 값) — 같은 프로토콜로 재측정해 순기대 기준선의 신선도·동형성을 확인한다",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "kind": "measurement_integrity",
    "owner": "engineer",
@@ -14457,7 +14474,24 @@
    "est_minutes": 40,
    "setup_needed": null,
    "created_at": "2026-10-11T19:05:00+09:00",
-   "note": "2026-10-11 19:0x 엔지니어 자율(장외 틱) 신설 — CG170 셋업(감사 도구) 구현 직후 파생. ⚠ 승격 아님(측정정합성). ⚠ `--robust-oos-out` 을 **프로브 디렉터리**(app/models/cg176_champ_probe)로 지정해 champion/ 기록을 건드리지 않는다. metric_audit_pair 는 per_exp 를 만들지 않으므로 스코어보드 무개선 카운터를 오염시키지 않는다(CG171 설계)."
+   "note": "2026-10-11 19:0x 엔지니어 자율(장외 틱) 신설 — CG170 셋업(감사 도구) 구현 직후 파생. ⚠ 승격 아님(측정정합성). ⚠ `--robust-oos-out` 을 **프로브 디렉터리**(app/models/cg176_champ_probe)로 지정해 champion/ 기록을 건드리지 않는다. metric_audit_pair 는 per_exp 를 만들지 않으므로 스코어보드 무개선 카운터를 오염시키지 않는다(CG171 설계).",
+   "attempts": [
+    {
+     "ts": "2026-10-11T20:01:03+09:00",
+     "rc": 0,
+     "verdict": "대조 없음",
+     "detail": "단일 arm 런(champ) — 폴드 [0.576, 0.4852, 0.4241] 평균 0.4951 · 순기대 -0.1674%p(t -0.75) · 세션 87 · 짝 판정 불가(같은 런에 대조 arm 필요)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG176_20261011-200033.log",
+     "elapsed_min": 0.5
+    }
+   ],
+   "result": {
+    "verdict": "대조 없음",
+    "detail": "단일 arm 런(champ) — 폴드 [0.576, 0.4852, 0.4241] 평균 0.4951 · 순기대 -0.1674%p(t -0.75) · 세션 87 · 짝 판정 불가(같은 런에 대조 arm 필요)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   }
  ],
  "updated": "2026-10-11T06:37+09:00"
