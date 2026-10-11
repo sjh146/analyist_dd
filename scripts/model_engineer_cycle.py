@@ -40,6 +40,7 @@
 import argparse
 import json
 import os
+import re
 import statistics
 import subprocess
 import sys
@@ -562,6 +563,93 @@ def eta_blocks(item) -> tuple:
                       f"({mo.strftime('%m-%d %H:%M')}) 을 넘음 — 장중엔 트레이더·피드가 CPU 우선"
                       f" · est_minutes={est} · 마감(15:30) 후 틱에서 재시도")
     return False, ""
+
+
+# ── 컨테이너 `timeout` ↔ `est_minutes` 자기모순 가드 (2026-10-11 CG173 실측) ────────────
+# 왜: 백로그에 `est_minutes: 45`(2700s) 인데 명령은 `timeout 1800`(30분)이었다 — 스킬 교훈
+# "est_minutes 만 고치면 반쪽"이 **등록 단계에서** 재발해, 30분짜리 패널 빌드가 [c] 50/100일
+# 지점에서 SIGKILL(rc=124)로 소실됐다(체크포인트가 없어 재실행은 처음부터).
+# 대책 두 겹: ① 틱/현황이 pending 항목의 자기모순을 **경고**로 드러낸다(등록 실수 조기 발견)
+# ② execute() 가 필요 벽시계를 계산해 명령의 timeout 을 **올려서** 실행한다 — 내리는 방향은
+#    절대 하지 않는다(상한을 넓히는 것만 안전).
+_CMD_TIMEOUT_RE = re.compile(r"\btimeout\s+(\d+)\b")
+
+
+def command_timeout_seconds(command):
+    """명령에 박힌 컨테이너 `timeout N`(초) 중 **최대값**. 없으면 None.
+
+    따옴표·중첩 셸(`sh -c '... timeout 4500 python ...'`) 안이어도 텍스트 스캔으로 찾는다 —
+    파싱 실패를 조용히 None 으로 넘기면 이 가드가 있으나 마나다(못 잡은 항목만 조용히 잘린다).
+    """
+    if not command:
+        return None
+    vals = [int(m) for m in _CMD_TIMEOUT_RE.findall(str(command))]
+    return max(vals) if vals else None
+
+
+def required_timeout_seconds(est_minutes):
+    """est_minutes 로 본 필요 벽시계(초) = est×60×1.5 + 300.
+
+    1.5배인 이유(스킬 교훈): 같은 패널·같은 config 도 유휴 7s/cell, 경쟁 155s/cell 로 20배
+    차이가 난다 — 유휴 실측으로 타임아웃을 정하면 경쟁 구간에서 반드시 잘린다.
+    """
+    try:
+        est = float(est_minutes)
+    except (TypeError, ValueError):
+        return None
+    if est <= 0:
+        return None
+    return int(est * 60 * 1.5) + 300
+
+
+def widen_command_timeouts(command, seconds):
+    """`timeout N` 을 N < seconds 인 것만 seconds 로 올린다(내리지 않는다).
+
+    반환: (새 명령, [(이전, 이후), ...]) — 바뀐 값을 로그로 남기기 위해서다.
+    """
+    changed = []
+
+    def _sub(m):
+        cur = int(m.group(1))
+        if cur < seconds:
+            changed.append((cur, seconds))
+            return "timeout {0}".format(seconds)
+        return m.group(0)
+
+    return _CMD_TIMEOUT_RE.sub(_sub, command), changed
+
+
+def effective_command_for(item):
+    """(실행 명령, 상향내역, 원래 timeout, 필요 timeout) — execute() 가 쓰는 순수 함수.
+
+    로직을 순수 함수로 빼 두면 자체점검(_cmd_timeout_guard_test)이 컨테이너·부작용 없이
+    "명령의 timeout 이 실제로 올라가는가"를 검증할 수 있다(가드가 장식이 되는 것을 막는다).
+    """
+    cmd = (item or {}).get("command") or ""
+    t = command_timeout_seconds(cmd)
+    need = required_timeout_seconds((item or {}).get("est_minutes"))
+    if need and t is not None and t < need:
+        new_cmd, chg = widen_command_timeouts(cmd, need)
+        return new_cmd, chg, t, need
+    return cmd, [], t, need
+
+
+def timeout_selfcheck_warnings(items):
+    """pending 항목의 등록 자기모순을 경고 문자열 목록으로 돌려준다(읽기 전용)."""
+    out = []
+    for it in items or []:
+        if it.get("status") != "pending":
+            continue
+        est = it.get("est_minutes")
+        t = command_timeout_seconds(it.get("command"))
+        need = required_timeout_seconds(est)
+        if est and t is None:
+            out.append(f"{it.get('id')}: est_minutes={est:g} 인데 명령에 컨테이너 `timeout` 이 없다"
+                       f" — 벽시계 상한 미설정")
+        elif need and t is not None and t < need:
+            out.append(f"{it.get('id')}: 명령 timeout {t}s < est {est:g}분 기준 필요 {need}s"
+                       f" — 실행은 {need}s 로 올려서 돌리지만 **등록값도 고쳐라**")
+    return out
 
 
 def guards(force=False, item=None) -> tuple:
@@ -3205,11 +3293,25 @@ def execute(item, force=False):
 
     log(f"실행: {item['id']} — {item['title']}")
     log(f"로그: {run_log}")
+    # ── timeout 자기모순 자동 수리(2026-10-11 CG173) ─────────────────────────────────
+    # est_minutes 로 본 필요 벽시계보다 명령의 `timeout` 이 짧으면 **올려서** 실행한다.
+    # 등록값을 신뢰해 그대로 돌리면 진행률 90% 지점에서 SIGKILL 로 전부 잃는다(체크포인트 없음).
+    eff_command = item["command"]
+    _t = command_timeout_seconds(eff_command)
+    _need = required_timeout_seconds(item.get("est_minutes"))
+    if _need and _t is not None and _t < _need:
+        eff_command, _chg, _t, _need = effective_command_for(item)
+        log(f"⚠ timeout 자기모순 수리: 명령 timeout {_t}s < 필요 {_need}s "
+            f"(est_minutes={item.get('est_minutes')}) → {_chg} 로 상향")
+        log(f"  효과 명령: {eff_command}")
     with open(run_log, "w", encoding="utf-8") as lf:
         lf.write(f"# {item['id']} {item['title']}\n# started {started.isoformat()}\n"
-                 f"# command: {item['command']}\n\n")
+                 f"# command: {item['command']}\n")
+        if eff_command != item["command"]:
+            lf.write(f"# effective_command: {eff_command}\n")
+        lf.write("\n")
         lf.flush()
-        proc = subprocess.run(item["command"], shell=True, stdout=lf,
+        proc = subprocess.run(eff_command, shell=True, stdout=lf,
                               stderr=subprocess.STDOUT, cwd=PROJ)
     rc = proc.returncode
     cause = ""          # rc==0 이면 미설정 — 아래 재시도 분기가 참조하므로 초기화한다
@@ -3974,6 +4076,10 @@ def tick(force=False):
     #    next_item 은 `pending` 만 본다 → 승격 장치가 없으면 영원히 안 돈다(트레이더가 보고한
     #    handoffs_unfilled 13/16 의 정체). 틱당 1건씩 큐에 올리고 남은 수를 항상 보고한다.
     _hb = load_backlog()
+    # 등록 자기모순(est_minutes ↔ 명령 timeout)을 매 틱 드러낸다 — pending 이 있을 때만
+    # 출력되므로 조용한 틱을 오염시키지 않는다(2026-10-11 CG173 실측 후 추가).
+    for _w in timeout_selfcheck_warnings(_hb.get("items")):
+        print(f"  ⚠ 백로그 자기모순: {_w}")
     _promoted = promote_handoffs(_hb)
     if _promoted:
         save_backlog(_hb)
@@ -4125,6 +4231,8 @@ def status():
                 print(f"                 → {r.get('verdict')} {r.get('detail')}")
             else:
                 print(f"                 → {r}")
+    for _w in timeout_selfcheck_warnings(b.get("items")):
+        print(f"  ⚠ 백로그 자기모순: {_w}")
     pid = running_pid()
     print(f"실행 중: {pid if pid else '없음'}")
     led = load_ledger(5)

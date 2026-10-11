@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-10-11T16:04:52+09:00",
+ "updated_at": "2026-10-11T17:14:34+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -13427,10 +13427,10 @@
    "counterfactual": "현행(UNIVERSE_ASOF_DATE 미설정 = now−60) 유니버스",
    "success": "① UNIVERSE_ASOF_DATE 지정 시 서로 다른 프로세스·서로 다른 실행일에서 유니버스가 100% 동일 ② 미설정 시 종전과 비트 동일(무회귀) ③ 동결 후 재학습 2회의 학습 표본 교집합 100% ④ 자체점검 scripts/_universe_pin_test.py 전부 PASS",
    "command": "UNIVERSE_ASOF_DATE=2026-10-08 docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/_universe_pin_test.py",
-   "metric": "champion_robust_eval",
+   "metric": null,
    "est_minutes": 10,
    "setup_needed": "동결 수리 코드는 **완료**(services/xgboost-ml/app/training/universe.py::_default_date_from — UNIVERSE_ASOF_DATE 미설정이면 현행 비트 동일, 자체점검 7/7 PASS). 남은 것은 **운영 결정 = 유니버스 규칙 변경이라 리뷰보드 승인 대상**: ① .env 에 `UNIVERSE_ASOF_DATE=<고정일>` 추가(또는 재학습 크론 환경에 export) ② 더 강한 형태로는 고정 유니버스 목록을 산출물(json)로 커밋하고 학습·수집이 그것을 읽게 한다(CG141 수집 정합의 전제). 승인하면 내가 2줄 배선·회귀·커밋한다.",
-   "note": "2026-10-09 엔지니어 자율(장외 루프). 실측: eligible 2652(date_from 2026-08-09) vs 2657(2026-08-03) = 5종목 차이 → 같은 seed=0 선택 200종목 교집합 **26/200(87% 교체)**. date_from 을 같게 하면 200/200 완전 동일 → 원인은 날짜 하나뿐. panel_prod200(2026-10-02 빌드, --universe prod --end-date 2026-09-27)과 오늘 기본 유니버스의 교집합은 31/200, 빌드 당시 창(2026-08-03)으로 되돌려도 56/200 — 즉 **패널 유니버스는 오늘 DB 에서 재현되지 않는다**. 증거·재현: data/reports/universe_stability_probe_20261009.txt · scripts/_universe_stability_probe.py · scripts/_cg141_scope_probe.py. 회귀: _universe_determinism_test ALL PASS · _universe_mode_test 전부 PASS · _universe_pin_test 7/7 PASS. ⚠ 컨테이너에 pytest 모듈이 없어 스킬의 pytest 명령은 실행 불가(대신 위 3개 자체점검으로 검증). 이 항목은 새 성능 레버가 아니라 측정 정합성 수리다.",
+   "note": "2026-10-09 엔지니어 자율(장외 루프). 실측: eligible 2652(date_from 2026-08-09) vs 2657(2026-08-03) = 5종목 차이 → 같은 seed=0 선택 200종목 교집합 **26/200(87% 교체)**. date_from 을 같게 하면 200/200 완전 동일 → 원인은 날짜 하나뿐. panel_prod200(2026-10-02 빌드, --universe prod --end-date 2026-09-27)과 오늘 기본 유니버스의 교집합은 31/200, 빌드 당시 창(2026-08-03)으로 되돌려도 56/200 — 즉 **패널 유니버스는 오늘 DB 에서 재현되지 않는다**. 증거·재현: data/reports/universe_stability_probe_20261009.txt · scripts/_universe_stability_probe.py · scripts/_cg141_scope_probe.py. 회귀: _universe_determinism_test ALL PASS · _universe_mode_test 전부 PASS · _universe_pin_test 7/7 PASS. ⚠ 컨테이너에 pytest 모듈이 없어 스킬의 pytest 명령은 실행 불가(대신 위 3개 자체점검으로 검증). 이 항목은 새 성능 레버가 아니라 측정 정합성 수리다. (metric 등록 정정: 이 항목의 증거는 자체검증·교집합 실측이고 champion_robust_eval 산출물이 아니다 — `_summary_path_test` 가 '실행 항목이 기본 산출물을 덮는가'를 검사하므로 등록 오류를 정정한다. 착수 시 ③ 재학습 2회 교집합을 JSON 으로 내는 스크립트 + `--out` 배선 필수.)",
    "attempts": []
   },
   {
@@ -14314,7 +14314,7 @@
   {
    "id": "CG173",
    "title": "[검증·분산 분해] CG171 짝 Δ_auc +0.0333(폴드 std비 0.18)이 '안정한 우위'인가 '분산 축소 산물'인가 — 폴드 수를 5→10 으로 늘린 같은 런 2-arm 재측정",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "verify",
    "owner": "engineer",
@@ -14331,12 +14331,65 @@
    "est_minutes": 45,
    "setup_needed": null,
    "metric": "metric_audit_pair",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/model_metric_protocol_audit.py --models \"[[\\\"cg166\\\",\\\"app/models/champion_cand_cg166\\\"],[\\\"champ\\\",\\\"app/models/champion\\\"]]\" --topk 3 --folds 10 --dates-per-fold 10 --stocks 80 --horizon 5 --label-kind rel --out /app/app/reports/cg173_audit_pair_10f.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 4500 python -u scripts/model_metric_protocol_audit.py --models \"[[\\\"cg166\\\",\\\"app/models/champion_cand_cg166\\\"],[\\\"champ\\\",\\\"app/models/champion\\\"]]\" --topk 3 --folds 10 --dates-per-fold 10 --stocks 80 --horizon 5 --label-kind rel --out /app/app/reports/cg173_audit_pair_10f.json'",
    "arm_label": "cg166",
    "control_label": "champ",
    "threshold": 0.02,
    "created_at": "2026-10-11T07:10:30+09:00",
-   "note": "2026-10-11 07:0x 엔지니어 자율 — CG171 실측 직후 등록. ⚠ 폴드를 늘려 실제 채택되는 창 수가 몇 개인지는 산출물의 folds 길이로 확인한다(구간이 학습창과 겹치면 자동 제외된다 — CG168 은 folds=5 요청에 3창만 채택)."
+   "note": "2026-10-11 07:0x 엔지니어 자율 — CG171 실측 직후 등록. ⚠ 폴드를 늘려 실제 채택되는 창 수가 몇 개인지는 산출물의 folds 길이로 확인한다(구간이 학습창과 겹치면 자동 제외된다 — CG168 은 folds=5 요청에 3창만 채택). | 2026-10-11 17:0x 자율 — rc=124 진단(로그 꼬리): 패널 캐시 MISS 로 [b] 100일×80종목 빌드에 1507s 를 쓰고 [c] 50/100일(170s) 지점에서 container `timeout 1800`(=30분)에 SIGKILL. 등록 당시 이미 **est_minutes 45분(2700s) > timeout 1800s** 라는 자기모순이 있었다(스킬 교훈 'est_minutes 만 고치면 반쪽' 재발). 수리: timeout 1800→4500(75분)·est_minutes 45 유지. 재기동 시 [a]/[b] 패널 캐시 HIT(sig v1_10-10-80-5-rel-3_2026-10-08_3123894 동일) → 실소요 ~7분 예상, [c] 후보 패널만 MISS.(그리드가 캐시 서명에 들어가 folds 변경 시 재빌드 — 별도 개선 후보.)",
+   "attempts": [
+    {
+     "ts": "2026-10-11T16:36:23+09:00",
+     "rc": 124,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — timeout(124) — 작업이 타임아웃을 초과(진행률 대비 타임아웃이 짧았는지 확인하라)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG173_20261011-160623.log",
+     "elapsed_min": 30.0
+    },
+    {
+     "ts": "2026-10-11T17:07:52+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm cg166 vs 대조 champ · 같은 런(10폴드×10일 · 80종목 · top3) · 짝 Δ폴드 [-0.1028 -0.0692 -0.0054 +0.0252 -0.1509 +0.1630 +0.0488] 평균 -0.0130(승률 0.429, std비 0.61) · AUC Δ(보고값) -0.0131 · 순기대 arm +0.0159%p(t 0.09) vs 대조 -0.1674%p(t -0.75) Δ +0.1833 · 세션 87 · 분할 arm unstable [-0.1598, 0.1877] · 짝(같은 세션) Δ +0.1833%p t 0.69 (양 46/음 40) 분할 unstable 폴드 {'1': '5/9', '2': '5/8', '3': '5/9', '4': '0/9', '5': '7/9', '6': '5/8', '7': '4/9', '8': '6/9', '9': '4/8', '10': '5/9'} · 사전문턱[짝]: Δ_auc≥+0.02 AND arm>0 AND Δ≥+0.1%p AND 분할 both_positive → AUC 미달 / 돈 미달 → 사전등록 미충족",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG173_20261011-170249.log",
+     "elapsed_min": 5.0
+    }
+   ],
+   "retry_note": "2026-10-11T16:36:23+09:00 rc=124 소실 → 재시도 1/3 (체크포인트 재개)",
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm cg166 vs 대조 champ · 같은 런(10폴드×10일 · 80종목 · top3) · 짝 Δ폴드 [-0.1028 -0.0692 -0.0054 +0.0252 -0.1509 +0.1630 +0.0488] 평균 -0.0130(승률 0.429, std비 0.61) · AUC Δ(보고값) -0.0131 · 순기대 arm +0.0159%p(t 0.09) vs 대조 -0.1674%p(t -0.75) Δ +0.1833 · 세션 87 · 분할 arm unstable [-0.1598, 0.1877] · 짝(같은 세션) Δ +0.1833%p t 0.69 (양 46/음 40) 분할 unstable 폴드 {'1': '5/9', '2': '5/8', '3': '5/9', '4': '0/9', '5': '7/9', '6': '5/8', '7': '4/9', '8': '6/9', '9': '4/8', '10': '5/9'} · 사전문턱[짝]: Δ_auc≥+0.02 AND arm>0 AND Δ≥+0.1%p AND 분할 both_positive → AUC 미달 / 돈 미달 → 사전등록 미충족",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG174",
+   "title": "[검증·격자 분해] CG171(+0.0333, 3창·50일) → CG173(−0.0130, 7창·100일) 뒤바뀜의 원인 분해 — 창 '수'를 늘린 것인가 창 '구성(격자)'을 바꾼 것인가 (5폴드×20일 = 같은 100일)",
+   "status": "pending",
+   "priority": 1,
+   "kind": "verify",
+   "owner": "engineer",
+   "affects_model": false,
+   "from_experiment": "CG173",
+   "arm": "champion_cand_cg166 vs 배포 champion — 같은 런 동시 채점(5폴드×20일 = 100일 요청)",
+   "counterfactual": "같은 런의 배포 champion(2-arm 동시 채점 = 짝)",
+   "baseline": "CG173 실측(10폴드×10일 = 100일 요청 → 7창 채택): 짝 Δ폴드 [-0.1028 -0.0692 -0.0054 +0.0252 -0.1509 +0.1630 +0.0488] 평균 **-0.0130**(승률 0.429·std비 0.61) · cg166 robust 0.4931 vs champ 0.5062. CG171(5폴드×10일 = 50일 → 3창): Δ +0.0333(승률 0.667·std비 0.18) · cg166 0.5284 vs champ 0.4951. → **같은 arm 쌍·같은 80종목·같은 앵커**에서 격자만 바꾸면 Δ 부호가 뒤바뀐다(스프레드 0.046 > 사전문턱 +0.02).",
+   "hypothesis": "두 격자는 요청 일수를 늘린 것(CG173)과 폴드 폭을 늘린 것(CG174)이 다르다 — CG174 는 **같은 100일 요청을 5폴드×20일**로 잘라, 창 수를 늘리되 격자 구조는 5폴드로 유지한다. 만약 CG174 도 Δ < +0.02 면 '창이 3개뿐이라 불안정했다'가 아니라 **CG166 의 우위 자체가 창 구성에 따라 소멸**하는 것이므로 승격 후보 근거가 사라진다(축 종결 강화). 반대로 CG174 가 +0.02 를 회복하면 10폴드 격자 특이 아티팩트가 의심되므로 격자 2종 필수 규칙의 근거가 된다. 어느 쪽이든 '격자 민감도 vs 사전문턱'을 돈 지표와 함께 수치로 남긴다.",
+   "evidence": "2026-10-11 17:0x 엔지니어 자율 — CG173(rc=124 timeout) 수리 후 재실행에서 드러남: 등록값 timeout 1800s < est_minutes 45분(2700s) 자기모순으로 30분 지점 소실 → timeout 4500s 로 상향해 5분에 완주(패널 캐시 HIT: [a]/[b]). 그 실측이 CG171 의 +0.0333 을 뒤집었다. 구동기에 timeout↔est 자기모순 가드(경고+실행시 상향) 추가.",
+   "success": "① CG174(5폴드×20일) 짝 Δ 평균 ≥ +0.02 AND 폴드 승률 ≥ 0.6 → '창 수 부족이 원인' 으로 기록하고 격자 2종(100일 요청) 평균을 승격 검토용 표준 증거로 올린다(게이트 변경은 승인 대상). ② Δ < +0.02 이거나 승률 < 0.6 → 'CG166 우위는 창 구성 특이(잡음)' 로 CG166 축을 최종 종결하고, 그 근거를 돈 지표와 함께 남긴다. ③ 두 격자(5×20 · 10×10)의 Δ 스프레드 ≥ +0.02 → '격자 민감도 > 사전문턱' 을 CG156(잡음바닥 승인) 자료로 넘긴다. ④ 모든 경우에 폴드별 Δ·std·승률과 c_net_expectancy 짝 Δ(t·분할표본)를 원장에 남긴다(승격 근거 아님).",
+   "expected": "승격 판정의 잡음원이 '창 수'인지 '창 구성'인지 분리 — 남은 승격 후보(cg166)의 근거 유무가 여기서 결정된다.",
+   "cost": "감사 1런: folds=5·dates-per-fold=20 은 새 캐시 서명(v1_5-20-...) → 자체 패널 빌드 ~25분 + [c] 후보 패널 ~5분. 장외 창.",
+   "est_minutes": 60,
+   "setup_needed": null,
+   "metric": "metric_audit_pair",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 6000 python -u scripts/model_metric_protocol_audit.py --models \"[[\\\"cg166\\\",\\\"app/models/champion_cand_cg166\\\"],[\\\"champ\\\",\\\"app/models/champion\\\"]]\" --topk 3 --folds 5 --dates-per-fold 20 --stocks 80 --horizon 5 --label-kind rel --out /app/app/reports/cg174_audit_pair_5f20d.json'",
+   "arm_label": "cg166",
+   "control_label": "champ",
+   "threshold": 0.02,
+   "created_at": "2026-10-11T17:14:22+09:00",
+   "note": "2026-10-11 17:3x 엔지니어 자율 — CG173 완주 직후 등록. ⚠ folds=5·dates-per-fold=10(3창) 캐시와 folds=10·dates-per-fold=10(7창, CG173) 캐시는 이미 존재하므로, 이 런 하나로 3격자 비교가 완성된다(비교표는 산출물 3개에서 읽는다). 컨테이너 timeout 6000s 는 est 60분 기준 필요치(5700s)와 정합 — 신설한 timeout↔est 가드가 경고하지 않는 등록이다. | 2026-10-11 17:1x 자율 — **등록 실수 정정**: 첫 등록에서 `--models` JSON 의 백슬래시를 한 단계 더 이스케이프해 컨테이너 파이썬이 `ValueError: not enough values to unpack` 로 즉사했다(rc=1). 가설·성공기준의 실패가 아니라 명령 문자열 오류라 attempts/result 를 지우고 pending 으로 되돌린다 — 명령은 CG173 실명령에서 timeout·folds·--out 만 치환해 quoting 을 비트 동일하게 맞췄다(교훈: 새 항목의 command 는 **동작이 확인된 항목에서 치환**해 만드는 것이 안전하다)."
   }
  ],
  "updated": "2026-10-11T06:37+09:00"
