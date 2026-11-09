@@ -1,0 +1,1994 @@
+{
+ "probe": "cg177_stale_input_ab",
+ "model": "champion",
+ "model_dir": "/app/app/models/champion",
+ "dates": [
+  "2026-10-02",
+  "2026-10-05",
+  "2026-10-06",
+  "2026-10-07",
+  "2026-10-08"
+ ],
+ "max_per_day": 30,
+ "conf_ts": 0.55,
+ "stale_source_cols": {
+  "supply_market_features": [
+   "bb_position",
+   "days_to_cover",
+   "foreign_net_buy",
+   "foreign_net_buy_5d",
+   "foreign_ownership_pct",
+   "institution_net_buy",
+   "institution_net_buy_5d",
+   "institution_ownership_pct",
+   "krx_advance_decline_ratio",
+   "krx_total_trading_value",
+   "market_impact_score",
+   "momentum_3_12m",
+   "momentum_ni",
+   "momentum_op",
+   "relative_strength",
+   "retail_ownership_pct",
+   "short_interest_ratio",
+   "short_selling_ratio"
+  ],
+  "financial_ratio_features": [
+   "pbr_current",
+   "per_current",
+   "quality_asset_growth",
+   "quality_cp_to_assets",
+   "quality_debt_ratio_change",
+   "quality_earnings_volatility",
+   "quality_f_score",
+   "quality_op_growth",
+   "quality_op_to_equity",
+   "quality_roa",
+   "quality_roe",
+   "roe",
+   "value_ev_ebit",
+   "value_ncav",
+   "value_pbr",
+   "value_pcr",
+   "value_per",
+   "value_pfcr",
+   "value_psr"
+  ],
+  "macro_features": [
+   "cpi_yoy",
+   "cycle_down",
+   "cycle_up",
+   "economic_event_count_7d",
+   "economic_event_impact",
+   "fx_change_1m",
+   "fx_change_3m",
+   "fx_usd_krw",
+   "interest_rate",
+   "interest_rate_change_1m",
+   "interest_rate_change_3m",
+   "oil_change_1m",
+   "oil_change_3m",
+   "oil_wti",
+   "ppi_yoy",
+   "yield_spread"
+  ]
+ },
+ "n_stale_cols": 53,
+ "n_model_feats": 173,
+ "published_dist": {
+  "2026-10-02": {
+   "n": 4343,
+   "mean": 0.0682,
+   "max": 0.291,
+   "p90": 0.1335,
+   "ge_055": 0,
+   "ge_055_pct": 0.0
+  },
+  "2026-10-05": {
+   "n": 4343,
+   "mean": 0.0637,
+   "max": 0.2277,
+   "p90": 0.1587,
+   "ge_055": 0,
+   "ge_055_pct": 0.0
+  },
+  "2026-10-06": {
+   "n": 4343,
+   "mean": 0.0512,
+   "max": 0.2445,
+   "p90": 0.1019,
+   "ge_055": 0,
+   "ge_055_pct": 0.0
+  },
+  "2026-10-07": {
+   "n": 4343,
+   "mean": 0.0557,
+   "max": 0.2941,
+   "p90": 0.1139,
+   "ge_055": 0,
+   "ge_055_pct": 0.0
+  },
+  "2026-10-08": {
+   "n": 4343,
+   "mean": 0.0772,
+   "max": 0.2809,
+   "p90": 0.1434,
+   "ge_055": 0,
+   "ge_055_pct": 0.0
+  }
+ },
+ "sample": {
+  "2026-10-02": [
+   {
+    "code": "950220",
+    "published": 0.291,
+    "fresh": 0.4101,
+    "zeroed": 0.4101
+   },
+   {
+    "code": "006370",
+    "published": 0.2716,
+    "fresh": 0.572,
+    "zeroed": 0.5676
+   },
+   {
+    "code": "104200",
+    "published": 0.2686,
+    "fresh": 0.5594,
+    "zeroed": 0.5586
+   },
+   {
+    "code": "012330",
+    "published": 0.2633,
+    "fresh": 0.5678,
+    "zeroed": 0.5606
+   },
+   {
+    "code": "151910",
+    "published": 0.2494,
+    "fresh": 0.5192,
+    "zeroed": 0.5234
+   },
+   {
+    "code": "267260",
+    "published": 0.2427,
+    "fresh": 0.5662,
+    "zeroed": 0.5604
+   },
+   {
+    "code": "006650",
+    "published": 0.2403,
+    "fresh": 0.495,
+    "zeroed": 0.4969
+   },
+   {
+    "code": "127120",
+    "published": 0.2382,
+    "fresh": 0.4063,
+    "zeroed": 0.4183
+   },
+   {
+    "code": "468760",
+    "published": 0.2345,
+    "fresh": 0.3663,
+    "zeroed": 0.3663
+   },
+   {
+    "code": "126640",
+    "published": 0.2336,
+    "fresh": 0.4682,
+    "zeroed": 0.4633
+   },
+   {
+    "code": "102780",
+    "published": 0.2287,
+    "fresh": 0.5654,
+    "zeroed": 0.5654
+   },
+   {
+    "code": "033560",
+    "published": 0.2274,
+    "fresh": 0.4964,
+    "zeroed": 0.4868
+   },
+   {
+    "code": "475660",
+    "published": 0.225,
+    "fresh": 0.5246,
+    "zeroed": 0.5184
+   },
+   {
+    "code": "058730",
+    "published": 0.2216,
+    "fresh": 0.4434,
+    "zeroed": 0.4459
+   },
+   {
+    "code": "010060",
+    "published": 0.2184,
+    "fresh": 0.5344,
+    "zeroed": 0.5322
+   },
+   {
+    "code": "019210",
+    "published": 0.2168,
+    "fresh": 0.584,
+    "zeroed": 0.5817
+   },
+   {
+    "code": "005850",
+    "published": 0.2164,
+    "fresh": 0.6072,
+    "zeroed": 0.6027
+   },
+   {
+    "code": "018260",
+    "published": 0.2156,
+    "fresh": 0.4323,
+    "zeroed": 0.4252
+   },
+   {
+    "code": "099520",
+    "published": 0.2156,
+    "fresh": 0.3827,
+    "zeroed": 0.3685
+   },
+   {
+    "code": "005930",
+    "published": 0.2154,
+    "fresh": 0.5036,
+    "zeroed": 0.4807
+   },
+   {
+    "code": "101140",
+    "published": 0.2151,
+    "fresh": 0.5411,
+    "zeroed": 0.5356
+   },
+   {
+    "code": "174880",
+    "published": 0.2143,
+    "fresh": 0.5658,
+    "zeroed": 0.5697
+   },
+   {
+    "code": "141000",
+    "published": 0.2133,
+    "fresh": 0.4744,
+    "zeroed": 0.4804
+   },
+   {
+    "code": "0123G0",
+    "published": 0.2118,
+    "fresh": 0.44,
+    "zeroed": 0.44
+   },
+   {
+    "code": "000760",
+    "published": 0.2116,
+    "fresh": 0.4809,
+    "zeroed": 0.4772
+   },
+   {
+    "code": "417180",
+    "published": 0.2101,
+    "fresh": 0.3901,
+    "zeroed": 0.39
+   },
+   {
+    "code": "109740",
+    "published": 0.2086,
+    "fresh": 0.5006,
+    "zeroed": 0.4886
+   },
+   {
+    "code": "361610",
+    "published": 0.2073,
+    "fresh": 0.4441,
+    "zeroed": 0.4443
+   },
+   {
+    "code": "053160",
+    "published": 0.2065,
+    "fresh": 0.4243,
+    "zeroed": 0.4247
+   },
+   {
+    "code": "359210",
+    "published": 0.206,
+    "fresh": 0.5636,
+    "zeroed": 0.5636
+   },
+   {
+    "code": "000020",
+    "published": 0.1094,
+    "fresh": 0.4639,
+    "zeroed": 0.4548
+   },
+   {
+    "code": "0018C0",
+    "published": 0.0079,
+    "fresh": 0.4227,
+    "zeroed": 0.4227
+   },
+   {
+    "code": "004415",
+    "published": 0.105,
+    "fresh": 0.3975,
+    "zeroed": 0.3975
+   },
+   {
+    "code": "007120",
+    "published": 0.1188,
+    "fresh": 0.4073,
+    "zeroed": 0.4073
+   },
+   {
+    "code": "010580",
+    "published": 0.1766,
+    "fresh": 0.353,
+    "zeroed": 0.3525
+   },
+   {
+    "code": "014915",
+    "published": 0.0767,
+    "fresh": 0.4835,
+    "zeroed": 0.4835
+   },
+   {
+    "code": "0194R0",
+    "published": 0.1624,
+    "fresh": 0.4988,
+    "zeroed": 0.4988
+   },
+   {
+    "code": "025900",
+    "published": 0.0626,
+    "fresh": 0.5542,
+    "zeroed": 0.5556
+   },
+   {
+    "code": "036690",
+    "published": 0.14,
+    "fresh": 0.3717,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "048530",
+    "published": 0.066,
+    "fresh": 0.4525,
+    "zeroed": 0.4528
+   },
+   {
+    "code": "060590",
+    "published": 0.027,
+    "fresh": 0.5899,
+    "zeroed": 0.5785
+   },
+   {
+    "code": "074600",
+    "published": 0.0496,
+    "fresh": 0.528,
+    "zeroed": 0.529
+   },
+   {
+    "code": "090430",
+    "published": 0.1559,
+    "fresh": 0.4101,
+    "zeroed": 0.3969
+   },
+   {
+    "code": "128940",
+    "published": 0.0912,
+    "fresh": 0.422,
+    "zeroed": 0.3969
+   },
+   {
+    "code": "159580",
+    "published": 0.0931,
+    "fresh": 0.5116,
+    "zeroed": 0.5114
+   },
+   {
+    "code": "203780",
+    "published": 0.0423,
+    "fresh": 0.3887,
+    "zeroed": 0.3887
+   },
+   {
+    "code": "228760",
+    "published": 0.0618,
+    "fresh": 0.5355,
+    "zeroed": 0.5363
+   },
+   {
+    "code": "261060",
+    "published": 0.0524,
+    "fresh": 0.5009,
+    "zeroed": 0.5009
+   },
+   {
+    "code": "287840",
+    "published": 0.1388,
+    "fresh": 0.5892,
+    "zeroed": 0.5866
+   },
+   {
+    "code": "314130",
+    "published": 0.0351,
+    "fresh": 0.4252,
+    "zeroed": 0.4327
+   },
+   {
+    "code": "352940",
+    "published": 0.0897,
+    "fresh": 0.4944,
+    "zeroed": 0.492
+   },
+   {
+    "code": "384470",
+    "published": 0.0734,
+    "fresh": 0.515,
+    "zeroed": 0.5081
+   },
+   {
+    "code": "418620",
+    "published": 0.0021,
+    "fresh": 0.4685,
+    "zeroed": 0.4757
+   },
+   {
+    "code": "448290",
+    "published": 0.0701,
+    "fresh": 0.3996,
+    "zeroed": 0.3996
+   },
+   {
+    "code": "461450",
+    "published": 0.004,
+    "fresh": 0.5863,
+    "zeroed": 0.5863
+   },
+   {
+    "code": "475430",
+    "published": 0.0735,
+    "fresh": 0.5434,
+    "zeroed": 0.5346
+   },
+   {
+    "code": "491010",
+    "published": 0.1179,
+    "fresh": 0.5489,
+    "zeroed": 0.5489
+   },
+   {
+    "code": "Q520088",
+    "published": 0.0914,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "Q580033",
+    "published": 0.0914,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   }
+  ],
+  "2026-10-05": [
+   {
+    "code": "106080",
+    "published": 0.2277,
+    "fresh": 0.6449,
+    "zeroed": 0.6452
+   },
+   {
+    "code": "053270",
+    "published": 0.221,
+    "fresh": 0.3869,
+    "zeroed": 0.3836
+   },
+   {
+    "code": "342870",
+    "published": 0.2173,
+    "fresh": 0.5289,
+    "zeroed": 0.5289
+   },
+   {
+    "code": "950220",
+    "published": 0.2122,
+    "fresh": 0.4101,
+    "zeroed": 0.4101
+   },
+   {
+    "code": "151910",
+    "published": 0.2085,
+    "fresh": 0.5192,
+    "zeroed": 0.5234
+   },
+   {
+    "code": "068790",
+    "published": 0.208,
+    "fresh": 0.4462,
+    "zeroed": 0.4358
+   },
+   {
+    "code": "101140",
+    "published": 0.2056,
+    "fresh": 0.5411,
+    "zeroed": 0.5356
+   },
+   {
+    "code": "373170",
+    "published": 0.1992,
+    "fresh": 0.4608,
+    "zeroed": 0.4607
+   },
+   {
+    "code": "288330",
+    "published": 0.1989,
+    "fresh": 0.569,
+    "zeroed": 0.569
+   },
+   {
+    "code": "348080",
+    "published": 0.196,
+    "fresh": 0.3865,
+    "zeroed": 0.3882
+   },
+   {
+    "code": "357430",
+    "published": 0.1952,
+    "fresh": 0.3482,
+    "zeroed": 0.3461
+   },
+   {
+    "code": "145210",
+    "published": 0.1951,
+    "fresh": 0.5959,
+    "zeroed": 0.6036
+   },
+   {
+    "code": "071090",
+    "published": 0.1944,
+    "fresh": 0.4785,
+    "zeroed": 0.4654
+   },
+   {
+    "code": "017670",
+    "published": 0.1939,
+    "fresh": 0.5651,
+    "zeroed": 0.5469
+   },
+   {
+    "code": "000760",
+    "published": 0.1925,
+    "fresh": 0.4809,
+    "zeroed": 0.4772
+   },
+   {
+    "code": "322510",
+    "published": 0.1924,
+    "fresh": 0.5557,
+    "zeroed": 0.5314
+   },
+   {
+    "code": "277410",
+    "published": 0.1909,
+    "fresh": 0.4943,
+    "zeroed": 0.49
+   },
+   {
+    "code": "064090",
+    "published": 0.189,
+    "fresh": 0.6559,
+    "zeroed": 0.6548
+   },
+   {
+    "code": "464580",
+    "published": 0.1883,
+    "fresh": 0.5238,
+    "zeroed": 0.5205
+   },
+   {
+    "code": "172670",
+    "published": 0.1846,
+    "fresh": 0.4938,
+    "zeroed": 0.4958
+   },
+   {
+    "code": "232140",
+    "published": 0.1846,
+    "fresh": 0.4911,
+    "zeroed": 0.4925
+   },
+   {
+    "code": "049180",
+    "published": 0.1839,
+    "fresh": 0.4965,
+    "zeroed": 0.5034
+   },
+   {
+    "code": "011000",
+    "published": 0.1832,
+    "fresh": 0.6537,
+    "zeroed": 0.6459
+   },
+   {
+    "code": "373160",
+    "published": 0.1831,
+    "fresh": 0.5045,
+    "zeroed": 0.4999
+   },
+   {
+    "code": "291230",
+    "published": 0.1817,
+    "fresh": 0.459,
+    "zeroed": 0.4582
+   },
+   {
+    "code": "080580",
+    "published": 0.1813,
+    "fresh": 0.5026,
+    "zeroed": 0.4994
+   },
+   {
+    "code": "020760",
+    "published": 0.1811,
+    "fresh": 0.3605,
+    "zeroed": 0.359
+   },
+   {
+    "code": "468760",
+    "published": 0.1808,
+    "fresh": 0.3663,
+    "zeroed": 0.3663
+   },
+   {
+    "code": "009440",
+    "published": 0.1802,
+    "fresh": 0.3908,
+    "zeroed": 0.3861
+   },
+   {
+    "code": "012205",
+    "published": 0.1796,
+    "fresh": 0.5164,
+    "zeroed": 0.5164
+   },
+   {
+    "code": "000020",
+    "published": 0.0839,
+    "fresh": 0.4639,
+    "zeroed": 0.4548
+   },
+   {
+    "code": "0018C0",
+    "published": 0.0006,
+    "fresh": 0.414,
+    "zeroed": 0.414
+   },
+   {
+    "code": "004415",
+    "published": 0.0201,
+    "fresh": 0.3975,
+    "zeroed": 0.3975
+   },
+   {
+    "code": "007120",
+    "published": 0.1187,
+    "fresh": 0.4073,
+    "zeroed": 0.4073
+   },
+   {
+    "code": "010580",
+    "published": 0.0606,
+    "fresh": 0.353,
+    "zeroed": 0.3525
+   },
+   {
+    "code": "014915",
+    "published": 0.0149,
+    "fresh": 0.4835,
+    "zeroed": 0.4835
+   },
+   {
+    "code": "0194R0",
+    "published": 0.0252,
+    "fresh": 0.5006,
+    "zeroed": 0.5006
+   },
+   {
+    "code": "025900",
+    "published": 0.0045,
+    "fresh": 0.5542,
+    "zeroed": 0.5556
+   },
+   {
+    "code": "036690",
+    "published": 0.176,
+    "fresh": 0.3717,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "048530",
+    "published": 0.0715,
+    "fresh": 0.4525,
+    "zeroed": 0.4528
+   },
+   {
+    "code": "060590",
+    "published": 0.0615,
+    "fresh": 0.5899,
+    "zeroed": 0.5785
+   },
+   {
+    "code": "074600",
+    "published": 0.0371,
+    "fresh": 0.528,
+    "zeroed": 0.529
+   },
+   {
+    "code": "090430",
+    "published": 0.0233,
+    "fresh": 0.4101,
+    "zeroed": 0.3969
+   },
+   {
+    "code": "104200",
+    "published": 0.0682,
+    "fresh": 0.5594,
+    "zeroed": 0.5586
+   },
+   {
+    "code": "128940",
+    "published": 0.1205,
+    "fresh": 0.422,
+    "zeroed": 0.3969
+   },
+   {
+    "code": "159580",
+    "published": 0.0339,
+    "fresh": 0.5116,
+    "zeroed": 0.5114
+   },
+   {
+    "code": "203780",
+    "published": 0.0396,
+    "fresh": 0.3758,
+    "zeroed": 0.3758
+   },
+   {
+    "code": "228760",
+    "published": 0.0625,
+    "fresh": 0.5355,
+    "zeroed": 0.5363
+   },
+   {
+    "code": "261060",
+    "published": 0.0527,
+    "fresh": 0.504,
+    "zeroed": 0.504
+   },
+   {
+    "code": "287840",
+    "published": 0.1106,
+    "fresh": 0.5892,
+    "zeroed": 0.5866
+   },
+   {
+    "code": "314130",
+    "published": 0.0283,
+    "fresh": 0.4252,
+    "zeroed": 0.4327
+   },
+   {
+    "code": "352940",
+    "published": 0.0901,
+    "fresh": 0.4944,
+    "zeroed": 0.492
+   },
+   {
+    "code": "384470",
+    "published": 0.1041,
+    "fresh": 0.515,
+    "zeroed": 0.5081
+   },
+   {
+    "code": "418620",
+    "published": 0.0385,
+    "fresh": 0.4685,
+    "zeroed": 0.4757
+   },
+   {
+    "code": "448290",
+    "published": 0.0288,
+    "fresh": 0.4048,
+    "zeroed": 0.4048
+   },
+   {
+    "code": "461450",
+    "published": 0.0309,
+    "fresh": 0.5839,
+    "zeroed": 0.5839
+   },
+   {
+    "code": "475430",
+    "published": 0.0403,
+    "fresh": 0.5434,
+    "zeroed": 0.5346
+   },
+   {
+    "code": "491010",
+    "published": 0.0355,
+    "fresh": 0.5523,
+    "zeroed": 0.5523
+   },
+   {
+    "code": "Q520088",
+    "published": 0.1691,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "Q580033",
+    "published": 0.1691,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   }
+  ],
+  "2026-10-06": [
+   {
+    "code": "053160",
+    "published": 0.2445,
+    "fresh": 0.4773,
+    "zeroed": 0.4754
+   },
+   {
+    "code": "189330",
+    "published": 0.2375,
+    "fresh": 0.5016,
+    "zeroed": 0.4979
+   },
+   {
+    "code": "196490",
+    "published": 0.2276,
+    "fresh": 0.6117,
+    "zeroed": 0.612
+   },
+   {
+    "code": "046070",
+    "published": 0.2228,
+    "fresh": 0.5271,
+    "zeroed": 0.5224
+   },
+   {
+    "code": "230980",
+    "published": 0.2228,
+    "fresh": 0.5371,
+    "zeroed": 0.5372
+   },
+   {
+    "code": "151910",
+    "published": 0.2228,
+    "fresh": 0.5192,
+    "zeroed": 0.5234
+   },
+   {
+    "code": "348950",
+    "published": 0.2223,
+    "fresh": 0.57,
+    "zeroed": 0.5729
+   },
+   {
+    "code": "194480",
+    "published": 0.2216,
+    "fresh": 0.4216,
+    "zeroed": 0.4077
+   },
+   {
+    "code": "064090",
+    "published": 0.2133,
+    "fresh": 0.6559,
+    "zeroed": 0.6548
+   },
+   {
+    "code": "106080",
+    "published": 0.2113,
+    "fresh": 0.6449,
+    "zeroed": 0.6452
+   },
+   {
+    "code": "102280",
+    "published": 0.2068,
+    "fresh": 0.532,
+    "zeroed": 0.5303
+   },
+   {
+    "code": "023440",
+    "published": 0.2054,
+    "fresh": 0.4741,
+    "zeroed": 0.4769
+   },
+   {
+    "code": "052770",
+    "published": 0.204,
+    "fresh": 0.4477,
+    "zeroed": 0.451
+   },
+   {
+    "code": "036630",
+    "published": 0.2023,
+    "fresh": 0.4511,
+    "zeroed": 0.4393
+   },
+   {
+    "code": "115530",
+    "published": 0.202,
+    "fresh": 0.3002,
+    "zeroed": 0.2997
+   },
+   {
+    "code": "010600",
+    "published": 0.202,
+    "fresh": 0.478,
+    "zeroed": 0.4796
+   },
+   {
+    "code": "222810",
+    "published": 0.2,
+    "fresh": 0.5341,
+    "zeroed": 0.5242
+   },
+   {
+    "code": "473640",
+    "published": 0.1984,
+    "fresh": 0.4385,
+    "zeroed": 0.4385
+   },
+   {
+    "code": "412540",
+    "published": 0.1984,
+    "fresh": 0.4866,
+    "zeroed": 0.4919
+   },
+   {
+    "code": "072520",
+    "published": 0.1979,
+    "fresh": 0.4479,
+    "zeroed": 0.4479
+   },
+   {
+    "code": "012205",
+    "published": 0.1976,
+    "fresh": 0.5656,
+    "zeroed": 0.5656
+   },
+   {
+    "code": "093320",
+    "published": 0.1968,
+    "fresh": 0.5074,
+    "zeroed": 0.5055
+   },
+   {
+    "code": "067370",
+    "published": 0.1967,
+    "fresh": 0.3816,
+    "zeroed": 0.3801
+   },
+   {
+    "code": "011170",
+    "published": 0.1946,
+    "fresh": 0.5383,
+    "zeroed": 0.5383
+   },
+   {
+    "code": "032980",
+    "published": 0.1936,
+    "fresh": 0.5141,
+    "zeroed": 0.5184
+   },
+   {
+    "code": "002030",
+    "published": 0.1902,
+    "fresh": 0.5312,
+    "zeroed": 0.5251
+   },
+   {
+    "code": "193250",
+    "published": 0.1901,
+    "fresh": 0.381,
+    "zeroed": 0.381
+   },
+   {
+    "code": "160550",
+    "published": 0.1898,
+    "fresh": 0.4812,
+    "zeroed": 0.4813
+   },
+   {
+    "code": "101390",
+    "published": 0.1897,
+    "fresh": 0.5675,
+    "zeroed": 0.557
+   },
+   {
+    "code": "005180",
+    "published": 0.1888,
+    "fresh": 0.4213,
+    "zeroed": 0.3984
+   },
+   {
+    "code": "000020",
+    "published": 0.0505,
+    "fresh": 0.5089,
+    "zeroed": 0.5032
+   },
+   {
+    "code": "0018C0",
+    "published": 0.0454,
+    "fresh": 0.4834,
+    "zeroed": 0.4834
+   },
+   {
+    "code": "004415",
+    "published": 0.0938,
+    "fresh": 0.4369,
+    "zeroed": 0.4369
+   },
+   {
+    "code": "007120",
+    "published": 0.1644,
+    "fresh": 0.5024,
+    "zeroed": 0.5024
+   },
+   {
+    "code": "010580",
+    "published": 0.0049,
+    "fresh": 0.35,
+    "zeroed": 0.3509
+   },
+   {
+    "code": "014915",
+    "published": 0.0068,
+    "fresh": 0.5716,
+    "zeroed": 0.5716
+   },
+   {
+    "code": "0194R0",
+    "published": 0.0497,
+    "fresh": 0.3667,
+    "zeroed": 0.3667
+   },
+   {
+    "code": "025900",
+    "published": 0.0871,
+    "fresh": 0.5721,
+    "zeroed": 0.5748
+   },
+   {
+    "code": "036690",
+    "published": 0.0715,
+    "fresh": 0.3717,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "048530",
+    "published": 0.0165,
+    "fresh": 0.5005,
+    "zeroed": 0.496
+   },
+   {
+    "code": "060590",
+    "published": 0.0149,
+    "fresh": 0.4834,
+    "zeroed": 0.4762
+   },
+   {
+    "code": "074600",
+    "published": 0.015,
+    "fresh": 0.5426,
+    "zeroed": 0.5423
+   },
+   {
+    "code": "090430",
+    "published": 0.0438,
+    "fresh": 0.3901,
+    "zeroed": 0.3895
+   },
+   {
+    "code": "104200",
+    "published": 0.0503,
+    "fresh": 0.5202,
+    "zeroed": 0.517
+   },
+   {
+    "code": "128940",
+    "published": 0.0803,
+    "fresh": 0.5385,
+    "zeroed": 0.5137
+   },
+   {
+    "code": "159580",
+    "published": 0.0119,
+    "fresh": 0.5811,
+    "zeroed": 0.5775
+   },
+   {
+    "code": "203780",
+    "published": 0.0045,
+    "fresh": 0.4298,
+    "zeroed": 0.4298
+   },
+   {
+    "code": "228760",
+    "published": 0.109,
+    "fresh": 0.5163,
+    "zeroed": 0.5115
+   },
+   {
+    "code": "261060",
+    "published": 0.0653,
+    "fresh": 0.5056,
+    "zeroed": 0.5056
+   },
+   {
+    "code": "287840",
+    "published": 0.0401,
+    "fresh": 0.5895,
+    "zeroed": 0.5863
+   },
+   {
+    "code": "314130",
+    "published": 0.0165,
+    "fresh": 0.4769,
+    "zeroed": 0.4744
+   },
+   {
+    "code": "352940",
+    "published": 0.1425,
+    "fresh": 0.508,
+    "zeroed": 0.5048
+   },
+   {
+    "code": "384470",
+    "published": 0.0124,
+    "fresh": 0.6034,
+    "zeroed": 0.5937
+   },
+   {
+    "code": "418620",
+    "published": 0.0035,
+    "fresh": 0.5778,
+    "zeroed": 0.5799
+   },
+   {
+    "code": "448290",
+    "published": 0.0511,
+    "fresh": 0.4944,
+    "zeroed": 0.4944
+   },
+   {
+    "code": "461450",
+    "published": 0.014,
+    "fresh": 0.5484,
+    "zeroed": 0.5484
+   },
+   {
+    "code": "475430",
+    "published": 0.0041,
+    "fresh": 0.5761,
+    "zeroed": 0.5681
+   },
+   {
+    "code": "491010",
+    "published": 0.0621,
+    "fresh": 0.6437,
+    "zeroed": 0.6437
+   },
+   {
+    "code": "Q520088",
+    "published": 0.0613,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "Q580033",
+    "published": 0.0613,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   }
+  ],
+  "2026-10-07": [
+   {
+    "code": "036630",
+    "published": 0.2941,
+    "fresh": 0.4222,
+    "zeroed": 0.413
+   },
+   {
+    "code": "0193W0",
+    "published": 0.2589,
+    "fresh": 0.3788,
+    "zeroed": 0.3788
+   },
+   {
+    "code": "000760",
+    "published": 0.2502,
+    "fresh": 0.4965,
+    "zeroed": 0.4957
+   },
+   {
+    "code": "194480",
+    "published": 0.2497,
+    "fresh": 0.418,
+    "zeroed": 0.4045
+   },
+   {
+    "code": "0198B0",
+    "published": 0.2496,
+    "fresh": 0.3565,
+    "zeroed": 0.3565
+   },
+   {
+    "code": "0192M0",
+    "published": 0.247,
+    "fresh": 0.4076,
+    "zeroed": 0.4076
+   },
+   {
+    "code": "0194M0",
+    "published": 0.247,
+    "fresh": 0.3941,
+    "zeroed": 0.3941
+   },
+   {
+    "code": "0195R0",
+    "published": 0.247,
+    "fresh": 0.3839,
+    "zeroed": 0.3839
+   },
+   {
+    "code": "024060",
+    "published": 0.2447,
+    "fresh": 0.3842,
+    "zeroed": 0.3847
+   },
+   {
+    "code": "043360",
+    "published": 0.2426,
+    "fresh": 0.4753,
+    "zeroed": 0.4752
+   },
+   {
+    "code": "036800",
+    "published": 0.2406,
+    "fresh": 0.5678,
+    "zeroed": 0.5522
+   },
+   {
+    "code": "0193K0",
+    "published": 0.2396,
+    "fresh": 0.3992,
+    "zeroed": 0.3992
+   },
+   {
+    "code": "003060",
+    "published": 0.2395,
+    "fresh": 0.5058,
+    "zeroed": 0.4943
+   },
+   {
+    "code": "189330",
+    "published": 0.2395,
+    "fresh": 0.4015,
+    "zeroed": 0.4024
+   },
+   {
+    "code": "053160",
+    "published": 0.2388,
+    "fresh": 0.453,
+    "zeroed": 0.4533
+   },
+   {
+    "code": "105550",
+    "published": 0.2367,
+    "fresh": 0.4424,
+    "zeroed": 0.4389
+   },
+   {
+    "code": "109740",
+    "published": 0.2359,
+    "fresh": 0.5318,
+    "zeroed": 0.5201
+   },
+   {
+    "code": "477850",
+    "published": 0.2334,
+    "fresh": 0.4552,
+    "zeroed": 0.4552
+   },
+   {
+    "code": "318060",
+    "published": 0.232,
+    "fresh": 0.5478,
+    "zeroed": 0.5484
+   },
+   {
+    "code": "006370",
+    "published": 0.2315,
+    "fresh": 0.4981,
+    "zeroed": 0.4961
+   },
+   {
+    "code": "199430",
+    "published": 0.2313,
+    "fresh": 0.3426,
+    "zeroed": 0.3396
+   },
+   {
+    "code": "178780",
+    "published": 0.23,
+    "fresh": 0.4129,
+    "zeroed": 0.4195
+   },
+   {
+    "code": "344860",
+    "published": 0.228,
+    "fresh": 0.4028,
+    "zeroed": 0.4037
+   },
+   {
+    "code": "397030",
+    "published": 0.2274,
+    "fresh": 0.4814,
+    "zeroed": 0.4851
+   },
+   {
+    "code": "179290",
+    "published": 0.2271,
+    "fresh": 0.4355,
+    "zeroed": 0.4355
+   },
+   {
+    "code": "475230",
+    "published": 0.2267,
+    "fresh": 0.4657,
+    "zeroed": 0.4657
+   },
+   {
+    "code": "115530",
+    "published": 0.2251,
+    "fresh": 0.3758,
+    "zeroed": 0.3757
+   },
+   {
+    "code": "389020",
+    "published": 0.2249,
+    "fresh": 0.426,
+    "zeroed": 0.4255
+   },
+   {
+    "code": "044340",
+    "published": 0.2222,
+    "fresh": 0.4422,
+    "zeroed": 0.4343
+   },
+   {
+    "code": "220180",
+    "published": 0.2221,
+    "fresh": 0.5126,
+    "zeroed": 0.5125
+   },
+   {
+    "code": "000020",
+    "published": 0.0227,
+    "fresh": 0.519,
+    "zeroed": 0.5134
+   },
+   {
+    "code": "0018C0",
+    "published": 0.0174,
+    "fresh": 0.4693,
+    "zeroed": 0.4693
+   },
+   {
+    "code": "004415",
+    "published": 0.161,
+    "fresh": 0.4917,
+    "zeroed": 0.4917
+   },
+   {
+    "code": "007120",
+    "published": 0.0814,
+    "fresh": 0.4435,
+    "zeroed": 0.4435
+   },
+   {
+    "code": "010580",
+    "published": 0.1333,
+    "fresh": 0.3466,
+    "zeroed": 0.3475
+   },
+   {
+    "code": "014915",
+    "published": 0.0815,
+    "fresh": 0.4071,
+    "zeroed": 0.4071
+   },
+   {
+    "code": "0194R0",
+    "published": 0.1134,
+    "fresh": 0.4105,
+    "zeroed": 0.4105
+   },
+   {
+    "code": "025900",
+    "published": 0.0598,
+    "fresh": 0.5574,
+    "zeroed": 0.5533
+   },
+   {
+    "code": "036690",
+    "published": 0.0313,
+    "fresh": 0.3717,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "048530",
+    "published": 0.0287,
+    "fresh": 0.5704,
+    "zeroed": 0.5652
+   },
+   {
+    "code": "060590",
+    "published": 0.0686,
+    "fresh": 0.5022,
+    "zeroed": 0.4912
+   },
+   {
+    "code": "074600",
+    "published": 0.0287,
+    "fresh": 0.4288,
+    "zeroed": 0.4132
+   },
+   {
+    "code": "090430",
+    "published": 0.0971,
+    "fresh": 0.4875,
+    "zeroed": 0.4813
+   },
+   {
+    "code": "104200",
+    "published": 0.09,
+    "fresh": 0.5735,
+    "zeroed": 0.5709
+   },
+   {
+    "code": "128940",
+    "published": 0.0673,
+    "fresh": 0.5346,
+    "zeroed": 0.5216
+   },
+   {
+    "code": "159580",
+    "published": 0.0441,
+    "fresh": 0.5771,
+    "zeroed": 0.5744
+   },
+   {
+    "code": "203780",
+    "published": 0.0498,
+    "fresh": 0.4331,
+    "zeroed": 0.4331
+   },
+   {
+    "code": "228760",
+    "published": 0.1956,
+    "fresh": 0.4579,
+    "zeroed": 0.4502
+   },
+   {
+    "code": "261060",
+    "published": 0.0565,
+    "fresh": 0.4967,
+    "zeroed": 0.4967
+   },
+   {
+    "code": "287840",
+    "published": 0.0305,
+    "fresh": 0.5751,
+    "zeroed": 0.5707
+   },
+   {
+    "code": "314130",
+    "published": 0.0027,
+    "fresh": 0.4034,
+    "zeroed": 0.3963
+   },
+   {
+    "code": "352940",
+    "published": 0.1664,
+    "fresh": 0.5361,
+    "zeroed": 0.5353
+   },
+   {
+    "code": "384470",
+    "published": 0.0433,
+    "fresh": 0.6127,
+    "zeroed": 0.5991
+   },
+   {
+    "code": "418620",
+    "published": 0.0097,
+    "fresh": 0.5687,
+    "zeroed": 0.5638
+   },
+   {
+    "code": "448290",
+    "published": 0.0286,
+    "fresh": 0.5206,
+    "zeroed": 0.5206
+   },
+   {
+    "code": "461450",
+    "published": 0.0372,
+    "fresh": 0.5332,
+    "zeroed": 0.5332
+   },
+   {
+    "code": "475430",
+    "published": 0.014,
+    "fresh": 0.4732,
+    "zeroed": 0.4598
+   },
+   {
+    "code": "491010",
+    "published": 0.0186,
+    "fresh": 0.653,
+    "zeroed": 0.653
+   },
+   {
+    "code": "Q520088",
+    "published": 0.0403,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "Q580033",
+    "published": 0.0403,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   }
+  ],
+  "2026-10-08": [
+   {
+    "code": "036630",
+    "published": 0.2809,
+    "fresh": 0.4131,
+    "zeroed": 0.4052
+   },
+   {
+    "code": "027740",
+    "published": 0.2804,
+    "fresh": 0.4566,
+    "zeroed": 0.4634
+   },
+   {
+    "code": "373170",
+    "published": 0.2748,
+    "fresh": 0.4004,
+    "zeroed": 0.4002
+   },
+   {
+    "code": "005360",
+    "published": 0.2691,
+    "fresh": 0.5508,
+    "zeroed": 0.5408
+   },
+   {
+    "code": "053160",
+    "published": 0.2638,
+    "fresh": 0.4628,
+    "zeroed": 0.4608
+   },
+   {
+    "code": "035900",
+    "published": 0.2591,
+    "fresh": 0.6061,
+    "zeroed": 0.595
+   },
+   {
+    "code": "043360",
+    "published": 0.2553,
+    "fresh": 0.3692,
+    "zeroed": 0.3691
+   },
+   {
+    "code": "195940",
+    "published": 0.2552,
+    "fresh": 0.4185,
+    "zeroed": 0.4161
+   },
+   {
+    "code": "063760",
+    "published": 0.2508,
+    "fresh": 0.5463,
+    "zeroed": 0.5379
+   },
+   {
+    "code": "007160",
+    "published": 0.2485,
+    "fresh": 0.4104,
+    "zeroed": 0.402
+   },
+   {
+    "code": "260660",
+    "published": 0.2473,
+    "fresh": 0.5006,
+    "zeroed": 0.5006
+   },
+   {
+    "code": "039840",
+    "published": 0.2456,
+    "fresh": 0.3994,
+    "zeroed": 0.3941
+   },
+   {
+    "code": "002995",
+    "published": 0.2453,
+    "fresh": 0.4892,
+    "zeroed": 0.4892
+   },
+   {
+    "code": "440320",
+    "published": 0.2421,
+    "fresh": 0.5519,
+    "zeroed": 0.5465
+   },
+   {
+    "code": "039310",
+    "published": 0.2406,
+    "fresh": 0.4177,
+    "zeroed": 0.4093
+   },
+   {
+    "code": "096630",
+    "published": 0.2398,
+    "fresh": 0.4755,
+    "zeroed": 0.4781
+   },
+   {
+    "code": "069330",
+    "published": 0.2388,
+    "fresh": 0.3917,
+    "zeroed": 0.3916
+   },
+   {
+    "code": "060480",
+    "published": 0.2353,
+    "fresh": 0.5885,
+    "zeroed": 0.5865
+   },
+   {
+    "code": "080160",
+    "published": 0.2344,
+    "fresh": 0.3485,
+    "zeroed": 0.3443
+   },
+   {
+    "code": "002390",
+    "published": 0.2317,
+    "fresh": 0.3906,
+    "zeroed": 0.3798
+   },
+   {
+    "code": "004890",
+    "published": 0.2313,
+    "fresh": 0.4241,
+    "zeroed": 0.4229
+   },
+   {
+    "code": "365000",
+    "published": 0.2308,
+    "fresh": 0.4701,
+    "zeroed": 0.4701
+   },
+   {
+    "code": "005745",
+    "published": 0.2306,
+    "fresh": 0.5201,
+    "zeroed": 0.5201
+   },
+   {
+    "code": "051600",
+    "published": 0.2296,
+    "fresh": 0.3532,
+    "zeroed": 0.3422
+   },
+   {
+    "code": "002690",
+    "published": 0.2294,
+    "fresh": 0.5537,
+    "zeroed": 0.548
+   },
+   {
+    "code": "137940",
+    "published": 0.2291,
+    "fresh": 0.4821,
+    "zeroed": 0.4818
+   },
+   {
+    "code": "000760",
+    "published": 0.2291,
+    "fresh": 0.5069,
+    "zeroed": 0.5061
+   },
+   {
+    "code": "310210",
+    "published": 0.2287,
+    "fresh": 0.3843,
+    "zeroed": 0.3803
+   },
+   {
+    "code": "006200",
+    "published": 0.2287,
+    "fresh": 0.5328,
+    "zeroed": 0.5328
+   },
+   {
+    "code": "344860",
+    "published": 0.2278,
+    "fresh": 0.5211,
+    "zeroed": 0.5191
+   },
+   {
+    "code": "000020",
+    "published": 0.0106,
+    "fresh": 0.4802,
+    "zeroed": 0.4672
+   },
+   {
+    "code": "0018C0",
+    "published": 0.0083,
+    "fresh": 0.4062,
+    "zeroed": 0.4062
+   },
+   {
+    "code": "004415",
+    "published": 0.1994,
+    "fresh": 0.4323,
+    "zeroed": 0.4323
+   },
+   {
+    "code": "007120",
+    "published": 0.1692,
+    "fresh": 0.4288,
+    "zeroed": 0.4288
+   },
+   {
+    "code": "010580",
+    "published": 0.1957,
+    "fresh": 0.4044,
+    "zeroed": 0.4049
+   },
+   {
+    "code": "014915",
+    "published": 0.1615,
+    "fresh": 0.4238,
+    "zeroed": 0.4238
+   },
+   {
+    "code": "0194R0",
+    "published": 0.1398,
+    "fresh": 0.3799,
+    "zeroed": 0.3799
+   },
+   {
+    "code": "025900",
+    "published": 0.1064,
+    "fresh": 0.5784,
+    "zeroed": 0.5791
+   },
+   {
+    "code": "036690",
+    "published": 0.0354,
+    "fresh": 0.3717,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "048530",
+    "published": 0.0359,
+    "fresh": 0.5007,
+    "zeroed": 0.4909
+   },
+   {
+    "code": "060590",
+    "published": 0.0396,
+    "fresh": 0.5588,
+    "zeroed": 0.5566
+   },
+   {
+    "code": "074600",
+    "published": 0.0908,
+    "fresh": 0.4723,
+    "zeroed": 0.4709
+   },
+   {
+    "code": "090430",
+    "published": 0.091,
+    "fresh": 0.52,
+    "zeroed": 0.4977
+   },
+   {
+    "code": "104200",
+    "published": 0.0266,
+    "fresh": 0.4746,
+    "zeroed": 0.4652
+   },
+   {
+    "code": "128940",
+    "published": 0.0489,
+    "fresh": 0.4821,
+    "zeroed": 0.488
+   },
+   {
+    "code": "159580",
+    "published": 0.0739,
+    "fresh": 0.5995,
+    "zeroed": 0.5967
+   },
+   {
+    "code": "203780",
+    "published": 0.072,
+    "fresh": 0.428,
+    "zeroed": 0.428
+   },
+   {
+    "code": "228760",
+    "published": 0.1612,
+    "fresh": 0.4235,
+    "zeroed": 0.422
+   },
+   {
+    "code": "261060",
+    "published": 0.0174,
+    "fresh": 0.4496,
+    "zeroed": 0.4496
+   },
+   {
+    "code": "287840",
+    "published": 0.105,
+    "fresh": 0.4333,
+    "zeroed": 0.4365
+   },
+   {
+    "code": "314130",
+    "published": 0.065,
+    "fresh": 0.3826,
+    "zeroed": 0.3808
+   },
+   {
+    "code": "352940",
+    "published": 0.079,
+    "fresh": 0.4933,
+    "zeroed": 0.4923
+   },
+   {
+    "code": "384470",
+    "published": 0.0233,
+    "fresh": 0.5099,
+    "zeroed": 0.505
+   },
+   {
+    "code": "418620",
+    "published": 0.0777,
+    "fresh": 0.513,
+    "zeroed": 0.5181
+   },
+   {
+    "code": "448290",
+    "published": 0.042,
+    "fresh": 0.4257,
+    "zeroed": 0.4257
+   },
+   {
+    "code": "461450",
+    "published": 0.0603,
+    "fresh": 0.4484,
+    "zeroed": 0.4484
+   },
+   {
+    "code": "475430",
+    "published": 0.0398,
+    "fresh": 0.5004,
+    "zeroed": 0.4912
+   },
+   {
+    "code": "491010",
+    "published": 0.1222,
+    "fresh": 0.5146,
+    "zeroed": 0.5146
+   },
+   {
+    "code": "Q520088",
+    "published": 0.095,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   },
+   {
+    "code": "Q580033",
+    "published": 0.095,
+    "fresh": 0.3564,
+    "zeroed": 0.3564
+   }
+  ]
+ },
+ "errors": [],
+ "note": "정지 원천에 적재시각이 없어 '당시 행' 복원 불가 → 열화 방향 검정(0.0 대체)",
+ "compression_gap_explained_pct": -99.1,
+ "summary": {
+  "published_sample": {
+   "n": 299,
+   "mean": 0.1454,
+   "max": 0.2941,
+   "p90": 0.2422,
+   "ge_055": 0,
+   "ge_055_pct": 0.0
+  },
+  "fresh": {
+   "n": 299,
+   "mean": 0.4775,
+   "max": 0.6559,
+   "p90": 0.5724,
+   "ge_055": 57,
+   "ge_055_pct": 19.06
+  },
+  "zeroed": {
+   "n": 299,
+   "mean": 0.4746,
+   "max": 0.6548,
+   "p90": 0.571,
+   "ge_055": 52,
+   "ge_055_pct": 17.39
+  },
+  "paired_delta": {
+   "zeroed_minus_fresh": {
+    "n": 299,
+    "mean": -0.0029,
+    "median": -0.0001
+   },
+   "fresh_minus_published": {
+    "n": 299,
+    "mean": 0.3321,
+    "median": 0.3214
+   },
+   "zeroed_minus_published": {
+    "n": 299,
+    "mean": -0.3292,
+    "median": -0.3177
+   }
+  }
+ },
+ "n_sample_rows": 299,
+ "elapsed_s": 68.9,
+ "power": {
+  "stale_cols_always_zero_pct": 17.0,
+  "stale_cols_mostly_zero": [
+   "cycle_down",
+   "cycle_up",
+   "days_to_cover",
+   "institution_ownership_pct",
+   "interest_rate_change_1m",
+   "krx_total_trading_value",
+   "momentum_3_12m",
+   "short_interest_ratio",
+   "value_ncav",
+   "market_impact_score",
+   "short_selling_ratio",
+   "institution_net_buy",
+   "institution_net_buy_5d",
+   "foreign_net_buy",
+   "foreign_ownership_pct"
+  ]
+ },
+ "verdict": "입력 열화 미재현 — zeroed 짝 Δ평균 -0.3292(|Δ|≥0.02). 신선−발행 격차 +0.3321 대비 zeroed 가 격차의 -99.1% 만 회수 → 잔여는 **서빙 모델 신원 또는 미보존 모델**."
+}
