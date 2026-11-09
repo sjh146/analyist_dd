@@ -132,7 +132,10 @@ def main() -> int:
             out["errors"].append(f"build_features {date}/{code}: {type(e).__name__}: {e}")
             continue
         rows_cnt += 1
+        # 서빙 경로(predictor.py)와 동일하게 NaN/inf 를 0.0 으로 눌러 넣는다 — 결손 대체가
+        # 스코어를 조용히 오염시키지 않도록(회귀: 2026-11-09 실측 rows=299 nan/inf 0건).
         vec = np.array([[float(feats.get(n, 0.0) or 0.0) for n in names]], dtype=float)
+        vec = np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)
         vec_b = vec.copy()
         idx = [j for j, n in enumerate(names) if n in set(stale_cols)]
         for j in idx:
