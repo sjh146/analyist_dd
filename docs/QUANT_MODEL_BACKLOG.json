@@ -14514,6 +14514,39 @@
    "command": null,
    "created_at": "2026-10-11T20:12:00+09:00",
    "note": "2026-10-11 20:1x 엔지니어 자율 — CG175(미재현 확정)의 직접 후속. pending 큐가 비어 rule 4 에 따라 다음 가설 등록(setup 미구현 = needs_setup)."
+  },
+  {
+   "id": "CG178",
+   "priority": 1,
+   "status": "backlog",
+   "kind": "data",
+   "owner": "engineer",
+   "affects_model": true,
+   "title": "수급·공매도 21거래일 갭(10-09~11-06) 백필 → supply_market_features 재적재 → 패널 확장 재측정",
+   "hypothesis": "2026-10-09~11-06 호스트 정지로 foreign_institutional·krx_short_selling 이 10-08 에 멈춰 supply_market_features 가 21거래일 뒤처졌다(신선도 게이트 CRITICAL). 갭을 메우면 패널 구간이 11-06 까지 연장되고, 지금까지 전부 10-08 이전 구간에서 측정된 게이트 arm(CO_rank_smooth_d1_h5 계열)을 **신선 구간 포함**해 재측정할 수 있다 — 데이터 축이 유일한 새 레버라는 17사이클 결론의 직접 검증.",
+   "metric": "wf_sweep_summary",
+   "command": "set -a; . ./.env; set +a; export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434; python3 scripts/kis_supply_backfill.py --from 20261009 --to 20261106 --top 400 --delay 0.6 && bash scripts/refresh_feature_sources.sh",
+   "counterfactual": "CO_core30_h5 (게이트 OFF 코어, 같은 런·같은 패널·같은 구간)",
+   "success": "① foreign_institutional·krx_short_selling max(trade_date) = 2026-11-06 ② bash scripts/refresh_feature_sources.sh --check → RESULT: ALL_FRESH ③ 게이트 arm 5폴드×5시드 짝 Δ ≥ +0.02 (폴드 std ±0.03, 폴드 승률 기재). ②까지 실패하면 '실행실패'로 기록(노이즈 아님).",
+   "est_minutes": 90,
+   "note": "2026-11-09 19:1x 신설(장외 자율). 선행: KIS 호출 경쟁 회피 — 일봉 수집(18:55 시작, 3,979종목×~7s ≈ 02:40 종료) 후에 착수하라. 같은 시각 kis_supply 크론(16:20)은 DAYS=5 라 21일 갭을 못 메운다(실측: cron_kis_supply.log 2026-10-09 16:47 · 기본 5영업일)."
+  },
+  {
+   "id": "CG179",
+   "priority": 1,
+   "status": "needs_setup",
+   "kind": "pipeline",
+   "owner": "engineer",
+   "affects_model": true,
+   "title": "[크론 승인] 새벽 피처 원천 적재 배선 — build_* 3종이 어느 크론에도 없어 손으로 돌릴 때만 전진한다",
+   "hypothesis": "supply_market_features·macro_features·financial_ratio_features 는 각 build_*.py 전용 테이블인데 scripts/full_pipeline_dd.sh 와 /etc/cron.d/analyist_dd 어디에도 호출이 없다(grep 0건). 그래서 시장 데이터(market_data)가 자동 복구돼도 피처 테이블은 수동 실행 전까지 멈춰 있고, 신선도 게이트는 이를 CRITICAL 로 보고만 한다.",
+   "metric": "dq_feature_coverage",
+   "command": "bash scripts/refresh_feature_sources.sh",
+   "counterfactual": "현행(수동 실행) — 10-08 이후 21거래일 정지 실측",
+   "success": "① /etc/cron.d/analyist_dd 에 평일 03:10 `bash /home/jhshi/analyist_dd/scripts/refresh_feature_sources.sh` 추가 ② 3일 연속 python3 scripts/source_freshness_gate.py CRITICAL 0건 ③ 피처 테이블 max(trade_date) = market_data max 와 동일",
+   "est_minutes": 10,
+   "setup_needed": "크론 파일 수정은 사용자 승인 대상(스킬 §자율권한). 승인 시 ① 스크립트는 완료·검증됨(--check rc=4 로 3종 STALE 정확히 검출, financial_ratio 84초 재적재 rc=0: 794,626→844,254행·max 2026-11-09, macro 12초 rc=0: 322→343행·max 2026-11-09) ② 남은 것은 크론 한 줄 등록뿐.",
+   "note": "2026-11-09 19:1x 신설. 게이트는 '감지 전용'이라 이 배선 없이는 같은 정지가 반복된다. macro 쪽은 cron/macro_daily.sh 의 MACRO_START 기본값이 '10 days ago' 라 10일 넘는 갭은 자동으로 못 메운다(실측: MACRO_START=2026-10-01 로 넓혀 815행 upsert)."
   }
  ],
  "updated": "2026-10-11T06:37+09:00"
