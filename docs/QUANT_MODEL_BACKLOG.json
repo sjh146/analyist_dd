@@ -14683,6 +14683,22 @@
    "command_verified_at": "2026-11-09T22:1x+09:00 (config 자체점검 6/6 PASS · scripts/_cg182_config_test.py)",
    "setup_needed": "2026-11-09 22:1x 정정(엔지니어 실측): ①은 **이미 구현돼 있었다** — wf_label_sweep.py 의 `exclude_names`(L1724~1736, 접두어 `event_*` 지원)가 같은 일을 한다(신규 코드 0). config 2종(CG182_ctl_h5 대조 · CG182_momdrop_h5 제거) 추가 + 자체점검 scripts/_cg182_config_test.py **6/6 PASS**(3종 모두 패널 213피처에 존재 · 전부 시간가변 · 두 arm 차이는 exclude_names 뿐) → pending 승격. 잔여(단계 2, 별건): **기존 패널은 전부 2026-09-23 에서 끝난다**(panel_prod200 2025-08-04~09-23 · panel_420 계열 09-23) → 부호 반전이 관측된 10~11월 국면이 어느 패널에도 없다. 단계 1(현 패널)은 '챔피언이 모멘텀 3종에 실제로 의존하는가'를 재고, 국면 반전의 손익 영향은 2026-11-09 까지 덮는 신규 패널 빌드(--end-date 2026-11-09) 후에만 잴 수 있다. ⚠ 피처 변환·게이트 축은 상한 +0.011 로 닫혀 있으므로 이 실험은 '조정'이 아니라 **국면 의존 검정**이다 — 사전문턱 +0.02 미달이면 축을 닫는다.",
    "note": "2026-11-09 21:5x 엔지니어 자율. CG181 실측 근거: momentum_op IC +0.0920(t 5.47, 8~9월) → −0.1459(t −6.19, 10~11월) · momentum_ni +0.0849 → −0.1312 · momentum_3_12m +0.0714 → −0.0709 · bb_position −0.0872 → −0.0666(부호 유지). 전방 성적표 h1 top10 −0.4461% vs 전체 +0.4790%. | 2026-11-09 22:1x 엔지니어 자율(장외 틱) — setup 구현 완료·pending 승격. 실측: 배포 챔피언 173피처에 momentum_op·momentum_ni·momentum_3_12m **모두 포함**, 패널에서는 비상수. 단계 1 명령은 같은 런 2-arm(대조 vs 제거)·5폴드×3시드, est 90분·컨테이너 timeout 9000s(1.5×est). 잔여 차단요인은 패널 커버리지(10~11월 부재) — 단계 2 는 새 패널 빌드 선행."
+  },
+  {
+   "id": "CG183",
+   "priority": 2,
+   "status": "pending",
+   "kind": "training",
+   "owner": "engineer",
+   "affects_model": true,
+   "title": "[재학습·백필 반영] 원천 복구 후 챔피언 후보 재학습(120일·200종목·end-date 고정) → 돈 게이트 판정",
+   "hypothesis": "현 챔피언은 2026-10-02 학습분이라 이후 21거래일 국면이 학습 입력에 없다. 원천이 11-09 까지 복구됐으므로 같은 피처 계약(FeaturePipeline.get_feature_names 순서)으로 재학습하면 OOS 순기대가 챔피언(−0.1674%p/세션)보다 개선될 수 있다. AUC 개선은 부차적이다.",
+   "metric": "expectancy_pct_per_session",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u -m app.training.retrain_champion --days 120 --stock-limit 200 --end-date 2026-11-09 --out-dir /app/app/models/champion_cand_cg183'",
+   "counterfactual": "현 챔피언(app/models/champion): val ensemble AUC 0.5513 · robust_oos 0.4951 · 순기대 −0.1674%p/세션(t −0.75, 세션 87)",
+   "success": "① 학습 완료(3모델·feature_names.json 순서 일치) ② 같은 프로토콜(5폴드 robust + fillable expectancy, 수수료 0.21%p)로 후보 측정: 순기대 > 챔피언 +0.1%p AND 분할표본 both_positive ③ champion_promote --dry-run --require-expectancy 통과 시에만 승격. AUC만 오르면 보류로 기록(승격 금지).",
+   "est_minutes": 90,
+   "note": "2026-11-09 22:3x 엔지니어 신설(장외 자율). timeout 5400 = est 90분과 일치시켜 자기모순 경고 회피. R33·CG180 과는 교차락으로 자동 직렬화. --end-date 고정으로 슬라이딩 창 재현성 확보."
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
