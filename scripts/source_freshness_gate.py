@@ -11,6 +11,13 @@ WHY (2026-10-11 실측): `supply_market_features`·`financial_ratio_features` �
   기준 = `market_data` 의 최신 거래일. 원천별 max(날짜)를 읽어 **시장 거래일 기준 지연**을 센다.
   lag ≤1 OK · 2~4 WARN · ≥5 CRITICAL. 결과를 JSON 으로 남기고 한 줄로 요약한다.
 
+  ⚠ 기준 자체의 신선도도 잰다(2026-11-09 실측 사고): 이 게이트는 **상대(기준 대비)** 판정이라
+  `market_data` 까지 함께 멈추면 전 원천이 lag 0 으로 '정상'이 된다. 실제로 호스트가 10-11~11-09
+  꺼져 있는 동안 모든 테이블이 2026-10-08 에 멈췄는데 게이트는 "전 원천 정상(지연 <2거래일,
+  기준 2026-10-08)" 이라고 답했다 — 22거래일 공백을 0 으로 보고한 것이다. 이제 기준 거래일의
+  **달력 지연**(기대 마지막 거래일 대비)을 함께 계산해 `reference.verdict` 로 내고, WARN 이상이면
+  요약줄 맨 앞에 `⛔` 로 표시한다(임계값은 원천과 동일).
+
 재현: python3 scripts/source_freshness_gate.py            (사람/틱)
       python3 scripts/source_freshness_gate.py --json-out <경로>
 자체점검: python3 scripts/_source_freshness_test.py
@@ -22,7 +29,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EVID = os.path.join(PROJ, "data/reports/source_freshness.json")
@@ -64,6 +71,38 @@ def verdict(lag: int) -> str:
     return "OK"
 
 
+HOLIDAYS_PATH = os.path.join(PROJ, "data/krx_holidays.json")
+
+
+def _holidays() -> set:
+    try:
+        with open(HOLIDAYS_PATH, encoding="utf-8") as f:
+            return set(json.load(f))
+    except Exception:                                            # noqa: BLE001
+        return set()
+
+
+def reference_lag(ref_iso: str, today: date | None = None) -> int:
+    """기준 거래일(ref_iso) 이후 **오늘까지 지나간 거래일 수**(주말·휴장 제외).
+
+    원천 lag 은 '기준 대비'라 기준이 멈춘 것을 못 본다. 이 값이 크면 시장 데이터 자체가 낡았다.
+    오늘 데이터는 장 마감 후 적재되므로 정상 운영에서 0~1 이다(주말·휴장은 세지 않는다).
+    """
+    if not ref_iso:
+        return -1
+    ref = date.fromisoformat(str(ref_iso)[:10])
+    today = today or datetime.now(timezone.utc).astimezone().date()
+    if ref >= today:
+        return 0
+    hol = _holidays()
+    n, d = 0, ref + timedelta(days=1)
+    while d <= today:
+        if d.weekday() < 5 and d.isoformat() not in hol:
+            n += 1
+        d += timedelta(days=1)
+    return n
+
+
 def probe() -> dict:
     ref = psql(f"SELECT max({REFERENCE[1]})::text FROM {REFERENCE[0]}")
     out: dict = {
@@ -72,6 +111,9 @@ def probe() -> dict:
         "sources": {},
         "errors": [],
     }
+    if ref:
+        rlag = reference_lag(ref)
+        out["reference"].update({"lag_trading_days": rlag, "verdict": verdict(rlag)})
     if not ref:
         out["errors"].append("기준 거래일 없음(market_data 비었음)")
         out["worst"] = None
@@ -100,6 +142,16 @@ def probe() -> dict:
 def summary_line(res: dict) -> str:
     worst = res.get("worst")
     ref = res["reference"]["date"]
+    rlag = res["reference"].get("lag_trading_days")
+    if rlag is not None and rlag >= WARN_LAG:
+        rest = ""
+        if worst and worst[1] >= WARN_LAG:
+            rest = " · " + " · ".join(
+                f"{t} {v['lag_trading_days']}거래일({v['verdict']})"
+                for t, v in sorted(res["sources"].items(), key=lambda kv: -(kv[1].get("lag_trading_days") or 0))
+                if (v.get("lag_trading_days") or 0) >= WARN_LAG)[:200]
+        return (f"⛔ 기준 원천 {REFERENCE[0]} 자체가 {rlag}거래일 낡음"
+                f"({res['reference'].get('verdict')}, 최신 {ref}) — 원천별 lag 은 전부 0 으로 보인다{rest}")
     if not worst:
         return f"원천 신선도: 측정 불가(기준 {ref})"
     if worst[1] < WARN_LAG:

@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import datetime as dt
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(PROJ, "scripts"))
@@ -51,6 +52,19 @@ def main() -> int:
     line_bad = g.summary_line(bad)
     check("② 경보 요약줄에 테이블·지연 표기", "⚠" in line_bad and "supply_market_features" in line_bad
           and "6거래일" in line_bad, line_bad)
+
+    # ⑥ 기준 자체의 달력 지연 — 상대 판정의 사각지대(2026-11-09 실측 사고) 고정
+    check("⑥ 기준 지연: 같은 날 = 0", g.reference_lag("2026-11-09", dt.date(2026, 11, 9)) == 0)
+    check("⑥ 기준 지연: 주말 미포함", g.reference_lag("2026-11-06", dt.date(2026, 11, 9)) == 1)
+    _lag = g.reference_lag("2026-10-08", dt.date(2026, 11, 9))
+    check("⑥ 기준 지연: 10-08→11-09 = 21거래일(한글날 제외)", _lag == 21, f"lag={_lag}")
+    stale = {"reference": {"table": "market_data", "date": "2026-10-08",
+                           "lag_trading_days": 21, "verdict": "CRITICAL"},
+             "worst": ("supply_market_features", 0, "OK"),
+             "sources": {"supply_market_features": {"max_date": "2026-10-08",
+                                                    "lag_trading_days": 0, "verdict": "OK"}}}
+    line_stale = g.summary_line(stale)
+    check("⑥ 기준 정지가 '정상'으로 보고되지 않음", "⛔" in line_stale and "낡음" in line_stale, line_stale)
 
     names = [t for t, _ in g.SOURCES]
     check("③ 오탐 가드: financial_statements 감시 제외",

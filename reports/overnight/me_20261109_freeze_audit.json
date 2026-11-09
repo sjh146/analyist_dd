@@ -1,0 +1,73 @@
+{
+ "ts": "2026-11-09T18:03:10+09:00",
+ "kind": "freeze_recovery_audit",
+ "finding": "호스트 28일 정지(2026-10-11~11-09)로 모든 모델 입력이 2026-10-08 에 동결 — 신선도 게이트가 이를 '정상'으로 오보",
+ "evidence": {
+  "hermes_dispatch": "quant-model-engineer-daily: scheduled 2026-10-12T22:00, ran 2026-11-09T17:54 (27d 19h late)",
+  "db_max_dates": {
+   "market_data": "2026-10-08",
+   "supply_market_features": "2026-10-08",
+   "financial_ratio_features": "2026-10-08",
+   "macro_features": "2026-10-08",
+   "disclosures": "2026-10-08",
+   "foreign_institutional": "2026-10-08",
+   "ml_predictions": "2026-10-10"
+  },
+  "reference_lag_trading_days": 21,
+  "gate_before": "원천 신선도: 전 원천 정상(지연 <2거래일, 기준 2026-10-08)",
+  "gate_after": "⛔ 기준 원천 market_data 자체가 21거래일 낡음(CRITICAL, 최신 2026-10-08) — 원천별 lag 은 전부 0 으로 보인다",
+  "prediction_compression": {
+   "2026-10-02..10-08": "max 0.2277~0.2944 · >=0.55 0행",
+   "2026-10-09 09:40": "max 0.8341 · >=0.55 654행",
+   "2026-10-10 19:18": "max 0.8219 · >=0.55 663행"
+  }
+ },
+ "champion": {
+  "auc_txt": 0.551318,
+  "robust_auc": 0.4908,
+  "expectancy_pct": -0.182,
+  "expectancy_t": -0.81,
+  "sessions": 87,
+  "trades": 1340,
+  "age_days": 35.2
+ },
+ "candidate": {
+  "id": "CG166",
+  "dirname": "champion_cand_cg166",
+  "val_ensemble_auc": 0.6018,
+  "robust_auc": 0.5284,
+  "expectancy_pct": 0.0912,
+  "expectancy_t": 0.51,
+  "halves": [
+   -0.1333,
+   0.3106
+  ],
+  "gate_run": "CG168",
+  "gate_verdict": "kept_incumbent(돈 기준 거부: 분할표본 불안정)"
+ },
+ "scoreboard": {
+  "headline_robust": 0.5519,
+  "baseline": 0.5406,
+  "delta": 0.0113,
+  "no_improve_cycles": 19,
+  "caveat": "10-08 동결 데이터 기준 — 동결 구간에서의 카운터는 측정 무효"
+ },
+ "code_fix": {
+  "file": [
+   "scripts/source_freshness_gate.py",
+   "scripts/_source_freshness_test.py"
+  ],
+  "what": "기준 거래일의 달력 지연(reference_lag) 추가 + 요약줄 ⛔ 선두 표기",
+  "tests": "scripts/_source_freshness_test.py 15/15 PASS"
+ },
+ "actions_not_taken": [
+  "walk-forward 다중폴드 재측정 생략 — 금요일 아님 + 패널(panel_prod200.npz, 10-02) 불변 → 새 정보 0",
+  "원천 백필 미실행 — 수집 경로는 리서처 소유(자율 권한). 정확한 복구 명령을 핸드오프로 남김"
+ ],
+ "handoff": {
+  "to": "researcher",
+  "why": "daily_bars 는 --days 7 만 받아 10-09~10-29 결손이 자동 복구되지 않는다",
+  "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/krx_daily.py --from 2026-10-09 --to 2026-11-09 --ignore-run-gap",
+  "after": "market_data max(trade_date)=2026-11-06 이상 → build_supply_market_features/financial_ratio/macro 재빌드 → 패널 재빌드 → WF 재측정"
+ }
+}
