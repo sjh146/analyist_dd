@@ -4113,17 +4113,38 @@ def source_freshness_note(max_age_h=1.0):
         age = (time.time() - os.path.getmtime(sfg.EVID)) / 3600.0
     except OSError:
         age = None
+    def _run_gate() -> str | None:
+        proc = subprocess.run(
+            [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                          "source_freshness_gate.py")],
+            capture_output=True, text=True, timeout=180, cwd=PROJ)
+        if proc.returncode != 0:
+            return (f"원천 신선도: 게이트 실행 실패 rc={proc.returncode} "
+                    f"({(proc.stderr or proc.stdout).strip()[-100:]}) — 감시 공백(경보 아님)")
+        return None
+
     try:
         if age is None or age > max_age_h:
-            proc = subprocess.run(
-                [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                              "source_freshness_gate.py")],
-                capture_output=True, text=True, timeout=180, cwd=PROJ)
-            if proc.returncode != 0:
-                return (f"원천 신선도: 게이트 실행 실패 rc={proc.returncode} "
-                        f"({(proc.stderr or proc.stdout).strip()[-100:]}) — 감시 공백(경보 아님)")
+            err = _run_gate()
+            if err:
+                return err
         with open(sfg.EVID, encoding="utf-8") as f:
             res = json.load(f)
+        # mtime 만 믿지 않는다: 부팅 직후 시계가 틀린 채 찍힌 증거는 mtime 이 '방금'이어도
+        # 내용의 기준일이 낡았다. 실측(2026-11-09): 호스트가 10-11~11-09 꺼져 있었는데
+        # 부팅 직후 틱이 생성시각 2026-10-08 짜리 '전 원천 정상' 증거를 캐시로 재사용해
+        # 21거래일 공백을 0 으로 보고했다. 생성시각이 max_age_h 밖이면 다시 잰다.
+        try:
+            gen = datetime.fromisoformat(str(res.get("generated_at", "")).replace("Z", "+00:00"))
+            skew_h = abs((datetime.now(timezone.utc) - gen).total_seconds()) / 3600.0
+        except Exception:                            # noqa: BLE001
+            skew_h = 1e9
+        if skew_h > max_age_h:
+            err = _run_gate()
+            if err:
+                return err
+            with open(sfg.EVID, encoding="utf-8") as f:
+                res = json.load(f)
     except Exception as e:                          # noqa: BLE001
         return f"원천 신선도: 점검 불가({type(e).__name__}: {str(e)[:80]})"
     return sfg.summary_line(res)
