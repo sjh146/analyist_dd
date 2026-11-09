@@ -1010,6 +1010,18 @@ def summary_path(kind, command=None):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/app/reports/cg175_scale_bisect.json")
+    if kind == "robust_oos_audit":
+        # 감사 프로토콜(scripts/model_metric_protocol_audit.py --out)의 **단일 모델** 재기준선. CG180.
+        # 왜 전용 metric 인가(2026-11-10 실측): 백로그가 metric='robust_auc' 로 등록됐는데 구동기에
+        # 그 kind 가 없어 요약 경로를 못 찾았고(경고만 남기고 판정불가), 커맨드의 --models JSON 이
+        # 4단 셸(bash→docker exec→sh -c→python)을 지나며 `[[` 가 셸 문법으로 해석돼
+        # json.decoder.JSONDecodeError(char 2) 로 rc=1 즉사했다. 챔피언 기준선을 새 데이터로 다시
+        # 재는 일은 **승격 게이트가 인용하는 숫자**를 만드는 작업이라 자동 경로가 반드시 있어야 한다.
+        # 대조군이 없는 '기준선 실측'이므로 per_exp 를 만들지 않는다(스코어보드 오독 방지).
+        out = _out_arg(command or "")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/model_metric_protocol_audit.json")
     if kind == "metric_audit_pair":
         # 감사 프로토콜(scripts/model_metric_protocol_audit.py --out)의 **같은 런 짝** 판정. CG171.
         # 왜 전용 metric 인가(2026-10-11 실측): 승격 게이트가 읽는 증거(robust_oos.json = 감사 도구
@@ -1541,11 +1553,77 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_scale_regime_audit(spath, mtime_floor)
     if kind == "scale_bisect_probe":
         return parse_scale_bisect_probe(spath, mtime_floor)
+    if kind == "robust_oos_audit":
+        return parse_robust_oos_audit(spath, mtime_floor, label=item.get("model_label"))
     if kind == "metric_audit_pair":
         return parse_metric_audit_pair(spath, mtime_floor,
                                        arm_label=item.get("arm_label"),
                                        control_label=item.get("control_label"))
     return {"error": f"parser 없음 (metric={kind!r})"}
+
+
+def parse_robust_oos_audit(path, mtime_floor, label=None) -> dict:
+    """감사 도구의 단일 모델 robust AUC(재기준선)를 판정 필드로 옮긴다(CG180).
+
+    스키마: {"meta": {...}, "b_robust_auc": {label: {robust_auc, folds[], fold_detail[],
+            auc_pooled, train_start, train_end, windows_excluded[]}}, "c_net_expectancy": {label: {...}}}
+    `--robust-oos-out`(게이트 증거)에는 폴드 목록이 없으므로 **--out 쪽을 읽는다**(폴드 평균·std·
+    폴드별 값을 함께 남겨야 '단일 분할 금지' 하드룰 #1 을 지킨 보고가 된다).
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    b_all = d.get("b_robust_auc") or {}
+    if not b_all:
+        return {"error": "b_robust_auc 없음(감사 런 실패 또는 --skip b)", "summary_mtime": mt}
+    lab = label if label in b_all else (next(iter(b_all)) if len(b_all) == 1 else None)
+    if lab is None:
+        return {"error": f"모델이 여러 개인데 model_label 미지정: {sorted(b_all)}", "summary_mtime": mt}
+    b = b_all.get(lab) or {}
+    folds = [x for x in (b.get("folds") or []) if isinstance(x, (int, float))]
+    robust = b.get("robust_auc")
+    if not isinstance(robust, (int, float)):
+        return {"error": f"{lab} robust_auc 없음(폴드 표본 부족 — windows_excluded={b.get('windows_excluded')})",
+                "summary_mtime": mt}
+    std = statistics.pstdev(folds) if len(folds) >= 2 else None
+    c = (d.get("c_net_expectancy") or {}).get(lab) or {}
+    return {
+        "metric_name": "robust_oos_audit", "model": lab,
+        "robust_auc": float(robust),
+        "auc_std_across_folds": round(std, 4) if std is not None else None,
+        "fold_means": folds,
+        "fold_detail": b.get("fold_detail"),
+        "auc_pooled": b.get("auc_pooled"),
+        "train_start": b.get("train_start"), "train_end": b.get("train_end"),
+        "windows_excluded": b.get("windows_excluded"),
+        "money": {"expectancy_pct": c.get("avg_pct"), "expectancy_t": c.get("t_stat"),
+                  "n_sessions": c.get("n_sessions"), "n_trades": c.get("n_trades"),
+                  "halves": c.get("halves")},
+        "generated_at": (d.get("meta") or {}).get("generated_at") or d.get("generated_at"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_robust_oos_audit(item, parsed) -> tuple:
+    """재기준선 판정 = judge_champion_baseline + **돈 지표 병기**(최우선 규칙 2)."""
+    verdict, detail, delta = judge_champion_baseline(item, parsed)
+    m = parsed.get("money") or {}
+    if isinstance(m.get("expectancy_pct"), (int, float)):
+        detail += (f" · 순기대 {m['expectancy_pct']:+.3f}%p/세션(t {m.get('expectancy_t')})"
+                   f" · {m.get('n_sessions')}세션/{m.get('n_trades')}거래 · halves {m.get('halves')}")
+    else:
+        detail += " · 순기대 없음(c 파트 미실행)"
+    return verdict, detail, delta
 
 
 def parse_forward_scorecard(path, mtime_floor) -> dict:
@@ -3016,6 +3094,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_scale_bisect_probe(item, parsed)
     if kind == "metric_audit_pair":
         return judge_metric_audit_pair(item, parsed)
+    if kind == "robust_oos_audit":
+        return judge_robust_oos_audit(item, parsed)
     if kind == "protocol_noise_floor":
         return judge_protocol_noise_floor(item, parsed)
     if kind == "protocol_noise_curve":
@@ -4340,8 +4420,12 @@ def status():
     if led:
         print("최근 원장(5):")
         for r in led:
-            print(f"  {r['ts']} {r['id']} rc={r['rc']} {r['verdict']} "
-                  f"{r['elapsed_min']}분 reported={r.get('reported')}")
+            # 원장 행은 실행 중 크래시·수동 편입 등으로 일부 키가 없을 수 있다(실측 2026-11-09:
+            # 'verdict' 없는 행 하나 때문에 --status 전체가 KeyError 로 죽어 현황 조회 불가).
+            # 상태 조회는 어떤 행이 와도 죽지 않아야 한다 — 결측은 '?' 로 표시한다.
+            print(f"  {r.get('ts', '?')} {r.get('id', '?')} rc={r.get('rc', '?')} "
+                  f"{r.get('verdict', '?')} {r.get('elapsed_min', '?')}분 "
+                  f"reported={r.get('reported')}")
     print(f"가드: 장중={market_hours()} load1={load1():.2f} 컨테이너={container_up()}")
     return 0
 
