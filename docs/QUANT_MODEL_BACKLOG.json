@@ -14547,7 +14547,23 @@
    "est_minutes": 10,
    "setup_needed": "크론 파일 수정은 사용자 승인 대상(스킬 §자율권한). 승인 시 ① 스크립트는 완료·검증됨(--check rc=4 로 3종 STALE 정확히 검출, financial_ratio 84초 재적재 rc=0: 794,626→844,254행·max 2026-11-09, macro 12초 rc=0: 322→343행·max 2026-11-09) ② 남은 것은 크론 한 줄 등록뿐.",
    "note": "2026-11-09 19:1x 신설. 게이트는 '감지 전용'이라 이 배선 없이는 같은 정지가 반복된다. macro 쪽은 cron/macro_daily.sh 의 MACRO_START 기본값이 '10 days ago' 라 10일 넘는 갭은 자동으로 못 메운다(실측: MACRO_START=2026-10-01 로 넓혀 815행 upsert)."
-  }
+  },
+  {
+     "id": "CG180",
+     "priority": 1,
+     "status": "backlog",
+     "kind": "measurement",
+     "owner": "engineer",
+     "affects_model": true,
+     "title": "[재기준선] 21거래일 원천 공백 복구 후 5폴드 robust AUC 재측정 — 2026-10-04 기준선(3폴드 0.5148±0.0344)을 새 데이터로 다시 세운다",
+     "hypothesis": "호스트가 2026-10-11~11-09 꺼져 foreign_institutional·supply_market_features 가 2026-10-08 에 멈췄고(기준 market_data 2026-11-09 = 21거래일 CRITICAL), 그 사이 21거래일치 시장 국면이 모델 입력에 없다. 스코어보드 기준선(0.5406)과 챔피언 fold_stats(0.5148, 2026-10-04 측정)는 모두 공백 이전 데이터로 계산됐으므로, 백필 후 같은 프로토콜로 다시 재야 '무개선 19사이클' 판정이 새 데이터에서도 성립하는지 알 수 있다.",
+     "metric": "robust_auc",
+     "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/model_metric_protocol_audit.py --models [[\"champ\",\"app/models/champion\"]] --folds 5 --dates-per-fold 10 --stocks 80 --horizon 5 --label-kind rel --robust-oos-out /app/reports/overnight/cg180_rebaseline.json'",
+     "counterfactual": "2026-10-04 3폴드 기준선 fold_mean 0.5148±0.0344 (folds 0.4899/0.5635/0.4910)",
+     "success": "사전등록(변경 금지): ① 신선도 게이트 CRITICAL 0건(supply·foreign 지연 <2거래일) ② 같은 5폴드 프로토콜로 champ fold_mean 산출·폴드별 값 기록 ③ 10-04 기준선 대비 Δ 를 ±0.02 문턱으로 판정(미달이면 '노이즈' 유지, 초과면 승격 검토 — 승격은 champion_promote --dry-run --require-expectancy 별도)",
+     "est_minutes": 60,
+     "note": "2026-11-09 신설. 선행조건: data/reports/me_cycle/logs/refresh_after_pipeline_*.log 에서 신선도 OK 확인 후 pending 승격. 백필·20:00 파이프라인과 동시 실행 금지(CPU 4코어 직렬화)."
+   }
  ],
- "updated": "2026-10-11T06:37+09:00"
+ "updated": "2026-11-09T20:12+09:00"
 }
