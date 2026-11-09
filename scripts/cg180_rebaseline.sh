@@ -14,7 +14,7 @@ cd /app
 export OMP_NUM_THREADS=4
 exec python -u scripts/model_metric_protocol_audit.py \
   --models '[["champ","/app/app/models/champion"]]' \
-  --folds 5 --dates-per-fold 10 --stocks 80 --horizon 5 --label-kind rel \
+  --folds 2 --dates-per-fold 5 --window-start 2026-10-02 --stocks 80 --horizon 5 --label-kind rel \
   --out /app/reports/overnight/cg180_audit.json \
   --robust-oos-out /app/reports/overnight/cg180_rebaseline.json \
   "$@"

@@ -241,9 +241,25 @@ def part_b(models, pipeline, conn, args):
         print("[b] 거래일 없음", flush=True)
         return {}
     dates_asc = sorted(dates_desc)
-    chunk = max(1, len(dates_asc) // args.folds)
-    windows = [dates_asc[i * chunk:(i + 1) * chunk] for i in range(args.folds)]
+    # --window-start(2026-11-10 CG180): 폴드 창을 **OOS 구간으로 한정**한다.
+    #   왜: 창은 200거래일을 folds 로 쪼개고 `_split_oos` 가 학습구간(train_end)과 겹치는 창을 버린다.
+    #   챔피언 train_end=2026-10-01 이면 남는 창이 **1개**뿐이라 '5폴드'가 실제로는 단일 창이 된다
+    #   (하드룰 #1 위반 — 단일 창 값은 기준선으로 쓸 수 없다). OOS 구간만 잘라 folds 로 나누면
+    #   표본은 작아도 **다중 폴드 평균·std** 를 정직하게 낼 수 있다. 유니버스·가격 로드는 종전대로
+    #   전체 창을 쓴다(유니버스 정의를 바꾸면 대조가 불가능해진다).
+    fold_dates = dates_asc
+    if getattr(args, "window_start", None):
+        fold_dates = [d for d in dates_asc if d >= args.window_start]
+        if len(fold_dates) < 3 * args.horizon:
+            print(f"[b] --window-start {args.window_start} 이후 거래일이 {len(fold_dates)}개뿐 — "
+                  f"폴드 최소 {3 * args.horizon}일 필요", flush=True)
+            return {}
+    chunk = max(1, len(fold_dates) // args.folds)
+    windows = [fold_dates[i * chunk:(i + 1) * chunk] for i in range(args.folds)]
     windows = [w for w in windows if len(w) > args.horizon + 1]
+    if os.environ.get("MMA_DEBUG"):
+        print(f"[dbg] folds_dates={len(fold_dates)} chunk={chunk} windows={[len(w) for w in windows]} "
+              f"sample={[d for d in (fold_dates[-3:] or [])]!r}", flush=True)
 
     # 유니버스(유동성 상위) — champion_robust_eval 과 동형
     univ_start = dates_asc[max(0, len(dates_asc) - 120)]
@@ -322,6 +338,8 @@ def part_b(models, pipeline, conn, args):
             "robust_auc": robust,
             "folds": [round(x, 4) for x in fold_means],
             "fold_detail": fold_detail,
+            "date_aucs": [round(x, 4) for x in per_date_aucs],
+            "n_dates": len(per_date_aucs),
             "auc_pooled": round(cre.auc(pooled_y, pooled_p), 4) if pooled_y else None,
             "train_start": train_start,
             "train_end": train_end,
@@ -512,6 +530,8 @@ def main(argv=None) -> int:
                     help="피처 패널 디스크 캐시를 쓰지 않는다(항상 새로 빌드)")
     ap.add_argument("--robust-oos-out", default=None,
                     help="모델이 1개일 때 그 디렉토리에 champion_promote 용 OOS 지표 JSON 을 쓴다")
+    ap.add_argument("--window-start", default=None,
+                    help="폴드 창 시작일(YYYY-MM-DD). 학습 종료 이후 OOS 구간만 폴드로 쪼갤 때 쓴다")
     args = ap.parse_args(argv)
 
     if args.models:

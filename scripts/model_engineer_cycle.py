@@ -1596,6 +1596,7 @@ def parse_robust_oos_audit(path, mtime_floor, label=None) -> dict:
         return {"error": f"{lab} robust_auc 없음(폴드 표본 부족 — windows_excluded={b.get('windows_excluded')})",
                 "summary_mtime": mt}
     std = statistics.pstdev(folds) if len(folds) >= 2 else None
+    da = [x for x in (b.get("date_aucs") or []) if isinstance(x, (int, float))]
     c = (d.get("c_net_expectancy") or {}).get(lab) or {}
     return {
         "metric_name": "robust_oos_audit", "model": lab,
@@ -1604,6 +1605,8 @@ def parse_robust_oos_audit(path, mtime_floor, label=None) -> dict:
         "fold_means": folds,
         "fold_detail": b.get("fold_detail"),
         "auc_pooled": b.get("auc_pooled"),
+        "auc_per_date_mean": round(statistics.mean(da), 4) if da else None,
+        "n_dates": b.get("n_dates") or (len(da) or None),
         "train_start": b.get("train_start"), "train_end": b.get("train_end"),
         "windows_excluded": b.get("windows_excluded"),
         "money": {"expectancy_pct": c.get("avg_pct"), "expectancy_t": c.get("t_stat"),
