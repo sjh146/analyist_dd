@@ -28,6 +28,8 @@ PROJ = "/home/dduckbeagy/analyist_dd"
 HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
 LOCK_PATH = "/tmp/data_gap_backfill.lock"
 GAP_THRESHOLD = 1000  # 정상 적재 ≈ 3,942종목; 이 미만이면 공실/부분 수집
+GAP_RATIO = 0.6        # 정상일 중위값 대비 이 비율 미만이면 부분 적재(절대 임계만으로는 못 잡는다)
+GAP_BASELINE_DAYS = 20  # 기준선을 잡을 최근 거래일 수
 LOOKBACK_DAYS = 10    # 점검 기간(달력일)
 # 휴장 확정 시각(당일): 장 마감 15:30 + 정산 여유. 이 시각 이전에는 **당일을 휴장으로 확정하지 않는다**.
 # WHY(실측 2026-10-01 07:50): 장 개시 전에는 당일 일봉이 아직 없어 KIS 프로브가 no_data 를 돌려주고,
@@ -211,6 +213,42 @@ def kis_is_trading_day(d):
 
 
 
+def recent_day_counts(limit=GAP_BASELINE_DAYS):
+    """최근 종료 거래일별 적재 종목수 — 부분 적재 판정의 기준선.
+
+    당일은 뺀다(장중 부분 적재가 기준선을 끌어내리면 임계가 같이 내려가 자기 자신을 못 잡는다).
+    """
+    import psycopg2
+
+    conn = psycopg2.connect(**DB, connect_timeout=5)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT count(*) FROM market_data WHERE trade_date < %s "
+            "GROUP BY trade_date ORDER BY trade_date DESC LIMIT %s",
+            (date.today().isoformat(), int(limit)),
+        )
+        return [int(r[0]) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def gap_threshold(counts, floor=GAP_THRESHOLD, ratio=GAP_RATIO):
+    """정상일 기준선의 비율로 공실 임계값을 정한다.
+
+    WHY(실측 2026-11-09): 절대 임계 1000 만 쓰면 **부분 적재를 공실로 못 잡는다** — WSL 재부팅이
+    18:55 KIS 일봉 수집을 553/3,979 에서 끊어 당일이 1,260행(정상 2,986)으로 남았는데도
+    04:15 백필 점검이 '공실 없음'으로 통과시킬 상태였다. 정상일 중위값의 60% 미만이면
+    공실과 같은 취급(백필 대상)으로 본다. 표본이 없거나 우주가 작던 시절 값이면 바닥값을 쓴다.
+    """
+    vals = sorted(c for c in counts if c and c >= floor)
+    if not vals:
+        return floor
+    mid = len(vals) // 2
+    median = vals[mid] if len(vals) % 2 else (vals[mid - 1] + vals[mid]) / 2.0
+    return max(floor, int(median * ratio))
+
+
 def expected_dates():
     """최근 LOOKBACK_DAYS+1 달력일 중 평일(월~금) 목록 (문자열 YYYY-MM-DD). **당일 포함.**
 
@@ -229,6 +267,15 @@ def expected_dates():
     return out
 
 
+def check_threshold():
+    """점검에 쓸 공실 임계값 — 기준선 조회 실패는 점검을 멈추지 않는다(바닥값으로 계속)."""
+    try:
+        return gap_threshold(recent_day_counts())
+    except Exception as e:  # noqa: BLE001
+        print("기준선 조회 실패({0}) — 절대 임계 {1} 사용".format(e, GAP_THRESHOLD))
+        return GAP_THRESHOLD
+
+
 def find_gaps(probe=True):
     """→ (gaps: [(date, count)], holidays: set) — 공실 후보만 probe.
 
@@ -243,6 +290,7 @@ def find_gaps(probe=True):
         save_holidays(holidays)
         print("휴장 캘린더 정정: {0} 제거 (KIS 국내휴장일조회 = 거래일)".format(today_s))
     gaps = []
+    threshold = check_threshold()
     for d in expected_dates():
         if d in holidays:
             continue
@@ -251,7 +299,7 @@ def find_gaps(probe=True):
         except Exception as e:
             print("DB 조회 실패: {0}".format(e))
             sys.exit(1)
-        if n >= GAP_THRESHOLD:
+        if n >= threshold:
             continue
         if probe:
             exists, no_data = probe_kis(d.replace("-", ""))
@@ -331,8 +379,13 @@ def cmd_report():
         print("→ 최근 {0}일 점검만으로는 판단 불가 — 구간 백필을 먼저 실행하세요.".format(LOOKBACK_DAYS))
         return 2
     gaps, _holidays = find_gaps(probe=True)
-    print("점검 기간: 최근 {0} 평일 (정상 ≈ {1}종목/일, 임계 {2})".format(
-        LOOKBACK_DAYS, EXPECTED_FULL, GAP_THRESHOLD))
+    try:
+        thr = gap_threshold(recent_day_counts())
+    except Exception as e:  # noqa: BLE001 — 보고용 값이라 실패해도 점검 결과는 그대로 낸다
+        print("기준선 조회 실패({0}) — 절대 임계 표기".format(e))
+        thr = GAP_THRESHOLD
+    print("점검 기간: 최근 {0} 평일 (정상 ≈ {1}종목/일, 임계 {2} = 기준선×{3})".format(
+        LOOKBACK_DAYS, EXPECTED_FULL, thr, GAP_RATIO))
     if not gaps:
         print("공실 없음 — 데이터 정상")
         return 0

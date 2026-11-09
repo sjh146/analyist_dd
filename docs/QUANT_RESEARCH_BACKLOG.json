@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-09T18:30:00+09:00",
+  "updated_at": "2026-11-09T21:25:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1410,6 +1410,28 @@
       "resumable_rc": [
         3
       ]
+    },
+    {
+      "id": "R36",
+      "title": "일봉 부분 적재 자동 복구 — 재부팅으로 끊긴 당일 수집(2026-11-09: 1,260/2,986)을 빈 종목만 채운다",
+      "status": "pending",
+      "priority": 5,
+      "kind": "collect",
+      "recurring": true,
+      "affects_model": true,
+      "hypothesis": "18:55 KIS 일봉 수집(종목당 1콜, 전 종목 3,979 ≈ 2.4~4시간)은 도중에 호스트가 재부팅되면 **부분 적재**로 끝나고, 재개 주체가 없다. KRX OpenAPI 는 당일 데이터를 주지 않으므로(실측 2026-11-09 21:16 KOSPI/KOSDAQ 모두 0행) 복구는 KIS 로만 가능하다. 이미 있는 종목을 빼고 빈 종목만 유동성 순으로 채우면 같은 호출 예산으로 구멍을 메운다.",
+      "evidence": "실측 2026-11-09: WSL 재부팅 19:54(postgres 'terminating connection due to administrator command', uptime 1:15)로 KIS 일봉이 553/3,979 에서 중단 → 당일 적재 1,260행(정상일 2,986행, 11-02~11-06 실측 2,986~2,987). 종전 공실 점검은 절대 임계 1,000 이라 1,260 을 '정상'으로 통과시킬 상태였다. 21:2x 부터 빈 종목 2,595개를 유동성 순으로 재수집 중(39/2,595, 5.2초/종목).",
+      "command": "bash -c 'pgrep -f \"[k]is_app.main --job daily\" >/dev/null && { echo \"일봉 수집/복구 실행 중 — 이번 틱 양보\"; exit 3; }; cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/kis_daily_gapfill.py --date 2026-11-09 --limit 300'",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM market_data WHERE trade_date='2026-11-09'\"",
+      "check_target": {
+        "op": ">=",
+        "value": 2900,
+        "unit": "2026-11-09 일봉 보유 종목 수(정상일 2,986)"
+      },
+      "resumable_rc": [
+        3
+      ],
+      "note": "러너 = scripts/kis_daily_gapfill.py (빈 종목만, 유동성 순, 종료코드 3 = 목표 미달·재개). 절대 임계 대신 '정상일 중위값 × 0.6' 으로 판정하도록 scripts/data_gap.py 도 함께 고쳤다(회귀 tests/test_data_gap_relative_threshold.py 6건) — 같은 사고가 반복되면 04:15 백필이 자동으로 이 날을 집는다."
     }
   ]
 }

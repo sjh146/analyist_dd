@@ -23,6 +23,8 @@ import data_gap as dg  # noqa: E402
 def _patch(monkeypatch, counts):
     monkeypatch.setattr(dg, "load_holidays", lambda: set())
     monkeypatch.setattr(dg, "pg_count", lambda d: counts.get(d, 0))
+    # 기준선 조회를 끊어 DB 없는 환경에서도 결정적으로 돈다(2026-11-09 상대 임계 도입).
+    monkeypatch.setattr(dg, "recent_day_counts", lambda *a, **k: [])
 
 
 def test_today_is_never_a_gap_without_probe(monkeypatch):
