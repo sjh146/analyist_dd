@@ -979,6 +979,23 @@ CONFIGS = [
      "core_only": True, "codes_slice": [120, 150], "objective": "rank:pairwise",
      "ens": {"skip": ["lightgbm", "catboost"]},
      "desc": "구간 [120:150) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)"},
+    # ── CG182: 모멘텀 부호 반전(비정상성) — 계열 제거 arm vs 같은 런 대조군 (2026-11-09 22:0x)
+    # 근거(실측, data/reports/supply_ic_20261109_comparison.md · scripts/supply_fresh_slice_ic.py):
+    #   h=5 스피어만 IC 가 대조 8/01~9/23 → 복구 10/09~11/06 에서
+    #   momentum_op +0.0920(t 5.47) → −0.1459(t −6.19) · momentum_ni +0.0849 → −0.1312 ·
+    #   momentum_3_12m +0.0714 → −0.0709 (bb_position 은 부호 유지 −0.0872 → −0.0666).
+    #   3종 모두 **배포 챔피언 173피처에 들어 있다**(실측 확인) → 국면 반전이 기여를 뒤집을 수 있다.
+    # ⚠ 이건 '조정 축'(피처 변환·HP·게이트) 재시험이 아니다 — 국면 의존 검정이다. 제거는 기존
+    #   exclude_names 구현(L1724~1736, 접두어 'event_*' 지원)을 그대로 쓴다(신규 코드 0).
+    # ⚠ 사전문턱: 같은 런 짝 Δ(제거 − 대조) 폴드 평균 +0.02 이상 + 순기대 앞/뒤 절반 both_positive.
+    #   미달이면 '국면 반전은 있어도 모델 기여는 아니다'로 축을 닫는다.
+    {"id": "CG182_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "desc": "CG182 대조군 — 게이트 ON + top30 (현행 경로), 피처 제거 없음"},
+    {"id": "CG182_momdrop_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "exclude_names": ["momentum_op", "momentum_ni", "momentum_3_12m"],
+     "desc": "CG182 arm — 부호가 뒤집힌 모멘텀 3종 제거(같은 런·같은 행)"},
 ]
 
 
