@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-09T21:28:17+09:00",
+  "updated_at": "2026-11-09T18:20:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -963,7 +963,7 @@
         "detail": "R25: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R25_20261010-220043.log"
+        "log": "data/reports/res_cycle/logs/res_R25_20261011-160109.log"
       },
       "recurring": true,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
@@ -1036,6 +1036,11 @@
         },
         {
           "ts": "2026-10-10T22:00:44+09:00",
+          "rc": 0,
+          "detail": "R25: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-10-11T16:01:10+09:00",
           "rc": 0,
           "detail": "R25: 0 <= 0 → 충족"
         }
@@ -1256,7 +1261,6 @@
       "check_target": null,
       "setup_needed": [
         "결측90%↑ 피처 수(dq_feature_null_ratio_high_count)=26 이 문턱(breach 15)을 넘어 매 틱 위반으로 발화합니다 — 전부 SNS/kalman 이라 '새 결함'이 아니라 R14 스냅샷 일관화가 드러낸 구조 결측입니다. 선택지: (A) 문턱을 기준선 위(예: warn 30/breach 40)로 재보정하고 SNS 결함은 R17 로 추적 [권고], (B) SNS 해소(R17)까지 문턱 유지→매 틱 위반 표시, (C) SNS/kalman 을 dead 처리해 북극성·문턱 분모에서 제외. 권고=(A)+(C) 병행.",
-
         "커버리지 착시 피처 수(dq_feature_coverage_illusion_count)=62(기준선 36, breach 45) 도 같은 원인입니다 — CG165 3빌더가 54행을 전체이력(479일) 창으로 재계산하며 26→62 로 이동했습니다. (A) 재보정 시 null_ratio 와 착시 둘 다 기준선 위로 옮기고, 근본 처방으로 빌더가 feature_coverage 에 쓰는 window_days 를 일관(120일)시키는 배선(엔지니어 공동)을 포함해 주세요. 권고=(A)+(C)+창 일관화."
       ],
       "cost": "30분",
@@ -1348,6 +1352,41 @@
       "metric": null,
       "check": null,
       "note": "2026-10-09 21:1x 리서처 일일 점검에서 발견. 같은 틱에서 DART 를 1회 재실행해 당일 회차를 복구했다(콜 21 / 소스 1979 / 신규 12 — 테이블 216150→216162). DB 는 현재 healthy(스크랩 up=1 · 지연 5.6s · 6m 6/6 성공). psycopg2.OperationalError/`recovery mode` 는 infra 신호라 리서처가 직접 고치지 않고 조사·감시 항목으로 남긴다(운영 DB 컨테이너·compose 변경은 승인 범위)."
+    },
+    {
+      "id": "R33",
+      "title": "4주 호스트 오프라인(10-11~11-09) 복구 — 수급 공백 60일 백필 (일봉은 yfinance 스윕이 선행)",
+      "status": "pending",
+      "priority": 1,
+      "kind": "collect",
+      "affects_model": true,
+      "resumable_rc": [
+        3
+      ],
+      "hypothesis": "WSL 호스트가 2026-10-11 16:01~11-09 17:53 꺼져 있어 크론 전체가 멈췄다(원장 마지막 틱 10-11 16:01, market_data 최신 10-08). 일봉 공백(10-12~11-06, 20거래일)은 부팅 직후 yfinance 가격 스윕(period=1y, ON CONFLICT DO NOTHING)이 채운다. 그러나 수급은 일일 크론이 `--days 5` 라 **최근 5영업일만** 담으므로 10-12~10-31 은 어떤 경로도 담당하지 않는다 → 60일 창으로 1회 백필해야 한다.",
+      "evidence": "실측 2026-11-09 17:5x: market_data 최신 10-08(3,123,894행), foreign_institutional 최신 10-08(148,344행), minute_bars 최신 10-08. dq_runner_claim 마지막 run_at 10-10 19:13Z. dq_snapshot 18:00 → breach 3(신선도 20거래일·착시 62·결측 30). 수급 저장 가드가 '그 날짜의 market_data 행이 있어야 저장'이므로 **일봉 복구 후에** 돌려야 한다(선행 조건을 command 가 검사, 미충족 시 rc=3).",
+      "command": "bash -c 'n=$(docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(DISTINCT stock_code) FROM market_data WHERE trade_date=(SELECT max(trade_date) FROM market_data WHERE trade_date<CURRENT_DATE)\"); n=${n:-0}; echo prev_day_market_coverage=$n; if [ \"$n\" -lt 3000 ]; then echo \"일봉 백필 진행 중 — 수급 백필 대기\"; exit 3; fi; cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 KIS_SUPPLY_MAX_CALLS=2200 && /usr/bin/python3 scripts/kis_supply_backfill.py --days 60 --top 800'",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(DISTINCT trade_date) FROM foreign_institutional WHERE trade_date >= DATE '2026-10-12'\"",
+      "check_target": {
+        "op": ">=",
+        "value": 19,
+        "unit": "foreign_institutional 보유 거래일 수(2026-10-12 이후, 기대 20)"
+      },
+      "setup_needed": [],
+      "note": "실행 상한 KIS_SUPPLY_MAX_CALLS=2200(800종목×2콜+여유). net_guard 간격 3.0s 기준 약 100분. 실패/중단 시 다음 틱이 이어서 실행(resumable_rc=3). 백필 후 저녁 파이프라인이 supply_market_features 를 재빌드한다."
+    },
+    {
+      "id": "R34",
+      "title": "분봉 공백(10-12~11-06) 복구 가능성 조사 — KIS 과거 분봉 조회 한도 실측",
+      "status": "backlog",
+      "priority": 9,
+      "kind": "investigate",
+      "affects_model": false,
+      "hypothesis": "분봉은 23:00 크론이 당일만 수집하므로 20거래일 공백이 남는다. KIS 분봉 API 가 과거 날짜를 얼마나 거슬러 주는지(통상 30일) 실측하면 복구 가능 구간과 불가 구간이 갈린다. 단 분봉 저장도 market_data 당일 행 가드를 타므로 **R33(일봉 복구) 완료 후** 프로브해야 결과가 오염되지 않는다.",
+      "evidence": "실측 2026-11-09: minute_bars 최신 10-08(72,120행). 10-09 분봉 크론은 휴장으로 ok=0 no_data=300(정상). 10-12~11-06 20거래일 전량 공백.",
+      "command": "",
+      "setup_needed": [],
+      "note": "프로브: 복구 후 `cd services/kis-collector && /usr/bin/python3 -m kis_app.main --job minute --date 20261020 --limit 2` → minute_bars 에 10-20 행이 생기는지 확인. 되면 날짜 루프 백필 항목으로 승격, 안 되면 '복구 불가 손실'로 종결."
     }
   ]
 }
