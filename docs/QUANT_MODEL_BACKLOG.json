@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-10T00:00:17+09:00",
+  "updated_at": "2026-11-10T18:11:58+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -14537,7 +14537,7 @@
       "counterfactual": "CO_core30_h5 (게이트 OFF 코어, 같은 런·같은 패널·같은 구간)",
       "success": "① foreign_institutional·krx_short_selling max(trade_date) = 2026-11-06 ② bash scripts/refresh_feature_sources.sh --check → RESULT: ALL_FRESH ③ 게이트 arm 5폴드×5시드 짝 Δ ≥ +0.02 (폴드 std ±0.03, 폴드 승률 기재). ②까지 실패하면 '실행실패'로 기록(노이즈 아님).",
       "est_minutes": 90,
-      "note": "2026-11-09 19:1x 신설(장외 자율). 선행: KIS 호출 경쟁 회피 — 일봉 수집(18:55 시작, 3,979종목×~7s ≈ 02:40 종료) 후에 착수하라. 같은 시각 kis_supply 크론(16:20)은 DAYS=5 라 21일 갭을 못 메운다(실측: cron_kis_supply.log 2026-10-09 16:47 · 기본 5영업일)."
+      "note": "2026-11-09 19:1x 신설(장외 자율). 선행: KIS 호출 경쟁 회피 — 일봉 수집(18:55 시작, 3,979종목×~7s ≈ 02:40 종료) 후에 착수하라. 같은 시각 kis_supply 크론(16:20)은 DAYS=5 라 21일 갭을 못 메운다(실측: cron_kis_supply.log 2026-10-09 16:47 · 기본 5영업일). | 2026-11-10T18:13+09:00 성공조건 ①②는 이미 충족(source_freshness_gate ALL_FRESH · supply_market_features max 2026-11-09) → 남은 것은 ③ 게이트 arm 재측정. 재측정 패널이 신선 구간을 포함하는지 먼저 확인(panel_prod200.npz 구간)."
     },
     {
       "id": "CG179",
@@ -14559,7 +14559,7 @@
     {
       "id": "CG180",
       "priority": 1,
-      "status": "pending",
+      "status": "done",
       "kind": "measurement",
       "owner": "engineer",
       "affects_model": true,
@@ -14580,14 +14580,22 @@
           "detail": "측정값 없음 — 종료코드 1 — json.decoder.JSONDecodeError: Expecting value: line 1 column 3 (char 2)",
           "log": "data/reports/me_cycle/logs/me_cycle_CG180_20261110-000008.log",
           "elapsed_min": 0.1
+        },
+        {
+          "ts": "2026-11-10T18:11:58+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5706±0.0994 (시간창 2개 [0.4713, 0.6700]) · 풀링 0.5636 · 날짜별평균 0.5706 · 행 None · 순기대 -0.160%p/세션(t -0.72) · 87세션/1340거래 · halves {'front_pct': -0.0616, 'back_pct': -0.2557, 'stable': 'neither', 'split_date': '2026-07-28'}",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG180_20261110-180038.log",
+          "elapsed_min": 11.3
         }
       ],
       "result": {
-        "verdict": "실행실패",
-        "detail": "측정값 없음 — 종료코드 1 — json.decoder.JSONDecodeError: Expecting value: line 1 column 3 (char 2)",
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5706±0.0994 (시간창 2개 [0.4713, 0.6700]) · 풀링 0.5636 · 날짜별평균 0.5706 · 행 None · 순기대 -0.160%p/세션(t -0.72) · 87세션/1340거래 · halves {'front_pct': -0.0616, 'back_pct': -0.2557, 'stable': 'neither', 'split_date': '2026-07-28'}",
         "delta": null,
         "per_exp": null,
-        "rc": 1
+        "rc": 0
       },
       "model_label": "champ"
     },
@@ -14704,7 +14712,7 @@
     },
     {
       "id": "CG183",
-      "priority": 2,
+      "priority": 1,
       "status": "pending",
       "kind": "training",
       "owner": "engineer",
@@ -14716,8 +14724,28 @@
       "counterfactual": "현 챔피언(app/models/champion): val ensemble AUC 0.5513 · robust_oos 0.4951 · 순기대 −0.1674%p/세션(t −0.75, 세션 87)",
       "success": "① 학습 완료(3모델·feature_names.json 순서 일치) ② 같은 프로토콜(5폴드 robust + fillable expectancy, 수수료 0.21%p)로 후보 측정: 순기대 > 챔피언 +0.1%p AND 분할표본 both_positive ③ champion_promote --dry-run --require-expectancy 통과 시에만 승격. AUC만 오르면 보류로 기록(승격 금지).",
       "est_minutes": 90,
-      "note": "2026-11-09 22:3x 엔지니어 신설(장외 자율). timeout 5400 = est 90분과 일치시켜 자기모순 경고 회피. R33·CG180 과는 교차락으로 자동 직렬화. --end-date 고정으로 슬라이딩 창 재현성 확보.",
+      "note": "2026-11-09 22:3x 엔지니어 신설(장외 자율). timeout 5400 = est 90분과 일치시켜 자기모순 경고 회피. R33·CG180 과는 교차락으로 자동 직렬화. --end-date 고정으로 슬라이딩 창 재현성 확보. | 2026-11-10T18:13+09:00 우선순위 1 승격(장외 자율): CG180 실측 — 신선 구간 OOS 는 2폴드 0.5706±0.0994(0.4713/0.6700, 순기대 -0.160%p)로 분산이 커 판정 불가(train_end 2026-10-01 → OOS 20거래일 = 2폴드 상한). 데이터 축을 실제로 시험하는 항목이 재학습이므로 먼저 돌린다. 재학습 후 OOS 가 길어져 같은 런에서 5폴드 재기준선이 확정된다.",
       "timeout_fixed_at": "2026-11-10T00:10+09:00"
+    },
+    {
+      "id": "XR33",
+      "title": "[리서처 R33] 4주 호스트 오프라인(10-11~11-09) 복구 — 수급 공백 60일 백필 (일봉은 yfinance 스윕이 선행)",
+      "status": "needs_setup",
+      "priority": 8,
+      "from_research": "R33",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": null,
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "WSL 호스트가 2026-10-11 16:01~11-09 17:53 꺼져 있어 크론 전체가 멈췄다(원장 마지막 틱 10-11 16:01, market_data 최신 10-08). 일봉 공백(10-12~11-06, 20거래일)은 부팅 직후 yfinance 가격 스윕(period=1y, ON CONFLICT DO NOTHING)이 채운다. 그러나 수급은 일일 크론이 `--days 5` 라 **최근 5영업일만** 담으므로 10-12~10-31 은 어떤 경로도 담당하지 않는다 → 60일 창으로 1회 백필해야 한다.",
+      "evidence": "리서처 R33 결과: R33: 939 >= 600 → 충족",
+      "success": null,
+      "expected": "미지",
+      "cost": null,
+      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
+      "promoted_from": "handoff",
+      "promoted_at": "2026-11-10T18:00:37+09:00"
     }
   ],
   "updated": "2026-11-09T20:12+09:00"
