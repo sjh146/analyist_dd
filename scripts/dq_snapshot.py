@@ -97,8 +97,15 @@ SPECS = [
     #   — 착시는 배치별로 R10 15 / R11 2 / R12 19 이고 09-24 패널 배치는 0개다(실측).
     #   인구가 늘면 개수 메트릭의 기준선도 함께 늘어난다 → 문턱도 그 위로 옮긴다.
     #   MAX 메트릭은 아래에 정보용으로 남겨 추세만 본다(임계값 없음).
-    ("dq_feature_coverage_illusion_count", "max", 40.0, 45.0, "커버리지 착시 피처 수(기준선 36)"),
-    ("dq_feature_null_ratio_high_count", "max", 10.0, 15.0, "결측90%↑ 피처 수(기준선 8)"),
+    # 2026-11-10 리뷰보드 승인(R29 A안) — 기준선이 측정 인구·창 변화로 이동했다:
+    #   null_ratio_high: 8 → 30 (R14 스냅샷 일관화가 SNS 22 + kalman 4 + 커버리지부족 4를 드러냄,
+    #     2026-11-09~11-10 실측 30~31 로 안정) → warn 32 / breach 45
+    #   coverage_illusion: 36 → 41 (CG165 3빌더가 54행을 479일 창으로 재계산, 10-07 62 → 11-09 41)
+    #     → warn 45 / breach 50
+    # ⚠ 이 재보정은 **경보 피로 제거용**이다. SNS·kalman 26개의 결측 0.93~0.94 자체는 결함이며
+    #   dead 처리(C안)는 승인하지 않았다(사용자 목표 = 죽은 피처 부활). 수리는 R17 로 추적한다.
+    ("dq_feature_coverage_illusion_count", "max", 45.0, 50.0, "커버리지 착시 피처 수(기준선 41)"),
+    ("dq_feature_null_ratio_high_count", "max", 32.0, 45.0, "결측90%↑ 피처 수(기준선 30)"),
     ("dq_feature_coverage_illusion_max", "max", None, None, "커버리지 착시 최대(정보용)"),
     ("dq_feature_null_ratio_max", "max", None, None, "피처 결측 최대(정보용)"),
     # ⚠ R14 배선(2026-10-06): 이 값은 **단조 증가**한다 — MIN(computed_at) 이 2026-09-24 18:11 에

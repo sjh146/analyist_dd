@@ -245,11 +245,18 @@ def open_state(bal, pos, orders, trades, pg_positions=None):
     }
 
 
-def capital_utilization(equity, open_notional, trades, limits=None):
+def capital_utilization(equity, open_notional, trades, limits=None, cash_present=True):
     """자본 사용률: 현재 = 보유 평가액/평가액, 피크 = 동시 보유 최대 (진입~청산 구간 스윕).
 
     피크 시점 평가액은 측정 이력이 없으므로 `현재 평가액 − 누적 실현손익`으로 근사한다
     (거래일 1일뿐이라 근사 오차가 작음 — 근사임을 보고에 명시).
+
+    **cash_present=False 면 비율을 내지 않는다(n/a).** 브리지 /balance 의 equity 는
+    `cash + total_eval` 인데, 매수가능금액 조회(CpTdNew5331A)가 실패하면(원격오류 12275)
+    cash 가 응답에서 빠지고 equity 는 **보유 평가액만** 남는다. 그 값을 자본으로 쓰면
+    보유 원가/평가액 비율이 100%를 넘는 **가짜 위반**이 생긴다(실측 2026-11-09 23:19:
+    equity 296,123 == total_eval_amount, cash 키 없음 → '투자비중 102.87% > 30%').
+    결측을 0 이나 추정으로 메우지 않고 '측정 불가'로 돌려준다.
     """
     limits = limits or dict(LIMITS)
     cum_pnl = sum(_num(t.get("pnl")) or 0.0 for t in _closed(trades))
@@ -275,9 +282,12 @@ def capital_utilization(equity, open_notional, trades, limits=None):
     return {
         "equity": round(eq_now, 2) if eq_now is not None else None,
         "used_now": round(used_now, 2),
-        "used_pct_now": round(used_now / eq_now * 100, 2) if eq_now else None,
+        "cash_present": bool(cash_present),
+        "equity_basis": "cash+eval" if cash_present else "eval_only(현금 미제공 — 비율 n/a)",
+        "used_pct_now": round(used_now / eq_now * 100, 2) if (eq_now and cash_present) else None,
         "limits": limits,
-        "limit_notional_now": round(eq_now * limits["total_exposure_pct"], 2) if eq_now else None,
+        "limit_notional_now": round(eq_now * limits["total_exposure_pct"], 2)
+                               if (eq_now and cash_present) else None,
         "peak": {"concurrent": peak_n, "notional": round(peak_amt, 2),
                  "at": (peak_at or "")[:10] or None,
                  "equity_approx": round(eq_peak, 2) if eq_peak is not None else None,
@@ -588,10 +598,18 @@ def build_report(cfg):
     rep["open_state"]["source"] = "bridge /balance /positions /orders + 저널 미청산 + pg positions"
 
     # --- 자본 사용률 ---
-    equity = bal.get("balance", {}).get("equity") if isinstance(bal, dict) and bal.get("ok") else None
-    open_notional = bal.get("balance", {}).get("total_buy_amount") if isinstance(bal, dict) and bal.get("ok") else 0.0
-    rep["capital_utilization"] = capital_utilization(equity, open_notional, trades)
+    bal_ok = isinstance(bal, dict) and bal.get("ok")
+    bal_body = (bal.get("balance") or {}) if bal_ok else {}
+    equity = bal_body.get("equity")
+    open_notional = bal_body.get("total_buy_amount") if bal_ok else 0.0
+    # cash 키의 존재 = 매수가능금액 조회 성공. 없으면 equity 가 평가액만 담고 있다.
+    cash_present = ("cash" in bal_body) and bal_body.get("cash") is not None
+    rep["capital_utilization"] = capital_utilization(
+        equity, open_notional, trades, cash_present=cash_present)
     rep["capital_utilization"]["equity_source"] = "bridge /balance"
+    rep["capital_utilization"]["cash_krw"] = bal_body.get("cash")
+    rep["capital_utilization"]["d2_deposit_krw"] = bal_body.get("d2_deposit")
+    rep["capital_utilization"]["total_eval_amount"] = bal_body.get("total_eval_amount")
 
     # --- 기회비용 ---
     blocks, ledger, _traded = _build_blocks(journal)

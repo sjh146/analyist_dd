@@ -93,10 +93,17 @@ def envelope_check(obj: dict, sb: dict | None) -> dict:
                    "realized_pnl_krw": (real.get("cum") or {}).get("pnl")}
     equity = cap.get("equity") or 0
     used_pct = cap.get("used_pct_now")
-    if used_pct is not None and used_pct > limits["max_invested_pct"] * 100:
+    # equity 가 '평가액만'이면(cash 키 없음) 자본 대비 비율은 측정 불가다.
+    # 그 값을 0/추정으로 메우면 가짜 위반이 생긴다(2026-11-09 실측 102.87%).
+    equity_reliable = cap.get("cash_present") is not False
+    if not equity_reliable:
+        out["breaches"].append(
+            "자본 사용률 측정 불가 — 브리지 /balance 에 cash 키 없음(매수가능금액 조회 실패). "
+            f"equity({equity})는 보유 평가액만 반영 → 투자비중·손실한도 % 판정 보류")
+    if equity_reliable and used_pct is not None and used_pct > limits["max_invested_pct"] * 100:
         out["breaches"].append(f"총 투자비중 {used_pct}% > 한도 {limits['max_invested_pct'] * 100}%")
     pnl = (real.get("cum") or {}).get("pnl")
-    if equity and pnl is not None and pnl / equity < -limits["daily_loss_limit_pct"]:
+    if equity_reliable and equity and pnl is not None and pnl / equity < -limits["daily_loss_limit_pct"]:
         out["breaches"].append(f"누적 실현손익 {pnl}원 < 일 손실한도 {limits['daily_loss_limit_pct'] * 100}%×자본")
     if real.get("fees_unbooked_flag"):
         out["breaches"].append("수수료 미계상 — 과거 청산은 브로커 API(CpTd6032)가 당일만 제공해 "

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-10T21:16:00+09:00",
+  "updated_at": "2026-11-10T22:52:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1249,7 +1249,7 @@
     {
       "id": "R29",
       "title": "결측90%↑ 피처 수 기준선 이동(4→26, 전부 SNS/kalman) — 문턱 재보정·SNS 해소·dead 처리 중 택일",
-      "status": "needs_approval",
+      "status": "done",
       "priority": 5,
       "affects_model": true,
       "kind": "investigate",
@@ -1264,7 +1264,15 @@
         "커버리지 착시 피처 수(dq_feature_coverage_illusion_count)=41 (기준선 36, warn 40, breach 45) — 10-07 신고 시점 62 에서 11-09 41 로 내려와 breach(45)는 벗어났고 warn(40)만 남았습니다(원인은 동일: CG165 3빌더가 54행을 전체이력 479일 창으로 재계산). (A) 재보정은 warn 을 45 로 올리는 것으로 충분하며, 근본 처방은 빌더가 feature_coverage 에 쓰는 window_days 를 일관(120일)시키는 배선(엔지니어 공동)입니다. 권고=(A)+(C)+창 일관화."
       ],
       "cost": "30분",
-      "success": "결측>90% 살아있는 피처 수가 문턱 대비 해석 가능해지고(재보정 또는 dead 처리), SNS 신선도·커버리지 결함이 R17 로 단일 추적된다."
+      "success": "결측>90% 살아있는 피처 수가 문턱 대비 해석 가능해지고(재보정 또는 dead 처리), SNS 신선도·커버리지 결함이 R17 로 단일 추적된다.",
+      "approval": {
+        "by": "review-board",
+        "at": "2026-11-10T22:52:00+09:00",
+        "decision": "A안 승인·적용",
+        "detail": "dq_snapshot 문턱 재보정: null_ratio_high warn 10→32 / breach 15→45(기준선 30), coverage_illusion warn 40→45 / breach 45→50(기준선 41). C안(SNS/kalman dead 처리)은 미승인 — 사용자 목표가 '죽은 피처 부활'이라 alive 분모에서 빼지 않는다. SNS·kalman 26개 결측 0.93~0.94 는 R17 로 추적.",
+        "evidence": "scripts/dq_snapshot.py --no-chart → breaches [] warns [] nodata [] (dq_20261110-224922.json), 출처 값: null_high 30 · illusion 41 (Prometheus 9187 직접 조회)"
+      },
+      "updated_at": "2026-11-10T22:52:00+09:00"
     },
     {
       "id": "R30",
