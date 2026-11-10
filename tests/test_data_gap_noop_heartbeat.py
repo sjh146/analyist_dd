@@ -41,8 +41,9 @@ class _ClaimSpy:
 def _wire(monkeypatch, spy, gaps=(), stale=(False, "")):
     monkeypatch.setattr(dg, "claim_start", spy.start)
     monkeypatch.setattr(dg, "claim_finish", spy.finish)
-    monkeypatch.setattr(dg, "stale_warning", lambda: stale)
-    monkeypatch.setattr(dg, "find_gaps", lambda probe=False: (list(gaps), set()))
+    monkeypatch.setattr(dg, "stale_warning", lambda *a, **k: stale)
+    monkeypatch.setattr(dg, "find_gaps",
+                    lambda probe=False, lookback=None: (list(gaps), set()))
     # 잠금 파일은 존재하지 않는 임시 경로로
     monkeypatch.setattr(dg, "LOCK_PATH", "/tmp/__dg_noop_test_absent.lock")
     if os.path.exists(dg.LOCK_PATH):

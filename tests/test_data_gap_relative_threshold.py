@@ -38,7 +38,12 @@ def test_threshold_median_even_and_odd():
 def test_partial_day_is_flagged_as_gap(monkeypatch):
     """정상일 2,986 인데 하루가 1,260 → 상대 임계로는 공실. 절대 1,000 으로는 통과였다."""
     base = 2986
-    partial = (date.today() - timedelta(days=3)).isoformat()
+    # 날짜 고정 버그 수리: today-3 이 토·일이면 expected_dates 가 그 날을 빼서 **주말마다 실패**한다
+    # (실측 2026-11-10 화: today-3 = 11-07 토 → 공실 0). 가장 최근 평일을 고른다.
+    partial_d = date.today() - timedelta(days=3)
+    while partial_d.weekday() >= 5:
+        partial_d -= timedelta(days=1)
+    partial = partial_d.isoformat()
     counts = {partial: 1260}
     # 과거 평일 전부 정상 적재 → 당일/부분일만 후보
     for i in range(1, dg.LOOKBACK_DAYS + 2):

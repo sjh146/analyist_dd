@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-09T21:35:00+09:00",
+  "updated_at": "2026-11-10T21:16:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1356,7 +1356,7 @@
     {
       "id": "R33",
       "title": "4주 호스트 오프라인(10-11~11-09) 복구 — 수급 공백 60일 백필 (일봉은 yfinance 스윕이 선행)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "kind": "collect",
       "affects_model": true,
@@ -1373,7 +1373,20 @@
         "unit": "foreign_institutional 보유 종목 수(2026-10-12 이후, 유니버스 800)"
       },
       "setup_needed": [],
-      "note": "실행 상한 KIS_SUPPLY_MAX_CALLS=2200(800종목×2콜+여유). net_guard 간격 3.0s 기준 약 100분. 실패/중단 시 다음 틱이 이어서 실행(resumable_rc=3). 백필 후 저녁 파이프라인이 supply_market_features 를 재빌드한다. | [2026-11-09 21:3x 수리] 게이트를 `>= 3000` 에서 `>= 2700` 으로 낮췄다 — 정상일 실측이 2,986~2,988 이라 3,000 문턱은 **어떤 정상일로도 통과할 수 없고**(10-08 의 3,837 은 예외일), 그 결과 매 틱이 R33(prio 1)을 뽑아 게이트에서 rc=3 으로 되돌려 놓아 큐 전체가 굶었다. 2,700 = 정상일 중위의 약 90% 로, 부분 적재(1,260)는 여전히 막는다. | [2026-11-09 22:0x 수리] check 를 \"보유 거래일 수 ≥ 19\" 에서 \"보유 종목 수 ≥ 600\" 으로 바꿨다 — 실측 22:05 에 10-12~11-06 구간은 **날짜만 21개가 이미 존재**(일 209~210종목, 유니버스 800의 26%)해 종전 check 는 백필을 하지 않아도 충족이었다(거짓 통과). 목표는 종목 커버리지이므로 종목수로 판정한다. 600 = R3 실측 최대 커버(612/800) 기준."
+      "note": "실행 상한 KIS_SUPPLY_MAX_CALLS=2200(800종목×2콜+여유). net_guard 간격 3.0s 기준 약 100분. 실패/중단 시 다음 틱이 이어서 실행(resumable_rc=3). 백필 후 저녁 파이프라인이 supply_market_features 를 재빌드한다. | [2026-11-09 21:3x 수리] 게이트를 `>= 3000` 에서 `>= 2700` 으로 낮췄다 — 정상일 실측이 2,986~2,988 이라 3,000 문턱은 **어떤 정상일로도 통과할 수 없고**(10-08 의 3,837 은 예외일), 그 결과 매 틱이 R33(prio 1)을 뽑아 게이트에서 rc=3 으로 되돌려 놓아 큐 전체가 굶었다. 2,700 = 정상일 중위의 약 90% 로, 부분 적재(1,260)는 여전히 막는다. | [2026-11-09 22:0x 수리] check 를 \"보유 거래일 수 ≥ 19\" 에서 \"보유 종목 수 ≥ 600\" 으로 바꿨다 — 실측 22:05 에 10-12~11-06 구간은 **날짜만 21개가 이미 존재**(일 209~210종목, 유니버스 800의 26%)해 종전 check 는 백필을 하지 않아도 충족이었다(거짓 통과). 목표는 종목 커버리지이므로 종목수로 판정한다. 600 = R3 실측 최대 커버(612/800) 기준.",
+      "attempts": [
+        {
+          "ts": "2026-11-10T17:35:43+09:00",
+          "rc": 0,
+          "detail": "R33: 939 >= 600 → 충족"
+        }
+      ],
+      "result": {
+        "detail": "R33: 939 >= 600 → 충족",
+        "check_value": 939.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R33_20261110-153526.log"
+      }
     },
     {
       "id": "R34",
@@ -1390,34 +1403,57 @@
     },
     {
       "id": "R35",
-      "title": "일봉 공백 복구 러너 재개 + 상시 감시 (2026-10-12~11-06)",
+      "title": "일봉 공백 상시 감시 — 10일 창이 21거래일 공백을 '판단 불가'로 흘리던 경로 (창 자동 확장 + 공실 수 check, 감시 항목 자체의 자가당착 수리)",
       "status": "pending",
       "priority": 5,
       "kind": "collect",
       "recurring": true,
       "affects_model": true,
-      "hypothesis": "호스트 4주 정지로 생긴 일봉 공백(10-12~11-06, 20거래일)은 KIS 구간 백필(종목당 1콜)로 메운다. 백필 러너는 호출 상한에서 정상 종료하므로, 재개 주체가 없으면 회복이 조용히 절반에서 멈춘다.",
-      "evidence": "실측 2026-11-09 18:16: progress 104/4,349 · net_guard kis 182콜(3.0s 간격, 차단 0) · 11-06 2,706종목(10-08 3,837 대비 70%) · 실패 0. 18:13 백필 프로세스 pid 교체 관측(재기동 loop).",
-      "command": "bash -c 'pgrep -f \"[b]ackfill_range.*20261009\" >/dev/null && { echo \"일봉 구간 백필 실행 중 — 이번 틱 양보\"; exit 3; }; cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd KIS_MAX_CALLS=4000 KIS_REQUEST_DELAY=0.6 && cd services/kis-collector && /usr/bin/python3 ../../scripts/kis_backfill_range.py --from 20261009 --to 20261109'",
-      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(DISTINCT stock_code) FROM market_data WHERE trade_date='2026-11-06'\"",
+      "hypothesis": "장기 정지로 생긴 일봉 공백은 04:15 data_gap 백필이 메우는데, 창이 LOOKBACK_DAYS=10 상수라 10일보다 긴 공백은 '판단 불가'로 끝나고 아무것도 채우지 않았다(실측 11-09: 호스트가 10-11~11-09 꺼져 20거래일 공백 → 리뷰보드가 손으로 일자별 재실행해야 메웠다). 창을 마지막 적재일까지 자동 확장(상한 90일)하고, 감시 check 는 '그날 한 점'이 아니라 '공실 일수'로 잡아야 결함이 있으면 >0 · 고치면 0 이 된다.",
+      "evidence": "2026-11-10 21:1x 실측: (a) check 를 11-06 종목수(3,840)로 두면 하루만 지나도 영원히 참 → 감시 아님. (b) 종전 command 의 중복방지 가드 `pgrep -f \"[b]ackfill_range.*20261009\"` 가 **자기 래퍼 cmdline**(같은 명령줄에 kis_backfill_range.py --from 20261009 이 들어 있다)을 매칭해 매 틱 즉시 rc=3 '실행 중 — 양보'로 끝났다: 21:11:40 실행 rc=3 인데 그 시각 실제 백필 프로세스 0건(무해화 하네스로 재현 — 가드를 통과시키려 payload 를 echo 로 바꿔도 여전히 '실행 중' 출력). 백필이 정말 필요한 날에도 영구 양보될 상태였다. (c) 데이터는 이미 회복: 11-06 3,840종목 / 11-09 3,725 / 11-10 3,726(거래량>0), 20/20 거래일 완전, 공실 0.",
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/data_gap.py backfill",
+      "check": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/data_gap.py check",
       "check_target": {
-        "op": ">=",
-        "value": 3600,
-        "unit": "2026-11-06 일봉 보유 종목 수(정상일 3,837)"
+        "op": "<=",
+        "value": 0,
+        "unit": "공실 일수(자동 확장 창, 판정 불가=999)"
       },
       "setup_needed": [],
-      "note": "systemd transient unit(kis-gap-backfill-2, Restart=no)이 실행당 KIS 상한(기본 2,500콜)에서 멈추면 아무도 재개하지 않는다 → 실행 중이면 양보(rc=3), 멈췄으면 진행파일에서 이어서 재개한다. check 는 같은 값을 보므로 목표 달성 시 자동으로 조용해진다.",
+      "note": "러너 = scripts/data_gap.py(자체 잠금 + 수집기 busy 체크 + 자기신고 + 공실 0 이면 no-op). pgrep 가드는 제거했다 — 셸 래퍼 cmdline 을 매칭하는 구조라 '항상 양보'였다(2026-11-10 실측). 창 확장·공실 수 check 회귀: tests/test_data_gap_lookback_widen.py 4건 + tests/test_data_gap_check_mode.py 4건, 기존 data_gap 테스트 34건 PASS.",
       "resumable_rc": [
         3
-      ]
+      ],
+      "attempts": [
+        {
+          "ts": "2026-11-10T21:11:40+09:00",
+          "rc": 3,
+          "detail": "R35: 3840 >= 3600 → 충족"
+        },
+        {
+          "ts": "2026-11-10T21:16:00+09:00",
+          "rc": 0,
+          "detail": "command/check 재저작: data_gap backfill ↔ check(공실 일수 ≤ 0)"
+        },
+        {
+          "ts": "2026-11-10T21:16:13+09:00",
+          "rc": 0,
+          "detail": "R35: 0 <= 0 → 충족"
+        }
+      ],
+      "result": {
+        "detail": "R35: 0 <= 0 → 충족",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R35_20261110-211610.log"
+      }
     },
     {
       "id": "R36",
       "title": "일봉 부분 적재 자동 복구 — 재부팅으로 끊긴 당일 수집(2026-11-09: 1,260/2,986)을 빈 종목만 채운다",
-      "status": "pending",
+      "status": "done",
       "priority": 5,
       "kind": "collect",
-      "recurring": true,
+      "recurring": false,
       "affects_model": true,
       "hypothesis": "18:55 KIS 일봉 수집(종목당 1콜, 전 종목 3,979 ≈ 2.4~4시간)은 도중에 호스트가 재부팅되면 **부분 적재**로 끝나고, 재개 주체가 없다. KRX OpenAPI 는 당일 데이터를 주지 않으므로(실측 2026-11-09 21:16 KOSPI/KOSDAQ 모두 0행) 복구는 KIS 로만 가능하다. 이미 있는 종목을 빼고 빈 종목만 유동성 순으로 채우면 같은 호출 예산으로 구멍을 메운다.",
       "evidence": "실측 2026-11-09: WSL 재부팅 19:54(postgres 'terminating connection due to administrator command', uptime 1:15)로 KIS 일봉이 553/3,979 에서 중단 → 당일 적재 1,260행(정상일 2,986행, 11-02~11-06 실측 2,986~2,987). 종전 공실 점검은 절대 임계 1,000 이라 1,260 을 '정상'으로 통과시킬 상태였다. 21:2x 부터 빈 종목 2,595개를 유동성 순으로 재수집 중(39/2,595, 5.2초/종목).",
@@ -1431,7 +1467,13 @@
       "resumable_rc": [
         3
       ],
-      "note": "러너 = scripts/kis_daily_gapfill.py (빈 종목만, 유동성 순, 종료코드 3 = 목표 미달·재개). 절대 임계 대신 '정상일 중위값 × 0.6' 으로 판정하도록 scripts/data_gap.py 도 함께 고쳤다(회귀 tests/test_data_gap_relative_threshold.py 6건) — 같은 사고가 반복되면 04:15 백필이 자동으로 이 날을 집는다."
+      "note": "러너 = scripts/kis_daily_gapfill.py (빈 종목만, 유동성 순, 종료코드 3 = 목표 미달·재개). 절대 임계 대신 '정상일 중위값 × 0.6' 으로 판정하도록 scripts/data_gap.py 도 함께 고쳤다(회귀 tests/test_data_gap_relative_threshold.py 6건) — 같은 사고가 반복되면 04:15 백필이 자동으로 이 날을 집는다.",
+      "result": {
+        "detail": "[완료 2026-11-10 21:1x 실측] 11-09 일봉 3,725종목(count(*), 정상일 2,986 이상) — 부분 적재 해소. 수리 경로 2개가 남아 상시 작동한다: ① scripts/kis_daily_gapfill.py(빈 종목만 유동성 순) ② data_gap 상대 임계(GAP_RATIO 0.6) + 창 자동 확장 → 부분 적재일은 04:15 백필이 자동 재수집. 종전 command 의 pgrep 가드는 자기 래퍼를 매칭해 항상 rc=3 양보였다(2026-11-10 실측, R35 와 동일 결함).",
+        "check_value": 3725.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R35_20261110-211140.log"
+      }
     },
     {
       "id": "T39",

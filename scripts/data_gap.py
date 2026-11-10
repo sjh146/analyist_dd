@@ -30,7 +30,9 @@ LOCK_PATH = "/tmp/data_gap_backfill.lock"
 GAP_THRESHOLD = 1000  # 정상 적재 ≈ 3,942종목; 이 미만이면 공실/부분 수집
 GAP_RATIO = 0.6        # 정상일 중위값 대비 이 비율 미만이면 부분 적재(절대 임계만으로는 못 잡는다)
 GAP_BASELINE_DAYS = 20  # 기준선을 잡을 최근 거래일 수
-LOOKBACK_DAYS = 10    # 점검 기간(달력일)
+LOOKBACK_DAYS = 10    # 점검 기간(달력일) — 기본값
+# 자동 확장 상한(달력일). 이보다 긴 공백은 1일 백필로 메우기엔 너무 길어 구간 백필 러너로 넘긴다.
+MAX_AUTO_LOOKBACK_DAYS = 90
 # 휴장 확정 시각(당일): 장 마감 15:30 + 정산 여유. 이 시각 이전에는 **당일을 휴장으로 확정하지 않는다**.
 # WHY(실측 2026-10-01 07:50): 장 개시 전에는 당일 일봉이 아직 없어 KIS 프로브가 no_data 를 돌려주고,
 # 그 값이 그대로 휴장으로 기록됐다 → 캘린더에 거래일(10-01)이 휴장으로 들어가 수집·감시·실험 창이 꺼졌다.
@@ -249,8 +251,28 @@ def gap_threshold(counts, floor=GAP_THRESHOLD, ratio=GAP_RATIO):
     return max(floor, int(median * ratio))
 
 
-def expected_dates():
-    """최근 LOOKBACK_DAYS+1 달력일 중 평일(월~금) 목록 (문자열 YYYY-MM-DD). **당일 포함.**
+def effective_lookback():
+    """점검 창을 '공백이 실제로 시작된 날'까지 자동으로 넓힌다.
+
+    WHY(실측 2026-11-09): LOOKBACK_DAYS=10 이라 호스트가 21거래일(10-11~11-06) 꺼져 있던
+    공백을 04:15 백필 점검이 **구조적으로 볼 수 없었다** — stale_warning 이 '판단 불가'로 끝나고
+    아무것도 채우지 않았고, 결국 리뷰보드가 손으로 일자별 재실행해서야 메웠다.
+    창은 마지막 적재일 + 여유 1일까지 넓히되 MAX_AUTO_LOOKBACK_DAYS 를 넘지 않는다
+    (그보다 긴 공백은 1일 백필로 부적합 → 구간 백필 러너 소관).
+    """
+    try:
+        n, mx = db_state()
+    except Exception as e:  # noqa: BLE001 — 창 계산 실패가 점검을 멈추지 않는다
+        print("창 계산 실패({0}: {1}) — 기본 {2}일 사용".format(type(e).__name__, e, LOOKBACK_DAYS))
+        return LOOKBACK_DAYS
+    if n == 0 or mx is None:
+        return LOOKBACK_DAYS
+    needed = (date.today() - mx).days + 1
+    return max(LOOKBACK_DAYS, min(needed, MAX_AUTO_LOOKBACK_DAYS))
+
+
+def expected_dates(lookback=None):
+    """최근 lookback+1 달력일 중 평일(월~금) 목록 (문자열 YYYY-MM-DD). **당일 포함.**
 
     ⚠ 종전에는 ``range(1, ...)`` 이라 **당일이 빠졌다**. 그래서 휴장일 D 의 휴장 사실이
     D+1 probe 에서야 캘린더에 기록됐고, D 당일 자율 루프 가드(market_hours)는 캘린더에 D 가
@@ -260,7 +282,8 @@ def expected_dates():
     """
     out = []
     today = date.today()
-    for i in range(0, LOOKBACK_DAYS + 1):
+    lb = LOOKBACK_DAYS if lookback is None else int(lookback)
+    for i in range(0, lb + 1):
         d = today - timedelta(days=i)
         if d.weekday() < 5:
             out.append(d.isoformat())
@@ -276,7 +299,7 @@ def check_threshold():
         return GAP_THRESHOLD
 
 
-def find_gaps(probe=True):
+def find_gaps(probe=True, lookback=None):
     """→ (gaps: [(date, count)], holidays: set) — 공실 후보만 probe.
 
     당일은 **휴장 판정만** 하고 gaps 에는 넣지 않는다: 장중이면 일봉이 아직 없어 count=0 이므로
@@ -291,7 +314,7 @@ def find_gaps(probe=True):
         print("휴장 캘린더 정정: {0} 제거 (KIS 국내휴장일조회 = 거래일)".format(today_s))
     gaps = []
     threshold = check_threshold()
-    for d in expected_dates():
+    for d in expected_dates(lookback):
         if d in holidays:
             continue
         try:
@@ -348,13 +371,14 @@ def db_state():
         conn.close()
 
 
-def stale_warning():
-    """빈 DB 또는 점검 창(LOOKBACK_DAYS) 밖의 공백 → (bool, 메시지).
+def stale_warning(lookback=None):
+    """빈 DB 또는 점검 창 밖의 공백 → (bool, 메시지).
 
-    LOOKBACK_DAYS=10 만 보므로, 마지막 적재가 그보다 오래되면 '공실 없음'으로
-    잘못 보고한다(실측 2026-09-22: 빈 DB에서 '데이터 정상' 출력). 구간 백필
-    러너(scripts/kis_backfill_range.py)로 넘기기 위한 선행 점검.
+    창(lookback)은 호출자가 effective_lookback() 으로 넓혀 넘긴다. 넓힌 창(기본 10일)보다
+    마지막 적재가 오래되면 '공실 없음'으로 잘못 보고하므로(실측 2026-09-22: 빈 DB에서
+    '데이터 정상' 출력) 구간 백필 러너(scripts/kis_backfill_range.py)로 넘긴다.
     """
+    lb = LOOKBACK_DAYS if lookback is None else int(lookback)
     try:
         n, mx = db_state()
     except Exception as e:  # noqa: BLE001
@@ -362,30 +386,31 @@ def stale_warning():
     if n == 0:
         return True, ("market_data 가 비어 있음 — 일봉 전체 백필 필요 "
                       "(scripts/kis_backfill_range.py 로 구간 수집)")
-    cutoff = date.today() - timedelta(days=LOOKBACK_DAYS)
+    cutoff = date.today() - timedelta(days=lb)
     if mx is not None and mx < cutoff:
         days = (date.today() - mx).days
         return True, ("최신 적재 {0} (달력 {1}일 전) — 점검 창 {2}일 밖: "
                       "구간 백필 필요 (scripts/kis_backfill_range.py)"
-                      .format(mx, days, LOOKBACK_DAYS))
+                      .format(mx, days, lb))
     return False, "최신 적재 {0} / {1:,}행".format(mx, n)
 
 
 def cmd_report():
-    stale, note = stale_warning()
+    lb = effective_lookback()
+    stale, note = stale_warning(lb)
     print("=== market_data 일봉 공실 점검 ({0}) ===".format(datetime.now().strftime("%Y-%m-%d %H:%M")))
     print("상태: {0}".format(note))
     if stale:
-        print("→ 최근 {0}일 점검만으로는 판단 불가 — 구간 백필을 먼저 실행하세요.".format(LOOKBACK_DAYS))
+        print("→ 최근 {0}일 점검으로도 판단 불가 — 구간 백필을 먼저 실행하세요.".format(lb))
         return 2
-    gaps, _holidays = find_gaps(probe=True)
+    gaps, _holidays = find_gaps(probe=True, lookback=lb)
     try:
         thr = gap_threshold(recent_day_counts())
     except Exception as e:  # noqa: BLE001 — 보고용 값이라 실패해도 점검 결과는 그대로 낸다
         print("기준선 조회 실패({0}) — 절대 임계 표기".format(e))
         thr = GAP_THRESHOLD
-    print("점검 기간: 최근 {0} 평일 (정상 ≈ {1}종목/일, 임계 {2} = 기준선×{3})".format(
-        LOOKBACK_DAYS, EXPECTED_FULL, thr, GAP_RATIO))
+    print("점검 기간: 최근 {0}달력일 = 평일 {1}일 (정상 ≈ {2}종목/일, 임계 {3} = 기준선×{4})".format(
+        lb, len(expected_dates(lb)), EXPECTED_FULL, thr, GAP_RATIO))
     if not gaps:
         print("공실 없음 — 데이터 정상")
         return 0
@@ -415,19 +440,41 @@ def _claim_noop(note):
               % (type(e).__name__, e), file=sys.stderr)
 
 
+def cmd_check():
+    """공실 **일수**만 출력하는 읽기 전용 모드 (상시 감시용, KIS 호출 0회).
+
+    WHY: 백로그 감시 항목(R35)의 check 가 '11-06 종목수 ≥ 3,600' 같은 **그날 한 점**이면
+    (a) 하루 지나면 영원히 참이라 감시가 아니고 (b) 중간 공백은 구조적으로 못 잡는다.
+    공실 수를 세면 '결함이 있으면 >0, 고치면 0' 이 되어 check 가 실제로 작동한다.
+    stale(창 90일 밖 공백)은 판정 불가이므로 999(=실패)로 내보낸다 — 침묵 금지.
+    """
+    lb = effective_lookback()
+    stale, note = stale_warning(lb)
+    if stale:
+        print("stale: {0}".format(note), file=sys.stderr)
+        print(999)
+        return 0
+    gaps, _h = find_gaps(probe=False, lookback=lb)
+    if gaps:
+        print("공실: {0}".format(", ".join("{0}({1})".format(d, n) for d, n in gaps)), file=sys.stderr)
+    print(len(gaps))
+    return 0
+
+
 def cmd_backfill():
     if os.path.exists(LOCK_PATH):
         print("백필 잠금 존재 — 다른 백필 진행 중, 종료")
         _claim_noop("no-op: lock-held")
         return 0
-    stale, note = stale_warning()
+    lb = effective_lookback()
+    stale, note = stale_warning(lb)
     if stale:
         print("상태: {0}".format(note))
         print("→ 1일/야간 백필로는 부족합니다. 구간 백필을 사용하세요:")
         print("   cd {0}/services/kis-collector && python3 ../../scripts/kis_backfill_range.py".format(PROJ))
         _claim_noop("no-op: stale")
         return 0
-    gaps, _holidays = find_gaps(probe=False)  # 보고 크론이 이미 probe함
+    gaps, _holidays = find_gaps(probe=False, lookback=lb)  # 보고 크론이 이미 probe함
     if not gaps:
         print("백필할 공실 없음")
         _claim_noop("no-op: no-gaps")
@@ -454,7 +501,11 @@ def cmd_backfill():
         claim_start("data_gap_backfill", "market_data",
                     note=f"date={target} gaps={len(gaps)}")
     try:
-        print("백필 시작: {0} ({1} 공실 대기)".format(target, len(gaps)))
+        print("백필 시작: {0} ({1} 공실 대기, 점검창 {2}일)".format(target, len(gaps), lb))
+        if len(gaps) > 3:
+            print("⚠ 공실이 {0}일 — 1일/회 백필로는 {1}회 필요. "
+                  "kis_backfill_range.py --from {2} --to {3} 권장".format(
+                      len(gaps), len(gaps), gaps[0][0].replace("-", ""), gaps[-1][0].replace("-", "")))
         env = dict(os.environ)
         env.update(
             POSTGRES_HOST="127.0.0.1", POSTGRES_PORT="5434",
@@ -499,6 +550,8 @@ if __name__ == "__main__":
         sys.exit(cmd_report())
     elif mode == "backfill":
         sys.exit(cmd_backfill())
+    elif mode == "check":
+        sys.exit(cmd_check())
     else:
-        print("usage: data_gap.py report|backfill")
+        print("usage: data_gap.py report|backfill|check")
         sys.exit(2)
