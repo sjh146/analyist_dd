@@ -476,8 +476,15 @@ def spearman(x, y):
 
 
 def correlate(a_metrics, b_metrics, c_metrics):
-    labels = sorted(c_metrics.keys())
-    out = {"n": len(labels), "labels": labels}
+    # 2026-11-10(엔지니어): b(다중폴드 AUC)가 **비어 있을 수 있다** — OOS 거래일이 폴드 최소치보다
+    #   적으면 part_b 가 {} 를 돌려준다(CG183 실측: window-start 이후 12일 < 3*h=15). 종전에는
+    #   여기서 KeyError 'cand' 로 죽어 **c(돈 지표) 증거까지 통째로 유실**됐다(5분 측정 소실).
+    #   라벨 교집합만 쓰고, 교집합이 2개 미만이면 상관을 계산하지 않고 이유를 남긴다.
+    labels = sorted(set(a_metrics) & set(b_metrics) & set(c_metrics))
+    if len(labels) < 2:
+        return {"n": 0, "labels": labels,
+                "note": ("상관 계산 불가 — 세 파트 공통 라벨 <2 "
+                         f"(a={sorted(a_metrics)} b={sorted(b_metrics)} c={sorted(c_metrics)})")}
     c_avg = [c_metrics[l]["avg_pct"] for l in labels]
     c_t = [c_metrics[l]["t_stat"] for l in labels]
 
@@ -493,13 +500,19 @@ def correlate(a_metrics, b_metrics, c_metrics):
         "auc_pooled": [b_metrics[l]["auc_pooled"] for l in labels],
     }
     # 단일 분할(게이트 지표)도 대조
+    # 2026-11-10(엔지니어): 임의 라벨(champ/cand 등)로 돌리면 DEFAULT_MODELS_DIR 에 키가 없어
+    #   KeyError 로 죽었다(같은 런에서 b 가 살아 있었다면 여기서 또 유실). 모르는 라벨은 None.
     s_cands = {"single_split_auc": [read_single_split_auc(DEFAULT_MODELS_DIR[l])
+                                    if l in DEFAULT_MODELS_DIR else None
                                     for l in labels]}
 
     def valid(vals):
         return all(v is not None and v == v for v in vals)
 
-    corr = {"vs_avg_pct": {}, "vs_t_stat": {}}
+    # 2026-11-10(엔지니어): 종전에는 n·labels 를 담은 dict(out)를 만들어 놓고 **다른 dict(corr)를
+    #   반환**해, 호출자의 `"n" in corr` 가 항상 거짓 → 상관 계산 결과가 **한 번도 저장되지 않았다**
+    #   (8모델 기본 런에서도). 반환 dict 에 n·labels 를 넣어 증거가 남게 한다.
+    corr = {"n": len(labels), "labels": labels, "vs_avg_pct": {}, "vs_t_stat": {}}
     for name, vals in list(a_cands.items()) + list(b_cands.items()) + list(s_cands.items()):
         if not valid(vals):
             corr["vs_avg_pct"][name] = None
@@ -584,12 +597,28 @@ def main(argv=None) -> int:
         if c_paired:
             out["c_paired"] = c_paired
 
+    if not out.get("b_robust_auc"):
+        # 왜 남기나: b 가 비면 '노이즈'가 아니라 **측정 불가**다. 요약에 이유를 박아 두어야
+        #   다음 판정자가 로그를 뒤지지 않고도 구분할 수 있다(하드룰: rc≠0·판정불가는 실행실패).
+        out["b_unavailable"] = {
+            "reason": "part_b 가 폴드 창을 만들지 못함(로그 [b] 줄 참조)",
+            "window_start": getattr(args, "window_start", None),
+            "folds_requested": args.folds, "dates_per_fold": args.dates_per_fold,
+            "min_days_needed": 3 * args.horizon,
+        }
     if all(k in out for k in ("a_live_signal", "b_robust_auc", "c_net_expectancy")):
-        corr = correlate(out["a_live_signal"], out["b_robust_auc"], out["c_net_expectancy"])
-        if "n" in corr:
+        try:
+            corr = correlate(out["a_live_signal"], out["b_robust_auc"], out["c_net_expectancy"])
+        except Exception as e:  # noqa: BLE001 — 상관 실패가 돈 증거 저장을 막으면 안 된다
+            corr = {"n": 0, "note": f"correlate 예외: {type(e).__name__}: {e}"}
+            print(f"[correlation] 계산 실패(무해): {corr['note']}", flush=True)
+        if corr.get("n"):
             out["correlation"] = corr
             print("\n[correlation] (스피어만 순위상관, n=%d)" % corr["n"], flush=True)
             print(json.dumps(corr, ensure_ascii=False, indent=2), flush=True)
+        else:
+            out["correlation_skipped"] = corr
+            print(f"\n[correlation] 건너뜀 — {corr.get('note')}", flush=True)
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:

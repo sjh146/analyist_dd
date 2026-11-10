@@ -1,0 +1,95 @@
+{
+  "created_at": "2026-11-10T22:57:04+09:00",
+  "id": "CG183",
+  "title": "원천 복구 후 챔피언 후보 재학습 → 돈 게이트 판정",
+  "retrain": {
+    "dir": "champion_cand_cg183",
+    "ensemble_auc": 0.5418,
+    "ensemble_auc_deployed_substance": 0.5376,
+    "model_aucs": null,
+    "n_features": 193,
+    "fit_end": "2026-10-19",
+    "val_start": "2026-10-19",
+    "train_window": [
+      "2026-07-12",
+      "2026-10-19"
+    ]
+  },
+  "b_robust_auc": {
+    "status": "측정 불가",
+    "reason": "window-start 2026-10-19 이후 거래일 12 < 최소 15(3 folds × 5일, horizon purge 5)",
+    "folds_requested": 3,
+    "dates_per_fold": 5
+  },
+  "c_money": {
+    "protocol": "top3·익일시가·체결성 필터(당일등락<25%)·수수료 왕복 0.21%p",
+    "champ": {
+      "avg_pct": -0.1744,
+      "t": -0.78,
+      "sessions": 87,
+      "trades": 1340,
+      "pos_sessions_pct": 40.2,
+      "halves": {
+        "front": -0.0912,
+        "back": -0.2557,
+        "stable": "neither"
+      }
+    },
+    "cand": {
+      "avg_pct": -0.1346,
+      "t": -0.79,
+      "sessions": 87,
+      "trades": 1340,
+      "pos_sessions_pct": 39.1,
+      "halves": {
+        "front": -0.0806,
+        "back": -0.1873,
+        "stable": "neither"
+      }
+    },
+    "paired": {
+      "arm": "champ",
+      "control": "cand",
+      "delta_mean": -0.0398,
+      "sd": 2.0464,
+      "t": -0.18,
+      "pos": 42,
+      "neg": 41,
+      "ties": 4,
+      "halves": {
+        "front": -0.0106,
+        "back": -0.0684,
+        "stable": "neither"
+      },
+      "folds": {
+        "1": "14/29",
+        "2": "11/29",
+        "3": "17/29"
+      }
+    }
+  },
+  "c_money_caveat": "표본 세션 87개 = 2026-05-26~2026-09-30. 후보 학습구간(07-12~10-19)과 약 55/87 세션 겹침 → in-sample. 개선 근거로 쓸 수 없고, 챔피언도 07-03~10-01 학습이라 동일 문제.",
+  "a_live_signal": {
+    "champ": {
+      "median": 0.4598,
+      "gt_0.55": 40,
+      "n": 300
+    },
+    "cand": {
+      "median": 0.5337,
+      "gt_0.55": 72,
+      "n": 300
+    }
+  },
+  "verdict": "기각 — ② 측정 불가 ③ Δ+0.0398%p(t 0.18) < +0.1%p 문턱 · 두 모델 모두 순기대 음수 · halves neither → 신호 없음. 승격 금지.",
+  "structural_findings": [
+    "end-date 를 오늘로 고정한 재학습은 fit_end 가 OOS 를 12일로 깎아 다중폴드 판정이 원리적으로 불가능(CG186 으로 홀드아웃 재설계).",
+    "돈 프로토콜 표본이 2026-09-30 에서 끝나 5주 낡음 + 재학습 후보에게 in-sample(CG187, 발행측 덤프 확장 필요)."
+  ],
+  "measurement_repairs": [
+    "correlate(): b(다중폴드) 비어 있을 때 KeyError 'cand' 로 전체 요약 유실 → 라벨 교집합·예외 가드(회귀 scripts/_correlate_guard_test.py PASS).",
+    "correlate(): DEFAULT_MODELS_DIR 에 없는 라벨(champ/cand)에서 KeyError → 미지 라벨 None 처리.",
+    "correlate(): n·labels 를 담은 dict 를 만들어 놓고 다른 dict 를 반환해 상관 증거가 '한 번도' 저장되지 않던 버그 수리.",
+    "robust_oos.json 에 fold_aucs·fold_mean·fold_std 추가(증거 형식 '폴드별 AUC 목록' 충족)."
+  ]
+}
