@@ -648,6 +648,34 @@ def start_item(cmd, item_id, settle=None):
     return p, False
 
 
+def _ledger_recorded(item_id, started):
+    """죽은 pid 가 가리키는 실행이 **원장에 이미 기록됐는가**(시작시각 이후 기록 존재).
+
+    WHY (실측 2026-11-10 18:00): `--run` 은 종료 시 running.pid 만 지우고 state.json 은 남긴다.
+    그래서 정상 완료한 R33(state started 15:35:20 → 원장 17:35:43 rc=0 '충족')을 다음 틱이
+    '기록 없이 죽었다 — 원장 기록 없음'으로 **오보**했다. 원장을 보지 않고 'pid 가 죽었다'만으로
+    판정하면 정상 종료와 크래시를 구분할 수 없다 — 크래시만 경보해야 한다.
+    """
+    try:
+        t0 = datetime.fromisoformat(str(started)).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return False
+    try:
+        rows = base.load_ledger() or []
+    except Exception:                       # 원장 읽기 실패가 틱을 죽이면 안 된다
+        return False
+    for r in rows:
+        if not isinstance(r, dict) or r.get("id") != item_id:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(r.get("ts"))).replace(tzinfo=None)
+        except (TypeError, ValueError):
+            continue
+        if ts >= t0:
+            return True
+    return False
+
+
 def reap_dead_run():
     """pidfile/state 가 가리키는 pid 가 **죽었으면** '기록 없이 죽었다'를 돌려주고 파일을 정리한다.
 
@@ -669,12 +697,15 @@ def reap_dead_run():
     pid = base._pid_of(base.PIDFILE) or base._pid_of(base.STATE, "pid")
     if not pid or base._pid_alive(pid):
         return None
+    # 정상 완료 후 남은 state(자식은 running.pid 만 지운다)는 크래시가 아니다 — 원장으로 구분.
+    recorded = _ledger_recorded(st.get("id", ""), st.get("started"))
     for f in (base.PIDFILE, base.STATE):
         try:
             os.remove(f)
         except OSError:
             pass
-    return {"id": st.get("id", "?"), "pid": pid, "started": st.get("started", "?")}
+    return {"id": st.get("id", "?"), "pid": pid, "started": st.get("started", "?"),
+            "recorded": recorded}
 
 
 def tick(force=False):
@@ -696,9 +727,11 @@ def tick(force=False):
         return 0
 
     dead = reap_dead_run()
-    if dead:
+    if dead and not dead.get("recorded"):
         print(f"⚠ 기록 없이 죽었다: {dead['id']} pid={dead['pid']} 시작 {dead['started']} "
               f"— 원장 기록 없음(종목별 진행분은 보존). 로그 꼬리와 종료 원인을 확인하라.")
+    elif dead:
+        print(f"[정리] {dead['id']} state 잔재 제거(원장에 완료 기록 있음 — 크래시 아님)")
 
     src_rc, src_out = snapshot(24)
     # 북극성 먼저: 데이터 품질이 목표(모델에 학습되는 양질 데이터)에 얼마나 가까운지 매 틱 확인.
@@ -836,6 +869,16 @@ def main():
             try:
                 os.remove(base.PIDFILE)
             except OSError:
+                pass
+            # state.json 도 **자기 것일 때만** 지운다. 남기면 다음 틱이 정상 완료한 실행을
+            # '기록 없이 죽었다'로 오보한다(실측 2026-11-10 18:00: R33 완료 17:35 → 틱이 18:00 에
+            # '원장 기록 없음'으로 경보. 원장에는 rc=0 '충족' 기록이 있었다).
+            try:
+                with open(base.STATE, encoding="utf-8") as f:
+                    stt = json.load(f)
+                if int(stt.get("pid") or 0) == os.getpid():
+                    os.remove(base.STATE)
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
                 pass
         return rc
     ap.print_help()
