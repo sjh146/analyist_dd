@@ -773,6 +773,12 @@ def summary_path(kind, command=None, summary_out=None):
     # 래퍼마다 경로 규칙을 코드에 하드코딩하는 대신 항목 JSON 이 경로를 말하게 한다.
     if summary_out:
         return _container_path_to_host(str(summary_out).strip("'\""))
+    if kind == "score_deciles":
+        # 점수 분위 순기대(CG190) — 랭킹이 순서 정보를 갖는지. --out 경로를 커맨드에서 읽는다.
+        out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg190_score_deciles.json")
     if kind == "wf_sweep_summary":
         # ⚠ 실측 갭 수리(2026-10-02): 종전엔 기본 경로를 **고정**해 돌려줬다. 그런데
         # wf_label_sweep.py 는 `--summary-out <path>` 를 받으므로, 그걸 준 실행은 기본 경로를
@@ -1563,6 +1569,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_scale_bisect_probe(spath, mtime_floor)
     if kind == "robust_oos_audit":
         return parse_robust_oos_audit(spath, mtime_floor, label=item.get("model_label"))
+    if kind == "score_deciles":
+        return parse_score_deciles(spath, mtime_floor, label=item.get("model_label"))
     if kind == "metric_audit_pair":
         return parse_metric_audit_pair(spath, mtime_floor,
                                        arm_label=item.get("arm_label"),
@@ -1640,6 +1648,83 @@ def judge_robust_oos_audit(item, parsed) -> tuple:
     else:
         detail += " · 순기대 없음(c 파트 미실행)"
     return verdict, detail, delta
+
+
+def parse_score_deciles(path, mtime_floor, label=None) -> dict:
+    """점수 분위 순기대(CG190) 요약을 판정 필드로 옮긴다.
+
+    스키마(scripts/cg190_score_deciles.py --out):
+      {"config": {...}, "models": {label: {n_sessions, deciles[{decile,mean_pct,t_stat,...}],
+        spearman_rho, d10_minus_d1_pct, paired_d10_d1{mean_pct,t_stat,pos,neg,front_pct,back_pct},
+        pool_mean_pct, monotonic}}}
+    ⚠ per_exp 를 만들지 않는다 — 분위별 값은 'arm 폴드 AUC' 가 아니므로 스코어보드가 읽으면 오독한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    models = d.get("models") or {}
+    if not models:
+        return {"error": "models 없음(분위 계산 실패)", "summary_mtime": mt}
+    lab = label if label in models else (next(iter(models)) if len(models) == 1 else
+                                         ("cand" if "cand" in models else next(iter(models))))
+    m = models.get(lab) or {}
+    if m.get("error"):
+        return {"error": m["error"], "summary_mtime": mt}
+    dec = [x for x in (m.get("deciles") or []) if isinstance(x.get("mean_pct"), (int, float))]
+    if len(dec) < 3:
+        return {"error": f"{lab} 분위 평균 부족({len(dec)}개) — 표본 결함", "summary_mtime": mt}
+    return {
+        "metric_name": "score_deciles", "model": lab,
+        "n_sessions": m.get("n_sessions"), "n_rows_after_filter": m.get("n_rows_after_filter"),
+        "n_rows_scored": m.get("n_rows_scored"), "n_skipped_sessions": m.get("n_skipped"),
+        "deciles": [{"decile": x["decile"], "mean_pct": x["mean_pct"], "t_stat": x.get("t_stat"),
+                     "pos_sessions_pct": x.get("pos_sessions_pct"), "n_rows": x.get("n_rows")}
+                    for x in dec],
+        "spearman_rho": m.get("spearman_rho"),
+        "d10_minus_d1_pct": m.get("d10_minus_d1_pct"),
+        "paired_d10_d1": m.get("paired_d10_d1"),
+        "pool_mean_pct": m.get("pool_mean_pct"), "pool_t": m.get("pool_t"),
+        "monotonic": m.get("monotonic"),
+        "config": d.get("config"),
+        "other_models": {k: {"spearman_rho": v.get("spearman_rho"),
+                             "d10_minus_d1_pct": v.get("d10_minus_d1_pct")}
+                         for k, v in models.items() if k != lab},
+        "generated_at": d.get("generated_at"), "summary_mtime": mt,
+    }
+
+
+def judge_score_deciles(item, parsed) -> tuple:
+    """사전 등록 문턱(백로그 success): ρ ≥ +0.5 이고 D10−D1 ≥ +0.3%p 면 '순서 정보 있음'.
+
+    둘 중 하나라도 미달이면 '노이즈'(=랭킹 무효 → 라벨·목적함수 축으로 이동). 판정 불가는 실행실패.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"측정값 없음 — {parsed['error']}", None
+    rho = parsed.get("spearman_rho")
+    delta = parsed.get("d10_minus_d1_pct")
+    p = parsed.get("paired_d10_d1") or {}
+    dec = parsed.get("deciles") or []
+    d1 = dec[0]["mean_pct"] if dec else None
+    d10 = dec[-1]["mean_pct"] if dec else None
+    detail = (f"분위 ρ {rho} · D10−D1 {delta}%p (D1 {d1:+.4f} / D10 {d10:+.4f}) · "
+              f"세션별 짝Δ {p.get('mean_pct')}%p t {p.get('t_stat')} "
+              f"(양 {p.get('pos')}/음 {p.get('neg')}, 앞 {p.get('front_pct')}/뒤 {p.get('back_pct')}) · "
+              f"풀평균 {parsed.get('pool_mean_pct')}%p · {parsed.get('n_sessions')}세션/"
+              f"{parsed.get('n_rows_after_filter')}행") if isinstance(delta, (int, float)) else "측정값 없음"
+    ok = (rho is not None and rho >= 0.5 and delta is not None and delta >= 0.3)
+    if ok:
+        return "신호", detail + " → 사전문턱(ρ≥0.5·Δ≥0.3%p) 통과: 순서 정보 있음", delta
+    return "노이즈", detail + " → 사전문턱(ρ≥0.5·Δ≥0.3%p) 미달: 랭킹 무효", delta
 
 
 def parse_forward_scorecard(path, mtime_floor) -> dict:
@@ -3110,6 +3195,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_scale_bisect_probe(item, parsed)
     if kind == "metric_audit_pair":
         return judge_metric_audit_pair(item, parsed)
+    if kind == "score_deciles":
+        return judge_score_deciles(item, parsed)
     if kind == "robust_oos_audit":
         return judge_robust_oos_audit(item, parsed)
     if kind == "protocol_noise_floor":

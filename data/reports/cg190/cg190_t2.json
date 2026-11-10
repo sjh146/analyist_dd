@@ -1,0 +1,279 @@
+{
+  "generated_at": "2026-11-10T22:07:17+0000",
+  "config": {
+    "trades": "/app/app/reports/close_gate_probe_trades.csv",
+    "deciles": 10,
+    "max_day_chg_pct": 25.0,
+    "round_trip_pct": 0.21,
+    "exit": "t2_open",
+    "min_rows_session": 10,
+    "models": [
+      {
+        "label": "cand",
+        "dir": "/app/app/models/champion_cand_cg183"
+      },
+      {
+        "label": "champ",
+        "dir": "/app/app/models/champion"
+      }
+    ],
+    "sample_rows": 2251,
+    "sample_sessions": 113
+  },
+  "models": {
+    "cand": {
+      "n_sessions": 112,
+      "skipped_sessions": [
+        "2026-11-09"
+      ],
+      "n_skipped": 1,
+      "deciles": [
+        {
+          "decile": 1,
+          "mean_pct": -2.3058,
+          "t_stat": -2.5,
+          "pos_sessions_pct": 36.6,
+          "median_pct": -2.2127,
+          "n_sessions": 112,
+          "n_rows": 113,
+          "worst_session_pct": -49.1864
+        },
+        {
+          "decile": 2,
+          "mean_pct": -4.2336,
+          "t_stat": -5.23,
+          "pos_sessions_pct": 25.9,
+          "median_pct": -3.553,
+          "n_sessions": 112,
+          "n_rows": 195,
+          "worst_session_pct": -49.773
+        },
+        {
+          "decile": 3,
+          "mean_pct": -1.8245,
+          "t_stat": -2.12,
+          "pos_sessions_pct": 31.2,
+          "median_pct": -3.0164,
+          "n_sessions": 112,
+          "n_rows": 167,
+          "worst_session_pct": -24.0679
+        },
+        {
+          "decile": 4,
+          "mean_pct": -1.3776,
+          "t_stat": -2.03,
+          "pos_sessions_pct": 38.4,
+          "median_pct": -1.5473,
+          "n_sessions": 112,
+          "n_rows": 177,
+          "worst_session_pct": -23.627
+        },
+        {
+          "decile": 5,
+          "mean_pct": -0.9393,
+          "t_stat": -1.54,
+          "pos_sessions_pct": 36.6,
+          "median_pct": -1.3127,
+          "n_sessions": 112,
+          "n_rows": 196,
+          "worst_session_pct": -20.2713
+        },
+        {
+          "decile": 6,
+          "mean_pct": -0.2712,
+          "t_stat": -0.41,
+          "pos_sessions_pct": 38.4,
+          "median_pct": -1.2278,
+          "n_sessions": 112,
+          "n_rows": 162,
+          "worst_session_pct": -19.9036
+        },
+        {
+          "decile": 7,
+          "mean_pct": -1.1353,
+          "t_stat": -1.61,
+          "pos_sessions_pct": 28.6,
+          "median_pct": -2.1148,
+          "n_sessions": 112,
+          "n_rows": 160,
+          "worst_session_pct": -13.173
+        },
+        {
+          "decile": 8,
+          "mean_pct": -1.8103,
+          "t_stat": -3.14,
+          "pos_sessions_pct": 38.4,
+          "median_pct": -1.4855,
+          "n_sessions": 112,
+          "n_rows": 184,
+          "worst_session_pct": -21.9491
+        },
+        {
+          "decile": 9,
+          "mean_pct": -0.9557,
+          "t_stat": -1.37,
+          "pos_sessions_pct": 38.4,
+          "median_pct": -1.664,
+          "n_sessions": 112,
+          "n_rows": 178,
+          "worst_session_pct": -16.9619
+        },
+        {
+          "decile": 10,
+          "mean_pct": -0.104,
+          "t_stat": -0.2,
+          "pos_sessions_pct": 44.6,
+          "median_pct": -0.7063,
+          "n_sessions": 112,
+          "n_rows": 224,
+          "worst_session_pct": -11.0423
+        }
+      ],
+      "n_rows": 1756,
+      "pool_mean_pct": -1.4719,
+      "pool_t": -4.85,
+      "paired_d10_d1": {
+        "mean_pct": 2.2018,
+        "t_stat": 2.16,
+        "n_sessions": 112,
+        "pos": 67,
+        "neg": 45,
+        "front_pct": 2.3165,
+        "back_pct": 2.0871
+      },
+      "spearman_rho": 0.7455,
+      "d10_minus_d1_pct": 2.2018,
+      "monotonic": true,
+      "label": "cand",
+      "n_rows_scored": 2251,
+      "n_rows_after_filter": 1771
+    },
+    "champ": {
+      "n_sessions": 112,
+      "skipped_sessions": [
+        "2026-11-09"
+      ],
+      "n_skipped": 1,
+      "deciles": [
+        {
+          "decile": 1,
+          "mean_pct": -3.3458,
+          "t_stat": -3.22,
+          "pos_sessions_pct": 27.7,
+          "median_pct": -3.7921,
+          "n_sessions": 112,
+          "n_rows": 113,
+          "worst_session_pct": -27.7578
+        },
+        {
+          "decile": 2,
+          "mean_pct": -1.4608,
+          "t_stat": -2.14,
+          "pos_sessions_pct": 39.3,
+          "median_pct": -1.5374,
+          "n_sessions": 112,
+          "n_rows": 195,
+          "worst_session_pct": -17.6357
+        },
+        {
+          "decile": 3,
+          "mean_pct": -0.8875,
+          "t_stat": -1.01,
+          "pos_sessions_pct": 42.9,
+          "median_pct": -1.5681,
+          "n_sessions": 112,
+          "n_rows": 167,
+          "worst_session_pct": -52.1878
+        },
+        {
+          "decile": 4,
+          "mean_pct": -0.8218,
+          "t_stat": -1.1,
+          "pos_sessions_pct": 42.0,
+          "median_pct": -1.3594,
+          "n_sessions": 112,
+          "n_rows": 177,
+          "worst_session_pct": -25.4081
+        },
+        {
+          "decile": 5,
+          "mean_pct": -2.2812,
+          "t_stat": -3.58,
+          "pos_sessions_pct": 33.9,
+          "median_pct": -1.6212,
+          "n_sessions": 112,
+          "n_rows": 196,
+          "worst_session_pct": -17.71
+        },
+        {
+          "decile": 6,
+          "mean_pct": -1.5561,
+          "t_stat": -2.04,
+          "pos_sessions_pct": 36.6,
+          "median_pct": -1.5496,
+          "n_sessions": 112,
+          "n_rows": 162,
+          "worst_session_pct": -31.1559
+        },
+        {
+          "decile": 7,
+          "mean_pct": -0.1223,
+          "t_stat": -0.15,
+          "pos_sessions_pct": 44.6,
+          "median_pct": -0.7399,
+          "n_sessions": 112,
+          "n_rows": 160,
+          "worst_session_pct": -24.0679
+        },
+        {
+          "decile": 8,
+          "mean_pct": -1.5172,
+          "t_stat": -2.51,
+          "pos_sessions_pct": 35.7,
+          "median_pct": -1.6506,
+          "n_sessions": 112,
+          "n_rows": 184,
+          "worst_session_pct": -27.1218
+        },
+        {
+          "decile": 9,
+          "mean_pct": -1.3034,
+          "t_stat": -2.01,
+          "pos_sessions_pct": 41.1,
+          "median_pct": -1.0205,
+          "n_sessions": 112,
+          "n_rows": 178,
+          "worst_session_pct": -25.9399
+        },
+        {
+          "decile": 10,
+          "mean_pct": -1.3197,
+          "t_stat": -2.61,
+          "pos_sessions_pct": 37.5,
+          "median_pct": -1.401,
+          "n_sessions": 112,
+          "n_rows": 224,
+          "worst_session_pct": -23.5805
+        }
+      ],
+      "n_rows": 1756,
+      "pool_mean_pct": -1.4719,
+      "pool_t": -4.85,
+      "paired_d10_d1": {
+        "mean_pct": 2.0261,
+        "t_stat": 1.8,
+        "n_sessions": 112,
+        "pos": 69,
+        "neg": 43,
+        "front_pct": 2.3718,
+        "back_pct": 1.6804
+      },
+      "spearman_rho": 0.2606,
+      "d10_minus_d1_pct": 2.0261,
+      "monotonic": false,
+      "label": "champ",
+      "n_rows_scored": 2251,
+      "n_rows_after_filter": 1771
+    }
+  }
+}

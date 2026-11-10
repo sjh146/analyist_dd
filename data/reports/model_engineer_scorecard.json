@@ -1,6 +1,6 @@
 {
   "metric_name": "champion_scorecard",
-  "generated_at": "2026-11-11T02:00:08",
+  "generated_at": "2026-11-11T07:00:31",
   "champion_dir": "services/xgboost-ml/app/models/champion",
   "champion_auc_txt": 0.551318,
   "insample": {
@@ -36,11 +36,11 @@
     "policy": "라벨 참조일 기준 h거래일 purge(wf_wave.py·wf_label_sweep.py) — 달력 h일이 아니라 그 종목의 h번째 미래 '행'의 날짜 기준",
     "horizon": 5,
     "observed": {
-      "n_label_ref_purged": 43,
+      "n_label_ref_purged": 18,
       "n_folds_counted": 5,
-      "exp": "CG182_ctl_h5",
-      "source": "services/xgboost-ml/reports/overnight/wf_label_sweep_summary.json",
-      "finished_at": "2026-11-10T16:03:47+00:00"
+      "exp": "CG189_momdrop_nog_h5",
+      "source": "services/xgboost-ml/reports/overnight/cg189_momdrop_summary.json",
+      "finished_at": "2026-11-10T20:06:31+00:00"
     }
   },
   "promote_dryrun": {

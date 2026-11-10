@@ -1,0 +1,155 @@
+{
+  "generated_at": "2026-11-10T22:06:16+0000",
+  "config": {
+    "trades": "/app/app/reports/close_gate_probe_trades.csv",
+    "deciles": 4,
+    "max_day_chg_pct": 25.0,
+    "round_trip_pct": 0.21,
+    "exit": "next_open",
+    "min_rows_session": 10,
+    "models": [
+      {
+        "label": "cand",
+        "dir": "/app/app/models/champion_cand_cg183"
+      },
+      {
+        "label": "champ",
+        "dir": "/app/app/models/champion"
+      }
+    ],
+    "sample_rows": 2251,
+    "sample_sessions": 113
+  },
+  "models": {
+    "cand": {
+      "n_sessions": 113,
+      "skipped_sessions": [],
+      "n_skipped": 0,
+      "deciles": [
+        {
+          "decile": 1,
+          "mean_pct": -0.7607,
+          "t_stat": -3.89,
+          "pos_sessions_pct": 34.5,
+          "median_pct": -0.6314,
+          "n_sessions": 113,
+          "n_rows": 403,
+          "worst_session_pct": -8.1348
+        },
+        {
+          "decile": 2,
+          "mean_pct": -0.2376,
+          "t_stat": -1.16,
+          "pos_sessions_pct": 43.4,
+          "median_pct": -0.2764,
+          "n_sessions": 113,
+          "n_rows": 452,
+          "worst_session_pct": -7.3411
+        },
+        {
+          "decile": 3,
+          "mean_pct": -0.196,
+          "t_stat": -1.15,
+          "pos_sessions_pct": 45.1,
+          "median_pct": -0.2448,
+          "n_sessions": 113,
+          "n_rows": 430,
+          "worst_session_pct": -5.915
+        },
+        {
+          "decile": 4,
+          "mean_pct": -0.1976,
+          "t_stat": -1.2,
+          "pos_sessions_pct": 31.9,
+          "median_pct": -0.3366,
+          "n_sessions": 113,
+          "n_rows": 486,
+          "worst_session_pct": -5.5038
+        }
+      ],
+      "n_rows": 1771,
+      "pool_mean_pct": -0.339,
+      "pool_t": -2.75,
+      "paired_d10_d1": {
+        "mean_pct": 0.5631,
+        "t_stat": 2.45,
+        "n_sessions": 113,
+        "pos": 67,
+        "neg": 46,
+        "front_pct": 0.5809,
+        "back_pct": 0.5456
+      },
+      "spearman_rho": 0.8,
+      "d10_minus_d1_pct": 0.5631,
+      "monotonic": true,
+      "label": "cand",
+      "n_rows_scored": 2251,
+      "n_rows_after_filter": 1771
+    },
+    "champ": {
+      "n_sessions": 113,
+      "skipped_sessions": [],
+      "n_skipped": 0,
+      "deciles": [
+        {
+          "decile": 1,
+          "mean_pct": -0.4125,
+          "t_stat": -2.1,
+          "pos_sessions_pct": 33.6,
+          "median_pct": -0.5676,
+          "n_sessions": 113,
+          "n_rows": 403,
+          "worst_session_pct": -5.5486
+        },
+        {
+          "decile": 2,
+          "mean_pct": -0.4053,
+          "t_stat": -2.35,
+          "pos_sessions_pct": 37.2,
+          "median_pct": -0.4287,
+          "n_sessions": 113,
+          "n_rows": 452,
+          "worst_session_pct": -6.9968
+        },
+        {
+          "decile": 3,
+          "mean_pct": -0.2702,
+          "t_stat": -1.19,
+          "pos_sessions_pct": 38.9,
+          "median_pct": -0.3404,
+          "n_sessions": 113,
+          "n_rows": 430,
+          "worst_session_pct": -8.3994
+        },
+        {
+          "decile": 4,
+          "mean_pct": -0.278,
+          "t_stat": -1.38,
+          "pos_sessions_pct": 39.8,
+          "median_pct": -0.3948,
+          "n_sessions": 113,
+          "n_rows": 486,
+          "worst_session_pct": -8.5894
+        }
+      ],
+      "n_rows": 1771,
+      "pool_mean_pct": -0.339,
+      "pool_t": -2.75,
+      "paired_d10_d1": {
+        "mean_pct": 0.1345,
+        "t_stat": 0.49,
+        "n_sessions": 113,
+        "pos": 60,
+        "neg": 53,
+        "front_pct": 0.1564,
+        "back_pct": 0.1129
+      },
+      "spearman_rho": 0.8,
+      "d10_minus_d1_pct": 0.1345,
+      "monotonic": false,
+      "label": "champ",
+      "n_rows_scored": 2251,
+      "n_rows_after_filter": 1771
+    }
+  }
+}
