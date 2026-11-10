@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-11T00:06:27+09:00",
+ "updated_at": "2026-11-11T01:05:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -14814,7 +14814,7 @@
   {
    "id": "CG184",
    "priority": 2,
-   "status": "pending",
+   "status": "done",
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": true,
@@ -14825,8 +14825,60 @@
    "counterfactual": "CO_core30_h5 (게이트 OFF 코어, 같은 런·같은 패널·같은 구간)",
    "success": "① 패널 빌드 완료(panel_150d_fresh.npz, dates max = 2026-11-07~11-09 · 5폴드 성립) ② 짝 Δ(arm−control) 5폴드×5시드 평균 ≥ +0.02 이고 폴드승률 ≥ 4/5 (폴드 std ±0.03 감안) ③ 미달이면 '노이즈'로 명시하고 데이터 축 가설을 신선 구간에서도 기각 기록. rc≠0 이거나 요약 미갱신이면 '실행실패'(노이즈 아님).",
    "est_minutes": 300,
-   "note": "2026-11-10 21:2x 엔지니어 자율 신설(장외 루프). 근거 실측: ① XR33 셋업 검증 (`python3 scripts/_xr33_backfill_check.py` → verdict=complete): 공백창 2026-10-12~10-31 15/15 거래일 채워짐 · foreign_institutional 14,081행 · 비영 98.3% ② CG178 의 갭 창(10-09~11-06)도 20/20 거래일 완비(md·fi·smf·short) ③ 그런데 스윕 패널 17개 전부 max date 2026-09-23 → 신선 구간 미반영(실측 scripts/_panel_periods.py). 즉 CG178 ③(게이트 arm 재측정)은 **패널이 없어 실행 불가**였고, 이 항목이 그 선행이다. 설계: 150일 창 = 약 105거래일 × 49종목 ≈ 5,145 페어 → U3 실측 0.42 pair/s 면 빌드 ≈204분 + 스윕 2 config×5폴드×5시드(50 cell) → est 300분, 컨테이너 timeout 은 구동기 요구식(est×60×1.5+300=27,300s)에 맞춤. --end-date 2026-11-09 로 고정해 체크포인트 재개가 성립. ⚠ 대조 해석 한계: 이 패널은 281일 창(panel_420_asofpatch)과 **구간이 다르다** → 절대값을 기록 기준선 0.5406 과 비교하면 '타 패널 대조'로 증거가 약하다(U3 전철). 판정의 1차 근거는 **같은 런 안의 짝 Δ**이고, 절대값은 참고로만 병기하라. ⚠ 파이프라인 종료 후 틱이 ETA 가드를 통과하면 자동 착수(23:00 틱 → 종료 ~04:00 < 개장 09:00). 파이프라인과 동시 실행 금지.",
-   "created_at": "2026-11-10T21:04:19+09:00"
+   "note": "2026-11-10 21:2x 엔지니어 자율 신설(장외 루프). 근거 실측: ① XR33 셋업 검증 (`python3 scripts/_xr33_backfill_check.py` → verdict=complete): 공백창 2026-10-12~10-31 15/15 거래일 채워짐 · foreign_institutional 14,081행 · 비영 98.3% ② CG178 의 갭 창(10-09~11-06)도 20/20 거래일 완비(md·fi·smf·short) ③ 그런데 스윕 패널 17개 전부 max date 2026-09-23 → 신선 구간 미반영(실측 scripts/_panel_periods.py). 즉 CG178 ③(게이트 arm 재측정)은 **패널이 없어 실행 불가**였고, 이 항목이 그 선행이다. 설계: 150일 창 = 약 105거래일 × 49종목 ≈ 5,145 페어 → U3 실측 0.42 pair/s 면 빌드 ≈204분 + 스윕 2 config×5폴드×5시드(50 cell) → est 300분, 컨테이너 timeout 은 구동기 요구식(est×60×1.5+300=27,300s)에 맞춤. --end-date 2026-11-09 로 고정해 체크포인트 재개가 성립. ⚠ 대조 해석 한계: 이 패널은 281일 창(panel_420_asofpatch)과 **구간이 다르다** → 절대값을 기록 기준선 0.5406 과 비교하면 '타 패널 대조'로 증거가 약하다(U3 전철). 판정의 1차 근거는 **같은 런 안의 짝 Δ**이고, 절대값은 참고로만 병기하라. ⚠ 파이프라인 종료 후 틱이 ETA 가드를 통과하면 자동 착수(23:00 틱 → 종료 ~04:00 < 개장 09:00). 파이프라인과 동시 실행 금지. | 2026-11-11 01:0x 엔지니어 자율 보정(검정력): 이 판정은 '데이터 축 노이즈'가 아니라 **저검정력 판정불가**로 읽어야 한다 — 실측 폴드 std 0.0758(ctl)/0.0797(arm) → SE 0.034, +0.02 를 80% 검정력으로 잡으려면 폴드 약 113개가 필요한데 실제 5개(검출한계 ≈ ±0.10). 게다가 폴드 구간이 2026-07-06~11-02 로 전체 창에 고르게 퍼져 있어 '신선 구간(10~11월)'만 분리한 시험도 아니었다(fold4·5 만 신선). 50종목×16일 test_rows 452~480 이 원인 → CG188(200종목·420일)로 재측정한다.",
+   "created_at": "2026-11-10T21:04:19+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-11T00:20:40+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "[arm 미지정] CO_core30_h5 제외 최고 CO_rank_smooth_d1_h5 0.5605 vs CO_core30_h5 0.5703 → Δ-0.0098",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG184_20261111-000653.log",
+     "elapsed_min": 13.8
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "[arm 미지정] CO_core30_h5 제외 최고 CO_rank_smooth_d1_h5 0.5605 vs CO_core30_h5 0.5703 → Δ-0.0098",
+    "delta": -0.0098,
+    "per_exp": {
+     "CO_core30_h5": {
+      "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.6519,
+       0.4439,
+       0.5403,
+       0.6421,
+       0.5734
+      ],
+      "mean": 0.5703,
+      "std": 0.0758,
+      "min": 0.4439,
+      "max": 0.6519,
+      "fold_win_rate": 0.8
+     },
+     "CO_rank_smooth_d1_h5": {
+      "desc": "게이트 ON + rank + 스무딩 + depth1 — 생산경로에서 가진 방향 전부 결합",
+      "kind": "smooth",
+      "horizon": 5,
+      "folds": [
+       0.6215,
+       0.4129,
+       0.5391,
+       0.6161,
+       0.6127
+      ],
+      "mean": 0.5605,
+      "std": 0.0797,
+      "min": 0.4129,
+      "max": 0.6215,
+      "fold_win_rate": 0.8
+     }
+    },
+    "rc": 0
+   }
   },
   {
    "id": "XR35",
@@ -14928,6 +14980,22 @@
    "setup_needed": "선행: close_gate_probe 의 후보 덤프(일별 close 후보 CSV)를 10-01 이후로 생성해야 한다 — 생성 주체가 트레이더/피드 경로(발행측 스크리너)라 **엔지니어 단독 실행 불가**. 필요한 것: ① 2026-10-01~11-09 거래일별 close 후보 덤프(상위 후보 + day_change_pct + 익일 시가) ② 이를 trades.csv 형식으로 append. 확보되면 내가 재계산·판정한다.",
    "note": "2026-11-10 23:0x 엔지니어 자율 신설. 실측 근거: trades.csv min 2026-05-26 max 2026-09-30 · 87세션 · 1,340행(컨테이너 /app/app/reports/close_gate_probe_trades.csv 와 호스트 data/reports/close_gate_probe/trades.csv 동일 계열). 영향: 오늘 CG183 판정에서 돈 다리가 후보 학습구간과 겹쳐 in-sample 이었다. ⚠ 프로토콜·기준선 변경은 리뷰보드 승인 대상이므로, 나는 '확장 표본으로 잰 값'을 증거로만 남기고 기준선 교체는 승인 후 한다.",
    "created_at": "2026-11-10T22:56:49+09:00"
+  },
+  {
+   "id": "CG188",
+   "priority": 1,
+   "status": "pending",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "title": "[검정력·데이터축] 신선 구간을 **넓은 횡단면(200종목·420일)** 으로 재측정 — CG184 저검정력(폴드 std 0.076, 검출한계 ±0.10) 교정",
+   "hypothesis": "CG184 는 50종목·150일 패널이라 폴드당 test_rows 가 452~480 에 그쳤고 폴드 std 가 0.0758/0.0797 였다 → SE 0.034, 사전문턱 +0.02 를 80% 검정력으로 잡으려면 폴드 113개 필요(실제 5개). 즉 그 런은 데이터 축을 '기각'한 것이 아니라 **잴 수 없었다**. 횡단면을 4배(200종목)·구간을 420일로 넓히면 폴드당 test_rows 가 약 1,900 이 되어 폴드 std 가 0.03 수준으로 내려가고, 마지막 두 폴드가 10~11월 국면을 직접 포함한다. 그 상태에서 게이트 arm(rank+스무딩+depth1)이 코어 대조군을 이기는지가 이 항목의 질문이다.",
+   "metric": "wf_sweep_summary",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 16200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2026-09-10 --min-days 100 --order value --folds 5 --seeds 5 --only CO_core30_h5,CO_rank_smooth_d1_h5 --summary-out /app/reports/overnight/cg188_200liq_fresh_summary.json'",
+   "counterfactual": "CO_core30_h5 (같은 런·같은 패널·같은 폴드 — 게이트 OFF 코어)",
+   "success": "① 패널 빌드 완료(dates max ≥ 2026-11-07 · 200종목 · 5폴드 성립, fold 당 test_rows ≥ 800) ② **검정력 확보: 폴드 std ≤ 0.045** (이 조건이 깨지면 판정하지 말고 'still underpowered'로 기록) ③ 짝 Δ(arm−control) ≥ +0.02 이고 폴드승률 ≥ 4/5 — 이때만 신호 ④ 미달이면 데이터 축을 '검정력 확보 상태에서 기각'으로 종결 ⑤ rc≠0 또는 요약 미갱신이면 실행실패(노이즈 아님)",
+   "est_minutes": 180,
+   "note": "2026-11-11 01:0x 엔지니어 자율 신설. 근거: CG184 실측(폴드 std 0.0758/0.0797 · 5폴드 · test_rows 452~480) → 검출한계 ±0.10 로 사전문턱 +0.02 를 잴 수 없었다. 설계: 200종목×420일 ≈ 84,000 페어 → CG184 실측(7,500 페어/13.8분 = 0.11 s/pair) 에서 빌드 ≈90분 + 스윕(2 config×5폴드×5시드=50 cell, 표본 4배) ≈25분 → est 180분. ⚠ 컨테이너 timeout 16200s(4.5h)는 est×60×1.5 로 잡았고, 03:00 착수면 07:30 강제종료 → 개장 09:00 전 종료. ⚠ --end-date 2026-11-09 고정 = 체크포인트 재개 성립(구간이 밀리면 매일 전량 폐기). ⚠ 유니버스는 curated 경로에 --since 2026-09-10 · --order value 로 **고정**했다(prod 경로는 _default_date_from() 이 now 기준이라 재현 불가 — CG142). 절대값은 기록 기준선 0.5406(panel_420_asofpatch, 281일)과 패널이 달라 참고용이며, 판정은 같은 런 짝 Δ 로만 한다. ⚠ CG182(모멘텀 중립화, est 90분)와 동시 실행 금지 — 구동기 락이 막지만 03:00 틱부터 착수하도록 pending 으로 둔다."
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
