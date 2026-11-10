@@ -167,7 +167,11 @@ def _meta_range(model_dir: str) -> tuple[str | None, str | None]:
         with open(newest) as f:
             meta = json.load(f)
         return (meta.get("data_start") or meta.get("start_date"),
-                meta.get("data_end") or meta.get("end_date"))
+                # fit_end 우선(2026-11-10 CG183): data_end 는 '데이터 창의 끝'이라 창 끝까지
+                # 학습한 재학습 후보를 채점하면 모든 창이 '겹침'으로 버려진다. fit_end 는 실제
+                # 적합 마지막 날이므로 그 이후 창만 정직한 OOS 다. fit_end 없는 옛 모델은
+                # 종전과 동일하게 data_end 로 폴백한다(동작 불변).
+                meta.get("fit_end") or meta.get("data_end") or meta.get("end_date"))
     except Exception:
         return None, None
 

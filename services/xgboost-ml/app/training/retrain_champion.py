@@ -269,6 +269,14 @@ def retrain_champion(
     X_train, X_val = X[:split], X[split:]
     y_train, y_val = y[:split], y[split:]
     up_rate = float(y.mean())
+    # (2026-11-10 CG183) **적합(fit) 구간 종료일**과 **검증 구간 시작일**을 기록한다.
+    # 왜: data_end 는 '데이터 창의 끝'(예 2026-11-09)이라, 창 끝까지 학습하는 재학습 후보는
+    # champion_robust_eval._split_oos 가 **모든 평가창을 '학습구간 겹침'으로 버려** OOS 를
+    # 잴 수 없다(=재학습 후보를 같은 프로토콜로 채점 불가). 실제로 적합에 쓰이지 않은 첫 날
+    # (val_start) 이후는 진짜 미학습 구간이므로 평가창 시작으로 삼아야 한다.
+    # 주의: val 은 조기종료(early stopping)에 쓰이므로 '완전 미사용'은 아니다 — 보고 시 병기.
+    fit_end = str(df.loc[split - 1, "date"])[:10] if split > 0 else None
+    val_start = str(df.loc[split, "date"])[:10] if split < len(df) else None
 
     models = [
         ("xgboost", XGBoostModel(n_estimators=n_estimators, random_state=seed)),
@@ -368,6 +376,11 @@ def retrain_champion(
         # 자동 제외**한다(2026-09-29 실측: 겹친 창 0.5883 vs 학습구간 밖 0.4914).
         "data_start": data_start,
         "data_end": data_end,
+        # 학습 **적합** 구간의 실제 종료일과 검증 구간 시작일(2026-11-10 CG183).
+        # data_end 가 '데이터 창 끝'인 것과 달리 fit_end 는 마지막으로 경사에 쓰인 날이다 →
+        # champion_robust_eval._meta_range 가 fit_end 를 우선해 OOS 창을 자른다.
+        "fit_end": fit_end,
+        "val_start": val_start,
         # 라벨 정의 기록(2026-10-01) — 같은 모델을 두고 '무엇으로 학습했는가'를 나중에 확인할 수
         # 있어야 A/B 해석이 성립한다(CG36 교훈: 라벨 종류를 안 적어 두면 자기 과제 점수를 오독한다).
         "label_kind": label_kind,

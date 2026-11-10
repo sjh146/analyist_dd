@@ -1613,6 +1613,11 @@ def parse_robust_oos_audit(path, mtime_floor, label=None) -> dict:
                   "n_sessions": c.get("n_sessions"), "n_trades": c.get("n_trades"),
                   "halves": c.get("halves")},
         "generated_at": (d.get("meta") or {}).get("generated_at") or d.get("generated_at"),
+        # 같은 런에 다른 모델이 함께 채점됐으면(예 CG183: champ + cand) 그 값도 넘긴다 —
+        # 같은 창·같은 런의 짝 비교가 성립해야 Δ 해석이 가능하다(하드룰 #2).
+        "other_models": {k: {"robust_auc": v.get("robust_auc"), "folds": v.get("folds"),
+                             "train_end": v.get("train_end")}
+                         for k, v in b_all.items() if k != lab},
         "summary_mtime": mt,
     }
 
@@ -3386,6 +3391,16 @@ def judge_champion_baseline(item, parsed) -> tuple:
               + f" · 풀링 {parsed.get('auc_pooled')} · 날짜별평균 {parsed.get('auc_per_date_mean')}"
               + f" · 행 {parsed.get('rows_scored')}")
     cf_val = item.get("counterfactual_value")
+    # 같은 런 병렬 채점(2026-11-10 CG183): 요약에 다른 모델이 함께 있으면 그 값을 대조로 쓴다.
+    # 왜: 재학습 후보의 판정은 '기록된 기준선'이 아니라 **같은 창·같은 런의 챔피언**과 짝지어야
+    # 한다(창·패널·시드 잡음이 상쇄된다). counterfactual_model 을 항목에 명시한 경우만 작동.
+    if not isinstance(cf_val, (int, float)):
+        cm = item.get("counterfactual_model")
+        oth = (parsed.get("other_models") or {}).get(cm) if cm else None
+        if isinstance(oth, dict) and isinstance(oth.get("robust_auc"), (int, float)):
+            cf_val = float(oth["robust_auc"])
+            item = dict(item, counterfactual_value=cf_val,
+                        counterfactual=f"{cm} (같은 런·같은 창)")
     if isinstance(cf_val, (int, float)):
         delta = float(robust) - float(cf_val)
         cf_name = item.get("counterfactual") or "대조"
