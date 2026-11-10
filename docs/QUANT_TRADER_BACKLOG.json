@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-10T15:15:31+09:00",
+  "updated_at": "2026-11-10T15:25:16+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -216,7 +216,7 @@
     {
       "id": "T8",
       "title": "피드 지정가가 최신 종가와 벌어졌는가 (close_price 편차)",
-      "status": "pending",
+      "status": "done",
       "priority": 8,
       "command": "python3 scripts/trader_cycle.py --probe feed_price_dev",
       "metric": "feed_price_dev_pct",
@@ -234,12 +234,12 @@
         "measured_at": "2026-10-01 08:2x"
       },
       "result": {
-        "ts": "2026-10-09T13:25:54+09:00",
-        "value": 23.05863708399366,
-        "check": "23.05863708399366 <= 1.0",
-        "verdict": "미달",
+        "ts": "2026-11-10T15:25:16+09:00",
+        "value": 0.0,
+        "check": "0.0 <= 1.0",
+        "verdict": "충족",
         "rc": 0,
-        "stdout_tail": "23.05863708399366",
+        "stdout_tail": "0.0",
         "stderr_tail": ""
       }
     },

@@ -145,10 +145,15 @@ def trader_stanza() -> dict:
             conn = sqlite3.connect(f"file:{local}?mode=ro", uri=True, timeout=10)
             try:
                 conn.row_factory = sqlite3.Row
+                # 2026-11-10: 체결되지 않은 진입 주문을 '진입가 청산·0원'으로 정리한 행
+                # (exit_reason `unfilled:`)은 시장에 존재한 적 없는 거래다 — 승률·기대값
+                # 표본에서 빼야 한다. 넣으면 0원 거래가 '패배'로 세어져 기대값이 0 쪽으로
+                # 끌려 올라간다(실측: 7건 wr 14.3% ↔ 실제 6건 wr 16.7%).
+                _real = (" AND COALESCE(exit_reason,'') NOT LIKE 'unfilled:%'")
                 closed = [dict(r) for r in conn.execute(
-                    "SELECT * FROM trades WHERE exit_price IS NOT NULL AND exit_price > 0")]
+                    "SELECT * FROM trades WHERE exit_price IS NOT NULL AND exit_price > 0" + _real)]
                 opens = [dict(r) for r in conn.execute(
-                    "SELECT * FROM trades WHERE exit_price IS NULL OR exit_price = 0")]
+                    "SELECT * FROM trades WHERE (exit_price IS NULL OR exit_price = 0)" + _real)]
                 last_ts = conn.execute("SELECT MAX(ts) FROM trades").fetchone()[0]
             finally:
                 conn.close()
