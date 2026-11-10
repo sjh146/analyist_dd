@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-11T01:05:00+09:00",
+ "updated_at": "2026-11-11T02:01:21+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -14697,7 +14697,7 @@
   {
    "id": "CG182",
    "priority": 2,
-   "status": "pending",
+   "status": "needs_setup",
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": true,
@@ -14710,7 +14710,30 @@
    "est_minutes": 90,
    "command_verified_at": "2026-11-09T22:1x+09:00 (config 자체점검 6/6 PASS · scripts/_cg182_config_test.py)",
    "setup_needed": "2026-11-09 22:1x 정정(엔지니어 실측): ①은 **이미 구현돼 있었다** — wf_label_sweep.py 의 `exclude_names`(L1724~1736, 접두어 `event_*` 지원)가 같은 일을 한다(신규 코드 0). config 2종(CG182_ctl_h5 대조 · CG182_momdrop_h5 제거) 추가 + 자체점검 scripts/_cg182_config_test.py **6/6 PASS**(3종 모두 패널 213피처에 존재 · 전부 시간가변 · 두 arm 차이는 exclude_names 뿐) → pending 승격. 잔여(단계 2, 별건): **기존 패널은 전부 2026-09-23 에서 끝난다**(panel_prod200 2025-08-04~09-23 · panel_420 계열 09-23) → 부호 반전이 관측된 10~11월 국면이 어느 패널에도 없다. 단계 1(현 패널)은 '챔피언이 모멘텀 3종에 실제로 의존하는가'를 재고, 국면 반전의 손익 영향은 2026-11-09 까지 덮는 신규 패널 빌드(--end-date 2026-11-09) 후에만 잴 수 있다. ⚠ 피처 변환·게이트 축은 상한 +0.011 로 닫혀 있으므로 이 실험은 '조정'이 아니라 **국면 의존 검정**이다 — 사전문턱 +0.02 미달이면 축을 닫는다.",
-   "note": "2026-11-09 21:5x 엔지니어 자율. CG181 실측 근거: momentum_op IC +0.0920(t 5.47, 8~9월) → −0.1459(t −6.19, 10~11월) · momentum_ni +0.0849 → −0.1312 · momentum_3_12m +0.0714 → −0.0709 · bb_position −0.0872 → −0.0666(부호 유지). 전방 성적표 h1 top10 −0.4461% vs 전체 +0.4790%. | 2026-11-09 22:1x 엔지니어 자율(장외 틱) — setup 구현 완료·pending 승격. 실측: 배포 챔피언 173피처에 momentum_op·momentum_ni·momentum_3_12m **모두 포함**, 패널에서는 비상수. 단계 1 명령은 같은 런 2-arm(대조 vs 제거)·5폴드×3시드, est 90분·컨테이너 timeout 9000s(1.5×est). 잔여 차단요인은 패널 커버리지(10~11월 부재) — 단계 2 는 새 패널 빌드 선행."
+   "note": "2026-11-09 21:5x 엔지니어 자율. CG181 실측 근거: momentum_op IC +0.0920(t 5.47, 8~9월) → −0.1459(t −6.19, 10~11월) · momentum_ni +0.0849 → −0.1312 · momentum_3_12m +0.0714 → −0.0709 · bb_position −0.0872 → −0.0666(부호 유지). 전방 성적표 h1 top10 −0.4461% vs 전체 +0.4790%. | 2026-11-09 22:1x 엔지니어 자율(장외 틱) — setup 구현 완료·pending 승격. 실측: 배포 챔피언 173피처에 momentum_op·momentum_ni·momentum_3_12m **모두 포함**, 패널에서는 비상수. 단계 1 명령은 같은 런 2-arm(대조 vs 제거)·5폴드×3시드, est 90분·컨테이너 timeout 9000s(1.5×est). 잔여 차단요인은 패널 커버리지(10~11월 부재) — 단계 2 는 새 패널 빌드 선행. | 2026-11-11 02:1x 정정(엔지니어): 이 arm 은 core_only=True 라서 애초에 불가능했다 — 배포 챔피언 173피처에는 3종이 있지만 스윕 경로는 CORE_FEATURES 48 로 잘린다. 게다가 현 패널은 구간이 2026-09-23 에서 끝나 부호 반전 국면(10-09~11-06)을 포함하지 않는다. 교정판은 CG189(게이트 OFF 4-arm · CG188 신선 패널 재사용)로 이관한다.",
+   "attempts": [
+    {
+     "ts": "2026-11-11T01:03:48+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG182_20261111-010130.log",
+     "elapsed_min": 2.3
+    },
+    {
+     "ts": "2026-11-11T02:1x+09:00",
+     "rc": 0,
+     "verdict": "실행실패(설계 결함)",
+     "detail": "CORE_FEATURES 게이트가 선별 전에 3종을 제거 → arm==control (로그 \"피처군 제외 0개\")",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG182_20261111-010130.log",
+     "elapsed_min": 2.3
+    }
+   ],
+   "result": {
+    "verdict": "실행실패(설계 결함)",
+    "detail": "arm 이 원리적으로 대조군과 같았다 — exclude_names 3종(momentum_op·momentum_ni·momentum_3_12m)이 CORE_FEATURES 48개에 없어(core_only 게이트가 먼저 잘라냄) 제외 대상이 선별 전에 이미 사라졌다. 로그 실측: \"피처군 제외 0개 []\" → RuntimeError 로 측정 전 중단. 대조군은 정상 완주(0.5315±0.0200, 5폴드, rows 32,401, 실효피처 30). 패널 실측(panel_prod200): momentum_op std 5453.5·비영 36,585/54,800 · momentum_ni std 1,787.1·32,407 · momentum_3_12m std 1.196·50,481 → 게이트를 끄면 3종 모두 시간가변으로 살아 있다."
+   },
+   "superseded_by": "CG189"
   },
   {
    "id": "CG183",
@@ -14991,11 +15014,54 @@
    "title": "[검정력·데이터축] 신선 구간을 **넓은 횡단면(200종목·420일)** 으로 재측정 — CG184 저검정력(폴드 std 0.076, 검출한계 ±0.10) 교정",
    "hypothesis": "CG184 는 50종목·150일 패널이라 폴드당 test_rows 가 452~480 에 그쳤고 폴드 std 가 0.0758/0.0797 였다 → SE 0.034, 사전문턱 +0.02 를 80% 검정력으로 잡으려면 폴드 113개 필요(실제 5개). 즉 그 런은 데이터 축을 '기각'한 것이 아니라 **잴 수 없었다**. 횡단면을 4배(200종목)·구간을 420일로 넓히면 폴드당 test_rows 가 약 1,900 이 되어 폴드 std 가 0.03 수준으로 내려가고, 마지막 두 폴드가 10~11월 국면을 직접 포함한다. 그 상태에서 게이트 arm(rank+스무딩+depth1)이 코어 대조군을 이기는지가 이 항목의 질문이다.",
    "metric": "wf_sweep_summary",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 16200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2026-09-10 --min-days 100 --order value --folds 5 --seeds 5 --only CO_core30_h5,CO_rank_smooth_d1_h5 --summary-out /app/reports/overnight/cg188_200liq_fresh_summary.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 16500 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CO_core30_h5,CO_rank_smooth_d1_h5 --summary-out /app/reports/overnight/cg188_200liq_fresh_summary.json'",
    "counterfactual": "CO_core30_h5 (같은 런·같은 패널·같은 폴드 — 게이트 OFF 코어)",
    "success": "① 패널 빌드 완료(dates max ≥ 2026-11-07 · 200종목 · 5폴드 성립, fold 당 test_rows ≥ 800) ② **검정력 확보: 폴드 std ≤ 0.045** (이 조건이 깨지면 판정하지 말고 'still underpowered'로 기록) ③ 짝 Δ(arm−control) ≥ +0.02 이고 폴드승률 ≥ 4/5 — 이때만 신호 ④ 미달이면 데이터 축을 '검정력 확보 상태에서 기각'으로 종결 ⑤ rc≠0 또는 요약 미갱신이면 실행실패(노이즈 아님)",
    "est_minutes": 180,
-   "note": "2026-11-11 01:0x 엔지니어 자율 신설. 근거: CG184 실측(폴드 std 0.0758/0.0797 · 5폴드 · test_rows 452~480) → 검출한계 ±0.10 로 사전문턱 +0.02 를 잴 수 없었다. 설계: 200종목×420일 ≈ 84,000 페어 → CG184 실측(7,500 페어/13.8분 = 0.11 s/pair) 에서 빌드 ≈90분 + 스윕(2 config×5폴드×5시드=50 cell, 표본 4배) ≈25분 → est 180분. ⚠ 컨테이너 timeout 16200s(4.5h)는 est×60×1.5 로 잡았고, 03:00 착수면 07:30 강제종료 → 개장 09:00 전 종료. ⚠ --end-date 2026-11-09 고정 = 체크포인트 재개 성립(구간이 밀리면 매일 전량 폐기). ⚠ 유니버스는 curated 경로에 --since 2026-09-10 · --order value 로 **고정**했다(prod 경로는 _default_date_from() 이 now 기준이라 재현 불가 — CG142). 절대값은 기록 기준선 0.5406(panel_420_asofpatch, 281일)과 패널이 달라 참고용이며, 판정은 같은 런 짝 Δ 로만 한다. ⚠ CG182(모멘텀 중립화, est 90분)와 동시 실행 금지 — 구동기 락이 막지만 03:00 틱부터 착수하도록 pending 으로 둔다."
+   "note": "2026-11-11 01:0x 엔지니어 자율 신설. 근거: CG184 실측(폴드 std 0.0758/0.0797 · 5폴드 · test_rows 452~480) → 검출한계 ±0.10 로 사전문턱 +0.02 를 잴 수 없었다. 설계: 200종목×420일 ≈ 84,000 페어 → CG184 실측(7,500 페어/13.8분 = 0.11 s/pair) 에서 빌드 ≈90분 + 스윕(2 config×5폴드×5시드=50 cell, 표본 4배) ≈25분 → est 180분. ⚠ 컨테이너 timeout 16200s(4.5h)는 est×60×1.5 로 잡았고, 03:00 착수면 07:30 강제종료 → 개장 09:00 전 종료. ⚠ --end-date 2026-11-09 고정 = 체크포인트 재개 성립(구간이 밀리면 매일 전량 폐기). ⚠ 유니버스는 curated 경로에 --since 2026-09-10 · --order value 로 **고정**했다(prod 경로는 _default_date_from() 이 now 기준이라 재현 불가 — CG142). 절대값은 기록 기준선 0.5406(panel_420_asofpatch, 281일)과 패널이 달라 참고용이며, 판정은 같은 런 짝 Δ 로만 한다. ⚠ CG182(모멘텀 중립화, est 90분)와 동시 실행 금지 — 구동기 락이 막지만 03:00 틱부터 착수하도록 pending 으로 둔다. | 2026-11-11 02:01 1차 착수 즉사 → 교정 후 02:01:50 재착수(pid 375028). 교정 2건: ① timeout 16200→16500(구동기 요구식 est×60×1.5+300) ② --since 2026-09-10→2025-09-15 (최근 since + min_days 100 = 유니버스 0종목). 재착수 로그 실측: 200종목·98,763행 로드 확인.",
+   "attempts": [
+    {
+     "ts": "2026-11-11T02:01:21+09:00",
+     "rc": 1,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 1 — RuntimeError: panel build failed",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG188_20261111-020118.log",
+     "elapsed_min": 0.1
+    },
+    {
+     "ts": "2026-11-11T02:01:21+09:00",
+     "rc": 1,
+     "verdict": "실행실패(유니버스 0종목)",
+     "detail": "--market all 은 정상(all→None 해제)이지만 --since 2026-09-10 + --min-days 100 조합이 유니버스 SQL 의 HAVING COUNT(*)>=100 을 만족하는 종목을 0개로 만들었다(9-10~11-09 = 약 40거래일 < 100). 로그: \"universe[None]: 0 종목 (limit=200)\" → \"panel build failed\". 교정: --since 2025-09-15(빌드 구간 시작과 동일) → 200종목 확보 후 재착수.",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG188_20261111-020118.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "실행실패",
+    "detail": "측정값 없음 — 종료코드 1 — RuntimeError: panel build failed",
+    "delta": null,
+    "per_exp": null,
+    "rc": 1
+   }
+  },
+  {
+   "id": "CG189",
+   "priority": 1,
+   "status": "needs_setup",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "title": "[비정상성·신선구간] 모멘텀 3종 제거 A/B — 게이트 OFF 4-arm, CG188 신선 패널(200종목·~11-09) 재사용",
+   "hypothesis": "CG182 는 core_only 게이트 때문에 arm==control 로 무효(CORE_FEATURES 48 에 momentum_op/ni/3_12m 부재). 게이트를 끄면 3종은 패널에서 시간가변(실측 std 5453/1787/1.20, 비영 67~92%)이므로 같은 런 A/B 가 성립한다. CG181 실측은 10~11월에 3종 IC 부호가 뒤집혔다(+0.092→−0.146 · +0.085→−0.131 · +0.071→−0.071). CG188 패널은 구간이 2026-11-09 까지라뒤쪽 폴드가 반전 국면을 직접 포함한다 → \"반전이 모델 기여를 실제로 뒤집는가\"를 처음으로 잴 수 있다.",
+   "metric": "wf_sweep_summary",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CG189_ctl_nog_h5,CG189_momdrop_nog_h5 --summary-out /app/reports/overnight/cg189_momdrop_summary.json'",
+   "counterfactual": "CG189_ctl_nog_h5 (같은 런·같은 폴드·게이트 OFF·피처 제거 없음)",
+   "success": "① 폴드 std ≤ 0.045(검정력 확보) ② 짝 Δ(제거−대조) ≥ +0.02 이고 폴드승률 ≥ 4/5 → 신호 ③ 미달이면 \"모멘텀 의존은 AUC 로 측정되지 않는다\"로 축 종결(돈 지표 병기) ④ rc≠0/요약 미갱신은 실행실패",
+   "est_minutes": 40,
+   "setup_needed": "① wf_label_sweep.py CONFIGS 에 게이트 OFF 2-arm 추가(CG189_ctl_nog_h5·CG189_momdrop_nog_h5, exclude_names 는 CG182 와 동일 3종) — 코드 추가만 하면 된다. ② 선행: panel_200liq_fresh.npz (CG188 이 2026-11-11 02:01 착수, est 180분) 완성 후 status 를 pending 으로 승격.",
+   "note": "2026-11-11 02:1x 엔지니어 자율 신설. 근거: CG182 실행실패 진단(로그 \"피처군 제외 0개\" · CORE_FEATURES 에 3종 부재 확인). 판정은 같은 런 짝 Δ 로만 하고 절대값은 패널이 달라 참고용. ⚠ CG188 과 동시 실행 금지(구동기 락).",
+   "created_at": "2026-11-11T02:12:00+09:00"
   }
  ],
  "updated": "2026-11-09T20:12+09:00"

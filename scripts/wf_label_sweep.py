@@ -996,6 +996,23 @@ CONFIGS = [
      "core_only": True,
      "exclude_names": ["momentum_op", "momentum_ni", "momentum_3_12m"],
      "desc": "CG182 arm — 부호가 뒤집힌 모멘텀 3종 제거(같은 런·같은 행)"},
+    # ── CG189: CG182 교정판 — 게이트 OFF 4-arm 아님(2-arm) · 신선 패널 재사용 (2026-11-11 02:1x) ──────
+    # 왜 교정인가(실측 2026-11-11 02:1x, me_cycle_CG182_20261111-010130.log): CG182 arm 은 core_only=True
+    #   라서 exclude_names 3종(momentum_op·momentum_ni·momentum_3_12m)이 **선별 전에 이미 잘려** 있었다 —
+    #   셋 다 CORE_FEATURES 48 에 없다(코어에는 momentum_vs_volatility·short_medium_term_momentum·
+    #   momentum_1m_reverse·kalman_momentum_1d/5d 만 있다). 로그 "피처군 제외 0개 []" → 가드가 측정 전 중단
+    #   (arm == control 이면 A/B 가 아니라 같은 실험을 두 번 돌린 것이다 — 이 가드는 유지하라).
+    #   게이트를 끄면 3종은 패널에서 시간가변이다(panel_prod200 실측: std 5453.5/1787.1/1.196,
+    #   비영 36,585·32,407·50,481 / 54,800). 즉 '게이트 OFF 경로'에서만 이 가설이 잴 수 있다.
+    # ⚠ 판정은 같은 런 짝 Δ 로만. 대상 패널은 CG188 이 만드는 panel_200liq_fresh.npz(구간 ~2026-11-09)
+    #   이므로 뒤쪽 폴드가 CG181 이 관측한 부호 반전 국면(10-09~11-06)을 포함한다.
+    {"id": "CG189_ctl_nog_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "desc": "CG189 대조군 — 게이트 OFF + edge top30(전체 213피처 후보), 피처 제거 없음"},
+    {"id": "CG189_momdrop_nog_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "exclude_names": ["momentum_op", "momentum_ni", "momentum_3_12m"],
+     "desc": "CG189 arm — 부호가 뒤집힌 모멘텀 3종 제거(게이트 OFF·같은 런·같은 행)"},
 ]
 
 
