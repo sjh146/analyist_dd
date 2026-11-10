@@ -1,0 +1,105 @@
+{
+  "created_at": "2026-11-10T22:03:31+09:00",
+  "cycle": "2026-11-10 22:0x daily engineer",
+  "subject": "생산 파이프라인 재학습 후보(champion_cand, 2026-11-10 12:09) 승격 판정 + CG170 눈금혼용 실증",
+  "snapshot": {
+    "candidate": {
+      "dir": "app/models/champion_cand",
+      "retrained_at": "2026-11-10T12:09:28",
+      "n_rows": 11850,
+      "n_features": 199,
+      "label_kind": "h1_direction",
+      "data_start": "2026-08-12",
+      "data_end": "2026-11-10",
+      "val_ensemble_auc": 0.4365,
+      "model_aucs": {
+        "xgboost": 0.4441,
+        "lightgbm": 0.4836,
+        "catboost": 0.4409
+      },
+      "drop_serving_blind": false
+    },
+    "champion": {
+      "dir": "app/models/champion",
+      "auc_txt": 0.5513,
+      "robust_auc_json": 0.5513,
+      "robust_oos": {
+        "robust_auc": 0.4908,
+        "expectancy_pct": -0.182,
+        "expectancy_t": -0.81,
+        "n_sessions": 87,
+        "n_trades": 1340,
+        "halves": {
+          "front_pct": -0.1066,
+          "back_pct": -0.2557,
+          "stable": "neither"
+        }
+      },
+      "n_features": 173
+    }
+  },
+  "gate_decision": {
+    "at": "2026-11-10T12:27:27",
+    "status": "kept_incumbent",
+    "promoted": false,
+    "reason": "돈 기준 게이트 거부: 순기대 -0.222%p ≤ 0; 분할표본 불안정(앞 -0.4041/뒤 -0.044); 챔피언 -0.182%p 대비 개선 부족(+0.1%p 필요)",
+    "candidate_expectancy": {
+      "pct": -0.222,
+      "t": -1.09,
+      "sessions": 87,
+      "trades": 1340,
+      "halves": {
+        "front_pct": -0.4041,
+        "back_pct": -0.044,
+        "stable": "neither"
+      }
+    }
+  },
+  "same_protocol_comparison": {
+    "protocol": "5-fold 연속 10일 창·80종목·h5 rel 라벨·top3·체결성 필터·수수료 0.21%p·익일 시가",
+    "candidate_robust_auc": 0.5182,
+    "champion_robust_auc": 0.4908,
+    "delta_auc": 0.0274,
+    "candidate_expectancy": -0.222,
+    "champion_expectancy": -0.182,
+    "delta_expectancy_pct": -0.04,
+    "verdict": "AUC 는 사전문턱(+0.02)을 넘었으나 돈 지표가 더 나쁘고 앞/뒤 절반 모두 음수 → 승격 금지(AUC 만 오른 후보)."
+  },
+  "gate_protocol_mixing": {
+    "auc_leg_as_computed": {
+      "candidate": 0.4365,
+      "metric": "ensemble_auc(single split)",
+      "baseline": 0.5513,
+      "source": "robust_auc.json",
+      "delta": -0.1148
+    },
+    "auc_leg_same_scale": {
+      "candidate": 0.5182,
+      "baseline": 0.4908,
+      "metric": "robust_auc",
+      "delta": 0.0274
+    },
+    "leg_flip": true,
+    "note": "CG170 감사(2026-10-11) 당시 눈금혼용으로 인한 다리 뒤집힘 0건이었으나, 이 런이 첫 뒤집힘 사례다. 최종 판정은 돈 다리가 결정해 바뀌지 않았다(잠복결함 → 실증)."
+  },
+  "leakage_gate": {
+    "stock_constant_ratio": 0.377,
+    "market_level_count": 25,
+    "alive_xsec": 166,
+    "feature_count": 202,
+    "null_ratio_high_count": 30,
+    "oldest_age_days": 1.03,
+    "verdict": "누수 신호 없음(기준선 0.38 대비 하락, 최고령 1.03일)"
+  },
+  "in_flight": {
+    "id": "CG183",
+    "pid": 255492,
+    "started": "2026-11-10T22:00:58",
+    "build": "400/15813 (2.5%) 3.66 pair/s ETA 70min",
+    "est_total_minutes": 150
+  },
+  "followups": [
+    "CG183(재학습·--drop-serving-blind-features, 193피처)의 val_start 이후 3폴드 채점이 00:00 전후로 나온다 — 같은 런 짝 Δ 로 판정.",
+    "생산 파이프라인 재학습은 rank_* 6개를 포함해 학습한다(서빙에서는 0.0 상수, CG164). 후보·챔피언 피처계약이 서로 다르므로(199 vs 173) A/B 는 피처계약 통일 후에만 해석 가능."
+  ]
+}
