@@ -1,23 +1,31 @@
 {
- "generated_at": "2026-10-02T16:40:05+09:00",
+ "generated_at": "2026-11-10T15:13:53+09:00",
  "source": "trader-agent/data/fills",
  "files": [
   "fills_2026-09-28.json",
   "fills_2026-09-29.json",
   "fills_2026-09-30.json",
   "fills_2026-10-01.json",
-  "fills_2026-10-02.json"
+  "fills_2026-10-02.json",
+  "fills_2026-10-05.json",
+  "fills_2026-10-06.json",
+  "fills_2026-10-07.json",
+  "fills_2026-10-08.json",
+  "fills_2026-10-09.json",
+  "fills_2026-11-08.json",
+  "fills_2026-11-09.json",
+  "fills_2026-11-10.json"
  ],
- "rows": 3,
+ "rows": 6,
  "all": {
-  "n": 3,
-  "net_pnl": -1446.0,
+  "n": 6,
+  "net_pnl": -21457.0,
   "fees": 0.0,
-  "win_rate": 33.3,
+  "win_rate": 16.7,
   "avg_win": 416.0,
-  "avg_loss": -931.0,
-  "avg_ret_pct": -1.52,
-  "expectancy_krw": -482.0
+  "avg_loss": -4374.6,
+  "avg_ret_pct": -5.944,
+  "expectancy_krw": -3576.2
  },
  "by_screener": {
   "close": {
@@ -29,6 +37,26 @@
    "avg_loss": -931.0,
    "avg_ret_pct": -1.52,
    "expectancy_krw": -482.0
+  },
+  "swing": {
+   "n": 2,
+   "net_pnl": -5391.0,
+   "fees": 0.0,
+   "win_rate": 0.0,
+   "avg_win": null,
+   "avg_loss": -2695.5,
+   "avg_ret_pct": -12.959,
+   "expectancy_krw": -2695.5
+  },
+  "unknown": {
+   "n": 1,
+   "net_pnl": -14620.0,
+   "fees": 0.0,
+   "win_rate": 0.0,
+   "avg_win": null,
+   "avg_loss": -14620.0,
+   "avg_ret_pct": -5.184,
+   "expectancy_krw": -14620.0
   }
  },
  "by_date": {
@@ -41,8 +69,38 @@
    "avg_loss": -931.0,
    "avg_ret_pct": -1.52,
    "expectancy_krw": -482.0
+  },
+  "2026-10-08": {
+   "n": 1,
+   "net_pnl": -1.0,
+   "fees": 0.0,
+   "win_rate": 0.0,
+   "avg_win": null,
+   "avg_loss": -1.0,
+   "avg_ret_pct": -0.005,
+   "expectancy_krw": -1.0
+  },
+  "2026-11-09": {
+   "n": 1,
+   "net_pnl": -5390.0,
+   "fees": 0.0,
+   "win_rate": 0.0,
+   "avg_win": null,
+   "avg_loss": -5390.0,
+   "avg_ret_pct": -25.913,
+   "expectancy_krw": -5390.0
+  },
+  "2026-11-10": {
+   "n": 1,
+   "net_pnl": -14620.0,
+   "fees": 0.0,
+   "win_rate": 0.0,
+   "avg_win": null,
+   "avg_loss": -14620.0,
+   "avg_ret_pct": -5.184,
+   "expectancy_krw": -14620.0
   }
  },
  "ml_calibration": null,
- "scored_n": 0
+ "scored_n": 2
 }

@@ -1432,6 +1432,23 @@
         3
       ],
       "note": "러너 = scripts/kis_daily_gapfill.py (빈 종목만, 유동성 순, 종료코드 3 = 목표 미달·재개). 절대 임계 대신 '정상일 중위값 × 0.6' 으로 판정하도록 scripts/data_gap.py 도 함께 고쳤다(회귀 tests/test_data_gap_relative_threshold.py 6건) — 같은 사고가 반복되면 04:15 백필이 자동으로 이 날을 집는다."
+    },
+    {
+      "id": "T39",
+      "title": "swing 피드의 close_price(전일 종가)가 주문 지정가로 쓰여 갭업일에 체결 불가 주문이 된다",
+      "status": "backlog",
+      "priority": 7,
+      "from_trader": "swing-limit-reference-price-stale",
+      "created_at": "2026-11-10T15:15:31+09:00",
+      "affects_model": false,
+      "hypothesis": null,
+      "command": null,
+      "metric": null,
+      "check": null,
+      "evidence": "트레이더 사이클 환류: 2026-11-10: swing 후보 240810 의 close_price=66,100(직전 세션 11-09 종가)이 그대로 지정가가 됐고, 당일 시가 71,100·저가 66,700 이라 체결 0. 같은 회차 swing 20건 중 19건은 R3 드리프트 밴드(3%)에서 탈락, 통과 1건(319400)은 슬롯에서 거부 → 피드 유래 체결 0건. 발행측에 '주문 참조가격이 언제 것인지'(signal_date) 와 함께 당일 기준가(base) 또는 갱신 시각을 실어 주면 소비자가 지정가를 전일 종가가 아니라 당일 기준가 근처로 잡을 수 있다. 리서처 확인 요청: (1) close_price 를 전일 종가로 보내는 것이 계약상 의도인가 (2) swing 신호의 유효 지평(h5) 안에서 지정가 기준가를 어떻게 정할 것인가 — 데이터로 답이 나오는 항목.",
+      "success": null,
+      "cost": null,
+      "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다."
     }
   ]
 }
