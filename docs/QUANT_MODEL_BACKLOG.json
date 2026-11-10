@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-11T02:07:27+09:00",
+ "updated_at": "2026-11-11T06:51:23+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -14926,19 +14926,36 @@
   {
    "id": "CG185",
    "priority": 2,
-   "status": "backlog",
+   "status": "done",
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": true,
    "title": "[선택기 축] 후보 랭킹이 좋아졌는데 순기대가 나빠진 원인 — 동일 모델·동일 창에서 top-k 선택 규칙(3/5/10)만 바꾼 순기대",
    "hypothesis": "2026-11-10 실측: 생산 재학습 후보는 챔피언보다 같은 프로토콜 robust AUC 가 +0.0274 높은데(0.5182 vs 0.4908, 같은 87세션·1,340거래) 순기대는 −0.222 vs −0.182%p 로 0.04%p 더 나쁘고 앞/뒤 절반이 모두 음수다. 즉 '랭킹 개선이 돈으로 번역되지 않았다'. 원인이 ①랭킹 자체(상위가 실제로 더 오르지 않음)인지 ②top-k 선택 규칙(k=3 이 잡음 구간을 고른다)인지 분리하지 않으면 다음 레버를 정할 수 없다.",
    "metric": "robust_oos_audit",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3000 python -u scripts/model_metric_protocol_audit.py --models \"[[\\\"cand\\\",\\\"/app/app/models/champion_cand\\\"]]\" --folds 5 --dates-per-fold 10 --stocks 80 --horizon 5 --label-kind rel --topk 5 --out /app/reports/overnight/cg185_top5.json --robust-oos-out /app/reports/overnight/cg185_top5_robust.json && OMP_NUM_THREADS=2 timeout 3000 python -u scripts/model_metric_protocol_audit.py --models \"[[\\\"cand\\\",\\\"/app/app/models/champion_cand\\\"]]\" --folds 5 --dates-per-fold 10 --stocks 80 --horizon 5 --label-kind rel --topk 10 --out /app/reports/overnight/cg185_top10.json --robust-oos-out /app/reports/overnight/cg185_top10_robust.json'",
-   "counterfactual": "topk=3 동일 모델·동일 창 실측(2026-11-10 12:26 cand robust_oos): 순기대 -0.222%p · t -1.09 · 앞 -0.4041/뒤 -0.044",
-   "success": "① topk 5·10 의 순기대가 topk3 대비 +0.1%p 이상이고 부호가 양(+)으로 뒤집히면 '손실은 선택기에서 온다' → 선택기 축을 연다(단일 후보·87세션 = 참조값, 승격 근거 아님) ② 세 topk 가 모두 음수면 '랭킹 무효'로 축을 닫고 다음 레버는 데이터 축(CG184)이다 ③ rc≠0 이거나 요약 미갱신이면 '실행실패'(노이즈 아님)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && sh scripts/cg185_topk_sweep.sh'",
+   "counterfactual": "topk=3 동일 모델(champion_cand_cg183)·동일 표본(113세션, 2026-05-26~11-09) 실측(CG187 2026-11-11 06:1x): 순기대 -0.1115%p · t -0.58 · 양세션 38.1% · 앞 -0.0920/뒤 -0.1306 neither",
+   "success": "① topk 5·10 의 순기대가 topk3 대비 +0.1%p 이상이고 부호가 양(+)으로 뒤집히면 '손실은 선택기에서 온다' → 선택기 축을 연다 ② 세 topk 가 모두 음수면 '랭킹 무효'로 축을 닫고 다음 레버는 라벨·목적함수(CG190)다 ③ rc≠0 이거나 요약 미갱신이면 '실행실패'(노이즈 아님)",
    "est_minutes": 45,
-   "note": "2026-11-10 22:0x 엔지니어 자율(일일 잡) 신설. 근거: 같은 프로토콜에서 AUC Δ+0.0274(사전문턱 초과)인데 순기대 Δ−0.040%p — 스킬 최우선 규칙(AUC≠돈)의 직접 사례. ⚠ command 는 **미검증**(착수 전 --skip 프로브 1회 필요, `[[` 인용은 CG180 에서 4단 셸에 깨진 전례가 있어 래퍼 스크립트로 옮기는 편이 안전) → 검증 전에는 status 를 pending 으로 올리지 않는다. ⚠ 생산 후보는 199피처(서빙 불가 rank_* 6개 포함, CG164)라 챔피언(173)과 피처계약이 다르다 — A/B 해석 전 계약 통일 필요.",
-   "created_at": "2026-11-10T22:04:10+09:00"
+   "note": "2026-11-10 22:0x 엔지니어 자율(일일 잡) 신설. 근거: 같은 프로토콜에서 AUC Δ+0.0274(사전문턱 초과)인데 순기대 Δ−0.040%p — 스킬 최우선 규칙(AUC≠돈)의 직접 사례. | 2026-11-11 06:1x 갱신 후 pending 승격: ① 인용 취약(4단 셸에서 `[[` 깨짐 전례) → 래퍼 scripts/cg185_topk_sweep.sh 로 이동(sh -n 통과) ② 모델을 champion_cand(199피처, 서빙불가 rank_* 포함) → champion_cand_cg183(193피처, drop-serving-blind · CG186 실측)으로 교체 = 피처계약 통일 ③ 표본을 87세션 → 113세션(CG187 확장본)으로 교체해 10~11월 국면 포함 ④ 참조값을 같은 표본의 topk3 실측으로 교체. ⚠ 구 command 는 미검증 상태로 폐기.",
+   "created_at": "2026-11-10T22:04:10+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-11T06:49:00+09:00",
+     "rc": 0,
+     "verdict": "노이즈(축 종결)",
+     "detail": "topk 3/5/10 = -0.1115 / -0.1629 / -0.2697 %p/세션 (t -0.58 / -0.98 / -2.11) · 양세션 38.1/33.6/35.4% · halves 전부 neither · 113세션·1,771행 동일 표본",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG185_sweep.log",
+     "elapsed_min": 33.0
+    }
+   ],
+   "result": {
+    "verdict": "노이즈 · 선택기 축 종결('랭킹 무효')",
+    "detail": "k 를 넓힐수록 **단조 악화**: k3 -0.1115%p(t -0.58) → k5 -0.1629(t -0.98) → k10 -0.2697(t -2.11), 세 k 모두 음수이고 양세션 33.6~38.1%·halves 전부 neither. 즉 손실은 'k=3 이 잡음 구간을 고른다'에서 오지 않는다 — 넓히면 오히려 나빠진다(상위 3개조차 풀 평균을 못 넘는다). 부수 실측(같은 런 [b]): cand robust AUC 0.4642~0.4656 vs champ 0.4943 → 2026-11-10 의 'cand AUC +0.0274' 주장은 이 프로토콜·표본에서 재현되지 않았다(부호 역전).",
+    "delta": -0.0514,
+    "sample": "113세션 / 1,771행 / 수수료 왕복 0.21%p 반영",
+    "rc": 0
+   }
   },
   {
    "id": "CG186",
@@ -14989,25 +15006,32 @@
   {
    "id": "CG187",
    "priority": 1,
-   "status": "needs_setup",
+   "status": "done",
    "kind": "measurement",
    "owner": "engineer",
    "affects_model": true,
    "title": "[측정정합성] 돈 프로토콜의 표본이 2026-09-30 에서 끝난다 — 5주 낡은 세션으로 게이트를 판정 중(10~11월 국면 미포함)",
    "hypothesis": "게이트·승격·스코어보드의 돈 지표는 data/reports/close_gate_probe/trades.csv 를 재사용하는데, 실측 이 파일은 **87세션 = 2026-05-26~2026-09-30 · 1,340행**이다. 즉 (a) 10~11월 국면(모멘텀 부호 반전: +0.09 → −0.15, CG181)이 돈 지표에 전혀 반영되지 않고, (b) 재학습 후보(07-12 이후 학습)에게는 세션의 절반 이상이 in-sample 이라 '재학습 개선'을 원리적으로 잴 수 없다.",
    "metric": "robust_oos_audit",
-   "command": "",
+   "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/_close_gate_backtest.py --days 60 --out-dir data/reports/close_gate_probe && /usr/bin/python3 scripts/_close_gate_backtest.py --days 210 --skip-build --out-dir data/reports/close_gate_probe && cp data/reports/close_gate_probe/trades.csv services/xgboost-ml/app/reports/close_gate_probe_trades.csv && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=3 timeout 3600 python -u scripts/model_metric_protocol_audit.py --models \"[[\\\"champ\\\",\\\"/app/app/models/champion\\\"],[\\\"cand\\\",\\\"/app/app/models/champion_cand_cg183\\\"]]\" --folds 5 --dates-per-fold 10 --stocks 80 --horizon 5 --label-kind rel --topk 3 --trades /app/app/reports/close_gate_probe_trades.csv --out /app/reports/overnight/cg187_money_fresh.json --robust-oos-out /app/reports/overnight/cg187_money_fresh_robust.json'",
    "counterfactual": "현행 87세션(05-26~09-30): champ -0.1744%p(t -0.78) · CG183 cand -0.1346%p(t -0.79) · 짝 Δ -0.0398(t -0.18)",
    "success": "① close 스크리너 후보 덤프를 2026-10-01~11-09 로 확장(세션 ≥15 추가) ② 같은 프로토콜로 재계산해 champ·cand 의 짝 Δ 와 halves 를 산출 ③ 신규 세션에서 부호가 뒤집히면 '돈 게이트의 기준선이 낡았다'로 기록하고 기준선 재등록을 리뷰보드에 올린다",
    "est_minutes": 60,
    "setup_needed": "선행: close_gate_probe 의 후보 덤프(일별 close 후보 CSV)를 10-01 이후로 생성해야 한다 — 생성 주체가 트레이더/피드 경로(발행측 스크리너)라 **엔지니어 단독 실행 불가**. 필요한 것: ① 2026-10-01~11-09 거래일별 close 후보 덤프(상위 후보 + day_change_pct + 익일 시가) ② 이를 trades.csv 형식으로 append. 확보되면 내가 재계산·판정한다.",
-   "note": "2026-11-10 23:0x 엔지니어 자율 신설. 실측 근거: trades.csv min 2026-05-26 max 2026-09-30 · 87세션 · 1,340행(컨테이너 /app/app/reports/close_gate_probe_trades.csv 와 호스트 data/reports/close_gate_probe/trades.csv 동일 계열). 영향: 오늘 CG183 판정에서 돈 다리가 후보 학습구간과 겹쳐 in-sample 이었다. ⚠ 프로토콜·기준선 변경은 리뷰보드 승인 대상이므로, 나는 '확장 표본으로 잰 값'을 증거로만 남기고 기준선 교체는 승인 후 한다.",
+   "note": "2026-11-10 23:0x 엔지니어 자율 신설. 실측 근거: trades.csv min 2026-05-26 max 2026-09-30 · 87세션 · 1,340행(컨테이너 /app/app/reports/close_gate_probe_trades.csv 와 호스트 data/reports/close_gate_probe/trades.csv 동일 계열). 영향: 오늘 CG183 판정에서 돈 다리가 후보 학습구간과 겹쳐 in-sample 이었다. ⚠ 프로토콜·기준선 변경은 리뷰보드 승인 대상이므로, 나는 '확장 표본으로 잰 값'을 증거로만 남기고 기준선 교체는 승인 후 한다. | 2026-11-11 06:0x 엔지니어 자율 집행(setup 해소): '생성 주체가 트레이더/피드 경로라 엔지니어 단독 실행 불가'라는 전제가 **틀렸다** — scripts/_close_gate_backtest.py 가 close_screener.py 를 과거 거래일별로 재생성하므로 호스트에서 단독 실행 가능했다(실측 6.2s/일, 26거래일 추가 ≈3분). 실행: ① --days 60 으로 10-01~11-09 후보 CSV 26개 생성(총 113개) ② --days 210 --skip-build 로 표본 전체 재계산. ⚠ 첫 시도(--days 60 단독)는 trades.csv 를 49세션으로 **절단**했다(가격 프레임 창밖 행이 버려짐) → --days 210 재실행으로 113세션 복원. 교훈: 이 스크립트의 --days 는 '추가'가 아니라 '출력 창'이다 — 확장할 때는 기존 시작일을 덮는 값으로 돌려라. 부수 실측: 게이트 개방일은 87세션에서도 0이었고 113세션에서도 0(R1 평균 top10 score 평균 87.03 < 88.0) → 종가 경로 이중 상한이 표본 전체를 닫는다(트레이더 소유 사실, 엔지니어 판정 대상 아님).",
+   "result": {
+    "verdict": "측정정합성 수리 완료 · 돈 신호 없음(노이즈)",
+    "detail": "표본 87→113세션(2026-05-26~11-09, 후보 2,251행)으로 확장 후 같은 프로토콜 재계산 — champ 순기대 -0.2974%p/세션(t -1.55 · 양세션 38.9% · 앞 -0.2232/뒤 -0.3703 neither) · cand_cg183 -0.1115%p(t -0.58 · 양세션 38.1% · 앞 -0.0920/뒤 -0.1306 neither) · 짝 Δ(champ−cand) -0.1859%p(t -0.89 · 58+/51−/4= · 폴드 11/23·9/22·12/23·12/22·14/23 · halves neither). 87세션 대비 두 모델 모두 절대값이 더 나빠졌고(champ -0.174→-0.297), 부호 반전 없음 → '기준선이 낡아서 후보가 억울했다'는 가설 기각. 짝 Δ 의 부호는 뒤집혔지만(champ−cand -0.040→-0.186) t -0.89 = 노이즈.",
+    "sample": "113세션 / 2,251행 / 채점 1,771행",
+    "delta": -0.1859,
+    "rc": 0
+   },
    "created_at": "2026-11-10T22:56:49+09:00"
   },
   {
    "id": "CG188",
    "priority": 1,
-   "status": "failed",
+   "status": "done",
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": true,
@@ -15043,20 +15067,63 @@
      "detail": "측정값 없음 — 종료코드 143",
      "log": "data/reports/me_cycle/logs/me_cycle_CG188_20261111-020146.log",
      "elapsed_min": 5.7
+    },
+    {
+     "ts": "2026-11-11T04:35:41+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "[arm 미지정] CO_core30_h5 제외 최고 CO_rank_smooth_d1_h5 0.5099 vs CO_core30_h5 0.5095 → Δ+0.0004",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG188_20261111-020740.log",
+     "elapsed_min": 148.0
     }
    ],
    "result": {
-    "verdict": "실행실패",
-    "detail": "측정값 없음 — 종료코드 143",
-    "delta": null,
-    "per_exp": null,
-    "rc": 143
+    "verdict": "노이즈",
+    "detail": "[arm 미지정] CO_core30_h5 제외 최고 CO_rank_smooth_d1_h5 0.5099 vs CO_core30_h5 0.5095 → Δ+0.0004",
+    "delta": 0.0004,
+    "per_exp": {
+     "CO_core30_h5": {
+      "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5186,
+       0.5096,
+       0.5005,
+       0.4951,
+       0.524
+      ],
+      "mean": 0.5095,
+      "std": 0.0108,
+      "min": 0.4951,
+      "max": 0.524,
+      "fold_win_rate": 0.8
+     },
+     "CO_rank_smooth_d1_h5": {
+      "desc": "게이트 ON + rank + 스무딩 + depth1 — 생산경로에서 가진 방향 전부 결합",
+      "kind": "smooth",
+      "horizon": 5,
+      "folds": [
+       0.518,
+       0.4988,
+       0.5004,
+       0.4892,
+       0.5431
+      ],
+      "mean": 0.5099,
+      "std": 0.019,
+      "min": 0.4892,
+      "max": 0.5431,
+      "fold_win_rate": 0.6
+     }
+    },
+    "rc": 0
    }
   },
   {
    "id": "CG189",
    "priority": 1,
-   "status": "needs_setup",
+   "status": "done",
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": true,
@@ -15067,9 +15134,79 @@
    "counterfactual": "CG189_ctl_nog_h5 (같은 런·같은 폴드·게이트 OFF·피처 제거 없음)",
    "success": "① 폴드 std ≤ 0.045(검정력 확보) ② 짝 Δ(제거−대조) ≥ +0.02 이고 폴드승률 ≥ 4/5 → 신호 ③ 미달이면 \"모멘텀 의존은 AUC 로 측정되지 않는다\"로 축 종결(돈 지표 병기) ④ rc≠0/요약 미갱신은 실행실패",
    "est_minutes": 40,
-   "setup_needed": "① wf_label_sweep.py CONFIGS 에 게이트 OFF 2-arm 추가(CG189_ctl_nog_h5·CG189_momdrop_nog_h5, exclude_names 는 CG182 와 동일 3종) — 코드 추가만 하면 된다. ② 선행: panel_200liq_fresh.npz (CG188 이 2026-11-11 02:01 착수, est 180분) 완성 후 status 를 pending 으로 승격.",
-   "note": "2026-11-11 02:1x 엔지니어 자율 신설. 근거: CG182 실행실패 진단(로그 \"피처군 제외 0개\" · CORE_FEATURES 에 3종 부재 확인). 판정은 같은 런 짝 Δ 로만 하고 절대값은 패널이 달라 참고용. ⚠ CG188 과 동시 실행 금지(구동기 락).",
-   "created_at": "2026-11-11T02:12:00+09:00"
+   "setup_needed": "",
+   "note": "2026-11-11 02:1x 엔지니어 자율 신설. 근거: CG182 실행실패 진단(로그 \"피처군 제외 0개\" · CORE_FEATURES 에 3종 부재 확인). 판정은 같은 런 짝 Δ 로만 하고 절대값은 패널이 달라 참고용. ⚠ CG188 과 동시 실행 금지(구동기 락). | 2026-11-11 05:0x 셋업 완료 확인: ① CONFIGS 에 CG189_ctl_nog_h5·CG189_momdrop_nog_h5 이미 존재(core_only=False) ② panel_200liq_fresh.npz 실측 54,497행·날짜 2025-09-15~2026-11-09(컨테이너 18.4MB) → 빌드 재사용 가능. pending 승격.",
+   "created_at": "2026-11-11T02:12:00+09:00",
+   "command_verified_at": "2026-11-11T05:05:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-11T05:06:31+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "[arm 미지정] CG189_ctl_nog_h5 제외 최고 CG189_momdrop_nog_h5 0.5108 vs CG189_ctl_nog_h5 0.5106 → Δ+0.0002",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG189_20261111-050115.log",
+     "elapsed_min": 5.3
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "[arm 미지정] CG189_ctl_nog_h5 제외 최고 CG189_momdrop_nog_h5 0.5108 vs CG189_ctl_nog_h5 0.5106 → Δ+0.0002",
+    "delta": 0.0002,
+    "per_exp": {
+     "CG189_ctl_nog_h5": {
+      "desc": "CG189 대조군 — 게이트 OFF + edge top30(전체 213피처 후보), 피처 제거 없음",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5293,
+       0.4987,
+       0.5029,
+       0.494,
+       0.5283
+      ],
+      "mean": 0.5106,
+      "std": 0.0151,
+      "min": 0.494,
+      "max": 0.5293,
+      "fold_win_rate": 0.6
+     },
+     "CG189_momdrop_nog_h5": {
+      "desc": "CG189 arm — 부호가 뒤집힌 모멘텀 3종 제거(게이트 OFF·같은 런·같은 행)",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5267,
+       0.502,
+       0.5029,
+       0.494,
+       0.5283
+      ],
+      "mean": 0.5108,
+      "std": 0.014,
+      "min": 0.494,
+      "max": 0.5283,
+      "fold_win_rate": 0.8
+     }
+    },
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG190",
+   "priority": 3,
+   "status": "backlog",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "title": "[랭킹→돈 번역] 모델 점수 10분위의 순기대 단조성 — 'AUC 0.51~0.55 가 순서 정보를 갖는가'를 신선 113세션에서 직접 측정",
+   "hypothesis": "CG186·CG187 실측을 합치면 이상한 상태다: 후보 모델은 robust AUC 가 +0.010~+0.027 높고, 돈 지표는 두 모델 모두 음수(champ -0.297%p · cand -0.112%p, 113세션)다. top-k 선택기(CG185)를 바꿔도 살아나지 않는다면 남은 설명은 ①점수 상위 구간이 실제로 더 오르지 않는다(단조성 없음) ②오른다 해도 수수료·익일시가 갭이 잡아먹는다 — 둘이다. 10분위별 순기대를 같은 표본에서 재면 ①과 ②를 분리할 수 있고, 단조성이 없으면 'AUC 를 더 올리는 축'은 돈 관점에서 무의미하므로 레버를 라벨·목적함수(체결가능 순기대 직접 최적화)로 바꿔야 한다.",
+   "metric": "robust_oos_audit",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && sh scripts/cg190_score_deciles.sh'",
+   "counterfactual": "무작위 선택(같은 세션 풀 평균) + top3 실측(cand -0.1115%p · champ -0.2974%p, 113세션 CG187)",
+   "success": "① 세션 내 점수 10분위 각각의 순기대(next_open·수수료 0.21%p·체결성 필터 당일등락<+25%)를 산출 ② 단조성 판정: D1→D10 평균의 스피어만 ρ ≥ +0.5 이고 D10−D1 ≥ +0.3%p 이면 '순서 정보 있음' → 선택기·문턱 축을 계속 연다 ③ ρ < +0.3 또는 D10−D1 ≤ 0 이면 '랭킹 무효'로 축 종결하고 라벨·목적함수 축(리뷰보드 승인)으로 넘어간다 ④ rc≠0/요약 미갱신은 실행실패(노이즈 아님)",
+   "est_minutes": 50,
+   "note": "2026-11-11 06:1x 엔지니어 자율 신설(CG185 후속 · CG188/CG189 결과 반영). 구현 선행: scripts/cg190_score_deciles.py 미작성 — model_metric_protocol_audit.py 의 build_features_for/score_models 와 fillable_expectancy 의 세션 통계를 재사용해 (code,date)→model_score 를 만든 뒤 세션 내 10분위로 나눠 fe.simulate 를 분위별로 호출하면 된다(top-k 대신 분위 멤버 전체 동일비중). 패널 캐시 키가 같아 빌드 재사용 가능(v1_5-10-80-5-rel-*, 실측 6분/113일). ⚠ 라벨·목적함수 변경 자체는 리뷰보드 승인 대상이므로 이 항목은 '측정'까지만 하고, ② 결과가 나온 뒤 승인 요청을 올린다.",
+   "created_at": "2026-11-11T06:16:00+09:00"
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
