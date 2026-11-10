@@ -608,7 +608,17 @@ def main(argv=None) -> int:
             rec = {"robust_auc": float(b["robust_auc"]),
                    "metric": "robust_auc",
                    "auc_pooled": b.get("auc_pooled"),
-                   "folds": args.folds, "horizon": args.horizon,
+                   # 2026-11-10(엔지니어): 요약 파일에 **폴드별 AUC 목록**이 없어 증거 형식
+                   #   ('폴드별 AUC 목록·평균±std')을 채울 수 없었다(실측: champion/cand robust_oos.json
+                   #   둘 다 folds=5 라는 개수만 있고 값이 없음). part_b 가 이미 계산한 fold_means 를
+                   #   그대로 남긴다(추가 키 — 기존 소비자는 robust_auc/expectancy 만 읽어 무회귀).
+                   "folds": args.folds, "fold_aucs": b.get("folds"),
+                   "fold_mean": (round(float(sum(b["folds"]) / len(b["folds"])), 4)
+                                 if b.get("folds") else None),
+                   "fold_std": (round(float((sum((x - sum(b["folds"]) / len(b["folds"])) ** 2
+                                                 for x in b["folds"]) / len(b["folds"])) ** 0.5), 4)
+                                if b.get("folds") else None),
+                   "horizon": args.horizon,
                    "label_kind": args.label_kind, "stocks": args.stocks,
                    "topk": args.topk, "max_day_chg_pct": args.max_day_chg,
                    "exit": "next_open",
