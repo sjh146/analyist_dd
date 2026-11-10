@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-11T02:01:21+09:00",
+ "updated_at": "2026-11-11T02:07:27+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -15007,18 +15007,18 @@
   {
    "id": "CG188",
    "priority": 1,
-   "status": "pending",
+   "status": "failed",
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": true,
    "title": "[검정력·데이터축] 신선 구간을 **넓은 횡단면(200종목·420일)** 으로 재측정 — CG184 저검정력(폴드 std 0.076, 검출한계 ±0.10) 교정",
    "hypothesis": "CG184 는 50종목·150일 패널이라 폴드당 test_rows 가 452~480 에 그쳤고 폴드 std 가 0.0758/0.0797 였다 → SE 0.034, 사전문턱 +0.02 를 80% 검정력으로 잡으려면 폴드 113개 필요(실제 5개). 즉 그 런은 데이터 축을 '기각'한 것이 아니라 **잴 수 없었다**. 횡단면을 4배(200종목)·구간을 420일로 넓히면 폴드당 test_rows 가 약 1,900 이 되어 폴드 std 가 0.03 수준으로 내려가고, 마지막 두 폴드가 10~11월 국면을 직접 포함한다. 그 상태에서 게이트 arm(rank+스무딩+depth1)이 코어 대조군을 이기는지가 이 항목의 질문이다.",
    "metric": "wf_sweep_summary",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 16500 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CO_core30_h5,CO_rank_smooth_d1_h5 --summary-out /app/reports/overnight/cg188_200liq_fresh_summary.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 27300 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CO_core30_h5,CO_rank_smooth_d1_h5 --summary-out /app/reports/overnight/cg188_200liq_fresh_summary.json'",
    "counterfactual": "CO_core30_h5 (같은 런·같은 패널·같은 폴드 — 게이트 OFF 코어)",
    "success": "① 패널 빌드 완료(dates max ≥ 2026-11-07 · 200종목 · 5폴드 성립, fold 당 test_rows ≥ 800) ② **검정력 확보: 폴드 std ≤ 0.045** (이 조건이 깨지면 판정하지 말고 'still underpowered'로 기록) ③ 짝 Δ(arm−control) ≥ +0.02 이고 폴드승률 ≥ 4/5 — 이때만 신호 ④ 미달이면 데이터 축을 '검정력 확보 상태에서 기각'으로 종결 ⑤ rc≠0 또는 요약 미갱신이면 실행실패(노이즈 아님)",
-   "est_minutes": 180,
-   "note": "2026-11-11 01:0x 엔지니어 자율 신설. 근거: CG184 실측(폴드 std 0.0758/0.0797 · 5폴드 · test_rows 452~480) → 검출한계 ±0.10 로 사전문턱 +0.02 를 잴 수 없었다. 설계: 200종목×420일 ≈ 84,000 페어 → CG184 실측(7,500 페어/13.8분 = 0.11 s/pair) 에서 빌드 ≈90분 + 스윕(2 config×5폴드×5시드=50 cell, 표본 4배) ≈25분 → est 180분. ⚠ 컨테이너 timeout 16200s(4.5h)는 est×60×1.5 로 잡았고, 03:00 착수면 07:30 강제종료 → 개장 09:00 전 종료. ⚠ --end-date 2026-11-09 고정 = 체크포인트 재개 성립(구간이 밀리면 매일 전량 폐기). ⚠ 유니버스는 curated 경로에 --since 2026-09-10 · --order value 로 **고정**했다(prod 경로는 _default_date_from() 이 now 기준이라 재현 불가 — CG142). 절대값은 기록 기준선 0.5406(panel_420_asofpatch, 281일)과 패널이 달라 참고용이며, 판정은 같은 런 짝 Δ 로만 한다. ⚠ CG182(모멘텀 중립화, est 90분)와 동시 실행 금지 — 구동기 락이 막지만 03:00 틱부터 착수하도록 pending 으로 둔다. | 2026-11-11 02:01 1차 착수 즉사 → 교정 후 02:01:50 재착수(pid 375028). 교정 2건: ① timeout 16200→16500(구동기 요구식 est×60×1.5+300) ② --since 2026-09-10→2025-09-15 (최근 since + min_days 100 = 유니버스 0종목). 재착수 로그 실측: 200종목·98,763행 로드 확인.",
+   "est_minutes": 300,
+   "note": "2026-11-11 01:0x 엔지니어 자율 신설. 근거: CG184 실측(폴드 std 0.0758/0.0797 · 5폴드 · test_rows 452~480) → 검출한계 ±0.10 로 사전문턱 +0.02 를 잴 수 없었다. 설계: 200종목×420일 ≈ 84,000 페어 → CG184 실측(7,500 페어/13.8분 = 0.11 s/pair) 에서 빌드 ≈90분 + 스윕(2 config×5폴드×5시드=50 cell, 표본 4배) ≈25분 → est 180분. ⚠ 컨테이너 timeout 16200s(4.5h)는 est×60×1.5 로 잡았고, 03:00 착수면 07:30 강제종료 → 개장 09:00 전 종료. ⚠ --end-date 2026-11-09 고정 = 체크포인트 재개 성립(구간이 밀리면 매일 전량 폐기). ⚠ 유니버스는 curated 경로에 --since 2026-09-10 · --order value 로 **고정**했다(prod 경로는 _default_date_from() 이 now 기준이라 재현 불가 — CG142). 절대값은 기록 기준선 0.5406(panel_420_asofpatch, 281일)과 패널이 달라 참고용이며, 판정은 같은 런 짝 Δ 로만 한다. ⚠ CG182(모멘텀 중립화, est 90분)와 동시 실행 금지 — 구동기 락이 막지만 03:00 틱부터 착수하도록 pending 으로 둔다. | 2026-11-11 02:01 1차 착수 즉사 → 교정 후 02:01:50 재착수(pid 375028). 교정 2건: ① timeout 16200→16500(구동기 요구식 est×60×1.5+300) ② --since 2026-09-10→2025-09-15 (최근 since + min_days 100 = 유니버스 0종목). 재착수 로그 실측: 200종목·98,763행 로드 확인. | 2026-11-11 02:1x 실측 보정(엔지니어): 빌드 진행률 로그가 2.27→3.28 pair/s 로 올라가며 54,497 페어 ETA 272분 — 종전 est 180분(timeout 16,500s)은 06:36 에 SIGKILL 될 구조였다(실측 46% 지점). est 300분·timeout 27,300s(구동기 요구식)로 올리고 재착수. 체크포인트(1,000/54,497, 500페어마다 저장)는 유지되므로 재개 손실은 ≤3분.",
    "attempts": [
     {
      "ts": "2026-11-11T02:01:21+09:00",
@@ -15035,14 +15035,22 @@
      "detail": "--market all 은 정상(all→None 해제)이지만 --since 2026-09-10 + --min-days 100 조합이 유니버스 SQL 의 HAVING COUNT(*)>=100 을 만족하는 종목을 0개로 만들었다(9-10~11-09 = 약 40거래일 < 100). 로그: \"universe[None]: 0 종목 (limit=200)\" → \"panel build failed\". 교정: --since 2025-09-15(빌드 구간 시작과 동일) → 200종목 확보 후 재착수.",
      "log": "data/reports/me_cycle/logs/me_cycle_CG188_20261111-020118.log",
      "elapsed_min": 0.1
+    },
+    {
+     "ts": "2026-11-11T02:07:27+09:00",
+     "rc": 143,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 143",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG188_20261111-020146.log",
+     "elapsed_min": 5.7
     }
    ],
    "result": {
     "verdict": "실행실패",
-    "detail": "측정값 없음 — 종료코드 1 — RuntimeError: panel build failed",
+    "detail": "측정값 없음 — 종료코드 143",
     "delta": null,
     "per_exp": null,
-    "rc": 1
+    "rc": 143
    }
   },
   {
