@@ -764,7 +764,15 @@ def next_item(backlog, force=False):
 
 
 # ── 지표 파싱 (자기신고 금지 — 요약 JSON 에서 직접 계산) ───────────────────────
-def summary_path(kind, command=None):
+def summary_path(kind, command=None, summary_out=None):
+    # 항목이 산출물 경로를 **직접 선언**한 경우(summary_out) 그 경로를 최우선으로 쓴다.
+    # 왜(실측 2026-11-10 CG186): command 가 래퍼 스크립트(`sh scripts/cg186_retrain_audit.sh`)면
+    # --out/--summary-out 플래그가 커맨드 문자열에 없어 구동기가 기본 경로를 본다 → 래퍼가 실제로는
+    # /app/reports/overnight/cg186_audit.json 에 (rc=0, 43.6분, 폴드·돈 지표 전부 포함) 썼는데도
+    # '요약 미갱신' → 판정불가로 원장에 남았다(측정이 있는데 판정이 사라짐).
+    # 래퍼마다 경로 규칙을 코드에 하드코딩하는 대신 항목 JSON 이 경로를 말하게 한다.
+    if summary_out:
+        return _container_path_to_host(str(summary_out).strip("'\""))
     if kind == "wf_sweep_summary":
         # ⚠ 실측 갭 수리(2026-10-02): 종전엔 기본 경로를 **고정**해 돌려줬다. 그런데
         # wf_label_sweep.py 는 `--summary-out <path>` 를 받으므로, 그걸 준 실행은 기본 경로를
@@ -3170,7 +3178,8 @@ def rejudge_parser_gap() -> list:
         it = next((i for i in b["items"] if i.get("id") == r.get("id")), None)
         if not it or not it.get("command"):
             continue
-        parsed = parse_by_metric(it, summary_path(it.get("metric") or "", it.get("command")), 0.0)
+        parsed = parse_by_metric(it, summary_path(it.get("metric") or "", it.get("command"),
+                                                  it.get("summary_out")), 0.0)
         if parsed.get("error"):
             continue
         verdict, detail, delta = judge_by_metric(it, parsed)
@@ -3463,7 +3472,7 @@ def execute(item, force=False):
 
     # metric 이 없는 항목(예: 산출물 존재를 보는 항목)도 크래시 없이 '판정불가' 로 끝나야 한다.
     # 실측 2026-09-26: L4 는 metric 키가 없어 사후 처리에서 KeyError 로 죽을 수 있었다.
-    spath = summary_path(item.get("metric") or "", item.get("command"))
+    spath = summary_path(item.get("metric") or "", item.get("command"), item.get("summary_out"))
     pre_mtime = os.path.getmtime(spath) if os.path.exists(spath) else 0.0
     # floor 에 **실행 시작 시각**을 포함한다: 파일 mtime 만 쓰면 갱신되지 않은 옛 요약이
     # 통과한다(설계원칙 4 함정, 실측 2026-09-25).
@@ -3643,7 +3652,7 @@ def ingest(item_id, log_rel=None):
         log(f"백로그에 {item_id} 없음 — ingest 불가")
         return 2
     try:
-        spath = summary_path(it.get("metric") or "", it.get("command"))
+        spath = summary_path(it.get("metric") or "", it.get("command"), it.get("summary_out"))
     except ValueError as e:
         log(f"ingest 불가: {e}")
         return 2
