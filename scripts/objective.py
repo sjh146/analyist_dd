@@ -64,8 +64,13 @@ def validate(obj: dict) -> list[str]:
 # (소스 오브 트루스는 트레이더 설정이고, objective.json 은 기계가 읽는 사본이다.)
 _ENVELOPE_PATTERNS = {
     "max_entries_per_day": (f"{TRADER}/runner/config.py", r"r2_max_entries_per_day\s*:\s*int\s*=\s*(\d+)"),
-    "max_position_pct": (f"{TRADER}/trader_core/config.py", r"max_position_pct\s*:\s*float\s*=\s*([0-9.]+)"),
-    "max_invested_pct": (f"{TRADER}/trader_core/config.py", r"max_invested_pct\s*:\s*float\s*=\s*([0-9.]+)"),
+    # ⚠ 값이 `1.0 / 3.0` 같은 식이면 종전 정규식은 '1.0' 만 집어 **파서가 조용히 틀린 값**을 냈다
+    #   (2026-11-10 실측: max_position_pct 두 값이 1.0 vs 0.1 로 오독돼 드리프트가 잘못 보고됨).
+    #   숫자·나눗셈 식만 허용한다.
+    "max_position_pct": (f"{TRADER}/trader_core/config.py",
+                         r"max_position_pct\s*:\s*float\s*=\s*([0-9.]+(?:\s*/\s*[0-9.]+)?)"),
+    "max_invested_pct": (f"{TRADER}/trader_core/config.py",
+                         r"max_invested_pct\s*:\s*float\s*=\s*([0-9.]+(?:\s*/\s*[0-9.]+)?)"),
     "daily_loss_limit_pct": (f"{TRADER}/runner/config.py", r"r4_loss_limit_pct\s*:\s*float\s*=\s*([0-9.]+)"),
     "r1_max_avg_score": (f"{TRADER}/runner/config.py", r"r1_max_avg_score\s*:\s*float\s*=\s*([0-9.]+)"),
     "r1_max_avg_pct": (f"{TRADER}/runner/config.py", r"r1_max_avg_pct\s*:\s*float\s*=\s*([0-9.]+)"),
@@ -88,7 +93,12 @@ def envelope_drift(obj: dict) -> list[str]:
         if not m:
             out.append(f"{key}: 설정에서 값을 찾지 못함({os.path.basename(path)})")
             continue
-        got = float(m.group(1))
+        raw = m.group(1).strip()
+        if "/" in raw:
+            _a, _b = [float(x) for x in raw.split("/")]
+            got = _a / _b if _b else 0.0
+        else:
+            got = float(raw)
         if abs(got - float(want)) > 1e-9:
             out.append(f"{key}: objective={want} ≠ 트레이더={got}")
     return out
