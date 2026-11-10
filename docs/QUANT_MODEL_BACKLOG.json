@@ -14712,7 +14712,7 @@
       "title": "[재학습·백필 반영] 원천 복구 후 챔피언 후보 재학습(120일·200종목·end-date 고정) → 돈 게이트 판정",
       "hypothesis": "현 챔피언은 2026-10-02 학습분이라 이후 21거래일 국면이 학습 입력에 없다. 원천이 11-09 까지 복구됐으므로 같은 피처 계약(FeaturePipeline.get_feature_names 순서)으로 재학습하면 OOS 순기대가 챔피언(−0.1674%p/세션)보다 개선될 수 있다. AUC 개선은 부차적이다.",
       "metric": "expectancy_pct_per_session",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 8400 python -u -m app.training.retrain_champion --days 120 --stock-limit 200 --end-date 2026-11-09 --out-dir /app/app/models/champion_cand_cg183'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 8400 python -u -m app.training.retrain_champion --days 120 --stock-limit 200 --end-date 2026-11-09 --out-dir /app/app/models/champion_cand_cg183 --checkpoint-path /app/app/models/wf/ckpt_cg183'",
       "counterfactual": "현 챔피언(app/models/champion): val ensemble AUC 0.5513 · robust_oos 0.4951 · 순기대 −0.1674%p/세션(t −0.75, 세션 87)",
       "success": "① 학습 완료(3모델·feature_names.json 순서 일치) ② 같은 프로토콜(5폴드 robust + fillable expectancy, 수수료 0.21%p)로 후보 측정: 순기대 > 챔피언 +0.1%p AND 분할표본 both_positive ③ champion_promote --dry-run --require-expectancy 통과 시에만 승격. AUC만 오르면 보류로 기록(승격 금지).",
       "est_minutes": 90,
