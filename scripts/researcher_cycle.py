@@ -648,6 +648,35 @@ def start_item(cmd, item_id, settle=None):
     return p, False
 
 
+def reap_dead_run():
+    """pidfile/state 가 가리키는 pid 가 **죽었으면** '기록 없이 죽었다'를 돌려주고 파일을 정리한다.
+
+    WHY (실측 2026-11-09~10): 호스트가 4주 꺼졌다 돌아오는 과정에서 R33 백필 자식이 두 번
+    (11-09 22:56 · 11-10 00:28) 호스트 종료와 함께 SIGKILL 됐다. pidfile·state 는 남았는데
+    tick 은 `running_pid()` 가 None 이면 **아무 말 없이** 다음 항목을 시작했다 → 원장에 그
+    실행 기록이 0건이고, 원장만 보면 'R33 은 한 번도 안 돌았다'로 읽힌다(진행분은 종목별
+    커밋이라 보존: 완료 353 = 215 + 135 + 3). 크래시 경로의 결과를 매 틱 조용히 지나가면
+    실패가 사라지므로, 죽은 실행은 이 자리에서 보고하고 파일을 지운다(hygiene 고아 pidfile
+    breach 도 함께 막힌다).
+
+    살아있는 pid 면 아무것도 하지 않는다(EPERM 포함 — `_pid_alive` 가 판정).
+    """
+    st = {}
+    try:
+        st = json.load(open(base.STATE, encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        pass
+    pid = base._pid_of(base.PIDFILE) or base._pid_of(base.STATE, "pid")
+    if not pid or base._pid_alive(pid):
+        return None
+    for f in (base.PIDFILE, base.STATE):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+    return {"id": st.get("id", "?"), "pid": pid, "started": st.get("started", "?")}
+
+
 def tick(force=False):
     pid = base.running_pid()
     if pid:
@@ -665,6 +694,11 @@ def tick(force=False):
         except OSError:
             pass
         return 0
+
+    dead = reap_dead_run()
+    if dead:
+        print(f"⚠ 기록 없이 죽었다: {dead['id']} pid={dead['pid']} 시작 {dead['started']} "
+              f"— 원장 기록 없음(종목별 진행분은 보존). 로그 꼬리와 종료 원인을 확인하라.")
 
     src_rc, src_out = snapshot(24)
     # 북극성 먼저: 데이터 품질이 목표(모델에 학습되는 양질 데이터)에 얼마나 가까운지 매 틱 확인.

@@ -1260,8 +1260,8 @@
       "check": null,
       "check_target": null,
       "setup_needed": [
-        "결측90%↑ 피처 수(dq_feature_null_ratio_high_count)=26 이 문턱(breach 15)을 넘어 매 틱 위반으로 발화합니다 — 전부 SNS/kalman 이라 '새 결함'이 아니라 R14 스냅샷 일관화가 드러낸 구조 결측입니다. 선택지: (A) 문턱을 기준선 위(예: warn 30/breach 40)로 재보정하고 SNS 결함은 R17 로 추적 [권고], (B) SNS 해소(R17)까지 문턱 유지→매 틱 위반 표시, (C) SNS/kalman 을 dead 처리해 북극성·문턱 분모에서 제외. 권고=(A)+(C) 병행.",
-        "커버리지 착시 피처 수(dq_feature_coverage_illusion_count)=62(기준선 36, breach 45) 도 같은 원인입니다 — CG165 3빌더가 54행을 전체이력(479일) 창으로 재계산하며 26→62 로 이동했습니다. (A) 재보정 시 null_ratio 와 착시 둘 다 기준선 위로 옮기고, 근본 처방으로 빌더가 feature_coverage 에 쓰는 window_days 를 일관(120일)시키는 배선(엔지니어 공동)을 포함해 주세요. 권고=(A)+(C)+창 일관화."
+        "결측90%↑ 피처 수(dq_feature_null_ratio_high_count)=30 (2026-11-10 16:00 실측, 10-11 이래 불변)이 문턱(breach 15)을 넘어 매 틱 위반으로 발화합니다 — 분해: SNS 22(평균 결측 0.932) + kalman 4(0.937) + 커버리지부족 4(short_selling_ratio 0.981 · retail_ownership_pct 0.977 · foreign_ownership_pct 0.977 · market_impact_score 0.999). 앞 26개는 '새 결함'이 아니라 R14 스냅샷 일관화가 드러낸 구조 결측이고, 뒤 4개는 원천 커버리지 부족(R17·R4 소관)입니다. 선택지: (A) 문턱을 기준선 위(warn 32 / breach 45)로 재보정하고 SNS 결함은 R17 로 추적 [권고], (B) SNS 해소(R17)까지 문턱 유지→매 틱 위반 표시, (C) SNS/kalman 을 dead 처리해 북극성·문턱 분모에서 제외. 권고=(A)+(C) 병행.",
+        "커버리지 착시 피처 수(dq_feature_coverage_illusion_count)=41 (기준선 36, warn 40, breach 45) — 10-07 신고 시점 62 에서 11-09 41 로 내려와 breach(45)는 벗어났고 warn(40)만 남았습니다(원인은 동일: CG165 3빌더가 54행을 전체이력 479일 창으로 재계산). (A) 재보정은 warn 을 45 로 올리는 것으로 충분하며, 근본 처방은 빌더가 feature_coverage 에 쓰는 window_days 를 일관(120일)시키는 배선(엔지니어 공동)입니다. 권고=(A)+(C)+창 일관화."
       ],
       "cost": "30분",
       "success": "결측>90% 살아있는 피처 수가 문턱 대비 해석 가능해지고(재보정 또는 dead 처리), SNS 신선도·커버리지 결함이 R17 로 단일 추적된다."
