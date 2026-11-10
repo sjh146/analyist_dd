@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-10T18:11:58+09:00",
+  "updated_at": "2026-11-10T21:04:37+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -14537,7 +14537,9 @@
       "counterfactual": "CO_core30_h5 (게이트 OFF 코어, 같은 런·같은 패널·같은 구간)",
       "success": "① foreign_institutional·krx_short_selling max(trade_date) = 2026-11-06 ② bash scripts/refresh_feature_sources.sh --check → RESULT: ALL_FRESH ③ 게이트 arm 5폴드×5시드 짝 Δ ≥ +0.02 (폴드 std ±0.03, 폴드 승률 기재). ②까지 실패하면 '실행실패'로 기록(노이즈 아님).",
       "est_minutes": 90,
-      "note": "2026-11-09 19:1x 신설(장외 자율). 선행: KIS 호출 경쟁 회피 — 일봉 수집(18:55 시작, 3,979종목×~7s ≈ 02:40 종료) 후에 착수하라. 같은 시각 kis_supply 크론(16:20)은 DAYS=5 라 21일 갭을 못 메운다(실측: cron_kis_supply.log 2026-10-09 16:47 · 기본 5영업일). | 2026-11-10T18:13+09:00 성공조건 ①②는 이미 충족(source_freshness_gate ALL_FRESH · supply_market_features max 2026-11-09) → 남은 것은 ③ 게이트 arm 재측정. 재측정 패널이 신선 구간을 포함하는지 먼저 확인(panel_prod200.npz 구간)."
+      "note": "2026-11-09 19:1x 신설(장외 자율). 선행: KIS 호출 경쟁 회피 — 일봉 수집(18:55 시작, 3,979종목×~7s ≈ 02:40 종료) 후에 착수하라. 같은 시각 kis_supply 크론(16:20)은 DAYS=5 라 21일 갭을 못 메운다(실측: cron_kis_supply.log 2026-10-09 16:47 · 기본 5영업일). | 2026-11-10T18:13+09:00 성공조건 ①②는 이미 충족(source_freshness_gate ALL_FRESH · supply_market_features max 2026-11-09) → 남은 것은 ③ 게이트 arm 재측정. 재측정 패널이 신선 구간을 포함하는지 먼저 확인(panel_prod200.npz 구간). | 2026-11-10 21:2x 엔지니어 자율 — **③ 실행 불가 확인, 선행 항목 CG184 신설**: 패널 17개 전부 max date=2026-09-23(실측 scripts/_panel_periods.py) → 신선 구간(09-24~11-09)을 담은 패널이 없어 게이트 arm 재측정 자체가 성립하지 않는다. 갭 창 커버리지도 이미 완비(10-09~11-06 20/20 거래일: md·fi·smf·short)라 백필 재실행은 무의미하다. → 이 항목의 남은 ③은 CG184(150일 창·end-date 2026-11-09 고정 패널 빌드 + 같은 런 A/B) 완료 후 그 요약으로 판정한다.",
+      "blocked_by": "CG184",
+      "updated_at": "2026-11-10T21:04:37+09:00"
     },
     {
       "id": "CG179",
@@ -14733,7 +14735,7 @@
     {
       "id": "XR33",
       "title": "[리서처 R33] 4주 호스트 오프라인(10-11~11-09) 복구 — 수급 공백 60일 백필 (일봉은 yfinance 스윕이 선행)",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 8,
       "from_research": "R33",
       "arm": null,
@@ -14743,12 +14745,32 @@
       "metric": "wf_sweep_summary",
       "hypothesis": "WSL 호스트가 2026-10-11 16:01~11-09 17:53 꺼져 있어 크론 전체가 멈췄다(원장 마지막 틱 10-11 16:01, market_data 최신 10-08). 일봉 공백(10-12~11-06, 20거래일)은 부팅 직후 yfinance 가격 스윕(period=1y, ON CONFLICT DO NOTHING)이 채운다. 그러나 수급은 일일 크론이 `--days 5` 라 **최근 5영업일만** 담으므로 10-12~10-31 은 어떤 경로도 담당하지 않는다 → 60일 창으로 1회 백필해야 한다.",
       "evidence": "리서처 R33 결과: R33: 939 >= 600 → 충족",
-      "success": null,
+      "success": "공백창(2026-10-12~10-31, 15거래일)의 market_data·foreign_institutional·supply_market_features 가 15/15 거래일 채워짐 — 실측 verdict=complete",
       "expected": "미지",
       "cost": null,
-      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
+      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라. | 2026-11-10 21:0x 엔지니어 자율 — **셋업 선행조건 충족 확인(백필 재실행 불필요)**. DB 실측(읽기전용, `python3 scripts/_xr33_backfill_check.py` → verdict=complete): 공백창 2026-10-12~10-31(평일 15거래일) 기준 market_data 15/15일(max 2026-11-10) · foreign_institutional 15/15일·14,081행·foreign_net_buy_qty 비영 98.3% · supply_market_features 15/15일(max 2026-11-09). 즉 yfinance 가격 스윕 + 수급 백필이 이미 공백을 메웠고 60일 창 1회 백필은 돌릴 필요가 없다 → 데이터 전제는 해소. 남은 실제 레버는 '복구된 창이 패널에 들어갔는가'이며, 현행 스윕 패널(panel_420_asofpatch, 281거래일)은 2026-09 스냅샷이라 복구분이 미반영이다 → 패널 재빌드(대략 1000분대)는 저녁 파이프라인 종료 + 런처 창(20:35~21:00)에서만 착수 가능하므로 다음 틱/다음 밤으로 이월.",
       "promoted_from": "handoff",
-      "promoted_at": "2026-11-10T18:00:37+09:00"
+      "promoted_at": "2026-11-10T18:00:37+09:00",
+      "verify_cmd": "python3 scripts/_xr33_backfill_check.py",
+      "closed_at": "2026-11-10T21:05:00+09:00",
+      "closed_by": "engineer"
+    },
+    {
+      "id": "CG184",
+      "priority": 2,
+      "status": "pending",
+      "kind": "experiment",
+      "owner": "engineer",
+      "affects_model": true,
+      "title": "신선 구간(2026-09-24~11-09) 포함 단기 패널 빌드 + 게이트 arm in-run A/B — 데이터 축 직접 검증",
+      "hypothesis": "10-11~11-09 호스트 오프라인으로 모든 스윕 패널이 2026-09-23 에서 끊겨 있다(실측: panel_* 17개 전부 max date 2026-09-23). 원천은 이미 복구됐고(market_data 2026-11-10 · foreign_institutional/supply_market_features 2026-11-09) 신선 구간 30영업일이 아직 어떤 패널에도 없다. 따라서 '조정 축은 상한 +0.011, 새 레버는 데이터 축'이라는 19사이클 결론은 **신선 구간에서 검증된 적이 없다**. 150일 창(end-date 고정)으로 다시 빌드하면 게이트 arm(CO_rank_smooth_d1_h5)과 코어 대조군(CO_core30_h5)을 같은 패널·같은 런에서 신선 구간 포함으로 채점할 수 있다.",
+      "metric": "wf_sweep_summary",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 27300 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_150d_fresh.npz --days 150 --end-date 2026-11-09 --limit 50 --folds 5 --seeds 5 --only CO_core30_h5,CO_rank_smooth_d1_h5 --summary-out /app/reports/overnight/cg184_fresh_panel_summary.json'",
+      "counterfactual": "CO_core30_h5 (게이트 OFF 코어, 같은 런·같은 패널·같은 구간)",
+      "success": "① 패널 빌드 완료(panel_150d_fresh.npz, dates max = 2026-11-07~11-09 · 5폴드 성립) ② 짝 Δ(arm−control) 5폴드×5시드 평균 ≥ +0.02 이고 폴드승률 ≥ 4/5 (폴드 std ±0.03 감안) ③ 미달이면 '노이즈'로 명시하고 데이터 축 가설을 신선 구간에서도 기각 기록. rc≠0 이거나 요약 미갱신이면 '실행실패'(노이즈 아님).",
+      "est_minutes": 300,
+      "note": "2026-11-10 21:2x 엔지니어 자율 신설(장외 루프). 근거 실측: ① XR33 셋업 검증 (`python3 scripts/_xr33_backfill_check.py` → verdict=complete): 공백창 2026-10-12~10-31 15/15 거래일 채워짐 · foreign_institutional 14,081행 · 비영 98.3% ② CG178 의 갭 창(10-09~11-06)도 20/20 거래일 완비(md·fi·smf·short) ③ 그런데 스윕 패널 17개 전부 max date 2026-09-23 → 신선 구간 미반영(실측 scripts/_panel_periods.py). 즉 CG178 ③(게이트 arm 재측정)은 **패널이 없어 실행 불가**였고, 이 항목이 그 선행이다. 설계: 150일 창 = 약 105거래일 × 49종목 ≈ 5,145 페어 → U3 실측 0.42 pair/s 면 빌드 ≈204분 + 스윕 2 config×5폴드×5시드(50 cell) → est 300분, 컨테이너 timeout 은 구동기 요구식(est×60×1.5+300=27,300s)에 맞춤. --end-date 2026-11-09 로 고정해 체크포인트 재개가 성립. ⚠ 대조 해석 한계: 이 패널은 281일 창(panel_420_asofpatch)과 **구간이 다르다** → 절대값을 기록 기준선 0.5406 과 비교하면 '타 패널 대조'로 증거가 약하다(U3 전철). 판정의 1차 근거는 **같은 런 안의 짝 Δ**이고, 절대값은 참고로만 병기하라. ⚠ 파이프라인 종료 후 틱이 ETA 가드를 통과하면 자동 착수(23:00 틱 → 종료 ~04:00 < 개장 09:00). 파이프라인과 동시 실행 금지.",
+      "created_at": "2026-11-10T21:04:19+09:00"
     }
   ],
   "updated": "2026-11-09T20:12+09:00"
