@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-11T09:30:01+09:00",
+ "updated_at": "2026-11-11T15:29:20+09:00",
  "owner": "quant-trader",
  "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
  "rules": [
@@ -130,7 +130,7 @@
   {
    "id": "T5",
    "title": "건당 기대값 흑자 전환",
-   "status": "pending",
+   "status": "failed",
    "priority": 5,
    "command": "python3 scripts/trader_cycle.py --probe expectancy",
    "metric": "expectancy_krw",
@@ -144,12 +144,12 @@
    "cost": "저",
    "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
    "result": {
-    "ts": "2026-11-10T13:38:47+09:00",
-    "value": -1367.4003400000004,
-    "check": "-1367.4003400000004 > 0.0",
+    "ts": "2026-11-11T11:25:50+09:00",
+    "value": -2477.1252125,
+    "check": "-2477.1252125 > 0.0",
     "verdict": "미달",
     "rc": 0,
-    "stdout_tail": "-1367.4003400000004",
+    "stdout_tail": "-2477.1252125",
     "stderr_tail": ""
    }
   },
@@ -394,6 +394,24 @@
     "tests": "runner/tests 154 passed (Python312-64)",
     "verify_after": "재기동된 루프에서 주문 예외 발생 시 'order failed <code>' 만 남고 프로세스 생존"
    }
+  },
+  {
+   "id": "T42",
+   "title": "close 경로가 43일간 신규 진입 0 — 게이트 open 0/113 신호일(7개월 실측), 문턱 변경은 리뷰보드 사안",
+   "status": "needs_approval",
+   "priority": 2,
+   "provenance": "트레이더 장중 틱(2026-11-11 15:25) — close_gate_probe 재측정(06:05) + 저널·러너 로그 실측",
+   "command": "cd /home/jhshi/analyist_dd && python3 -c \"import json;s=json.load(open('data/reports/close_gate_probe/summary.json'));print(s['days']['total'],s['days']['gate_open'],s['days']['r1_ok'],s['days']['heat_ok'],round(s['avg_score_top10_mean'],2))\"",
+   "metric": "close 게이트가 열린(gate_open) 신호일 수",
+   "check": {
+    "op": ">=",
+    "value": 1
+   },
+   "hypothesis": "close 경로는 R1(상위10 평균 ≥88.0)과 HEAT(상위10 평균 당일등락 ≤15.0%)의 **교집합**으로 판정되는데, 실측 113 신호일에서 교집합이 0일이다(R1 통과 48일 · HEAT 통과 8일 · 두 집합이 서로소). 즉 문턱이 조금 높은 게 아니라 두 조건이 구조적으로 만나지 않아 close 전략은 2026-09-29 이후 43일간 신규 진입이 0이다.",
+   "evidence": "실측 2026-11-11: ① `data/reports/close_gate_probe/summary.json`(06:05 재측정, 신호일 146일 2026-04-06~11-09, 2,251행) → days total 113 / gate_open **0** / r1_ok 48 / heat_ok 8 / avg_score_top10_mean 87.03. ② 오늘 피드 close 20건 top10 평균 **85.35**(전체 82.61) < 88.0 → 러너 로그 `R1 block close` 87회(11-11) · 11회(11-10, 86.1) · 14회(10-08·10-09, 87.1) 전부 차단, 통과 0. ③ 저널 마지막 close 진입 `2026-09-29T15:03` (43일 전), close 실현 3건 −1,446원.",
+   "success": "게이트가 열린 날이 1일 이상 생기고 그 날 close 진입이 실제로 발생한다(문턱·교집합 로직 중 무엇을 고칠지는 리뷰보드 결정).",
+   "cost": "중",
+   "note": "**변경 자체는 이 역할 권한 밖**(게이트 문턱 변경 = 리뷰보드 승인, 2주 실측+shadow 선행). 함정: `r1_ok_heat_fail` 버킷(n=956, avg +1.783%)을 'HEAT 를 풀면 돈 번다'로 읽으면 안 된다 — median 0.0·max +30.0 은 상한가 갭(체결 불가, R26)이 섞인 흔적이라 **체결가능 필터를 건 재측정**이 선행돼야 한다. R1 만 낮추는 안(88→86)은 R1 통과 48일 중 HEAT 도 통과하는 날이 0이라 효과가 없을 것으로 추정."
   }
  ]
 }
