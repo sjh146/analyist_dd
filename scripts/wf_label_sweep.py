@@ -1073,6 +1073,34 @@ CONFIGS = [
                              "short_selling_ratio", "program_trading_ratio"],
                  "lags": [1, 5]},
      "desc": "CG195 arm — 게이트 OFF + Δ1·Δ5 파생 8컬럼 (수급·공매도 흐름, 사전등록)"},
+    # ── CG196 (2026-11-11 장외 틱) 종목상수 피처 기여 — 누수 게이트 3번 항목의 A/B ──────────────
+    #   왜: 신선 패널 스크린 실측(2026-11-11 21:0x, panel_200liq_fresh 54,497행·213피처·279일
+    #     2025-09-15~2026-11-09): 누수 의심(|AUC−0.5|>0.25) 0개 · **종목상수 29개** · 시장레벨 48개 ·
+    #     무정보 137/213. 스킬 판정 하드규칙 3 은 '종목 상수 피처가 선별을 지배하면 반려'를 요구하는데,
+    #     지금까지 이 항목은 **선별 지배 여부를 A/B 로 잰 적이 없다**(스크린 카운트만 있었다).
+    #     종목상수 = 종목별 유니크값 1개. 이 정의는 **라벨을 전혀 쓰지 않는다** → 이 제외 목록을 만드는
+    #     데 미래정보(라벨)가 개입하지 않으므로 선별 축 재시험이 아니라 **누수/기여 검정**이다.
+    #   가설: 29개 상수(메타데이터 theme_*/similar*/twin_*/sector + 사망 열 sentiment_*/news_*/기타)가
+    #     선별 top30 을 차지해 모델 용량을 쓰지만, 상수는 횡단면 순위를 만들 수 없으므로(모든 날짜에서
+    #     같은 값) OOS 랭킹 기여가 0 이거나 음수다. 제거하면 폴드 평균이 오르거나 최소한 같아야 한다.
+    #   판정(사전등록): 같은 런 짝 Δ(제거 − 대조) ≥ +0.02 & 폴드승률 ≥ 4/5 → 신호(배포 가능한 단순화
+    #     이득 = 상수 29개 제거 재학습으로 후속). |Δ| < 0.005 → '상수 기여 없음'으로 종결(누수 게이트
+    #     3번 항목의 실질 해소 + 배포 입력 단순화 근거). Δ ≤ −0.02 → 상수가 실제로 기여(제거 금지).
+    {"id": "CG196_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "desc": "CG196 대조군 — 게이트 OFF + edge top30(전체 213피처 후보), 제거 없음"},
+    {"id": "CG196_noconst_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "exclude_names": ["theme_count", "theme_max_relevance", "theme_exposure_5d",
+                       "similarity_std", "similar_count", "twin_avg_correlation", "twin_count",
+                       "avg_similarity_top10", "max_similarity", "sector_count",
+                       "authenticity_avg", "negative_ratio", "positive_ratio",
+                       "sentiment_avg", "sentiment_avg_5d", "sentiment_avg_20d", "sentiment_avg_db",
+                       "sentiment_momentum", "sentiment_trend", "sentiment_volatility",
+                       "news_count_5d", "news_count_20d", "short_interest_ratio", "days_to_cover",
+                       "etf_flow_5d", "institution_ownership_pct", "margin_balance_change",
+                       "credit_balance_change", "value_ncav"],
+     "desc": "CG196 arm — 종목상수 29개(라벨 미사용 정의) 제거 · 같은 런·같은 행·같은 선별"},
 ]
 
 

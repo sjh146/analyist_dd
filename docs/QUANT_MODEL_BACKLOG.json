@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-11T20:10:00+09:00",
+ "updated_at": "2026-11-11T21:05:25+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -14526,7 +14526,7 @@
   {
    "id": "CG178",
    "priority": 1,
-   "status": "backlog",
+   "status": "done",
    "kind": "data",
    "owner": "engineer",
    "affects_model": true,
@@ -14537,9 +14537,10 @@
    "counterfactual": "CO_core30_h5 (게이트 OFF 코어, 같은 런·같은 패널·같은 구간)",
    "success": "① foreign_institutional·krx_short_selling max(trade_date) = 2026-11-06 ② bash scripts/refresh_feature_sources.sh --check → RESULT: ALL_FRESH ③ 게이트 arm 5폴드×5시드 짝 Δ ≥ +0.02 (폴드 std ±0.03, 폴드 승률 기재). ②까지 실패하면 '실행실패'로 기록(노이즈 아님).",
    "est_minutes": 90,
-   "note": "2026-11-09 19:1x 신설(장외 자율). 선행: KIS 호출 경쟁 회피 — 일봉 수집(18:55 시작, 3,979종목×~7s ≈ 02:40 종료) 후에 착수하라. 같은 시각 kis_supply 크론(16:20)은 DAYS=5 라 21일 갭을 못 메운다(실측: cron_kis_supply.log 2026-10-09 16:47 · 기본 5영업일). | 2026-11-10T18:13+09:00 성공조건 ①②는 이미 충족(source_freshness_gate ALL_FRESH · supply_market_features max 2026-11-09) → 남은 것은 ③ 게이트 arm 재측정. 재측정 패널이 신선 구간을 포함하는지 먼저 확인(panel_prod200.npz 구간). | 2026-11-10 21:2x 엔지니어 자율 — **③ 실행 불가 확인, 선행 항목 CG184 신설**: 패널 17개 전부 max date=2026-09-23(실측 scripts/_panel_periods.py) → 신선 구간(09-24~11-09)을 담은 패널이 없어 게이트 arm 재측정 자체가 성립하지 않는다. 갭 창 커버리지도 이미 완비(10-09~11-06 20/20 거래일: md·fi·smf·short)라 백필 재실행은 무의미하다. → 이 항목의 남은 ③은 CG184(150일 창·end-date 2026-11-09 고정 패널 빌드 + 같은 런 A/B) 완료 후 그 요약으로 판정한다.",
+   "note": "2026-11-09 19:1x 신설(장외 자율). 선행: KIS 호출 경쟁 회피 — 일봉 수집(18:55 시작, 3,979종목×~7s ≈ 02:40 종료) 후에 착수하라. 같은 시각 kis_supply 크론(16:20)은 DAYS=5 라 21일 갭을 못 메운다(실측: cron_kis_supply.log 2026-10-09 16:47 · 기본 5영업일). | 2026-11-10T18:13+09:00 성공조건 ①②는 이미 충족(source_freshness_gate ALL_FRESH · supply_market_features max 2026-11-09) → 남은 것은 ③ 게이트 arm 재측정. 재측정 패널이 신선 구간을 포함하는지 먼저 확인(panel_prod200.npz 구간). | 2026-11-10 21:2x 엔지니어 자율 — **③ 실행 불가 확인, 선행 항목 CG184 신설**: 패널 17개 전부 max date=2026-09-23(실측 scripts/_panel_periods.py) → 신선 구간(09-24~11-09)을 담은 패널이 없어 게이트 arm 재측정 자체가 성립하지 않는다. 갭 창 커버리지도 이미 완비(10-09~11-06 20/20 거래일: md·fi·smf·short)라 백필 재실행은 무의미하다. → 이 항목의 남은 ③은 CG184(150일 창·end-date 2026-11-09 고정 패널 빌드 + 같은 런 A/B) 완료 후 그 요약으로 판정한다. | 2026-11-11T21:05 엔지니어 자율 판정: 성공조건 ③(게이트 arm 짝 Δ ≥ +0.02) **미달** — CG188 실측 Δ+0.0004(노이즈). 즉 '신선 21거래일을 포함하면 게이트 arm 이 살아난다'는 가설은 기각. 데이터 축 결론('새 정보 클래스 없이는 AUC 가 안 움직인다')을 지지한다.",
    "blocked_by": "CG184",
-   "updated_at": "2026-11-10T21:04:37+09:00"
+   "updated_at": "2026-11-11T21:05:25+09:00",
+   "result": "노이즈 — CG184/CG188 이 신선 구간(2025-09-15~2026-11-09, 200종목) 패널을 빌드한 뒤 같은 런 5폴드×5시드로 측정: CO_core30_h5 0.5095 vs CO_rank_smooth_d1_h5 0.5099 → 폴드 짝 Δ+0.0004. 백필·재적재(성공조건 ①②)는 이미 충족(ALL_FRESH · max 2026-11-09)."
   },
   {
    "id": "CG179",
@@ -15458,7 +15459,7 @@
   {
    "id": "CG195",
    "priority": 1,
-   "status": "pending",
+   "status": "done",
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": true,
@@ -15470,7 +15471,93 @@
    "success": "① 로그에 '선별 NN = edge top30 + Δ강제 10/8개'가 찍혀 파생이 실제 모델 입력에 들어갔는지 확인(미통과면 판정이 아니라 '측정 무효') ② 어느 arm 이든 폴드 짝 Δ(arm−대조군) ≥ +0.02 이고 폴드승률 ≥ 4/5 → 신호(그 정보 클래스를 다음 실험 대조군으로 승격) ③ 둘 다 +0.02 미달이면 '정보 흐름 변화율 축'도 종결하고 데이터 축(인트라데이 분봉 — XR26 수리 선행) 승인 요청으로 넘어간다 ④ rc≠0/요약 미갱신은 실행실패(노이즈 아님)",
    "est_minutes": 20,
    "note": "2026-11-11 20:0x 엔지니어 자율(장외 틱) 신설 — CG193(라벨 호라이즌) 노이즈 판정으로 그 축을 닫고, 사전 등록된 다음 단계(CG193 success ③: 데이터 축 승인 요청)로 가기 전에 **코드-free 로 남은 마지막 정보 클래스**를 먼저 잰다. 소스는 사전 등록(정보 클래스 단위)이며 스크린 결과로 고르지 않았다. ⚠ 이 패널에서 사실상 죽은 열은 사전 배제했다(실측 2026-11-11: news_count_5d·news_count_20d·sentiment_avg·sentiment_avg_5d 비영 0.04%, margin_balance_change·credit_balance_change 비영 0.00%). 스모크(2폴드×1시드): CG195_dsns_h5 '선별 40개 = top30 + Δ강제 10개' · AUC 0.5142, CG195_dsup_h5 '선별 38개 = top30 + Δ강제 8개' · AUC 0.4969, 대조군 0.4988 — 경로 정상(Δ 는 스모크라 판정 아님). 판정은 같은 런 폴드 짝 Δ 로만 하고, Δ ≥ +0.02 가 나오면 시드를 10으로 늘려 재현 확인 후에만 후속 등록.",
-   "created_at": "2026-11-11T20:10:00+09:00"
+   "created_at": "2026-11-11T20:10:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-11T20:24:17+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "[arm 미지정] CG193_ctl_h5 제외 최고 CG195_dsns_h5 0.5162 vs CG193_ctl_h5 0.5106 → Δ+0.0056",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG195_20261111-201301.log",
+     "elapsed_min": 11.3
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "[arm 미지정] CG193_ctl_h5 제외 최고 CG195_dsns_h5 0.5162 vs CG193_ctl_h5 0.5106 → Δ+0.0056",
+    "delta": 0.0056,
+    "per_exp": {
+     "CG193_ctl_h5": {
+      "desc": "CG193 대조군 — 게이트 OFF·h5(기준선과 같은 과제), 피처 제거 없음",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5293,
+       0.4987,
+       0.5029,
+       0.494,
+       0.5283
+      ],
+      "mean": 0.5106,
+      "std": 0.0151,
+      "min": 0.494,
+      "max": 0.5293,
+      "fold_win_rate": 0.6
+     },
+     "CG195_dsns_h5": {
+      "desc": "CG195 arm — 게이트 OFF + Δ1·Δ5 파생 10컬럼 (SNS·공시·이벤트 흐름, 사전등록)",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5282,
+       0.4979,
+       0.503,
+       0.5134,
+       0.5385
+      ],
+      "mean": 0.5162,
+      "std": 0.0152,
+      "min": 0.4979,
+      "max": 0.5385,
+      "fold_win_rate": 0.8
+     },
+     "CG195_dsup_h5": {
+      "desc": "CG195 arm — 게이트 OFF + Δ1·Δ5 파생 8컬럼 (수급·공매도 흐름, 사전등록)",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5276,
+       0.4992,
+       0.4966,
+       0.4916,
+       0.5159
+      ],
+      "mean": 0.5062,
+      "std": 0.0135,
+      "min": 0.4916,
+      "max": 0.5276,
+      "fold_win_rate": 0.4
+     }
+    },
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG196",
+   "title": "[누수게이트·기여] 종목상수 피처 29개 제거 A/B — '종목 상수가 선별을 지배한다'를 처음으로 직접 측정(신선 패널)",
+   "status": "pending",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "wf_sweep_summary",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2550 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CG196_ctl_h5,CG196_noconst_h5 --summary-out /app/reports/overnight/cg196_const_summary.json'",
+   "counterfactual": "CG196_ctl_h5 (같은 런·같은 패널 panel_200liq_fresh·같은 5폴드×5시드·게이트 OFF·edge top30·피처 제거 없음)",
+   "success": "① 로그에 '피처군 제외 29개'가 찍혀 제외가 실제 반영(미통과면 판정 무효) ② 짝 Δ(noconst−ctl) 폴드 평균 ≥ +0.02 이고 폴드승률 ≥ 4/5 → 신호(상수 제거가 배포 가능한 단순화 이득 → 제거 재학습 후속) ③ |Δ| < 0.005 → '상수 기여 없음'으로 종결(누수 게이트 3번 항목의 실질 해소) ④ Δ ≤ −0.02 → 상수가 실제 기여(제거 금지) ⑤ rc≠0/요약 미갱신 = 실행실패(노이즈 아님)",
+   "hypothesis": "신선 패널 스크린 실측(2026-11-11 21:0x, panel_200liq_fresh 54,497행·213피처·279일): 누수 의심(|AUC−0.5|>0.25) 0개 · **종목상수 29개** · 시장레벨 48개 · 무정보 137/213. 스킬 판정 하드규칙 3 은 '종목 상수 피처가 선별을 지배하면 반려'를 요구하지만, 지금까지 이 항목은 **카운트로만** 확인됐고 A/B 로 잰 적이 없다. 종목상수 = 종목별 유니크값 1개이며 이 정의는 라벨을 쓰지 않으므로(미래정보 개입 0) 선별 축 재시험이 아니라 누수/기여 검정이다. 가설: 상수 29개는 날짜가 바뀌어도 같은 값이라 횡단면 순위를 만들 수 없고, 선별 top30 자리를 차지해 용량만 낭비한다 → 제거하면 폴드 평균이 오르거나 최소한 같다.",
+   "est_minutes": 25,
+   "note": "2026-11-11 21:1x 엔지니어 자율(장외 틱) 신설 — CG195(정보 흐름 변화율) 노이즈 판정 → 그 축 종결 후 다음 가설. 스크린 근거 파일: /app/reports/overnight/cg196_panel_screen_fresh.json. 제외 목록은 **라벨 미사용 정의**(종목별 유니크값 1)로만 만들어 스크린의 IC/AUC 값을 보고 고르지 않았다(선별 편향 차단). 셋업 검증 완료(실측 2026-11-11 21:2x): 29개 이름 전부 패널에 존재 · 29개 전부 종목상수(종목별 nunique 중앙값 1.0) · 두 arm 은 exclude_names 외 설정 동일 · n_configs 199. ⚠ 이 실험은 'AUC 를 올리는 새 레버'가 아니라 **누수 게이트 준수 검정**이다 (조정 축 재시험 금지 원칙 유지). ⚠ 배포 챔피언은 173피처라 이 29개 중 일부가 들어 있을 수 있으나, 제거 재학습은 신호가 확인된 뒤에만 등록한다.",
+   "created_at": "2026-11-11T21:05:25+09:00"
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
