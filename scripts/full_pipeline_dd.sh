@@ -224,7 +224,7 @@ else:
         print('[claim] emit failed: %s: %s' % (type(e).__name__, e), file=sys.stderr)
 print('yfinance DONE')
 PYEOF
-run_docker_phase stock_yfinance_collector /tmp/phase_1_1.py 3600
+run_docker_phase stock_yfinance_collector /tmp/phase_1_1.py 7200
 echo "1" > "$PROGRESS_FILE"
 sleep 10
 

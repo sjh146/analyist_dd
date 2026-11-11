@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-10T22:52:00+09:00",
+  "updated_at": "2026-11-11T21:25:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -663,7 +663,8 @@
         "커버리지부족 원천 3종 확대 여부 결정 필요 — 실측 2026-10-01 00:0x: 공매도 krx_short_selling 201종목(최신 9/29) · stocks.sector 결측 2,797/4,341(64.4%) · SNS 피처는 9/30 로 갱신됨(인간 수동 실행, 아래 3번). 셋 다 KIS/KRX/SNS 호출을 늘려야 하는데 **KIS 일일 호출 한도가 미확인(R20)** 이라 확대하면 핵심 수급 신선도와 쿼터를 다툰다 → 한도 확인 또는 '현행 유지' 결정 필요",
         "섹터 원천 경로 지정 필요 — KIS 업종분류 vs KRX 업종코드 중 승인된 경로를 지정해 주세요(R2 에서 KRX 투자자별 거래실적은 이 계정 미승인 401 이력)",
         "SNS 정기 수집 스케줄 신설 승인 — **크론 파일 수정이라 사람 단계**다. 실측 근거(2026-10-01 00:0x): 수집기가 정상 동작함을 확인 — 9/30 21:35 KST 수동 실행으로 250종목 42,300건 수집(15.3분)·30,508건 저장 → 피처 테이블 16,114행/309종목, 최신 trade_date **9/30**(종전 9/24 → 5거래일 정체 해소). 그러나 스케줄이 없어 이번 갱신도 **수동 실행 1회**였고, 스케줄을 만들지 않으면 다시 9/24 상황으로 얼어붙는다 — 이 승인은 '확대'(별도 판단)와 무관하게 필요하다."
-      ]
+      ],
+      "result": "[진단 2026-11-11 21:2x 실측] SNS/kalman 26개 피처의 결측 0.937/0.930 은 '새 결함'이 아니라 **원천 커버리지 구조**다: sns_post_features 는 distinct 종목 **309**(전체 4,349 의 7.1%) · 최신 거래일 **2026-09-30**(42일 정체) · 최근일 246종목(실측 trade_date 별 246/231/198…). 격자의 ~93%는 'SNS 글이 아예 없는 종목'이므로 수집을 늘려도 0.93은 내려가지 않는다(포스트가 없는 종목에 값을 만들 수 없다). kalman_* 4개도 같은 키 집합(null 동일 0.937) — 원천이 같다. → 남은 결정은 수집량이 아니라 **쓰임새**다: SNS 정기 스케줄(크론=사람 승인)을 배선해도 커버는 250~300종목 대역에 머무르므로 모델 피처로는 ① 커버 종목 한정 사용 ② 서빙 제외(CG164/CG183 --drop-serving-blind-features 와 같은 뿌리) 중 엔지니어가 골라야 한다. 나머지 4개(short_selling_ratio 0.981 · retail/foreign_ownership_pct 0.977 · market_impact_score 0.999)는 별개로 원천 커버리지 부족(R17 본래 항목). 문턱 기준선 30 중 26이 SNS/kalman 이라는 사실은 R29 재보정(A안)에 이미 반영됨 — 데이터가 나빠진 것이 아니다."
     },
     {
       "id": "R18",
@@ -1473,13 +1474,18 @@
           "ts": "2026-11-10T21:16:13+09:00",
           "rc": 0,
           "detail": "R35: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-11T18:00:55+09:00",
+          "rc": 0,
+          "detail": "R35: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R35: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R35_20261110-211610.log"
+        "log": "data/reports/res_cycle/logs/res_R35_20261111-180052.log"
       }
     },
     {
@@ -1526,6 +1532,25 @@
       "success": null,
       "cost": null,
       "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다."
+    },
+    {
+      "id": "R37",
+      "title": "당일 일봉 적재의 이중 실패에 밤샘 방치 — 18:55(KRX→KIS) + 20:00(yfinance phase) 모두 실패하면 재시도가 익일 04:15 뿐",
+      "status": "needs_approval",
+      "priority": 4,
+      "kind": "collect",
+      "affects_model": true,
+      "hypothesis": "일봉은 두 경로가 같은 날 저녁에 적재한다: 18:55 daily_bars(KRX OpenAPI → 실패 시 KIS 폴백)와 20:00 full_pipeline phase 1-1(yfinance/pykrx, 종목당 1년 이력). 둘 다 실패하면 당일 봉이 통째로 비고, 다음 재시도는 익일 04:15 data_gap 백필이다 — 하룻밤 모델·스크리너가 전일 데이터로 돈다. 그런데 이 실패는 어디에도 경보가 없다: phase 1-1 은 timeout 으로 죽으면 적재 코드에 도달하지 못해 자기신고 줄([claim])을 남기지 않고, R27 check 는 yfinance_market_data 를 목록에 넣지 않았으며, R28 check 는 '최근 7일 source>0' 이라 전날 성공으로 통과한다. 신선도 문턱도 당일을 분모에서 빼 자정까지 0(정상)이었다.",
+      "evidence": "실측 2026-11-11: ① 18:55 KRX OpenAPI 'Temporary failure in name resolution'(exit=3) → KIS 폴백도 'Could not resolve host: openapi.koreainvestment.com' + 30s 타임아웃 5회 → 'KIS 토큰 발급 실패 — 수집 중단' (네트워크는 21:13 현재 정상: curl 200 / 0.32s → 일시 DNS 장애). ② 같은 날 20:00 phase 1-1 은 로그 251줄(=2,510/4,349 종목)에서 끊기고 'yfinance DONE'·[claim] 이 없음 → run_docker_phase 의 timeout 3600s 에 걸려 **수집분 전량 폐기** (적재는 collect_all 이후 일괄). DB 실측 21:11 market_data 당일(2026-11-11) 행 **0** · 최신 2026-11-10 3,726종목. ③ 신선도 판정은 0(정상) — 수리 완료(dq_snapshot DUE_TODAY_HOUR=22, commit c0bd9c2). ④ 복구: 같은 날 21:14 naver_daily_backfill(--start=--end=2026-11-11) 로 당일 봉을 재적재(1콜/종목, 약 27~49종목/분).",
+      "setup_needed": [
+        "당일 일봉 재시도 스케줄(추가형 크론, 예 22:30 '당일 행수 < 정상일 60% 면 naver/KIS 1콜 백필') 승인 필요 — 지금은 이중 실패 시 익일 04:15 까지 아무 것도 시도하지 않는다. 크론 파일 수정은 사람 단계다.",
+        "phase 1-1 상한을 3600→7200s 로 올려 둠(자율, 적용 완료) — 그래도 4,349종목×(1년 이력) 수집이 100분대라 근본 처방은 '야간에는 최근 N일만' 또는 '청크별 증분 적재(timeout 나도 부분 보존)'다. 증분 적재 개조는 다음 사이클(자율)로 잡는다."
+      ],
+      "note": "자가신고·감시 3중 사각지대: timeout 으로 죽은 phase 는 claim 줄이 없고(R28 은 7일 창), R27 목록에 yfinance_market_data 가 없으며, 신선도는 당일을 세지 않았다(수리함). 재발 감시는 이제 22:00 이후 dq_snapshot 신선도 warn 1 로 걸린다.",
+      "check": null,
+      "check_target": null,
+      "command": null,
+      "cost": "1콜/종목(naver) 또는 수집기 1회"
     }
   ]
 }
