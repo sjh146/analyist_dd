@@ -307,12 +307,40 @@ def _build_panel_locked(cache, limit, days, log=print, end_date=None, universe="
         df["date"] = [str(d) for d in z["dates"]]
         df["stock_code"] = [str(c) for c in z["codes"]]
         df["price"] = z["price"].astype(float)
+        # ── as-of 앵커 슬라이스 (2026-11-12 CG199 실사고) ──────────────────────────
+        # `--end-date` 는 **빌드** 구간만 고정했고, 완성 패널을 재사용할 때는 요청 구간을
+        # 무시했다(경고 한 줄뿐). 그래서 '앵커를 2거래일 앞으로 옮긴 재현성 검정'(CG199)이
+        # 실제로는 같은 패널(끝 2026-11-09)로 돌아 CG195 와 **비트동일**한 값
+        # (ctl 0.5106 · arm 0.5162)을 냈고, 구동기는 이를 '노이즈(=측정됨)'로 기록했다 —
+        # 조용한 스냅샷 불일치의 가장 위험한 형태(가짜 재현). 이제 요청 end_date 가 패널 끝보다
+        # **앞**이면 그 날짜까지만 잘라 쓴다(=앵커 이동, 폴드 경계도 함께 이동). 패널 끝보다
+        # **뒤**면 그 구간을 채울 수 없으므로 명시 실패한다(옛 데이터로 '연장'을 흉내내지 않는다).
+        _slice_note = None
+        _pmax = str(df["date"].max()) if len(df) else None
+        if end_date and _pmax and end_date != _pmax:
+            if end_date < _pmax:
+                _before = len(df)
+                df = df[df["date"].astype(str) <= end_date].reset_index(drop=True)
+                if df.empty:
+                    raise RuntimeError(
+                        f"as-of 슬라이스 결과가 비었다(end_date={end_date}, panel_max={_pmax}, {cache})")
+                _slice_note = (_pmax, end_date, _before, len(df))
+                log(f"panel as-of 슬라이스: {_pmax} → {end_date} "
+                    f"rows {_before} → {len(df)} (앵커 이동 — 패널 파일은 그대로, 실행 뷰만 자름)")
+            else:
+                raise RuntimeError(
+                    f"요청 end_date={end_date} 가 패널 마지막 날짜 {_pmax} 보다 뒤다 — "
+                    f"이 패널로는 그 구간을 채울 수 없다(재빌드 필요, {cache})")
         # RB2/F3 — '완성된 npz 재사용' 경로에도 코드/조건 검증을 건다. 종전에는 파일명만 보고
         # 재사용해 ① 피처 코드 변경 후 옛 패널 ② 유니버스·구간 변경 요청에 옛 파일 이 조용히
         # 통과했다(값은 그럴듯하게 나온다 = 조용한 스냅샷 불일치). 기본은 **경고**이고
         # PANEL_META_STRICT=1 일 때만 불일치를 예외로 올린다(사이드카 없는 레거시 패널은 막지 않음).
         _req = {"universe": universe, "universe_seed": universe_seed, "limit": limit,
-                "days": days, "end_date": end_date,
+                "days": days,
+                # 슬라이스한 경우 파일 스냅샷의 끝(_pmax)으로 비교한다 — 우리가 의도적으로
+                # 잘라 쓴 것이므로 'end_date 불일치'로 경고하면 진짜 불일치(유니버스·limit)가
+                # 이 노이즈에 묻힌다. 실제 슬라이스 사실은 위 로그 한 줄로 남는다.
+                "end_date": (_pmax if _slice_note else end_date),
                 "universe_opts": {k: v for k, v in universe_opts.items() if v is not None}}
         _pm = panel_meta.verify(cache, request=_req,
                                 current_code_sig=ml.FeaturePipeline._feature_code_sig())

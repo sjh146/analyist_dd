@@ -3531,7 +3531,27 @@ def _attempts_list(it):
 
 
 # ── 사이클 실행 ──────────────────────────────────────────────────────────────
+def _panel_snapshot_mismatch(run_log) -> str:
+    """실행 로그에서 '패널 하드 불일치' 줄을 찾는다(없으면 "").
+
+    왜: build_panel 은 완성 패널을 재사용할 때 요청 조건과 사이드카 메타를 비교해
+    `⚠ panel meta 불일치(스냅샷이 다름) ...` 를 남긴다. 그런 런의 숫자는 **요청한 조건의
+    측정이 아니다**(2026-11-12 CG199: 앵커를 옮긴 줄 알았는데 같은 패널 → CG195 와 비트동일,
+    그런데 판정은 '노이즈'로 기록됐다). 판정 단계에서 이 줄을 보면 '노이즈'가 아니라
+    '측정무효'로 남긴다 — 노이즈는 '측정했는데 신호 없음'이고 이건 '측정이 아니다'.
+    """
+    try:
+        with open(run_log, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if "panel meta 불일치" in line:
+                    return line.strip()
+    except OSError:
+        return ""
+    return ""
+
+
 def execute(item, force=False):
+
     os.makedirs(RUNTIME, exist_ok=True)
     ok, why = guards(force, item)
     if not ok:
@@ -3619,6 +3639,21 @@ def execute(item, force=False):
         verdict, detail, delta = judge_by_metric(item, parsed, per)
         if parsed.get("error") and not per:
             detail = parsed["error"]
+        # ── 패널 스냅샷 불일치 = 측정무효 (2026-11-12 CG199 실사고) ────────────────────
+        # 실측: `--end-date 2026-11-05` 로 '앵커를 2거래일 옮긴 재현성 검정'을 돌렸는데
+        # build_panel 이 완성 패널 재사용 시 요청 구간을 **경고만 하고 무시**해, 실제로는
+        # 같은 데이터(끝 2026-11-09)로 CG195 와 비트동일한 값(ctl 0.5106 · arm 0.5162)이 나왔다.
+        # 구동기는 그걸 '노이즈(=측정됨 → 재현 실패)'로 원장에 남겼다 — **가짜 재현**이고,
+        # 만약 델타가 +0.02 를 넘었다면 '앵커를 바꿔도 살아남는 신호'라는 완전한 거짓 결론이 된다.
+        # 패널 메타가 하드 불일치(유니버스·limit·구간)면 그 런의 숫자는 요청 조건의 값이 아니므로
+        # 노이즈가 아니라 **측정무효**로 기록한다(축 종결 근거로도 쓰지 않는다).
+        if verdict != "실행실패":
+            _mm = _panel_snapshot_mismatch(run_log)
+            if _mm:
+                verdict = "측정무효"
+                detail = (f"패널 스냅샷 불일치로 요청 조건의 측정이 아니다 — {_mm[:160]} "
+                          f"| 원판정 {detail[:120]}")
+                delta = None
 
     rec = {
         "ts": now_kst().isoformat(timespec="seconds"),
