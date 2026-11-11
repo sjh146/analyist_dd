@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-11T15:43:45+09:00",
+ "generated_at": "2026-11-12T04:04:05+09:00",
  "source": "trader-agent/data/fills",
  "files": [
   "fills_2026-09-28.json",
@@ -58,6 +58,28 @@
    "avg_loss": -14620.0,
    "avg_ret_pct": -5.184,
    "expectancy_krw": -14620.0
+  }
+ },
+ "by_exit_kind": {
+  "owner_manual": {
+   "n": 1,
+   "net_pnl": -14620.0,
+   "fees": 0.0,
+   "win_rate": 0.0,
+   "avg_win": null,
+   "avg_loss": -14620.0,
+   "avg_ret_pct": -5.184,
+   "expectancy_krw": -14620.0
+  },
+  "signal": {
+   "n": 7,
+   "net_pnl": -5197.0,
+   "fees": 0.0,
+   "win_rate": 28.6,
+   "avg_win": 1028.0,
+   "avg_loss": -1813.2,
+   "avg_ret_pct": -3.317,
+   "expectancy_krw": -742.4
   }
  },
  "by_date": {

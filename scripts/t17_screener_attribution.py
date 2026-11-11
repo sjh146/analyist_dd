@@ -106,6 +106,16 @@ def attribution_lines(stats) -> "list[str]":
     scored = stats.get("scored_n")
     out.append(f"[t17]   전체 n={allv.get('n')} net={allv.get('net_pnl')}원 "
                f"기대값={allv.get('expectancy_krw')}원")
+    # 청산 **주체** 분해(정보용): 스크리너 기대값의 분모에는 신호 거래만 들어가야 한다.
+    # 사람이 직접 전량 청산한 건('owner_exit')은 스크리너 기여도가 아니다(실측 2026-11-10:
+    # 1건 −14,620원이 전체 기대값 −742 → −2,477원/거래로 3.3배 왜곡). 옛 리포트에는 이 키가
+    # 없으므로 없으면 조용히 생략한다(하위호환).
+    kinds = stats.get("by_exit_kind") or {}
+    sig, own = (kinds.get("signal") or {}), (kinds.get("owner_manual") or {})
+    if isinstance(kinds, dict) and sig:
+        out.append(f"[t17]   ★ 신호 청산만 n={sig.get('n')} net={sig.get('net_pnl')}원 "
+                   f"기대값={sig.get('expectancy_krw')}원 | 사람 수동청산 n={own.get('n', 0)}건 "
+                   f"net={own.get('net_pnl', 0)}원 (스크리너 기여도에서 제외)")
     out.append(f"[t17]   ★ 모델확률(ml_prob) 귀속 가능 거래 = {scored}건 "
                f"→ 확률구간별 기여도 측정 {'가능' if scored else '**불가**(트레이더 fills 에 ml_prob 미기록)'}")
     return out

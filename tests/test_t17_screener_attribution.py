@@ -78,3 +78,27 @@ def test_zero_closed_trades_passes():
 def test_naive_timestamp_treated_as_kst():
     v, _ = t17.decide(_stats(generated_at="2026-10-07T16:40:03"), NOW)
     assert v == 1
+
+
+def test_attribution_lines_show_signal_only_expectancy():
+    """사람 수동청산(owner_exit)을 신호 기대값 분모에서 분리해 찍는다.
+
+    실측 2026-11-10: owner_exit 1건(−14,620원)이 전체 기대값을 −742 → −2,477원/거래로
+    3.3배 왜곡했다. 분해 줄이 없으면 '스크리너가 돈을 잃는다'는 잘못된 결론이 나간다.
+    """
+    stats = _stats(by_exit_kind={
+        "signal": {"n": 7, "net_pnl": -5197.0, "expectancy_krw": -742.4},
+        "owner_manual": {"n": 1, "net_pnl": -14620.0, "expectancy_krw": -14620.0},
+    })
+    lines = t17.attribution_lines(stats)
+    joined = "\n".join(lines)
+    assert "신호 청산만 n=7" in joined
+    assert "-742.4원" in joined
+    assert "사람 수동청산 n=1건" in joined
+    # 판정값은 바뀌지 않는다(측정 분해일 뿐 게이트가 아니다)
+    assert t17.decide(stats, NOW)[0] == 1
+
+
+def test_attribution_lines_tolerate_old_report_without_exit_kind():
+    lines = t17.attribution_lines(_stats())
+    assert not any("신호 청산만" in line for line in lines)

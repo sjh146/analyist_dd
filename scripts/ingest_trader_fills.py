@@ -157,13 +157,27 @@ def _block(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def exit_kind(row: Dict[str, Any]) -> str:
+    """청산 **주체** 구분 — 스크리너 기대값은 신호가 낸 거래만 세야 한다.
+
+    WHY(실측 2026-11-10/11): 사용자가 직접 전량 청산한 1건(`exit_reason` =
+    'owner_exit: manual full exit', −14,620원)이 `screener=unknown` 으로 잡혀
+    전체 기대값을 −742 → −2,477원/거래로 3.3배 왜곡했다(닫힌 8건 중 1건이 손실의 74%).
+    사람 청산은 스크리너 기여도가 아니라 **사람 개입**이므로 별도 통에 담는다.
+    """
+    reason = str(row.get("exit_reason") or "").strip().lower()
+    return "owner_manual" if reason.startswith("owner_exit") else "signal"
+
+
 def aggregate(rows: List[Dict[str, Any]], buckets: int = 5) -> Dict[str, Any]:
     """스크리너별·일자별 실현 성과 + 모델 확률 구간별 승률(캘리브레이션 대조)."""
     by_screener: Dict[str, List[Dict[str, Any]]] = {}
     by_date: Dict[str, List[Dict[str, Any]]] = {}
+    by_exit_kind: Dict[str, List[Dict[str, Any]]] = {}
     for row in rows:
         by_screener.setdefault(str(row.get("screener") or "unknown"), []).append(row)
         by_date.setdefault(str(row.get("fill_date") or ""), []).append(row)
+        by_exit_kind.setdefault(exit_kind(row), []).append(row)
 
     scored = [r for r in rows if r.get("ml_prob") is not None and r.get("ret_pct") is not None]
     calibration = None
@@ -189,6 +203,7 @@ def aggregate(rows: List[Dict[str, Any]], buckets: int = 5) -> Dict[str, Any]:
     return {
         "all": _block(rows),
         "by_screener": {name: _block(rs) for name, rs in sorted(by_screener.items())},
+        "by_exit_kind": {name: _block(rs) for name, rs in sorted(by_exit_kind.items())},
         "by_date": {day: _block(rs) for day, rs in sorted(by_date.items())},
         "ml_calibration": calibration,
         "scored_n": len(scored),
@@ -245,6 +260,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     for name, block in stats["by_screener"].items():
         print("   - {0}: n={1} net={2} 승률={3}%".format(
             name, block["n"], block["net_pnl"], block["win_rate"]))
+    for name, block in (stats.get("by_exit_kind") or {}).items():
+        label = "사람 수동청산" if name == "owner_manual" else "신호 청산"
+        print("   [{0}] n={1} net={2} 기대값={3}원".format(
+            label, block["n"], block["net_pnl"], block["expectancy_krw"]))
 
     if args.dry_run:
         print("[trader_fills] --dry-run — DB·리포트 기록 생략")

@@ -135,3 +135,44 @@ def test_main_dry_run_with_data_returns_zero():
             json.dump(_payload(closed=[_closed("005930", 1000.0, 1.0)]), fh)
 
         assert itf.main(["--fills-dir", tmp, "--dry-run"]) == 0
+
+
+# ── 청산 주체 분해(실측 2026-11-10 함정) ────────────────────────────────────────
+# 사용자가 직접 전량 청산한 1건(owner_exit, −14,620원)이 screener=unknown 으로
+# 전체 기대값을 −742 → −2,477원/거래로 왜곡했다. 신호 거래 기대값은 사람 개입을
+# 분모에서 빼야 한다 — 안 그러면 스크리너 기여도 판정이 사람 손에 지배된다.
+
+def _owner_exit(code="000990", net=-14620.0, ret=-5.184):
+    record = _closed(code, net, ret, screener="unknown")
+    record["exit_reason"] = "owner_exit: manual full exit (net proceeds 267424/10sh)"
+    return record
+
+
+def test_exit_kind_classifies_owner_exit():
+    assert itf.exit_kind({"exit_reason": "owner_exit: manual"}) == "owner_manual"
+    assert itf.exit_kind({"exit_reason": "take_profit"}) == "signal"
+    assert itf.exit_kind({"exit_reason": ""}) == "signal"
+    assert itf.exit_kind({}) == "signal"
+
+
+def test_aggregate_splits_owner_manual_from_signal():
+    rows = itf.rows_from_payload(_payload(closed=[
+        _closed("005930", 1000.0, 1.0, screener="swing"),
+        _closed("000660", -500.0, -0.5, screener="close"),
+        _owner_exit(),
+    ]))
+
+    stats = itf.aggregate(rows)
+
+    sig = stats["by_exit_kind"]["signal"]
+    own = stats["by_exit_kind"]["owner_manual"]
+    assert sig["n"] == 2 and own["n"] == 1
+    assert sig["net_pnl"] == 500.0          # 사람 청산이 섞이지 않는다
+    assert sig["expectancy_krw"] == 250.0
+    assert own["net_pnl"] == -14620.0
+    assert stats["all"]["n"] == 3           # 전체(사람 포함)는 그대로 보존
+
+
+def test_aggregate_without_owner_exit_has_empty_manual_kind():
+    rows = itf.rows_from_payload(_payload(closed=[_closed("005930", 1000.0, 1.0)]))
+    assert "owner_manual" not in itf.aggregate(rows)["by_exit_kind"]
