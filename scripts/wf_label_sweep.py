@@ -1132,6 +1132,47 @@ CONFIGS = [
                              "disclosure_count_5d", "economic_event_count_7d"],
                  "lags": [1, 5]},
      "desc": "CG199 arm — CG195_dsns 설정 그대로(Δ1·Δ5 파생 10컬럼) · 앵커만 2거래일 앞(재현성 검정)"},
+
+    # ── CG202 (2026-11-12 02:0x 장외 틱) 선별 청정화 × Δ파생 상호작용 — '죽은 열이 슬롯을 먹어
+    #   시간가변 신호가 가려졌는가'. 왜: CG196 같은-런 실측에서 대조군 top30 이 종목상수·중복라벨을
+    #   폴드별 최대 7개까지 포함했다(실질 고유 피처 23개). CG195_dsns(Δ1·Δ5 파생)의 Δ+0.0056 은
+    #   이 오염된 선별 위에서 측정됐고, 제거 arm(CG196_noconst·CG198_dupdrop)은 각각 단독으로
+    #   Δ+0.0002 수준이었다 → **두 정리와 파생을 동시에 켠 조합은 아직 측정된 적이 없다**.
+    #   가설: 상수·중복을 걷어낸 선별 위에서만 Δ파생(SNS·공시·이벤트 흐름)이 슬롯에 진입해 신호가 산다.
+    #   판정(사전등록, 앵커 3개 평균): 짝 Δ(clean_dsns − clean) ≥ +0.02 & 부호 3/3 & 폴드승률 ≥4/5 → 신호.
+    #     |앵커평균 Δ| < 0.005 또는 부호 불일치 → '청정화는 파생 신호를 살리지 못한다'로 데이터축 재개
+    #     조건(CG73)만 남기고 조정 축 종결. rc≠0/요약 미갱신 = 실행실패(노이즈 아님).
+    #   파생 소스는 CG195 와 동일(뉴스·감성·margin 은 비영 0.0x% 로 사전 제외).
+    {"id": "CG202_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "desc": "CG202 대조군 — 게이트 OFF · edge top30 · 제거/중복/파생 없음"},
+    {"id": "CG202_clean_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False, "drop_dup": True,
+     "exclude_names": ["theme_count", "theme_max_relevance", "theme_exposure_5d",
+                       "similarity_std", "similar_count", "twin_avg_correlation", "twin_count",
+                       "avg_similarity_top10", "max_similarity", "sector_count",
+                       "authenticity_avg", "negative_ratio", "positive_ratio",
+                       "sentiment_avg", "sentiment_avg_5d", "sentiment_avg_20d", "sentiment_avg_db",
+                       "sentiment_momentum", "sentiment_trend", "sentiment_volatility",
+                       "news_count_5d", "news_count_20d", "short_interest_ratio", "days_to_cover",
+                       "etf_flow_5d", "institution_ownership_pct", "margin_balance_change",
+                       "credit_balance_change", "value_ncav"],
+     "desc": "CG202 arm1 — 종목상수 29개 제거 + 중복라벨 제거(청정 선별, 파생 없음)"},
+    {"id": "CG202_clean_dsns_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False, "drop_dup": True,
+     "exclude_names": ["theme_count", "theme_max_relevance", "theme_exposure_5d",
+                       "similarity_std", "similar_count", "twin_avg_correlation", "twin_count",
+                       "avg_similarity_top10", "max_similarity", "sector_count",
+                       "authenticity_avg", "negative_ratio", "positive_ratio",
+                       "sentiment_avg", "sentiment_avg_5d", "sentiment_avg_20d", "sentiment_avg_db",
+                       "sentiment_momentum", "sentiment_trend", "sentiment_volatility",
+                       "news_count_5d", "news_count_20d", "short_interest_ratio", "days_to_cover",
+                       "etf_flow_5d", "institution_ownership_pct", "margin_balance_change",
+                       "credit_balance_change", "value_ncav"],
+     "derived": {"sources": ["sns_attention_score", "sns_momentum_score", "sns_post_count",
+                             "disclosure_count_5d", "economic_event_count_7d"],
+                 "lags": [1, 5]},
+     "desc": "CG202 arm2 — 청정 선별 + Δ1·Δ5 파생 10컬럼 (상호작용 검정의 처리군)"},
 ]
 
 
