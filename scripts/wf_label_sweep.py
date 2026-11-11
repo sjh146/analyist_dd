@@ -1114,6 +1114,24 @@ CONFIGS = [
     {"id": "CG198_dupdrop_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False, "drop_dup": True,
      "desc": "CG198 arm — 중복라벨(__dupN) 선별 후보 제거(drop_dup) · 같은 런 대조군 CG196_ctl_h5"},
+
+    # ── CG199 (2026-11-11 23:0x 장외 틱) 재현성 검정 — 최근 최고 델타(CG195_dsns +0.0056)가 앵커를
+    #   옮기면 살아남는가. 왜: 최근 6사이클 델타는 +0.0002~+0.0056 전부 사전문턱 +0.02 미달이고,
+    #   CG156 실측의 날짜 레벨 잡음바닥(|Δ| 0.0175~0.0597)이 그보다 크다 → '가장 좋았던 델타'가
+    #   앵커 잡음인지 신호인지를 재현으로만 분리할 수 있다. 앵커 = 패널 끝(2026-11-09)에서 2거래일
+    #   앞(2026-11-05) — 폴드 경계도 함께 이동하므로 같은 런 안에서 짝 비교한다.
+    #   ⚠ 새 성능 레버가 아니라 **측정 신뢰도** 항목이다(설정 변경 없음: CG195_dsns 와 비트 동일 설정).
+    #   판정(사전등록): 짝 Δ ≥ +0.02 & 폴드승률 ≥ 4/5 → 신호(그 arm 을 다음 대조군으로 승격) ·
+    #     |Δ| < 0.01 → 직전 델타는 앵커 잡음으로 종결(조정 축 전체를 닫는 근거) · Δ ≤ −0.02 → 부호 불안정.
+    {"id": "CG199_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "desc": "CG199 대조군 — 앵커 2026-11-05 · 게이트 OFF · edge top30 · 제거/파생 없음"},
+    {"id": "CG199_dsns_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "derived": {"sources": ["sns_attention_score", "sns_momentum_score", "sns_post_count",
+                             "disclosure_count_5d", "economic_event_count_7d"],
+                 "lags": [1, 5]},
+     "desc": "CG199 arm — CG195_dsns 설정 그대로(Δ1·Δ5 파생 10컬럼) · 앵커만 2거래일 앞(재현성 검정)"},
 ]
 
 
