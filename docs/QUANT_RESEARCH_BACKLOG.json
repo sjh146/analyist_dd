@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-11T21:25:00+09:00",
+  "updated_at": "2026-11-12T02:05:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1171,13 +1171,18 @@
           "ts": "2026-11-11T02:00:21+09:00",
           "rc": 0,
           "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-12T02:00:23+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R27: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R27_20261111-020021.log"
+        "log": "data/reports/res_cycle/logs/res_R27_20261112-020022.log"
       },
       "note": " || **[2026-10-09 21:1x 스캔 — 자기신고 미배선 러너 목록]** 크론이 실제로 돌리는데 dq_runner_claim 행을 만들지 않는 수집 경로 3개(배선조차 없음, R23 텍스트 휴리스틱에도 걸린다): ① `kis_backfill_range.py`(kis_backfill.sh) — record_claim 문자열 0 ② `run_close_job.py`(close_job.sh) — 컨테이너 내부라 dq_claim.py 모듈 부재(R28 유형 → phase 로그 브리지 필요) ③ `run_swing_job.py`(swing_pipeline.sh 도 동일, claim 브리지 0). 다음 사이클: ②③은 full_pipeline_dd.sh 의 `scripts/yf_claim_from_phase_log.py` 를 그대로 재사용, ①은 러너 내부 배선(크론 파일 무수정)."
     },
@@ -1261,13 +1266,18 @@
           "ts": "2026-11-11T00:01:15+09:00",
           "rc": 0,
           "detail": "R28: 2 >= 1 → 충족"
+        },
+        {
+          "ts": "2026-11-12T00:01:15+09:00",
+          "rc": 0,
+          "detail": "R28: 2 >= 1 → 충족"
         }
       ],
       "result": {
         "detail": "R28: 2 >= 1 → 충족",
         "check_value": 2.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R28_20261111-000114.log"
+        "log": "data/reports/res_cycle/logs/res_R28_20261112-000114.log"
       },
       "setup_needed": [],
       "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 -m pytest -q tests/test_r28_yf_claim_check.py tests/test_yf_claim_from_phase_log.py && /usr/bin/python3 scripts/r28_yf_claim_check.py"
@@ -1551,6 +1561,24 @@
       "check_target": null,
       "command": null,
       "cost": "1콜/종목(naver) 또는 수집기 1회"
+    },
+    {
+      "id": "R38",
+      "title": "커버리지 착시 피처 수 41↔62 진동 — 빌더 재계산 창(120일 vs 511~513일)이 지표 인구를 갈아탄다 (문턱이 아니라 인구 정의 문제)",
+      "status": "needs_approval",
+      "priority": 5,
+      "kind": "investigate",
+      "affects_model": true,
+      "hypothesis": "dq_feature_coverage_illusion_count 는 feature_coverage 202행 전체를 세는데, 그 표의 window_days 는 피처군마다 다르다(120일 131행 · 511일 19행 · 512일 17행 · 513일 35행). 값이 나빠진 게 아니라 **재계산된 부분집합의 창 정의가 모집단을 갈아탄다** — 같은 피처가 120일 창에서는 결측률이 낮고 513일 창에서는 0.87~0.95 로 올라간다(상장 전·공시 전 구간이 분모에 들어오기 때문). 그래서 빌더가 장창으로 다시 돌 때마다 지표가 41→62 로 튄다.",
+      "evidence": "실측 2026-11-12 02:00:07 KST 스냅샷: dq_feature_coverage_illusion_count=62 (warn 45 / breach 50) · dq_feature_null_ratio_high_count=35 (warn 32 / breach 45). 직전 00:01 스냅샷은 41·30 이었고, 그 사이 00:14:39·00:15:08 KST 에 35행이 window_days=513 으로 재계산됐다(그 전에는 11-09 21:16 계산된 120일 창). 창별 분해(실 DB 02:0x): 120일 → 착시 26 · null90 26 / 511일 → 15 · 4 / 512일 → 0 · 0 / 513일 → 21 · 5, 합계 62 · 35 = 정확히 스냅샷 값. 증가분 +21 은 513일 창 35행 중 착시>0.10 인 21개(value_ncav 1.000 · value_pfcr 0.951 · value_pcr 0.930 · per_current/value_per 0.909 · value_ev_ebit 0.901 · value_psr 0.880 · pbr_current/value_pbr 0.873 · quality_earnings_volatility 0.811 · quality_op_growth 0.605 · quality_cp_to_assets 0.435 · economic_event_* 0.424 · quality_debt_ratio_change 0.414 · quality_asset_growth 0.413 · quality_roa/quality_roe/roe 0.337 · quality_op_to_equity 0.323 · quality_f_score 0.287), +5 는 같은 행 중 null_ratio>0.90 인 5개(value_pfcr 0.951 · value_pcr 0.930 · per_current 0.909 · value_per 0.909 · value_ev_ebit 0.901). 북극성 지표는 불변: 살아있는 횡단면 피처 166 · feature_count 202 · dead 11 — 피처가 죽거나 살아난 게 아니다. 같은 진동의 전례: 2026-10-11 06:01 26→62(엔지니어 CG165 3빌더가 54행을 479일 창으로 재계산) → 11-09 22:00 41 복귀.",
+      "setup_needed": [
+        "문턱 변경이 아니라 **모집단 정의**를 정해야 한다(문턱만 올리면 다음 재계산에서 또 깨진다). 택일: (A) [권고] 빌더가 전체이력 격자로 계산하더라도 feature_coverage 에는 **모델 창(최근 120거래일)** 커버리지만 기록 — 지표가 '모델이 실제로 쓰는 창'을 재고 41/62 진동이 사라진다. 비용 = 3빌더 수정 + 회귀 + 1회 재계산(값 변경: window_days·null_ratio·착시). / (B) exporter 에 창별 메트릭 2개(120일·전체)를 노출하고 알림은 120일만 사용 — 문턱 유지, 대시보드·알림 규칙 수정. / (C) 현행 유지 + 문턱을 62 위로(예: warn 65 / breach 70) — 가장 싸지만 21개 결함이 상시 가려지고 다음 진동에서 또 뒤집힌다. A·B 는 알림 인구 변경이므로 리뷰보드 승인 사항."
+      ],
+      "note": "이 위반으로 rc=3 이 뜨는 틱은 '데이터 악화'가 아니다 — 분해표(창별)로 읽어야 한다. dq_snapshot 주석에도 같은 진동이 기록돼 있다(coverage_illusion: 36→41, 10-07 62 → 11-09 41). 재계산 주체는 로그에 남지 않았다(00:14~00:15 KST 실행, 어느 러너인지 미상) — 재계산 경로에 자기신고를 붙이는 것은 별건.",
+      "check": null,
+      "check_target": null,
+      "command": null,
+      "cost": "0 (진단은 읽기 전용 완료 · 택일 승인 후 빌더 1회 재계산)"
     }
   ]
 }
