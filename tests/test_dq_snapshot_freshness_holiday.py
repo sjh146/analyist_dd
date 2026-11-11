@@ -53,10 +53,53 @@ def test_normal_trading_day_afternoon_is_ok():
 
     종전 구현은 전일 바를 '오늘 것'으로 오독해 매 거래일 오후 틱마다 warn 을 띄웠다.
     """
-    for h in (16, 18, 20, 22):
+    # 22:00 은 적재 시한(DUE_TODAY_HOUR) 경과라 당일 바를 요구한다 — 아래 별도 테스트.
+    for h in (16, 18, 20):
         t = _now(2026, 10, 14, h)
         assert dq.trading_days_behind(1, t.date(), set(), now=t) == 0, h
         assert _st(1, t.date(), set(), now=t) == "ok", h
+
+
+def test_same_day_missing_bar_is_warn_after_due_hour():
+    """실측 2026-11-11 21:11: market_data 최신 11-10(전일)·당일 봉 0행인데 판정은 0(정상)이었다.
+
+    18:55 KRX/KIS 경로와 20:00 yfinance 경로가 **모두** 실패하면 당일 봉이 통째로 비는데,
+    종전 구현은 당일을 항상 분모에서 빼 자정(UTC 날짜 전환)까지 결번을 보지 못했다.
+    적재 시한(22:00) 이후에는 당일 바가 '마땅히 있어야' 하므로 지연 1 = warn.
+    """
+    t = _now(2026, 10, 14, 22)
+    assert dq.trading_days_behind(1, t.date(), set(), now=t) == 1
+    assert _st(1, t.date(), set(), now=t) == "warn"
+
+
+def test_before_due_hour_same_day_bar_not_required():
+    """20:00 파이프라인이 아직 도는 동안(21:00)에는 당일 바를 요구하지 않는다(오탐 금지)."""
+    t = _now(2026, 10, 14, 21)
+    assert dq.trading_days_behind(1, t.date(), set(), now=t) == 0
+    assert _st(1, t.date(), set(), now=t) == "ok"
+
+
+def test_after_due_hour_with_today_bar_present_is_ok():
+    t = _now(2026, 10, 14, 23)
+    assert dq.trading_days_behind(0, t.date(), set(), now=t) == 0
+
+
+def test_after_due_hour_weekend_not_counted():
+    """토요일 22:00 — 오늘은 거래일이 아니므로 결번 0(마지막 바 금요일)."""
+    t = _now(2026, 10, 17, 22)
+    assert dq.trading_days_behind(1, t.date(), set(), now=t) == 0
+
+
+def test_after_due_hour_holiday_today_not_counted():
+    """휴장일 당일은 요구하지 않는다(추석 9/24 22:00)."""
+    t = _now(2026, 9, 24, 22)
+    assert dq.trading_days_behind(1, t.date(), CHUSEOK, now=t) == 0
+
+
+def test_after_due_hour_two_days_missing_is_breach():
+    t = _now(2026, 10, 14, 22)
+    assert dq.trading_days_behind(2, t.date(), set(), now=t) == 2
+    assert _st(2, t.date(), set(), now=t) == "breach"
 
 
 def test_real_missing_friday_bar_is_warn_on_monday():

@@ -223,6 +223,12 @@ def utc_date_of(now):
 # 끝내고 저장하는 **자정~새벽**에 일어난다(services/yfinance-collector/app/main.py: 스윕 전체를
 # 모은 뒤 Step 6 에서 저장). 그래서 00:00 틱에 전일 바를 요구하면 적재가 진행 중일 때 오탐이 된다.
 DUE_HOUR = 2
+# 당일 바를 '마땅히 있어야 할' 시각(KST). 저녁 파이프라인이 20:00 에 시작해 60분 상한으로
+# 당일 봉을 적재하므로(services/yfinance-collector phase 1-1, 실측 11-10 20:33 저장),
+# 22:00 이후 틱부터는 당일 바의 부재를 결번으로 센다. 종전에는 당일을 **항상** 제외해
+# 당일 적재가 통째로 실패해도 자정(UTC 날짜 전환)까지 지연 0 = '정상'으로 보였다
+# (실측 2026-11-11 21:11: market_data 최신 11-10 인데 스냅샷 freshness 0).
+DUE_TODAY_HOUR = 22
 
 
 def trading_days_behind(freshness_days, today, holidays, now=None):
@@ -247,7 +253,14 @@ def trading_days_behind(freshness_days, today, holidays, now=None):
     raw = int(round(float(freshness_days)))
     ref = utc_date_of(now) if now is not None else today
     last = ref - timedelta(days=raw)
-    back = 1 if (now is None or now.hour >= DUE_HOUR) else 2
+    if now is None:
+        back = 1                       # 계약 유지(now 미지정 = 당일 제외)
+    elif now.hour >= DUE_TODAY_HOUR:
+        back = 0                       # 적재 시한 경과 → 당일 바도 요구한다
+    elif now.hour >= DUE_HOUR:
+        back = 1
+    else:
+        back = 2                       # 00:00~02:00 유예(스윕 저장 중)
     horizon = today - timedelta(days=back)
     n = 0
     d = last + timedelta(days=1)
