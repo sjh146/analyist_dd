@@ -1,0 +1,67 @@
+{
+ "generated_at": "2026-11-11T22:07:34+09:00",
+ "role": "quant-model-engineer",
+ "cg196": {
+  "verdict": "노이즈",
+  "delta_paired": -0.00505,
+  "fold_win_rate": "1/5",
+  "ctl": {
+   "mean": 0.5106,
+   "std": 0.0151,
+   "folds": [
+    0.5293,
+    0.4987,
+    0.5029,
+    0.494,
+    0.5283
+   ]
+  },
+  "arm": {
+   "mean": 0.5056,
+   "std": 0.0173,
+   "folds": [
+    0.5259,
+    0.4947,
+    0.4803,
+    0.5031,
+    0.5238
+   ]
+  },
+  "rows": 32161,
+  "panel": "panel_200liq_fresh.npz",
+  "end_date": "2026-11-09",
+  "excluded_names_applied": 9,
+  "excluded_names_registered": 29,
+  "dup_slots_in_control_top30": [
+   7,
+   5,
+   4,
+   3,
+   2
+  ],
+  "detail": "종목상수 제거 A/B(신선 panel_200liq_fresh·게이트 OFF top30·5폴드×5시드·32,161행): ctl 0.5106±0.0151 [0.5293, 0.4987, 0.5029, 0.494, 0.5283] vs noconst 0.5056±0.0173 [0.5259, 0.4947, 0.4803, 0.5031, 0.5238] → 짝 Δ -0.00505 (양 1/5). 선별 검증: 제거 대상이 대조군 top30 에 폴드별 2/4/3/4/2개 들어 있었고 arm 은 0/0/0/0/0 → 같은 실험 2번이 아니다. 등록 29개 중 이 런의 후보 행렬에 남아 있던 것은 9개(theme_*/similar*/twin_*/sector_count) — 나머지 20개(sentiment_*·news_count_*·short_interest_ratio·days_to_cover·etf_flow_5d·ownership·margin/credit·value_ncav)는 신선 패널에서 전량 결측으로 사전필터 탈락(L3 의 dead 실측과 일치) → 측정 대상은 살아 있는 상수 9개. 판정: 사전등록 ③(|Δ|<0.005) 경계값(0.00505)·④(Δ≤−0.02) 아님 → 노이즈. '종목상수가 선별을 지배한다'는 증거 없음(제거로 AUC 안 오름)이자 '제거가 이득'이라는 근거도 없음. 부수 실측: 대조군 top30 이 중복라벨(__dupN) 7/5/4/3/2개를 점유 = 실질 고유 피처 23~28(평균 25.8) — 선별 슬롯 14% 낭비 → CG197 등록."
+ },
+ "challenger": {
+  "dir": "app/models/champion_cand",
+  "retrained_at": "2026-11-11T12:55:26",
+  "ensemble_auc": 0.4978,
+  "model_aucs": {
+   "xgb": 0.4803,
+   "lgb": 0.4942,
+   "cat": 0.5119
+  },
+  "champion_baseline": 0.5513,
+  "dryrun_status": "kept_incumbent",
+  "reason": "돈 기준 게이트 거부: 돈 증거 없음(<후보>/robust_oos.json 의 expectancy_pct)"
+ },
+ "dq": {
+  "stock_constant_ratio": 0.37696,
+  "market_level_count": 25,
+  "null_ratio_high_count": 30,
+  "coverage_illusion_count": 41,
+  "alive_xsec_count": 166,
+  "feature_count": 202,
+  "oldest_age_days": 2.03
+ },
+ "next": "CG197 (중복라벨 drop_dup A/B) pending 등록 — 유휴 틱이 착수"
+}

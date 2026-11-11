@@ -4344,6 +4344,95 @@ def source_freshness_note(max_age_h=1.0):
     return sfg.summary_line(res)
 
 
+def recover_unrecorded(backlog, max_age_h=12, dry_run=False):
+    """**완주했지만 원장에 기록되지 않은** 사이클을 요약 JSON 에서 복구한다.
+
+    왜(실측 2026-11-11 21:35 CG196): 스윕이 완주해 `cg196_const_summary.json` 을 썼는데
+    구동기 프로세스가 `append_ledger` **전에** 사라졌고, pidfile·state 도 이미 정리돼 있어
+    위 orphan 검사(pidfile 기반)가 아무것도 잡지 못했다. 결과적으로 그날 유일한 실험 결과가
+    원장·스코어보드에서 통째로 빠졌다(다음 틱은 pending 만 보므로 영원히 모른다).
+    조용한 실패 감지의 **다른 얼굴**이다 — pidfile 없이도 '요약이 갱신됐는데 원장이 없다'는
+    증거만으로 잡아야 한다.
+
+    안전장치(오복구 방지) 4중:
+      ① 지금 실행 중인 사이클이 있으면 건너뛴다(진행 중 요약을 반쪽으로 읽지 않는다).
+      ② 요약 mtime 이 항목 `created_at` **이후**여야 한다 — 과거 사이클이 같은 경로에 쓴
+         낡은 요약을 새 결과로 오독하지 않는다.
+      ③ 요약 mtime 이 max_age_h 안이어야 한다.
+      ④ 그 id 의 원장 기록이 요약 mtime 이후에 이미 있으면 건너뛴다.
+    판정은 `parse_by_metric`+`judge_by_metric`(실행 경로와 **같은** 파서·판정기)을 쓴다.
+    실행실패(rc≠0)로는 만들지 않는다 — 요약이 완주해 존재하는 것 자체가 rc=0 의 증거다.
+    반환: 복구한 (id, verdict, detail) 목록.
+    """
+    if os.path.exists(PIDFILE):
+        return []
+    led = load_ledger()
+    now = now_kst()
+    out = []
+    for it in backlog.get("items", []):
+        if it.get("status") not in ("pending", "backlog", "needs_setup"):
+            continue
+        if not (it.get("metric") and it.get("command")):
+            continue
+        try:
+            spath = summary_path(it.get("metric") or "", it.get("command"), it.get("summary_out"))
+        except Exception:
+            continue
+        if not spath or not os.path.exists(spath):
+            continue
+        mt = os.path.getmtime(spath)
+        if now.timestamp() - mt > max_age_h * 3600:
+            continue
+        try:
+            created = datetime.fromisoformat(str(it.get("created_at"))).timestamp()
+        except (TypeError, ValueError):
+            continue
+        if mt < created - 60:
+            continue
+        if any(r.get("id") == it.get("id") and _ledger_ts(r) >= mt - 60 for r in led):
+            continue
+        parsed = parse_by_metric(it, spath, 0.0)
+        if parsed.get("error"):
+            continue
+        try:
+            verdict, detail, delta = judge_by_metric(it, parsed)
+        except Exception as e:                      # 판정 불가는 복구 실패로만 남긴다
+            log(f"복구 판정 실패 {it.get('id')}: {type(e).__name__}: {e}")
+            continue
+        out.append((it.get("id"), verdict, detail))
+        if dry_run:
+            continue
+        rec = {
+            "ts": now.isoformat(timespec="seconds"),
+            "id": it.get("id"), "title": it.get("title"),
+            "rc": 0, "elapsed_min": None,
+            "log": it.get("log") or "",
+            "metric": it.get("metric"), "recovered": True,
+            "parsed": parsed, "verdict": verdict, "detail": detail,
+            "reported": False,
+            "note": ("구동기 기록 누락 복구 — 요약 JSON 이 항목 created_at 이후 갱신됐는데 원장 기록이 없었다"
+                     "(pidfile·state 정리 후라 orphan 검사가 못 잡는 경우). 재실행 아님, 같은 파서·판정기 사용."),
+        }
+        if delta is not None:
+            rec["delta"] = delta
+        append_ledger(rec)
+        it["status"] = "done"
+        it["outcome"] = detail
+        it["finished_at"] = rec["ts"]
+        attempts = _attempts_list(it)
+        attempts.append({"at": rec["ts"], "recovered": True})
+    if out and not dry_run:
+        save_backlog(backlog)
+    return out
+
+
+def _ledger_ts(rec):
+    try:
+        return datetime.fromisoformat(str(rec.get("ts"))).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def tick(force=False):
     ns = north_star("engineer")
     if ns:
@@ -4445,6 +4534,14 @@ def tick(force=False):
                 print(f"  기록: {rec['verdict']} · {rec['detail']} · 백로그 상태 → {st_new}")
                 print("  → 원인을 고치고 다시 시작하라(재시도는 구동기가 체크포인트에서 재개한다).")
                 return 0
+
+    # ── 완주했지만 미기록(2026-11-11 CG196 실사고) — pidfile 이 없어도 요약 JSON 으로 잡는다 ──
+    recd = recover_unrecorded(load_backlog())
+    if recd:
+        for iid, v, d in recd:
+            print(f"=== ♻ 완주했지만 원장에 없던 사이클을 복구: {iid} → {v} · {d}")
+        print("  → 요약 JSON 에서 판정해 원장·백로그에 기록했다(재실행 아님). 위 결과를 보고하라.")
+        return 0
 
     led = load_ledger()
     unreported = [r for r in led if not r.get("reported")]

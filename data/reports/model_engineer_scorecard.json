@@ -1,6 +1,6 @@
 {
   "metric_name": "champion_scorecard",
-  "generated_at": "2026-11-11T18:00:38",
+  "generated_at": "2026-11-11T22:07:44",
   "champion_dir": "services/xgboost-ml/app/models/champion",
   "champion_auc_txt": 0.551318,
   "insample": {
@@ -38,9 +38,9 @@
     "observed": {
       "n_label_ref_purged": 18,
       "n_folds_counted": 5,
-      "exp": "CG192_mask10_nog_h5",
-      "source": "services/xgboost-ml/reports/overnight/cg192_mask_summary.json",
-      "finished_at": "2026-11-11T08:06:23+00:00"
+      "exp": "CG196_noconst_h5",
+      "source": "services/xgboost-ml/reports/overnight/cg196_const_summary.json",
+      "finished_at": "2026-11-11T12:35:38+00:00"
     }
   },
   "promote_dryrun": {

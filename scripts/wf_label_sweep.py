@@ -1101,6 +1101,19 @@ CONFIGS = [
                        "etf_flow_5d", "institution_ownership_pct", "margin_balance_change",
                        "credit_balance_change", "value_ncav"],
      "desc": "CG196 arm — 종목상수 29개(라벨 미사용 정의) 제거 · 같은 런·같은 행·같은 선별"},
+
+    # ── CG198 (2026-11-11 22:1x 장외) 중복라벨(__dupN) 선별 슬롯 낭비 — drop_dup A/B ────────────
+    #   왜: CG196 같은-런 실측에서 **대조군 top30 이 중복라벨을 폴드별 7/5/4/3/2개** 포함했다(실질 고유
+    #     피처 23~28 = 슬롯의 14% 낭비). `wf_wave.dedupe_names` 는 같은 라벨의 두 번째 열을 `__dupN` 로
+    #     **개명만** 하므로 값이 비트 동일한 열이 top30 의 두 슬롯을 차지한다. CG74 는 게이트 ON(중복 0)과
+    #     6개 30종목 슬라이스에서만 쟀고, 신선 200종목 패널에서는 재측정이 없다.
+    #   ⚠ 새 성능 레버가 아니라 **선별 정합성** 항목이다(변환·HP·라벨 변경 없음).
+    #   판정(사전등록): 짝 Δ(dupdrop−ctl) ≥ +0.02 & 폴드승률 ≥ 4/5 → 슬롯 회수가 레버 · |Δ| < 0.005 →
+    #     '중복 슬롯은 AUC 무관' 종결 · Δ ≤ −0.02 → 중복열 기여(제거 금지). 대조군은 **같은 런의
+    #     CG196_ctl_h5** 를 쓴다(과거 런 대조 금지).
+    {"id": "CG198_dupdrop_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False, "drop_dup": True,
+     "desc": "CG198 arm — 중복라벨(__dupN) 선별 후보 제거(drop_dup) · 같은 런 대조군 CG196_ctl_h5"},
 ]
 
 
