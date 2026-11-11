@@ -1013,7 +1013,47 @@ CONFIGS = [
      "core_only": False,
      "exclude_names": ["momentum_op", "momentum_ni", "momentum_3_12m"],
      "desc": "CG189 arm — 부호가 뒤집힌 모멘텀 3종 제거(게이트 OFF·같은 런·같은 행)"},
+    # ── CG192 (2026-11-11) 학습/평가 도메인 정합 — '살 수 없는 행'을 학습에서만 뺀다 ──────────────
+    # 왜: 돈 지표는 항상 체결성 필터(당일등락 < +25%)를 건다(스킬 최우선 규칙 3). 그런데 학습 라벨은
+    #   그런 행을 그대로 포함해 '살 수 없는 상승(상한가 연속)'을 예측하도록 학습된다. 실측 근거
+    #   (close_gate_probe 2,251행): 필터 전 풀평균 +1.191%/세션이지만 상한가(+29.99%) 행이 그 이득을
+    #   만들고, 필터 후 순기대는 음수(CG185/CG190: 모든 분위 음수). 즉 학습 도메인 ⊃ 평가 도메인.
+    # 설계: **학습 행만** 마스킹하고 테스트 행은 손대지 않는다 → 폴드 AUC 의 행 도메인이 두 arm 에서
+    #   동일해 Δ 가 비교 가능하다(테스트까지 빼면 Δ 가 서로 다른 표본의 비교가 되어 무효).
+    # 당일등락 정의: 종목별 종가 pct_change(돈 지표 필터와 같은 정의). 첫 행은 NaN → 보존(보수적).
+    {"id": "CG192_mask25_nog_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "train_mask_daychg_gte": 0.25,
+     "desc": "CG192 arm — 학습에서 당일등락 ≥ +25%(체결 불가) 행 제외, 테스트 행은 그대로"},
+    # 감도 arm: 실측상 마스크 크기가 작다(패널 54,497행 중 ≥+25% 325행=0.60% · ≥+10% 2,274행=4.17%).
+    #  0.25 arm 이 null 이면 '체결불가 행'만의 문제인지 '극단 등락군 전체'의 문제인지 구분되지 않으므로,
+    #  같은 런에 4배 큰 마스크(4.17%)를 넣어 용량-반응을 본다(별도 런이면 폴드가 달라 비교 불가).
+    {"id": "CG192_mask10_nog_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "train_mask_daychg_gte": 0.10,
+     "desc": "CG192 감도 arm — 학습에서 당일등락 ≥ +10%(4.17%) 행 제외, 테스트 그대로"},
 ]
+
+
+def apply_train_domain_mask(tr, threshold):
+    """학습 도메인 마스크(CG192, 2026-11-11) — 당일등락 ≥ threshold 인 행을 **학습에서만** 제거한다.
+
+    왜: 돈 지표는 항상 체결성 필터(당일등락 < +25% = 살 수 있는 행)를 건다. 학습 라벨이 그런 행을
+    포함하면 모델은 '살 수 없는 상승(상한가 연속)'을 예측하도록 학습되고, 그 예측은 평가 도메인에서
+    재현되지 않는다(실측: close_gate_probe 필터 전 +1.191%/세션 → 필터 후 음수).
+
+    계약:
+      - threshold is None → 입력을 **그대로** 돌려준다(n_masked=0, 비트 동일 경로 = 기존 실험 무영향).
+      - 당일등락 = 종목별 종가 pct_change(돈 지표 필터와 같은 정의).
+      - NaN(그 종목의 첫 행, 폴드 절단면)은 **보존**한다 — '측정 불가'와 '체결 불가'는 다르다.
+      - 테스트 행은 이 함수를 거치지 않는다 → 두 arm 의 폴드 AUC 행 도메인이 동일해 Δ 가 비교 가능.
+    """
+    if threshold is None:
+        return tr, 0
+    dc = np.asarray(tr.groupby("stock_code", sort=False)["price"].pct_change().values,
+                    dtype=float)
+    drop = np.greater_equal(dc, float(threshold))     # NaN >= x → False (보존)
+    return tr[~drop], int(drop.sum())
 
 
 def transform_matrix(Xdf, dates, kind, codes=None):
@@ -1529,6 +1569,7 @@ def main():
                "pool": cfg.get("pool"),
                "exclude_market_level": bool(cfg.get("exclude_market_level")),
                "weight": cfg.get("weight"),
+               "train_mask_daychg_gte": cfg.get("train_mask_daychg_gte"),
                "ts": ml.now_iso(), "status": "failed", "folds": {}}
         ml.log(f"=== {exp_id}: {cfg['desc']} ===")
         try:
@@ -1642,6 +1683,21 @@ def main():
                     if n_ref_purged:
                         tr = tr[np.logical_not(_bad)]
                 te = d[(d["date"] > cut) & (d["date"] <= nxt)]
+                # ── CG192 학습 도메인 마스크(2026-11-11): 체결 불가 행을 **학습에서만** 뺀다 ──
+                # 왜 학습만인가: 테스트 행까지 빼면 폴드 AUC 의 행 도메인이 arm 마다 달라져 Δ 가
+                # 서로 다른 표본의 차이가 된다(비교 무효). 돈 지표(체결성 필터)는 어차피 테스트에서
+                # 살 수 없는 행을 걸러내므로, 학습만 정합시키면 '평가 도메인에서만 배우는' 모델이 된다.
+                # 당일등락 = 종목별 종가 pct_change(돈 지표 필터와 같은 정의). 그 종목의 폴드 첫 행은
+                # pct_change 가 NaN → 비교가 False → **보존**된다(측정 불가 행은 빼지 않는다).
+                _mg = cfg.get("train_mask_daychg_gte")
+                _n_before_mask = len(tr)
+                tr, n_masked = apply_train_domain_mask(tr, _mg)
+                if _mg is not None:
+                    ml.log(f"  {exp_id} fold{i}: 학습 도메인 마스크 ≥{float(_mg):+.2f} → "
+                           f"{n_masked}행 제외 ({_n_before_mask} → {len(tr)})")
+                    if len(tr) < 100:
+                        ml.log(f"  {exp_id} fold{i}: 마스크 후 학습행 {len(tr)} — 건너뜀")
+                        continue
                 if min(len(tr), len(te)) < 100:
                     ml.log(f"  {exp_id} fold{i}: 표본 부족(tr={len(tr)} te={len(te)}), 건너뜀")
                     continue
