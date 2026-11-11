@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-11T21:05:25+09:00",
+ "updated_at": "2026-11-11T21:22:07+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -15551,12 +15551,12 @@
    "owner": "engineer",
    "affects_model": true,
    "metric": "wf_sweep_summary",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2550 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CG196_ctl_h5,CG196_noconst_h5 --summary-out /app/reports/overnight/cg196_const_summary.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CG196_ctl_h5,CG196_noconst_h5 --summary-out /app/reports/overnight/cg196_const_summary.json'",
    "counterfactual": "CG196_ctl_h5 (같은 런·같은 패널 panel_200liq_fresh·같은 5폴드×5시드·게이트 OFF·edge top30·피처 제거 없음)",
    "success": "① 로그에 '피처군 제외 29개'가 찍혀 제외가 실제 반영(미통과면 판정 무효) ② 짝 Δ(noconst−ctl) 폴드 평균 ≥ +0.02 이고 폴드승률 ≥ 4/5 → 신호(상수 제거가 배포 가능한 단순화 이득 → 제거 재학습 후속) ③ |Δ| < 0.005 → '상수 기여 없음'으로 종결(누수 게이트 3번 항목의 실질 해소) ④ Δ ≤ −0.02 → 상수가 실제 기여(제거 금지) ⑤ rc≠0/요약 미갱신 = 실행실패(노이즈 아님)",
    "hypothesis": "신선 패널 스크린 실측(2026-11-11 21:0x, panel_200liq_fresh 54,497행·213피처·279일): 누수 의심(|AUC−0.5|>0.25) 0개 · **종목상수 29개** · 시장레벨 48개 · 무정보 137/213. 스킬 판정 하드규칙 3 은 '종목 상수 피처가 선별을 지배하면 반려'를 요구하지만, 지금까지 이 항목은 **카운트로만** 확인됐고 A/B 로 잰 적이 없다. 종목상수 = 종목별 유니크값 1개이며 이 정의는 라벨을 쓰지 않으므로(미래정보 개입 0) 선별 축 재시험이 아니라 누수/기여 검정이다. 가설: 상수 29개는 날짜가 바뀌어도 같은 값이라 횡단면 순위를 만들 수 없고, 선별 top30 자리를 차지해 용량만 낭비한다 → 제거하면 폴드 평균이 오르거나 최소한 같다.",
-   "est_minutes": 25,
-   "note": "2026-11-11 21:1x 엔지니어 자율(장외 틱) 신설 — CG195(정보 흐름 변화율) 노이즈 판정 → 그 축 종결 후 다음 가설. 스크린 근거 파일: /app/reports/overnight/cg196_panel_screen_fresh.json. 제외 목록은 **라벨 미사용 정의**(종목별 유니크값 1)로만 만들어 스크린의 IC/AUC 값을 보고 고르지 않았다(선별 편향 차단). 셋업 검증 완료(실측 2026-11-11 21:2x): 29개 이름 전부 패널에 존재 · 29개 전부 종목상수(종목별 nunique 중앙값 1.0) · 두 arm 은 exclude_names 외 설정 동일 · n_configs 199. ⚠ 이 실험은 'AUC 를 올리는 새 레버'가 아니라 **누수 게이트 준수 검정**이다 (조정 축 재시험 금지 원칙 유지). ⚠ 배포 챔피언은 173피처라 이 29개 중 일부가 들어 있을 수 있으나, 제거 재학습은 신호가 확인된 뒤에만 등록한다.",
+   "est_minutes": 120,
+   "note": "2026-11-11 21:1x 엔지니어 자율(장외 틱) 신설 — CG195(정보 흐름 변화율) 노이즈 판정 → 그 축 종결 후 다음 가설. 스크린 근거 파일: /app/reports/overnight/cg196_panel_screen_fresh.json. 제외 목록은 **라벨 미사용 정의**(종목별 유니크값 1)로만 만들어 스크린의 IC/AUC 값을 보고 고르지 않았다(선별 편향 차단). 셋업 검증 완료(실측 2026-11-11 21:2x): 29개 이름 전부 패널에 존재 · 29개 전부 종목상수(종목별 nunique 중앙값 1.0) · 두 arm 은 exclude_names 외 설정 동일 · n_configs 199. ⚠ 이 실험은 'AUC 를 올리는 새 레버'가 아니라 **누수 게이트 준수 검정**이다 (조정 축 재시험 금지 원칙 유지). ⚠ 배포 챔피언은 173피처라 이 29개 중 일부가 들어 있을 수 있으나, 제거 재학습은 신호가 확인된 뒤에만 등록한다. | 2026-11-11T21:22 자발적 중단(실행실패 아님·pending 유지): 21:05 착수 후 15분에 12/50 셀(≈78s/셀)로 측정됐는데, 같은 시각 **프로덕션 재학습**(python -m app.training.retrain_champion, pid 993544)과 postgres 병렬 조회가 겹쳐 load1 이 6.7 까지 올랐다(유휴 실측은 8s/셀). 직렬화 규칙(스킬 하드규칙 5)에 따라 내 실험을 양보했다. timeout 2550s(42분)로는 컨테이너 SIGKILL 이 확정이라 7200s·est 120분으로 올려 다음 유휴 틱에 재착수한다(부하 가드 load1<3.5). 부분 결과는 jsonl 로만 남고 요약 JSON 은 완주 시에만 쓰이므로 판정에는 쓰지 않는다.",
    "created_at": "2026-11-11T21:05:25+09:00"
   }
  ],
