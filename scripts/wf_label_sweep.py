@@ -1053,6 +1053,26 @@ CONFIGS = [
     {"id": "CG193_h20", "kind": "quantile", "horizon": 20, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG193 arm — 호라이즌 20(과확장 상단 — 라벨 잡음 최소·신호 희석 위험)"},
+    # ── CG195 (2026-11-11 장외 틱) 정보 흐름 변화율 축 ────────────────────────────────
+    #   왜: CG25 의 Δ1·Δ5 파생은 **가격·기술 6소스**(volatility_20d/60d·atr_pct·volume_ratio_5·rsi·
+    #   ma_position_20)만 시험했다(실측 Δ+0.0031 = 노이즈). 같은 파생 연산자를 **아직 시험하지 않은
+    #   정보 클래스**(SNS·공시·이벤트 / 수급·공매도)에 적용해 보는 것이 이 arm 이다.
+    #   ⚠ 뉴스·감성 컬럼은 이 패널에서 사실상 죽어 있다(실측 2026-11-11: news_count_5d·sentiment_avg
+    #     비영 0.04%) → 사전 등록에서 **제외**했다(죽은 열을 넣으면 '파생 미통과'로 측정 자체가 무효).
+    #     margin_balance_change·credit_balance_change 도 비영 0.00% 로 제외.
+    #   판정은 같은 런 CG193_ctl_h5(게이트 OFF·동일 폴드·동일 top30) 대비 폴드 짝 Δ 로만 한다.
+    {"id": "CG195_dsns_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "derived": {"sources": ["sns_attention_score", "sns_momentum_score", "sns_post_count",
+                             "disclosure_count_5d", "economic_event_count_7d"],
+                 "lags": [1, 5]},
+     "desc": "CG195 arm — 게이트 OFF + Δ1·Δ5 파생 10컬럼 (SNS·공시·이벤트 흐름, 사전등록)"},
+    {"id": "CG195_dsup_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "derived": {"sources": ["foreign_net_buy_5d", "institution_net_buy_5d",
+                             "short_selling_ratio", "program_trading_ratio"],
+                 "lags": [1, 5]},
+     "desc": "CG195 arm — 게이트 OFF + Δ1·Δ5 파생 8컬럼 (수급·공매도 흐름, 사전등록)"},
 ]
 
 

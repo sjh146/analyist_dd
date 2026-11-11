@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-11T18:16:19+09:00",
+ "updated_at": "2026-11-11T20:10:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -15454,6 +15454,23 @@
    "setup_needed": "① 청산(sell) 기록 주체 확인 — 트레이더 러너가 매도를 journal 에 남기지 않는 것인지, HTS 수동 청산이었는지(트레이더 소유 경로, 엔지니어 단독 불가) ② 청산 기록이 생기면 scripts/fillable_expectancy.py 와 같은 수수료 모형(왕복 0.21%p)으로 세션별 순기대·앞뒤 절반·t 산출 ③ 표본이 10건 수준이면 '판정 불가'로 쓰고 표본 요건(≥30 체결)을 명시",
    "note": "2026-11-11 18:2x 엔지니어 자율 신설(CG191 후속). ⚠ 승격 게이트의 표본 정의 변경은 리뷰보드 승인 대상(CG191)이므로 이 항목은 '측정 경로 확보'까지만. ⚠ journal 은 트레이더 소유 — 읽기만 했고 수정하지 않았다.",
    "created_at": "2026-11-11T18:35:00+09:00"
+  },
+  {
+   "id": "CG195",
+   "priority": 1,
+   "status": "pending",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "title": "[정보 흐름 변화율 축] Δ1·Δ5 파생을 가격·기술이 아니라 SNS·공시·이벤트 / 수급·공매도에 적용 — 같은 런 2-arm vs CG193 대조군",
+   "hypothesis": "CG25 는 Δ1·Δ5 파생을 **가격·기술 6소스**(volatility_20d·volatility_60d·atr_pct·volume_ratio_5·rsi·ma_position_20)에만 적용해 Δ+0.0031(노이즈)로 끝냈다. 즉 '변화율 연산자'가 죽은 것인지 '그 소스가 이미 수준으로 충분히 표현돼서' 죽은 것인지 분리되지 않았다. analyist_dd 의 원래 전제는 뉴스·SNS·수급 흐름인데, 이 클래스는 패널에서 **수준(level)으로만** 시험됐고 변화율로는 0회다(패널 스크린: SNS·수급군 |AUC−0.5|≈0.05·IC t<1.3). 가설: 이벤트성 소스는 수준보다 **직전 대비 변화**가 정보를 담는다. 부수 근거: CG189(모멘텀 3종 제거) Δ+0.0002 · CG192(체결불가 학습행 마스크) Δ+0.0003 · CG193(호라이즌 h3/h10/h20) 최고 Δ+0.0023 — 조정 축이 전부 0 근처로 붙은 상태라, 남은 코드-free 축은 '새 정보 클래스의 변화율'뿐이다.",
+   "metric": "wf_sweep_summary",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CG193_ctl_h5,CG195_dsns_h5,CG195_dsup_h5 --summary-out /app/reports/overnight/cg195_flow_summary.json'",
+   "counterfactual": "CG193_ctl_h5 (같은 런·같은 패널 panel_200liq_fresh·같은 5폴드·게이트 OFF·파생 없음 — 실측 재현값 0.5106±0.0151)",
+   "success": "① 로그에 '선별 NN = edge top30 + Δ강제 10/8개'가 찍혀 파생이 실제 모델 입력에 들어갔는지 확인(미통과면 판정이 아니라 '측정 무효') ② 어느 arm 이든 폴드 짝 Δ(arm−대조군) ≥ +0.02 이고 폴드승률 ≥ 4/5 → 신호(그 정보 클래스를 다음 실험 대조군으로 승격) ③ 둘 다 +0.02 미달이면 '정보 흐름 변화율 축'도 종결하고 데이터 축(인트라데이 분봉 — XR26 수리 선행) 승인 요청으로 넘어간다 ④ rc≠0/요약 미갱신은 실행실패(노이즈 아님)",
+   "est_minutes": 20,
+   "note": "2026-11-11 20:0x 엔지니어 자율(장외 틱) 신설 — CG193(라벨 호라이즌) 노이즈 판정으로 그 축을 닫고, 사전 등록된 다음 단계(CG193 success ③: 데이터 축 승인 요청)로 가기 전에 **코드-free 로 남은 마지막 정보 클래스**를 먼저 잰다. 소스는 사전 등록(정보 클래스 단위)이며 스크린 결과로 고르지 않았다. ⚠ 이 패널에서 사실상 죽은 열은 사전 배제했다(실측 2026-11-11: news_count_5d·news_count_20d·sentiment_avg·sentiment_avg_5d 비영 0.04%, margin_balance_change·credit_balance_change 비영 0.00%). 스모크(2폴드×1시드): CG195_dsns_h5 '선별 40개 = top30 + Δ강제 10개' · AUC 0.5142, CG195_dsup_h5 '선별 38개 = top30 + Δ강제 8개' · AUC 0.4969, 대조군 0.4988 — 경로 정상(Δ 는 스모크라 판정 아님). 판정은 같은 런 폴드 짝 Δ 로만 하고, Δ ≥ +0.02 가 나오면 시드를 10으로 늘려 재현 확인 후에만 후속 등록.",
+   "created_at": "2026-11-11T20:10:00+09:00"
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
