@@ -1173,6 +1173,28 @@ CONFIGS = [
                              "disclosure_count_5d", "economic_event_count_7d"],
                  "lags": [1, 5]},
      "desc": "CG202 arm2 — 청정 선별 + Δ1·Δ5 파생 10컬럼 (상호작용 검정의 처리군)"},
+    # ── CG204(2026-11-12): 배포가능 최고 조정 arm × 청정 선별(누수게이트 대응) ──
+    # 왜: CG202 실측(앵커 3개 평균)에서 청정 선별 단독 0.5096±0.0016, 청정+Δ파생 0.5142 → 짝 Δ
+    #   +0.0046(폴드승률 6/15) = 노이즈. 남은 질문은 '청정 선별을 **배포가능 최고 조정 arm**에 얹으면
+    #   AUC 가 움직이는가'다 — CO_smooth_d1_h5 는 rank 변환이 없어 추론 계약 무변경(배포 가능)이고,
+    #   스킬 누수게이트 ③ '종목상수 피처가 선별을 지배'에 정면으로 걸리는 후보다(상수 29개는 top30
+    #   슬롯을 점유하지만 시점정보가 없다). 대조군을 같은 런의 CO_smooth_d1_h5 로 두어 HP·스무딩은
+    #   상쇄하고 **선별 청정화만**의 기여를 분리한다.
+    #   판정(사전등록, 앵커 3개 평균): 짝 Δ ≥ +0.02 & 부호 3/3 & 폴드승률 ≥ 0.6 → 신호.
+    #     |Δ| < 0.005 → 조정 축 완전 종결(데이터 축만 남음).
+    {"id": "CG204_clean_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "drop_dup": True,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "exclude_names": ["theme_count", "theme_max_relevance", "theme_exposure_5d",
+                       "similarity_std", "similar_count", "twin_avg_correlation", "twin_count",
+                       "avg_similarity_top10", "max_similarity", "sector_count",
+                       "authenticity_avg", "negative_ratio", "positive_ratio",
+                       "sentiment_avg", "sentiment_avg_5d", "sentiment_avg_20d", "sentiment_avg_db",
+                       "sentiment_momentum", "sentiment_trend", "sentiment_volatility",
+                       "news_count_5d", "news_count_20d", "short_interest_ratio", "days_to_cover",
+                       "etf_flow_5d", "institution_ownership_pct", "margin_balance_change",
+                       "credit_balance_change", "value_ncav"],
+     "desc": "CG204 — CO_smooth_d1_h5 + 종목상수 29개 제거·중복라벨 제거 (배포가능 조정 arm 위 청정화)"},
 ]
 
 
