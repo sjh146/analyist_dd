@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-10T15:48:25+09:00",
+ "generated_at": "2026-11-11T15:43:45+09:00",
  "source": "trader-agent/data/fills",
  "files": [
   "fills_2026-09-28.json",
@@ -14,18 +14,19 @@
   "fills_2026-10-09.json",
   "fills_2026-11-08.json",
   "fills_2026-11-09.json",
-  "fills_2026-11-10.json"
+  "fills_2026-11-10.json",
+  "fills_2026-11-11.json"
  ],
- "rows": 6,
+ "rows": 8,
  "all": {
-  "n": 6,
-  "net_pnl": -21457.0,
+  "n": 8,
+  "net_pnl": -19817.0,
   "fees": 0.0,
-  "win_rate": 16.7,
-  "avg_win": 416.0,
+  "win_rate": 25.0,
+  "avg_win": 1028.0,
   "avg_loss": -4374.6,
-  "avg_ret_pct": -5.944,
-  "expectancy_krw": -3576.2
+  "avg_ret_pct": -3.55,
+  "expectancy_krw": -2477.1
  },
  "by_screener": {
   "close": {
@@ -39,14 +40,14 @@
    "expectancy_krw": -482.0
   },
   "swing": {
-   "n": 2,
-   "net_pnl": -5391.0,
+   "n": 4,
+   "net_pnl": -3751.0,
    "fees": 0.0,
-   "win_rate": 0.0,
-   "avg_win": null,
+   "win_rate": 25.0,
+   "avg_win": 1640.0,
    "avg_loss": -2695.5,
-   "avg_ret_pct": -12.959,
-   "expectancy_krw": -2695.5
+   "avg_ret_pct": -4.664,
+   "expectancy_krw": -937.8
   },
   "unknown": {
    "n": 1,
@@ -99,8 +100,18 @@
    "avg_loss": -14620.0,
    "avg_ret_pct": -5.184,
    "expectancy_krw": -14620.0
+  },
+  "2026-11-11": {
+   "n": 2,
+   "net_pnl": 1640.0,
+   "fees": 0.0,
+   "win_rate": 50.0,
+   "avg_win": 1640.0,
+   "avg_loss": null,
+   "avg_ret_pct": 3.631,
+   "expectancy_krw": 820.0
   }
  },
  "ml_calibration": null,
- "scored_n": 2
+ "scored_n": 4
 }
