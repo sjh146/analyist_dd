@@ -1156,6 +1156,31 @@ def apply_train_domain_mask(tr, threshold):
     return tr[~drop], int(drop.sum())
 
 
+def fold_window_indices(n, n_folds, step, right_anchored=False):
+    """폴드별 (cut_idx, lo, hi) — dd(라벨 유효 날짜 목록) 인덱스.
+
+    왼쪽(현행): fold i 테스트 = dd[step*i : min(n, step*(i+1))] (cut = lo-1)
+    오른쪽(앵커, --asof-date 경로): 마지막 폴드 테스트가 dd[n-1] 에서 끝나도록 역산
+      → hi = n - (n_folds - i)*step, lo = hi - step. 앵커가 하루 움직이면 **전 폴드가 함께 이동**한다.
+
+    왜 두 경로인가(CG199 실측 2026-11-12): 왼쪽 정렬은 n 이 step*(folds+1) 보다 크면 끝 여분날을
+    마지막 폴드에 몰아 넣어 컷이 고정된다 → 끝 1~2일을 잘라도 테스트 날짜 집합이 비트 동일했다
+    (폴드 AUC 4자리 동일). '앵커 이동'이라는 주장은 오른쪽 정렬에서만 성립한다.
+    """
+    out = []
+    for i in range(1, int(n_folds) + 1):
+        if right_anchored:
+            hi = int(n) - (int(n_folds) - i) * int(step)
+            lo = hi - int(step)
+            if lo < 1 or hi > int(n):
+                raise RuntimeError(f"앵커 격자 범위 밖: fold{i} lo={lo} hi={hi} n={n} step={step}")
+        else:
+            lo = int(step) * i
+            hi = min(int(n), int(step) * (i + 1))
+        out.append((lo - 1, lo, hi))
+    return out
+
+
 def transform_matrix(Xdf, dates, kind, codes=None):
     """피처 행렬의 **날짜별 횡단면 변환**(rank/zscore) 또는 **종목별 시계열 변환**(zscore_ts).
 
@@ -1504,6 +1529,14 @@ def main():
     # 구간 끝 고정(기본: 실행 시각). 긴 패널 빌드의 체크포인트 재개용 — wf_wave.build_panel 주석 참조.
     ap.add_argument("--end-date", default=None,
                     help="패널 빌드 구간 끝 날짜 YYYY-MM-DD (기본: 실행 시각)")
+    # ── 평가 앵커 이동 (2026-11-12 CG200) ─────────────────────────────────────────
+    # 왜 --end-date 로는 앵커가 안 움직이나(실측 CG199 2026-11-12): 폴드 격자가 **패널 왼쪽부터**
+    # step=n//(folds+1) 로 잘리므로 끝에서 1~2일을 잘라도 마지막 폴드 경계가 dd[step*(i+1)-1] 에
+    # 그대로 고정된다(n=279→277 에서도 step=46, fold5 컷 = dd[275]) → 테스트 날짜 집합이 폴드 AUC
+    # 4자리까지 비트 동일했다. 앵커를 실제로 옮기려면 격자를 **오른쪽(앵커)에서 역산**해야 한다.
+    ap.add_argument("--asof-date", default=None,
+                    help="평가 앵커 YYYY-MM-DD — 이 날짜 이후 행 제외 + 폴드 격자를 앵커에서 역산"
+                         "(앵커 잡음 측정용. 미지정 = 현행 왼쪽 정렬 격자와 비트 동일)")
     ap.add_argument("--limit", type=int, default=50)
     # ── 유니버스 확장 옵션 (비우면 현행 기본값: KOSDAQ·코드순·최소 50일) ──
     # 유니버스를 바꿀 때는 --panel 파일명도 새로 줘라(캐시가 파일명으로만 구분된다).
@@ -1724,6 +1757,17 @@ def main():
                 ml.log(f"  {exp_id}: 라벨 참조일 계산 실패({type(e).__name__}: {e}) — 달력 purge 유지")
                 d["_ref"] = None
             d = d[~pd.isna(d["_y"])]
+            # ── 평가 앵커 절단(--asof-date, 2026-11-12 CG200) ────────────────────────
+            # 앵커 이후 행은 라벨 유효 행에서 제외한다. 폴드 격자는 위에서 앵커 기준 역산이므로
+            # 앵커가 1거래일만 움직여도 전 폴드 테스트 창이 이동한다(그게 없어서 CG199 는
+            # '--end-date 이동'을 앵커 이동으로 오독했다 — 폴드 AUC 4자리 동일).
+            if args.asof_date:
+                _n_before_asof = len(d)
+                d = d[d["date"].astype(str) <= str(args.asof_date)]
+                ml.log(f"  {exp_id}: 앵커 {args.asof_date} — 이후 행 제외 "
+                       f"{_n_before_asof} → {len(d)}")
+                if len(d) < 200:
+                    raise RuntimeError(f"앵커 절단 후 행이 {len(d)} — 측정 불가")
             # ── 종목 필터(유니버스 in-run 대조, 2026-09-26 신설) ─────────────────
             # 왜: 유니버스 효과(49 vs 150종목)를 재려면 같은 패널·같은 피처·같은 폴드에서
             # **행 집합만** 바꿔야 한다. U1(교차패널 비교)은 스냅샷이 달라 Δ-0.0266 이
@@ -1769,16 +1813,23 @@ def main():
             n_folds = int(cfg.get("folds") or args.folds)
             if n_folds != args.folds:
                 step = n // (n_folds + 1)
-            for i in range(1, n_folds + 1):
-                cut = dd[step * i - 1]
-                nxt = dd[min(n - 1, step * (i + 1) - 1)]
+            # ── 평가 앵커(--asof-date, 2026-11-12 CG200) ─────────────────────────────
+            # 앵커가 주어지면 격자를 **오른쪽(앵커)에서 역산**해 앵커가 움직일 때 전 폴드의
+            # 테스트 창이 함께 이동한다(왼쪽 정렬은 끝 여분날 때문에 컷이 고정 = CG199 측정무효 원인).
+            _win = fold_window_indices(n, n_folds, step, right_anchored=bool(args.asof_date))
+            ml.log(f"  {exp_id}: 폴드 격자 {'앵커(오른쪽) 역산' if args.asof_date else '왼쪽 정렬'} "
+                   f"n_dates={n} folds={n_folds} step={step} "
+                   f"windows={[(dd[a[1]], dd[a[2] - 1]) for a in _win]}")
+            for i, (cut_idx, lo, hi) in enumerate(_win, start=1):
+                cut = dd[cut_idx]
+                nxt = dd[hi - 1]
                 h = cfg["horizon"]
-                purge = set(dd[max(0, step * i - h):step * i])
+                purge = set(dd[max(0, cut_idx + 1 - h):cut_idx + 1])
                 tr = d[(d["date"] <= cut) & (~d["date"].isin(purge))]
                 n_ref_purged = 0
                 if "_ref" in tr.columns:
                     _bad = np.greater_equal(np.asarray(tr["_ref"].astype(str).values),
-                                            np.asarray(dd[step * i]))
+                                            np.asarray(dd[lo]))
                     n_ref_purged = int(_bad.sum())
                     if n_ref_purged:
                         tr = tr[np.logical_not(_bad)]
@@ -2037,7 +2088,8 @@ def main():
                 fold_means.append(float(np.mean(aucs)))
                 fold_sizes.append((len(tr), len(te)))
                 rec["folds"][f"fold{i}"] = {"train_rows": len(tr), "test_rows": len(te),
-                                            "test_from": dd[step * i], "test_to": nxt,
+                                            "test_from": dd[lo], "test_to": nxt,
+                                            "anchor": args.asof_date,
                                             "mean": float(np.mean(aucs)),
                                             "n_features": len(sel),
                                             "n_effective_features": sorted(n_eff_seen),

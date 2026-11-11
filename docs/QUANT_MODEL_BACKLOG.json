@@ -15697,17 +15697,19 @@
   {
    "id": "CG200",
    "title": "[측정기] 스윕 arm 의 앵커 잡음 — wf_label_sweep 에 --asof-date(평가 앵커 이동) + 앵커 다중 실행 래퍼",
-   "status": "needs_setup",
+   "status": "pending",
    "priority": 1,
-   "est_minutes": 90,
+   "est_minutes": 75,
    "owner": "engineer",
    "hypothesis": "CG199 실측(2026-11-12 00:2x): --end-date 를 2거래일 앞으로 옮겨도 폴드 AUC 가 4자리까지 동일했다(ctl 0.5106 [0.5293,0.4987,0.5029,0.494,0.5283] = CG195·CG196 과 비트동일). 이유는 제거된 마지막 2거래일이 h=5 전방 라벨을 갖지 못해 **어떤 테스트 폴드에도 들어가지 않기 때문**이다 → --end-date 는 앵커 이동이 아니다. CG145 는 --asof-date 로 평가 앵커를 옮겨 |Δ| 0.0175~0.0597(문턱의 3배) 잡음을 이미 측정했는데, 그 도구는 champion 후보 경로에만 있고 **스윕 arm(wf_label_sweep)에는 없다**. 따라서 스윕 델타(예: CG195_dsns +0.0056)는 지금 '신호/앵커잡음' 구분이 불가능하다.",
-   "command": "# 구현 후 — 3앵커 x 2arm (앵커: 2026-11-05/11-06/11-09, 폴드 5x5)\ndocker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CG199_ctl_h5,CG199_dsns_h5 --asofs 2026-11-05,2026-11-06,2026-11-09 --folds 5 --seeds 5 --summary-out /app/reports/overnight/cg200_anchor_summary.json'",
-   "counterfactual": "같은 앵커의 CG200_ctl(게이트 OFF·파생 없음) — 앵커별 짝 Δ 의 평균±std 로 판정",
-   "success": "① wf_anchor_sweep.py 가 앵커별로 폴드 테스트 구간을 실제로 이동시킨다(검증: 앵커별 테스트 행/날짜가 달라야 한다 — 같으면 측정무효) ② arm 짝 Δ 를 앵커 3개 평균±std 로 보고 ③ |평균 Δ| < 앵커 std 이면 '앵커 잡음과 구분 불가'로 축 종결 ④ rc≠0/요약 미갱신 = 실행실패",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CG199_ctl_h5,CG199_dsns_h5 --asofs 2026-10-29,2026-10-30,2026-11-02 --folds 5 --seeds 5 --summary-out /app/reports/overnight/anchor_sweep/cg200_anchor_summary.json --tag cg200 --timeout-sec 1500'",
+   "counterfactual": "같은 앵커의 CG199_ctl_h5(게이트 OFF·파생 없음) — 앵커별 짝 Δ(arm − ctl)의 평균±std 로 판정. 앵커 = 2026-10-29/10-30/11-02 (모두 라벨 유효 구간 이내)",
+   "success": "① 앵커별 폴드 테스트 창(test_from/test_to)이 실제로 달라야 한다 — 같으면 '측정무효(앵커 미이동)' ② 앵커 3개 짝 Δ 를 평균±std 로 보고 ③ |평균 Δ| < 앵커 std 면 '앵커 잡음과 구분 불가'로 축 종결 ④ 앵커평균 Δ ≥ +0.02 & 전 앵커 부호 양(+) = 신호 후보 ⑤ rc≠0/요약 미갱신 = 실행실패(노이즈 아님)",
    "setup_needed": "① wf_label_sweep 의 폴드 분할을 '패널 끝'이 아니라 '평가 앵커(마지막 테스트 라벨 날짜)' 기준으로 계산하도록 --asof-date 옵션 추가(labels: 앵커 이후 행 제외) ② 앵커 N개를 순차 실행하고 짝 Δ 평균±std 를 내는 얇은 래퍼 wf_anchor_sweep.py ③ 자체점검: 앵커별 테스트 날짜 집합이 실제로 달라지는지 확인하는 테스트. ⚠ 판정 문턱을 '앵커 평균'으로 바꾸는 것은 프로토콜 변경이라 리뷰보드 승인 대상(CG145) — 도구 구현·실측까지만 자율.",
    "expected": "이득은 AUC 가 아니라 판정 신뢰다: 최근 6사이클 델타(±0.006)가 앵커 잡음(0.017~0.06) 안쪽임을 실측으로 확정하면 조정 축 종결 근거가 완성된다.",
-   "note": "2026-11-12 00:2x 엔지니어 자율 신설 — CG199(측정무효, 검정력 0) 후속. 이번 틱에서 수리한 두 가지: ① wf_wave.build_panel 이 완성 패널 재사용 시 --end-date 를 슬라이스(종전엔 경고만 → 같은 데이터로 '가짜 재현') ② 구동기가 패널 메타 하드 불일치 런을 '노이즈'가 아니라 '측정무효'로 기록(자체점검 7/7·3/3 PASS)."
+   "note": "2026-11-12 00:2x 엔지니어 자율 신설 — CG199(측정무효, 검정력 0) 후속. 이번 틱에서 수리한 두 가지: ① wf_wave.build_panel 이 완성 패널 재사용 시 --end-date 를 슬라이스(종전엔 경고만 → 같은 데이터로 '가짜 재현') ② 구동기가 패널 메타 하드 불일치 런을 '노이즈'가 아니라 '측정무효'로 기록(자체점검 7/7·3/3 PASS). | 2026-11-12 01:0x **셋업 구현 완료 → pending 승격**(엔지니어 자율·측정정합성): ① `scripts/wf_label_sweep.py --asof-date` 신설 — 폴드 격자를 **앵커에서 역산**(오른쪽 정렬)해 앵커가 움직이면 전 폴드 창이 이동한다(미지정 경로는 종전 왼쪽 정렬과 비트 동일 = 무회귀). 자체점검 `scripts/_asof_anchor_test.py` 18/18 PASS(기본 경로 무회귀 10케이스 · 앵커 1~2거래일 이동 검출 · **왼쪽 정렬은 끝 2일을 잘라도 컷 고정 = CG199 재현** · 범위 밖 명시 실패). ② `scripts/wf_anchor_sweep.py` 신설 — 앵커 N개를 순차 실행해 짝 Δ 평균±std 를 내고, 요약 스키마를 구동기의 `protocol_pair_anchor` 파서·판정기와 호환으로 출력(delta=None → 무개선 카운터 무관). ③ **스모크 실측(2026-11-12 01:0x, panel_200liq_fresh·folds2·seeds1)에서 새 함정 1건 발견**: 요청 앵커 2026-11-05/11-06 은 둘 다 **라벨 유효 마지막 날짜(패널 끝 11-09 − h5 = 11-02)보다 뒤**라 절단이 무효 → 실효 앵커가 11-02 로 뭉쳐 폴드 AUC 가 비트동일(측정무효로 정확히 잡힘: anchor_moved=false). 그래서 앵커를 2026-10-29/10-30/11-02 로 정정했고, 도구에 `effective_anchor`(요청→실효 매핑) 진단을 추가했다. 정정 후 스모크는 anchor_moved=true · 앵커별 Δ +0.0149/+0.0154/+0.0145(mean +0.0149±0.0004, folds2·seeds1 = 판정 아님). ⚠ 문턱을 앵커평균으로 바꾸는 것은 여전히 리뷰보드 승인 대상(CG145).",
+   "metric": "protocol_pair_anchor",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg200_anchor_summary.json"
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
