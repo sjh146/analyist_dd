@@ -1,0 +1,69 @@
+{
+ "generated_at": "2026-11-11T13:28:12+09:00",
+ "note": "13:2x tick broker snapshot: 6084 absent from /orders (filled_qty was 0, no 240810 position) => assumed cancelled, not filled",
+ "snapshot": {
+  "/health": {
+   "ok": true,
+   "connected": true,
+   "ts": 1794371286.3634188
+  },
+  "/orders": {
+   "ok": true,
+   "orders": [
+    {
+     "order_no": 6022,
+     "original_order_no": 0,
+     "code": "240810",
+     "name": "원익IPS",
+     "description": "코스닥현금매수",
+     "qty": 1,
+     "price": 67700,
+     "filled_qty": 0,
+     "credit": "현금",
+     "cancelable_qty": 1,
+     "bs_code": "2",
+     "loan_date": "",
+     "order_hoga_desc": "지정가",
+     "order_hoga_code": "01"
+    }
+   ],
+   "ts": 1794371291.7516015
+  },
+  "/positions": {
+   "ok": true,
+   "positions": [
+    {
+     "code": "290720",
+     "name": "푸드나무",
+     "credit_type": 32,
+     "loan_date": "",
+     "qty": 99,
+     "sellable_qty": 99,
+     "avg_price": 980.1414,
+     "eval_amount": 98690,
+     "eval_pnl": 1.7100000381
+    }
+   ],
+   "ts": 1794371292.1484659
+  },
+  "/balance": {
+   "ok": true,
+   "balance": {
+    "account": "783247576",
+    "goods_flag": "01",
+    "positions_count": 1,
+    "total_buy_amount": 97020,
+    "total_eval_amount": 98690,
+    "total_eval_pnl": 1,
+    "equity": 293269,
+    "d2_deposit": 194579,
+    "loan_amount": 0,
+    "broker_total_eval": 293269,
+    "cash": 194579,
+    "withdrawable": 194579,
+    "buyable_error": "remote error -1: 12275 종목코드를 확인하십시요.(ord.stk.dpmyinqr.selpsblqtyamt)"
+   },
+   "ts": 1794371292.7319744
+  }
+ }
+}
