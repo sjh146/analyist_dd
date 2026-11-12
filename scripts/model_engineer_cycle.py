@@ -1581,6 +1581,15 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_factor_money_screen(spath, mtime_floor)
     if kind == "factor_money_fillable":
         return parse_factor_money_fillable(spath, mtime_floor)
+    if kind == "hold_horizon_curve":
+        return parse_hold_horizon_curve(
+            spath, mtime_floor,
+            null_path=summary_path(kind, item.get("command"), item.get("null_out"), quiet=True)
+            if item.get("null_out") else None)
+    if kind == "vol_beta_decomp":
+        return parse_vol_beta_decomp(spath, mtime_floor)
+    if kind == "h5_time_profile":
+        return parse_h5_time_profile(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
@@ -2236,8 +2245,18 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
     conds = parsed.get("conditions") or {}
     fill = (conds.get("fillable") or {}).get("k") or {}
     unf = (conds.get("unfiltered") or {}).get("k") or {}
+    # k 목록은 **측정이 실제로 낸 키**를 쓴다. 실측(2026-11-13 CG222): 명령이 --k 5,10 이면
+    # fill 에 '3' 이 없어 종전 코드가 '판정불가(k=3 통계 없음)'로 닫았다 — 측정은 정상(Δ−0.034,
+    # t −0.09)인데 판정기 하드코딩 때문에 결과가 사라졌다. 3·5 가 있으면 그 둘(사전문턱),
+    # 없으면 가장 작은 k 두 개로 같은 문턱을 적용한다.
+    ks = [k for k in ("3", "5") if k in fill]
+    if not ks:
+        try:
+            ks = sorted(fill, key=lambda x: int(x))[:2]
+        except (TypeError, ValueError):
+            ks = list(fill)[:2]
     parts, ok_all, first = [], True, None
-    for k in ("3", "5"):
+    for k in ks:
         b = fill.get(k)
         if not isinstance(b, dict):
             return "판정불가", f"k={k} 통계 없음 (keys={list(fill)})", None
@@ -2262,10 +2281,11 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
                else f"k={k} 통계 결측")
         parts.append(fmt + ("" if good else " ✗"))
     ref = ""
-    if isinstance(unf.get("3"), dict):
-        ua = (unf["3"].get("arm") or {}).get("mean")
-        ud = (unf["3"].get("paired") or {}).get("delta_mean")
-        ref = (f" · 참고(체결성 필터 OFF): k=3 arm {ua:+.3f}%p · Δ{ud:+.3f}"
+    uk = ks[0] if ks[0] in unf else (next(iter(unf)) if unf else None)
+    if uk is not None and isinstance(unf.get(uk), dict):
+        ua = (unf[uk].get("arm") or {}).get("mean")
+        ud = (unf[uk].get("paired") or {}).get("delta_mean")
+        ref = (f" · 참고(체결성 필터 OFF): k={uk} arm {ua:+.3f}%p · Δ{ud:+.3f}"
                if isinstance(ua, (int, float)) and isinstance(ud, (int, float)) else "")
     detail = (f"arm {parsed.get('arm_tag')} vs 대조군 {parsed.get('control_tag')} · "
               f"exit {parsed.get('exit')} h{parsed.get('horizon')} · 수수료 왕복 "
@@ -2387,6 +2407,243 @@ def judge_fillable_topk_spread(item, parsed) -> tuple:
     if ok_all:
         return "신호있음", detail + " → 순위가 수익을 정렬(승격은 별도 절차)", first
     return "노이즈", detail + " → 사전등록 미충족(순위 정보 미검출)", first
+
+
+def parse_hold_horizon_curve(path, mtime_floor=0.0, null_path=None) -> dict:
+    """h 지평 곡선 계측(CG220) — 호라이즌×k 비중첩 순기대 + (선택) 무작위 널 대조.
+
+    스키마: {"metric_name","panel","tag","fee_roundtrip_pct",
+             "horizons": {"<h>": {"<k>": {"overlap": {..}, "nonoverlap": {..},
+                                        "fold_means_nonoverlap": {..}, "fold_signs_positive": "5/5"}}}}
+
+    판정은 **비중첩(nonoverlap)** 만 쓴다 — 중첩 구간은 같은 세션을 재사용해 t 가 부풀려진다
+    (CG219 실측: h5 k=5 중첩 n=240 vs 비중첩 n=48). 중첩 값은 참고로만 남긴다.
+    `null_out`(무작위 치환 널)을 주면 관측−널 차이를 함께 남긴다 — 시장 베타·드리프트를 걷어낸
+    '같은 세션·같은 수수료' 기준선이다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    hor = d.get("horizons") or {}
+    if not hor:
+        return {"error": "horizons 없음(계측 실패)", "summary_mtime": mt}
+    rows = []
+    for hk, kv in hor.items():
+        if not isinstance(kv, dict):
+            continue
+        for kk, cell in kv.items():
+            if not isinstance(cell, dict):
+                continue
+            try:
+                h, k = int(hk), int(kk)
+            except (TypeError, ValueError):
+                continue
+            fm = cell.get("fold_means_nonoverlap") or {}
+            signs = str(cell.get("fold_signs_positive") or "")
+            try:
+                npos, nf = (int(x) for x in signs.split("/"))
+            except (ValueError, TypeError):
+                npos = nf = None
+            rows.append({
+                "h": h, "k": k,
+                "overlap": cell.get("overlap"),
+                "nonoverlap": cell.get("nonoverlap"),
+                "fold_means_nonoverlap": fm,
+                "folds_positive": npos, "folds_total": nf,
+                "fold_win_rate": round(npos / nf, 3) if npos is not None and nf else None,
+            })
+    if not rows:
+        return {"error": "horizons 셀 없음(계측 실패)", "summary_mtime": mt}
+    key = next((r for r in rows if r["h"] == 5 and r["k"] == 5), None)
+    null = None
+    if null_path and os.path.exists(null_path):
+        try:
+            with open(null_path, encoding="utf-8") as f:
+                nd = json.load(f)
+            tag = d.get("tag")
+            tags = nd.get("tags") or {}
+            nt = tags.get(tag) or (next(iter(tags.values())) if len(tags) == 1 else None)
+            if isinstance(nt, dict):
+                null = {"metric_name": nd.get("metric_name"), "draws": nd.get("draws"),
+                        "by_k": nt}
+        except (json.JSONDecodeError, OSError):
+            null = None
+    return {"metric_name": "hold_horizon_curve", "tag": d.get("tag"),
+            "panel": d.get("panel"), "fee_roundtrip_pct": d.get("fee_roundtrip_pct"),
+            "rows": sorted(rows, key=lambda r: (r["h"], r["k"])),
+            "key_h5k5": key, "null": null,
+            "summary_mtime": mt}
+
+
+def judge_hold_horizon_curve(item, parsed) -> tuple:
+    """h5 축 검증 판정 — 돈 기준(비중첩 Δ≥+0.5%p · t≥2 · 폴드 부호 6/8 이상).
+
+    AUC 로 판정하지 않는다(같은 런의 AUC Δ 는 +0.003 수준 = 노이즈). 사전 등록 성공 조건은
+    백로그 항목의 `success` 문구이고, 여기서는 그 문턱을 코드로 옮겨 기계 판정한다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    key = parsed.get("key_h5k5") or {}
+    no = (key.get("nonoverlap") or {})
+    mean = no.get("mean")
+    t = no.get("t")
+    n = no.get("n")
+    wr = key.get("fold_win_rate")
+    if not isinstance(mean, (int, float)) or not isinstance(t, (int, float)):
+        return "판정불가", "h5 k=5 비중첩 통계 없음", None
+    parts = []
+    for r in parsed.get("rows") or []:
+        ov, nv = r.get("overlap") or {}, r.get("nonoverlap") or {}
+        parts.append(f"h{r['h']} k{r['k']} 중첩 Δ{ov.get('mean')}(t {ov.get('t')}, n{ov.get('n')})"
+                     f" · 비중첩 Δ{nv.get('mean')}(t {nv.get('t')}, n{nv.get('n')})"
+                     f" · 폴드+ {r.get('folds_positive')}/{r.get('folds_total')}")
+    nl = parsed.get("null") or {}
+    nb = (nl.get("by_k") or {}).get("5")
+    nl_txt = ""
+    if isinstance(nb, dict):
+        nl_txt = (f" · 무작위 널 Δ(obs−null) {nb.get('obs_minus_null')}"
+                  f" (obs {nb.get('obs_mean')} vs null {nb.get('null_mean')},"
+                  f" t {nb.get('t_vs_uniform_half')}, draws {nl.get('draws')})")
+    cond_mean = mean >= 0.5
+    cond_t = t >= 2.0
+    cond_fold = (wr is not None and wr >= 0.6)
+    ok = cond_mean and cond_t and cond_fold
+    verdict = "h5 축 검증통과 — 승격 검토(돈 기준)" if ok else "노이즈"
+    detail = (" · ".join(parts) + nl_txt +
+              f" · 사전문턱(비중첩 h5k5 Δ≥+0.5%p & t≥2 & 폴드+ ≥6/8): "
+              f"Δ{'O' if cond_mean else 'X'} t{'O' if cond_t else 'X'} 폴드{'O' if cond_fold else 'X'}"
+              f" → {'통과' if ok else '미충족'}")
+    return verdict, detail, round(float(mean), 4)
+
+
+def parse_vol_beta_decomp(path, mtime_floor=0.0) -> dict:
+    """변동성·베타 교란 분해(CG221) — 원 Δ vs 변동성 매칭 널 vs 위험조정 Δ.
+
+    스키마: {"metric_name":"vol_beta_decomp","tag","k","horizon","fee_roundtrip_pct","n_sessions",
+             "raw_delta":{n,mean,sd,t,pos_pct}, "vol_matched_delta":{..},
+             "risk_adjusted_delta":{..}, "top_vol_mean", "pool_vol_mean"}
+
+    판정 규칙(사전 등록, CG221 success): 매칭 Δ 가 원 Δ 의 1/2 이하로 붕괴하면 이득은
+    '변동성 베팅', 70% 이상 유지 + t≥2 면 '선택 실력'. 즉 비율(ratio)이 판정 축이다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    raw = d.get("raw_delta") or {}
+    mat = d.get("vol_matched_delta") or {}
+    adj = d.get("risk_adjusted_delta") or {}
+    rm, mm = raw.get("mean"), mat.get("mean")
+    ratio = (mm / rm) if isinstance(rm, (int, float)) and isinstance(mm, (int, float)) and rm else None
+    return {"metric_name": "vol_beta_decomp", "tag": d.get("tag"), "k": d.get("k"),
+            "horizon": d.get("horizon"), "fee_roundtrip_pct": d.get("fee_roundtrip_pct"),
+            "n_sessions": d.get("n_sessions"), "raw": raw, "matched": mat, "risk_adj": adj,
+            "matched_over_raw": round(ratio, 3) if ratio is not None else None,
+            "top_vol_mean": d.get("top_vol_mean"), "pool_vol_mean": d.get("pool_vol_mean"),
+            "summary_mtime": mt}
+
+
+def judge_vol_beta_decomp(item, parsed) -> tuple:
+    """CG221 판정 — 사전 등록: 매칭/원 Δ 비율 ≤0.5 = 변동성 노출(축 종결), ≥0.7 & t≥2 = 선택 실력."""
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    raw, mat = parsed.get("raw") or {}, parsed.get("matched") or {}
+    adj = parsed.get("risk_adj") or {}
+    ratio = parsed.get("matched_over_raw")
+    rm, rt = raw.get("mean"), raw.get("t")
+    mm, mt_ = mat.get("mean"), mat.get("t")
+    if not isinstance(rm, (int, float)) or not isinstance(mm, (int, float)):
+        return "판정불가", "raw/vol-matched Δ 없음", None
+    detail = (f"tag {parsed.get('tag')} h{parsed.get('horizon')} k{parsed.get('k')} · 세션 "
+              f"{parsed.get('n_sessions')} · 원 Δ{rm:+.3f}%p(t {rt}) · 변동성매칭 Δ{mm:+.3f}"
+              f"(t {mt_}, n{(mat.get('n'))}) · 비율 {ratio} · 위험조정 Δ"
+              f"{(adj.get('mean')):+.4f}(t {adj.get('t')}) · top vol {parsed.get('top_vol_mean')}"
+              f" vs 풀 {parsed.get('pool_vol_mean')}")
+    if ratio is not None and ratio <= 0.5:
+        return ("변동성 노출 — 축 종결", detail + " · 사전문턱: 매칭 Δ ≤ 원 Δ의 1/2 → 선택 실력 아님", round(mm, 4))
+    if ratio is not None and ratio >= 0.7 and isinstance(mt_, (int, float)) and mt_ >= 2:
+        return ("신호있음 — 변동성 아님(선택 실력)", detail +
+                " · 사전문턱: 매칭 Δ ≥ 원 Δ의 70% & t≥2 → 변동성 교란 기각", round(mm, 4))
+    return "노이즈", detail + " · 사전문턱(≤1/2 붕괴 or ≥70% 유지+t≥2) 미충족", round(mm, 4)
+
+
+def parse_h5_time_profile(path, mtime_floor=0.0) -> dict:
+    """h5 초과수익의 시간 분해(CG223) — 지금 배포하면 돈이 되는가.
+
+    스키마: {"metric_name":"h5_time_profile","tag","k","horizon","n_sessions","window",
+             "overall":{n,mean,sd,t,pos_pct}, "halves":{"front":{..},"back":{..}},
+             "quarters":{...}, "recent":{sessions,from,mean,t,..}, "nonoverlap":{..}}
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if not isinstance(d.get("overall"), dict):
+        return {"error": "overall 통계 없음(계측 실패)", "summary_mtime": mt}
+    d["summary_mtime"] = mt
+    return d
+
+
+def judge_h5_time_profile(item, parsed) -> tuple:
+    """CG223 판정 — 전체 t·비중첩 Δ·앞뒤 절반·최근 구간이 모두 양(+)이면 '시간 강건'.
+
+    왜 이 조합인가: 단일 구간(최근 60세션)은 t 1.7 수준이라 그 자체로는 판정력이 없다
+    (MDE 실측 CG214: 11세션 표본 MDE ±1.276%p). 전체 240세션의 t·비중첩 표본·절반 부호를
+    주 기준으로 두고, 최근 구간은 **부호 붕괴 감지**에만 쓴다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    ov, hl, rc = parsed.get("overall") or {}, parsed.get("halves") or {}, parsed.get("recent") or {}
+    nov = parsed.get("nonoverlap") or {}
+    m, t = ov.get("mean"), ov.get("t")
+    f, b = (hl.get("front") or {}).get("mean"), (hl.get("back") or {}).get("mean")
+    rcm, rct = rc.get("mean"), rc.get("t")
+    nm, nt = nov.get("mean"), nov.get("t")
+    if not all(isinstance(x, (int, float)) for x in (m, t, nm)):
+        return "판정불가", "overall/nonoverlap 통계 결측", None
+    detail = (f"tag {parsed.get('tag')} k{parsed.get('k')} h{parsed.get('horizon')} · 체결성 필터 ON · "
+              f"세션 {parsed.get('n_sessions')} ({(parsed.get('window') or {}).get('first')}~"
+              f"{(parsed.get('window') or {}).get('last')}) · 전체 Δ{m:+.3f}%p/5세션(t {t}) · "
+              f"앞/뒤 {f:+.3f}/{b:+.3f} · 비중첩(n{nov.get('n')}) Δ{nm:+.3f}(t {nt}) · "
+              f"최근{rc.get('sessions')}세션 Δ{rcm:+.3f}(t {rct})")
+    robust = (t >= 3 and nm > 0 and isinstance(f, (int, float)) and f > 0
+              and isinstance(b, (int, float)) and b > 0
+              and isinstance(rcm, (int, float)) and rcm > 0)
+    if robust:
+        return ("시간 강건 — 운용경로(청산규칙) 검토 근거", detail +
+                " · 사전문턱: 전체 t≥3 & 비중첩 Δ>0 & 앞/뒤 둘 다 + & 최근 Δ>0 → 충족"
+                " (최근 60세션 t는 1.7 수준 = 부호 감지용일 뿐 판정력 없음)", round(m, 4))
+    if isinstance(rcm, (int, float)) and rcm <= 0:
+        return ("시간 감쇠 — 배포 근거 아님", detail + " · 최근 구간 Δ ≤ 0 → 과거 이득이 현재 없다", round(m, 4))
+    return "노이즈", detail + " · 사전문턱 미충족", round(m, 4)
 
 
 def parse_blend_eval(path, mtime_floor) -> dict:
@@ -3362,6 +3619,12 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_protocol_noise_curve(item, parsed)
     if kind == "protocol_pair_anchor":
         return judge_protocol_pair_anchor(item, parsed)
+    if kind == "hold_horizon_curve":
+        return judge_hold_horizon_curve(item, parsed)
+    if kind == "vol_beta_decomp":
+        return judge_vol_beta_decomp(item, parsed)
+    if kind == "h5_time_profile":
+        return judge_h5_time_profile(item, parsed)
     if kind == "blend_eval":
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":
@@ -3421,7 +3684,14 @@ def rejudge_parser_gap() -> list:
     fixed, changed = [], False
     for r in rows:
         pe = r.get("parsed")
-        if not isinstance(pe, dict) or "parser 없음" not in str(pe.get("error", "")):
+        gap = None
+        if isinstance(pe, dict) and "parser 없음" in str(pe.get("error", "")):
+            gap = "parser"
+        elif "통계 없음" in str(r.get("detail", "")):
+            # 판정기 갭(실측 2026-11-13 CG222): 파싱은 정상인데 판정기가 없는 k 만 찾아
+            # '판정불가'로 닫은 기록. 판정기를 고친 뒤에는 같은 요약으로 다시 판정할 수 있다.
+            gap = "judge"
+        if not gap:
             continue
         it = next((i for i in b["items"] if i.get("id") == r.get("id")), None)
         if not it or not it.get("command"):
