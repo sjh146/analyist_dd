@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T02:10:10+09:00",
+ "updated_at": "2026-11-13T02:12:25+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -16481,6 +16481,86 @@
     "verdict": "시간 강건 — 운용경로(청산규칙) 검토 근거",
     "detail": "tag CO_smooth_d1_h5 k5 h5 · 체결성 필터 ON · 세션 240 (2025-09-16~2026-09-10) · 전체 Δ+1.210%p/5세션(t 3.54) · 앞/뒤 +1.081/+1.339 · 비중첩(n48) Δ+1.847(t 2.04) · 최근60세션 Δ+1.282(t 1.66) · 사전문턱: 전체 t≥3 & 비중첩 Δ>0 & 앞/뒤 둘 다 + & 최근 Δ>0 → 충족 (최근 60세션 t는 1.7 수준 = 부호 감지용일 뿐 판정력 없음)",
     "delta": 1.2102,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG224",
+   "status": "done",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "capital_path_compare",
+   "from_experiment": "CG223",
+   "title": "[h5 축·경로] h5 보유가 같은 자본으로 더 버는가 — 자본-세션 정규화 + 낙폭(MDD) 비교",
+   "hypothesis": "CG220~223 으로 h5 초과수익(+1.21%p/5세션)은 4관문을 통과했다. 그러나 h5 는 자본을 5세션 묶어 두므로 세션당 Δ 를 그대로 비교하면 5배 과대평가된다. 자본-세션 단위로 정규화하고 낙폭을 함께 재야 '경로 변경'이 이득인지 판정할 수 있다.",
+   "counterfactual": "A(현행 h1: 종가 진입 → 익일 시가 청산, 전액 회전) vs B(h5: 종가 진입 → 5세션 뒤 종가 청산, 5코호트 분할) — 같은 세션·같은 필터·같은 수수료",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg224_capital_path.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_smooth_d1_h5 --k 5 --h5 5 --out /app/reports/overnight/cg224_path.json'",
+   "summary_out": "/app/reports/overnight/cg224_path.json",
+   "est_minutes": 3,
+   "success": "B 자본세션 기대 ≥ A + 0.05%p AND 비중첩 MDD 배수 ≤1.5x → '경로 변경 검토 근거'(트레이더 경로는 ②승인). 자본효율 우위가 없거나 낙폭이 1.5배 초과면 'A 유지'. rc≠0/요약 미갱신=실행실패.",
+   "expected": "낙폭이 3~4배로 커지면 '수익은 늘지만 한도·손실관리에서 운용 불가'가 정량 확인되어 h5 축을 연구 기록으로 닫고 데이터 축으로 복귀한다. 1.5배 이내면 트레이더 경로 변경안을 ②로 올린다.",
+   "cost": "낮음 (학습 0회, DB 가격 조회 + 시뮬레이션 1~3분)",
+   "depends_on": [
+    "CG223"
+   ],
+   "created_at": "2026-11-13T02:22:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-13T02:12:10+09:00",
+     "rc": 0,
+     "verdict": "A 유지 — 낙폭 악화",
+     "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +1.4999%p/코호트·자본세션 +0.3000·MDD -15.313% · 비중첩 코호트 48 · 낙폭 배수 3.82x · 자본효율은 우위지만 낙폭이 3.8x 로 사전문턱(1.5x) 초과 → 실계좌 한도에서 운용 불가",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG224_20261113-021208.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "A 유지 — 낙폭 악화",
+    "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +1.4999%p/코호트·자본세션 +0.3000·MDD -15.313% · 비중첩 코호트 48 · 낙폭 배수 3.82x · 자본효율은 우위지만 낙폭이 3.8x 로 사전문턱(1.5x) 초과 → 실계좌 한도에서 운용 불가",
+    "delta": 0.3,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG225",
+   "status": "done",
+   "priority": 2,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "h5_time_profile",
+   "from_experiment": "CG224",
+   "title": "[h5 축·귀속] 대조군(CO_core30_h5)에도 같은 시간강건 초과수익이 있는가 — 이득이 설정 특이인지 라벨군 공통인지",
+   "hypothesis": "CG222 에서 arm(스무딩) vs 대조(코어30) Δ는 −0.034 = 설정 차이는 0 이었다. 그렇다면 h5 초과수익(Δ+1.21%p/5세션)은 CO_smooth 특이 신호가 아니라 h5 라벨 모델군 공통 성질일 수 있다. 공통이면 모델 설정을 더 만질 이유가 없고(축은 청산지평·데이터), 특이면 설정 레버가 된다.",
+   "counterfactual": "같은 세션·같은 필터의 대조군 CO_core30_h5 (같은 preds 파일의 다른 태그)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg223_h5_time.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_core30_h5 --k 5 --horizon 5 --out /app/reports/overnight/cg225_core30_time.json'",
+   "summary_out": "/app/reports/overnight/cg225_core30_time.json",
+   "est_minutes": 3,
+   "success": "대조군도 전체 t≥3 & 앞/뒤 둘 다 + & 최근 Δ>0 이면 '라벨군 공통'(설정 레버 아님) → h5 설정 축 종결. 대조군이 붕괴(Δ≤0 또는 t<2)면 'CO_smooth 특이 신호'로 설정 레버 유지. rc≠0/요약 미갱신=실행실패.",
+   "expected": "공통이면 남은 레버는 청산지평(이미 낙폭 문제로 닫힘)과 데이터 축임이 확정되어, 다음 사이클을 시점정합 신규 피처로 돌린다. 특이면 smoothing × h5 조합을 재검토한다.",
+   "cost": "낮음 (학습 0회, DB 조회 + 집계 1~3분)",
+   "depends_on": [
+    "CG224"
+   ],
+   "created_at": "2026-11-13T02:26:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-13T02:12:25+09:00",
+     "rc": 0,
+     "verdict": "시간 강건 — 운용경로(청산규칙) 검토 근거",
+     "detail": "tag CO_core30_h5 k5 h5 · 체결성 필터 ON · 세션 240 (2025-09-16~2026-09-10) · 전체 Δ+1.184%p/5세션(t 3.18) · 앞/뒤 +1.205/+1.163 · 비중첩(n48) Δ+1.317(t 1.5) · 최근60세션 Δ+1.245(t 1.8) · 사전문턱: 전체 t≥3 & 비중첩 Δ>0 & 앞/뒤 둘 다 + & 최근 Δ>0 → 충족 (최근 60세션 t는 1.7 수준 = 부호 감지용일 뿐 판정력 없음)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG225_20261113-021224.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "시간 강건 — 운용경로(청산규칙) 검토 근거",
+    "detail": "tag CO_core30_h5 k5 h5 · 체결성 필터 ON · 세션 240 (2025-09-16~2026-09-10) · 전체 Δ+1.184%p/5세션(t 3.18) · 앞/뒤 +1.205/+1.163 · 비중첩(n48) Δ+1.317(t 1.5) · 최근60세션 Δ+1.245(t 1.8) · 사전문턱: 전체 t≥3 & 비중첩 Δ>0 & 앞/뒤 둘 다 + & 최근 Δ>0 → 충족 (최근 60세션 t는 1.7 수준 = 부호 감지용일 뿐 판정력 없음)",
+    "delta": 1.1842,
     "per_exp": null,
     "rc": 0
    }

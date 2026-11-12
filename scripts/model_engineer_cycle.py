@@ -1590,6 +1590,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_vol_beta_decomp(spath, mtime_floor)
     if kind == "h5_time_profile":
         return parse_h5_time_profile(spath, mtime_floor)
+    if kind == "capital_path_compare":
+        return parse_capital_path_compare(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
@@ -2646,6 +2648,68 @@ def judge_h5_time_profile(item, parsed) -> tuple:
     return "노이즈", detail + " · 사전문턱 미충족", round(m, 4)
 
 
+def parse_capital_path_compare(path, mtime_floor=0.0) -> dict:
+    """운용 경로 비교(CG224) — 자본-세션 기대와 낙폭으로 h1 vs h5 경로를 판정한다.
+
+    스키마: {"metric_name":"capital_path_compare","tag","k","h5",
+             "path_a_h1":{sessions,mean,t,capital_session,mdd_pct},
+             "path_b_h5":{...}, "nonoverlap_compare":{n_cohorts,a_mdd_pct,b_mdd_pct,...}}
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if not isinstance(d.get("path_a_h1"), dict) or not isinstance(d.get("path_b_h5"), dict):
+        return {"error": "path_a/path_b 통계 없음(계측 실패)", "summary_mtime": mt}
+    d["summary_mtime"] = mt
+    return d
+
+
+def judge_capital_path_compare(item, parsed) -> tuple:
+    """CG224 판정 — 자본효율 이득(+0.05%p/자본세션 이상)과 낙폭(비중첩 MDD ≤1.5배)을 함께 본다.
+
+    왜 낙폭을 같이 보나: h5 는 5세션 보유로 자본 회전이 느려 세션당 Δ 를 그대로 비교하면 5배
+    과대평가된다(자본-세션 단위로 정규화해야 공정). 그리고 수익이 커도 낙폭이 3~4배가 되면
+    실계좌 한도(총 100%)·손실 한도 아래에서 운용 불가다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    A, B = parsed.get("path_a_h1") or {}, parsed.get("path_b_h5") or {}
+    nov = parsed.get("nonoverlap_compare") or {}
+    ac, bc = A.get("capital_session"), B.get("capital_session")
+    am, bm = A.get("mean"), B.get("mean")
+    if not all(isinstance(x, (int, float)) for x in (ac, bc, am, bm)):
+        return "판정불가", "capital_session 통계 결측", None
+    a_mdd = nov.get("a_mdd_pct", A.get("mdd_pct"))
+    b_mdd = nov.get("b_mdd_pct", B.get("mdd_pct"))
+    ratio = (abs(b_mdd) / abs(a_mdd)) if isinstance(a_mdd, (int, float)) and a_mdd else None
+    detail = (f"tag {parsed.get('tag')} k{parsed.get('k')} · 체결성 필터 ON · "
+              f"A(h1) {A.get('sessions')}세션 {am:+.4f}%p/세션·자본세션 {ac:+.4f}·"
+              f"MDD {a_mdd}% · B(h5) {B.get('sessions')}코호트 {bm:+.4f}%p/코호트·자본세션 "
+              f"{bc:+.4f}·MDD {b_mdd}% · 비중첩 코호트 {nov.get('n_cohorts')} · "
+              f"낙폭 배수 {ratio:.2f}x" if ratio is not None else
+              f"tag {parsed.get('tag')} A {am:+.4f}%p B {bm:+.4f}%p")
+    eff = bc >= ac + 0.05
+    if eff and ratio is not None and ratio <= 1.5:
+        return ("경로 변경 검토 근거", detail +
+                " · 사전문턱: 자본세션 +0.05%p 이상 & 낙폭 1.5배 이내 → 충족(트레이더 경로는 ②승인)", bc)
+    if eff:
+        return ("A 유지 — 낙폭 악화", detail +
+                f" · 자본효율은 우위지만 낙폭이 {ratio:.1f}x 로 사전문턱(1.5x) 초과 → "
+                "실계좌 한도에서 운용 불가" if ratio is not None else
+                " · 낙폭 통계 없음", bc)
+    return "A 유지 — 자본효율 우위 없음", detail + " · 사전문턱(+0.05%p/자본세션) 미충족", bc
+
+
 def parse_blend_eval(path, mtime_floor) -> dict:
     """라벨 다양성 앙상블(scripts/blend_eval.py --out) 짝 집계를 파싱한다.
 
@@ -3625,6 +3689,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_vol_beta_decomp(item, parsed)
     if kind == "h5_time_profile":
         return judge_h5_time_profile(item, parsed)
+    if kind == "capital_path_compare":
+        return judge_capital_path_compare(item, parsed)
     if kind == "blend_eval":
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":
