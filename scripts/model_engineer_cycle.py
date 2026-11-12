@@ -1048,6 +1048,17 @@ def summary_path(kind, command=None, summary_out=None):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/model_metric_protocol_audit.json")
+    if kind == "source_freshness":
+        # 배선된 피처 원천 신선도 게이트(scripts/source_freshness_gate.py --json-out). CG165.
+        # 왜 필요한가(2026-11-12 실측): CG165·XR26·CG179 등이 metric='source_freshness' 인데
+        # summary_path 에 분기가 없어 **매 틱** "알 수 없는 metric" 경고가 났고 원장에는
+        # '판정불가'만 쌓였다 → 신선도 정지가 있었는지 사후 확인이 불가능했다. 감지기는 이미
+        # 돌고 JSON 스키마도 고정이므로 배선만 하면 판정이 남는다.
+        # ⚠ 모델 성능이 아니라 **입력 신선도**다 — per_exp 를 만들지 않는다.
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "data/reports/source_freshness.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -1557,6 +1568,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_scorecard(spath, mtime_floor)
     if kind == "intraday_screen":
         return parse_intraday_screen(spath, mtime_floor)
+    if kind == "source_freshness":
+        return parse_source_freshness(spath, mtime_floor)
     if kind == "protocol_noise_floor":
         return parse_protocol_noise_floor(spath, mtime_floor)
     if kind == "protocol_noise_curve":
@@ -3186,6 +3199,63 @@ def judge_metric_audit_pair(item, parsed) -> tuple:
     return "노이즈", detail + " → 사전등록 미충족", None
 
 
+def parse_source_freshness(path, mtime_floor) -> dict:
+    """배선된 피처 원천 신선도(scripts/source_freshness_gate.py --json-out). CG165.
+
+    스키마: {reference:{table,date,lag_trading_days,verdict}, sources:{table:{max_date,
+             lag_trading_days, verdict}}, worst:[table, lag, verdict] | None, errors:[]}
+    판정 = **최악 원천의 거래일 지연**(lag ≤1 OK · 2~4 WARN · ≥5 CRITICAL) + 기준 자체 지연.
+    ⚠ 모델 성능 지표가 아니다 — per_exp 를 만들지 않는다(스코어보드 오독 방지).
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    ref = d.get("reference") or {}
+    sources = d.get("sources") or {}
+    if not sources:
+        return {"error": "sources 없음(측정 실패)", "errors": d.get("errors"),
+                "summary_mtime": mt}
+    worst = d.get("worst")
+    lags = {t: (v or {}).get("lag_trading_days") for t, v in sources.items()}
+    bad = {t: l for t, l in lags.items() if isinstance(l, int) and l >= 2}
+    rlag = ref.get("lag_trading_days")
+    if isinstance(rlag, int) and rlag >= 2:
+        verdict = f"기준 원천 정지 의심({ref.get('table')} {rlag}거래일 낡음)"
+    elif not bad:
+        verdict = "충족 — 전 원천 신선(지연 <2거래일)"
+    else:
+        top_t = max(bad, key=lambda t: bad[t])
+        top_l = bad[top_t]
+        verdict = (f"신선도 위반({'CRIT' if top_l >= 5 else 'WARN'} {top_l}거래일: {top_t}"
+                   f" 최신 {(sources.get(top_t) or {}).get('max_date')})")
+    detail = (f"기준 {ref.get('table')}={ref.get('date')}"
+              f"(lag {rlag if rlag is not None else '?'})"
+              f" · 지연 원천 {len(bad)}/{len(lags)}"
+              + ("" if not bad else " " + ", ".join(f"{t}:{bad[t]}" for t in
+                                                   sorted(bad, key=lambda x: -bad[x])[:4]))
+              + f" · 최악 {(worst[0] + ' ' + str(worst[1]) + '거래일') if worst else '없음'}")
+    return {"metric_name": "source_freshness", "reference": ref,
+            "lags": lags, "worst": worst, "errors": d.get("errors") or [],
+            "verdict": verdict, "detail": detail, "summary_mtime": mt}
+
+
+def judge_source_freshness(item, parsed) -> tuple:
+    """CG165 — 원천 신선도 게이트. 모델 팔 실험이 아니므로 delta=None(무개선 카운터 무관)."""
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    return (parsed.get("verdict") or "판정불가"), (parsed.get("detail") or ""), None
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
@@ -3239,6 +3309,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_champion_scorecard(item, parsed)
     if kind == "intraday_screen":
         return judge_intraday_screen(item, parsed)
+    if kind == "source_freshness":
+        return judge_source_freshness(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})
     return judge_per(item, p)
 

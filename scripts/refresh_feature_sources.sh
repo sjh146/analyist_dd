@@ -54,7 +54,12 @@ for spec in "${SPECS[@]}"; do
     if [ "${kind:-}" = "quarterly" ]; then
       :
     else
-      [ "$v" = "$MARKET_MAX" ] || src_stale+="${t} "
+      # 원천이 **뒤처질 때만** 적재를 막는다. 종전 `[ "$v" = "$MARKET_MAX" ]` 는 원천이
+      # 기준 거래일보다 **앞선 경우**(예: macro_indicators date=11-12 vs market_data 11-11)도
+      # "원천 미복구"로 오판해 그 빌더를 영구 차단했다(2026-11-12 20:0x 실측: macro STALE ·
+      # 원천 indicators=2026-11-12 — 앞선 원천인데 적재 보류로 찍혔다). 피처는 기준 거래일까지만
+      # 만들면 되므로 원천이 앞서는 것은 정상이다. 빈 값(테이블 0행)은 stale 로 본다.
+      if [ -z "$v" ] || [[ "$v" < "$MARKET_MAX" ]]; then src_stale+="${t} "; fi
     fi
   done
   verdict="STALE"; [ -z "$src_stale" ] && [ "$f_max" = "$MARKET_MAX" ] && verdict="FRESH"
