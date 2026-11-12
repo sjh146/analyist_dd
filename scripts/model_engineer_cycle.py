@@ -897,6 +897,15 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
             return _container_path_to_host(out.strip("'\""))
         log("경고: fillable_topk_expectancy 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "fillable_topk_spread":
+        # 상위 k vs 하위 k 짝 스프레드 + 5분위 단조성 — scripts/_cg213_spread.py --out (CG213).
+        # 왜 별도 metric 인가(2026-11-13): 기존 돈 지표는 전부 'top-k − 풀평균'이라 '점수가 수익을
+        # 단조로 정렬하는가'를 못 본다. 상위가 하위를 못 이기면 어떤 순위 소비자도 살릴 수 없다.
+        out = _arg(command or "", "--out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: fillable_topk_spread 인데 커맨드에 --out 이 없다 → 요약 없음(판정불가)")
+        return ""
     if kind == "rank_ic_money":
         # 세션별 횡단면 **랭크 IC** 검정 — scripts/rank_ic_money.py --json-out (CG113).
         # 왜 전용 metric 인가(2026-10-05): CG111 실측으로 돈 지표(top-k − 풀평균)의 검출 바닥이
@@ -1564,7 +1573,7 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_seed_family(spath, mtime_floor)
     if kind == "topk_precision":
         return parse_topk_precision(spath, mtime_floor)
-    if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool"):
+    if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_topk_spread"):
         return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "rank_ic_money":
         return parse_rank_ic_money(spath, mtime_floor)
@@ -2205,6 +2214,8 @@ def parse_fillable_topk_expectancy(path, mtime_floor) -> dict:
         "rows": d.get("rows"), "n_sessions_fillable": d.get("n_sessions_fillable"),
         "pool_median_fillable": d.get("pool_median_fillable"),
         "conditions": conds, "summary_mtime": mt,
+        # CG213(fillable_topk_spread) 전용 필드 — 없으면 판정기가 분위 단조성을 못 본다.
+        "row_tag": d.get("row_tag"), "quintile5": d.get("quintile5"),
     }
 
 
@@ -2320,6 +2331,62 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
     if ok_all:
         return "신호있음", detail + " → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)", first
     return "노이즈", detail + " → 사전등록 미충족(베타 초과 미검출)", first
+
+
+def judge_fillable_topk_spread(item, parsed) -> tuple:
+    """점수가 수익을 **단조로 정렬**하는가 — 상위 k vs 하위 k 짝 스프레드 (CG213).
+
+    WHY(2026-11-13): 모든 돈 지표가 'top-k − 풀평균' 형태였는데, 상위가 하위를 이기지 못하면
+    어떤 순위 소비자(top-k·절대문턱·백분위)도 살릴 수 없다. 그 판정에는 **양 끝의 짝 스프레드**와
+    **분위 단조성**이 필요하다(한쪽 k 에서만 t 가 넘는 것은 다중비교 운값).
+
+    사전문턱: k=3 **과** k=5 둘 다 (a) spread(top−bottom) ≥ +0.1%p  (b) t ≥ 2
+              (c) 분할표본(상위 k) 앞/뒤 both_positive  (d) 5분위 Q5>Q1 세션이 과반(>50%)
+    미달이면 '노이즈' = '순위 정보 미검출' 로 기록한다(→ 남은 레버는 데이터 축).
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    fill = ((parsed.get("conditions") or {}).get("fillable") or {})
+    ks = fill.get("k") or {}
+    if not ks:
+        return "판정불가", "conditions.fillable.k 없음(구 스키마)", None
+    q = parsed.get("quintile5") or {}
+    q_ok = isinstance(q.get("q5_gt_q1_pct"), (int, float)) and q["q5_gt_q1_pct"] > 50.0
+    parts, ok_all, first = [], True, None
+    for k in ("3", "5"):
+        b = ks.get(k)
+        if not isinstance(b, dict):
+            return "판정불가", f"k={k} 통계 없음 (keys={list(ks)})", None
+        sp = b.get("spread_top_minus_bottom") or {}
+        hf = b.get("top_halves") or {}
+        d, t = sp.get("delta_mean"), sp.get("t")
+        st = hf.get("stable")
+        good = (isinstance(d, (int, float)) and d >= 0.1
+                and isinstance(t, (int, float)) and t >= 2
+                and st == "both_positive" and q_ok)
+        ok_all = ok_all and good
+        if first is None:
+            first = d
+        if all(isinstance(x, (int, float)) for x in (d, t)):
+            parts.append(
+                f"k={k} top {b['top'].get('mean', float('nan')):+.3f} · "
+                f"bottom {b['bottom'].get('mean', float('nan')):+.3f} · "
+                f"spread {d:+.3f}(t {t}) · 양/음/동 {sp.get('pos')}/{sp.get('neg')}/"
+                f"{sp.get('ties')} · 분할 {st} "
+                f"[{hf.get('front', {}).get('mean', float('nan')):+.3f}/"
+                f"{hf.get('back', {}).get('mean', float('nan')):+.3f}]"
+                + (" " if good else " ✗"))
+        else:
+            parts.append(f"k={k} 통계 결측 ✗")
+    detail = (f"발행 아티팩트 {parsed.get('row_tag') or 'live_all'} · exit {parsed.get('exit')} "
+              f"h{parsed.get('horizon')} · 수수료 왕복 {parsed.get('fee_roundtrip_pct')}%p · "
+              f"세션 {parsed.get('n_sessions_fillable')} · " + " · ".join(parts)
+              + f" · 5분위 Q5>Q1 {q.get('sessions_q5_gt_q1')}/{q.get('n_sessions')} "
+                f"({q.get('q5_gt_q1_pct')}%) " + ("" if q_ok else "✗ ")
+              + "· 사전문턱: spread≥+0.1%p & t≥2 & 분할 both_positive & Q5>Q1 과반")
+    if ok_all:
+        return "신호있음", detail + " → 순위가 수익을 정렬(승격은 별도 절차)", first
+    return "노이즈", detail + " → 사전등록 미충족(순위 정보 미검출)", first
 
 
 def parse_blend_eval(path, mtime_floor) -> dict:
@@ -3309,6 +3376,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_fillable_topk_expectancy(item, parsed)
     if kind == "fillable_topk_vs_pool":
         return judge_fillable_topk_vs_pool(item, parsed)
+    if kind == "fillable_topk_spread":
+        return judge_fillable_topk_spread(item, parsed)
     if kind == "rank_ic_money":
         return judge_rank_ic_money(item, parsed)
     if kind == "factor_money_screen":
