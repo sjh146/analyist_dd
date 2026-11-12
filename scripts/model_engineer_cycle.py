@@ -1592,6 +1592,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_h5_time_profile(spath, mtime_floor)
     if kind == "capital_path_compare":
         return parse_capital_path_compare(spath, mtime_floor)
+    if kind in ("h5_regime_exit", "hold_horizon_capital"):
+        return parse_h5_regime_exit(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
@@ -2699,6 +2701,15 @@ def judge_capital_path_compare(item, parsed) -> tuple:
               f"낙폭 배수 {ratio:.2f}x" if ratio is not None else
               f"tag {parsed.get('tag')} A {am:+.4f}%p B {bm:+.4f}%p")
     eff = bc >= ac + 0.05
+    noise_arms = [str(x) for x in (parsed.get("noise_arms") or [])]
+    sel_k = str(parsed.get("k"))
+    if sel_k in noise_arms:
+        return ("노이즈 — 문턱 통과했으나 짝 Δ t<2", detail +
+                " · 자본세션 점추정은 문턱을 넘지만 같은 세션 짝 Δ 의 t 가 2 미만이면 "
+                "표본 잡음이다(점추정 승격 금지)", bc)
+    if "pass" in parsed and not parsed.get("pass"):
+        return ("A 유지 — 사전문턱 미충족", detail +
+                " · 스크립트가 계산한 통과 변형 없음(pass=[])", bc)
     if eff and ratio is not None and ratio <= 1.5:
         return ("경로 변경 검토 근거", detail +
                 " · 사전문턱: 자본세션 +0.05%p 이상 & 낙폭 1.5배 이내 → 충족(트레이더 경로는 ②승인)", bc)
@@ -2708,6 +2719,81 @@ def judge_capital_path_compare(item, parsed) -> tuple:
                 "실계좌 한도에서 운용 불가" if ratio is not None else
                 " · 낙폭 통계 없음", bc)
     return "A 유지 — 자본효율 우위 없음", detail + " · 사전문턱(+0.05%p/자본세션) 미충족", bc
+
+
+def parse_h5_regime_exit(path, mtime_floor=0.0) -> dict:
+    """시장 레짐 조기청산(CG228, scripts/_cg228_regime.py --out) 요약을 파싱한다.
+
+    스키마: {"metric_name":"h5_regime_exit","tag","k","h5","path_a_h1","path_b_h5",
+             "nonoverlap_compare","variants":{"none"|"reg_1p5"|...},"diagnostics","pass"}
+    판정에 쓰는 값은 `pass`(사전문턱 통과 변형 목록)와 nonoverlap_compare.mdd_ratio 뿐이다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if not isinstance(d.get("path_a_h1"), dict) or not isinstance(d.get("path_b_h5"), dict):
+        return {"error": "path_a/path_b 통계 없음(계측 실패)", "summary_mtime": mt}
+    if not isinstance(d.get("variants"), dict):
+        return {"error": "variants 없음(레짐 변형 미계측)", "summary_mtime": mt}
+    d["summary_mtime"] = mt
+    return d
+
+
+def judge_h5_regime_exit(item, parsed) -> tuple:
+    """CG228 판정 — 레짐 청산으로 자본효율을 지키며 낙폭 배수를 1.5x 이내로 낮췄는가.
+
+    왜 사전문턱이 '자본세션 ≥ A+0.05%p & 비중첩 MDD ≤1.5x' 인가: h5 는 자본 회전이 1/5 이라
+    세션당 Δ 를 그대로 비교하면 5배 과대평가된다. 그리고 수익이 커도 낙폭이 3~4배면 실계좌 한도
+    (총 100%·일 손실 3%) 아래에서 운용 불가다. 진단(시장하락 코호트 vs 상승 코호트 수익)은
+    판정에 쓰지 않고, '레짐 규칙이 어느 방향으로 틀렸는지'를 다음 가설에 남기는 용도다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    A = parsed.get("path_a_h1") or {}
+    B = parsed.get("path_b_h5") or {}
+    nov = parsed.get("nonoverlap_compare") or {}
+    diag = parsed.get("diagnostics") or {}
+    sel = parsed.get("selected_variant")
+    ratio = nov.get("mdd_ratio")
+    ac, bc = A.get("capital_session"), B.get("capital_session")
+    if not all(isinstance(x, (int, float)) for x in (ac, bc, ratio)):
+        return "판정불가", "capital_session/mdd_ratio 결측", None
+    a_mdd = nov.get("a_mdd_pct")
+
+    def _vr(v):
+        m = (v.get("nonoverlap") or {}).get("mdd_pct")
+        if not isinstance(m, (int, float)):
+            return "?"
+        return f"{abs(m) / abs(a_mdd):.2f}x" if isinstance(a_mdd, (int, float)) and a_mdd else f"{abs(m):.2f}%"
+
+    var_txt = " / ".join(
+        f"{k} cap {v.get('capital_session'):+.4f}·{_vr(v)}"
+        for k, v in (parsed.get("variants") or {}).items()
+        if isinstance(v, dict) and isinstance(v.get("capital_session"), (int, float)))
+    detail = (f"tag {parsed.get('tag')} k{parsed.get('k')} h{parsed.get('h5')} · 체결성 필터 ON · "
+              f"A(h1) {A.get('sessions')}세션 자본세션 {ac:+.4f}·MDD {nov.get('a_mdd_pct')}% · "
+              f"최선 레짐변형 {sel} 자본세션 {bc:+.4f}·비중첩 MDD {nov.get('b_mdd_pct')}%·"
+              f"낙폭 배수 {ratio:.2f}x · 변형별 [{var_txt}] · "
+              f"진단: 시장하락 코호트 {diag.get('cohorts_market_down')}개 "
+              f"{diag.get('mean_pct_market_down')}%p vs 상승 {diag.get('cohorts_market_up')}개 "
+              f"{diag.get('mean_pct_market_up')}%p")
+    if parsed.get("pass"):
+        return ("경로 변경 검토 근거", detail +
+                " · 사전문턱: 자본세션 +0.05%p 이상 & 낙폭 1.5배 이내 → 충족(트레이더 경로는 ②승인)", bc)
+    if ratio <= 1.5:
+        return "A 유지 — 자본효율 우위 없음", detail + " · 낙폭은 통과하나 자본세션 문턱 미충족", bc
+    return ("A 유지 — 낙폭 악화(레짐 규칙도 미달)", detail +
+            f" · 레짐 청산으로 낙폭 배수를 1.5x 이내로 못 내림({ratio:.2f}x) → h5 축 종결 근거", bc)
 
 
 def parse_blend_eval(path, mtime_floor) -> dict:
@@ -3691,6 +3777,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_h5_time_profile(item, parsed)
     if kind == "capital_path_compare":
         return judge_capital_path_compare(item, parsed)
+    if kind in ("h5_regime_exit", "hold_horizon_capital"):
+        return judge_h5_regime_exit(item, parsed)
     if kind == "blend_eval":
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":

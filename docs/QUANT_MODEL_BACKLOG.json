@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T03:04:02+09:00",
+ "updated_at": "2026-11-13T04:10:28+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -16649,6 +16649,282 @@
     "verdict": "A 유지 — 낙폭 악화",
     "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +1.4999%p/코호트·자본세션 +0.3000·MDD -15.313% · 비중첩 코호트 None · 낙폭 배수 3.82x · 자본효율은 우위지만 낙폭이 3.8x 로 사전문턱(1.5x) 초과 → 실계좌 한도에서 운용 불가",
     "delta": 0.3,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG228",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "h5_regime_exit",
+   "from_experiment": "CG227",
+   "title": "[h5 축·마지막 수단] 시장 하락 시 조기청산(레짐 규칙)으로 h5 낙폭 배수를 1.5x 이내로 낮출 수 있는가",
+   "hypothesis": "CG224(3.82x)·CG226(손절 최선 3.39x)·CG227(폭 확대 6.0~13.0x) 모두 문턱 미달. 남은 설명은 손실의 시점 집중이다 — h5 손실이 '개별 종목 급락'이 아니라 '시장 하락 구간'에 몰려 있다면, 보유 중 누적 시장수익률 기준의 조기청산이 수익 대부분을 보존하면서 낙폭만 깎을 수 있다.",
+   "counterfactual": "같은 예측·같은 필터·같은 수수료에서 규칙 없음(CG224 B 경로) vs 누적 시장 ≤ −1.5/−2.5/−4.0% → 다음 시가 청산 · 시장 = 체결가능 유니버스 동일가중 일간수익률",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg228_regime.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_smooth_d1_h5 --k 5 --h5 5 --out /app/reports/overnight/cg228_regime.json'",
+   "summary_out": "/app/reports/overnight/cg228_regime.json",
+   "arm": "CO_smooth_d1_h5",
+   "baseline": "A(h1) 익일시가청산 · 널=그날 체결가능 풀평균",
+   "success": "변형 중 자본-세션 ≥ A+0.05%p AND 비중첩 MDD 배수 ≤1.5x 를 만족하는 조합이 있으면 '경로 변경 검토 근거'(트레이더 경로 → ②승인). 없으면 h5 축 최종 종결(손절·폭·레짐 3수단 전패)로 기록하고 이 축에 새 항목을 만들지 않는다.",
+   "expected": "레짐 청산이 낙폭을 20~40% 줄이지만 배수 3.4x→2x 대 수준에 그칠 것 — 1.5x 통과는 어려울 것으로 본다(시장하락 코호트 비중이 낮으면 규칙이 발동할 구간이 없다).",
+   "cost": "낮음(학습 0회, 기존 예측 + 일봉 조회)",
+   "ready_script": "scripts/_cg228_regime.py",
+   "est_minutes": 5,
+   "depends_on": [
+    "CG227"
+   ],
+   "created_at": "2026-11-13T03:20:00+09:00",
+   "note": "2026-11-13 03:2x 엔지니어 자율(장외 루프) — h5 축 종결 직전 마지막 수단. 이 항목이 실패하면 h5 축은 닫고 데이터 축(CG73/XR26)으로만 간다.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T04:02:04+09:00",
+     "rc": 0,
+     "verdict": "A 유지 — 낙폭 악화(레짐 규칙도 미달)",
+     "detail": "tag CO_smooth_d1_h5 k5 h5 · 체결성 필터 ON · A(h1) 240세션 자본세션 +0.0521·MDD -4.013% · 최선 레짐변형 reg_1p5 자본세션 +0.3195·비중첩 MDD -11.688%·낙폭 배수 2.91x · 변형별 [none cap +0.3000·3.82x / reg_1p5 cap +0.3195·2.91x / reg_2p5 cap +0.3093·4.25x / reg_4p0 cap +0.3066·4.05x] · 진단: 시장하락 코호트 24개 2.4297%p vs 상승 24개 0.57%p · 레짐 청산으로 낙폭 배수를 1.5x 이내로 못 내림(2.91x) → h5 축 종결 근거",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG228_20261113-040200.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "A 유지 — 낙폭 악화(레짐 규칙도 미달)",
+    "detail": "tag CO_smooth_d1_h5 k5 h5 · 체결성 필터 ON · A(h1) 240세션 자본세션 +0.0521·MDD -4.013% · 최선 레짐변형 reg_1p5 자본세션 +0.3195·비중첩 MDD -11.688%·낙폭 배수 2.91x · 변형별 [none cap +0.3000·3.82x / reg_1p5 cap +0.3195·2.91x / reg_2p5 cap +0.3093·4.25x / reg_4p0 cap +0.3066·4.05x] · 진단: 시장하락 코호트 24개 2.4297%p vs 상승 24개 0.57%p · 레짐 청산으로 낙폭 배수를 1.5x 이내로 못 내림(2.91x) → h5 축 종결 근거",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG229",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "hold_horizon_capital",
+   "from_experiment": "CG228",
+   "title": "[청산지평 축] 보유 1~5세션 전수 스윕 — 낙폭은 'h5' 탓인가, 신호 변동성 탓인가",
+   "hypothesis": "낙폭 억제 3수단(손절 3.08~3.39x · 폭확대 6.0~13.0x · 시장레짐 2.91x)이 모두 1.5x 문턱을 넘겼다. 그러나 모두 'h5 라는 지평'을 고정한 채 낙폭만 깎으려 했다. 지평 자체를 h=2·3·4 로 줄이면 자본 회전이 개선되고 겹치는 코호트 수가 줄어 낙폭이 비선형으로 내려갈 수 있다 — 위험/수익 경계를 전수로 그려야 '경로 변경이 가능한 지평이 존재하는가'에 답할 수 있다.",
+   "counterfactual": "같은 예측·같은 필터·같은 수수료에서 h=1(현행 A) vs h=2/3/4/5 · 손절 없음 · 자본-세션 = mean(r_h)/h 로 회전 정규화",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg229_hold_sweep.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_smooth_d1_h5 --k 5 --out /app/reports/overnight/cg229_hold.json'",
+   "summary_out": "/app/reports/overnight/cg229_hold.json",
+   "arm": "CO_smooth_d1_h5",
+   "baseline": "A(h1) 자본세션 +0.0521%p·비중첩 MDD −4.013 (CG224 회귀) · 널=그날 체결가능 풀평균",
+   "success": "h∈{2,3,4,5} 중 자본-세션 ≥ A+0.05%p AND 비중첩 MDD 배수 ≤1.5x 를 만족하는 h 가 있으면 '경로 변경 검토 근거'(트레이더 경로 → ②승인). 없으면 청산지평 축 전체 종결(손절·폭·레짐·지평 4수단 전패)로 기록.",
+   "expected": "자본-세션은 h=2~3 에서 최대, 낙폭 배수는 h 에 단조 증가할 것. 1.5x 통과는 어려울 것으로 보나, 통과 실패 시에도 '어느 지평이 한계효율인가'를 남긴다.",
+   "cost": "낮음(학습 0회, 기존 예측 재사용)",
+   "ready_script": "scripts/_cg229_hold_sweep.py",
+   "est_minutes": 5,
+   "depends_on": [
+    "CG228"
+   ],
+   "created_at": "2026-11-13T04:15:00+09:00",
+   "note": "2026-11-13 04:1x 엔지니어 자율(장외 루프) — CG228 종결 후 지평 축 전수 스윕. 이 항목이 실패하면 h5·청산규칙 축은 닫고 데이터 축(CG73/XR26) 승인 요청으로만 간다. 1차 실행(04:04)은 A(h1) 경로를 close→close 로 잡아 회귀 불일치(+0.0521 기준 → −0.0287 실측)였고, A 낙폭을 일별(중첩)로 잡아 비율이 0.46x 로 무효 판정이 나왔다 → 경로 정의·코호트 크기 정합 후 재실행. 그 판정은 폐기.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T04:04:17+09:00",
+     "rc": 0,
+     "verdict": "경로 변경 검토 근거",
+     "detail": "tag CO_smooth_d1_h5 k5 h2 · 체결성 필터 ON · A(h1) 240세션 자본세션 -0.0287·MDD -33.466% · 최선 레짐변형 h2 자본세션 +0.3113·비중첩 MDD -15.407%·낙폭 배수 0.46x · 변형별 [h1 cap -0.0287·1.00x / h2 cap +0.3113·0.46x / h3 cap +0.2964·0.42x / h4 cap +0.2873·0.55x / h5 cap +0.3000·0.46x] · 진단: 시장하락 코호트 None개 None%p vs 상승 None개 None%p · 사전문턱: 자본세션 +0.05%p 이상 & 낙폭 1.5배 이내 → 충족(트레이더 경로는 ②승인)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG229_20261113-040413.log",
+     "elapsed_min": 0.1
+    },
+    {
+     "ts": "2026-11-13T04:05:00+09:00",
+     "rc": 0,
+     "verdict": "경로 변경 검토 근거",
+     "detail": "tag CO_smooth_d1_h5 k5 h2 · 체결성 필터 ON · A(h1) 240세션 자본세션 +0.0521·MDD -10.351% · 최선 레짐변형 h2 자본세션 +0.3113·비중첩 MDD -15.407%·낙폭 배수 1.49x · 변형별 [h2 cap +0.3113·1.49x / h3 cap +0.2964·1.35x / h4 cap +0.2873·1.79x / h5 cap +0.3000·1.48x] · 진단: 시장하락 코호트 None개 None%p vs 상승 None개 None%p · 사전문턱: 자본세션 +0.05%p 이상 & 낙폭 1.5배 이내 → 충족(트레이더 경로는 ②승인)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG229_20261113-040455.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "경로 변경 검토 근거",
+    "detail": "tag CO_smooth_d1_h5 k5 h2 · 체결성 필터 ON · A(h1) 240세션 자본세션 +0.0521·MDD -10.351% · 최선 레짐변형 h2 자본세션 +0.3113·비중첩 MDD -15.407%·낙폭 배수 1.49x · 변형별 [h2 cap +0.3113·1.49x / h3 cap +0.2964·1.35x / h4 cap +0.2873·1.79x / h5 cap +0.3000·1.48x] · 진단: 시장하락 코호트 None개 None%p vs 상승 None개 None%p · 사전문턱: 자본세션 +0.05%p 이상 & 낙폭 1.5배 이내 → 충족(트레이더 경로는 ②승인)",
+    "delta": 0.3113,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG230",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "hold_horizon_capital",
+   "from_experiment": "CG229",
+   "title": "[청산지평 축·강건성] h2 통과(낙폭 배수 1.49x)가 문턱에 붙은 우연인가 — 코호트 블록 부트스트랩",
+   "hypothesis": "CG229 실측: h2 자본세션 +0.3113%p(A의 5.97배)·코호트 낙폭 배수 1.49x 로 문턱(1.5x)을 0.01 차이로 통과. 이 정도 여유는 코호트 재표집만으로 뒤집힌다 — 통과가 표본 우연이면 ②승인 상정 불가.",
+   "counterfactual": "같은 예측·같은 필터·같은 비용에서 (a) 전체 240세션 점추정 (b) h2 코호트 120쌍 블록 부트스트랩 2000회(seed 20261113)로 낙폭 배수 분포 | 성공(사전등록): 중앙 ≤1.5x AND 1.5x 이하 draw 비중 ≥50% → h2 후보 유지(②승인 상정). 미달 → h2 후보 폐기, 청산지평 축 종결.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg229_hold_sweep.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_smooth_d1_h5 --k 5 --bootstrap 2000 --out /app/reports/overnight/cg230_hold_boot.json'",
+   "summary_out": "/app/reports/overnight/cg230_hold_boot.json",
+   "arm": "CO_smooth_d1_h5",
+   "baseline": "A(h1) 익일시가청산 회귀 기준 +0.0521%p/세션·일별 MDD −20.176 · 같은 크기 코호트 낙폭",
+   "success": "부트스트랩 중앙 낙폭배수 ≤1.5x AND 1.5x 이하 draw 비중 ≥50% → h2 후보 유지. 미달 → h2 폐기·청산지평 축 종결(손절·폭·레짐·지평·강건성 5수단).",
+   "expected": "1.49x 는 문턱에 붙은 값이라 draw 의 40~55% 만 통과할 것으로 본다 — 그러면 '통과'가 아니라 '경계선'으로 기록한다.",
+   "cost": "낮음(학습 0회, 기존 예측 재사용)",
+   "ready_script": "scripts/_cg229_hold_sweep.py",
+   "est_minutes": 5,
+   "depends_on": [
+    "CG229"
+   ],
+   "created_at": "2026-11-13T04:30:00+09:00",
+   "note": "2026-11-13 04:3x 엔지니어 자율(장외 루프) — CG229 의 1.49x 는 사전문턱 1.5x 에 0.01 차이로 붙은 값이다. 문턱 통과를 '신호'로 올리기 전에 재표집 분포를 본다.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T04:05:56+09:00",
+     "rc": 0,
+     "verdict": "A 유지 — 자본효율 우위 없음",
+     "detail": "tag CO_smooth_d1_h5 k5 h2 · 체결성 필터 ON · A(h1) 240세션 자본세션 +0.0521·MDD -10.351% · 최선 레짐변형 h2 자본세션 +0.3113·비중첩 MDD -15.407%·낙폭 배수 1.49x · 변형별 [h2 cap +0.3113·1.49x / h3 cap +0.2964·1.35x / h4 cap +0.2873·1.79x / h5 cap +0.3000·1.48x] · 진단: 시장하락 코호트 None개 None%p vs 상승 None개 None%p · 낙폭은 통과하나 자본세션 문턱 미충족",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG230_20261113-040550.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "A 유지 — 자본효율 우위 없음",
+    "detail": "tag CO_smooth_d1_h5 k5 h2 · 체결성 필터 ON · A(h1) 240세션 자본세션 +0.0521·MDD -10.351% · 최선 레짐변형 h2 자본세션 +0.3113·비중첩 MDD -15.407%·낙폭 배수 1.49x · 변형별 [h2 cap +0.3113·1.49x / h3 cap +0.2964·1.35x / h4 cap +0.2873·1.79x / h5 cap +0.3000·1.48x] · 진단: 시장하락 코호트 None개 None%p vs 상승 None개 None%p · 낙폭은 통과하나 자본세션 문턱 미충족",
+    "delta": 0.3113,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG231",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "capital_path_compare",
+   "from_experiment": "CG230",
+   "title": "[진입 폭 축] 현행 경로 그대로 top-k 를 좁히면(1·2·3) 자본-세션 기대가 오르는가",
+   "hypothesis": "청산지평·경로 축은 5수단 전패로 닫혔다. 현행 경로(A: 익일 시가 청산)에서 바꿀 수 있는 유일한 손잡이는 진입 폭 k 다 — 상위 소수만 사면 세션당 기대는 오르고 자본 노출은 줄어 낙폭도 함께 줄 수 있다. 트레이더 한도(일 3건·종목 1/3) 안에서 즉시 반영 가능한 축이다.",
+   "counterfactual": "같은 예측·같은 체결성 필터·같은 수수료에서 k=5(현행) vs k=1/2/3 · 청산은 모두 익일 시가 · 낙폭은 5일 묶음 코호트(공통 크기)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg231_k_sweep.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_smooth_d1_h5 --out /app/reports/overnight/cg231_k.json'",
+   "summary_out": "/app/reports/overnight/cg231_k.json",
+   "arm": "CO_smooth_d1_h5",
+   "baseline": "k=5 A 경로 자본세션 +0.0521%p·일별 MDD −20.176 (CG224 회귀) · 널=그날 체결가능 풀평균",
+   "success": "k<5 중 자본세션 ≥ k5+0.05%p AND 코호트 낙폭 배수 ≤1.5x → '진입 폭 변경 검토'(트레이더 설정 k). 없으면 진입 폭 축 종결.",
+   "expected": "k=1~2 에서 세션 기대가 오르지만 표본(240세션)에서 t 가 1 미만일 것 — 그러면 '노이즈'로 닫는다.",
+   "cost": "낮음(학습 0회, 기존 예측 재사용)",
+   "ready_script": "scripts/_cg231_k_sweep.py",
+   "est_minutes": 5,
+   "depends_on": [
+    "CG230"
+   ],
+   "created_at": "2026-11-13T04:45:00+09:00",
+   "note": "2026-11-13 04:4x 엔지니어 자율(장외 루프) — 경로 변경 없이 반영 가능한 마지막 축(진입 폭).",
+   "attempts": [
+    {
+     "ts": "2026-11-13T04:08:37+09:00",
+     "rc": 0,
+     "verdict": "경로 변경 검토 근거",
+     "detail": "tag CO_smooth_d1_h5 k1 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +0.1606%p/코호트·자본세션 +0.1606·MDD -4.066% · 비중첩 코호트 48 · 낙폭 배수 1.01x · 사전문턱: 자본세션 +0.05%p 이상 & 낙폭 1.5배 이내 → 충족(트레이더 경로는 ②승인)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG231_20261113-040834.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-13T04:08:54+09:00",
+     "rc": 1,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 1 — KeyError: 'k1'",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG231_20261113-040852.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-13T04:09:02+09:00",
+     "rc": 0,
+     "verdict": "경로 변경 검토 근거",
+     "detail": "tag CO_smooth_d1_h5 k1 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +0.1606%p/코호트·자본세션 +0.1606·MDD -4.066% · 비중첩 코호트 48 · 낙폭 배수 1.01x · 사전문턱: 자본세션 +0.05%p 이상 & 낙폭 1.5배 이내 → 충족(트레이더 경로는 ②승인)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG231_20261113-040859.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-13T04:09:42+09:00",
+     "rc": 0,
+     "verdict": "노이즈 — 문턱 통과했으나 짝 Δ t<2",
+     "detail": "tag CO_smooth_d1_h5 k1 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +0.1606%p/코호트·자본세션 +0.1606·MDD -4.066% · 비중첩 코호트 48 · 낙폭 배수 1.01x · 자본세션 점추정은 문턱을 넘지만 같은 세션 짝 Δ 의 t 가 2 미만이면 표본 잡음이다(점추정 승격 금지)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG231_20261113-040939.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "노이즈 — 문턱 통과했으나 짝 Δ t<2",
+    "detail": "tag CO_smooth_d1_h5 k1 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +0.1606%p/코호트·자본세션 +0.1606·MDD -4.066% · 비중첩 코호트 48 · 낙폭 배수 1.01x · 자본세션 점추정은 문턱을 넘지만 같은 세션 짝 Δ 의 t 가 2 미만이면 표본 잡음이다(점추정 승격 금지)",
+    "delta": 0.1606,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG232",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "capital_path_compare",
+   "from_experiment": "CG231",
+   "title": "[레짐 필터 축] 직전 세션이 하락이었을 때만 진입하면 세션 기대가 오르는가 — 배포 가능한 진입 필터",
+   "hypothesis": "CG228 진단에서 h5 보유 코호트의 수익이 시장하락 구간 +2.43%p vs 상승 구간 +0.57%p 로 갈렸다(코호트 24 vs 24). 이 비대칭이 보유지평 때문인지 선택 실력의 레짐 의존인지 확인이 필요하다. h1 경로(현행 그대로)에서 '직전 세션 시장수익률 ≤0 일 때만 진입'이 기대를 올리고 낙폭을 낮춘다면, 경로·한도 변경 없이 배포 가능한 진입 필터다.",
+   "counterfactual": "같은 예측·같은 체결성 필터·같은 수수료에서 전체 세션 k5(현행) vs 직전 세션 시장수익률 ≤0 인 세션만 k5 · 청산은 모두 익일 시가",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg231_k_sweep.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_smooth_d1_h5 --regime down --out /app/reports/overnight/cg232_regime_down.json'",
+   "summary_out": "/app/reports/overnight/cg232_regime_down.json",
+   "arm": "CO_smooth_d1_h5",
+   "baseline": "전체 세션 k5 자본세션 +0.0521%p·코호트 MDD −4.013 (회귀 기준 동일) · 널=그날 체결가능 풀평균",
+   "success": "하락레짐 부분표본의 자본세션 ≥ 전체 +0.05%p AND 코호트 낙폭 배수 ≤1.5x AND 그 부분표본 세션 t≥2 → '진입 필터 검토'(트레이더 진입 조건 ②승인). t<2 면 노이즈로 닫는다.",
+   "expected": "부분표본 120세션 안팎이라 t 가 2 를 못 넘을 가능성이 높다 — 그러면 레짐 필터는 노이즈로 종결하고, 남은 레버는 데이터 축(CG73/XR26)뿐임을 근거로 남긴다.",
+   "cost": "낮음(학습 0회, 기존 예측 + 일봉 조회)",
+   "ready_script": "scripts/_cg231_k_sweep.py",
+   "est_minutes": 5,
+   "depends_on": [
+    "CG231"
+   ],
+   "created_at": "2026-11-13T05:00:00+09:00",
+   "note": "2026-11-13 05:0x 엔지니어 자율(장외 루프) — 청산지평·진입폭 축이 모두 노이즈/미달로 닫힌 뒤 남은 '경로 무변경' 축. 1차 실행(04:09) rc=2 — 레짐 조회 키(date 객체 vs 문자열) 불일치로 부분표본 0세션. 키 정규화 후 재실행. 실측: 하락레짐 109세션 자본세션 +0.1556%p(전체 +0.0521의 3배)·코호트 낙폭 −2.006(0.50x)이나 1표본 t 0.95 → 사전문턱(t≥2) 미달 = 노이즈.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T04:09:55+09:00",
+     "rc": 2,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 2",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG232_20261113-040953.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-13T04:10:06+09:00",
+     "rc": 1,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 1 — ValueError: max() arg is an empty sequence",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG232_20261113-041003.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-13T04:10:16+09:00",
+     "rc": 0,
+     "verdict": "A 유지 — 사전문턱 미충족",
+     "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +0.0521%p/코호트·자본세션 +0.0521·MDD -4.013% · 비중첩 코호트 48 · 낙폭 배수 1.00x · 스크립트가 계산한 통과 변형 없음(pass=[])",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG232_20261113-041014.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-13T04:10:28+09:00",
+     "rc": 0,
+     "verdict": "노이즈 — 문턱 통과했으나 짝 Δ t<2",
+     "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 109코호트 +0.1556%p/코호트·자본세션 +0.1556·MDD -2.006% · 비중첩 코호트 21 · 낙폭 배수 0.50x · 자본세션 점추정은 문턱을 넘지만 같은 세션 짝 Δ 의 t 가 2 미만이면 표본 잡음이다(점추정 승격 금지)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG232_20261113-041026.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "노이즈 — 문턱 통과했으나 짝 Δ t<2",
+    "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 109코호트 +0.1556%p/코호트·자본세션 +0.1556·MDD -2.006% · 비중첩 코호트 21 · 낙폭 배수 0.50x · 자본세션 점추정은 문턱을 넘지만 같은 세션 짝 Δ 의 t 가 2 미만이면 표본 잡음이다(점추정 승격 금지)",
+    "delta": 0.1556,
     "per_exp": null,
     "rc": 0
    }
