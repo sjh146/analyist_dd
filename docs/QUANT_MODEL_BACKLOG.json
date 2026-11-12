@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-13T01:13:51+09:00",
+  "updated_at": "2026-11-13T01:17:40+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -16347,6 +16347,28 @@
       "expected": "h5 축이 살아남으면 '배포 청산규칙(next_open h1)'이 정보 없는 구간을 취하고 있다는 뜻이 되어, 운용 경로 변경(②승인)의 정량 근거가 된다.",
       "cost": "중 (2 arm × 8폴드 × 5시드 학습 1회 + 계측 2회, 10~20분)",
       "created_at": "2026-11-13T01:13:51+09:00"
+    },
+    {
+      "id": "CG221",
+      "status": "pending",
+      "priority": 2,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "vol_beta_decomp",
+      "from_experiment": "CG219",
+      "title": "[돈 지표·교란] h5 초과수익(비중첩 Δ+2.391%p)이 변동성 노출의 부산물인가 — 변동성 매칭 널 + 위험조정 Δ",
+      "hypothesis": "CG219 가 모멘텀(+0.316, t 0.63)과 종목 고정효과(−0.012, t −0.05)를 기각했지만 변동성·베타는 미검증이다. CG213 에서 top-k sd 2.12 vs 풀 0.92 로 이미 고변동 정황이 있었다. top5 각 종목을 같은 변동성 5분위의 무작위 종목으로 치환했을 때 Δ 가 붕괴하면 '선택 실력'이 아니라 '변동성 베팅'이다.",
+      "counterfactual": "(a) 원 Δ (b) 변동성 5분위 매칭 치환 널 (c) 20일 변동성으로 나눈 위험조정 Δ — 같은 세션·같은 수수료",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg221_vol.py --panel /app/app/models/wf/panel_prod200.npz --preds /app/reports/overnight/cg214_preds.jsonl --tag CO_smooth_d1_h5 --out /app/reports/overnight/cg221_vol.json'",
+      "summary_out": "/app/reports/overnight/cg221_vol.json",
+      "est_minutes": 3,
+      "success": "(b) 매칭 Δ 가 (a) 의 1/2 이하로 붕괴 → h5 이득 = 변동성 노출(축 종결). (b) 가 (a) 의 70% 이상 유지 & t≥2 → 선택 실력(승격 검토로).",
+      "cost": "낮음 (학습 0회, 읽기 전용 1~3분)",
+      "depends_on": [
+        "CG220"
+      ],
+      "created_at": "2026-11-13T01:17:40+09:00"
     }
   ],
   "updated": "2026-11-09T20:12+09:00"
