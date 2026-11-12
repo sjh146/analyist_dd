@@ -764,7 +764,12 @@ def next_item(backlog, force=False):
 
 
 # ── 지표 파싱 (자기신고 금지 — 요약 JSON 에서 직접 계산) ───────────────────────
-def summary_path(kind, command=None, summary_out=None):
+def summary_path(kind, command=None, summary_out=None, quiet=False):
+    # quiet=True 는 **스캔 경로 전용**(rejudge_parser_gap 이 모든 항목의 경로를 계산할 때).
+    # 왜(실측 2026-11-12 21:0x): 그 스캔이 pending/backlog/needs_setup 전 항목에 대해 이 함수를
+    # 부르므로, 파서가 아직 없는 metric(prediction_run_mix_audit·publish_input_skew 등)마다
+    # 매 틱 "알 수 없는 metric … (판정불가로 기록)"이 찍혔다 — 실제로는 아무것도 기록되지 않는
+    # 스캔인데 사람이 읽는 보고에 '판정불가 기록'이 4줄씩 쌓여 실패로 오독된다.
     # 항목이 산출물 경로를 **직접 선언**한 경우(summary_out) 그 경로를 최우선으로 쓴다.
     # 왜(실측 2026-11-10 CG186): command 가 래퍼 스크립트(`sh scripts/cg186_retrain_audit.sh`)면
     # --out/--summary-out 플래그가 커맨드 문자열에 없어 구동기가 기본 경로를 본다 → 래퍼가 실제로는
@@ -1064,7 +1069,7 @@ def summary_path(kind, command=None, summary_out=None):
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
     # ① 원장 기록 없이 사라지고(설계원칙 4 위반) ② 틱이 그 항목을 영원히 집지 못하게 했다.
     # 빈 경로면 "요약 없음 → 판정불가" 로 정직하게 끝난다(성능 주장 없음).
-    if kind:
+    if kind and not quiet:
         log(f"경고: 알 수 없는 metric {kind!r} — 요약 경로 없음(판정불가로 기록)")
     return ""
 
@@ -4482,7 +4487,8 @@ def recover_unrecorded(backlog, max_age_h=12, dry_run=False):
         if not (it.get("metric") and it.get("command")):
             continue
         try:
-            spath = summary_path(it.get("metric") or "", it.get("command"), it.get("summary_out"))
+            spath = summary_path(it.get("metric") or "", it.get("command"), it.get("summary_out"),
+                                 quiet=True)
         except Exception:
             continue
         if not spath or not os.path.exists(spath):
