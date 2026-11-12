@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T05:20:41+09:00",
+ "updated_at": "2026-11-13T06:04:49+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -17079,7 +17079,7 @@
   },
   {
    "id": "CG236",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "kind": "experiment",
    "owner": "engineer",
@@ -17102,11 +17102,28 @@
     "CG235"
    ],
    "created_at": "2026-11-13T05:17:00+09:00",
-   "note": "2026-11-13 05:1x 엔지니어 자율 — CG235 후속(정규화 민감도). CG235 신호가 나올 때만 의미가 있다."
+   "note": "2026-11-13 05:1x 엔지니어 자율 — CG235 후속(정규화 민감도). CG235 신호가 나올 때만 의미가 있다.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T06:04:24+09:00",
+     "rc": 0,
+     "verdict": "앵커 잡음과 구분 불가(|Δ평균| -0.0004 < 앵커 std 0.0004) → 이 델타는 축 종결 근거로만 쓴다",
+     "detail": "앵커 3개 짝 Δ 2026-10-20:-0.0004 2026-10-27:-0.0008 2026-11-02:+0.0001 · 평균 -0.0004±0.0004 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 False · 레벨 std {'ctl': 0.0036, 'arm': 0.0037} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG236_20261113-060326.log",
+     "elapsed_min": 1.0
+    }
+   ],
+   "result": {
+    "verdict": "앵커 잡음과 구분 불가(|Δ평균| -0.0004 < 앵커 std 0.0004) → 이 델타는 축 종결 근거로만 쓴다",
+    "detail": "앵커 3개 짝 Δ 2026-10-20:-0.0004 2026-10-27:-0.0008 2026-11-02:+0.0001 · 평균 -0.0004±0.0004 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 False · 레벨 std {'ctl': 0.0036, 'arm': 0.0037} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG237",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "experiment",
    "owner": "engineer",
@@ -17129,8 +17146,81 @@
     "CG235"
    ],
    "created_at": "2026-11-13T05:28:00+09:00",
-   "note": "2026-11-13 05:2x 엔지니어 자율 — CG235 문턱 미달(+0.0159) 후 가장 값싼 확장. 부호가 3/3 유지되는 축이라 문턱 근처까지 밀어볼 가치가 있다."
+   "note": "2026-11-13 05:2x 엔지니어 자율 — CG235 문턱 미달(+0.0159) 후 가장 값싼 확장. 부호가 3/3 유지되는 축이라 문턱 근처까지 밀어볼 가치가 있다.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T06:03:07+09:00",
+     "rc": 0,
+     "verdict": "앵커 잡음과 구분 불가(|Δ평균| +0.0002 < 앵커 std 0.0013) → 이 델타는 축 종결 근거로만 쓴다",
+     "detail": "앵커 3개 짝 Δ 2026-10-20:+0.0011 2026-10-27:-0.0016 2026-11-02:+0.0011 · 평균 +0.0002±0.0013 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 False · 레벨 std {'ctl': 0.0036, 'arm': 0.0035} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG237_20261113-060204.log",
+     "elapsed_min": 1.0
+    }
+   ],
+   "result": {
+    "verdict": "앵커 잡음과 구분 불가(|Δ평균| +0.0002 < 앵커 std 0.0013) → 이 델타는 축 종결 근거로만 쓴다",
+    "detail": "앵커 3개 짝 Δ 2026-10-20:+0.0011 2026-10-27:-0.0016 2026-11-02:+0.0011 · 평균 +0.0002±0.0013 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 False · 레벨 std {'ctl': 0.0036, 'arm': 0.0035} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "status": "pending",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "protocol_pair_anchor",
+   "created_at": "2026-11-13T06:04:49+09:00",
+   "id": "CG238",
+   "priority": 1,
+   "kind": "experiment",
+   "from_experiment": "CG235",
+   "title": "[모델계열 축·폴드구조] 선형(C=0.1)의 +0.0159 가 5폴드 특이인가 — 10폴드 확장창 재측정",
+   "hypothesis": "CG235 실측: 로지스틱(C=0.1)이 GBDT 대조군보다 앵커평균 +0.0159(3/3 양(+), 폴드 14/15)로 앞섰으나 문턱 +0.02 미달. CG237(선별 core48 전체) Δ+0.0002·CG236(C=0.01) Δ-0.0004 로 '선별 절단'과 '정규화 강도' 가설은 이미 기각됐다. 남은 것은 폴드 구조 의존성이다 — CG4/CG6 교훈(5폴드에서만 보이던 신호가 10폴드에서 유지/소멸)을 이 축에 적용해, 10폴드에서 Δ 가 유지되는지 본다.",
+   "counterfactual": "CO_smooth_d1_h5 — 같은 패널·같은 앵커·같은 시드, 학습기만 GBDT",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CO_smooth_d1_h5,CG235_lin_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 10 --seeds 5 --tag cg238 --summary-out /app/reports/overnight/anchor_sweep/cg238_lin_f10_summary.json'",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg238_lin_f10_summary.json",
+   "arm": "CG235_lin_h5",
+   "baseline": "CG235 5폴드 앵커평균 Δ +0.0159",
+   "success": "앵커평균 Δ ≥ +0.02 & 전 앵커 양(+) → 모델계열 축 생존(승격 검토 후보). 어느 앵커도 +0.02 미달 → 모델계열 축 종결(선형 이득은 5폴드 잡음).",
+   "expected": "10폴드는 폴드당 학습창이 짧아 GBDT·선형 모두 레벨이 내려가고, 짝 Δ 는 +0.01 안팎으로 축소될 것으로 본다.",
+   "cost": "낮음(선형+GBDT 2arm × 3앵커 × 10폴드 × 5시드 = 300 cell, CG235 5폴드 4.2분의 약 2배)",
+   "ready_script": "scripts/wf_anchor_sweep.py",
+   "est_minutes": 12,
+   "depends_on": [
+    "CG235",
+    "CG236",
+    "CG237"
+   ],
+   "note": "2026-11-13 06:0x 엔지니어 자율 — CG235 후속 마지막 관문. 여기서 죽으면 모델계열 축은 닫고 데이터 축(신규 원천)만 남는다."
+  },
+  {
+   "status": "pending",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "protocol_pair_anchor",
+   "created_at": "2026-11-13T06:04:49+09:00",
+   "id": "CG239",
+   "priority": 3,
+   "kind": "experiment",
+   "from_experiment": "CG236",
+   "title": "[모델계열 축·정규화] C=1.0(약한 L2) 방향 확인 — CG236 은 한쪽(0.01)만 봤다",
+   "hypothesis": "CG236 실측: C=0.1 → C=0.01 로 10배 강한 L2 를 걸어도 앵커평균 Δ -0.0004(앵커 std 0.0004)로 완전히 평탄했다 = 레벨이 정규화 강도에 둔감. 반대 방향(C=1.0, 약한 L2)도 평탄하면 '정규화 무관한 선형 신호'로 확정되고, 더 세면 '과소정규화 손해' 구간이 드러난다.",
+   "counterfactual": "CG235_lin_h5 (C=0.1) — 같은 앵커·폴드·시드",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CG235_lin_h5,CG235_lin_c10_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg239 --summary-out /app/reports/overnight/anchor_sweep/cg239_lin_c10_summary.json'",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg239_lin_c10_summary.json",
+   "arm": "CG235_lin_c10_h5",
+   "baseline": "CG235_lin_h5 (C=0.1) 앵커 3개 평균",
+   "success": "|Δ| < 앵커 std → C 무관 확정(축 종결 근거). Δ ≤ -0.02 → 과소정규화 손해(정규화 강도 축 재개 근거).",
+   "expected": "±0.005 안팎으로 평탄할 것으로 본다(선형 21~48피처 · 표본 5만행).",
+   "cost": "낮음(2arm × 3앵커 × 5폴드 × 5시드 = 150 cell, 약 1분)",
+   "ready_script": "scripts/wf_anchor_sweep.py",
+   "est_minutes": 5,
+   "depends_on": [
+    "CG236"
+   ],
+   "note": "2026-11-13 06:0x 엔지니어 자율 — 정규화 축 완결용(우선순위 낮음: CG238 이 결정적)."
   }
  ],
- "updated": "2026-11-13T05:28:00+09:00"
+ "updated": "2026-11-13T06:04:49+09:00"
 }
