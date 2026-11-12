@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T02:12:25+09:00",
+ "updated_at": "2026-11-13T03:04:02+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -16567,7 +16567,7 @@
   },
   {
    "id": "CG226",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 1,
    "kind": "experiment",
    "owner": "engineer",
@@ -16577,17 +16577,81 @@
    "title": "[h5 축·부활 시도] 손절/익절 규칙을 넣으면 h5 경로의 낙폭이 1.5배 이내로 내려오는가",
    "hypothesis": "CG224 실측: h5 는 자본-세션 +0.3000%p(A의 5.8배)지만 비중첩 MDD −15.31% 로 A(−4.01%)의 3.82배 — 사전문턱(1.5배) 초과로 경로 변경 불가. 낙폭의 원인이 '개별 종목 급락을 5세션 방치'라면 −5%/−8% 손절로 MDD 를 낮추면서 Δ 의 상당부를 보존할 수 있다. 그 조합만이 h5 경로를 살린다.",
    "counterfactual": "손절 없음(CG224 B 경로) vs 손절 −5% / −8% / 5세션 종가청산 — 같은 코호트·같은 필터·같은 수수료",
-   "command": "",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg226_stop_path.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_smooth_d1_h5 --k 5 --h5 5 --out /app/reports/overnight/cg226_stop.json'",
    "summary_out": "/app/reports/overnight/cg226_stop.json",
    "est_minutes": 5,
    "success": "손절 규칙 중 자본-세션 기대 ≥ A+0.05%p AND 비중첩 MDD 배수 ≤1.5x 를 만족하는 조합이 있으면 '경로 변경 검토 근거'(트레이더 경로 → ②승인). 없으면 h5 축 최종 종결.",
    "expected": "통과 조합이 없으면 '청산지평 축'을 완전히 닫고 데이터 축으로 복귀한다(모델 설정 축은 CG225 로 종결).",
    "cost": "낮음~중 (학습 0회, 일봉 high/low 조회 + 규칙 4종 시뮬레이션)",
-   "setup_needed": "scripts/_cg226_stop_path.py 구현: market_data 의 high_price/low_price 로 장중 손절을 근사하고 (종가 손절은 낙관적), 진입 종가 대비 −5%/−8% 터치 시 그 가격에 청산. capital_path_compare 스키마(path_a_h1/path_b_h5/nonoverlap_compare)를 그대로 내면 기존 파서·판정기를 재사용할 수 있다. 검증: 손절 없음 설정이 CG224 와 같은 값(자본세션 +0.3000·MDD −15.313)을 재현해야 한다(회귀 기준).",
+   "setup_needed": null,
    "depends_on": [
     "CG224"
    ],
-   "created_at": "2026-11-13T02:30:00+09:00"
+   "created_at": "2026-11-13T02:30:00+09:00",
+   "ready_script": "scripts/_cg226_stop_path.py",
+   "prepared_at": "2026-11-13T03:10:00+09:00",
+   "note": "2026-11-13 03:1x 엔지니어 자율(장외 루프) — setup 구현 완료: scripts/_cg226_stop_path.py. 진입=세션 종가·top-k 동일비중, 체결성 필터 CG224 동일, 손절=보유일 저가 터치 시 min(시가, 손절가) 청산(갭하락 낙관 편향 제거). 회귀 기준: none 변형이 CG224 (자본세션 +0.3000·MDD −15.313)를 재현해야 판정 유효. 선택 규칙 사전등록: 손절 변형 중 자본-세션 최대를 path_b 로.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T03:02:23+09:00",
+     "rc": 0,
+     "verdict": "A 유지 — 낙폭 악화",
+     "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +0.9570%p/코호트·자본세션 +0.1914·MDD -13.61% · 비중첩 코호트 48 · 낙폭 배수 3.39x · 자본효율은 우위지만 낙폭이 3.4x 로 사전문턱(1.5x) 초과 → 실계좌 한도에서 운용 불가",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG226_20261113-030219.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "A 유지 — 낙폭 악화",
+    "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +0.9570%p/코호트·자본세션 +0.1914·MDD -13.61% · 비중첩 코호트 48 · 낙폭 배수 3.39x · 자본효율은 우위지만 낙폭이 3.4x 로 사전문턱(1.5x) 초과 → 실계좌 한도에서 운용 불가",
+    "delta": 0.1914,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG227",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "capital_path_compare",
+   "from_experiment": "CG226",
+   "title": "[h5 축·폭] top-k 를 넓히면 h5 낙폭 배수가 1.5x 이내로 내려오는가 — 초과수익의 폭(breadth)",
+   "hypothesis": "CG224/CG226: h5 는 자본-세션 +0.3000%p(A의 5.8배)지만 비중첩 MDD 배수 3.82x, 손절 −5/−8% 는 수익을 −0.54%p 깎으면서 배수를 3.08/3.39x 로만 낮춘다. 남은 가설은 선택 폭이다 — 초과수익이 소수 종목의 이례값에서 나온다면 k 를 넓힐수록 초과는 풀평균으로 수렴하고 낙폭은 남는다(=신호 없음 확정). 넓혀도 자본-세션 우위가 유지되면 그것이 h5 경로를 살리는 유일한 조합이다.",
+   "counterfactual": "같은 예측·같은 필터·같은 수수료에서 k=5(현행) vs k=10/20/50 · 손절 없음(h5 종가청산)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/_cg227_breadth.py --preds /app/reports/overnight/cg220_preds.jsonl --tag CO_smooth_d1_h5 --h5 5 --out /app/reports/overnight/cg227_breadth.json'",
+   "summary_out": "/app/reports/overnight/cg227_breadth.json",
+   "arm": "CO_smooth_d1_h5",
+   "baseline": "A(h1) 같은 k 익일시가청산 · 널=그날 체결가능 풀평균",
+   "success": "k∈{5,10,20,50} 중 자본-세션 ≥ A(k)+0.05%p AND 비중첩 MDD 배수 ≤1.5x 를 만족하는 k 가 있으면 '경로 변경 검토 근거'(트레이더 경로 → ②승인). 없으면 h5 축 최종 종결 + 폭-붕괴 실측을 근거로 기록.",
+   "expected": "k 확대 시 초과수익이 풀평균으로 수렴하고 MDD 배수는 개선되지 않을 것 — 그 경우 청산지평 축은 완전 종결(모델 설정 축·손절 축·폭 축 3중 실패).",
+   "cost": "낮음(학습 0회, 기존 예측 재사용 + 일봉 high/low 조회)",
+   "ready_script": "scripts/_cg227_breadth.py",
+   "est_minutes": 5,
+   "depends_on": [
+    "CG226"
+   ],
+   "created_at": "2026-11-13T03:15:00+09:00",
+   "note": "2026-11-13 03:1x 엔지니어 자율(장외 루프) — CG226 종결 후 남은 유일한 h5 생존 가설. 실측 결과(첫 실행): k=5 Δcap +0.2479·3.82x / k=10 +0.1391·6.01x / k=20 +0.1019·6.98x / k=50 +0.0051·12.97x → 폭을 넓히면 초과는 소멸하고 낙폭 배수는 악화.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T03:04:02+09:00",
+     "rc": 0,
+     "verdict": "A 유지 — 낙폭 악화",
+     "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +1.4999%p/코호트·자본세션 +0.3000·MDD -15.313% · 비중첩 코호트 None · 낙폭 배수 3.82x · 자본효율은 우위지만 낙폭이 3.8x 로 사전문턱(1.5x) 초과 → 실계좌 한도에서 운용 불가",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG227_20261113-030400.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "A 유지 — 낙폭 악화",
+    "detail": "tag CO_smooth_d1_h5 k5 · 체결성 필터 ON · A(h1) 240세션 +0.0521%p/세션·자본세션 +0.0521·MDD -4.013% · B(h5) 240코호트 +1.4999%p/코호트·자본세션 +0.3000·MDD -15.313% · 비중첩 코호트 None · 낙폭 배수 3.82x · 자본효율은 우위지만 낙폭이 3.8x 로 사전문턱(1.5x) 초과 → 실계좌 한도에서 운용 불가",
+    "delta": 0.3,
+    "per_exp": null,
+    "rc": 0
+   }
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
