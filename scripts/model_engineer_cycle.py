@@ -1594,6 +1594,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_capital_path_compare(spath, mtime_floor)
     if kind in ("h5_regime_exit", "hold_horizon_capital"):
         return parse_h5_regime_exit(spath, mtime_floor)
+    if kind == "panel_feature_screen":
+        return parse_panel_feature_screen(spath, mtime_floor)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
@@ -2796,6 +2798,53 @@ def judge_h5_regime_exit(item, parsed) -> tuple:
             f" · 레짐 청산으로 낙폭 배수를 1.5x 이내로 못 내림({ratio:.2f}x) → h5 축 종결 근거", bc)
 
 
+def parse_panel_feature_screen(path, mtime_floor=0.0) -> dict:
+    """패널 피처 스크린(scripts/panel_feature_screen.py --out) 요약 파싱(CG233)."""
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각)", "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패: {e}", "summary_mtime": mt}
+    if not isinstance(d.get("rows"), list) or not d["rows"]:
+        return {"error": "rows 없음(스크린 실패)", "summary_mtime": mt}
+    d["summary_mtime"] = mt
+    return d
+
+
+def judge_panel_feature_screen(item, parsed) -> tuple:
+    """CG233 판정 — 누수 의심 0 인지, 시간가변 상위 후보(IC t≥2)가 있는지.
+
+    판정 기준은 '학습 가능한가'가 아니라 '데이터 축 후보가 있는가'다. 누수 의심이 1개라도
+    나오면 스크린 자체를 반려하고(리서처), 아니면 후보 목록을 다음 실험 입력으로 쓴다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    rows, leak = parsed.get("rows") or [], parsed.get("leak") or []
+    const, mkt, dead = parsed.get("const") or [], parsed.get("market") or [], parsed.get("dead") or []
+    n = len(rows)
+    cand = [r for r in rows
+            if not r.get("stock_constant") and not r.get("market_level")
+            and isinstance(r.get("ic_t"), (int, float)) and abs(r["ic_t"]) >= 2.0]
+    cand.sort(key=lambda r: -abs(r.get("ic_t") or 0))
+    txt = " · ".join(f"{r['feature']} IC {r.get('ic_mean'):+.3f}(t {r.get('ic_t')}, fill {r.get('fill')})"
+                     for r in cand[:4])
+    detail = (f"패널 {os.path.basename(str(parsed.get('panel')))} {n}피처 · "
+              f"누수 의심 {len(leak)}{leak[:3]} · 종목상수 {len(const)} · 시장레벨 {len(mkt)} · "
+              f"무정보 {len(dead)}/{n} · IC |t|≥2 시간가변 후보 {len(cand)}개: {txt or '없음'}")
+    if leak:
+        return "반려 — 누수 의심 피처", detail + " · |AUC−0.5|>0.25 는 리서처 반려 대상", None
+    if cand:
+        return "스크린 완료 — 데이터 축 후보 있음", detail, None
+    return "스크린 완료 — 후보 없음", detail + " · IC t≥2 시간가변 피처 없음", None
+
+
 def parse_blend_eval(path, mtime_floor) -> dict:
     """라벨 다양성 앙상블(scripts/blend_eval.py --out) 짝 집계를 파싱한다.
 
@@ -3779,6 +3828,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_capital_path_compare(item, parsed)
     if kind in ("h5_regime_exit", "hold_horizon_capital"):
         return judge_h5_regime_exit(item, parsed)
+    if kind == "panel_feature_screen":
+        return judge_panel_feature_screen(item, parsed)
     if kind == "blend_eval":
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":

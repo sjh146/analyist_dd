@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T04:10:28+09:00",
+ "updated_at": "2026-11-13T05:30:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -16928,6 +16928,78 @@
     "per_exp": null,
     "rc": 0
    }
+  },
+  {
+   "id": "CG233",
+   "status": "done",
+   "priority": 2,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "panel_feature_screen",
+   "from_experiment": "CG232",
+   "title": "[데이터 축 준비] prod200 패널 피처 스크린 재측정 — 시간가변 피처 상위군과 무정보 목록을 최신 패널로 갱신",
+   "hypothesis": "경로·지평·폭·레짐 4축이 모두 돈 지표로 닫혔다(낙폭 배수 미달 또는 t<2 노이즈). 남은 레버는 데이터 축(신규 시점정합 피처)뿐인데, CG73 이 요구하는 '신규 피처 ≥5종'을 설계하려면 현재 패널에서 (a) 아직 신호가 있는 시간가변 피처가 무엇인지 (b) 무정보/종목상수가 얼마나 되는지를 최신 패널 기준으로 다시 알아야 한다.",
+   "counterfactual": "패널 자체 채점 — 같은 패널·같은 q·같은 지평에서 피처별 단일 AUC/IC 상위군과 무정보 비율을 산출(|AUC−0.5|>0.25 는 누수 의심으로 별도 표시)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 1200 python -u scripts/panel_feature_screen.py --panel /app/app/models/wf/panel_prod200.npz --horizon 5 --q 0.3 --top 30 --out /app/reports/overnight/cg233_panel_screen.json'",
+   "summary_out": "/app/reports/overnight/cg233_panel_screen.json",
+   "arm": "panel_prod200",
+   "baseline": "직전 스크린(panel_420_asofpatch, 210피처): 누수 의심 0 · 종목상수 48 · 시장레벨 41 · 무정보 126/210",
+   "success": "산출물에 (a) 누수 의심 피처 목록 (b) 시간가변 상위 20개와 |AUC−0.5|·IC t (c) 무정보 비율이 모두 있으면 '스크린 완료' — 이 목록으로 CG73 신규 피처 후보 5종을 설계한다. 누수 의심(|AUC−0.5|>0.25)이 1개라도 나오면 리서처 반려 절차.",
+   "expected": "prod200 은 200종목·최신 원천이라 무정보 비율이 60% 안팎으로 내려오고, 시간가변 최고는 여전히 변동성군(|AUC−0.5|≈0.05)일 것으로 본다.",
+   "cost": "중간(패널 로드 + 피처별 단일 AUC, 학습 0회)",
+   "ready_script": "scripts/panel_feature_screen.py",
+   "est_minutes": 15,
+   "depends_on": [
+    "CG232"
+   ],
+   "created_at": "2026-11-13T05:15:00+09:00",
+   "note": "2026-11-13 05:1x 엔지니어 자율(장외 루프) — 4축 종결 후 데이터 축으로 이동하기 위한 사전 채점.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T04:11:57+09:00",
+     "rc": 0,
+     "verdict": "스크린 완료 — 데이터 축 후보 있음",
+     "detail": "패널 panel_prod200.npz 213피처 · 누수 의심 0[] · 종목상수 34 · 시장레벨 56 · 무정보 120/213 · IC |t|≥2 시간가변 후보 66개: similar_stocks_return_std IC +0.062(t 7.47, fill 1.0) · similar_stocks_return_avg IC +0.069(t 7.46, fill 1.0) · debt_ratio IC +0.031(t 6.43, fill 1.0) · sns_author_quality_score IC +0.193(t 6.17, fill 0.0216)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG233_20261113-041115.log",
+     "elapsed_min": 0.7
+    }
+   ],
+   "result": {
+    "verdict": "스크린 완료 — 데이터 축 후보 있음",
+    "detail": "패널 panel_prod200.npz 213피처 · 누수 의심 0[] · 종목상수 34 · 시장레벨 56 · 무정보 120/213 · IC |t|≥2 시간가변 후보 66개: similar_stocks_return_std IC +0.062(t 7.47, fill 1.0) · similar_stocks_return_avg IC +0.069(t 7.46, fill 1.0) · debt_ratio IC +0.031(t 6.43, fill 1.0) · sns_author_quality_score IC +0.193(t 6.17, fill 0.0216)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG234",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "hold_horizon_capital",
+   "from_experiment": "CG233",
+   "title": "[데이터 축] 스크린 상위 시간가변 피처(similar_stocks 계열·debt_ratio·sns_author_quality)를 선별에 강제 포함하면 로버스트 AUC 가 +0.02 움직이는가",
+   "hypothesis": "CG233 실측(panel_prod200, 213피처, q0.3, h5): 누수 의심 0 · 무정보 120/213 · IC |t|≥2 시간가변 후보 66개. 그중 커버리지 100% 인 similar_stocks_return_std(t 7.47)·similar_stocks_return_avg(t 7.46)·debt_ratio(t 6.43)와 희소하지만 IC 0.193(t 6.17)인 sns_author_quality_score 는 현행 선별에서 상위로 뽑히지 않는 피처다. 조정 축 상한(+0.011)이 막힌 지금, 데이터 축에서 이미 보유한 신호를 선별이 버리고 있는지가 마지막 확인 지점이다.",
+   "counterfactual": "같은 패널·같은 폴드·같은 시드에서 현행 선별 vs 후보 4종 강제 포함 선별(wf_label_sweep 5폴드×3시드) · 널=같은 폴드의 풀평균",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 3 --only CO_FW4 --feature-whitelist similar_stocks_return_std,similar_stocks_return_avg,debt_ratio,sns_author_quality_score'",
+   "summary_out": "",
+   "arm": "CO_FW4",
+   "baseline": "같은 런의 현행 선별 arm(대조군) · 스코어보드 등록 기준선 0.5406",
+   "success": "폴드 평균 Δ ≥ +0.02 (폴드 std ±0.03 감안) AND 폴드 승률 ≥4/5 → 데이터 축 신호(후속 승격 검토). Δ<+0.02 면 데이터 축도 노이즈로 기록하고 새 레버 승인 요청으로만 간다.",
+   "expected": "similar_stocks 계열은 이미 유사도 기반 중복 정보라 선별에서 밀린 것일 수 있다 — Δ 가 ±0.01 안이면 '선별이 옳았다'로 종결.",
+   "cost": "중간(5폴드×3시드 학습, 유휴 시 40~90분)",
+   "ready_script": "scripts/wf_label_sweep.py",
+   "est_minutes": 90,
+   "depends_on": [
+    "CG233"
+   ],
+   "setup_needed": "① wf_label_sweep.py 에 --feature-whitelist(쉼표구분, 선별 상위에 강제 포함) 옵션 배선 ② CO_FW4 config 정의(현행 챔피언 HP·라벨 그대로, 선별만 강제 포함) ③ 대조군 arm 을 같은 런에 포함해 짝 Δ 로 판정 ④ 실행 전 load1 <3.5 확인(장중 금지).",
+   "created_at": "2026-11-13T05:30:00+09:00",
+   "note": "2026-11-13 05:3x 엔지니어 자율 — 4축(경로·지평·폭·레짐) 종결 후 데이터 축으로 이동. 실행 전 코드 배선이 필요해 needs_setup."
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
