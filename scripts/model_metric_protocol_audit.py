@@ -642,6 +642,12 @@ def main(argv=None) -> int:
                    #   둘 다 folds=5 라는 개수만 있고 값이 없음). part_b 가 이미 계산한 fold_means 를
                    #   그대로 남긴다(추가 키 — 기존 소비자는 robust_auc/expectancy 만 읽어 무회귀).
                    "folds": args.folds, "fold_aucs": b.get("folds"),
+                   # 2026-11-12(엔지니어 C209): '요청 5폴드 vs 실제 평가 3폴드' 혼동 방지 —
+                   #   학습구간과 겹치는 창이 버려져 fold_aucs 길이가 요청보다 작을 수 있다
+                   #   (실측: champion 3/5 · champion_cand 3/5). fold_mean·fold_std 는 **평가된
+                   #   폴드** 위에서만 계산되므로, 개수를 키로 분리해 낸다(기존 소비자는 무영향).
+                   "folds_requested": args.folds,
+                   "folds_evaluated": len(b.get("folds") or []),
                    "fold_mean": (round(float(sum(b["folds"]) / len(b["folds"])), 4)
                                  if b.get("folds") else None),
                    "fold_std": (round(float((sum((x - sum(b["folds"]) / len(b["folds"])) ** 2
@@ -651,7 +657,8 @@ def main(argv=None) -> int:
                    "label_kind": args.label_kind, "stocks": args.stocks,
                    "topk": args.topk, "max_day_chg_pct": args.max_day_chg,
                    "exit": "next_open",
-                   "protocol": (f"{args.folds}-fold 연속 시간창(폴드당 {args.dates_per_fold}일), "
+                   "protocol": (f"{args.folds}-fold 요청·{len(b.get('folds') or [])}폴드 평가 "
+                                f"연속 시간창(폴드당 {args.dates_per_fold}일), "
                                 f"h={args.horizon} 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=h; "
                                 f"순기대는 체결성 필터(당일등락<{args.max_day_chg}%)·수수료 왕복 "
                                 f"{ROUND_TRIP:.2f}%p·top{args.topk} 동일비중·익일 시가 청산"),

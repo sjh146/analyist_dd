@@ -723,6 +723,21 @@ def _dep_done(dep_id, backlog, ledger=None) -> bool:
     return any(r.get("id") == dep_id and r.get("rc") == 0 for r in ledger)
 
 
+def _prio(it):
+    """정렬용 priority 강건 키.
+
+    왜(실측 2026-11-12): 백로그 262건 중 1건(CG207)의 priority 가 문자열 '1' 로 들어와
+    `sorted(..., key=lambda x: x.get("priority", 99))` 가 int/str 비교 TypeError 로 죽었다
+    → `--status` 현황 조회가 통째로 불가능. 데이터를 고치는 것만으로는 재발하므로(수기 편집·외부 생성)
+    정렬 지점은 전부 이 키를 쓴다.
+    """
+    p = it.get("priority", 99)
+    try:
+        return int(p)
+    except (TypeError, ValueError):
+        return 99
+
+
 def next_item(backlog, force=False):
     """다음 실행 후보. **ETA 가드에 걸리는 항목은 건너뛴다.**
 
@@ -733,7 +748,7 @@ def next_item(backlog, force=False):
     건너뛴 이유는 로그에 남겨 '왜 이 항목이 안 도는지'를 추적 가능하게 한다.
     """
     pend = [i for i in backlog["items"] if i.get("status") == "pending"]
-    pend.sort(key=lambda i: (i.get("priority", 99), i["id"]))
+    pend.sort(key=lambda i: (_prio(i), i["id"]))
     _led = None
     for i in pend:
         deps = i.get("depends_on") or []
@@ -4670,7 +4685,7 @@ def tick(force=False):
         b = load_backlog()
         p = [i for i in b["items"] if i.get("status") == "pending"]
         print(f"=== 남은 pending: {len(p)}건 "
-              f"({', '.join(i['id'] for i in sorted(p, key=lambda x: x.get('priority', 99))[:4])})")
+              f"({', '.join(i['id'] for i in sorted(p, key=lambda x: _prio(x))[:4])})")
         print("→ 이 결과를 사용자에게 3부 형식으로 보고하고, 필요하면 다음 가설을 설계하라.")
         return 0
 
@@ -4687,7 +4702,7 @@ def tick(force=False):
         # needs_setup·핸드오프를 찾아 헤매거나 그냥 넘어갔다(실측 2026-10-01: 남은 핸드오프 12건).
         b = load_backlog()
         setup = [i for i in b["items"] if i.get("status") == "needs_setup"]
-        setup.sort(key=lambda i: (i.get("priority", 99), str(i.get("id"))))
+        setup.sort(key=lambda i: (_prio(i), str(i.get("id"))))
         print("백로그에 실행 가능한 pending 항목 없음 → 셋업을 구현해 pending 으로 승격하라(규칙 6).")
         for i in setup[:4]:
             print(f"  · {i['id']} (prio {i.get('priority')}) {i['title']}")
@@ -4726,7 +4741,7 @@ def _rewrite_ledger(rows):
 def status():
     b = load_backlog()
     print(f"백로그: {BACKLOG} (updated {b.get('updated_at')})")
-    for i in sorted(b["items"], key=lambda x: x.get("priority", 99)):
+    for i in sorted(b["items"], key=lambda x: _prio(x)):
         print(f"  [{i['status']:11s}] {i['id']:3s} {i['title']}")
         if i.get("result"):
             r = i["result"]
