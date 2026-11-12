@@ -642,7 +642,7 @@ def main(argv=None) -> int:
                    #   둘 다 folds=5 라는 개수만 있고 값이 없음). part_b 가 이미 계산한 fold_means 를
                    #   그대로 남긴다(추가 키 — 기존 소비자는 robust_auc/expectancy 만 읽어 무회귀).
                    "folds": args.folds, "fold_aucs": b.get("folds"),
-                   # 2026-11-12(엔지니어 C209): '요청 5폴드 vs 실제 평가 3폴드' 혼동 방지 —
+                   # 2026-11-12(엔지니어 CG210): '요청 5폴드 vs 실제 평가 3폴드' 혼동 방지 —
                    #   학습구간과 겹치는 창이 버려져 fold_aucs 길이가 요청보다 작을 수 있다
                    #   (실측: champion 3/5 · champion_cand 3/5). fold_mean·fold_std 는 **평가된
                    #   폴드** 위에서만 계산되므로, 개수를 키로 분리해 낸다(기존 소비자는 무영향).

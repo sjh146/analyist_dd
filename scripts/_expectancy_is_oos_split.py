@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """승격 돈 게이트 순기대 표본(in-sample vs OOS) 분해 — 측정 전용.
 
-왜 이 측정인가 (2026-11-12 엔지니어 자율, C209):
+왜 이 측정인가 (2026-11-12 엔지니어 자율, CG210):
   champion_promote --require-expectancy 가 인용하는 순기대는 model_metric_protocol_audit part_c
   의 close_gate_probe trades.csv(2,251행 · 113세션 · 2026-05-26~2026-11-09)에서 나온다.
   그런데 그 세션 구간은 **후보·챔피언 양쪽의 학습구간과 겹친다**:
@@ -27,6 +27,35 @@ import fillable_expectancy as fe
 TRADES = "/app/app/reports/close_gate_probe_trades.csv"
 FALLBACK_TRADES = "/app/data/reports/close_gate_probe/trades.csv"
 
+
+def _latest_training_result(d):
+    import glob
+    cands = sorted(glob.glob(os.path.join(d, "training-result-*.json")))
+    if not cands:
+        return {}
+    try:
+        return json.load(open(cands[-1]))
+    except Exception:
+        return {}
+
+
+def _train_boundary(d):
+    """모델의 '학습 경계' — 이 날짜까지의 세션은 in-sample 로 본다.
+
+    왜 data_end 가 아니라 fit_end 인가: 프로덕션 재학습은 data_end 까지 데이터를 받아
+    fit_end 에서 학습을 끝내고 val_start~data_end 를 검증에 쓴다. 검증 구간도 모델 선택에
+    쓰였으므로 게이트 표본에서는 in-sample 과 같은 오염으로 취급한다(보수적).
+    실측(2026-11-12): champion_cand 는 data_end=2026-11-12 · fit_end=2026-10-28 이라
+    data_end 를 경계로 쓰면 OOS 세션이 0 이 된다.
+    """
+    tr = _latest_training_result(d)
+    for k in ("fit_end", "val_start"):
+        if tr.get(k):
+            return str(tr[k])[:10], f"training-result.{k}"
+    tw = mma.read_train_window(d) or ()
+    if isinstance(tw, (tuple, list)) and len(tw) > 1 and tw[1]:
+        return str(tw[1])[:10], "training-result.data_end(폴백)"
+    return None, "경계 미상"
 
 def _stats(per_session, dates):
     keep = [(d, v) for d, v in zip(dates, per_session) if v is not None and v == v]
@@ -88,7 +117,12 @@ def main(argv=None) -> int:
 
     for label, d, _ens, names in models:
         tw = mma.read_train_window(d) or {}
-        train_end = tw.get("data_end") or tw.get("end")
+        # read_train_window 는 cre._meta_range 를 그대로 돌려준다 → (start, end) 튜플.
+        #   실측(2026-11-12 첫 실행): 튜플에 .get() 을 불러 AttributeError 로 죽었다(피처 빌드 9분 소모 후).
+        if isinstance(tw, (tuple, list)):
+            tw = {"data_start": tw[0] if len(tw) > 0 else None,
+                  "data_end": tw[1] if len(tw) > 1 else None}
+        train_end, boundary_src = _train_boundary(d)
         m = scores[label]
         tt = t.copy()
         tt["score"] = [m.get((c, dd), float("nan")) for c, dd in zip(tt["code"], tt["date"])]
@@ -102,6 +136,7 @@ def main(argv=None) -> int:
         rec = {
             "train_window": tw,
             "train_end": train_end,
+            "train_boundary_source": boundary_src,
             "n_feature_used": len(names),
             "all": _stats(per_session, dates_s),
             "in_sample": _stats([per_session[i] for i in in_idx], [dates_s[i] for i in in_idx]),
@@ -109,7 +144,7 @@ def main(argv=None) -> int:
             "n_rows_scored": int(len(tt)),
         }
         out["models"][label] = rec
-        print(f"[r] {label}: train_end={train_end} 전체 {rec['all'].get('avg_pct')}%p "
+        print(f"[r] {label}: 학습경계={train_end}({boundary_src}) 전체 {rec['all'].get('avg_pct')}%p "
               f"(세션 {rec['all'].get('n_sessions')}) | in-sample {rec['in_sample'].get('avg_pct')}%p "
               f"(세션 {rec['in_sample'].get('n_sessions')}) | OOS {rec['oos'].get('avg_pct')}%p "
               f"(세션 {rec['oos'].get('n_sessions')}, t={rec['oos'].get('t_stat')})")

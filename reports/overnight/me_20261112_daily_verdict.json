@@ -1,0 +1,104 @@
+{
+ "generated_at": "2026-11-12T22:20:00+09:00",
+ "role": "quant-model-engineer",
+ "cycle": "정기 데일리(22:00)",
+ "board_metrics": {
+  "dq_feature_alive_xsec_count": 166,
+  "dq_feature_feature_count": 202,
+  "dq_feature_market_level_count": 25,
+  "dq_feature_stock_constant_ratio": 0.4241,
+  "dq_feature_null_ratio_high_count": 35,
+  "dq_feature_coverage_illusion_count": 62,
+  "dq_feature_oldest_age_days": 3.03,
+  "leak_gate": "통과 — 최신 패널 스크린(cg196_panel_screen_fresh) leak 목록 0건(|AUC-0.5|>0.25 없음), 종목상수 29개는 선별 기여 실측(CG196 Δ-0.00505·CG205 Δ-0.0099)으로 기각"
+ },
+ "panel_snapshot": {
+  "panel": "panel_200liq_fresh.npz",
+  "mtime": "2026-11-10T19:31",
+  "rows": 32161,
+  "changed_since_last_measure": false,
+  "walk_forward_rerun": "생략 — 금요일 아님 + 패널 캐시 미변경(규칙상 재측정 조건 미충족)"
+ },
+ "candidate_verdict": {
+  "candidate": "app/models/champion_cand",
+  "retrained_at": "2026-11-12T12:20:12",
+  "single_split_ensemble_auc": 0.6585,
+  "gate": "champion_promote --dry-run --require-expectancy --require-robust",
+  "status": "kept_incumbent",
+  "promoted": false,
+  "reason": "돈 기준 게이트 거부: 분할표본 불안정(앞 -0.0765 / 뒤 0.0976)",
+  "robust_oos": {
+   "robust_auc": 0.4839,
+   "folds_requested": 5,
+   "folds_evaluated": 3,
+   "fold_aucs": [
+    0.4434,
+    0.5455,
+    0.4628
+   ],
+   "fold_std": 0.0443,
+   "expectancy_pct": 0.0114,
+   "expectancy_t": 0.06,
+   "n_sessions": 113,
+   "n_trades": 1771
+  },
+  "champion_baseline": {
+   "robust_auc_recorded": 0.5513,
+   "robust_oos_auc": 0.4908,
+   "expectancy_pct": -0.182,
+   "source": "app/models/champion/robust_auc.json + robust_oos.json(2026-10-05)"
+  },
+  "secondary_reject": "AUC 바닥(0.53) 기준으로도 0.4839 < 0.53 이라 독립적으로 거부 — 게이트 사유 문자열은 먼저 평가되는 돈 게이트만 남는다(둘 다 거부)",
+  "verdict": "기각 — 단일분할 0.6585 는 학습구간 in-sample 값이고, 다중폴드 OOS 0.4839(0.5 미만) · 순기대 +0.0114%p(t 0.06) · 앞/뒤 절반 부호 반전(−0.0765/+0.0976)"
+ },
+ "measurement_integrity": {
+  "fix_1": "model_metric_protocol_audit.py — robust_oos 요약에 folds_requested·folds_evaluated 를 분리 기록(종전 'folds: 5' 하나뿐이라 3폴드 평가를 5폴드로 오독할 수 있었다). 기존 키는 유지(무회귀).",
+  "fix_2": "model_engineer_cycle.py — priority 가 문자열인 항목 1건(CG207 '1') 때문에 --status 전체가 TypeError 로 죽던 정렬을 _prio() 강건 키로 교체(next_item·setup·status 3곳). 검증: --status rc=0.",
+  "in_progress_cg209": "완료(=CG210 으로 등록·판정) — 승격 돈 게이트 순기대 in-sample/OOS 분해",
+  "cg210_result": {
+   "backlog_id": "CG210",
+   "sample": "close_gate_probe trades.csv 2,251행·113세션·2026-05-26~11-09 · top3 · 익일시가 · 수수료 왕복 0.21%p · 당일등락<25%",
+   "champion": {
+    "boundary": "2026-10-01",
+    "all_pct": -0.3192,
+    "all_t": -1.7,
+    "all_sessions": 113,
+    "in_sample_pct": -0.1612,
+    "in_sample_sessions": 88,
+    "in_sample_t": -0.74,
+    "oos_pct": -0.8754,
+    "oos_sessions": 25,
+    "oos_t": -2.51,
+    "oos_halves": {
+     "front": -0.8913,
+     "back": -0.8608,
+     "stable": "neither"
+    }
+   },
+   "champion_cand": {
+    "boundary": "2026-10-28(fit_end)",
+    "all_pct": 0.0114,
+    "all_t": 0.06,
+    "all_sessions": 113,
+    "all_median": -0.2908,
+    "in_sample_pct": 0.0447,
+    "in_sample_sessions": 105,
+    "in_sample_t": 0.24,
+    "oos_pct": -0.4259,
+    "oos_sessions": 8,
+    "oos_t": -0.66,
+    "oos_halves": {
+     "front": -0.7666,
+     "back": -0.0851,
+     "stable": "neither"
+    }
+   },
+   "conclusion": "후보 양(+) 헤드라인은 표본 93%가 학습구간인 산물 · 배포 챔피언은 미학습 구간에서 유의 음수(t -2.51) · 같은 프로토콜 87세션 -0.182 → 113세션 -0.3192 악화",
+   "limits": "표본은 '게이트가 막은 후보 풀'의 가정 수익(CG191 gate_open 0/113) — 실체결 손익 아님",
+   "evidence_file": "reports/overnight/expectancy_is_oos_split.json"
+  }
+ },
+ "concurrent": {
+  "note": "22:0x 자율 틱이 같은 시각 CG208(챔피언 유동성 유니버스 robust eval, --asof-date 2026-11-12)을 기동 — 두 측정이 동시에 돌아 load1 3.1(가드 3.5 근접). 직렬화 규칙 위반은 아니지만(둘 다 측정) 속도가 떨어졌다. 폴드1 0.4793."
+ }
+}
