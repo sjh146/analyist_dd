@@ -16564,6 +16564,30 @@
     "per_exp": null,
     "rc": 0
    }
+  },
+  {
+   "id": "CG226",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "capital_path_compare",
+   "from_experiment": "CG224",
+   "title": "[h5 축·부활 시도] 손절/익절 규칙을 넣으면 h5 경로의 낙폭이 1.5배 이내로 내려오는가",
+   "hypothesis": "CG224 실측: h5 는 자본-세션 +0.3000%p(A의 5.8배)지만 비중첩 MDD −15.31% 로 A(−4.01%)의 3.82배 — 사전문턱(1.5배) 초과로 경로 변경 불가. 낙폭의 원인이 '개별 종목 급락을 5세션 방치'라면 −5%/−8% 손절로 MDD 를 낮추면서 Δ 의 상당부를 보존할 수 있다. 그 조합만이 h5 경로를 살린다.",
+   "counterfactual": "손절 없음(CG224 B 경로) vs 손절 −5% / −8% / 5세션 종가청산 — 같은 코호트·같은 필터·같은 수수료",
+   "command": "",
+   "summary_out": "/app/reports/overnight/cg226_stop.json",
+   "est_minutes": 5,
+   "success": "손절 규칙 중 자본-세션 기대 ≥ A+0.05%p AND 비중첩 MDD 배수 ≤1.5x 를 만족하는 조합이 있으면 '경로 변경 검토 근거'(트레이더 경로 → ②승인). 없으면 h5 축 최종 종결.",
+   "expected": "통과 조합이 없으면 '청산지평 축'을 완전히 닫고 데이터 축으로 복귀한다(모델 설정 축은 CG225 로 종결).",
+   "cost": "낮음~중 (학습 0회, 일봉 high/low 조회 + 규칙 4종 시뮬레이션)",
+   "setup_needed": "scripts/_cg226_stop_path.py 구현: market_data 의 high_price/low_price 로 장중 손절을 근사하고 (종가 손절은 낙관적), 진입 종가 대비 −5%/−8% 터치 시 그 가격에 청산. capital_path_compare 스키마(path_a_h1/path_b_h5/nonoverlap_compare)를 그대로 내면 기존 파서·판정기를 재사용할 수 있다. 검증: 손절 없음 설정이 CG224 와 같은 값(자본세션 +0.3000·MDD −15.313)을 재현해야 한다(회귀 기준).",
+   "depends_on": [
+    "CG224"
+   ],
+   "created_at": "2026-11-13T02:30:00+09:00"
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
