@@ -289,6 +289,8 @@ def main():
         return 0
 
     # ── 멱등 적재: 구간 DELETE 후 COPY ───────────────────────────────────
+    cur.execute("SELECT COUNT(*) FROM event_features")
+    before_total = cur.fetchone()[0]
     cur.execute("DELETE FROM event_features WHERE trade_date >= %s", (a.since,))
     deleted = cur.rowcount
     out.seek(0)
@@ -298,16 +300,19 @@ def main():
     cur.execute("SELECT COUNT(*), COUNT(*) FILTER (WHERE disclosure_count_5d > 0), "
                 "COUNT(*) FILTER (WHERE event_contract_5d > 0) FROM event_features")
     total, with_disc, with_contract = cur.fetchone()
-    log(f"적재 완료: 삭제 {deleted}행 → 삽입 {total}행 "
+    # persisted 는 '테이블 델타'다. 전체 행수를 넣으면 gap = claimed - 전체행수 가 음수가 되어
+    # dq_claim_gap 이 의미를 잃는다(실측 2026-11-12: claimed 4,358 vs total 221,110 → gap -216,752).
+    persisted_delta = total - before_total
+    log(f"적재 완료: 삭제 {deleted}행 → 테이블 {total}행 (델타 {persisted_delta:+d}행) "
         f"(이벤트 보유 {with_disc}행 / 공급계약 보유 {with_contract}행)")
 
     # 자기신고 (프로젝트 규약: 소스/파서/저장 3분리)
     try:
         from dq_claim import record_claim
         record_claim(conn, "build_event_features", "event_features",
-                     claimed_rows=written, persisted_rows=total, source_rows=len(rows),
+                     claimed_rows=written, persisted_rows=persisted_delta, source_rows=len(rows),
                      note=f"disclosures={len(rows)} matched={matched} grid={len(grid)} "
-                          f"since={a.since} window=D-5..D-1")
+                          f"deleted={deleted} table={total} since={a.since} window=D-5..D-1")
         conn.commit()
     except Exception as exc:  # noqa: BLE001
         log(f"자기신고 생략: {exc}")

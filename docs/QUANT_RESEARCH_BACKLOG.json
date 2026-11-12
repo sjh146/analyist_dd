@@ -984,7 +984,7 @@
         "detail": "R25: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R25_20261111-160058.log"
+        "log": "data/reports/res_cycle/logs/res_R25_20261112-180043.log"
       },
       "recurring": true,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
@@ -1067,6 +1067,11 @@
         },
         {
           "ts": "2026-11-11T16:00:59+09:00",
+          "rc": 0,
+          "detail": "R25: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-12T18:00:43+09:00",
           "rc": 0,
           "detail": "R25: 0 <= 0 → 충족"
         }
@@ -1588,6 +1593,26 @@
       "check_target": null,
       "command": null,
       "cost": "0 (진단은 읽기 전용 완료 · 택일 승인 후 빌더 1회 재계산)"
+    },
+    {
+      "id": "R40",
+      "title": "수급 크론 16:20 실행은 항상 T-1 을 받는다 — 최신일 수급 커버리지 0.09% (시각 이동 승인 필요)",
+      "status": "needs_approval",
+      "priority": 4,
+      "kind": "collect",
+      "recurring": true,
+      "affects_model": true,
+      "hypothesis": "수급 크론(kis_supply.sh, 16:20)이 KIS 투자자별 매매 데이터 게시 전에 돌아 매일 as-of = T-1 을 받는다. 종목당 1콜이 30행(≈5영업일)을 주므로 '--days' 를 줄여도 처리 종목수는 늘지 않는다 — 하루 신선도를 얻는 유일한 무비용 레버는 실행 시각을 게시 이후로 옮기는 것이다(같은 500콜).",
+      "evidence": "[실측 2026-11-12] ① 16:20 크론 로그: 250종목 전부 '(as-of 2026-11-11)' · DB foreign_institutional 최신 11-11 → 당일(11-12) 행 0건. ② 같은 날 21:17 단일종목 프로브(kis_supply_backfill --stocks 005930 --days 5): 'as-of 2026-11-12' · 2행 즉시 적재 → 데이터는 16:20 과 21:17 사이에 게시된다. ③ 날짜별 커버리지(1148종목 기준, 21:20 실측): 11-09 940(81.9%) · 11-10 494(43.0%) · 11-11 247(21.5%) · 11-12 1(0.09%). 회전이 실행당 250종목이므로 각 날짜는 '그 날짜 이후 실행 횟수 × 250' 만큼만 채워진다 — 오늘 16:20 실행은 11-12 를 못 받아 그 250콜이 11-11 재수집에 쓰였다(신규 684행). ④ R21 프로브(21:11): 회전 유니버스 최대 지연 2거래일 · 뒤처진 546/800 (16:20 회수 후), 같은 날 15:35 에는 29거래일(오프라인 복구 잔여 꼬리) → 당일 러너가 꼬리를 회수했다.",
+      "check": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/r21_supply_lag_probe.py | tail -1",
+      "check_target": 2,
+      "setup_needed": [
+        "수급 크론 시각 변경 승인: 16:20 → 19:30 (크론 파일 수정 = 사람 단계). 근거 = 위 실측 ①~③. 19:30 은 KIS 일봉 적재(18:55, 오늘 18:56 종료)와 20:00 파이프라인 사이의 빈 구간이라 API/토큰 경합이 없다. 기대 효과: 최신일 수급 커버리지 0.09% → 21.5%(250종목), 각 날짜가 D+0 부터 채워져 '최신일 횡단면'을 쓰는 피처의 결측이 한 단계 줄어든다. 대안(같은 승인 안건): 크론 유지 + 야간 1회 추가 실행은 KIS 일일 호출 한도가 미확인이라 권고하지 않는다."
+      ],
+      "command": "",
+      "result": null,
+      "created_at": "2026-11-12T21:2x+09:00",
+      "source": "researcher_daily"
     }
   ]
 }
