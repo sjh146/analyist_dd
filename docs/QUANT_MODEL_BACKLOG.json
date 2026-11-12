@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T06:04:49+09:00",
+ "updated_at": "2026-11-13T06:10:21+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -17166,7 +17166,7 @@
    }
   },
   {
-   "status": "pending",
+   "status": "done",
    "owner": "engineer",
    "affects_model": true,
    "metric": "protocol_pair_anchor",
@@ -17192,10 +17192,27 @@
     "CG236",
     "CG237"
    ],
-   "note": "2026-11-13 06:0x 엔지니어 자율 — CG235 후속 마지막 관문. 여기서 죽으면 모델계열 축은 닫고 데이터 축(신규 원천)만 남는다."
+   "note": "2026-11-13 06:0x 엔지니어 자율 — CG235 후속 마지막 관문. 여기서 죽으면 모델계열 축은 닫고 데이터 축(신규 원천)만 남는다.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T06:09:31+09:00",
+     "rc": 0,
+     "verdict": "노이즈(앵커평균 Δ +0.0099 < +0.02; |Δ| vs 앵커 std 0.0049)",
+     "detail": "앵커 3개 짝 Δ 2026-10-20:+0.0090 2026-10-27:+0.0043 2026-11-02:+0.0163 · 평균 +0.0099±0.0049 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 True · 레벨 std {'ctl': 0.0038, 'arm': 0.0034} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG238_20261113-060452.log",
+     "elapsed_min": 4.6
+    }
+   ],
+   "result": {
+    "verdict": "노이즈(앵커평균 Δ +0.0099 < +0.02; |Δ| vs 앵커 std 0.0049)",
+    "detail": "앵커 3개 짝 Δ 2026-10-20:+0.0090 2026-10-27:+0.0043 2026-11-02:+0.0163 · 평균 +0.0099±0.0049 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 True · 레벨 std {'ctl': 0.0038, 'arm': 0.0034} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
-   "status": "pending",
+   "status": "backlog",
    "owner": "engineer",
    "affects_model": true,
    "metric": "protocol_pair_anchor",
@@ -17219,8 +17236,38 @@
    "depends_on": [
     "CG236"
    ],
-   "note": "2026-11-13 06:0x 엔지니어 자율 — 정규화 축 완결용(우선순위 낮음: CG238 이 결정적)."
+   "note": "2026-11-13 06:1x 엔지니어 자율 — **축 종결로 철회**. CG238(10폴드) 실측 앵커평균 Δ+0.0099(앵커 std 0.0049, 5폴드 +0.0159 의 절반) → 모델계열 축은 폴드 구조에서 문턱 미달로 닫혔다. C=1.0 을 재도 판정에 쓰이지 않는다(재개하려면 CG238 부호가 뒤집히는 새 근거가 필요).",
+   "closed_by": "CG238",
+   "closed_at": "2026-11-13T06:10:21+09:00"
+  },
+  {
+   "id": "CG240",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "protocol_pair_anchor",
+   "from_experiment": "CG238",
+   "title": "[라벨 축·돈 정합] 라벨을 '당일 횡단면 평균 대비 초과수익'으로 바꾸면 로버스트 AUC·돈 지표가 움직이는가",
+   "hypothesis": "지금까지 라벨은 전부 '선행 h일 수익률 상위 q' 절대수익 분위수다. 그런데 돈 지표(체결 가능 순기대)는 그날 살 수 있었던 풀의 평균 대비 초과를 재고, CG103 실측에서 arm 이 세션 풀평균을 못 넘었다(k3 Δ+0.462%p t 0.81 · k5 Δ-0.006). 학습 목표가 절대수익이면 '그날 시장이 다 오른 것'을 종목 신호로 배우게 된다 — 라벨을 당일 횡단면 평균 대비 초과수익(동일가중 demean)으로 바꾸면 학습 목표와 평가 목표가 같은 축이 된다. 조정 축(변환·HP·선별·모델계열)은 모두 +0.011~+0.016 에서 문턱 미달로 닫혔다 — 라벨 정의는 아직 절대수익 축만 봤다.",
+   "counterfactual": "CO_smooth_d1_h5 — 같은 패널·같은 폴드·같은 시드·같은 HP, 라벨만 절대수익 분위 q0.30",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CO_smooth_d1_h5,CG240_ex_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg240 --summary-out /app/reports/overnight/anchor_sweep/cg240_excess_summary.json'",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg240_excess_summary.json",
+   "arm": "CG240_ex_h5",
+   "baseline": "CO_smooth_d1_h5 (같은 패널·같은 앵커, 절대수익 q0.30 라벨)",
+   "success": "앵커평균 Δ ≥ +0.02 & 전 앵커 양(+) → 라벨 축 신호(다음은 돈 지표로 체결성 평가). |Δ| < 앵커 std → 라벨 정의 무관(축 종결). rc≠0 → 실행실패(노이즈로 쓰지 않는다).",
+   "expected": "초과수익 라벨은 시장 베타를 빼므로 폴드 간 분산이 줄고, AUC 는 +0.01 안팎 오를 것으로 본다(문턱 미달 가능성 높음).",
+   "cost": "낮음(2arm × 3앵커 × 5폴드 × 5시드 = 150 cell, 실측 유사 규모 1~4분) + setup 선행",
+   "ready_script": "scripts/wf_anchor_sweep.py",
+   "setup_needed": "wf_label_sweep.py 에 실험 전용 라벨 모드 `label_mode=\"excess\"` 를 추가한다: 같은 거래일·같은 유니버스 안에서 선행 h일 수익률을 동일가중 평균으로 demean 한 뒤 q 분위(기본 0.30)로 라벨링. arm id `CG240_ex_h5` 등록(horizon 5 · q 0.30 · select top30 · smooth). 기본값은 절대수익(현행) 유지 — 생산 라벨 규칙 불변. 검증: ① 같은 패널에서 demean 라벨의 날짜별 평균이 0±1e-12 ② 절대 라벨과 상관 보고 ③ 기존 arm 결과 재현(회귀 무변경).",
+   "est_minutes": 15,
+   "depends_on": [
+    "CG238"
+   ],
+   "created_at": "2026-11-13T06:10:21+09:00",
+   "note": "2026-11-13 06:1x 엔지니어 자율 — 모델계열 축 종결(CG238) 후 남은 라벨 정의 축. 생산 라벨 변경은 리뷰보드 사안이며, 이 항목은 실험 A/B 전용이다."
   }
  ],
- "updated": "2026-11-13T06:04:49+09:00"
+ "updated": "2026-11-13T06:10:21+09:00"
 }
