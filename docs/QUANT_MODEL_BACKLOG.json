@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T05:30:00+09:00",
+ "updated_at": "2026-11-13T05:20:41+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -16975,32 +16975,162 @@
   },
   {
    "id": "CG234",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 1,
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": true,
-   "metric": "hold_horizon_capital",
+   "metric": "protocol_pair_anchor",
    "from_experiment": "CG233",
    "title": "[데이터 축] 스크린 상위 시간가변 피처(similar_stocks 계열·debt_ratio·sns_author_quality)를 선별에 강제 포함하면 로버스트 AUC 가 +0.02 움직이는가",
    "hypothesis": "CG233 실측(panel_prod200, 213피처, q0.3, h5): 누수 의심 0 · 무정보 120/213 · IC |t|≥2 시간가변 후보 66개. 그중 커버리지 100% 인 similar_stocks_return_std(t 7.47)·similar_stocks_return_avg(t 7.46)·debt_ratio(t 6.43)와 희소하지만 IC 0.193(t 6.17)인 sns_author_quality_score 는 현행 선별에서 상위로 뽑히지 않는 피처다. 조정 축 상한(+0.011)이 막힌 지금, 데이터 축에서 이미 보유한 신호를 선별이 버리고 있는지가 마지막 확인 지점이다.",
-   "counterfactual": "같은 패널·같은 폴드·같은 시드에서 현행 선별 vs 후보 4종 강제 포함 선별(wf_label_sweep 5폴드×3시드) · 널=같은 폴드의 풀평균",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 3 --only CO_FW4 --feature-whitelist similar_stocks_return_std,similar_stocks_return_avg,debt_ratio,sns_author_quality_score'",
-   "summary_out": "",
-   "arm": "CO_FW4",
-   "baseline": "같은 런의 현행 선별 arm(대조군) · 스코어보드 등록 기준선 0.5406",
-   "success": "폴드 평균 Δ ≥ +0.02 (폴드 std ±0.03 감안) AND 폴드 승률 ≥4/5 → 데이터 축 신호(후속 승격 검토). Δ<+0.02 면 데이터 축도 노이즈로 기록하고 새 레버 승인 요청으로만 간다.",
-   "expected": "similar_stocks 계열은 이미 유사도 기반 중복 정보라 선별에서 밀린 것일 수 있다 — Δ 가 ±0.01 안이면 '선별이 옳았다'로 종결.",
-   "cost": "중간(5폴드×3시드 학습, 유휴 시 40~90분)",
-   "ready_script": "scripts/wf_label_sweep.py",
-   "est_minutes": 90,
+   "counterfactual": "CO_smooth_d1_h5 — 같은 패널(panel_200liq_fresh)·같은 폴드·같은 시드·같은 HP, 스크린 후보 3종 미포함(선별 top30 동일, 차이는 추가 3컬럼 하나)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CO_smooth_d1_h5,CO_FW4_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg234 --summary-out /app/reports/overnight/anchor_sweep/cg234_fw4_summary.json'",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg234_fw4_summary.json",
+   "arm": "CO_FW4_h5",
+   "baseline": "같은 런의 CO_smooth_d1_h5 (앵커 3개 평균) · 스코어보드 등록 기준선 0.5406",
+   "success": "앵커평균 Δ ≥ +0.02 AND 전 앵커 부호 양(+) → 데이터 축 신호(후속 승격 검토 항목 생성). |앵커평균 Δ| < 앵커 std → 앵커 잡음과 구분 불가 = 선별이 옳았다(후보 3종 기각). rc≠0·요약 미갱신 → 실행실패(노이즈로 쓰지 않는다).",
+   "expected": "유사도·재무 계열은 이미 top30 의 유사 피처와 중복이라 Δ ≈ 0 예상 — 그러면 \"선별이 옳았다\"로 닫고 데이터 축은 신규 원천(CG73·XR26)으로만 남긴다.",
+   "cost": "중간(3앵커×2arm×5폴드×5시드 = 150 cell, 실측 유사 규모 11.4분)",
+   "ready_script": "scripts/wf_anchor_sweep.py",
+   "est_minutes": 25,
    "depends_on": [
     "CG233"
    ],
-   "setup_needed": "① wf_label_sweep.py 에 --feature-whitelist(쉼표구분, 선별 상위에 강제 포함) 옵션 배선 ② CO_FW4 config 정의(현행 챔피언 HP·라벨 그대로, 선별만 강제 포함) ③ 대조군 arm 을 같은 런에 포함해 짝 Δ 로 판정 ④ 실행 전 load1 <3.5 확인(장중 금지).",
    "created_at": "2026-11-13T05:30:00+09:00",
-   "note": "2026-11-13 05:3x 엔지니어 자율 — 4축(경로·지평·폭·레짐) 종결 후 데이터 축으로 이동. 실행 전 코드 배선이 필요해 needs_setup."
+   "note": "2026-11-13 05:3x 엔지니어 자율 — 4축(경로·지평·폭·레짐) 종결 후 데이터 축으로 이동. 실행 전 코드 배선이 필요해 needs_setup. | 2026-11-13 05:1x 배선 완료: wf_label_sweep.py 에 CO_FW4_h5 정의(gate_add 경로 = 선별 후 강제 append). 스모크(앵커 1·2폴드·1시드) rc=0, gate_add 3/4 통과 (sns_author_quality_score 는 시장레벨 사전필터 탈락 — fill 2.2% 라 날짜내 상수로 판정됨). 스모크 Δ=+0.0021 은 표본 미달이라 판정에 쓰지 않는다. 실행 프로토콜을 앵커 평균(protocol_pair_anchor)으로 올림 — 단일 앵커 Δ 는 앵커 잡음의 3배라 무효(CG144/145). | 1차 실행(05:04) 측정무효: 앵커 2026-11-06 은 라벨 유효 마지막 날짜(패널 끝 11-09 − h5) 보다 뒤라 절단이 무효 → 실효 앵커가 11-02 로 접혀 두 앵커가 중복됐다. 무효 실행에서도 짝 Δ 는 +0.0003/+0.0003/−0.0019(평균 −0.0004, 폴드 std 0.0010)로 0 근처였다. 유효 앵커 3개(11-02/10-27/10-20)로 재측정한다.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T05:09:00+09:00",
+     "rc": 0,
+     "verdict": "측정무효(앵커 미이동 — 앵커별 폴드 테스트 창이 동일하다. 요청 앵커 → 실효 앵커 매핑이 전부 같은 값인지 확인하라: {'2026-11-06': '2026-11-02', '2026-11-02': '2026-11-02', '2026-10-27': '2026-10-27'}. 라벨 유효 마지막 날짜(패널 끝 − h 거래일)보다 뒤의 앵커는 절단이 무효다 = CG199 재발)",
+     "detail": "앵커 3개 짝 Δ 2026-10-27:-0.0019 2026-11-02:+0.0003 2026-11-06:+0.0003 · 평균 -0.0004±0.001 · 문턱통과 0/3 (['2026-11-06:x', '2026-11-02:x', '2026-10-27:x']) · 부호일관 False · 레벨 std {'ctl': 0.0013, 'arm': 0.0024} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG234_20261113-050359.log",
+     "elapsed_min": 5.0
+    },
+    {
+     "ts": "2026-11-13T05:13:09+09:00",
+     "rc": 0,
+     "verdict": "앵커 잡음과 구분 불가(|Δ평균| -0.0006 < 앵커 std 0.0009) → 이 델타는 축 종결 근거로만 쓴다",
+     "detail": "앵커 3개 짝 Δ 2026-10-20:-0.0002 2026-10-27:-0.0019 2026-11-02:+0.0003 · 평균 -0.0006±0.0009 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 False · 레벨 std {'ctl': 0.0012, 'arm': 0.0021} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG234_20261113-051047.log",
+     "elapsed_min": 2.4
+    }
+   ],
+   "result": {
+    "verdict": "앵커 잡음과 구분 불가(|Δ평균| -0.0006 < 앵커 std 0.0009) → 이 델타는 축 종결 근거로만 쓴다",
+    "detail": "앵커 3개 짝 Δ 2026-10-20:-0.0002 2026-10-27:-0.0019 2026-11-02:+0.0003 · 평균 -0.0006±0.0009 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 False · 레벨 std {'ctl': 0.0012, 'arm': 0.0021} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG235",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "protocol_pair_anchor",
+   "from_experiment": "CG234",
+   "title": "[모델계열 축] 같은 선별·같은 폴드에서 학습기만 정규화 선형(로지스틱)으로 바꾸면 로버스트 AUC 가 +0.02 움직이는가",
+   "hypothesis": "이 스택에서 채점된 학습기는 xgboost·lightgbm·catboost 세 GBDT 뿐이고 선형은 한 번도 채점된 적이 없다. 신선 패널(panel_200liq_fresh) 5폴드 평균이 0.508~0.512 로 동전던지기 근처인데, 213피처 중 단일피처 |AUC−0.5| 최대가 0.024 로 작다 → 신호가 약하고 선형에 가까울 수 있다. 그 경우 트리 앙상블은 잡음을 학습하고 선형이 더 높게 나온다. 스모크(앵커 2026-11-02·2폴드·1시드)에서 선형 0.5232 vs GBDT 0.4973(Δ+0.0259) 로 사전문턱을 넘는 신호가 보였다 — 정식 프로토콜로 확인한다.",
+   "counterfactual": "CO_smooth_d1_h5 — 같은 패널·같은 폴드·같은 시드·같은 라벨·같은 선별(top30), 학습기만 GBDT 앙상블(3모델 가중평균)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CO_smooth_d1_h5,CG235_lin_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg235 --summary-out /app/reports/overnight/anchor_sweep/cg235_linear_summary.json'",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg235_linear_summary.json",
+   "arm": "CG235_lin_h5",
+   "baseline": "같은 런의 CO_smooth_d1_h5 (앵커 3개 평균) · 스코어보드 등록 기준선 0.5406",
+   "success": "앵커평균 Δ ≥ +0.02 AND 전 앵커 부호 양(+) → 모델계열 축 신호(후속: 선형+GBDT 혼합·특징수 확대 실험 생성, 승격은 별도). |Δ| < 앵커 std → 모델계열도 노이즈(축 종결). C=0.01/0.1/1.0 중 최고를 다음 대조군으로.",
+   "expected": "스모크가 2폴드·1시드라 과대추정 가능성이 크다. 5폴드×5시드에서 Δ 가 +0.01~+0.02 로 줄어들 것으로 본다(줄어도 부호가 3앵커에서 유지되면 유효한 신호).",
+   "cost": "낮음~중간(3앵커×(GBDT 1arm + 선형 3arm), 선형 학습은 셀당 1~2초)",
+   "ready_script": "scripts/wf_anchor_sweep.py",
+   "est_minutes": 20,
+   "depends_on": [
+    "CG234"
+   ],
+   "created_at": "2026-11-13T05:16:00+09:00",
+   "note": "2026-11-13 05:1x 엔지니어 자율(장외 루프) — CG234(데이터 축·기존 보유 피처)가 앵커평균 Δ −0.0006±0.0009 로 닫힌 직후, 남은 미측정 축은 '모델계열'이었다. 배선: wf_label_sweep.py 에 linear 플래그(_LinearModel, 표준화+로지스틱) 추가. 스모크에서 predict 가 2D 를 돌려줘 ml._safe_auc 가 ValueError 를 삼켜 AUC 0.5000 으로 오보하던 버그를 잡고 1D 로 고쳤다. | 계측기 제약: wf_anchor_sweep 은 --arms 2개만 받는다(4개 주면 즉시 실패) → C 민감도(0.01/1.0)는 CG236 으로 분리한다.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T05:15:36+09:00",
+     "rc": 2,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 2",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG235_20261113-051536.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-13T05:20:41+09:00",
+     "rc": 0,
+     "verdict": "노이즈(앵커평균 Δ +0.0159 < +0.02; |Δ| vs 앵커 std 0.0032)",
+     "detail": "앵커 3개 짝 Δ 2026-10-20:+0.0114 2026-10-27:+0.0185 2026-11-02:+0.0177 · 평균 +0.0159±0.0032 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 True · 레벨 std {'ctl': 0.0012, 'arm': 0.0036} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG235_20261113-051629.log",
+     "elapsed_min": 4.2
+    }
+   ],
+   "result": {
+    "verdict": "노이즈(앵커평균 Δ +0.0159 < +0.02; |Δ| vs 앵커 std 0.0032)",
+    "detail": "앵커 3개 짝 Δ 2026-10-20:+0.0114 2026-10-27:+0.0185 2026-11-02:+0.0177 · 평균 +0.0159±0.0032 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 True · 레벨 std {'ctl': 0.0012, 'arm': 0.0036} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG236",
+   "status": "pending",
+   "priority": 2,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "protocol_pair_anchor",
+   "from_experiment": "CG235",
+   "title": "[모델계열 축·정규화] 선형 우위가 정규화 강도(C)에 의존하는가 — C=0.01 vs 1.0",
+   "hypothesis": "CG235 에서 로지스틱(C=0.1)이 GBDT 대조군을 앞서면, 그 우위가 '강한 정규화가 잡음을 누른 결과'인지 '신호가 선형이라서'인지 구분해야 한다. C 를 0.01/1.0 으로 움직여 레벨이 단조로 변하면 정규화 효과, 평탄하면 선형 신호다.",
+   "counterfactual": "CG235_lin_h5(같은 경로·C=0.1) — 같은 앵커·같은 폴드·같은 시드",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CG235_lin_h5,CG235_lin_c01_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg236 --summary-out /app/reports/overnight/anchor_sweep/cg236_lin_c01_summary.json'",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg236_lin_c01_summary.json",
+   "arm": "CG235_lin_c01_h5",
+   "baseline": "CG235_lin_h5 (C=0.1) 앵커 3개 평균",
+   "success": "앵커평균 Δ ≥ +0.02 & 전 앵커 양(+) → 더 강한 L2 가 낫다(다음 대조군 C=0.01). |Δ| < 앵커 std → C 무관(선형 신호로 해석).",
+   "expected": "C 변화는 AUC 를 ±0.01 안에서만 움직일 것으로 본다.",
+   "cost": "낮음(선형 2arm × 3앵커 × 5폴드 × 5시드, 셀당 1~2초)",
+   "ready_script": "scripts/wf_anchor_sweep.py",
+   "est_minutes": 10,
+   "depends_on": [
+    "CG235"
+   ],
+   "created_at": "2026-11-13T05:17:00+09:00",
+   "note": "2026-11-13 05:1x 엔지니어 자율 — CG235 후속(정규화 민감도). CG235 신호가 나올 때만 의미가 있다."
+  },
+  {
+   "id": "CG237",
+   "status": "pending",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "protocol_pair_anchor",
+   "from_experiment": "CG235",
+   "title": "[모델계열 축·피처수] 선형의 이득이 top30 선별에서 잘리고 있는가 — core48 전체 사용",
+   "hypothesis": "CG235 실측: 선형(C=0.1)이 GBDT 대조군보다 앵커평균 **+0.0159**(3/3 앵커 양(+), 폴드 14/15, 앵커 std 0.0032)로 앞섰다 — 문턱 +0.02 에 0.0041 미달. 선형은 표준화+L2 라 트리보다 다피처에 강건하므로, top30 선별이 이득의 일부를 잘라내고 있을 수 있다. core48 전체(≈22~40 실효)를 넣어 같은 프로토콜로 재면 문턱을 넘을 수 있다.",
+   "counterfactual": "CG235_lin_h5 (같은 경로·같은 C=0.1, 선별만 top30)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CG235_lin_h5,CG237_lin_all_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg237 --summary-out /app/reports/overnight/anchor_sweep/cg237_lin_all_summary.json'",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg237_lin_all_summary.json",
+   "arm": "CG237_lin_all_h5",
+   "baseline": "CG235_lin_h5 앵커 3개 평균(0.5228 @ 11-02 계열) · GBDT 대조군 대비 +0.0159",
+   "success": "앵커평균 Δ ≥ +0.02 & 전 앵커 양(+) → 피처 수 축 신호(선형 경로 확대). |Δ| < 앵커 std → 선별 무관(top30 유지).",
+   "expected": "core48 전체는 실효 20~40개라 top30 과 대동소이 — Δ 는 ±0.01 안일 것으로 본다.",
+   "cost": "낮음(선형 2arm × 3앵커 × 5폴드 × 5시드, 셀당 1~3초)",
+   "ready_script": "scripts/wf_anchor_sweep.py",
+   "est_minutes": 10,
+   "depends_on": [
+    "CG235"
+   ],
+   "created_at": "2026-11-13T05:28:00+09:00",
+   "note": "2026-11-13 05:2x 엔지니어 자율 — CG235 문턱 미달(+0.0159) 후 가장 값싼 확장. 부호가 3/3 유지되는 축이라 문턱 근처까지 밀어볼 가치가 있다."
   }
  ],
- "updated": "2026-11-09T20:12+09:00"
+ "updated": "2026-11-13T05:28:00+09:00"
 }

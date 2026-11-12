@@ -1217,6 +1217,43 @@ CONFIGS = [
                        "twin_avg_correlation", "twin_count", "avg_similarity_top10", "max_similarity",
                        "sector_count"],
      "desc": "CG205 처리군 — 게이트 OFF 동일 조건 + 종목상수 9개(std>0) 제외 (누수게이트 ③ 실측)"},
+    # ── CG234(2026-11-13, 데이터 축): 스크린 상위 시간가변 피처를 선별이 버리고 있는가 ────────
+    # 근거: CG233 스크린(panel_prod200, 213피처, q0.3·h5) — 누수 의심 0, 무정보 120/213,
+    #   IC |t|≥2 시간가변 후보 66개. 그중 커버리지 100% 인 similar_stocks_return_std(t 7.47)·
+    #   similar_stocks_return_avg(t 7.46)·debt_ratio(t 6.43)는 CORE_FEATURES(48) 밖이라 게이트 ON
+    #   경로의 **선별 후보조차** 아니었다. 조정 축 상한(+0.011)이 막힌 지금, 데이터 축에서
+    #   '이미 보유한 신호를 선별이 버리는지'가 마지막 확인 지점이다.
+    # 프로토콜(사전등록): 같은 패널·같은 폴드·같은 시드에서 대조군 CO_smooth_d1_h5 vs 이 arm.
+    #   gate_add 는 선별 **후에** 덧붙이는 경로(dv_names)라 top30 집합이 동일하고 차이는 '후보 3종
+    #   추가' 하나로 좁혀진다(용량 교란 최소). 판정은 앵커 평균 Δ ≥ +0.02 & 전 앵커 부호 양(+) → 신호.
+    # ⚠ 희소 피처 제외: sns_author_quality_score(fill 2.2%)는 사전필터(시장레벨 판정)에서 탈락한다
+    #   — 관측일 대부분 종목 1개뿐이라 '날짜내 종목간 상수'로 판정되는 것이고, 그 단일피처 AUC
+    #   0.5889 는 횡단면 신호가 아니라 날짜 성분일 수 있다(누수게이트 ④). 강제로 넣으려면
+    #   시장레벨 필터 우회 플래그가 필요해 별도 승인 사안으로 남긴다.
+    {"id": "CO_FW4_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "gate_add": ["similar_stocks_return_std", "similar_stocks_return_avg", "debt_ratio"],
+     "desc": "CG234 — 게이트 ON + 스크린 dense 후보 3종(similar_stocks 2·debt_ratio)을 선별 후 강제 포함"},
+    # ── CG235(2026-11-13): 모델계열 대조 — 선형(로지스틱)이 GBDT 앙상블을 이기는가 ────────────
+    # 근거: 신선 패널 5폴드 평균이 0.508~0.512(동전던지기 근처)이고 조정 축 상한이 +0.011 이다.
+    #   이 스택에서 채점된 학습기는 xgboost·lightgbm·catboost 세 GBDT 뿐 — 선형은 미측정이다.
+    #   선형이 동등하거나 높으면 '신호는 선형인데 트리가 잡음을 학습' → 모델계열 투자 근거,
+    #   크게 낮으면 '비선형 상호작용은 있으나 크기가 작다' → 새 데이터가 유일한 레버로 확정된다.
+    # 판정: 앵커 3개 평균 Δ(선형 − GBDT 대조군) 와 앵커 std 비교(CG234 와 같은 프로토콜).
+    {"id": "CG235_lin_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "linear": True, "linear_C": 0.1,
+     "desc": "CG235 — 같은 선별·같은 폴드·같은 시드에서 학습기만 표준화 로지스틱(C=0.1)로 교체"},
+    {"id": "CG235_lin_c01_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "linear": True, "linear_C": 0.01,
+     "desc": "CG235b — 같은 경로·로지스틱 C=0.01(더 강한 L2) — 정규화 민감도 확인"},
+    {"id": "CG235_lin_c10_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "linear": True, "linear_C": 1.0,
+     "desc": "CG235c — 같은 경로·로지스틱 C=1.0(약한 L2) — 정규화 민감도 확인"},
+    # CG237: 선형은 트리보다 '피처 수'에 둔감하다(표준화 + L2). top30 선별이 선형의 이득을 잘라내고
+    # 있는지 확인 — core48 전체를 넣어 같은 프로토콜로 비교한다(선별 단계만 다름).
+    {"id": "CG237_lin_all_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "all",
+     "core_only": True, "linear": True, "linear_C": 0.1,
+     "desc": "CG237 — 선형(C=0.1) + core48 전체 사용(선별 top30 대신) — 피처 수 민감도"},
 ]
 
 
@@ -1758,6 +1795,50 @@ def main():
 
         ml.EnsembleModel = _EnsembledForSweep
 
+    # ── CG235(2026-11-13): 모델계열 대조 — GBDT 앙상블 대신 정규화 선형(로지스틱) ─────────────
+    # 왜: 이 스택에서 모델계열은 xgboost·lightgbm·catboost **세 GBDT 뿐**이고, 선형 모델은
+    #   한 번도 채점된 적이 없다. 5폴드 평균 AUC 가 신선 패널에서 0.508~0.512(=동전던지기 근처)로
+    #   고정된 지금, "GBDT 가 잡음에 과적합하는가 / 신호 자체가 선형인데 트리가 놓치는가"를
+    #   구분해야 다음 투자(새 데이터 vs 새 모델계열)를 정할 수 있다.
+    # 계약: 같은 선별·같은 폴드·같은 시드·같은 라벨에서 **학습기만** 바꾼다(공유 트레이너 무변경).
+    #   표준화 + L2 로지스틱(C=cfg["linear_C"] 또는 0.1). 표본 가중은 sklearn 규약으로 전달.
+    class _LinearModel:
+        def __init__(self, model_dir="models"):
+            self.model_dir = model_dir
+            self.model_names = ["logit"]
+            self.models = []
+            self.val_weights = {}
+
+        def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None,
+                  sample_weight=None):
+            from sklearn.linear_model import LogisticRegression
+            from sklearn.pipeline import make_pipeline
+            from sklearn.preprocessing import StandardScaler
+            C = float(_ens_cfg.get("linear_C") or 0.1)
+            clf = make_pipeline(StandardScaler(),
+                                LogisticRegression(C=C, max_iter=3000, solver="lbfgs"))
+            kw = {}
+            if sample_weight is not None:
+                kw["logisticregression__sample_weight"] = np.asarray(sample_weight, dtype=float)
+            clf.fit(X_train, y_train, **kw)
+            self.models = [clf]
+            try:
+                _cv = np.asarray(clf.predict_proba(X_train)[:, 1], dtype=float)
+                _coef = np.abs(np.asarray(clf[-1].coef_, dtype=float)).sum()
+                ml.log(f"    [linear] 학습행 {X_train.shape[0]}x{X_train.shape[1]} · |coef|합 {_coef:.4f} · "
+                       f"train p std {_cv.std():.5f} (min {_cv.min():.4f} max {_cv.max():.4f})")
+            except Exception as _e:
+                ml.log(f"    [linear] 진단 실패 {type(_e).__name__}: {_e}")
+            return self
+
+        def predict(self, X):
+            # ⚠ 1D 로 돌려준다 — GBDT 앙상블(EnsembleModel.predict)과 같은 계약이다.
+            #   2D (n,2) 로 주면 ml._safe_auc 가 roc_auc_score(y, 2D) 에서 ValueError 를 잡아
+            #   **조용히 0.5 를 반환**한다(실측: 1차 스모크 AUC 0.5000 ± 0.0000 = 이 버그였다).
+            return np.asarray(self.models[0].predict_proba(X), dtype=float)[:, 1]
+
+    _EnsGBDT = ml.EnsembleModel
+
     out_path = args.out
     # dirname 이 빈 문자열(파일명만 준 경우)이면 makedirs("") 가 크래시한다 → 있을 때만 만든다.
     for _p in (out_path, args.summary_out):
@@ -2094,6 +2175,14 @@ def main():
                 else:
                     idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr, trd)
                 sel = [fn[j] for j in idx]
+                # ── CG234: gate_add 후보가 실제로 선별에 들어갔는지 남긴다 ─────────────────────
+                # gate_add 는 dv_names 경로로 **선별 후에 강제 append** 되므로(top30 집합은 두 arm
+                # 동일) 진입 개수가 곧 '추가 정보가 실제로 모델 입력에 들어간 양'이다. 사전필터
+                # (std·pool·시장레벨)에서 탈락한 이름은 여기 0으로 나타난다 — 그 경우 '선별이
+                # 버렸다'가 아니라 '필터가 막았다'이므로 판정 문구를 구분해야 한다.
+                if ga_names:
+                    _ga_sel = sorted(set(ga_names) & set(sel))
+                    ml.log(f"  {exp_id}: gate_add 선별 진입 {len(_ga_sel)}/{len(ga_names)}개 {_ga_sel}")
                 # CG74 투명성: 선별 집합에 중복열(`__dupN`)이 몇 개 들어갔는지 남긴다 —
                 # 이것이 0 이 아니면 'drop_dup' arm 과 대조군이 **다른 집합**이라는 증거다
                 # (둘 다 0 이면 이 축은 측정 불가이므로 Δ0 을 '효과 없음'으로 오독하게 된다).
@@ -2108,6 +2197,10 @@ def main():
                 _extra.update(cfg.get("recipe_extra") or {})
                 _ens_cfg["skip"] = set((cfg.get("ens") or {}).get("skip") or ())
                 _ens_cfg["equal_weights"] = bool((cfg.get("ens") or {}).get("equal_weights"))
+                _ens_cfg["linear"] = bool(cfg.get("linear"))
+                _ens_cfg["linear_C"] = cfg.get("linear_C")
+                # 모델계열 스위치(CG235) — 실험 config 한정. 기본은 GBDT 앙상블(_EnsGBDT).
+                ml.EnsembleModel = _LinearModel if cfg.get("linear") else _EnsGBDT
                 aucs = []
                 probs = []
                 n_eff_seen = set()
