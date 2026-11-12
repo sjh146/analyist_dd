@@ -1195,6 +1195,28 @@ CONFIGS = [
                        "etf_flow_5d", "institution_ownership_pct", "margin_balance_change",
                        "credit_balance_change", "value_ncav"],
      "desc": "CG204 — CO_smooth_d1_h5 + 종목상수 29개 제거·중복라벨 제거 (배포가능 조정 arm 위 청정화)"},
+    # ── CG205(2026-11-12): 누수게이트 ③ 실측 — 게이트 OFF 경로에서 종목상수가 선별을 지배하는가 ──
+    # 왜: CG204 는 **측정 전에 실패**했다(구동 가드: exclude_names 29개가 아무 컬럼도 제외하지 않음).
+    #   원인 실측(panel_200liq_fresh, 213피처·200종목·279일 2025-09-15~2026-11-09):
+    #   종목상수(종목별 유니크값 1개, const_ratio≥0.99)는 21개인데 **전부 CORE_FEATURES(48) 밖**(테마·
+    #   유사도·수급)이고, core48 안의 종목상수는 sentiment_avg·sentiment_avg_5d·sentiment_avg_20d 3개뿐이며
+    #   셋 다 std=0(무정보)이라 std 필터에서 이미 탈락한다 → 게이트 ON 경로(core_only=True)에서
+    #   누수게이트 ③은 **구조적으로 성립 불가**(제외할 컬럼이 후보에 0개).
+    #   남는 위험은 게이트 OFF 경로다: 스윕 기본값이 게이트 OFF 이므로 과거 실험 대부분이 종목상수를
+    #   후보로 삼았다. 그 9개(std>0 종목상수)가 top30 슬롯을 점유해 AUC 를 오염시키는지 직접 잰다.
+    #   판정: |짝 Δ| < 0.005 → 게이트 OFF 실험들도 오염 없음(과거 결론 유효) / ≥ +0.02 → 과거 게이트 OFF
+    #   실험의 해석을 재검토(측정정합성 이슈, 리뷰보드 보고).
+    {"id": "CG205_ctl_nocore_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "CG205 대조군 — 게이트 OFF + 스무딩 + depth1 (스윕 기본 경로)"},
+    {"id": "CG205_excl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "exclude_names": ["theme_count", "theme_max_relevance", "similarity_std", "similar_count",
+                       "twin_avg_correlation", "twin_count", "avg_similarity_top10", "max_similarity",
+                       "sector_count"],
+     "desc": "CG205 처리군 — 게이트 OFF 동일 조건 + 종목상수 9개(std>0) 제외 (누수게이트 ③ 실측)"},
 ]
 
 

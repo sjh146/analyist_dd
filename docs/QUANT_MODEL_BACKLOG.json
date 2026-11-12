@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-12T13:27:01+09:00",
+ "updated_at": "2026-11-12T17:22:13+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -15804,7 +15804,7 @@
   {
    "id": "CG203",
    "title": "[측정기·잡음곡선] 짝 Δ 잡음은 앵커 간격에 따라 커지는가 — 널 쌍을 1·10·20·40·60거래일 앵커에서 재측정",
-   "status": "pending",
+   "status": "done",
    "priority": 3,
    "kind": "experiment",
    "owner": "engineer",
@@ -15828,21 +15828,29 @@
      "detail": "외부/비정상 종료 — 원장 기록 전에 프로세스가 사라짐(추정: 호스트 종료·수동 정지·컨테이너 재생성 SIGKILL). 측정값 없음 · 로그 5줄 (진행 로그 없음)",
      "log": "data/reports/me_cycle/logs/me_cycle_CG203_20261112-040123.log",
      "elapsed_min": 565.6
+    },
+    {
+     "ts": "2026-11-12T16:40:25+09:00",
+     "rc": 0,
+     "verdict": "앵커 잡음과 구분 불가(|Δ평균| -0.0006 < 앵커 std 0.0014) → 이 델타는 축 종결 근거로만 쓴다",
+     "detail": "앵커 5개 짝 Δ 2026-08-03:+0.0009 2026-09-01:-0.0006 2026-10-01:-0.0005 2026-10-19:-0.0031 2026-10-30:+0.0002 · 평균 -0.0006±0.0014 · 문턱통과 0/5 (['2026-10-30:x', '2026-10-19:x', '2026-10-01:x', '2026-09-01:x', '2026-08-03:x']) · 부호일관 False · 레벨 std {'ctl': 0.0026, 'arm': 0.0021} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG203_20261112-160009.log",
+     "elapsed_min": 40.3
     }
    ],
    "retry_note": "2026-11-12T13:27:01+09:00 기록 없이 종료 → 재시도 1/3 (체크포인트 재개) · 13:2x 래퍼 보강(진행 스트리밍+앵커 재개) 완료, 장 종료 후 틱에서 재개",
    "result": {
-    "verdict": "실행실패",
-    "detail": "외부/비정상 종료 — 원장 기록 전에 프로세스가 사라짐(추정: 호스트 종료·수동 정지·컨테이너 재생성 SIGKILL). 측정값 없음 · 로그 5줄 (진행 로그 없음)",
+    "verdict": "앵커 잡음과 구분 불가(|Δ평균| -0.0006 < 앵커 std 0.0014) → 이 델타는 축 종결 근거로만 쓴다",
+    "detail": "앵커 5개 짝 Δ 2026-08-03:+0.0009 2026-09-01:-0.0006 2026-10-01:-0.0005 2026-10-19:-0.0031 2026-10-30:+0.0002 · 평균 -0.0006±0.0014 · 문턱통과 0/5 (['2026-10-30:x', '2026-10-19:x', '2026-10-01:x', '2026-09-01:x', '2026-08-03:x']) · 부호일관 False · 레벨 std {'ctl': 0.0026, 'arm': 0.0021} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
     "delta": null,
     "per_exp": null,
-    "rc": 137
+    "rc": 0
    }
   },
   {
    "id": "CG204",
    "title": "[조정 축 최종] 배포가능 최고 조정 arm(스무딩+depth1) 위에 청정 선별을 얹으면 AUC 가 움직이는가 — 누수게이트 ③(종목상수 선별 지배) 대응",
-   "status": "pending",
+   "status": "failed",
    "priority": 3,
    "kind": "experiment",
    "owner": "engineer",
@@ -15857,7 +15865,61 @@
    "cost": "중 (2 config × 5폴드 × 5시드 × 앵커 3개 ≈ 40~60분, 기존 패널·도구 재사용)",
    "est_minutes": 60,
    "created_at": "2026-11-12T04:10:00+09:00",
-   "notes": "2026-11-12 04:1x 엔지니어 자율(장외 틱). 신규 코드 = wf_label_sweep.py CONFIGS 에 CG204_clean_smooth_d1_h5 1건 추가(CO_smooth_d1_h5 복제 + drop_dup·exclude_names 29개). 검증: ast 로 CONFIGS 206개 파싱·중복 id 없음·exclude_names 29 확인. 판정 문턱·프로토콜·라벨·유니버스 규칙 변경 없음 → 리뷰보드 승인 불필요."
+   "notes": "2026-11-12 04:1x 엔지니어 자율(장외 틱). 신규 코드 = wf_label_sweep.py CONFIGS 에 CG204_clean_smooth_d1_h5 1건 추가(CO_smooth_d1_h5 복제 + drop_dup·exclude_names 29개). 검증: ast 로 CONFIGS 206개 파싱·중복 id 없음·exclude_names 29 확인. 판정 문턱·프로토콜·라벨·유니버스 규칙 변경 없음 → 리뷰보드 승인 불필요. | 2026-11-12 17:1x 진단(측정 전 실패, 노이즈 아님): 구동 가드가 'exclude_names 29개가 아무 컬럼도 제외하지 않았다'로 중단. 원인 실측(panel_200liq_fresh 213피처·200종목·279일 2025-09-15~2026-11-09): 종목상수(종목별 유니크값 1개, ≥0.99)는 21개인데 전부 CORE_FEATURES(48) 밖(테마·유사도·수급)이고, core48 안의 종목상수는 sentiment_avg·sentiment_avg_5d·sentiment_avg_20d 3개뿐이며 셋 다 std=0 이라 std 필터에서 이미 탈락 → core_only=True 경로에는 제외 대상 컬럼이 0개. 즉 누수게이트③은 배포 경로(core48 게이트 ON)에서 구조적으로 성립 불가. 남은 위험은 게이트 OFF 경로라서 CG205로 이관.",
+   "attempts": [
+    {
+     "ts": "2026-11-12T17:04:30+09:00",
+     "rc": 1,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 1(로그 꼬리에서 예외 줄 미발견)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG204_20261112-170123.log",
+     "elapsed_min": 3.1
+    }
+   ],
+   "result": {
+    "verdict": "실행실패",
+    "detail": "측정값 없음 — 종료코드 1(로그 꼬리에서 예외 줄 미발견)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 1
+   }
+  },
+  {
+   "id": "CG205",
+   "title": "[측정정합성·누수게이트] 스윕 기본 경로(게이트 OFF)에서 종목상수 9개가 선별을 지배하는가 — CG204 무효 후속",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "protocol_pair_anchor",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg205_stockconst_off_summary.json",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CG205_ctl_nocore_h5,CG205_excl_h5 --asofs 2026-10-29,2026-10-30,2026-11-02 --folds 5 --seeds 5 --summary-out /app/reports/overnight/anchor_sweep/cg205_stockconst_off_summary.json --tag cg205 --timeout-sec 900'",
+   "counterfactual": "CG205_ctl_nocore_h5 (같은 런 대조군 — 게이트 OFF·스무딩·depth1·lr0.05, 제외 없음 = 스윕 기본 경로). 처리군은 동일 조건 + 종목상수 9개(theme_count·theme_max_relevance·similarity_std·similar_count·twin_avg_correlation·twin_count·avg_similarity_top10·max_similarity·sector_count) 제외 → 짝 Δ 는 선별 청정화 단독 기여.",
+   "success": "① 앵커 3개 폴드 테스트창이 실제로 달라야 한다(anchor_moved False = 측정무효) ② |짝 Δ 평균| < 0.005 → 게이트 OFF 실험들도 종목상수 오염 없음(과거 결론 유효) ③ 짝 Δ ≥ +0.02 & 부호 3/3 → 게이트 OFF 경로가 오염됐다 = 과거 실험 해석 재검토(리뷰보드 보고) ④ 0.005~0.02 = 노이즈 ⑤ rc≠0/요약 미갱신 = 실행실패",
+   "hypothesis": "CG204 실측 진단(2026-11-12 17:1x): 배포 경로(core48 게이트 ON)에는 종목상수가 후보로 들어오지 않는다(종목상수 21개 전부 core 밖, core 내 3개는 std=0). 그러나 스윕 기본값은 게이트 OFF 이므로 과거 실험 대부분이 종목상수 9개를 top30 후보로 삼았다. 이 9개는 종목 정체성 대리변수라 학습 종목 암기(memorization)를 유도해 횡단면 일반화를 해칠 수 있다 — 제거했을 때 OOS AUC 가 오르면 과거 게이트 OFF 실험의 결론 일부가 '오염된 측정'이 된다.",
+   "expected": "이득은 AUC 가 아니라 **과거 실험 해석의 유효성**이다. Δ 가 0 근처면 게이트 OFF 실험들도 그대로 신뢰할 수 있고, 크게 오르면 무개선 19사이클의 측정 자체를 재검토해야 한다.",
+   "cost": "저 (2 config × 5폴드 × 5시드 × 앵커 3개 ≈ 5~10분, 스모크 9개 제외 확인 완료)",
+   "est_minutes": 20,
+   "created_at": "2026-11-12T17:10:50+09:00",
+   "notes": "2026-11-12 17:1x 엔지니어 자율(장외 틱). 신규 코드 = wf_label_sweep.py CONFIGS 2건(CG205_ctl_nocore_h5·CG205_excl_h5). 스모크 실측(앵커 11-02·2폴드·1시드): 제외 9개 확인·ctl 0.4934 / excl 0.4959 = Δ+0.0025(판정 아님). 판정문턱·프로토콜 무변경 → 리뷰보드 승인 불필요.",
+   "attempts": [
+    {
+     "ts": "2026-11-12T17:22:13+09:00",
+     "rc": 0,
+     "verdict": "노이즈(앵커평균 Δ -0.0099 < +0.02; |Δ| vs 앵커 std 0.0008)",
+     "detail": "앵커 3개 짝 Δ 2026-10-29:-0.0093 2026-10-30:-0.0111 2026-11-02:-0.0094 · 평균 -0.0099±0.0008 · 문턱통과 0/3 (['2026-10-29:x', '2026-10-30:x', '2026-11-02:x']) · 부호일관 True · 레벨 std {'ctl': 0.0018, 'arm': 0.0016} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG205_20261112-171050.log",
+     "elapsed_min": 11.4
+    }
+   ],
+   "result": {
+    "verdict": "노이즈(앵커평균 Δ -0.0099 < +0.02; |Δ| vs 앵커 std 0.0008)",
+    "detail": "앵커 3개 짝 Δ 2026-10-29:-0.0093 2026-10-30:-0.0111 2026-11-02:-0.0094 · 평균 -0.0099±0.0008 · 문턱통과 0/3 (['2026-10-29:x', '2026-10-30:x', '2026-11-02:x']) · 부호일관 True · 레벨 std {'ctl': 0.0018, 'arm': 0.0016} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   }
  ],
  "updated": "2026-11-09T20:12+09:00"
