@@ -48,10 +48,46 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+def _tail(path, n=3):
+    """진행 로그의 마지막 n줄(하트비트·실패 원인 출력용)."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return "".join(f.readlines()[-n:]).strip()
+    except OSError:
+        return ""
+
+
+def _summary_ok(path, arms):
+    """기존 요약 JSON 이 이 arm 들을 **전부 ok** 로 담고 있으면 재사용(앵커 단위 재개)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    for a in arms:
+        if not any(r.get("exp") == a and r.get("status") == "ok" for r in (d.get("results") or [])):
+            return None
+    return d
+
+
 def run_anchor(anchor, arms, args, tag):
-    """앵커 1개 = wf_label_sweep 1회. 반환: (요약 dict, 오류 문자열 or None)."""
+    """앵커 1개 = wf_label_sweep 1회. 반환: (요약 dict, 오류 문자열 or None).
+
+    ⚠ 프로세스가 죽어도 앵커 단위로는 살아남게 두 가지를 지킨다:
+      ① 자식의 stdout/stderr 를 **파일로 흘려보낸다**(work_dir/<tag>_<anchor>.log) — 이전에는
+         capture_output 으로 메모리에 담아 9시간 정지 동안 사이클 로그에 진행 한 줄도 없었다
+         (실측 2026-11-12 CG203: 로그 5줄·출력 파일 0개·rc=137). 이제 진행률을 실시간으로 볼 수 있다.
+      ② 앵커별 요약 JSON 이 이미 완주해 있으면 **재실행하지 않는다** — 호스트 수면/재부팅으로
+         중간에 죽어도 다음 시도는 남은 앵커부터 시작한다.
+    """
     s_out = os.path.join(args.work_dir, f"{tag}_{anchor}.json")
     out_jsonl = os.path.join(args.work_dir, f"{tag}_{anchor}.jsonl")
+    anchor_log = os.path.join(args.work_dir, f"{tag}_{anchor}.log")
+    if not args.no_resume:
+        done = _summary_ok(s_out, arms)
+        if done is not None:
+            log(f"anchor={anchor} 재개: 완주한 요약 재사용 {s_out}")
+            return done, None
     cmd = [sys.executable, "-u", os.path.join(HERE, "wf_label_sweep.py"),
            "--panel", args.panel, "--asof-date", anchor,
            "--folds", str(args.folds), "--seeds", str(args.seeds),
@@ -61,19 +97,34 @@ def run_anchor(anchor, arms, args, tag):
         v = getattr(args, k, None)
         if v is not None:
             cmd += ["--" + k.replace("_", "-"), str(v)]
-    log(f"anchor={anchor} 실행: {' '.join(cmd)}")
+    log(f"anchor={anchor} 실행(진행 로그 {anchor_log}): {' '.join(cmd)}")
     t0 = time.time()
-    try:
-        p = subprocess.run(cmd, cwd=os.path.dirname(HERE) or "/app",
-                           capture_output=True, text=True, timeout=args.timeout_sec)
-        rc, tail = p.returncode, (p.stdout or "")[-1500:] + (p.stderr or "")[-800:]
-    except subprocess.TimeoutExpired:
-        return None, f"timeout {args.timeout_sec}s"
+    last_beat = 0.0
+    with open(anchor_log, "w", encoding="utf-8") as lf:
+        p = subprocess.Popen(cmd, cwd=os.path.dirname(HERE) or "/app",
+                             stdout=lf, stderr=subprocess.STDOUT, text=True)
+        rc = None
+        while True:
+            rc = p.poll()
+            if rc is not None:
+                break
+            el = time.time() - t0
+            if el > args.timeout_sec:
+                p.kill()
+                try:
+                    p.wait(timeout=60)
+                except subprocess.TimeoutExpired:
+                    pass
+                return None, f"timeout {args.timeout_sec}s (진행 로그 {anchor_log})"
+            if el - last_beat >= 120:
+                last_beat = el
+                log(f"anchor={anchor} 진행 {el / 60.0:.1f}분 · {_tail(anchor_log, 1)}")
+            time.sleep(5)
     dt = (time.time() - t0) / 60.0
     log(f"anchor={anchor} rc={rc} 소요 {dt:.1f}분")
     if rc != 0:
-        log(tail)
-        return None, f"rc={rc}"
+        log(_tail(anchor_log, 6))
+        return None, f"rc={rc} (진행 로그 {anchor_log})"
     try:
         with open(s_out, encoding="utf-8") as f:
             d = json.load(f)
@@ -107,6 +158,8 @@ def main():
     ap.add_argument("--work-dir", default="/app/reports/overnight/anchor_sweep")
     ap.add_argument("--tag", default="cg200")
     ap.add_argument("--timeout-sec", type=int, default=2400, help="앵커 1회 타임아웃")
+    ap.add_argument("--no-resume", action="store_true",
+                    help="앵커 단위 재개를 끈다(기존 앵커 요약 JSON 을 무시하고 전부 재실행)")
     # 유니버스 옵션 패스스루(패널 재사용 시엔 무시된다 — 새 패널 빌드에서만 유효)
     ap.add_argument("--days", type=int, default=None)
     ap.add_argument("--limit", type=int, default=None)
