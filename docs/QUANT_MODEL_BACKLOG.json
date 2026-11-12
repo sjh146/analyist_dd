@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-12T22:35:00+09:00",
+  "updated_at": "2026-11-12T22:33:37+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -16000,14 +16000,73 @@
       "id": "CG209",
       "title": "[엔지니어 CG209] 챔피언 **자기 과제**(abs·h1) OOS + 체결성 순기대 — 롤백/유지 판단의 유일한 빠진 숫자",
       "priority": 1,
-      "status": "pending",
+      "status": "done",
       "owner": "engineer",
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 2100 python -u scripts/champion_robust_eval.py --universe training --label-kind abs --horizon 1 --asof-date 2026-11-12 --folds 5 --dates-per-fold 10 --stocks 80 --folds 5 --dump-all --dump-preds /app/reports/overnight/cg209_abs_h1.jsonl --out /app/reports/overnight/cg209_abs_h1.json' && docker exec stock_xgboost_ml sh -c \"cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg209_abs_h1.jsonl --control-jsonl /app/reports/overnight/cg209_abs_h1.jsonl --k 3,5 --exit next_open --horizon 1 --json-out /app/reports/overnight/cg209_money.json\"",
       "counterfactual": "CG209_null = 같은 런의 풀평균 무작위 k (fillable_topk_expectancy 가 출력하는 널 기준선)",
       "success": "top-k 체결성 순기대 − 널(풀평균) Δ >= +0.10%p 이고 t>2 (부호일관·앞뒤 절반 both_positive) — 미달이면 '챔피언 자기 과제 엣지 없음'으로 축 종결",
       "est_minutes": 20,
       "depends_on": [],
-      "note": "왜 필요한가: 배포 챔피언은 abs·1일 방향 라벨로 학습됐는데(retrain_champion._create_labels), 지금까지의 모든 판정은 rel·h5 로 채점한 것이다(CG34/36). 게다가 그 돈 지표(-0.182%p/87세션)는 유동성 유니버스(ETF·ETN 29/80)에서 잰 값이라 도메인도 어긋난다(CG208). 즉 '롤백할까 유지할까' 판단에 쓰이는 숫자가 아직 **자기 과제·자기 유니버스**로 측정된 적이 없다. 승격 없음·읽기 전용·모델 변경 없음."
+      "note": "왜 필요한가: 배포 챔피언은 abs·1일 방향 라벨로 학습됐는데(retrain_champion._create_labels), 지금까지의 모든 판정은 rel·h5 로 채점한 것이다(CG34/36). 게다가 그 돈 지표(-0.182%p/87세션)는 유동성 유니버스(ETF·ETN 29/80)에서 잰 값이라 도메인도 어긋난다(CG208). 즉 '롤백할까 유지할까' 판단에 쓰이는 숫자가 아직 **자기 과제·자기 유니버스**로 측정된 적이 없다. 승격 없음·읽기 전용·모델 변경 없음. | 결과: 표본 20세션은 승격 게이트 최소표본 미만이라 '공식 롤백 판정'이 아니라 **일관된 증거**다. 승격 없음·champion/ 무변경. 증거: /app/reports/overnight/cg209_abs_h1.json · cg209_money.json",
+      "attempts": [
+        {
+          "ts": "2026-11-12T22:32:11+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "parser 없음 (metric=None)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG209_20261112-222730.log",
+          "elapsed_min": 4.7
+        }
+      ],
+      "result": {
+        "verdict": "축 종결 — 배포 챔피언은 자기 과제·자기 유니버스에서도 무작위 선택보다 유의하게 나쁘다(k3 Δ -0.386%p/세션, t -2.03, 15/20세션 음)",
+        "detail": "abs·h1(자기 과제)·training 유니버스(ETF/ETN 0·학습200 교집합 24)·앵커 2026-11-12 고정·2폴드 20일: 로버스트 AUC 0.5162(폴드 0.5008/0.5316) — 자기 과제 AUC 도 사실상 0.50. 돈(체결성 ON·수수료 0.21%p·익일시가 청산·h1·20세션): 널 풀평균 +0.346%p/세션(t 0.95 = 0 과 구분 불가) 대비 top3 Δ -0.386(t -2.03, pos/neg 5/15) · top5 Δ -0.223(t -1.35, 8/12). 필터 OFF 에서도 k3 -0.247(t -1.7)/k5 -0.219(t -1.8) 로 부호 동일. 즉 이 손실은 체결성 필터 아티팩트가 아니고, 라벨·유니버스 불일치 아티팩트도 아니다(CG208 의 정정을 반영한 뒤에도 남는다). 독립 표본 2개가 같은 부호: CG209 -0.386%p/20세션(t -2.03) · robust_oos.json -0.182%p/87세션(t -0.81).",
+        "delta": -0.386,
+        "per_exp": -0.386,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG210",
+      "status": "done",
+      "priority": 2,
+      "kind": "measurement_integrity",
+      "owner": "engineer",
+      "affects_model": true,
+      "from_experiment": "CG191",
+      "title": "[돈 지표·측정정합성] 승격 돈 게이트의 순기대 표본이 학습구간과 겹친다 — in-sample/OOS 분해",
+      "hypothesis": "champion_promote --require-expectancy 가 인용하는 순기대는 close_gate_probe trades.csv(2,251행·113세션·2026-05-26~11-09)에서 나오는데, 그 세션 구간이 후보·챔피언 양쪽의 학습구간과 겹친다. 겹치면 헤드라인 순기대는 학습한 세션의 성적이 섞인 값이라 승격 판정의 근거로 쓸 수 없다.",
+      "counterfactual": "현행 표본 정의(전체 113세션, 모델 학습경계 무시) — 챔피언 -0.3192%p · 후보 +0.0114%p",
+      "success": "같은 표본을 모델별 학습경계로 잘라 in-sample/OOS 순기대·t·앞뒤 절반을 분리 산출하고, 두 표본의 세션 수를 명시한다(판정선 없음·측정 전용)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/_expectancy_is_oos_split.py'",
+      "metric": "expectancy_is_oos_split",
+      "est_minutes": 15,
+      "arm": "champion(173피처) vs champion_cand(199피처), topk 3·익일시가·수수료 왕복 0.21%p·당일등락<25% 필터",
+      "baseline": "챔피언 robust_oos.json 순기대 -0.182%p(87세션) — 같은 프로토콜·더 짧은 표본",
+      "evidence": "2026-11-12 22:3x 실측(reports/overnight/expectancy_is_oos_split.json): 챔피언(경계 2026-10-01) 전체 -0.3192%p(t -1.70·113세션·양세션 38.9%) · in-sample 88세션 -0.1612%p(t -0.74) · OOS 25세션 -0.8754%p(t -2.51·양세션 28.0%·앞/뒤 -0.8913/-0.8608). 후보(경계 2026-10-28 fit_end) 전체 +0.0114%p(t 0.06·중앙 -0.2908) · in-sample 105세션 +0.0447%p(t 0.24) · OOS 8세션 -0.4259%p(t -0.66·양세션 12.5%). ① 후보의 양(+) 헤드라인은 표본의 93%(105/113)가 학습구간인 산물 ② 배포 챔피언은 미학습 구간에서 유의하게 음수 ③ 같은 프로토콜 값이 87세션 -0.182%p → 113세션 -0.3192%p 로 악화(최근 구간이 더 나쁘다).",
+      "result": {
+        "verdict": "측정 완료 — 승격 근거 부정(양 모델 OOS 음수)",
+        "champion": {
+          "all": -0.3192,
+          "in_sample": -0.1612,
+          "oos": -0.8754,
+          "oos_t": -2.51,
+          "oos_sessions": 25
+        },
+        "champion_cand": {
+          "all": 0.0114,
+          "in_sample": 0.0447,
+          "oos": -0.4259,
+          "oos_t": -0.66,
+          "oos_sessions": 8
+        },
+        "in_sample_share": {
+          "champion": "88/113",
+          "champion_cand": "105/113"
+        }
+      },
+      "note": "2026-11-12 22:3x 엔지니어 자율 신설·즉시 판정. ⚠ 표본이 '게이트가 막은 후보 풀'이라는 한계는 CG191 그대로 유효 — 이 항목이 더한 것은 '표본 시점 오염'이라는 별개 결함의 정량이다. 승격 게이트 표본 정의 변경은 리뷰보드 승인 대상(CG191) — 게이트·기준선은 건드리지 않았다. 재현 로그 data/reports/me_cycle/logs/cg209_expectancy_split_20261112c.log(파일명은 착수 시점 기준).",
+      "created_at": "2026-11-12T22:33:37+09:00"
     }
   ],
   "updated": "2026-11-09T20:12+09:00"
