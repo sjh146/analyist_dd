@@ -35,6 +35,7 @@
 import argparse
 import json
 import os
+import re
 import statistics as st
 import subprocess
 import sys
@@ -68,6 +69,28 @@ def _summary_ok(path, arms):
         if not any(r.get("exp") == a and r.get("status") == "ok" for r in (d.get("results") or [])):
             return None
     return d
+
+
+def _label_valid_last(panel, arm):
+    """패널의 마지막 **라벨 유효** 날짜(= 마지막 거래일에서 h거래일 앞).
+
+    h 는 arm id 의 `_hN` 접미사에서 읽는다(both arms 는 같은 h 를 쓴다). numpy 가 없거나
+    형식이 다르면 None 을 돌려 가드를 건너뛴다(가드 실패가 실행을 막지 않게).
+    실측 검증(2026-11-13, panel_200liq_fresh · h=5): 마지막 거래일 11-09 → 11-02 =
+    wf_label_sweep 이 실제로 쓴 라벨 유효 마지막 날짜와 일치.
+    """
+    m = re.search(r"_h(\d+)$", arm or "")
+    if not m:
+        return None
+    h = int(m.group(1))
+    try:
+        import numpy as np                                        # noqa: PLC0415
+        ds = sorted({str(d) for d in np.load(panel, allow_pickle=True)["dates"]})
+    except Exception:                                             # noqa: BLE001
+        return None
+    if len(ds) <= h:
+        return None
+    return ds[-(h + 1)]
 
 
 def run_anchor(anchor, arms, args, tag):
@@ -160,6 +183,8 @@ def main():
     ap.add_argument("--timeout-sec", type=int, default=2400, help="앵커 1회 타임아웃")
     ap.add_argument("--no-resume", action="store_true",
                     help="앵커 단위 재개를 끈다(기존 앵커 요약 JSON 을 무시하고 전부 재실행)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="앵커 사전 클램프 결과만 출력하고 끝낸다(학습 없음)")
     # 유니버스 옵션 패스스루(패널 재사용 시엔 무시된다 — 새 패널 빌드에서만 유효)
     ap.add_argument("--days", type=int, default=None)
     ap.add_argument("--limit", type=int, default=None)
@@ -176,6 +201,29 @@ def main():
         return 2
     ctl, arm = arms
     anchors = [a.strip() for a in args.asofs.split(",") if a.strip()]
+
+    # ── ⓿ 사전 클램프: 라벨 유효 마지막 날짜보다 뒤의 앵커는 절단이 아무것도 하지 않는다 ──────
+    # 실측(2026-11-13 CG234): 요청 11-06/11-02/10-27 → 실효 11-02/11-02/10-27 로 접혀 앵커 2개가
+    # 같은 폴드 창을 썼고, **사후** 가드가 '측정무효'를 낼 때까지 5분을 그대로 태웠다(CG199 재발).
+    # 실행 전에 상한으로 자르면 그 낭비가 0 이 된다. 상한을 못 구하면(접미사·패널 파싱 실패)
+    # 가드를 건너뛰고 기존대로 진행한다.
+    valid_last = _label_valid_last(args.panel, arm)
+    if valid_last:
+        dropped = [a for a in anchors if a > valid_last]
+        keep = [a for a in anchors if a <= valid_last]
+        if dropped:
+            print(f"⚠ 앵커 클램프: 라벨 유효 마지막 {valid_last} 이후 앵커 제외 {dropped}", flush=True)
+        if len(keep) < 2:
+            print(f"사전 클램프 후 앵커 {len(keep)}개 — 판정 불가(요청 {args.asofs} · 상한 {valid_last}). "
+                  f"{valid_last} 이하에서 2개 이상의 앵커를 주라", flush=True)
+            return 4
+        anchors = keep
+    if args.dry_run:
+        print(json.dumps({"dry_run": True, "anchors": anchors,
+                          "label_valid_last": valid_last, "dropped":
+                          [a for a in args.asofs.split(",") if a.strip() not in anchors]},
+                         ensure_ascii=False), flush=True)
+        return 0
     os.makedirs(args.work_dir, exist_ok=True)
 
     out = {"metric": "protocol_pair_anchor", "family": "wf_sweep_anchor",
