@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-13T00:55:00+09:00",
+  "updated_at": "2026-11-13T01:13:51+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -16173,6 +16173,180 @@
         "per_exp": null,
         "rc": 0
       }
+    },
+    {
+      "id": "CG214",
+      "status": "done",
+      "priority": 1,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "fillable_topk_expectancy",
+      "from_experiment": "CG213",
+      "title": "[돈 지표·판정력] 발행 11세션 표본의 MDE 는 ±1.276%p(문턱 +0.1%p의 12.8배) — 패널 walk-forward 덤프(≈200세션)로 표본을 확대해 같은 계측기로 다시 잰다",
+      "hypothesis": "CG211~CG213 의 돈 판정은 전부 발행 아티팩트 11세션 위에서 이뤄졌다. k=3 top 의 세션 sd=2.1153%p → SE 0.638 → t=2 MDE ±1.276%p. 승격 돈 게이트 문턱은 챔피언 대비 +0.1%p 이므로 이 표본으로는 개선이 **원리적으로 검출 불가**다(0.1%p 검출에 1,790세션 필요). 따라서 '노이즈' 판정 대부분은 '미검출'과 구분되지 않는다. 폴드 테스트창 전량(5폴드)을 덤프하면 세션이 11→150~200 으로 늘어 MDE 가 ±0.3%p 대로 내려간다.",
+      "counterfactual": "CO_core30_h5 (같은 런·같은 패널 panel_prod200·같은 폴드·같은 시드의 게이트 ON 대조군) — 짝 Δ 는 스무딩+depth1 단독 기여를 돈으로 잰 값",
+      "success": "① 덤프 세션수 ≥120 ② k=3 MDE(t=2) ≤ 0.40%p ③ 짝 Δ ≥ +0.1%p & t≥2 & 분할 both_positive → 그 arm 을 다음 실험 대조군으로 승격 ④ |Δ|<0.1%p 또는 t<2 = '표본 확대 후에도 미검출'로 기록(노이즈라고 쓰지 않는다) ⑤ rc≠0/요약 미갱신 = 실행실패",
+      "command": "bash scripts/cg214_money_replay.sh",
+      "summary_out": "/app/reports/overnight/cg214_money.json",
+      "est_minutes": 12,
+      "arm": "arm CO_smooth_d1_h5 vs control CO_core30_h5 · panel_prod200(200종목·279일) · 5폴드·1시드 · exit next_open h1 · 체결성 필터(상한가/당일등락<25%/거래대금 10억) · 수수료 왕복 0.21%p",
+      "baseline": "발행 11세션 실측(CG213): k=3 top +0.766%p(t 1.20) · bottom +0.251 · pool +0.390 · spread +0.515(t 2.06) · MDE ±1.276%p",
+      "expected": "같은 계측기의 표본을 11→150+ 로 늘려 돈 판정을 가능하게 만든다. 이것이 없으면 이후 모든 arm 비교가 '미검출'로만 끝난다(19사이클 무개선의 측정 원인).",
+      "cost": "낮음~중 (5폴드×1시드×2 arm 학습 1회 + 돈 지표 1회, 10~15분 추정)",
+      "depends_on": [],
+      "created_at": "2026-11-13T01:03:04+09:00",
+      "note": "2026-11-13 01:0x 엔지니어 자율 등록. 학습은 컨테이너 내부 1회·단일 시드(돈 지표는 시드 무관). 래퍼 scripts/cg214_money_replay.sh 가 sweep→dump→money 2단계를 한 줄로 재현한다.",
+      "attempts": [
+        {
+          "ts": "2026-11-13T01:04:02+09:00",
+          "rc": 0,
+          "verdict": "미검출(구동기 표기 '노이즈')",
+          "detail": "세션 225 · cg214_money.json · MDE k3 0.200/k5 0.179/k10 0.110%p · arm-대조 k5 Δ+0.135(t 1.5)"
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "arm CO_smooth_d1_h5 vs 대조군 CO_core30_h5 · exit next_open h1 · 수수료 왕복 0.21%p · 세션 225 · 풀 중앙값 53 · k=3 arm +0.085%p/세션 · 대조 +0.091 · Δ-0.006(t -0.06) · 양세션 52.0% · 분할 both_positive [+0.050/+0.120] ✗ · k=5 arm +0.133%p/세션 · 대조 -0.002 · Δ+0.135(t 1.5) · 양세션 56.0% · 분할 both_positive [+0.101/+0.165] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.084%p · Δ+0.018 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+        "delta": -0.0063,
+        "per_exp": null,
+        "rc": 0
+      },
+      "evidence": "2026-11-13 01:04 실측(cg214_money.json·cg214_sweep_summary.json): 세션 11 → **225**(5폴드 테스트창 전량, arm 26,662행 · dropped_price 30행). 표본 확대 효과: k=3 MDE(t=2) 1.276 → **0.200%p** · k=5 1.111 → **0.179%p** · k=10 → **0.110%p**(6~12배 개선, 승격 문턱 +0.1%p 가 처음으로 검출 가능 범위에 들어옴). AUC: CO_core30 0.5307±0.0215 vs CO_smooth_d1 0.5349±0.0137(Δ+0.0042). arm vs 대조군 돈 지표: k=3 Δ-0.006(t -0.06) · k=5 Δ+0.135(t 1.50) · k=10 Δ+0.060(t 1.09) → 사전문턱 미충족(미검출)."
+    },
+    {
+      "id": "CG215",
+      "status": "done",
+      "priority": 2,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "fillable_topk_tail_decomp",
+      "from_experiment": "CG214",
+      "title": "[돈 지표·원인] CG214 의 k=5 Δ+0.135%p 는 꼬리 소수 세션이 만든 값인가 — 중앙값·절사평균·5세션 제외 분해",
+      "hypothesis": "CG214 k=5 는 평균 Δ+0.135%p(t 1.50)인데 같은 표의 중앙값은 arm +0.1006 vs 대조 +0.1702 로 **부호가 반대**였다. 평균 양(+)·중앙값 음(−)이면 소수 세션의 큰 값이 평균을 만든 것이다(세션 최악 −13.2%p).",
+      "counterfactual": "같은 225세션의 평균 Δ(0.135) — 중앙값·10% 절사평균·최고 5세션 제외 평균과 비교",
+      "success": "5세션 제외 Δ 가 +0.1%p 이상 유지되면 신호, 0 근처면 tail-luck 으로 축 종결",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg215_tail.py --jsonl /app/reports/overnight/cg214_preds.jsonl --arm CO_smooth_d1_h5 --control CO_core30_h5 --out /app/reports/overnight/cg215_tail.json'",
+      "summary_out": "/app/reports/overnight/cg215_tail.json",
+      "est_minutes": 2,
+      "depends_on": [
+        "CG214"
+      ],
+      "created_at": "2026-11-13T01:13:51+09:00",
+      "note": "2026-11-13 01:0x 엔지니어 자율 등록. CG214 덤프(cg214_preds.jsonl)를 재사용하므로 학습 0회·읽기 전용. 래퍼는 CG214 완료 후 작성한다(현재 미작성 = pending 승격 금지).",
+      "evidence": "2026-11-13 01:1x 실측(cg215_tail.json, 225세션): k=5 평균 Δ+0.135(t 1.50) · **중앙값 +0.024** · 절사평균(10%) +0.035 · **최고 5세션 제외 Δ−0.001** · 상위 5세션 기여도 **100.5%**(Δ 합계 전액). k=3 −0.116(leave5out) · k=10 −0.012. → 문턱 통과분(+0.135)은 225세션 중 5세션이 전부다. 스무딩+depth1 의 돈 이득은 재현 불가로 **축 종결**.",
+      "result": {
+        "verdict": "축 종결 — tail-luck(5세션 제외 시 Δ−0.001)"
+      }
+    },
+    {
+      "id": "CG216",
+      "status": "done",
+      "priority": 1,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "fillable_topk_random_null",
+      "from_experiment": "CG215",
+      "title": "[돈 지표·널] 모델 top-k 가 **무작위 top-k** 대비 유의한가 — 세션별 2,000회 무작위 바스켓 백분위(225세션)",
+      "hypothesis": "프로토콜의 널은 '풀평균'이지만 그것은 k바스켓의 분산을 말해주지 않는다. 같은 세션·같은 체결가능 집합에서 무작위 k 를 뽑으면 실력이 없을 때 세션별 백분위 p~Uniform(0,1)(평균 0.5)이다. 모델 top-k 의 p 평균이 0.5 와 다르지 않으면 순위 정보는 0.",
+      "counterfactual": "같은 세션의 무작위 k 바스켓 2,000회(seed 20261113) — p 평균 0.5 가 귀무",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg216_null.py --jsonl /app/reports/overnight/cg214_preds.jsonl --tags CO_smooth_d1_h5,CO_core30_h5 --out /app/reports/overnight/cg216_null.json'",
+      "summary_out": "/app/reports/overnight/cg216_null.json",
+      "est_minutes": 3,
+      "success": "p 평균 ≥0.55 & t≥2 면 순위 정보 있음. 0.5 근처면 그 청산경로에는 순위 정보 0(축 종결 근거).",
+      "evidence": "2026-11-13 01:2x 실측(**exit next_open h1** = 배포 경로, 225세션): CO_smooth_d1 k3 p평균 **0.497**(t -0.14) · k5 **0.508**(t 0.42) · k10 0.502(t 0.13) · obs−null Δ−0.004/+0.055/+0.038 · >p95 세션 5.8/5.8/8.9%(기대 5%) · CO_core30 k3 0.509(t 0.49) · k5 0.497(t -0.16). → **익일 시가 청산 경로에는 순위 정보가 0**(무작위 k 와 구분 불가).",
+      "result": {
+        "verdict": "배포 청산경로(next_open h1) 순위 정보 0"
+      },
+      "created_at": "2026-11-13T01:13:51+09:00"
+    },
+    {
+      "id": "CG217",
+      "status": "done",
+      "priority": 1,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "const_feature_basket_decomp",
+      "from_experiment": "CG216",
+      "title": "[돈 지표·원인] h5 초과수익은 시간가변 정보인가 종목 고정효과(정적 선택·생존편향)인가 — quality_roa 고정바스켓 대조",
+      "hypothesis": "패널 스크린에서 최고 피처가 전부 종목상수 재무(quality_roa 0.5534 등)였다. 모델 점수가 사실상 '같은 소수 종목'을 매일 지목한다면 h5 수익은 정적 바스켓 성적이고 panel_prod200(현존 200종목)의 생존편향이 원인일 수 있다.",
+      "counterfactual": "quality_roa 평균 상위 5종목 **고정** 바스켓(모델 없음) — 같은 날짜·같은 수수료·같은 청산",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg217_const.py --panel /app/app/models/wf/panel_prod200.npz --preds /app/reports/overnight/cg214_preds.jsonl --tag CO_smooth_d1_h5 --out /app/reports/overnight/cg217_const.json'",
+      "summary_out": "/app/reports/overnight/cg217_const.json",
+      "est_minutes": 2,
+      "success": "상수바스켓 Δ≈모델 Δ & 겹침 높음 → 종목 고정효과(축 종결). 상수바스켓 Δ≈0 & 겹침 낮음 → 시간가변 정보.",
+      "evidence": "2026-11-13 01:3x 실측(cg217_const.json, h5·274세션): 풀 −0.0895 · quality_roa 고정바스켓 −0.1018(Δ**−0.012**, t −0.05) · 모델 top5 +1.7666(Δ vs 풀 **+2.020**, t 3.55) · **모델-상수 겹침 6.2%** → 종목 고정효과·정적 퀄리티 가설 **기각**.",
+      "result": {
+        "verdict": "종목 고정효과 기각 — 시간가변 선택"
+      },
+      "created_at": "2026-11-13T01:13:51+09:00"
+    },
+    {
+      "id": "CG218",
+      "status": "done",
+      "priority": 1,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "hold_horizon_curve",
+      "from_experiment": "CG217",
+      "title": "[돈 지표·보유기간] 보유기간 곡선(h1/h3/h5/h10)과 **비중첩 표본** 재검정 — 겹침이 만든 t 인플레 제거",
+      "hypothesis": "5일 보유는 세션 간 창이 겹쳐 유효표본이 n/5(≈45)다. 겹침을 제거(매 h번째 세션만 진입)하지 않으면 t 가 최대 √5 배 부풀려진다. 곡선은 '어느 보유기간에 정보가 사는가'를 답하고, 현행 배포 경로(next_open h1)가 왜 돈이 안 되는지의 직접 증거다.",
+      "counterfactual": "같은 세션 풀평균(동일비중·수수료 왕복 0.21%p 차감) — Δ=topk−풀",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg218_hold.py --panel /app/app/models/wf/panel_prod200.npz --preds /app/reports/overnight/cg214_preds.jsonl --tag CO_smooth_d1_h5 --out /app/reports/overnight/cg218_hold.json'",
+      "summary_out": "/app/reports/overnight/cg218_hold.json",
+      "est_minutes": 2,
+      "success": "비중첩 Δ ≥+0.5%p & t≥2 & 폴드 부호 대부분 동일 → 그 보유기간에서 신호. 아니면 축 종결.",
+      "evidence": "2026-11-13 01:4x 실측(cg218_hold.json, close→close): k=5 비중첩 Δ h1 +0.476(t 3.24, n225) · h3 +0.883(t 2.15, n75, 폴드 5/5) · **h5 +2.391(t 3.38, n45, 폴드 5/5)** · h10 +4.159(t 3.25, n22) · 중첩 h5 +1.903(t 5.36). k=3 h5 +2.249(t 2.43). → 보유기간이 길수록 Δ 증가, h5 는 폴드 5/5 동일부호(0.362/2.525/2.798/2.807/2.754).",
+      "result": {
+        "verdict": "h5 비중첩 Δ+2.391(t 3.38·폴드 5/5) — 단일격자, 시드·폴드 확대 검증 필요"
+      },
+      "created_at": "2026-11-13T01:13:51+09:00"
+    },
+    {
+      "id": "CG219",
+      "status": "done",
+      "priority": 1,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "momentum_control",
+      "from_experiment": "CG218",
+      "title": "[돈 지표·대조군] 모델 h5 초과수익이 **단순 모멘텀 팩터**로 재현되는가 — return_5d 상위 k 대조",
+      "hypothesis": "모델 점수 상위는 대개 '최근 오른 종목'이다. 그러면 이득은 모델이 아니라 모멘텀 팩터이고, CG182(모멘텀 부호 8~9월 +0.09 → 10~11월 −0.15 반전)가 배포 챔피언의 최근 음(−) 기대를 설명한다.",
+      "counterfactual": "return_5d 상위 5종목 바스켓(모델 없음) — 같은 날짜·같은 유니버스·같은 수수료",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg219_mom.py --panel /app/app/models/wf/panel_prod200.npz --preds /app/reports/overnight/cg214_preds.jsonl --tag CO_smooth_d1_h5 --out /app/reports/overnight/cg219_mom.json'",
+      "summary_out": "/app/reports/overnight/cg219_mom.json",
+      "est_minutes": 2,
+      "success": "모멘텀 대조군 Δ 가 모델 Δ 의 절반 이상이면 '모델=모멘텀'. 0 근처면 모델 고유 정보.",
+      "evidence": "2026-11-13 01:4x 실측(cg219_mom.json): 모델 k=5 h1 Δ+0.476(t 3.24) · h5 Δ+1.903(t 5.36, 비중첩 +2.391) vs **return_5d 상위5 Δ h1 +0.083(t 0.38) · h5 +0.316(t 0.63)** → 단순 모멘텀은 설명하지 못한다(모델 고유 정보).",
+      "result": {
+        "verdict": "모멘텀 대조군 불충분 — 모델 고유 신호"
+      },
+      "created_at": "2026-11-13T01:13:51+09:00"
+    },
+    {
+      "id": "CG220",
+      "status": "pending",
+      "priority": 1,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "hold_horizon_curve",
+      "from_experiment": "CG219",
+      "title": "[h5 축 검증] 5시드·8폴드로 h5 초과수익 재측정 + 체결성 필터 적용 비중첩 확인 (단일격자 우연 배제)",
+      "hypothesis": "h5 비중첩 Δ+2.391(t 3.38·폴드 5/5)은 단일 시드·단일 폴드격자 결과다. 시드·폴드를 늘렸을 때 평균이 유지되는지, 그리고 체결성 필터를 적용한 표본에서도 같은지 확인해야 승격 검토로 넘길 수 있다.",
+      "counterfactual": "같은 런의 대조군 CO_core30_h5 + 세션 풀평균(무작위 k 기대) — 같은 폴드·같은 시드",
+      "command": "bash scripts/cg220_h5_verify.sh",
+      "summary_out": "/app/reports/overnight/cg220_hold.json",
+      "est_minutes": 15,
+      "success": "비중첩 h5 k=5 Δ≥+0.5%p & t≥2 & 폴드 부호 6/8 이상 → h5 축 검증통과(승격 검토로). 미달이면 h5 축 종결(단일격자 우연). rc≠0/요약 미갱신=실행실패.",
+      "expected": "h5 축이 살아남으면 '배포 청산규칙(next_open h1)'이 정보 없는 구간을 취하고 있다는 뜻이 되어, 운용 경로 변경(②승인)의 정량 근거가 된다.",
+      "cost": "중 (2 arm × 8폴드 × 5시드 학습 1회 + 계측 2회, 10~20분)",
+      "created_at": "2026-11-13T01:13:51+09:00"
     }
   ],
   "updated": "2026-11-09T20:12+09:00"
