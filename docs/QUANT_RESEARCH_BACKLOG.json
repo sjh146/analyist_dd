@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-13T18:05:00+09:00",
+  "updated_at": "2026-11-13T21:16:36+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1661,6 +1661,29 @@
       "result": null,
       "created_at": "2026-11-12T21:2x+09:00",
       "source": "researcher_daily"
+    },
+    {
+      "id": "R41",
+      "title": "시장패턴 원장(19:40)이 일봉 적재 완료 전에 '그날 시장'을 기록한다 — 재실행으로 정정하되, 완료 전 기록을 검출하는 검사를 상시 감시",
+      "status": "pending",
+      "priority": 6,
+      "kind": "collect",
+      "recurring": true,
+      "affects_model": true,
+      "hypothesis": "`scripts/market_pattern_ledger.py --today` 는 크론 19:40 에 돌면서 **그 시각 DB 에 있는 봉만** 으로 세션 지표를 기록한다. 18:55 KRX OpenAPI 가 이름해석 실패로 중단되면 디스패처가 KIS 폴백(종목당 1콜≈3.5h)으로 넘어가 19:40 시점 적재율은 시장의 ~21% 다. 그 값이 결함 표시 없이 '그날 시장'으로 원장에 남고 breadth/ADR/거래대금/국면 라벨 + 다음세션 수익률 기준까지 오염된다. 수리 2단: (a) 같은 세션을 적재 완료 후 재기록(멱등 덮어쓰기), (b) '기록값 대비 현재 DB 봉수'를 비교해 미달을 매일 검출.",
+      "evidence": "2026-11-13 21:4x 실측: (a) 18:55 KRX 중단 사유 = `[Errno -3] Temporary failure in name resolution`(11-09·11-11·11-13 3/5 거래일 발생, 11-10·11-12 정상 — 같은 시각대의 이름해석 간헐 장애). KIS 폴백은 18:56:07 시작해 21:12 에도 2591/3979 진행 중 → 19:40 크론이 부분 시장을 읽었다. (b) 원장 실측 왜곡: 11-13 기록= scored 819 · trade_value 12.25조 · chg_mean 0.072% · chg_p90 2.433 vs **재실행 후** scored 3805 · trade_value 29.32조 · chg_mean 0.401% · chg_p90 3.35 → 거래대금이 2.4배 작게, 평균등락이 5.6배 작게 기록돼 있었다(전일 11-12: 3828 / 22.53조 / 1.803%). (c) 과거에도 같은 형태 3회(scored 161·1134·819). (d) 검사 스크립트 실행: 수리 전 `ratio=0.220 → 공백 1건(rc=1)`, 재기록 후 `ratio=1.022 → 충족(rc=0)`.",
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/market_pattern_ledger.py --today",
+      "check": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/market_pattern_coverage_check.py",
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "커버리지 미달 세션 수(scored < DB봉수×0.9 · 판정 불가=rc2)"
+      },
+      "setup_needed": [],
+      "note": "검사는 읽기 전용(scripts/market_pattern_coverage_check.py, 회귀 8건 tests/test_market_pattern_coverage_check.py). 원장 스크립트 자체(scripts/market_pattern_ledger.py)는 다른 역할 소유로 보여 **수정하지 않았다** — 근본 수리는 19:40 대신 '일봉 적재 완료 신호 후 실행' 또는 기록 시 `partial: true` 표시인데, 그건 크론 시각/소유 파일 변경이라 승인 항목이다. 이 항목은 재기록+검출만 자율로 유지한다. 선행 수리: 같은 날 KRX 이름해석 재시도(scripts/krx_daily.py, DNS 만 3→5회 백오프) 를 배선했다 — KRX 가 살면 폴백 자체가 안 일어나 이 결함도 5/5→드물게 줄어든다.",
+      "resumable_rc": [
+        3
+      ]
     }
   ]
 }

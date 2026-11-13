@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import random
+import socket
 import sys
 import time
 import urllib.error
@@ -52,6 +53,9 @@ MAX_CALLS = int(os.environ.get("KRX_MAX_CALLS", "600"))
 # 증분 시작일 계산용: 이 행수 미만이면 '덜 찬 날'로 보고 그 날부터 다시 받는다
 MIN_ROWS_FULL_DAY = int(os.environ.get("KRX_MIN_ROWS_FULL_DAY", "2000"))
 LOOKBACK_DAYS = int(os.environ.get("KRX_LOOKBACK_DAYS", "7"))
+# 이름해석 실패 재시도 — 요청이 상대에 도달조차 하지 않은 경우만 재시도한다(IP 보호 무관)
+DNS_RETRIES = int(os.environ.get("KRX_DNS_RETRIES", "5"))  # 3+6+9+12+15s ≈ 45s — 실측 KIS 는 36s 에 회복
+DNS_BACKOFF = float(os.environ.get("KRX_DNS_BACKOFF", "3.0"))
 
 try:  # 호출 정책(프로세스 간) — 로드 실패해도 수집은 기존(프로세스 내) 지연으로 동작한다
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -176,6 +180,30 @@ def resolve_base(key):
     raise KrxBlocked("KRX OpenAPI 호스트를 찾지 못했습니다 (모두 404/HTML 응답)")
 
 
+def _is_dns_failure(exc) -> bool:
+    """이름해석(DNS) 실패인가 — 재시도해도 KRX 에 아무 요청도 가지 않은 유일한 전송 오류.
+
+    WHY (실측 2026-11-09·11-13): 18:55 크론이 도는 시각에 WSL 이름해석이 간헐적으로 실패한다
+    (`[Errno -3] Temporary failure in name resolution`, curl exit=6). 종전 코드는 이를 다른
+    전송 오류와 뭉뚱그려 **첫 실패에 중단**했고(`재시도하지 않고 중단 (IP 보호)`), 그러면 디스패처가
+    KIS 폴백(종목당 1콜 ≈ 3.5시간)으로 넘어가 19:40 시장패턴·20:00 파이프라인이 **부분 적재된 시장**을
+    읽는다. 실측 2026-11-13 19:41: `scored=819`(전일 3828)·`trade_value_sum=12.25조`(전일 22.53조)·
+    regime=flat_choppy — 시장의 21%만 보고 판정한 값이다. 같은 날 KIS 경로는 DNS 실패를 30초 재시도로
+    넘겨 18:56 에 정상 수집을 시작했다. 이름해석 실패는 요청이 **전송되지 않은** 상태이므로
+    재시도는 IP 보호를 해치지 않는다 — 타임아웃·리셋(도달 가능)은 종전대로 즉시 중단한다.
+    """
+    reason = getattr(exc, "reason", exc)
+    if isinstance(reason, socket.gaierror) or isinstance(exc, socket.gaierror):
+        return True
+    msg = str(exc).lower()
+    return (
+        "name resolution" in msg
+        or "name or service not known" in msg
+        or "nodename nor servname" in msg
+        or "temporary failure in name resolution" in msg
+    )
+
+
 def _guard():
     """KRX 호스트 호출 정책(프로세스 간 간격·예산·쿨다운). 없으면 None.
 
@@ -210,15 +238,27 @@ def fetch_day(base, key, market_path, basdd):
             raise KrxBlocked(f"수집 정책 중단({type(e).__name__}): {e}") from e
     url = f"{base}/{market_path}?basDd={basdd}"
     req = urllib.request.Request(url, headers={"AUTH_KEY": key, "Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            raw = r.read().decode("utf-8", "replace")
-            code = r.status
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8", "replace")
-        code = e.code
-    except Exception as e:  # noqa: BLE001
-        raise KrxBlocked(f"전송 오류({e}) — 재시도하지 않고 중단 (IP 보호)")
+    dns_tries = 0
+    while True:
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                raw = r.read().decode("utf-8", "replace")
+                code = r.status
+            break
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8", "replace")
+            code = e.code
+            break
+        except Exception as e:  # noqa: BLE001
+            if _is_dns_failure(e) and dns_tries < DNS_RETRIES:
+                dns_tries += 1
+                print(f"  이름해석 실패 — 재시도 {dns_tries}/{DNS_RETRIES} "
+                      f"({DNS_BACKOFF * dns_tries:.0f}s 후): {e}", flush=True)
+                time.sleep(DNS_BACKOFF * dns_tries)
+                continue
+            if dns_tries:
+                raise KrxBlocked(f"전송 오류({e}) — 이름해석 재시도 {dns_tries}회 후 중단")
+            raise KrxBlocked(f"전송 오류({e}) — 재시도하지 않고 중단 (IP 보호)")
 
     if code in (401, 403, 429) or code >= 500:
         _guard_block(g, f"HTTP {code} {raw.strip()[:100]}")
