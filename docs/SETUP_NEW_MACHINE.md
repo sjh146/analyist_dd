@@ -132,9 +132,11 @@ ls ~/cron/                            # 래퍼 원본
 
 ## 7. 트레이딩 브리지 (선택 — 실제 주문을 낼 때만)
 
-`trader-agent` 는 **별도 저장소**입니다: https://github.com/sjh146/trader-agent
+`trader-agent` 는 이 저장소의 **`trader-agent/` 디렉터리**다(2026-11-13 통합 — 별도
+`trader-agent.git` 은 이력 보존용으로만 남아 있고 새 커밋은 여기로 한다).
 Windows 쪽에 Creon PLUS 설치 + **32비트 Python** 으로 브리지를 띄워야 합니다.
-절차는 그 저장소 문서와 Hermes 스킬 `creon-cybosplus-trader-agent` / `live-order-path-safety` 참조.
+절차는 `trader-agent/docs/SETUP_WINDOWS.md` 와 `trader-agent/OPERATIONS.md`, 그리고
+Hermes 스킬 `creon-cybosplus-trader-agent` / `live-order-path-safety` 참조.
 
 ## 8. 최종 체크리스트
 

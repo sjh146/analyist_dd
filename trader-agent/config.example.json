@@ -1,0 +1,54 @@
+{
+  "_comment": "trader-agent 설정 예시. presets/paper_safe.json 과 같은 안전값 + 연결/경로. 사용법: cp config.example.json config/my.json 후 필요한 값만 고치고 --config config/my.json 으로 넘긴다. 우선순위: CLI > env(TRADER_CORE_*/RUNNER_*) > 이 파일 > --preset > 기본값.",
+
+  "_readme_connection": "bridge = Creon COM 브리지(32bit run_bridge.py). feed = analyist_dd 피드 또는 rank(Creon 랭킹).",
+  "bridge_base_url": "http://127.0.0.1:8100",
+  "feed_url": "http://127.0.0.1:8090/screener_latest.json",
+  "feed_source": "url",
+  "feed_max_age": 86400,
+  "request_timeout": 5,
+
+  "_readme_risk": "신규 운영자는 이 블록을 낮추지 말 것. 총노출 30% / 종목당 10%.",
+  "dry_run": true,
+  "sizing_mode": "kelly",
+  "kelly_cap": 0.25,
+  "kelly_fraction": 0.25,
+  "risk_per_trade_pct": 0.005,
+  "max_invested_pct": 0.3,
+  "max_position_pct": 0.1,
+  "max_open_positions": 3,
+  "max_open_positions_by_screener": {
+    "swing": 2,
+    "daytrading": 1
+  },
+  "daily_max_trades": 3,
+  "max_order_amount": 10000000,
+
+  "_readme_exits": "청산 구조는 손절·익절·트레일링. close 경로의 익일 시가청산은 프로파일이 정한다.",
+  "stop_loss_pct": 0.07,
+  "take_profit_pct": 0.07,
+  "trailing_arm_pct": 0.055,
+  "trailing_stop_pct": 0.05,
+  "max_stop_pct": 0.2,
+  "stop_range_factor": 0.5,
+
+  "_readme_hours": "KST 기준. market_hours_only=false 는 스캔을 장외에도 돌린다(주문은 게이트가 별도로 막는다).",
+  "market_hours_only": true,
+  "market_open": "09:00",
+  "market_close": "15:30",
+  "screeners": ["close", "swing"],
+
+  "_readme_paths": "상대경로는 저장소 루트 기준.",
+  "state_path": "loop_state.json",
+  "journal_path": "journal/trade_journal.sqlite3",
+  "kill_switch_path": "kill_switch.txt",
+  "params_path": "strategy_params.json",
+
+  "_readme_loop": "루프 주기·게이트. news_gate 는 analyist_dd 기능이며, 켜져 있는데 도달 불가면 모든 진입이 막힌다(fail-closed).",
+  "interval_seconds": 300,
+  "max_consecutive_check_failures": 3,
+  "auto_resume_check_halt": true,
+  "news_gate_url": "",
+  "news_gate_fail_closed": true,
+  "webhook_url": ""
+}

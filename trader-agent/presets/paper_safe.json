@@ -1,0 +1,26 @@
+{
+  "_comment": "신규 운영자용 보수 프리셋 — 모의/소액 실계좌 첫 2~4주에 사용. 총노출 30%, 종목당 10%, Kelly 1/4 배포, dry_run 유지. 실주문은 --live 로 명시해야 나간다.",
+  "dry_run": true,
+  "sizing_mode": "kelly",
+  "kelly_cap": 0.25,
+  "kelly_fraction": 0.25,
+  "risk_per_trade_pct": 0.005,
+  "max_invested_pct": 0.30,
+  "max_position_pct": 0.10,
+  "max_open_positions": 3,
+  "max_open_positions_by_screener": {
+    "swing": 2,
+    "daytrading": 1
+  },
+  "daily_max_trades": 3,
+  "stop_loss_pct": 0.07,
+  "take_profit_pct": 0.07,
+  "trailing_arm_pct": 0.055,
+  "trailing_stop_pct": 0.05,
+  "max_stop_pct": 0.20,
+  "feed_max_age": 86400,
+  "screeners": [
+    "close",
+    "swing"
+  ]
+}

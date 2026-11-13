@@ -1,0 +1,34 @@
+@echo off
+rem ============================================================================
+rem  Phase 4a: Windows Task Scheduler recipe for the market-hours loop.
+rem
+rem  Run daily (KST) 08:55 -> the loop self-terminates after market close
+rem  (15:40 KST schedule-window end), so a single daily task is enough.
+rem
+rem  Copy this file to schedule.bat and register with schtasks (or Task
+rem  Scheduler GUI).  Commands below are examples - adjust the Python path,
+rem  repo path and account to your machine.
+rem ============================================================================
+
+set PYTHON=C:\Users\jhshi\Python312-64\python.exe
+set REPO=C:\Users\jhshi\analyist_dd\trader-agent
+
+cd /d "%REPO%"
+"%PYTHON%" run_market_loop.py run --loop --live --yes >> "%REPO%\runner\loop.log" 2>&1
+
+rem ---------------------------------------------------------------------------
+rem  Equivalent registration via schtasks (run as Administrator or from an
+rem  elevated prompt).  Creates a daily task at 08:55 KST on the local clock.
+rem
+rem    schtasks /Create /TN "TraderLoop" /TR "\"C:\Users\jhshi\Python312-64\python.exe\" \"C:\Users\jhshi\analyist_dd\trader-agent\run_market_loop.py\" run --loop --live --yes" /SC DAILY /ST 08:55 /RU %USERNAME% /F
+rem
+rem  Notes:
+rem    * The working directory must be the repo so the default state/journal
+rem      paths (loop_state.json, journal\...) resolve next to trader_core/.
+rem    * --live --yes is safe because the CLI never goes live without --live
+rem      AND the bridge only talks to the simulation account (goods_flag 01).
+rem    * --loop makes the process keep cycling until market close then exit;
+rem      a separate end-of-day task is NOT required.
+rem    * Remote ops can soft-stop via `python run_market_loop.py halt --reason ...`
+rem      or hard-stop by placing the kill-switch file (engine refuses new orders).
+rem ---------------------------------------------------------------------------

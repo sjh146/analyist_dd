@@ -26,9 +26,10 @@ services/kis-collector/data/kis/
 data/krx/progress_*.txt
 data/krx/rate_state.json
 
-# 중첩 워크스페이스 — trader-agent 는 자기 git 저장소를 가진 별도 프로젝트다.
-# 부모(analyist_dd)는 이 디렉터리를 추적·수정·정리하지 않는다(중첩 저장소 충돌 방지).
-/trader-agent/
+# trader-agent — 2026-11-13 부터 이 저장소 안에서 함께 관리한다(중첩 저장소 제거, 단일 push).
+#   과거에는 /trader-agent/ 를 무시했고 trader-agent.git 으로 따로 커밋했다. 지금은 이 트리가
+#   소스 기준이며, trader-agent/.gitignore 가 런타임 산출물(journal·logs·data)·.env 를 계속 제외한다.
+#   (별도 저장소는 이력 보존용으로 남겨두되, 새 커밋은 여기로만 한다.)
 
 # trader-agent 피드로 내보내는 발행물 (스크리너 산출물에서 매번 생성)
 data/feed/

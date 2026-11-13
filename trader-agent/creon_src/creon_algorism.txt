@@ -1,0 +1,1708 @@
+#######[파이썬] 주식 매수 주문 요청 및 에러 처리 방법
+
+import win32com.client
+
+
+# 연결 여부 체크
+objCpCybos = win32com.client.Dispatch("CpUtil.CpCybos")
+bConnect = objCpCybos.IsConnect
+if (bConnect == 0):
+    print("PLUS가 정상적으로 연결되지 않음. ")
+    exit()
+
+# 주문 초기화
+objTrade =  win32com.client.Dispatch("CpTrade.CpTdUtil")
+
+initCheck = objTrade.TradeInit(0)
+
+if (initCheck != 0):
+    print("주문 초기화 실패")
+    exit()
+
+
+# 주식 매수 주문
+acc = objTrade.AccountNumber[0] #계좌번호
+accFlag = objTrade.GoodsList(acc, 1)  # 주식상품 구분
+print(acc, accFlag[0])
+objStockOrder = win32com.client.Dispatch("CpTrade.CpTd0311")
+objStockOrder.SetInputValue(0, "2")   # 2: 매수
+objStockOrder.SetInputValue(1, acc )   #  계좌번호
+objStockOrder.SetInputValue(2, accFlag[0])   # 상품구분 - 주식 상품 중 첫번째
+objStockOrder.SetInputValue(3, "A005930")   # 종목코드 - 필요한 종목으로 변경 필요 
+objStockOrder.SetInputValue(4, 10)   # 매수수량 - 요청 수량으로 변경 필요 
+objStockOrder.SetInputValue(5, 10000)   # 주문단가 - 필요한 가격으로 변경 필요 
+objStockOrder.SetInputValue(7, "0")   # 주문 조건 구분 코드, 0: 기본 1: IOC 2:FOK
+objStockOrder.SetInputValue(8, "01")   # 주문호가 구분코드 - 01: 보통
+
+# 매수 주문 요청
+nRet = objStockOrder.BlockRequest()
+if (nRet != 0) :
+    print("주문요청 오류", nRet)    
+    # 0: 정상,  그 외 오류, 4: 주문요청제한 개수 초과 
+    exit()
+
+rqStatus = objStockOrder.GetDibStatus()
+errMsg = objStockOrder.GetDibMsg1()
+if rqStatus != 0:
+    print("주문 실패: ", rqStatus, errMsg)
+    exit()
+
+#######[파이썬] ETF NAV , ETN IIV 실시간 수신 예제
+
+import sys
+from PyQt5.QtWidgets import *
+import win32com.client
+import ctypes
+import time
+ 
+################################################
+# PLUS 공통 OBJECT
+g_objCodeMgr = win32com.client.Dispatch('CpUtil.CpCodeMgr')
+g_objCpStatus = win32com.client.Dispatch('CpUtil.CpCybos')
+g_objCpTrade = win32com.client.Dispatch('CpTrade.CpTdUtil')
+ 
+ 
+################################################
+# PLUS 실행 기본 체크 함수
+def InitPlusCheck():
+    # 프로세스가 관리자 권한으로 실행 여부
+    if ctypes.windll.shell32.IsUserAnAdmin():
+        print('정상: 관리자권한으로 실행된 프로세스입니다.')
+    else:
+        print('오류: 일반권한으로 실행됨. 관리자 권한으로 실행해 주세요')
+        return False
+ 
+    # 연결 여부 체크
+    if (g_objCpStatus.IsConnect == 0):
+        print("PLUS가 정상적으로 연결되지 않음. ")
+        return False
+ 
+    # 주문 관련 초기화
+    if (g_objCpTrade.TradeInit(0) != 0):
+        print("주문 초기화 실패")
+        return False
+ 
+    return True
+ 
+ 
+ 
+ 
+ 
+################################################
+# CpEvent: 실시간 이벤트 수신 클래스
+class CpEvent:
+    def set_params(self, client, name, caller):
+        self.cpObj = client  # CP 실시간 통신 object
+        self.name = name  # 서비스가 다른 이벤트를 구분하기 위한 이름
+        self.caller = caller  # callback 을 위해 보관
+ 
+    def OnReceived(self):
+        if self.name == 'nav':
+            print('실시간 nav 수신')
+            self.caller.OnPublish_NAV(self.cpObj)
+            return
+        elif self.name == 'stockcur':
+            print('실시간 현재가 수신')
+            self.caller.OnPublish_Cur(self.cpObj)
+            return
+        elif self.name == 'etfreply':
+            print('reply')
+            self.caller.OnReply(self.cpObj)
+            return
+ 
+ 
+ 
+ 
+################################################
+# plus 실시간 수신 base 클래스
+class CpPublish:
+    def __init__(self, name, serviceID):
+        self.name = name
+        self.obj = win32com.client.Dispatch(serviceID)
+        self.bIsSB = False
+ 
+    def __del__(self):
+        self.Unsubscribe()
+ 
+    def Subscribe(self, var, caller):
+        if self.bIsSB:
+            self.Unsubscribe()
+ 
+        if (len(var) > 0):
+            self.obj.SetInputValue(0, var)
+ 
+        handler = win32com.client.WithEvents(self.obj, CpEvent)
+        handler.set_params(self.obj, self.name, caller)
+        self.obj.Subscribe()
+        self.bIsSB = True
+ 
+    def Unsubscribe(self):
+        if self.bIsSB:
+            self.obj.Unsubscribe()
+        self.bIsSB = False
+ 
+ 
+# 실시간 nav/iiv 수신
+class CP_PB_NAV(CpPublish):
+    def __init__(self):
+        super().__init__('nav', 'CpSysDib.CpSvrNew7244S')
+ 
+# 실시간 현재가 수신
+class CP_PB_CUR(CpPublish):
+    def __init__(self):
+        super().__init__('stockcur', 'DsCbo1.StockCur')
+ 
+ 
+# Reply 이벤트 - 1회만 수신
+class CpRpETF:
+    def __init__(self):
+        self.name = "etfreply"
+ 
+    def SetEvent(self, cpobj, caller):
+        handler = win32com.client.WithEvents(cpobj, CpEvent)
+        handler.set_params(cpobj, self.name, caller)
+ 
+ 
+class CP_ETF_NAV:
+    def __init__(self):
+        self.objRq = None
+        self.objReply = None
+        self.objname1 = 'Dscbo1.Cpsvr7244'
+        self.objname2 = 'Dscbo1.Cpsvr7718'
+        self.navlist = []
+        self.code = ''
+        self.caller = None
+ 
+    def OnReply(self, objRq):
+        cnt = objRq.GetHeaderValue(0)
+        print('조회 개수', cnt)
+ 
+        for i in range(cnt):
+            item = {}
+ 
+            item['시간'] = objRq.GetDataValue(0, i)
+            item['현재가'] = objRq.GetDataValue(1, i)
+            item['대비'] = objRq.GetDataValue(3, i)
+            item['거래량'] = objRq.GetDataValue(5, i)
+            if (self.code[0] == 'A'):
+                item['NAV대비'] = objRq.GetDataValue(4, i)
+                item['NAV'] = objRq.GetDataValue(6, i)
+            else:
+                item['IIV대비'] = objRq.GetDataValue(4, i)
+                item['IIV'] = objRq.GetDataValue(6, i)
+            item['추적오차'] = objRq.GetDataValue(8, i)
+            item['괴리율'] = objRq.GetDataValue(9, i)
+            item['해당ETF지수'] = objRq.GetDataValue(10, i)
+            item['지수대비'] = objRq.GetDataValue(11, i)
+            print(item)
+            self.navlist.append(item)
+ 
+        self.caller.OnReply(self.navlist)
+ 
+    def Request(self, code, caller):
+        self.navlist = []
+        self.code = code
+        self.caller = caller
+ 
+ 
+        if (self.objRq != None) :
+            self.objRq = None
+ 
+        if (code[0] == 'A'):
+            self.objRq = win32com.client.Dispatch(self.objname1)
+        else:
+            self.objRq = win32com.client.Dispatch(self.objname2)
+ 
+        self.objReply = CpRpETF()
+        self.objReply.SetEvent(self.objRq, self)
+ 
+        self.objRq.SetInputValue(0, code)
+        self.objRq.Request()
+ 
+        return
+ 
+ 
+ 
+################################################
+# 테스트를 위한 메인 화면
+class MyWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.navlist = []
+ 
+        # plus 상태 체크
+        if InitPlusCheck() == False:
+            exit()
+        self.rqObj = None
+        self.objPB7244 = None
+        self.objPBcur = None
+ 
+ 
+        #######################################
+        # 윈도우 처리 
+        self.setWindowTitle("ETF NAV TEST")
+        self.setGeometry(300, 300, 300, 220)
+ 
+        nH = 20
+        btnETF = QPushButton('ETF NAV', self)
+        btnETF.move(20, nH)
+        btnETF.clicked.connect(self.btnETF_clicked)
+        nH += 50
+ 
+        btnETN = QPushButton('ETN NAV', self)
+        btnETN.move(20, nH)
+        btnETN.clicked.connect(self.btnETN_clicked)
+        nH += 50
+ 
+        btnPrint = QPushButton('print', self)
+        btnPrint.move(20, nH)
+        btnPrint.clicked.connect(self.btnPrint_clicked)
+        nH += 50
+ 
+        btnExit = QPushButton('종료', self)
+        btnExit.move(20, nH)
+        btnExit.clicked.connect(self.btnExit_clicked)
+        nH += 50
+ 
+    #######################################
+    # NAV 실시간 수신      
+    def OnPublish_NAV(self, obj):
+        item = {}
+        code = obj.GetHeaderValue(0)
+        item['시간'] = obj.GetHeaderValue(1)
+        item['현재가'] = obj.GetHeaderValue(2)
+        item['대비'] = obj.GetHeaderValue(4)
+        item['거래량'] = obj.GetHeaderValue(5)
+        if (code[0] == 'A'):
+            item['NAV'] = obj.GetHeaderValue(6)
+            if item['NAV'] != 0:
+                item['NAV'] /= 100
+            item['NAV대비'] = item['현재가'] - item['NAV']
+ 
+        else:
+            item['IIV'] = obj.GetHeaderValue(6)
+            if item['IIV'] != 0:
+                item['IIV'] /= 100
+            item['IIV대비'] = item['현재가'] - item['IIV']
+ 
+        item['추적오차'] = obj.GetHeaderValue(10)
+        if item['추적오차'] > 0 :
+            item['추적오차'] /= 100
+        flag = obj.GetHeaderValue(11)
+        item['괴리율'] = obj.GetHeaderValue(12)
+        if item['괴리율'] != 0 :
+            item['괴리율'] /= 100
+        if (flag == ord('-')):
+            item['괴리율'] *= -1
+        item['해당ETF지수'] = obj.GetHeaderValue(15)
+        if item['해당ETF지수'] > 0 :
+            item['해당ETF지수'] != 100
+        flag = obj.GetHeaderValue(13)
+        item['지수대비'] = obj.GetHeaderValue(14)
+        if item['지수대비'] != 0 :
+            item['지수대비'] /= 100
+        if (flag == ord('-')):
+            item['지수대비'] *= -1
+        print(item)
+ 
+        self.navlist.insert(0, item)
+ 
+    #######################################
+    # 현재가 실시간 수신
+    def OnPublish_Cur(self, obj):
+        item = {}
+        exflag = obj.GetHeaderValue(19)  # 예상체결 플래그
+        if exflag != ord('2'):
+            item['동시호가여부'] = '예상'
+        else:
+            item['동시호가여부'] = '정규'
+        item['현재가']= obj.GetHeaderValue(13)  # 현재가
+        item['대비'] = obj.GetHeaderValue(2)  # 대비
+        item['거래량'] = obj.GetHeaderValue(9)  # 거래량
+        print(item)
+ 
+ 
+    # NAV/IIV 시간대별 데이터 조회 수신
+    def OnReply(self, data):
+        self.navlist = data
+ 
+        #######################################
+        # NAV/IIV 실시간 이벤트 요청
+        if (self.objPB7244 != None):
+            self.objPB7244 = None
+ 
+        self.objPB7244 = CP_PB_NAV()
+        self.objPB7244.Subscribe(self.code, self)
+ 
+        #######################################
+        # 현재가 실시간 요청
+        if (self.objPBcur != None):
+            self.objPBcur = None
+        self.objPBcur = CP_PB_CUR()
+        self.objPBcur.Subscribe(self.code, self)
+ 
+    def Request(self, code):
+        self.code = code
+        self.navlist = []
+ 
+        #######################################
+        # NAV/IIV 시간대별 리스트 요청
+        if (self.rqObj):
+            self.rqObj = None
+ 
+        self.rqObj = CP_ETF_NAV()
+        self.rqObj.Request(code, self)
+ 
+    # ETF 종목 요청
+    def btnETF_clicked(self):
+        code = 'A069500'
+        self.Request(code)
+ 
+    # ETN 종목 요청
+    def btnETN_clicked(self):
+        code = 'Q500032'
+        self.Request(code)
+ 
+    def btnPrint_clicked(self):
+        for data in self.navlist:
+            print(data)
+        return
+ 
+    def btnExit_clicked(self):
+        self.objPB7244.Unsubscribe()
+        self.objPBcur.Unsubscribe()
+        exit()
+        return
+ 
+ 
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    myWindow = MyWindow()
+    myWindow.show()
+    app.
+
+#import sys
+from PyQt5.QtWidgets import *
+import win32com.client
+import ctypes
+import time
+ 
+################################################
+# PLUS 공통 OBJECT
+g_objCodeMgr = win32com.client.Dispatch('CpUtil.CpCodeMgr')
+g_objCpStatus = win32com.client.Dispatch('CpUtil.CpCybos')
+g_objCpTrade = win32com.client.Dispatch('CpTrade.CpTdUtil')
+ 
+ 
+################################################
+# PLUS 실행 기본 체크 함수
+def InitPlusCheck():
+    # 프로세스가 관리자 권한으로 실행 여부
+    if ctypes.windll.shell32.IsUserAnAdmin():
+        print('정상: 관리자권한으로 실행된 프로세스입니다.')
+    else:
+        print('오류: 일반권한으로 실행됨. 관리자 권한으로 실행해 주세요')
+        return False
+ 
+    # 연결 여부 체크
+    if (g_objCpStatus.IsConnect == 0):
+        print("PLUS가 정상적으로 연결되지 않음. ")
+        return False
+ 
+    # 주문 관련 초기화
+    if (g_objCpTrade.TradeInit(0) != 0):
+        print("주문 초기화 실패")
+        return False
+ 
+    return True
+ 
+ 
+ 
+ 
+ 
+################################################
+# CpEvent: 실시간 이벤트 수신 클래스
+class CpEvent:
+    def set_params(self, client, name, caller):
+        self.cpObj = client  # CP 실시간 통신 object
+        self.name = name  # 서비스가 다른 이벤트를 구분하기 위한 이름
+        self.caller = caller  # callback 을 위해 보관
+ 
+    def OnReceived(self):
+        if self.name == 'nav':
+            print('실시간 nav 수신')
+            self.caller.OnPublish_NAV(self.cpObj)
+            return
+        elif self.name == 'stockcur':
+            print('실시간 현재가 수신')
+            self.caller.OnPublish_Cur(self.cpObj)
+            return
+        elif self.name == 'etfreply':
+            print('reply')
+            self.caller.OnReply(self.cpObj)
+            return
+ 
+ 
+ 
+ 
+################################################
+# plus 실시간 수신 base 클래스
+class CpPublish:
+    def __init__(self, name, serviceID):
+        self.name = name
+        self.obj = win32com.client.Dispatch(serviceID)
+        self.bIsSB = False
+ 
+    def __del__(self):
+        self.Unsubscribe()
+ 
+    def Subscribe(self, var, caller):
+        if self.bIsSB:
+            self.Unsubscribe()
+ 
+        if (len(var) > 0):
+            self.obj.SetInputValue(0, var)
+ 
+        handler = win32com.client.WithEvents(self.obj, CpEvent)
+        handler.set_params(self.obj, self.name, caller)
+        self.obj.Subscribe()
+        self.bIsSB = True
+ 
+    def Unsubscribe(self):
+        if self.bIsSB:
+            self.obj.Unsubscribe()
+        self.bIsSB = False
+ 
+ 
+# 실시간 nav/iiv 수신
+class CP_PB_NAV(CpPublish):
+    def __init__(self):
+        super().__init__('nav', 'CpSysDib.CpSvrNew7244S')
+ 
+# 실시간 현재가 수신
+class CP_PB_CUR(CpPublish):
+    def __init__(self):
+        super().__init__('stockcur', 'DsCbo1.StockCur')
+ 
+ 
+# Reply 이벤트 - 1회만 수신
+class CpRpETF:
+    def __init__(self):
+        self.name = "etfreply"
+ 
+    def SetEvent(self, cpobj, caller):
+        handler = win32com.client.WithEvents(cpobj, CpEvent)
+        handler.set_params(cpobj, self.name, caller)
+ 
+ 
+class CP_ETF_NAV:
+    def __init__(self):
+        self.objRq = None
+        self.objReply = None
+        self.objname1 = 'Dscbo1.Cpsvr7244'
+        self.objname2 = 'Dscbo1.Cpsvr7718'
+        self.navlist = []
+        self.code = ''
+        self.caller = None
+ 
+    def OnReply(self, objRq):
+        cnt = objRq.GetHeaderValue(0)
+        print('조회 개수', cnt)
+ 
+        for i in range(cnt):
+            item = {}
+ 
+            item['시간'] = objRq.GetDataValue(0, i)
+            item['현재가'] = objRq.GetDataValue(1, i)
+            item['대비'] = objRq.GetDataValue(3, i)
+            item['거래량'] = objRq.GetDataValue(5, i)
+            if (self.code[0] == 'A'):
+                item['NAV대비'] = objRq.GetDataValue(4, i)
+                item['NAV'] = objRq.GetDataValue(6, i)
+            else:
+                item['IIV대비'] = objRq.GetDataValue(4, i)
+                item['IIV'] = objRq.GetDataValue(6, i)
+            item['추적오차'] = objRq.GetDataValue(8, i)
+            item['괴리율'] = objRq.GetDataValue(9, i)
+            item['해당ETF지수'] = objRq.GetDataValue(10, i)
+            item['지수대비'] = objRq.GetDataValue(11, i)
+            print(item)
+            self.navlist.append(item)
+ 
+        self.caller.OnReply(self.navlist)
+ 
+    def Request(self, code, caller):
+        self.navlist = []
+        self.code = code
+        self.caller = caller
+ 
+ 
+        if (self.objRq != None) :
+            self.objRq = None
+ 
+        if (code[0] == 'A'):
+            self.objRq = win32com.client.Dispatch(self.objname1)
+        else:
+            self.objRq = win32com.client.Dispatch(self.objname2)
+ 
+        self.objReply = CpRpETF()
+        self.objReply.SetEvent(self.objRq, self)
+ 
+        self.objRq.SetInputValue(0, code)
+        self.objRq.Request()
+ 
+        return
+ 
+ 
+ 
+################################################
+# 테스트를 위한 메인 화면
+class MyWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.navlist = []
+ 
+        # plus 상태 체크
+        if InitPlusCheck() == False:
+            exit()
+        self.rqObj = None
+        self.objPB7244 = None
+        self.objPBcur = None
+ 
+ 
+        #######################################
+        # 윈도우 처리 
+        self.setWindowTitle("ETF NAV TEST")
+        self.setGeometry(300, 300, 300, 220)
+ 
+        nH = 20
+        btnETF = QPushButton('ETF NAV', self)
+        btnETF.move(20, nH)
+        btnETF.clicked.connect(self.btnETF_clicked)
+        nH += 50
+ 
+        btnETN = QPushButton('ETN NAV', self)
+        btnETN.move(20, nH)
+        btnETN.clicked.connect(self.btnETN_clicked)
+        nH += 50
+ 
+        btnPrint = QPushButton('print', self)
+        btnPrint.move(20, nH)
+        btnPrint.clicked.connect(self.btnPrint_clicked)
+        nH += 50
+ 
+        btnExit = QPushButton('종료', self)
+        btnExit.move(20, nH)
+        btnExit.clicked.connect(self.btnExit_clicked)
+        nH += 50
+ 
+    #######################################
+    # NAV 실시간 수신      
+    def OnPublish_NAV(self, obj):
+        item = {}
+        code = obj.GetHeaderValue(0)
+        item['시간'] = obj.GetHeaderValue(1)
+        item['현재가'] = obj.GetHeaderValue(2)
+        item['대비'] = obj.GetHeaderValue(4)
+        item['거래량'] = obj.GetHeaderValue(5)
+        if (code[0] == 'A'):
+            item['NAV'] = obj.GetHeaderValue(6)
+            if item['NAV'] != 0:
+                item['NAV'] /= 100
+            item['NAV대비'] = item['현재가'] - item['NAV']
+ 
+        else:
+            item['IIV'] = obj.GetHeaderValue(6)
+            if item['IIV'] != 0:
+                item['IIV'] /= 100
+            item['IIV대비'] = item['현재가'] - item['IIV']
+ 
+        item['추적오차'] = obj.GetHeaderValue(10)
+        if item['추적오차'] > 0 :
+            item['추적오차'] /= 100
+        flag = obj.GetHeaderValue(11)
+        item['괴리율'] = obj.GetHeaderValue(12)
+        if item['괴리율'] != 0 :
+            item['괴리율'] /= 100
+        if (flag == ord('-')):
+            item['괴리율'] *= -1
+        item['해당ETF지수'] = obj.GetHeaderValue(15)
+        if item['해당ETF지수'] > 0 :
+            item['해당ETF지수'] != 100
+        flag = obj.GetHeaderValue(13)
+        item['지수대비'] = obj.GetHeaderValue(14)
+        if item['지수대비'] != 0 :
+            item['지수대비'] /= 100
+        if (flag == ord('-')):
+            item['지수대비'] *= -1
+        print(item)
+ 
+        self.navlist.insert(0, item)
+ 
+    #######################################
+    # 현재가 실시간 수신
+    def OnPublish_Cur(self, obj):
+        item = {}
+        exflag = obj.GetHeaderValue(19)  # 예상체결 플래그
+        if exflag != ord('2'):
+            item['동시호가여부'] = '예상'
+        else:
+            item['동시호가여부'] = '정규'
+        item['현재가']= obj.GetHeaderValue(13)  # 현재가
+        item['대비'] = obj.GetHeaderValue(2)  # 대비
+        item['거래량'] = obj.GetHeaderValue(9)  # 거래량
+        print(item)
+ 
+ 
+    # NAV/IIV 시간대별 데이터 조회 수신
+    def OnReply(self, data):
+        self.navlist = data
+ 
+        #######################################
+        # NAV/IIV 실시간 이벤트 요청
+        if (self.objPB7244 != None):
+            self.objPB7244 = None
+ 
+        self.objPB7244 = CP_PB_NAV()
+        self.objPB7244.Subscribe(self.code, self)
+ 
+        #######################################
+        # 현재가 실시간 요청
+        if (self.objPBcur != None):
+            self.objPBcur = None
+        self.objPBcur = CP_PB_CUR()
+        self.objPBcur.Subscribe(self.code, self)
+ 
+    def Request(self, code):
+        self.code = code
+        self.navlist = []
+ 
+        #######################################
+        # NAV/IIV 시간대별 리스트 요청
+        if (self.rqObj):
+            self.rqObj = None
+ 
+        self.rqObj = CP_ETF_NAV()
+        self.rqObj.Request(code, self)
+ 
+    # ETF 종목 요청
+    def btnETF_clicked(self):
+        code = 'A069500'
+        self.Request(code)
+ 
+    # ETN 종목 요청
+    def btnETN_clicked(self):
+        code = 'Q500032'
+        self.Request(code)
+ 
+    def btnPrint_clicked(self):
+        for data in self.navlist:
+            print(data)
+        return
+ 
+    def btnExit_clicked(self):
+        self.objPB7244.Unsubscribe()
+        self.objPBcur.Unsubscribe()
+        exit()
+        return
+ 
+ 
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    myWindow = MyWindow()
+    myWindow.show()
+    app.exec_()
+
+#######[파이썬] 데이터 요청 방법 2가지 BlockRequest 와 Request 방식 비교 예제
+
+import pythoncom
+from PyQt5.QtWidgets import *
+import win32com.client
+ 
+import win32event
+ 
+g_objCodeMgr = win32com.client.Dispatch('CpUtil.CpCodeMgr')
+ 
+StopEvent = win32event.createEvent(None, 0, 0, None)
+ 
+class CpEvent:
+    def set_params(self, client, name, caller):
+        self.client = client  # CP 실시간 통신 object
+        self.name = name  # 서비스가 다른 이벤트를 구분하기 위한 이름
+        self.caller = caller  # callback 을 위해 보관
+ 
+    def OnReceived(self):
+        # 실시간 처리 - 현재가 주문 체결
+        if self.name == 'stockmst':
+            print('recieved')
+            win32event.SetEvent(StopEvent)
+            return
+ 
+ 
+class CpCurReply:
+    def __init__(self, objEvent):
+        self.name = "stockmst"
+        self.obj = objEvent
+ 
+    def Subscribe(self):
+        handler = win32com.client.WithEvents(self.obj, CpEvent)
+        handler.set_params(self.obj, self.name, None)
+ 
+ 
+def MessagePump(timeout):
+    waitables = [StopEvent]
+    while 1:
+        rc = win32event.MsgWaitForMultipleObjects(
+            waitables,
+            0,  # Wait for all = false, so it waits for anyone
+            timeout, #(or win32event.INFINITE)
+            win32event.QS_ALLEVENTS)  # Accepts all input
+ 
+        if rc == win32event.WAIT_OBJECT_0:
+            # Our first event listed, the StopEvent, was triggered, so we must exit
+            print('stop event')
+            break
+ 
+        elif rc == win32event.WAIT_OBJECT_0 + len(waitables):
+            # A windows message is waiting - take care of it. (Don't ask me
+            # why a WAIT_OBJECT_MSG isn't defined < WAIT_OBJECT_0...!).
+            # This message-serving MUST be done for COM, DDE, and other
+            # Windowsy things to work properly!
+            print('pump')
+            if pythoncom.PumpWaitingMessages():
+                break  # we received a wm_quit message
+        elif rc == win32event.WAIT_TIMEOUT:
+            print('timeout')
+            return
+            pass
+        else:
+            print('exception')
+            raise RuntimeError("unexpected win32wait return value")
+ 
+ 
+code = 'A005930'
+ 
+##############################################################
+#1. BlockRequest
+print('#####################################')
+objStockMst = win32com.client.Dispatch("DsCbo1.StockMst")
+objStockMst.SetInputValue(0, code)
+objStockMst.BlockRequest()
+print('BlockRequest 로 수신 받은 데이터')
+item = {}
+item['종목명']= g_objCodeMgr.CodeToName(code)
+item['현재가'] = objStockMst.GetHeaderValue(11)  # 종가
+item['대비'] =  objStockMst.GetHeaderValue(12)  # 전일대비
+print(item)
+ 
+print('')
+##############################################################
+# 2. Request ==> 메시지 펌프 ==>  OnReceived 이벤트 수신
+print('#####################################')
+objReply = CpCurReply(objStockMst)
+objReply.Subscribe()
+ 
+code = 'A005930'
+objStockMst.SetInputValue(0, code)
+objStockMst.Request()
+MessagePump(10000)
+item = {}
+item['종목명']= g_objCodeMgr.CodeToName(code)
+item['현재가'] = objStockMst.GetHeaderValue(11)  # 종가
+item['대비'] =  objStockMst.GetHeaderValue(12)  # 전일대비
+print(item)
+
+##[파이썬] 주식 5분 차트 MACD 신호
+
+import sys
+from PyQt5.QtWidgets import *
+import win32com.client
+import ctypes
+import time
+ 
+################################################
+# PLUS 공통 OBJECT
+g_objCodeMgr = win32com.client.Dispatch('CpUtil.CpCodeMgr')
+g_objCpStatus = win32com.client.Dispatch('CpUtil.CpCybos')
+g_objCpTrade = win32com.client.Dispatch('CpTrade.CpTdUtil')
+ 
+ 
+################################################
+# PLUS 실행 기본 체크 함수
+def InitPlusCheck():
+    # 프로세스가 관리자 권한으로 실행 여부
+    if ctypes.windll.shell32.IsUserAnAdmin():
+        print('정상: 관리자권한으로 실행된 프로세스입니다.')
+    else:
+        print('오류: 일반권한으로 실행됨. 관리자 권한으로 실행해 주세요')
+        return False
+ 
+    # 연결 여부 체크
+    if (g_objCpStatus.IsConnect == 0):
+        print("PLUS가 정상적으로 연결되지 않음. ")
+        return False
+ 
+    # 주문 관련 초기화
+    if (g_objCpTrade.TradeInit(0) != 0):
+        print("주문 초기화 실패")
+        return False
+ 
+    return True
+ 
+ 
+################################################
+# CpEvent: 실시간 이벤트 수신 클래스
+class CpEvent:
+    def set_params(self, client, name, caller):
+        self.client = client  # CP 실시간 통신 object
+        self.name = name  # 서비스가 다른 이벤트를 구분하기 위한 이름
+        self.caller = caller  # callback 을 위해 보관
+ 
+    def OnReceived(self):
+        # 실시간 처리 - 현재가 체결 데이터
+        if self.name == 'stockcur':
+            code = self.client.GetHeaderValue(0)  # 초
+            name = self.client.GetHeaderValue(1)  # 초
+            timess = self.client.GetHeaderValue(18)  # 초
+            exFlag = self.client.GetHeaderValue(19)  # 예상체결 플래그
+            cprice = self.client.GetHeaderValue(13)  # 현재가
+            diff = self.client.GetHeaderValue(2)  # 대비
+            cVol = self.client.GetHeaderValue(17)  # 순간체결수량
+            vol = self.client.GetHeaderValue(9)  # 거래량
+ 
+            if exFlag != ord('2'):
+                return
+ 
+            item = {}
+            item['code'] = code
+            item['time'] = timess
+            item['diff'] = diff
+            item['cur'] = cprice
+            item['vol'] = cVol
+ 
+            # 현재가 업데이트
+            self.caller.updateCurData(item)
+ 
+            return
+ 
+ 
+################################################
+# plus 실시간 수신 base 클래스
+class CpPublish:
+    def __init__(self, name, serviceID):
+        self.name = name
+        self.obj = win32com.client.Dispatch(serviceID)
+        self.bIsSB = False
+ 
+    def Subscribe(self, var, caller):
+        if self.bIsSB:
+            self.Unsubscribe()
+ 
+        if (len(var) > 0):
+            self.obj.SetInputValue(0, var)
+ 
+        handler = win32com.client.WithEvents(self.obj, CpEvent)
+        handler.set_params(self.obj, self.name, caller)
+        self.obj.Subscribe()
+        self.bIsSB = True
+ 
+    def Unsubscribe(self):
+        if self.bIsSB:
+            self.obj.Unsubscribe()
+        self.bIsSB = False
+ 
+ 
+################################################
+# CpPBStockCur: 실시간 현재가 요청 클래스
+class CpPBStockCur(CpPublish):
+    def __init__(self):
+        super().__init__('stockcur', 'DsCbo1.StockCur')
+ 
+ 
+# MACD 지표 계산
+class CMACD:
+    def __init__(self):
+        self.objSeries = win32com.client.Dispatch("CpIndexes.CpSeries")
+        self.objIndex = win32com.client.Dispatch("CpIndexes.CpIndex")
+ 
+    # 차트 데이터 세팅 하기
+    def setChartData(self, chartData):
+        nLen = len(chartData['T'])
+        for i in range(nLen):
+            self.objSeries.Add(chartData['C'][i], chartData['O'][i], chartData['H'][i], chartData['L'][i],
+                               chartData['V'][i])
+ 
+        return
+ 
+    # 기존 차트 데이터에 새로 들어온 신규 데이터 추가
+    def addLastData(self, chartData):
+        self.objSeries.Add(chartData['C'][-1], chartData['O'][-1], chartData['H'][-1], chartData['L'][-1],
+                           chartData['V'][-1])
+ 
+    # MACD 계산
+    def makeMACD(self):
+        result = {}
+        # 지표 계산 object
+        self.objIndex.series = self.objSeries
+        self.objIndex.put_IndexKind("MACD")  # 계산할 지표: MACD
+        self.objIndex.put_IndexDefault("MACD")  # MACD 지표 기본 변수 자동 세팅
+ 
+        print("MACD 변수", self.objIndex.get_Term1(), self.objIndex.get_Term2(), self.objIndex.get_Signal())
+ 
+        # 지표 데이터 계산 하기
+        self.objIndex.Calculate()
+ 
+        cntofIndex = self.objIndex.ItemCount
+        print("지표 개수:  ", cntofIndex)
+        indexName = ["MACD", "SIGNAL", "OSC"]
+ 
+        result['MACD'] = []
+        result['SIGNAL'] = []
+        result['OSC'] = []
+        for index in range(cntofIndex):
+            cnt = self.objIndex.GetCount(index)
+            for j in range(cnt):
+                value = self.objIndex.GetResult(index, j)
+                result[indexName[index]].append(value)
+            # for j in range(cnt) :
+            #    value = self.objIndex.GetResult(index,j)
+            # print(indexName[index], value)  # 지표의 최근 값 표시
+ 
+        print('MACD %.2f SIGNLA %.2f OSC %.2f' % (result['MACD'][-1], result['SIGNAL'][-1], result['OSC'][-1]))
+        return (True, result)
+ 
+    # MACD 업데이트(차트 데이터 개수에 변화가 없을 경우에만 사용)
+    def updateMACD(self, chartData):
+        result = {}
+        # 지표 데이터 update
+        self.objSeries.update(chartData['C'][-1], chartData['O'][-1], chartData['H'][-1], chartData['L'][-1],
+                              chartData['V'][-1])
+        self.objIndex.update()
+        cntofIndex = self.objIndex.ItemCount
+        print("지표 개수:  ", cntofIndex)
+ 
+        indexName = ["MACD", "SIGNAL", "OSC"]
+ 
+        result['MACD'] = []
+        result['SIGNAL'] = []
+        result['OSC'] = []
+ 
+        for index in range(cntofIndex):
+            cnt = self.objIndex.GetCount(index)
+            for j in range(cnt):
+                value = self.objIndex.GetResult(index, j)
+                result[indexName[index]].append(value)
+ 
+        print('MACD %.2f SIGNLA %.2f OSC %.2f' % (result['MACD'][-1], result['SIGNAL'][-1], result['OSC'][-1]))
+        return (True, result)
+ 
+ 
+# 분차트 관리 클래스
+#   주어진 주기로 분차트 조회 , 실시간 분차트 데이터 생성, MACD 계산 호출
+class CMinchartData:
+    def __init__(self, interval):
+        # interval : 분차트 주기
+        self.interval = interval
+        self.objCur = {}
+        self.data = {}
+        self.code = ''
+        self.objMACD = CMACD()
+        self.LASTTIME = 1530
+ 
+        # 오늘 날짜
+        now = time.localtime()
+        self.todayDate = now.tm_year * 10000 + now.tm_mon * 100 + now.tm_mday
+        print(self.todayDate)
+ 
+    def MonCode(self, code):
+        self.data = {}
+        self.code = code
+ 
+        self.data['O'] = []
+        self.data['H'] = []
+        self.data['L'] = []
+        self.data['C'] = []
+        self.data['V'] = []
+        self.data['D'] = []
+        self.data['T'] = []
+        self.data['MACD'] = []
+        self.data['SIGNAL'] = []
+        self.data['OSC'] = []
+ 
+        # 차트 기본 통신
+        self.rqChartMinData(code, self.interval)
+ 
+        # MACD 클래스에 수신 받은 차트 데이터 세팅
+        self.objMACD.setChartData(self.data)
+        # MACD 계산 하기
+        ret, result = self.objMACD.makeMACD()
+ 
+        self.data['MACD'] = result['MACD']
+        self.data['SIGNAL'] = result['SIGNAL']
+        self.data['OSC'] = result['OSC']
+ 
+        # 실시간 시세 요청
+        if (code not in self.objCur):
+            self.objCur[code] = CpPBStockCur()
+            self.objCur[code].Subscribe(code, self)
+ 
+    def stop(self):
+        for k, v in self.objCur.items():
+            v.Unsubscribe()
+        self.objCur = {}
+ 
+    # 분차트 - 코드, 주기, 개수
+    def rqChartMinData(self, code, interval):
+        objRq = win32com.client.Dispatch("CpSysDib.StockChart")
+ 
+        objRq.SetInputValue(0, code)  # 종목 코드
+        objRq.SetInputValue(1, ord('2'))  # 개수로 조회
+        objRq.SetInputValue(4, 500)  # 통신 개수 - 500 개로 고정
+        objRq.SetInputValue(5, [0, 1, 2, 3, 4, 5, 8])  # 날짜,시간, 시가,고가,저가,종가,거래량
+        objRq.SetInputValue(6, ord('m'))  # '차트 주가 - 분 데이터
+        objRq.SetInputValue(7, interval)  # 차트 주기
+        objRq.SetInputValue(9, ord('1'))  # 9 - 수정주가(char)
+ 
+        totlen = 0
+        objRq.BlockRequest()
+        rqStatus = objRq.GetDibStatus()
+        rqRet = objRq.GetDibMsg1()
+        print("통신상태", rqStatus, rqRet)
+        if rqStatus != 0:
+            exit()
+ 
+        len = objRq.GetHeaderValue(3)
+        print(totlen)
+        totlen += len
+ 
+        print("날짜", "시가", "고가", "저가", "종가", "거래량")
+        print("==============================================-")
+ 
+        for i in range(len):
+            day = objRq.GetDataValue(0, i)
+            time = objRq.GetDataValue(1, i)
+            open = objRq.GetDataValue(2, i)
+            high = objRq.GetDataValue(3, i)
+            low = objRq.GetDataValue(4, i)
+            close = objRq.GetDataValue(5, i)
+            vol = objRq.GetDataValue(6, i)
+ 
+            self.data['D'].append(day)
+            self.data['T'].append(time)
+            self.data['O'].append(open)
+            self.data['H'].append(high)
+            self.data['L'].append(low)
+            self.data['C'].append(close)
+            self.data['V'].append(vol)
+ 
+        # 수신된 역순으로 넣는다 -> 최근 날짜가 맨 뒤로 가도록
+        self.data['D'].reverse()
+        self.data['T'].reverse()
+        self.data['O'].reverse()
+        self.data['H'].reverse()
+        self.data['L'].reverse()
+        self.data['C'].reverse()
+        self.data['V'].reverse()
+ 
+    # 가격 실시간 변경 시 분차트 데이터 재 계산
+    def updateCurData(self, item):
+        time = item['time']
+        self.cur = cur = item['cur']
+        vol = item['vol']
+        self.makeMinchart(time, cur, vol)
+ 
+    def getHMTFromTime(self, time):
+        hh, mm = divmod(time, 10000)
+        mm, tt = divmod(mm, 100)
+        return (hh, mm, tt)
+ 
+    def getChartTime(self, time):
+        # time 600 (10:00 인 경우 600)
+        lChartTime = time + self.interval
+ 
+        # 630 ==> 1030 분으로 변경
+        hour, min  = divmod(lChartTime, 60)
+        lCurTime = hour * 100 + min
+ 
+        if (lCurTime > self.LASTTIME):
+            lCurTime = self.LASTTIME
+ 
+        return lCurTime
+ 
+    # 실시간 데이터를 통해 분차트 업데이트
+    def makeMinchart(self, time, cur, vol):
+        # time 분해 ==> 시, 분, 초
+        hh, mm, tt = self.getHMTFromTime(time)
+        #hhmm = hh * 100 + mm
+        # 1000 ==> 600 분
+        converedMintime = hh * 60 + mm
+ 
+        bFind = False
+        nLen = len(self.data['T'])
+ 
+        # 분차트 주기 기준으로 나눠서 시간 차트 시간 계산
+        #   1분 봉의 경우 14:10분 봉: 14:09:00~14:09:59
+        #   5분 봉의 경우 14:10분 봉 : 14:05:00~ 14:09:59
+        a, b = divmod(converedMintime, self.interval)
+        intervaltime = a * self.interval
+        lCurTime = self.getChartTime(intervaltime)
+        print('차트 시간 계산 : 들어온 시간 %d, 차트 시간 %d' % (time, lCurTime))
+ 
+        if (nLen > 0):
+            lLastTime = self.data['T'][-1]
+            if (lLastTime == lCurTime):
+                bFind = True
+ 
+                self.data['C'][-1] = cur
+                if (self.data['H'][-1] < cur):
+                    self.data['H'][-1] = cur
+                if (self.data['L'][-1] > cur):
+                    self.data['L'][-1] = cur
+                self.data['V'][-1] += vol
+                print('들어온 시간 %d ==> 마지막 분차트 시간 %d 에 업데이트' % (time, lLastTime))
+ 
+                ret, result = self.objMACD.updateMACD(self.data)
+                self.data['MACD'] = result['MACD']
+                self.data['SIGNAL'] = result['SIGNAL']
+                self.data['OSC'] = result['OSC']
+ 
+        # 신규 봉이 추가
+        if bFind == False:
+            print('들어온 시간 %d ==> 새로운 분차트 시간 %d 에 업데이트' % (time, lCurTime))
+            self.data['D'].append(self.todayDate)
+            self.data['T'].append(lCurTime)
+            self.data['O'].append(cur)
+            self.data['H'].append(cur)
+            self.data['L'].append(cur)
+            self.data['C'].append(cur)
+            self.data['V'].append(vol)
+ 
+            # 데이터 추가 - MACD 계산 모듈에 차트 데이터 추가
+            self.objMACD.addLastData(self.data)
+            # MACD 계산
+            ret, result = self.objMACD.makeMACD()
+ 
+            self.data['MACD'] = result['MACD']
+            self.data['SIGNAL'] = result['SIGNAL']
+            self.data['OSC'] = result['OSC']
+ 
+            # MACD 의 신호가 교차됐는지 체크
+            self.checkMACD()
+ 
+        return
+ 
+    def checkMACD(self):
+        if (len(self.data['OSC']) < 5):
+            return
+        # 현재 시점에서 이전 봉(-2) 가 매수신호/매도 신호 발생했는 지 체크
+        # -1 : 현재 시점 -2: 바로 직전 봉 -3 그 전 봉
+        print('osc', self.data['OSC'][-3], self.data['OSC'][-2], self.data['OSC'][-1])
+        if self.data['OSC'][-3] < 0:
+            if self.data['OSC'][-2] > 0:
+                print('MACD 매수, 시간 %d, 가격 %d' % (self.data['T'][-1], self.data['C'][-1]))
+        elif self.data['OSC'][-3] > 0:
+            if self.data['OSC'][-2] < 0:
+                print('MACD 매도, 시간 %d, 가격 %d' % (self.data['T'][-1], self.data['C'][-1]))
+ 
+    def printdata(self):
+        nLen = len(self.data['T'])
+        for i in range(nLen):
+            print(self.data['D'][i],
+                  self.data['T'][i],
+                  self.data['O'][i],
+                  self.data['H'][i],
+                  self.data['L'][i],
+                  self.data['C'][i],
+                  self.data['V'][i],
+                  self.data['MACD'][i],
+                  self.data['SIGNAL'][i],
+                  self.data['OSC'][i])
+ 
+        # print(code, self.minDatas[code])
+ 
+ 
+################################################
+# 테스트를 위한 메인 화면
+class MyWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+ 
+        # plus 상태 체크
+        if InitPlusCheck() == False:
+            exit()
+ 
+        self.minData = CMinchartData(5)
+        self.minData.MonCode('A069500')
+ 
+        self.setWindowTitle("주식 분 차트 생성")
+        self.setGeometry(300, 300, 300, 180)
+ 
+        nH = 20
+ 
+        btnPrint = QPushButton('print', self)
+        btnPrint.move(20, nH)
+        btnPrint.clicked.connect(self.btnPrint_clicked)
+        nH += 50
+ 
+        btnExit = QPushButton('종료', self)
+        btnExit.move(20, nH)
+        btnExit.clicked.connect(self.btnExit_clicked)
+        nH += 50
+ 
+    def btnPrint_clicked(self):
+        self.minData.printdata()
+        return
+ 
+    def btnExit_clicked(self):
+        self.minData.stop()
+        exit()
+        return
+ 
+ 
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    myWindow = MyWindow()
+    myWindow.show()
+    app.exec_()
+
+#######[파이썬] 종목검색 조회 및 실시간 감시 예제
+
+import sys
+from PyQt5.QtWidgets import *
+import win32com.client
+import pandas as pd
+import os
+
+g_objCodeMgr = win32com.client.Dispatch('CpUtil.CpStockCode')
+g_objCpStatus = win32com.client.Dispatch('CpUtil.CpCybos')
+g_objCpTrade = win32com.client.Dispatch('CpTrade.CpTdUtil')
+
+
+# CpEvent: 실시간 이벤트 수신 클래스
+class CpEvent:
+    def set_params(self, client, name, caller):
+        self.client = client  # CP 실시간 통신 object
+        self.name = name  # 서비스가 다른 이벤트를 구분하기 위한 이름
+        self.caller = caller  # callback 을 위해 보관
+
+    def OnReceived(self):
+        pbData = {}
+        # 실시간 종목검색 감시 처리 
+        if self.name == 'cssalert':
+            pbData['전략ID'] = self.client.GetHeaderValue(0)
+            pbData['감시일련번호'] = self.client.GetHeaderValue(1) 
+            code = pbData['code'] = self.client.GetHeaderValue(2)
+            pbData['종목명'] = name = g_objCodeMgr.CodeToName(code)
+
+            inoutflag = self.client.GetHeaderValue(3)
+            if (ord('1') == inoutflag) :
+                pbData['INOUT'] = '진입'
+            elif (ord('2') == inoutflag) :
+                pbData['INOUT'] = '퇴출'
+            pbData['시각'] = self.client.GetHeaderValue(4)
+            pbData['현재가'] = self.client.GetHeaderValue(5)
+            self.caller.checkRealtimeStg(pbData)
+
+
+
+
+
+class CpPublish:
+    def __init__(self, name, serviceID):
+        self.name = name
+        self.obj = win32com.client.Dispatch(serviceID)
+        self.bIsSB = False
+
+    def Subscribe(self, var, caller):
+        if self.bIsSB:
+            self.Unsubscribe()
+
+        if (len(var) > 0):
+            self.obj.SetInputValue(0, var)
+
+        handler = win32com.client.WithEvents(self.obj, CpEvent)
+        handler.set_params(self.obj, self.name, caller)
+        self.obj.Subscribe()
+        self.bIsSB = True
+
+    def Unsubscribe(self):
+        if self.bIsSB:
+            self.obj.Unsubscribe()
+        self.bIsSB = False
+
+# CpPBCssAlert: 종목검색 실시간 PB 클래스 
+class CpPBCssAlert(CpPublish):
+    def __init__(self):
+        super().__init__('cssalert', 'CpSysDib.CssAlert')
+
+
+# Cp8537 : 종목검색 전략 조회
+class Cp8537:
+    def __init__(self):
+        self.objpb = CpPBCssAlert()
+        self.bisSB = False
+        self.monList = {}
+
+    def __del__(self):
+        self.Clear()
+
+    def Clear(self):
+        self.stopAllStgControl()
+        if self.bisSB:
+            self.objpb.Unsubscribe()
+            self.bisSB = False
+
+    def requestList(self, sel):
+        retStgList = {}
+        objRq = win32com.client.Dispatch("CpSysDib.CssStgList")
+
+        # 예제 전략에서 전략 리스트를 가져옵니다.
+        if (sel == '예제') :
+            objRq.SetInputValue(0, ord('0'))   # '0' : 예제전략, '1': 나의전략
+        else :
+            objRq.SetInputValue(0, ord('1'))  # '0' : 예제전략, '1': 나의전략
+        objRq.BlockRequest()
+
+        # 통신 및 통신 에러 처리
+        rqStatus = objRq.GetDibStatus()
+        if rqStatus != 0:
+            rqRet = objRq.GetDibMsg1()
+            print("통신상태", rqStatus, rqRet)
+            return (False, retStgList)
+
+        cnt = objRq.GetHeaderValue(0) # 0 - (long) 전략 목록 수
+        flag = objRq.GetHeaderValue(1) # 1 - (char) 요청구분
+        print('종목검색 전략수:', cnt)
+
+
+        for i in range(cnt):
+            item = {}
+            item['전략명'] = objRq.GetDataValue(0, i)
+            item['ID'] = objRq.GetDataValue(1, i)
+            item['전략등록일시'] = objRq.GetDataValue(2, i)
+            item['작성자필명'] = objRq.GetDataValue(3, i)
+            item['평균종목수'] = objRq.GetDataValue(4, i)
+            item['평균승률'] = objRq.GetDataValue(5, i)
+            item['평균수익'] = objRq.GetDataValue(6, i)
+            retStgList[item['전략명']] = item
+            print(item)
+            
+        return (True, retStgList)
+
+    def requestStgID(self, id):
+        retStgList = []
+        objRq = None
+        objRq = win32com.client.Dispatch("CpSysDib.CssStgFind")
+        objRq.SetInputValue(0, id) # 전략 id 요청
+        objRq.BlockRequest()
+        # 통신 및 통신 에러 처리
+        rqStatus = objRq.GetDibStatus()
+        if rqStatus != 0:
+            rqRet = objRq.GetDibMsg1()
+            print("통신상태", rqStatus, rqRet)
+            return (False, retStgList)
+
+        cnt = objRq.GetHeaderValue(0)  # 0 - (long) 검색된 결과 종목 수
+        totcnt = objRq.GetHeaderValue(1)  # 1 - (long) 총 검색 종목 수
+        stime = objRq.GetHeaderValue(2)  # 2 - (string) 검색시간
+        print('검색된 종목수:', cnt, '전체종목수:', totcnt, '검색시간:', stime)
+
+        for i in range(cnt):
+            item = {}
+            item['code'] = objRq.GetDataValue(0, i)
+            item['종목명'] = g_objCodeMgr.CodeToName(item['code'])
+            retStgList.append(item)
+
+        return (True, retStgList)
+
+    def requestMonitorID(self, id):
+        objRq = win32com.client.Dispatch("CpSysDib.CssWatchStgSubscribe")
+        objRq.SetInputValue(0, id) # 전략 id 요청
+        objRq.BlockRequest()
+
+
+        # 통신 및 통신 에러 처리
+        rqStatus = objRq.GetDibStatus()
+        if rqStatus != 0:
+            rqRet = objRq.GetDibMsg1()
+            print("통신상태", rqStatus, rqRet)
+            return (False, 0)
+
+        monID = objRq.GetHeaderValue(0)
+        if  monID == 0:
+            print('감시 일련번호 구하기 실패')
+            return (False, 0)
+
+        # monID - 전략 감시를 위한 일련번호를 구해온다.
+        # 현재 감시되는 전략이 없다면 감시일련번호로 1을 리턴하고,
+        # 현재 감시되는 전략이 있다면 각 통신 ID에 대응되는 새로운 일련번호를 리턴한다.
+        return (True, monID)
+
+    def requestStgControl(self, id, monID, bStart):
+        objRq = win32com.client.Dispatch("CpSysDib.CssWatchStgControl")
+        objRq.SetInputValue(0, id) # 전략 id 요청
+        objRq.SetInputValue(1, monID)  # 감시일련번호
+
+
+        if bStart == True:
+            objRq.SetInputValue(2, ord('1'))  # 감시시작
+            print('전략감시 시작 요청 ', '전략 ID:', id, '감시일련번호',monID)
+        else:
+            objRq.SetInputValue(2, ord('3'))  # 감시취소
+            print('전략감시 취소 요청 ', '전략 ID:', id, '감시일련번호', monID)
+        objRq.BlockRequest()
+
+
+        # 통신 및 통신 에러 처리
+        rqStatus = objRq.GetDibStatus()
+        if rqStatus != 0:
+            rqRet = objRq.GetDibMsg1()
+            print("통신상태", rqStatus, rqRet)
+            return (False, '')
+
+        status = objRq.GetHeaderValue(0)
+
+        if status == 0 :
+            print('전략감시상태: 초기상태')
+        elif status == 1 :
+            print('전략감시상태: 감시중')
+        elif status == 2 :
+            print('전략감시상태: 감시중단')
+        elif status == 3 :
+            print('전략감시상태: 등록취소')
+
+
+        # event 수신 요청 - 요청 중이 아닌 경우에만 요청
+        if self.bisSB == False:
+            self.objpb.Subscribe('', self)
+            self.bisSB = True
+
+        # 진행 중인 전략들 저장
+        if bStart == True:
+            self.monList[id] = monID
+        else:
+            if id in self.monList :
+                del self.monList[id]
+
+
+        return (True, status)
+
+    def stopAllStgControl(self):
+        delitem = []
+        for id, monId in self.monList.items() :
+            delitem.append((id,monId))
+
+        for item in delitem:
+            self.requestStgControl(item[0], item[1], False)
+
+        print(len(self.monList))
+
+    def checkRealtimeStg(self, pbData):
+        # 감시중인 전략인 경우만 체크
+        id = pbData['전략ID']
+        monid = pbData['감시일련번호']
+        if not (id in self.monList) :
+            return
+
+        if (monid != self.monList[id]) :
+            return
+
+        print(pbData)
+
+
+class MyWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("종목검색 예제")
+        self.setGeometry(300, 300, 500, 180)
+
+        self.obj8537 = Cp8537()
+        self.dataStg = []
+
+        nH = 20
+        self.comboStg = QComboBox(self)
+        self.comboStg.move(20, nH)
+        self.comboStg.currentIndexChanged.connect(self.comboChanged)
+        self.comboStg.resize(400, 30)
+        nH += 50
+
+        btnExit = QPushButton('종료', self)
+        btnExit.move(20, nH)
+        btnExit.clicked.connect(self.btnExit_clicked)
+        nH += 50
+        self.setGeometry(300, 300, 500, nH)
+
+        self.listAllStrategy()
+
+
+    def __del__(self):
+        self.obj8537.Clear()
+
+
+    # 전략리스트 조회
+    def listAllStrategy(self):
+        self.comboStg.addItem('전략선택없음')
+        self.data8537 = {}
+        ret, self.data8537 = self.obj8537.requestList('예제')
+
+        for k, v in self.data8537.items():
+            self.comboStg.addItem(k)
+        return
+
+
+
+    def comboChanged(self):
+        stgName = self.comboStg.currentText()
+        print(stgName)
+        if (stgName == '전략선택없음') :
+            return
+
+        # 1: 기존 감시 중단 (중요)
+        # 종목검색 실시간 감시 개수 제한이 있어, 불필요한 감시는 중단이 필요
+        self.obj8537.Clear()
+
+        # 2 - 종목검색 조회: CpSysDib.CssStgFind
+        item = self.data8537[stgName]
+        id = item['ID']
+        name = item['전략명']
+
+        ret, self.dataStg = self.obj8537.requestStgID(id)
+        if ret == False :
+            return
+
+        for item in self.dataStg:
+            print(item)
+        print('검색전략:', id, '전략명:', name, '검색종목수:', len(self.dataStg))
+
+        if (len(self.dataStg) >= 200) :
+            print('검색종목이 200 을 초과할 경우 실시간 감시 불가 ')
+            return
+
+        #####################################################
+        # 실시간 요청
+        # 3 - 전략의 감시 일련번호 요청 : CssWatchStgSubscribe
+        ret, monid = self.obj8537.requestMonitorID(id)
+        if (False == ret):
+            return
+        print('감시일련번호', monid)
+
+        # 4 - 전략 감시 시작 요청 - CpSysDib.CssWatchStgControl
+        ret, status = self.obj8537.requestStgControl(id, monid, True)
+        if (False == ret):
+            return
+
+        return
+
+
+
+    def btnExit_clicked(self):
+        self.obj8537.Clear()
+        exit()
+        return
+
+
+
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    myWindow = MyWindow()
+    myWindow.show()
+    app.exec_()
+
+#######[파이썬] 투자자별 매매 종합 예제
+
+import win32com.client
+import ctypes
+
+################################################
+# PLUS 공통 OBJECT
+g_objCodeMgr = win32com.client.Dispatch('CpUtil.CpCodeMgr')
+g_objCpStatus = win32com.client.Dispatch('CpUtil.CpCybos')
+g_objCpTrade = win32com.client.Dispatch('CpTrade.CpTdUtil')
+
+################################################
+# PLUS 실행 기본 체크 함수
+def InitPlusCheck():
+    # 프로세스가 관리자 권한으로 실행 여부
+    if ctypes.windll.shell32.IsUserAnAdmin():
+        print('정상: 관리자권한으로 실행된 프로세스입니다.')
+    else:
+        print('오류: 일반권한으로 실행됨. 관리자 권한으로 실행해 주세요')
+        return False
+
+    # 연결 여부 체크
+    if (g_objCpStatus.IsConnect == 0):
+        print("PLUS가 정상적으로 연결되지 않음. ")
+        return False
+
+    # # 주문 관련 초기화 - 계좌 관련 코드가 있을 때만 사용
+    # if (g_objCpTrade.TradeInit(0) != 0):
+    #     pr"주문 초기화 실패")
+    #     return False
+
+    return True
+
+class Cp7221:
+    def __init__(self):
+        self.objRq = win32com.client.Dispatch("CpSysDib.CpSvrNew7221")
+        self.InvestIndex = {
+            0: '거래소주식',
+            1: '코스닥주식',
+            2: '선물',
+            3: '옵션콜',
+            4: '옵션풋',
+            5: '주식콜',
+            6: '주식풋',
+            7: '스타지수선물',
+            8: '주식선물',
+            9: '채권선물 3년국채(오픈예정)',
+            10: '채권선물 5년국채(오픈예정)',
+            11: '채권선물 10년국체(오픈예정)',
+            12: '금리선물 CD(오픈예정)',
+            13: '금리선물통안증권(오픈예정)',
+            14: '통화선물미국달러(오픈예정)',
+            15: '통화선물엔(오픈예정)',
+            16: '통화선물유로(오픈예정)',
+            17: '금속상품선물금(오픈예정)',
+            18: '농산물파생선물돈육(오픈예정)',
+            19: '통화콜옵션미국달러(오픈예정)',
+            20: '통화풋옵션미국달러(오픈예정)',
+            21: 'CME선물',
+            22: '미니금선물'
+        }
+
+    def Request(self):
+        self.objRq.SetInputValue(0, ord('1'))  # 옵션금액 선물계약
+        self.objRq.BlockRequest()
+
+        # 통신 및 통신 에러 처리
+        rqStatus = self.objRq.GetDibStatus()
+        print("통신상태", rqStatus, self.objRq.GetDibMsg1())
+        if rqStatus != 0:
+            return False
+
+        cnt =  self.objRq.GetHeaderValue(1)
+        for key, value in self.InvestIndex.items():
+            dicInvest = {}
+            dicInvest['개인매도'] = self.objRq.GetDataValue(0, key)
+            dicInvest['개인매수'] = self.objRq.GetDataValue(1, key)
+            dicInvest['개인순매수'] = self.objRq.GetDataValue(2, key)
+            dicInvest['외국인매도'] = self.objRq.GetDataValue(3, key)
+            dicInvest['외국인매수'] = self.objRq.GetDataValue(4, key)
+            dicInvest['외국인순매수'] = self.objRq.GetDataValue(5, key) 
+            dicInvest['기관매도'] = self.objRq.GetDataValue(6, key)
+            dicInvest['기관매수'] = self.objRq.GetDataValue(7, key)
+            dicInvest['기관순매수'] = self.objRq.GetDataValue(8, key)
+
+            print(value)
+            print(dicInvest)
+
+
+if __name__ == "__main__":
+    InitPlusCheck()
+    objMarket = Cp7221()
+    objMarket.Request()
+
+

@@ -1,0 +1,22 @@
+{
+  "_comment": "analyist_dd 피드 없이 Creon 랭킹만으로 도는 프리셋 (브로커 ranking → trader_core/rankfeed.py). 피드 서버·뉴스 게이트 불필요. 보수 노출 유지, dry_run 기본.",
+  "dry_run": true,
+  "feed_source": "rank",
+  "rank_pct_to": 12,
+  "rank_limit": 60,
+  "sizing_mode": "kelly",
+  "kelly_cap": 0.25,
+  "kelly_fraction": 0.25,
+  "risk_per_trade_pct": 0.005,
+  "max_invested_pct": 0.30,
+  "max_position_pct": 0.10,
+  "max_open_positions": 2,
+  "max_open_positions_by_screener": {
+    "rank_momentum": 2
+  },
+  "daily_max_trades": 3,
+  "stop_loss_pct": 0.07,
+  "take_profit_pct": 0.07,
+  "trailing_arm_pct": 0.055,
+  "trailing_stop_pct": 0.05
+}
