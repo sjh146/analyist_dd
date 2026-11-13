@@ -45,3 +45,9 @@ CRON_TZ=Asia/Seoul
 #   실측: 소스(scripts/sns_collect_runner.py)는 정상(1회 실행 1,500건 적재), 스케줄만 부재.
 #   ON CONFLICT DO NOTHING 이라 재실행 안전. 이 호스트는 root 없이 사용자 crontab 으로 돌린다.
 30 17 * * 1-5 /home/jhshi/cron/sns_collect.sh >> /home/jhshi/analyist_dd/reports/cron_sns_collect_wrap.log 2>&1
+
+# --- 2026-11-13 추가: 수급·시장 피처 빌더 (R10) 정기 실행 ---
+#   빌더는 파이프라인에 호출이 없어 수동 실행 때만 갱신됐다(CG166 백로그). 수급/공매도/프로그램
+#   적재(16:20·19:30·19:40)가 끝난 뒤 20:15 에 최근 45일 창을 재계산한다.
+#   빌더의 DELETE 는 2026-11-13 부터 창(since 이후)만 지운다 — 좁은 창 실행이 과거 이력을 지우지 않는다.
+15 20 * * 1-5 /home/jhshi/cron/supply_features.sh >> /home/jhshi/analyist_dd/reports/cron_supply_features_wrap.log 2>&1

@@ -474,7 +474,10 @@ def main():
         cur.close(); conn.close()
         return 0
 
-    cur.execute(f"DELETE FROM {TABLE}")
+    # 창(since 이후)만 지운다. 예전에는 `DELETE FROM {TABLE}` 로 **전체**를 지웠기 때문에
+    # 좁은 --since 로 재실행하면 창 밖 과거 피처가 통째로 사라졌다(2026-11-13 실측:
+    # --since 3일 실행이 1,194,806행을 지우고 9,490행만 넣어 이력이 소실 → 이후 기본 창으로 복구).
+    cur.execute(f"DELETE FROM {TABLE} WHERE trade_date >= %s", (a.since,))
     deleted = cur.rowcount
     buf.seek(0)
     cur.copy_expert(f"COPY {TABLE} (stock_code, trade_date, {', '.join(FEATURES)}) "
