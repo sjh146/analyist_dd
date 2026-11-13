@@ -51,6 +51,16 @@ MIN_UNIQUE_REPORT = 2
 OFFENDERS = DAILY_VARYING + REPORT_BASED
 # 이 비영 비율 미만이면 '데이터가 없어 상수'일 뿐 누수라 단정하지 않는다(예: value_ncav 0%).
 MIN_NONZERO_PCT = 5.0
+# ── 옵트인 판정 모드(--dense-only, 기본 OFF = 종전 동작 비트 동일) ─────────────────────
+# WHY(2026-11-13 실측): 종전 규칙은 0 대체값까지 유니크에 넣어 '유니버스 절반이 죽은 컬럼'을
+# LEAKY 로 오탐한다. panel_200liq_fresh 의 value_pcr 은 98/200 종목만 비영인데, 그 98종목 안에서는
+# 279행 중 240+ 고유값으로 **일별 변동**한다(실측). 반대로 진짜 누수 패널(panel_420_asofpatch)은
+# value_pbr 비영 96% · 종목당유니크 1 로 **조밀한데 고정**이다. 즉 두 경우를 가르는 축은 '유니크'가
+# 아니라 **비영 밀도**다 → 조밀한 컬럼(비영 ≥ DENSE_MIN_NONZERO_PCT)만 누수 판정 대상으로 삼고,
+# 희소 컬럼은 '커버리지 결함(DQ 소관)'으로 돌린다. 게이트 문턱 변경이라 기본 OFF(리뷰보드 승인 대상).
+DENSE_MIN_NONZERO_PCT = 50.0
+MIN_OBS_PER_STOCK = 10     # 이 종목이 비영 관측을 이만큼 가져야 '변화 없음'을 판정할 수 있다
+MIN_STOCKS_COVERED = 20    # 판정 가능 종목이 이보다 적으면 컬럼 판정 불가(누수 단정 금지)
 DEFAULT_DIR = "/app/app/models/wf"
 
 
@@ -58,10 +68,31 @@ def _threshold(name):
     return MIN_UNIQUE_DAILY if name in DAILY_VARYING else MIN_UNIQUE_REPORT
 
 
-def classify(names, X, codes, dates):
-    """패널 하나의 누수 판정 → dict(verdict, offenders, leaky_columns, ...)."""
+def _per_stock_unique_nonzero(col, code_idx, round_to=6):
+    """종목별 **비영 값**의 고유 개수 목록(비영 관측 ≥ MIN_OBS_PER_STOCK 종목만)."""
+    q = np.round(np.asarray(col, dtype=np.float64), round_to)
+    m = q != 0
+    if not bool(m.any()):
+        return []
+    ci, qq = code_idx[m], q[m]
+    obs_codes, obs_n = np.unique(ci, return_counts=True)
+    pairs = np.unique(np.stack([ci, qq], axis=1), axis=0)
+    uniq_codes, uniq_n = np.unique(pairs[:, 0], return_counts=True)
+    per = dict(zip(uniq_codes.tolist(), uniq_n.tolist()))
+    return [int(per.get(int(c), 0)) for c, n in zip(obs_codes, obs_n)
+            if int(n) >= MIN_OBS_PER_STOCK]
+
+
+def classify(names, X, codes, dates, dense_only=False):
+    """패널 하나의 누수 판정 → dict(verdict, offenders, leaky_columns, ...).
+
+    dense_only=True 는 위 WHY 대로 '조밀 컬럼만' 판정한다(옵트인 — 기본 OFF).
+    """
     idx_of = {str(n): i for i, n in enumerate(names)}
-    offenders, leaky = {}, []
+    codes_l = [str(c) for c in codes]
+    _, code_idx = (np.unique(np.array(codes_l), return_inverse=True) if dense_only
+                   else (None, None))
+    offenders, leaky, sparse = {}, [], []
     for name in OFFENDERS:
         i = idx_of.get(name)
         if i is None:
@@ -69,7 +100,7 @@ def classify(names, X, codes, dates):
         col = X[:, i]
         nz = 100.0 * float(np.mean(col != 0))
         per = collections.defaultdict(set)
-        for r, c in enumerate(codes):
+        for r, c in enumerate(codes_l if dense_only else codes):
             per[c].add(round(float(col[r]), 6))
         uniq = sorted(len(v) for v in per.values())
         med = uniq[len(uniq) // 2] if uniq else 0
@@ -78,24 +109,40 @@ def classify(names, X, codes, dates):
                "max_unique": uniq[-1] if uniq else 0, "nonzero_pct": round(nz, 2),
                "min_unique_required": thr}
         offenders[name] = rec
+        if dense_only:
+            if nz < DENSE_MIN_NONZERO_PCT:
+                rec["note"] = (f"판정 제외 — 비영 {nz:.1f}% < {DENSE_MIN_NONZERO_PCT}%"
+                               "(희소 컬럼은 커버리지 결함 = DQ 소관)")
+                sparse.append(name)
+                continue
+            nzuniq = sorted(_per_stock_unique_nonzero(col, code_idx))
+            rec["median_unique_nonzero"] = (nzuniq[len(nzuniq) // 2] if nzuniq else 0)
+            rec["stocks_covered"] = len(nzuniq)
+            if len(nzuniq) < MIN_STOCKS_COVERED:
+                rec["note"] = (f"판정 불가 — 유효 종목 {len(nzuniq)} < {MIN_STOCKS_COVERED}")
+                continue
+            if rec["median_unique_nonzero"] < thr:
+                leaky.append(name)
+            continue
         if med < thr and nz >= MIN_NONZERO_PCT:
             leaky.append(name)
     out = {
         "rows": int(X.shape[0]), "cols": len(names), "n_stocks": len(set(codes)),
         "date_min": min(dates) if dates else None, "date_max": max(dates) if dates else None,
         "offenders": offenders, "leaky_columns": sorted(leaky),
+        "sparse_columns": sorted(sparse), "mode": "dense_only" if dense_only else "legacy",
         "verdict": "LEAKY" if leaky else "CLEAN",
     }
     return out
 
 
-def scan(path):
+def scan(path, dense_only=False):
     z = np.load(path, allow_pickle=True)
     names = [str(n) for n in z["feature_names"]]
     X = z["X"]
     codes = [str(c) for c in z["codes"]]
     dates = [str(d)[:10] for d in z["dates"]]
-    return classify(names, X, codes, dates)
+    return classify(names, X, codes, dates, dense_only=dense_only)
 
 
 def main():
@@ -104,6 +151,9 @@ def main():
     ap.add_argument("--panels", default="", help="쉼표구분 파일명(기본: dir 안 전부)")
     ap.add_argument("--json-out", default="")
     ap.add_argument("--strict", action="store_true", help="누수 패널이 있으면 rc=1")
+    ap.add_argument("--dense-only", action="store_true",
+                    help="옵트인: 비영 밀도 ≥%.0f%% 컬럼만 누수 판정(희소는 DQ 소관으로 제외). "
+                         "게이트 문턱 변경이라 기본 OFF" % DENSE_MIN_NONZERO_PCT)
     a = ap.parse_args()
 
     if a.panels:
@@ -119,7 +169,7 @@ def main():
             missing.append(fn)
             continue
         try:
-            r = scan(p)
+            r = scan(p, dense_only=a.dense_only)
         except Exception as e:  # pragma: no cover
             panels[fn] = {"verdict": "ERROR", "error": str(e)}
             continue
@@ -129,12 +179,15 @@ def main():
               f" {r['date_min']}~{r['date_max']} → {r['verdict']}")
         for n in r["leaky_columns"]:
             o = r["offenders"][n]
-            print(f"     누수지문 {n:20s} 종목당유니크 중앙 {o['median_unique']}"
+            judged = o.get("median_unique_nonzero", o["median_unique"])
+            tag = "비영기준" if "median_unique_nonzero" in o else ""
+            print(f"     누수지문 {n:20s} 종목당유니크 중앙 {judged}{tag}"
                   f" | 비영 {o['nonzero_pct']:6.2f}%")
 
     result = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00"),
         "panel_dir": a.dir, "min_nonzero_pct": MIN_NONZERO_PCT,
+        "dense_only": bool(a.dense_only), "dense_min_nonzero_pct": DENSE_MIN_NONZERO_PCT,
         "n_panels": len(panels), "n_clean": len(clean), "n_leaky": len(leaky_names),
         "clean": sorted(clean), "leaky": sorted(leaky_names), "missing": missing,
         "panels": panels,
