@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-14T03:07:31+09:00",
+ "updated_at": "2026-11-14T03:10:30+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -18106,7 +18106,7 @@
   },
   {
    "id": "CG262",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "kind": "measurement",
    "owner": "engineer",
@@ -18130,7 +18130,24 @@
    "cost": "중(4 arm × 5폴드 × 5시드 · CG260 실측 16.9분의 1.5~3배 추정)",
    "est_minutes": 90,
    "created_at": "2026-11-14T01:05:00+09:00",
-   "note": "⚠ 승격 아님 — 측정이다. panel_420_asofpatch 는 CG85 누수 판정 패널이므로 이 런의 절대값은 프로토콜 비교 전용이며 승격·기준선 교체 근거로 쓰지 않는다. CG261(선별 축) 뒤에 실행된다(priority 2)."
+   "note": "⚠ 승격 아님 — 측정이다. panel_420_asofpatch 는 CG85 누수 판정 패널이므로 이 런의 절대값은 프로토콜 비교 전용이며 승격·기준선 교체 근거로 쓰지 않는다. CG261(선별 축) 뒤에 실행된다(priority 2).",
+   "attempts": [
+    {
+     "ts": "2026-11-14T03:10:30+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "같은 런 기준선 LS_quant_q30_h5 0.5414±0.0308 vs 등록 0.5406 → 격차 +0.0008(문턱 미달 — 기준선 유지) | TR_rank_h5 0.5495±0.0314(폴드 0.5197~0.6078 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 +0.0081(양(+) 3/5 [-0.0036, +0.0169, -0.0054, +0.0152, +0.0176]) ; CO_rank_smooth_d1_h5 0.5582±0.0078(폴드 0.5456~0.5699 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 +0.0168(양(+) 3/5 [+0.0466, +0.0360, -0.0016, -0.0322, +0.0353]) → 최고 후보 CO_rank_smooth_d1_h5 짝Δ +0.0168",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG262_20261114-030125.log",
+     "elapsed_min": 9.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "같은 런 기준선 LS_quant_q30_h5 0.5414±0.0308 vs 등록 0.5406 → 격차 +0.0008(문턱 미달 — 기준선 유지) | TR_rank_h5 0.5495±0.0314(폴드 0.5197~0.6078 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 +0.0081(양(+) 3/5 [-0.0036, +0.0169, -0.0054, +0.0152, +0.0176]) ; CO_rank_smooth_d1_h5 0.5582±0.0078(폴드 0.5456~0.5699 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 +0.0168(양(+) 3/5 [+0.0466, +0.0360, -0.0016, -0.0322, +0.0353]) → 최고 후보 CO_rank_smooth_d1_h5 짝Δ +0.0168",
+    "delta": 0.0168,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG263",
@@ -18151,7 +18168,7 @@
   },
   {
    "id": "CG264",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "kind": "measurement",
    "owner": "engineer",
@@ -18161,10 +18178,88 @@
    "title": "[데이터 축·재현] 경로 형태 7종을 등록 기준선 패널(panel_420_asofpatch)에서 재측정 — prod200 결론이 패널 특이인가",
    "hypothesis": "CG263 은 prod200 에서 경로 피처가 'AUC 문턱 미달 + 기존 모멘텀·변동성과 중복'으로 결론냈다. 같은 빌더·같은 스크린을 asofpatch 에서 돌려 ① 순위가 같은가 ② 중복(r>0.9) 결론이 유지되는가를 확인한다. 순위가 뒤집히거나 새 직교 피처가 살아나면 스윕 승격 후보로 올린다.",
    "counterfactual": "CG263 의 prod200 스크린 결과(동일 빌더·동일 스크린 파라미터 h5/q0.30)",
-   "command": "docker exec stock_xgboost_ml python -u /app/scripts/build_path_features.py --panel /app/app/models/wf/panel_420_asofpatch.npz --out /tmp/panel_420_path.npz --report /app/reports/overnight/cg264_path_build_420.json && docker exec stock_xgboost_ml python -u /app/scripts/panel_feature_screen.py --panel /tmp/panel_420_path.npz --horizon 5 --q 0.30 --top 30 --out /app/reports/overnight/cg264_path_screen_420.json",
+   "command": "docker exec stock_xgboost_ml timeout 600 python -u /app/scripts/build_path_features.py --panel /app/app/models/wf/panel_420_asofpatch.npz --out /tmp/panel_420_path.npz --report /app/reports/overnight/cg264_path_build_420.json && docker exec stock_xgboost_ml timeout 900 python -u /app/scripts/panel_feature_screen.py --panel /tmp/panel_420_path.npz --horizon 5 --q 0.30 --top 30 --out /app/reports/overnight/cg264_path_screen_420.json",
    "success": "경로 7종 중 |AUC−0.5| ≥ 0.044 이고 기존 컬럼과 |r| < 0.9 인 것이 1개 이상이면 '패널 특이 신호'로 스윕 승격 후보. 아니면 '경로 형태 축은 두 패널에서 종결'로 원장 기록(스윕 생략 근거).",
-   "note": "2026-11-14 03:2x 엔지니어 자율 — CG263 후속(2패널 재현). CG263 은 prod200 한 패널에서만 쟀고, 교훈상 'arm 은 패널 특이'가 반복됐다(CG260 TR_rank: asofpatch +0.0107 → prod200 −0.0035). 스크린 1분짜리이므로 등록 기준선 패널에서 같은 7종을 재측정해 두 패널 모두에서 같은 순위·같은 중복 결론이 나오는지 확인한다. ⚠ panel_420_asofpatch 는 CG85 누수 판정 패널 — 절대값은 프로토콜 비교 전용.",
-   "est_minutes": 8
+   "note": "2026-11-14 03:2x 엔지니어 자율 — CG263 후속(2패널 재현). CG263 은 prod200 한 패널에서만 쟀고, 교훈상 'arm 은 패널 특이'가 반복됐다(CG260 TR_rank: asofpatch +0.0107 → prod200 −0.0035). 스크린 1분짜리이므로 등록 기준선 패널에서 같은 7종을 재측정해 두 패널 모두에서 같은 순위·같은 중복 결론이 나오는지 확인한다. ⚠ panel_420_asofpatch 는 CG85 누수 판정 패널 — 절대값은 프로토콜 비교 전용. [2026-11-14 03:1x 자율 수리] 틱 자기모순 경고(est_minutes=8 인데 컨테이너 timeout 없음) 대응 — 두 단계에 timeout 600/900 부여(실측 1~2분 대비 10배 여유). [2026-11-14 04:0x 엔지니어 자율 실행] 스크린 완료 — 빌드 210→217컬럼·13,609행·49종목·커버리지 99.99~100%. 판정 '경로 형태 축은 두 패널에서 종결'(스윕 생략).",
+   "est_minutes": 8,
+   "result": {
+    "verdict": "노이즈",
+    "detail": "경로 형태 축 두 패널 종결 — asofpatch(49종목·13,609행·276일) 스크린: path_max_absret_20 AUC 0.4524(|edge|0.0476) 이나 volatility_20d·vix_proxy 와 r=0.996(중복) · path_near_high_20 AUC 0.5434(|edge|0.0434 < 문턱 0.044) IC +0.036 t2.26 최대상관 0.613 · path_dd_high_60 |edge|0.0234 IC +0.0331 t2.18 · path_range_pos_60 |edge|0.0034(rsi 0.801) · path_gap_mean_5 |edge|0.0023(target_ma_5 0.870) · path_up_ratio_20 |edge|0.0018 · path_autocorr_20 |edge|0.0053. 두 조건(AUC≥0.044 & |r|<0.9)을 동시에 만족하는 피처 0개. 게다가 near_high IC 부호가 prod200(−0.0442)↔asofpatch(+0.0360)로 뒤집힘 = 패널 특이 잡음. 누수 0 · 종목상수 48 · 시장레벨 41 · 무정보 130/217."
+   }
+  },
+  {
+   "id": "CG265",
+   "status": "done",
+   "priority": 3,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "score_persistence",
+   "from_experiment": "CG262",
+   "title": "[돈 경로·예측 안정성] 모델 점수가 날마다 뒤집히는가 — AUC↔돈 단절의 후보 기제(점수 자기상관·top-k 겹침) 실측",
+   "hypothesis": "로버스트 AUC 0.55 근처에서 체결가능 순기대가 음수인 이유 후보: AUC 는 '그날 횡단면 순위'만 재지만 매매는 며칠에 걸친 선택의 연속이다. 점수가 날마다 뒤집히면 top-k 가 매일 갈아치워져 회전·잡음만 남는다. lag-1 순위 자기상관과 연속일 top-k 겹침을 실측해 이 기제의 크기를 잰다.",
+   "counterfactual": "같은 표본의 무작위 선택 기대 겹침(k/N)",
+   "command": "docker exec stock_xgboost_ml python -u /app/scripts/score_persistence.py --preds /app/scripts/_preds_CG21.jsonl --out /app/reports/overnight/cg265_persistence.json",
+   "success": "lag1_spearman_mean < 0.50 → '점수 비지속'(스무딩 arm 등록) · >= 0.50 → '점수 지속'(축 종결). 어느 쪽이든 top-k 겹침을 무작위 기대 대비 배수로 보고.",
+   "note": "2026-11-14 04:0x 엔지니어 자율 — 신설 스크립트 scripts/score_persistence.py(신규, 40줄) 로 기존 덤프(scripts/_preds_CG21.jsonl · CO_core30_h5 · 150종목 · 225일 · 20,243행)를 채점. 실측: lag1 횡단면 순위상관 0.7390±0.1382(최소 0.0737 · 짝 224) · 종목별 시계열 자기상관 0.6763(중앙 0.6868) → 점수는 **지속**한다(축 종결). 단 top-3 겹침 0.3214(무작위 0.02 → 16.07배) · top-5 0.3393(10.18배) · top-10 0.4067(6.10배) — 순위는 안정적인데 **꼬리 선택은 매일 68% 바뀐다**. 즉 AUC↔돈 단절의 기제는 '점수 비지속'이 아니라 '상위 꼬리의 회전'이다 → 스무딩은 AUC 레버가 아니라 돈 레버로만 시험 가치가 있다(CG266).",
+   "est_minutes": 3
+  },
+  {
+   "id": "CG266",
+   "status": "done",
+   "priority": 3,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "fillable_expectancy",
+   "from_experiment": "CG265",
+   "title": "[돈 경로·후처리] 예측 점수 트레일링 3일 평균이 top-k 겹침과 체결가능 순기대를 올리는가 (AUC 판정 아님 — 돈 지표 판정)",
+   "hypothesis": "CG265 실측: 순위 자기상관 0.739 로 점수는 지속적이지만 top-3 겹침은 0.3214 에 그친다(매일 68% 교체). 상위 꼬리의 잡음이 매매를 갈아치우는 비용이라면, 점수의 트레일링 3일 평균은 AUC 를 거의 안 바꾸면서 겹침을 올려 체결가능 순기대를 올릴 수 있다. 스트리밍 추론 경로에서도 과거 점수만 있으면 만들 수 있어 배포 가능하다.",
+   "counterfactual": "같은 덤프·같은 세션의 원점수(스무딩 없음) top-k",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python -u scripts/score_smooth_expectancy.py --preds /app/scripts/_preds_CG21.jsonl --smooth-days 3 --topk 3 --exit next_open --out /app/reports/overnight/cg266_smooth_next_open.json'",
+   "success": "세션 짝 Δ(스무딩−원점수) 순기대 ≥ +0.1%p/세션 · t ≥ 2 · 분할표본 both_positive · top3 겹침 상승. AUC 는 판정에 쓰지 않는다(보고만).",
+   "setup_needed": "scripts/score_smooth_expectancy.py 신설 필요: ①덤프 JSONL(date·code·y_pred) → (date,code,score) 프레임 ②종목별 트레일링 N일 평균(과거만 사용) ③동일 날짜·동일 체결성 필터에서 fillable_expectancy 의 EXIT_COLS(next_open)·수수료 왕복 0.21%p 규칙으로 두 arm 세션평균·짝 Δ 계산. ※ 발행 점수 정의를 바꾸는 순간은 아니므로 발행 계약 변경 아님(측정 스크립트만).",
+   "note": "2026-11-14 04:0x 엔지니어 자율 — CG265 결과(top3 겹침 0.32)에서 파생. pending 큐가 비어 다음 틱이 셋업을 구현한다. | 2026-11-14 05:2x 엔지니어 자율 — 셋업 구현 완료(scripts/score_smooth_expectancy.py) + 즉시 실행·판정. 실측(3청산·225세션): 스무딩은 겹침을 0.32→0.42 로 올리지만 순기대를 −0.09~−0.15%p 낮춘다 → 후처리(회전 억제) 축 종결. 부수 실측: 이 표본의 top-k 는 널(풀평균) 대비 +0.13%p(t1.08) 로 엣지 없음 — 청산 시점을 바꿔도(n/c/t2) 부호가 뒤집히지 않는다(축 종결). ⚠ 표본 편향: 고정 150종목 유니버스(생존편향) + 2025-10~2026-09 구간 → 절대 레벨을 배포 기대치로 인용하지 말 것.",
+   "est_minutes": 60,
+   "finished_at": "2026-11-14T05:35:00+09:00",
+   "summary_out": "/app/reports/overnight/cg266_smooth_next_open.json",
+   "arm": "smooth3 (종목별 트레일링 3일 평균 점수) · topk=3",
+   "baseline": "같은 덤프·같은 세션의 원점수 topk=3 + 같은 세션 체결가능 풀평균(널)",
+   "result": {
+    "verdict": "노이즈",
+    "detail": "스무딩 축 종결 — CG21 덤프(CO_core30_h5·150종목·225세션·20,243행 · 체결성 필터 365행 제외 · 가격조인 100% · 창충만 98.5%) 3청산 실측: ① next_open raw +0.335%p/세션(t1.77) / smooth +0.242 → 짝Δ −0.093(t−0.83 · 양 43.6% · 앞 −0.337/뒤 +0.149 = neither) ② next_close raw +0.069(t0.22) / smooth −0.082 → Δ −0.151(t−0.74) ③ t2_open raw +0.551(t1.43) / smooth +0.526 → Δ −0.025(t−0.11). top-3 겹침은 0.3229→0.4211 로 올랐다(기제는 작동) 그러나 순기대는 내려간다 = 회전 억제 자체가 이득이 아니다. 널 기준선(같은 세션 체결가능 풀평균) 대비 top-k 엣지: next_open +0.127%p(t1.08) · next_close −0.077(t−0.35) · t2_open −0.038(t−0.15) → 세 청산 모두 0과 구분 불가(풀평균 자체는 next_open +0.208 t1.63 · t2_open +0.589 t2.50). AUC 보고용: raw 0.5124 → smooth 0.5046. 판정=노이즈(사전문턱 Δ≥+0.1%p·t≥2·both_positive 전부 미달).",
+    "delta": -0.0927,
+    "per_exp": null,
+    "rc": 0
+   },
+   "evidence": "scripts/score_smooth_expectancy.py 신설(자체점검 5/5 PASS — 과거만 사용·트레일링 평균·겹침·짝Δ·top-k 선택) · /app/reports/overnight/cg266_smooth_{next_open,next_close,t2_open}.json"
+  },
+  {
+   "id": "CG267",
+   "status": "pending",
+   "priority": 1,
+   "kind": "model",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "wf_fold_auc",
+   "from_experiment": "CG260",
+   "title": "[모델·배포가능 분해] CG260 최고 arm(+0.0112)을 배포 가능 성분으로 쪼갠다 — 라벨스무딩+depth1 (rank 제외) vs 대조군, 청정 패널 prod200",
+   "hypothesis": "CG260 은 prod200 에서 CO_rank_smooth_d1_h5 가 대조군 대비 짝Δ +0.0112(4/5 폴드 양(+))를 냈지만 그 조합에는 **배포 불가 성분(횡단면 rank)** 이 섞여 있다(app/inference/predictor.py 는 종목 1개·날짜 1개 스트리밍이라 그날 타종목 값이 필요 없다 → rank 재현 불가, CG164). 반면 라벨스무딩과 depth1 HP 는 계약을 건드리지 않는 배포 가능 성분이다. CG8 은 150u 패널에서 성분 분해가 전부 음(−)이었고(스무딩 −0.0022 · depth1 −0.0040 · 결합 −0.0109), prod200 에서는 결합만 측정됐다 → 같은 런 3-arm 으로 '배포 가능 성분만' 남겼을 때 Δ 가 유지되는지가 미지다. 스킬 교훈('문턱 통과가 분산 축소 산물인지 먼저 분해하라')의 직접 이행이다.",
+   "counterfactual": "CO_core30_h5 (게이트 ON · 같은 패널 · 같은 폴드 · 같은 시드 대조군)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 8400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,CO_core30_h5,CO_d1_h5,CO_smooth_d1_h5 --out /app/reports/overnight/cg267_deploy_decomp.jsonl --summary-out /app/reports/overnight/cg267_deploy_decomp_summary.json'",
+   "arm": "CO_smooth_d1_h5 (라벨스무딩+depth1) · CO_d1_h5 (depth1 단독)",
+   "baseline": "CO_core30_h5 (게이트 ON 대조군) · LS_quant_q30_h5 (등록 기준선 arm) — 같은 런",
+   "success": "배포 가능 성분 arm 의 대조군 대비 5폴드 평균 짝Δ ≥ +0.02 이고 폴드 승률 ≥ 0.8 이면 '배포 가능 후보'로 승격 검토(승격 자체는 이 루프에서 하지 않는다). Δ 가 +0.01~+0.02 면 노이즈로 기록하고, rank 성분을 제거했을 때 Δ 가 절반 이상 사라지면 'CG260 이득의 대부분은 배포 불가 성분'으로 원장 기록.",
+   "expected": "CG8(150u) 기준으로는 결합 +0.011 인데 성분이 서로 상쇄 → prod200 에서도 +0.01 근처(문턱 미달) 예상. AUC 가 올라도 돈 지표(체결가능 순기대)와 상관이 없다는 실측(2026-10-04, 순위상관 −0.81)을 함께 보고한다.",
+   "cost": "중(4 arm × 5폴드 × 5시드 · CG260 실측 3 arm 16.9분 → 4 arm ≈ 25~60분)",
+   "est_minutes": 90,
+   "created_at": "2026-11-14T05:40:00+09:00",
+   "paired_reference": "CO_core30_h5",
+   "arm_list": [
+    "CO_smooth_d1_h5",
+    "CO_d1_h5"
+   ],
+   "panel": "panel_prod200.npz (청정 · 200종목 · 5폴드 · 5시드)"
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
