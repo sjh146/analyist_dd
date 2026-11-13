@@ -143,3 +143,21 @@ C:\Tools\Python312-64\python.exe run_market_loop.py run --loop --live --preset p
 - `--live` 로 바로 시작, 프리셋 없이 기본 한도(100% 노출)로 시작
 - Creon 로그인 세션을 유지하지 않고 루프만 재기동
 - 남의 API 키·계좌번호를 저장소에 커밋 (`.env`, `journal/*.sqlite3` 는 무시 대상)
+
+---
+
+## 12. 사본이 두 개다 — 동기화 확인
+
+2026-11-13 부터 `trader-agent` 는 **`analyist_dd` 저장소 안의 디렉터리**다. 그런데 매매 루프·브리지는
+이 PC의 실행 사본(`C:\Users\<user>\analyist_dd\trader-agent`)에서 돈다. 즉 저장소 사본과 실행 사본이
+따로 있고, 한쪽만 고치면 조용히 갈라진다. 한 명령으로 차이를 본다:
+
+```
+python3 scripts/sync_trader_agent.py                 # 미리보기(양방향 차이)
+python3 scripts/sync_trader_agent.py --push --apply  # 저장소 → 실행 사본
+python3 scripts/sync_trader_agent.py --pull --apply  # 실행 사본 → 저장소(라이브에서 급히 고쳤을 때)
+```
+
+- 비교 대상은 **양쪽 git 이 추적하는 파일**뿐이라 journal·logs·data·`.env` 같은 런타임 산출물은 안전하다
+- 복사는 추가·변경만 하고 **삭제는 하지 않는다**
+- 파일 복사는 실행 중이어도 안전하지만, 반영은 **다음 기동**부터다(재기동 시점은 사람이 정한다)
