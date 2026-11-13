@@ -52,11 +52,29 @@ TABLES = {
 }
 
 
-def fwd_label(dates, codes, price, horizon=5):
+def fwd_label(dates, codes, price, horizon=5, kind="abs", q=None):
+    """선행 h일 수익률 라벨.
+
+    kind="abs"   : ret>0 → 1, 아니면 0 (절대방향 — 원래 스크린의 라벨)
+    kind="quantile": 그날 분위 꼬리 — ret>직전날 quantile(1−q) → 1, ret<quantile(q) → 0,
+                     가운데는 NaN. **스윕/학습 라벨(wf_wave.make_labels kind="quantile")과 같은 정의**다.
+    왜 필요한가(실측 2026-11-14 CG270): 스크린이 '절대방향' 라벨로 채점하는데 실제 학습·판정 라벨은
+    날짜내 분위 꼬리(q0.3)다. 두 라벨은 서로 다른 과제라, 어떤 피처가 절대방향엔 무정보여도
+    분위 과제엔 정보를 가질 수 있다 → 같은 44개 컬럼을 실제 라벨로 다시 채점해야 비교가 성립한다.
+    """
     df = pd.DataFrame({"date": pd.to_datetime(dates), "code": codes, "px": price})
     df = df.sort_values(["code", "date"])
     f = df.groupby("code")["px"].shift(-horizon) / df["px"] - 1.0
     ret = f.to_numpy(dtype=float)
+    if kind == "quantile":
+        s = pd.Series(ret)
+        day = df["date"].to_numpy()
+        hi = s.groupby(day).transform(lambda x: x.quantile(1.0 - float(q)))
+        lo = s.groupby(day).transform(lambda x: x.quantile(float(q)))
+        lab = np.where(np.isnan(ret), np.nan,
+                       np.where(ret > hi.to_numpy(), 1.0,
+                                np.where(ret < lo.to_numpy(), 0.0, np.nan)))
+        return lab, ret
     lab = np.where(np.isnan(ret), np.nan, (ret > 0).astype(float))
     return lab, ret
 
@@ -74,10 +92,19 @@ def auc_rank(x, y):
 
 
 def main():
-    z = np.load(PANEL, allow_pickle=True)
+    import argparse
+    ap = argparse.ArgumentParser(description="DB 원천 컬럼 단변량 스크린(패널 재빌드 전 사전 게이트)")
+    ap.add_argument("--label", choices=("abs", "quantile"), default="abs",
+                    help="abs=절대방향(기존) · quantile=학습/스윕과 같은 날짜내 분위 꼬리 라벨")
+    ap.add_argument("--q", type=float, default=0.30, help="--label quantile 의 꼬리 분위(기본 0.30)")
+    ap.add_argument("--panel", default=PANEL, help="기준 패널 npz(기본 panel_420_asofpatch)")
+    args = ap.parse_args()
+    panel = args.panel
+    z = np.load(panel, allow_pickle=True)
     dates = pd.to_datetime(z["dates"])
     codes = [str(c) for c in z["codes"]]
-    lab, ret = fwd_label(dates, codes, z["price"])
+    lab, ret = fwd_label(dates, codes, z["price"], kind=args.label,
+                         q=args.q if args.label == "quantile" else None)
     key = pd.DataFrame({"code": codes, "date": dates})
 
     conn = psycopg2.connect(host=os.environ.get("POSTGRES_HOST", "postgres"),
@@ -85,9 +112,12 @@ def main():
                             user=os.environ["POSTGRES_USER"],
                             password=os.environ["POSTGRES_PASSWORD"],
                             dbname=os.environ["POSTGRES_DB"])
-    out = {"panel": {"file": os.path.basename(PANEL), "rows": int(len(key)),
+    out = {"panel": {"file": os.path.basename(panel), "rows": int(len(key)),
                      "codes": len(set(codes)),
                      "from": str(dates.min().date()), "to": str(dates.max().date())},
+           "label": {"kind": args.label, "q": (args.q if args.label == "quantile" else None),
+                     "horizon": 5, "n_labeled": int(np.sum(~np.isnan(lab))),
+                     "pos_rate": (round(float(np.nanmean(lab)), 4) if np.sum(~np.isnan(lab)) else None)},
            "features": {}, "asof": {}}
     cur = conn.cursor()
     for table, cols in TABLES.items():

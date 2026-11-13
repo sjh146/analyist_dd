@@ -957,6 +957,15 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/factor_money_screen_fillable.json")
+    if kind in ("screen", "db_feature_screen"):
+        # DB 원천 컬럼 스크린(CG270). ⚠ 이 항목의 커맨드는 `--out` 이 아니라 **셸 리다이렉트**(`>`)
+        # 로 산출물을 쓴다(`... _db_feature_screen.py > reports/overnight/cg270_db_screen.json`).
+        # _arg 는 '--flag 값' 만 보므로 리다이렉트 대상도 함께 읽는다 — 안 그러면 경로를 놓쳐
+        # rc=0 완주가 또 '판정불가'로 닫힌다(실측 2026-11-14 07:00).
+        out = _arg(command or "", "--out") or _redirect_arg(command or "")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/db_feature_screen.json")
     if kind == "blend_eval":
         # 라벨 다양성 앙상블(scripts/blend_eval.py --out). CG56.
         # 왜 전용 metric 인가(실측 2026-10-01): 요약 스키마가 champion_robust_eval 과 **다르다**
@@ -1145,6 +1154,23 @@ def _arg(command: str, flag: str) -> str:
             return parts[i + 1].strip("'\"")
         if p.startswith(flag + "="):
             return p.split("=", 1)[1].strip("'\"")
+    return ""
+
+
+def _redirect_arg(command: str) -> str:
+    """커맨드의 셸 리다이렉트 대상을 뽑는다(`... > path`, `... >> path`). 없으면 빈 문자열.
+
+    왜(실측 2026-11-14 CG270): 산출물 경로를 `--out` 플래그가 아니라 `>` 로 쓰는 항목이 있다
+    (`_db_feature_screen.py > reports/overnight/cg270_db_screen.json`). `_arg` 는 '--flag 값' 만
+    보므로 그런 항목은 요약 경로를 영영 못 찾아 rc=0 완주가 '판정불가'로 닫힌다.
+    """
+    parts = (command or "").split()
+    for i, p in enumerate(parts):
+        if p in (">", ">>") and i + 1 < len(parts):
+            return parts[i + 1].strip("'\"")
+        for mark in (">", ">>"):
+            if p.startswith(mark) and len(p) > len(mark) and p not in (mark,):
+                return p[len(mark):].strip("'\"")
     return ""
 
 
@@ -1715,6 +1741,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_h5_regime_exit(spath, mtime_floor)
     if kind == "panel_feature_screen":
         return parse_panel_feature_screen(spath, mtime_floor)
+    if kind in ("screen", "db_feature_screen"):
+        # DB 원천 컬럼 스크린(CG270) — 스키마가 features{} 라 panel_feature_screen 파서로는 못 읽는다.
+        return parse_db_feature_screen(spath, mtime_floor, item=item)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
     if kind == "forward_scorecard":
@@ -3049,6 +3078,103 @@ def judge_panel_feature_screen(item, parsed) -> tuple:
     return "스크린 완료 — 후보 없음", detail + " · IC t≥2 시간가변 피처 없음", None
 
 
+def parse_db_feature_screen(path, mtime_floor=0.0, item=None) -> dict:
+    """DB 원천 컬럼 스크린(scripts/_db_feature_screen.py) 요약 파싱(CG270).
+
+    왜 전용 파서인가(실측 2026-11-14 07:00 CG270): 항목이 metric='screen' 으로 등록됐는데
+    parse_by_metric 에 분기가 없어 rc=0 완주(0.3분)가 원장에 '판정불가(parser 없음)'로 남았다
+    → 스크린이 실제로 만든 후보 목록(44피처 · 32채점 · 최고 |AUC−0.5|=0.0404)이 통째로 사라지고
+    '데이터 축 종결'이라는 결론도 근거 없이 남는다. 스키마는 {"panel":…, "features":{이름:{…}}} 이고
+    기존 panel_feature_screen 파서는 rows[] 스키마를 기대해 재사용할 수 없다.
+
+    판정 입력은 **단일변량 |AUC−0.5|** 다(CG268 감도: |AUC−0.5|≥0.065 면 모델 +0.02 도달).
+    커버리지·종목상수·시장레벨 조건을 통과한 '살아 있는' 후보만 문턱에 세운다 —
+    그 조건 없이 세면 short_selling_ratio(커버리지 1.8%·종목상수 0.94)가 최고 후보로 올라온다.
+    ⚠ 스크린은 판정 arm 이 아니다 — per_exp 를 만들지 않는다(스코어보드 오독 방지).
+    """
+    if not path:
+        return {"error": "요약 경로 없음(리다이렉트·--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각)", "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패: {e}", "summary_mtime": mt}
+    feats = d.get("features") or {}
+    if not isinstance(feats, dict) or not feats:
+        return {"error": "features 없음(스크린 실패)", "summary_mtime": mt}
+    it = item or {}
+    thr = float(it.get("screen_threshold") or 0.065)
+    cov_min = float(it.get("screen_cov_min") or 0.05)
+    rows = []
+    for name, v in feats.items():
+        if not isinstance(v, dict):
+            continue
+        auc = v.get("single_feature_auc")
+        rows.append({
+            "feature": name,
+            "auc": auc,
+            "abs_delta": abs(auc - 0.5) if isinstance(auc, (int, float)) else None,
+            "coverage": v.get("coverage"),
+            "stock_const": v.get("stock_const_ratio"),
+            "market_level": v.get("market_level_rate"),
+            "ic": v.get("xs_ic_mean"),
+            "ic_t": v.get("xs_ic_t"),
+            "n_dates": v.get("n_ic_dates"),
+        })
+    live = [r for r in rows
+            if r["abs_delta"] is not None
+            and (r["coverage"] or 0) >= cov_min
+            and (r["stock_const"] or 0) < 0.5
+            and (r["market_level"] or 0) < 0.9]
+    live.sort(key=lambda r: -r["abs_delta"])
+    dead = [r["feature"] for r in rows if (r["coverage"] or 0) < cov_min]
+    d["rows"] = rows
+    d["live"] = live
+    d["dead_coverage"] = dead
+    d["threshold"] = thr
+    d["cov_min"] = cov_min
+    d["summary_mtime"] = mt
+    return d
+
+
+def judge_db_feature_screen(item, parsed) -> tuple:
+    """CG270 판정 — 문턱(|AUC−0.5|≥thr)을 넘는 **살아 있는** 후보가 있는가.
+
+    후보 0개는 실패가 아니라 '모델 축 종결의 근거'다(항목의 success ③). 그래서 판정 이름을
+    '노이즈'가 아니라 '후보 없음'으로 쓴다 — 스크린은 arm 실험이 아니므로 Δ 도 없다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    rows, live = parsed.get("rows") or [], parsed.get("live") or []
+    thr = parsed.get("threshold") or 0.065
+    scored = [r for r in rows if r["abs_delta"] is not None]
+    if not scored:
+        return "판정불가", "채점된 피처 0개(전부 결측/상수)", None
+    cand = [r for r in live if r["abs_delta"] >= thr]
+    top = live[:3] or sorted(scored, key=lambda r: -r["abs_delta"])[:3]
+    txt = " · ".join(
+        f"{r['feature']} {r['auc']:.4f}(|Δ|{r['abs_delta']:.4f} cov {r['coverage']:.3f}"
+        f"{' · 종목상수' if (r['stock_const'] or 0) >= 0.5 else ''})" for r in top)
+    block = [r for r in scored if r["abs_delta"] >= thr and r not in cand]
+    pn = parsed.get("panel")
+    if isinstance(pn, dict):
+        pn = pn.get("file") or pn.get("name") or "?"
+    detail = (f"패널 {os.path.basename(str(pn or '?'))} · 피처 {len(rows)}개 중 {len(scored)}채점"
+              f"(무정보/커버리지<{parsed.get('cov_min')} {len(parsed.get('dead_coverage') or [])}) · "
+              f"문턱 |AUC−0.5|≥{thr} · 살아있는 상위: {txt}")
+    if cand:
+        return ("데이터 축 후보 있음 — 다음 실험 입력", detail + f" · 문턱 통과 {len(cand)}개: "
+                + ", ".join(r["feature"] for r in cand), max(r["abs_delta"] for r in cand))
+    if block:
+        detail += " · 문턱은 넘었으나 커버리지/종목상수 조건에서 탈락: " + ", ".join(r["feature"] for r in block)
+    return ("후보 없음 — DB 원천 축 종결(스크린 3테이블 44컬럼 한정)", detail, None)
+
+
 def parse_blend_eval(path, mtime_floor) -> dict:
     """라벨 다양성 앙상블(scripts/blend_eval.py --out) 짝 집계를 파싱한다.
 
@@ -4117,6 +4243,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_h5_regime_exit(item, parsed)
     if kind == "panel_feature_screen":
         return judge_panel_feature_screen(item, parsed)
+    if kind in ("screen", "db_feature_screen"):
+        return judge_db_feature_screen(item, parsed)
     if kind == "blend_eval":
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":
