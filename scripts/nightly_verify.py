@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
+import glob
 import json
 import os
 import subprocess
@@ -103,6 +105,62 @@ def containers_up() -> int:
         return -1
 
 
+STATE = os.path.expanduser("~/.hermes/state/nightly_verify.json")
+
+
+def already_reported(day: str, problems) -> bool:
+    """같은 날 같은 문제 집합을 이미 보고했으면 조용히 넘어간다.
+
+    크론이 하루에 두 번(22:20·23:20) 도는데, 첫 실행이 경보하고 두 번째가 같은 경보를
+    한 번 더 보내면 소음이 된다. 파이프라인이 늦게 끝나는 날은 첫 실행이 보류되므로
+    두 번 거는 것이 맞다.
+    """
+    sig = hashlib.sha1(("{0}|{1}".format(day, ";".join(sorted(problems)))).encode()).hexdigest()[:12]
+    try:
+        with open(STATE, encoding="utf-8") as handle:
+            previous = json.load(handle)
+    except Exception:
+        previous = {}
+    if previous.get("day") == day and previous.get("sig") == sig:
+        return True
+    try:
+        os.makedirs(os.path.dirname(STATE), exist_ok=True)
+        with open(STATE, "w", encoding="utf-8") as handle:
+            json.dump({"day": day, "sig": sig}, handle, ensure_ascii=False)
+    except OSError:
+        pass
+    return False
+
+
+def pipeline_state(day: str) -> str:
+    """20:00 저녁 파이프라인 상태 — 'finished' | 'running' | 'failed' | 'missing'.
+
+    실측(2026-11-13): 파이프라인은 20:00 에 시작해 21:54~22:0x 에 끝난다(전일 21:54 완료).
+    그래서 20:20 검증은 파이프라인 **도중**에 돌아 "예측 0행" 거짓 경보를 냈다.
+    지금 상태를 보고, 진행 중이면 검증을 보류한다.
+    """
+    stamp = day.replace("-", "")
+    log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
+    logs = sorted(glob.glob(os.path.join(log_dir, "full_pipeline_dd_{0}_*.log".format(stamp))))
+    log = logs[-1] if logs else None
+    if log:
+        try:
+            with open(log, "rb") as handle:
+                handle.seek(max(0, os.path.getsize(log) - 4000))
+                if "Pipeline finished" in handle.read().decode("utf-8", "replace"):
+                    return "finished"
+        except OSError:
+            pass
+    # 과거·미래 날짜 검증(--date)에서는 오늘 도는 프로세스를 '그 날의 진행'으로 오독하지 않는다.
+    if day == datetime.datetime.now().strftime("%Y-%m-%d"):
+        try:
+            if subprocess.run(["pgrep", "-f", "full_pipeline_dd"], capture_output=True).returncode == 0:
+                return "running"
+        except Exception:
+            pass
+    return "failed" if log else "missing"
+
+
 def feed_day() -> str:
     try:
         with open(FEED, encoding="utf-8") as handle:
@@ -130,6 +188,16 @@ def main(argv=None) -> int:
         n = got_prev.get(table, -1)
         if n < minimum:
             problems.append("{0} {1}행 (기대 ≥ {2}) — 직전 거래일 {3}".format(table, n, minimum, prev))
+    state = pipeline_state(day)
+    if state == "running":
+        # 파이프라인이 아직 도는 중이면 예측·리포트는 아직 안 나온 것이 정상이다.
+        if args.verbose:
+            print("[NIGHTLY DEFER] {0} — 20:00 파이프라인 진행 중(예측 검증 보류)".format(day))
+        return 0
+    if state in ("failed", "missing"):
+        problems.append("20:00 파이프라인 미완료({0}) — reports/full_pipeline_dd_{1}_*.log 확인".format(
+            state, day.replace("-", "")))
+
     news = news_last_24h()
     if news < 100:
         problems.append("news_analysis 최근 24h {0}건 (기대 ≥ 100)".format(news))
@@ -143,13 +211,15 @@ def main(argv=None) -> int:
         problems.append("피드 generated_at {0} (기대 {1})".format(feed or "없음", day))
 
     if problems:
+        if already_reported(day, problems):
+            return 3  # 이미 같은 경보를 보냈다 — 출력하지 않는다(래퍼가 조용히 넘김)
         print("[NIGHTLY] {0} 검증 실패 {1}건".format(day, len(problems)))
         for item in problems:
             print("  - {0}".format(item))
         return 3
     if args.verbose:
-        print("[NIGHTLY OK] {0} 당일 {1} / 직전 거래일 {2} {3} · 컨테이너 {4} · 뉴스24h {5} · 피드 {6}".format(
-            day, got_today, prev, got_prev, up, news, feed or "없음"))
+        print("[NIGHTLY OK] {0} 당일 {1} / 직전 거래일 {2} {3} · 컨테이너 {4} · 뉴스24h {5} · 피드 {6} · 파이프라인 {7}".format(
+            day, got_today, prev, got_prev, up, news, feed or "없음", state))
     return 0
 
 
