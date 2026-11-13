@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-12T15:25:28+09:00",
+  "updated_at": "2026-11-13T19:05:00+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -29,7 +29,7 @@
       "cost": "저",
       "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
       "result": {
-        "ts": "2026-11-12T15:25:28+09:00",
+        "ts": "2026-11-13T11:25:30+09:00",
         "value": 0.0,
         "check": "0.0 >= 1.0",
         "verdict": "미달",
@@ -130,7 +130,7 @@
     {
       "id": "T5",
       "title": "건당 기대값 흑자 전환",
-      "status": "pending",
+      "status": "failed",
       "priority": 5,
       "command": "python3 scripts/trader_cycle.py --probe expectancy",
       "metric": "expectancy_krw",
@@ -144,12 +144,12 @@
       "cost": "저",
       "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
       "result": {
-        "ts": "2026-11-11T11:25:50+09:00",
-        "value": -2477.1252125,
-        "check": "-2477.1252125 > 0.0",
+        "ts": "2026-11-13T09:25:26+09:00",
+        "value": -2201.889077777778,
+        "check": "-2201.889077777778 > 0.0",
         "verdict": "미달",
         "rc": 0,
-        "stdout_tail": "-2477.1252125",
+        "stdout_tail": "-2201.889077777778",
         "stderr_tail": ""
       }
     },
@@ -412,6 +412,20 @@
       "success": "게이트가 열린 날이 1일 이상 생기고 그 날 close 진입이 실제로 발생한다(문턱·교집합 로직 중 무엇을 고칠지는 리뷰보드 결정).",
       "cost": "중",
       "note": "**변경 자체는 이 역할 권한 밖**(게이트 문턱 변경 = 리뷰보드 승인, 2주 실측+shadow 선행). 함정: `r1_ok_heat_fail` 버킷(n=956, avg +1.783%)을 'HEAT 를 풀면 돈 번다'로 읽으면 안 된다 — median 0.0·max +30.0 은 상한가 갭(체결 불가, R26)이 섞인 흔적이라 **체결가능 필터를 건 재측정**이 선행돼야 한다. R1 만 낮추는 안(88→86)은 R1 통과 48일 중 HEAT 도 통과하는 날이 0이라 효과가 없을 것으로 추정."
+    },
+    {
+      "id": "T43",
+      "title": "bridge /balance total_eval_pnl 스케일 불일치 — 실측 -3 vs (총평가−총매입) -3,923원",
+      "status": "backlog",
+      "priority": 2,
+      "provenance": "트레이더 장외 틱(2026-11-13 19:0x) — 127.0.0.1:8100 /balance vs /positions 실측 대조(프로브 scripts/probe_balance_pnl.py)",
+      "command": "python3 /home/jhshi/analyist_dd/scripts/probe_balance_pnl.py",
+      "metric": "|total_eval_pnl - (total_eval_amount - total_buy_amount)| 원",
+      "check": {
+        "op": "<=",
+        "value": 1
+      },
+      "hypothesis": "bridge/orders.py:351 이 CpTd6033 상세필드 _d(obj,11,i) 를 합산하는데 이 값이 원화 평가손익이 아니다(실측 -3 vs 계산 -3,923). equity 는 cash+total_eval 사용이라 R4·켈리 사이징 영향 없음 — 보고 지표(total_eval_pnl)와 /positions eval_pnl(퍼센트로 보임)만 오염. 필드 인덱스/단위 재확인 후 합산식을 total_eval-total_buy 로 대체 검토."
     }
   ]
 }
