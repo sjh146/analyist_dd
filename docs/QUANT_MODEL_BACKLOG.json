@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-14T02:01:07+09:00",
+ "updated_at": "2026-11-14T03:07:31+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -18060,7 +18060,7 @@
   },
   {
    "id": "CG261",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "model",
    "owner": "engineer",
@@ -18085,7 +18085,24 @@
     "IC30_nomkt_h5"
    ],
    "panel": "panel_prod200.npz",
-   "metric_note": "metric=wf_fold_auc 는 구동기 별칭으로 baseline_protocol_gap 파서·판정기를 탄다 (2026-11-14 배선). 패널이 등록 기준선 패널과 달라 절대값 비교는 하지 않는다 — 판정은 같은 런 폴드 짝 Δ 만. per_exp 미생성(스코어보드 오독 방지)."
+   "metric_note": "metric=wf_fold_auc 는 구동기 별칭으로 baseline_protocol_gap 파서·판정기를 탄다 (2026-11-14 배선). 패널이 등록 기준선 패널과 달라 절대값 비교는 하지 않는다 — 판정은 같은 런 폴드 짝 Δ 만. per_exp 미생성(스코어보드 오독 방지).",
+   "attempts": [
+    {
+     "ts": "2026-11-14T02:16:46+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='wf_fold_auc')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG261_20261114-020149.log",
+     "elapsed_min": 14.9
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "같은 런 기준선 MK_timevary_nomkt_h5 0.5305±0.0137 | TV_all_nomkt_h5 0.5336±0.0223(폴드 0.4971~0.5615 · 승률 0.80) · 짝Δ vs MK_timevary_nomkt_h5 +0.0031(양(+) 3/5 [+0.0162, +0.0156, -0.0087, -0.0183, +0.0109]) ; IC30_nomkt_h5 0.5290±0.0159(폴드 0.5082~0.5503 · 승률 1.00) · 짝Δ vs MK_timevary_nomkt_h5 -0.0015(양(+) 3/5 [-0.0014, +0.0044, +0.0024, +0.0033, -0.0162]) → 최고 후보 TV_all_nomkt_h5 짝Δ +0.0031",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG262",
@@ -18114,6 +18131,40 @@
    "est_minutes": 90,
    "created_at": "2026-11-14T01:05:00+09:00",
    "note": "⚠ 승격 아님 — 측정이다. panel_420_asofpatch 는 CG85 누수 판정 패널이므로 이 런의 절대값은 프로토콜 비교 전용이며 승격·기준선 교체 근거로 쓰지 않는다. CG261(선별 축) 뒤에 실행된다(priority 2)."
+  },
+  {
+   "id": "CG263",
+   "status": "done",
+   "priority": 4,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "panel_feature_screen",
+   "from_experiment": "CG258",
+   "title": "[데이터 축·피처] 가격 경로 형태(path shape) 7종이 새 정보인가 — 패널에 없는 경로 요약(고점낙폭·구간위치·상승일비율·자기상관·최대등락·갭)",
+   "hypothesis": "패널 213컬럼은 수준·모멘텀·변동성의 스칼라 요약이고 경로의 '형태'(60일 고점 대비 낙폭·구간 내 위치·상승일 비율·수익률 lag-1 자기상관·최대 일간등락·평균 갭)는 없다. 전부 종목 단위 계산이라 서빙 경로에서 배포 가능(CG164 의 횡단면 rank 문제 없음) → 새 데이터 없이 얻을 수 있는 마지막 정보 후보.",
+   "counterfactual": "동일 패널의 기존 213컬럼 단일피처 스크린(무정보 123/220 · 시간가변 최고 |AUC−0.5|≈0.05)",
+   "command": "docker exec stock_xgboost_ml python -u /app/scripts/build_path_features.py --panel /app/app/models/wf/panel_prod200.npz --out /tmp/panel_prod200_path.npz --report /app/reports/overnight/cg263_path_build.json && docker exec stock_xgboost_ml python -u /app/scripts/panel_feature_screen.py --panel /tmp/panel_prod200_path.npz --horizon 5 --q 0.30 --top 30 --out /app/reports/overnight/cg263_path_screen.json",
+   "success": "경로 피처 중 단일피처 |AUC−0.5| ≥ 0.044 이고 기존 컬럼과 |r| < 0.9 인 것이 1개 이상이면 스윕 승격 후보. 없으면 '경로 형태 축 종결'.",
+   "note": "2026-11-14 03:1x 엔지니어 자율(장외 틱) — 실행 완료·스크린 종결. 빌드(scripts/build_path_features.py, 오늘 신설): panel_prod200 213→220컬럼 · 54,800행 · 커버리지 99.79~99.97% · 2025-08-04~2026-09-23 · 200종목(7.6초). 스크린(panel_feature_screen, h5 q0.30 · IC 274일 · 32,401행): path_max_absret_20 AUC 0.4695(|edge|0.0305) IC +0.0281 t2.70 — 그러나 volatility_20d 와 r=0.994(날짜별 CS r=0.972)=사실상 동일컬럼. path_near_high_20 AUC 0.5088 IC −0.0442 t−4.78 — 최고 IC 이나 기존 rank_return_5d(IC −0.0412 t−4.77)와 같은 크기·bb_position r0.497. path_dd_high_60 IC −0.0269 t−2.87 · path_range_pos_60 IC −0.0201 t−2.44(bb_position r0.664) · path_autocorr_20 IC +0.0094 t1.46(직교 |r|<0.08 이나 무정보) · path_up_ratio_20 t−0.08 · path_gap_mean_5 t−0.58. 판정: 단일피처 AUC 문턱 0.044 미달(최고 0.0305) + 최고 IC 는 기존 모멘텀/변동성 피처와 중복 → '경로 형태'는 새 정보가 아니다. 스윕(2 arm×5폴드×5시드 ≈40분)은 선별 문턱(0.044)에도 못 미쳐 top30 에 들어가지 않으므로 구조적으로 null → 실행 생략. 누수 0 · 종목상수 34 · 시장레벨 56 · 무정보 123/220. 남은 것은 2패널 재현뿐(CG264).",
+   "est_minutes": 8
+  },
+  {
+   "id": "CG264",
+   "status": "pending",
+   "priority": 2,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "panel_feature_screen",
+   "from_experiment": "CG263",
+   "title": "[데이터 축·재현] 경로 형태 7종을 등록 기준선 패널(panel_420_asofpatch)에서 재측정 — prod200 결론이 패널 특이인가",
+   "hypothesis": "CG263 은 prod200 에서 경로 피처가 'AUC 문턱 미달 + 기존 모멘텀·변동성과 중복'으로 결론냈다. 같은 빌더·같은 스크린을 asofpatch 에서 돌려 ① 순위가 같은가 ② 중복(r>0.9) 결론이 유지되는가를 확인한다. 순위가 뒤집히거나 새 직교 피처가 살아나면 스윕 승격 후보로 올린다.",
+   "counterfactual": "CG263 의 prod200 스크린 결과(동일 빌더·동일 스크린 파라미터 h5/q0.30)",
+   "command": "docker exec stock_xgboost_ml python -u /app/scripts/build_path_features.py --panel /app/app/models/wf/panel_420_asofpatch.npz --out /tmp/panel_420_path.npz --report /app/reports/overnight/cg264_path_build_420.json && docker exec stock_xgboost_ml python -u /app/scripts/panel_feature_screen.py --panel /tmp/panel_420_path.npz --horizon 5 --q 0.30 --top 30 --out /app/reports/overnight/cg264_path_screen_420.json",
+   "success": "경로 7종 중 |AUC−0.5| ≥ 0.044 이고 기존 컬럼과 |r| < 0.9 인 것이 1개 이상이면 '패널 특이 신호'로 스윕 승격 후보. 아니면 '경로 형태 축은 두 패널에서 종결'로 원장 기록(스윕 생략 근거).",
+   "note": "2026-11-14 03:2x 엔지니어 자율 — CG263 후속(2패널 재현). CG263 은 prod200 한 패널에서만 쟀고, 교훈상 'arm 은 패널 특이'가 반복됐다(CG260 TR_rank: asofpatch +0.0107 → prod200 −0.0035). 스크린 1분짜리이므로 등록 기준선 패널에서 같은 7종을 재측정해 두 패널 모두에서 같은 순위·같은 중복 결론이 나오는지 확인한다. ⚠ panel_420_asofpatch 는 CG85 누수 판정 패널 — 절대값은 프로토콜 비교 전용.",
+   "est_minutes": 8
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
