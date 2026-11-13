@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-14T03:10:30+09:00",
+ "updated_at": "2026-11-14T05:21:12+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -9617,7 +9617,7 @@
    "expected": "원천 확보는 리서처/사람 결정(수집 범위·API 한도·자격증명)이 필요하다. 화이트리스트 통과 전에는 스윕을 돌리지 않는다(과거 4개 독립 구성이 0.534~0.548 로 수렴한 실패를 반복하지 않기 위함).",
    "cost": "수집 배선 1~2일 + 패널 재빌드(prod200 실측 0.92 pair/s·54,800페어 ≈ 16.5h)",
    "counterfactual": "현행 패널(213피처) — 같은 유니버스·같은 게이트 ON 대조군 CO_core30_h5(0.5305±0.0199, CG72)",
-   "note": "2026-10-04 재확인(데이터 축 전수 스크린): sns_posts 이력 = 2026-09-23~09-30 **7일**(384,821행) · news_events 2026-04-01~10-04·215종목이나 **패널 200종목 교집합 12종목** · stock_sentiment 105행·74종목 · minute_bars 6일 · krx_short_selling 패널 교집합 1.5%. 즉 ① 수집 범위 ② 이력 축적 두 조건 모두 여전히 미충족이다. 그리고 event_features 처럼 커버리지가 충분한 원천도 단변량 edge 가 0 이다 — '부활'이 아니라 '새 정보'가 필요하다. | 2026-10-06 02:1x 갱신(장외 자율): 남아 있던 마지막 모델측 '재개 조건'인 **국면 조건화**도 실측으로 닫혔다(CG126 추세 국면 ΔIC −0.0761·t −1.70 미달 · CG127 저변동 국면 우위는 서로소 2표본에서 미재현/부호반전 −0.0036·t −0.16 / −0.0886·t −2.64). CG125(앙상블 가중 A/B Δ−0.0005) 까지 포함해 **모델측 레버(변환·HP·앙상블·선별·가중·목적함수·라벨·유니버스·창·정규화·국면) = 0** 이고 돈 축(top-k vs 풀평균·팩터 랭킹·하위꼬리)도 종결 → 남은 레버는 **데이터 축(수집 확장 + 이력 축적)** 뿐이다. 착수는 사람/수집기 결정: ① 인트라데이 = XR26 수리(수집기 1줄+재수집, 오프라인 증명 5/5) → CG101 즉시 착수 가능 ② SNS/뉴스 = 커버리지(패널 유니버스) + 이력(≥420일) 동시 필요. 패널 창 단축은 std 0.0556 으로 판정 불가(U3b)라 대안이 아니다. | 2026-10-09 실측(수집 범위): krx_short_selling 17,786행·210종목·2026-05-26~10-07, 값 자체는 정상(short_volume/total_volume/short_ratio 비영 97.9~98.6%, NULL 은 balance_quantity 만 100%) — 그런데 **수집 종목 ∩ 학습 유니버스 = 11/200**(날짜 교집합 84일) → 패널 short_selling_ratio 비영 1.51% 는 배선 결함이 아니라 수집 범위 갭(news_events 12/200 과 동형). 재현: scripts/short_selling_scope_probe.py | 2026-10-09 재측정(전수 스크린, scripts/_data_axis_scan.py): DB 테이블 39개를 패널(panel_prod200 200종목·2025-08-04~2026-09-23)과 대조 — 패널을 100% 덮는 원천은 market_data/stock_prices·supply_market_features·financial_ratio_features(=이미 사용)뿐이고, event_features 191 · disclosures 191 는 단변량 edge 0 으로 종결됨. 나머지는 전부 부분 커버(foreign_institutional 87/200 무정보 · sns_posts 22 · news_events 15 · krx_short_selling 11 · minute_bars 23·15:01~15:30) 또는 시장레벨. → '패널 구간을 덮는 미사용 PIT 원천 없음' 결론 유지. 재개는 수집 확장뿐.",
+   "note": "2026-10-04 재확인(데이터 축 전수 스크린): sns_posts 이력 = 2026-09-23~09-30 **7일**(384,821행) · news_events 2026-04-01~10-04·215종목이나 **패널 200종목 교집합 12종목** · stock_sentiment 105행·74종목 · minute_bars 6일 · krx_short_selling 패널 교집합 1.5%. 즉 ① 수집 범위 ② 이력 축적 두 조건 모두 여전히 미충족이다. 그리고 event_features 처럼 커버리지가 충분한 원천도 단변량 edge 가 0 이다 — '부활'이 아니라 '새 정보'가 필요하다. | 2026-10-06 02:1x 갱신(장외 자율): 남아 있던 마지막 모델측 '재개 조건'인 **국면 조건화**도 실측으로 닫혔다(CG126 추세 국면 ΔIC −0.0761·t −1.70 미달 · CG127 저변동 국면 우위는 서로소 2표본에서 미재현/부호반전 −0.0036·t −0.16 / −0.0886·t −2.64). CG125(앙상블 가중 A/B Δ−0.0005) 까지 포함해 **모델측 레버(변환·HP·앙상블·선별·가중·목적함수·라벨·유니버스·창·정규화·국면) = 0** 이고 돈 축(top-k vs 풀평균·팩터 랭킹·하위꼬리)도 종결 → 남은 레버는 **데이터 축(수집 확장 + 이력 축적)** 뿐이다. 착수는 사람/수집기 결정: ① 인트라데이 = XR26 수리(수집기 1줄+재수집, 오프라인 증명 5/5) → CG101 즉시 착수 가능 ② SNS/뉴스 = 커버리지(패널 유니버스) + 이력(≥420일) 동시 필요. 패널 창 단축은 std 0.0556 으로 판정 불가(U3b)라 대안이 아니다. | 2026-10-09 실측(수집 범위): krx_short_selling 17,786행·210종목·2026-05-26~10-07, 값 자체는 정상(short_volume/total_volume/short_ratio 비영 97.9~98.6%, NULL 은 balance_quantity 만 100%) — 그런데 **수집 종목 ∩ 학습 유니버스 = 11/200**(날짜 교집합 84일) → 패널 short_selling_ratio 비영 1.51% 는 배선 결함이 아니라 수집 범위 갭(news_events 12/200 과 동형). 재현: scripts/short_selling_scope_probe.py | 2026-10-09 재측정(전수 스크린, scripts/_data_axis_scan.py): DB 테이블 39개를 패널(panel_prod200 200종목·2025-08-04~2026-09-23)과 대조 — 패널을 100% 덮는 원천은 market_data/stock_prices·supply_market_features·financial_ratio_features(=이미 사용)뿐이고, event_features 191 · disclosures 191 는 단변량 edge 0 으로 종결됨. 나머지는 전부 부분 커버(foreign_institutional 87/200 무정보 · sns_posts 22 · news_events 15 · krx_short_selling 11 · minute_bars 23·15:01~15:30) 또는 시장레벨. → '패널 구간을 덮는 미사용 PIT 원천 없음' 결론 유지. 재개는 수집 확장뿐. | 2026-11-14 07:1x 엔지니어 계기 검정(CG268)으로 **신규 피처의 사전 문턱을 수치화**했다: 이 파이프라인의 감도는 단일변량 AUC 0.58→모델 Δ+0.0365 · 0.66→Δ+0.1263(기울기 ≈1.12, 폴드 5/5) 이므로, 사전문턱 +0.02 를 넘기려면 **단일변량 |AUC−0.5| ≥ 0.065(=0.565) 이고 기존 피처와 최대상관 <0.9** 인 피처가 최소 1개 필요하다. 참고로 방금 측정한 거래대금 수준 3종은 |AUC−0.5| 0.02 로 문턱의 1/3 이었다(CG269 축 종결). [@researcher] 원천 후보를 고를 때 이 두 조건을 만족하는지 먼저 스크리닝하라.",
    "attempts": 0,
    "result": null,
    "arm": null,
@@ -18236,7 +18236,7 @@
   },
   {
    "id": "CG267",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "model",
    "owner": "engineer",
@@ -18259,7 +18259,89 @@
     "CO_smooth_d1_h5",
     "CO_d1_h5"
    ],
-   "panel": "panel_prod200.npz (청정 · 200종목 · 5폴드 · 5시드)"
+   "panel": "panel_prod200.npz (청정 · 200종목 · 5폴드 · 5시드)",
+   "attempts": [
+    {
+     "ts": "2026-11-14T05:21:12+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "같은 런 기준선 CO_core30_h5 0.5305±0.0199 | CO_smooth_d1_h5 0.5355±0.0143(폴드 0.5221~0.5622 · 승률 1.00) · 짝Δ vs CO_core30_h5 +0.0050(양(+) 3/5 [+0.0060, +0.0048, +0.0247, -0.0077, -0.0027]) ; CO_d1_h5 0.5354±0.0178(폴드 0.5080~0.5571 · 승률 1.00) · 짝Δ vs CO_core30_h5 +0.0049(양(+) 3/5 [-0.0006, -0.0003, +0.0106, +0.0057, +0.0089]) → 최고 후보 CO_smooth_d1_h5 짝Δ +0.0050",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG267_20261114-050612.log",
+     "elapsed_min": 15.0
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "같은 런 기준선 CO_core30_h5 0.5305±0.0199 | CO_smooth_d1_h5 0.5355±0.0143(폴드 0.5221~0.5622 · 승률 1.00) · 짝Δ vs CO_core30_h5 +0.0050(양(+) 3/5 [+0.0060, +0.0048, +0.0247, -0.0077, -0.0027]) ; CO_d1_h5 0.5354±0.0178(폴드 0.5080~0.5571 · 승률 1.00) · 짝Δ vs CO_core30_h5 +0.0049(양(+) 3/5 [-0.0006, -0.0003, +0.0106, +0.0057, +0.0089]) → 최고 후보 CO_smooth_d1_h5 짝Δ +0.0050",
+    "delta": 0.005,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG268",
+   "status": "done",
+   "priority": 1,
+   "kind": "instrument",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "instrument_only",
+   "title": "[계기·감도] 이 파이프라인이 '알려진 신호'를 AUC로 표현할 수 있는가 — 합성 피처 양성 대조군(단일변량 0.58 / 0.66)",
+   "hypothesis": "무개선 19사이클의 해석은 둘이다: (A) 패널 피처 정보량이 병목 (B) 파이프라인(선별·조기종료·앙상블 가중)이 신호를 죽인다. 구분할 계기가 없었다. 청정 패널 prod200 에 미래 5일 수익률 + 잡음으로 만든 합성 피처(단일변량 AUC 0.58 / 0.66)를 1열 추가하고 같은 스윕 경로로 학습하면, 감도가 있으면 AUC 가 그만큼 올라야 한다.",
+   "counterfactual": "같은 패널·같은 config(LS_quant_q30_h5)·같은 폴드/시드의 대조군 0.5302±0.0168 (CG260 실측) = 합성 피처 없음",
+   "command": "docker exec stock_xgboost_ml python /app/scripts/synth_signal_probe.py --panel /app/app/models/wf/panel_prod200.npz --out-dir /app/app/models/wf --targets 0.58,0.66 && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_panel_prod200_synth_sig_58.npz --folds 5 --seeds 5 --only LS_quant_q30_h5 --out /app/reports/overnight/cg268_synth58.jsonl --summary-out /app/reports/overnight/cg268_synth58_summary.json'",
+   "success": "합성 단일변량 0.58 → 모델 AUC ≥ +0.02 (파이프라인 감도 있음) / <+0.02 면 파이프라인이 신호를 소거한다는 뜻 = 엔지니어링 수리 대상",
+   "result": {
+    "verdict": "감도 확인 — 파이프라인은 신호를 표현한다(1:1 기울기)",
+    "detail": "대조군 0.5302±0.0168(같은 패널·같은 config) | 합성 0.58: 0.5667±0.0130 (폴드 0.5482/0.5846/0.5565/0.5782/0.5724 · 승률 5/5 · Δ+0.0365) · 합성 0.66: 0.6565±0.0181 (폴드 0.6261/0.6676/0.6607/0.6828/0.6531 · 승률 5/5 · Δ+0.1263) · 합성 피처 5/5 폴드 선별 진입. 기울기 1.12/단일변량AUC · 사전문턱 +0.02 에 필요한 단일변량 |AUC−0.5| ≈ 0.065(=0.565) · 기존 피처 최대상관 0.53~0.56(합성은 기존과 직교) ",
+    "delta": 0.0365,
+    "per_exp": null,
+    "rc": 0
+   },
+   "note": "합성 패널은 계기 전용 — 승격 근거·per_exp 금지(합성=누설). 산출물: app/models/wf/panel_panel_prod200_synth_sig_{58,66}.npz · reports/overnight/cg268_synth{58,66}.jsonl. 스크립트 scripts/synth_signal_probe.py.",
+   "created_at": "2026-11-14T07:10:00+09:00"
+  },
+  {
+   "id": "CG269",
+   "status": "done",
+   "priority": 1,
+   "kind": "data",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "wf_fold_auc",
+   "title": "[데이터 축·유동성 수준] 패널에 없는 '거래대금 수준' 3피처를 as-of 추가하면 AUC가 움직이는가 (돈 지표로 검증된 유일한 미입력 신호)",
+   "hypothesis": "CG255: 청정 패널 prod200 에는 거래대금·시총 수준 피처가 없다. CG250·CG253·CG254·CG259: 저거래대금 Δ +1.20%p/세션(t 3.38)이고 왕복 0.71%p 비용에서도 +0.47%p. 즉 돈으로 검증된 신호인데 모델 입력에 없다. CG268 감도 검정에 따르면 단일변량 |AUC−0.5|≈0.065 면 +0.02 를 넘길 수 있으므로, 거래대금 수준(5d/20d 로그·20/60 추세)을 as-of 로 붙여 같은 프로토콜로 측정한다.",
+   "counterfactual": "CO_core30_h5 (같은 패널 원본 · 같은 폴드/시드 · CG267 실측 0.5305±0.0199)",
+   "command": "docker exec stock_xgboost_ml python /app/scripts/patch_panel_liquidity.py --in /app/app/models/wf/panel_prod200.npz --out /app/app/models/wf/panel_prod200_liq.npz --report /app/reports/overnight/cg269_liq_patch_report.json && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_liq.npz --folds 5 --seeds 5 --only LS_quant_q30_h5 --out /app/reports/overnight/cg269_liq.jsonl --summary-out /app/reports/overnight/cg269_liq_summary.json'",
+   "success": "대조군 대비 5폴드 평균 Δ ≥ +0.02 (폴드 승률 ≥0.8)",
+   "result": {
+    "verdict": "노이즈 — 축 종결",
+    "detail": "패치 커버리지 100%(54,800행) · 단일변량 AUC liq_amt_5d_log 0.4813 · 20d 0.4804 · 추세 0.4986 · 종목상수 0.0 · 최대상관 0.53(sns_sentiment_score) → 새 정보이긴 하나 |AUC−0.5|≈0.02 로 CG268 문턱(0.065)의 1/3. 스윕: 0.5302±0.0168 (폴드 0.5330/0.5552/0.5021/0.5328/0.5335) vs 대조군 0.5305±0.0199 → Δ−0.0003(승률 0/5) · 세 피처가 5/5 폴드 선별에서 탈락(top30 edge 미달).",
+    "delta": -0.0003,
+    "per_exp": null,
+    "rc": 0
+   },
+   "note": "함의: 저거래대금 +1.20%p 는 **횡단면 순위 신호가 아니라 코호트/구간 효과**다(단일변량 AUC 0.48 = 방향 정보 없음). 모델 입력으로 넣어도 선별에 못 들어간다 → 유동성 축은 모델 축에서 종결. 돈 경로 후속은 '선택 규칙/유니버스' 영역(리서처·트레이더 계약)이다.",
+   "created_at": "2026-11-14T07:10:00+09:00"
+  },
+  {
+   "id": "CG270",
+   "status": "pending",
+   "priority": 1,
+   "kind": "data",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "screen",
+   "title": "[데이터 축·원천] DB 원천 컬럼을 CG268 문턱(|AUC−0.5|≥0.065 · 기존 피처 최대상관<0.9)으로 재스크리닝 — 새 레버 후보를 목록으로 확정",
+   "hypothesis": "CG268 은 파이프라인 감도를 수치화했다(단일변량 0.58→모델 +0.0365 · 0.66→+0.1263, 기울기 1.12). 즉 사전문턱 +0.02 는 **기존 피처와 상관<0.9 이면서 단일변량 |AUC−0.5|≥0.065 인 피처 1개**로 달성 가능하다. 지금까지 원천 스크린(_db_feature_screen)은 문턱 'AUC≥0.55' 하나로만 후보를 셌고 상관 중복을 보지 않았다(CG264 에서 경로형태 7종이 전부 상관>0.8 로 탈락한 전례). 같은 스크린을 두 조건으로 다시 채점해 후보군을 유한 목록으로 만든다.",
+   "counterfactual": "문턱 단일 조건(AUC≥0.55) 스크린 결과 — 2026-09 38개 중 31개 채점, 최고 0.5072",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/_db_feature_screen.py > reports/overnight/cg270_db_screen.json'",
+   "success": "① |AUC−0.5|≥0.065 후보를 목록화 ② 각 후보의 기존 패널 피처 최대 |상관|을 계산해 <0.9 만 통과 ③ 통과 후보가 0개면 데이터 축의 남은 경로는 '수집기 신규 원천'(리서처 계약)뿐임을 원장에 확정 기록",
+   "expected": "0~1개 통과 예상(기존 스크린 최고 0.5072, 즉 |AUC−0.5|=0.0072 로 문턱의 1/9). 통과 0개여도 실패가 아니라 **모델 축 종결의 근거**다.",
+   "cost": "낮음(스크린 5~10분 · 상관 계산은 표본 2만행)",
+   "est_minutes": 15,
+   "created_at": "2026-11-14T07:20:00+09:00",
+   "note": "상관 계산 확장은 scripts/_db_feature_screen.py 에 추가 예정(패널 npz 로드 → 표본 2만행 최대 |r|). 스크린은 판정 arm 이 아니므로 per_exp 금지."
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
