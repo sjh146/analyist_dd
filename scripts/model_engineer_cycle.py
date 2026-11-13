@@ -821,13 +821,18 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_wave_summary.json")
-    if kind == "baseline_protocol_gap":
+    if kind in ("baseline_protocol_gap", "wf_fold_auc"):
         # 같은 런 기준선 재측정(CG260) — wf_label_sweep 요약을 쓰므로 --summary-out 을 그대로 따른다.
         # (실측 2026-11-14 00:19: 이 분기가 없어 파서·경로 둘 다 미등록 → rc=0 완주가 '판정불가'로 닫혔다.)
+        # `wf_fold_auc` 는 CG261 이 등록한 사실상 오타 metric 이다(다른 108개 항목은 wf_sweep_summary).
+        # 실측(2026-11-14 02:01): CG261 시작 로그에 "알 수 없는 metric 'wf_fold_auc' — 요약 경로 없음
+        # (판정불가로 기록)" 이 찍혔다 → 90분짜리 3-arm 실행이 끝나도 원장에 판정이 남지 않는다.
+        # 별도 판정기를 새로 만들지 않고 같은 런 짝 Δ 판정기(baseline_protocol_gap)에 별칭으로 붙인다
+        # — 이 항목의 성공 조건이 정확히 'arm 별 같은 런 폴드 짝 Δ ≥ +0.02 · 폴드 승률 ≥ 0.8' 이다.
         out = _arg(command or "", "--summary-out") or _arg(command or "", "--out")
         if out:
             return _container_path_to_host(out.strip("'\""))
-        raise ValueError("baseline_protocol_gap: --summary-out/--out 경로가 커맨드에 없다")
+        raise ValueError(f"{kind}: --summary-out/--out 경로가 커맨드에 없다")
     if kind == "champion_robust_eval":
         # champion_robust_eval.py 는 컨테이너 cwd=/app 에서 --out /app/reports/... 로 쓴다
         # (/app = services/xgboost-ml). CG31 이 이 metric 으로 돌아간다.
@@ -1673,8 +1678,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind in ("wf_sweep_summary", "wf_wave_summary"):
         # 두 요약의 스키마가 같다(results[].folds{}.mean · exp/desc) → 같은 파서를 쓴다.
         return parse_wf_sweep(spath, mtime_floor)
-    if kind == "baseline_protocol_gap":
-        # 같은 런 기준선 재측정(CG260). per_exp 를 싣지 않는 전용 파서 — judge 도 전용이다.
+    if kind in ("baseline_protocol_gap", "wf_fold_auc"):
+        # 같은 런 기준선 재측정(CG260) · CG261 의 wf_fold_auc 별칭. per_exp 를 싣지 않는 전용 파서
+        # — judge 도 전용이다.
         return parse_baseline_protocol_gap(spath, mtime_floor, item=item)
     if kind == "champion_robust_eval":
         return parse_champion_robust(spath, mtime_floor)
@@ -4087,7 +4093,7 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_scale_bisect_probe(item, parsed)
     if kind == "metric_audit_pair":
         return judge_metric_audit_pair(item, parsed)
-    if kind == "baseline_protocol_gap":
+    if kind in ("baseline_protocol_gap", "wf_fold_auc"):
         return judge_baseline_protocol_gap(item, parsed)
     if kind == "score_deciles":
         return judge_score_deciles(item, parsed)

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-14T01:02:58+09:00",
+ "updated_at": "2026-11-14T02:01:07+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -18078,7 +18078,14 @@
    "cost": "중(3 arm × 5폴드 × 5시드)",
    "est_minutes": 90,
    "created_at": "2026-11-14T00:05:00+09:00",
-   "note": "config 2개 추가(TV_all_nomkt_h5·IC30_nomkt_h5) · 학습 로직 무변경 · 두 arm dry-run 해석 확인 · 승격 아님."
+   "note": "config 2개 추가(TV_all_nomkt_h5·IC30_nomkt_h5) · 학습 로직 무변경 · 두 arm dry-run 해석 확인 · 승격 아님.",
+   "paired_reference": "MK_timevary_nomkt_h5",
+   "arm_list": [
+    "TV_all_nomkt_h5",
+    "IC30_nomkt_h5"
+   ],
+   "panel": "panel_prod200.npz",
+   "metric_note": "metric=wf_fold_auc 는 구동기 별칭으로 baseline_protocol_gap 파서·판정기를 탄다 (2026-11-14 배선). 패널이 등록 기준선 패널과 달라 절대값 비교는 하지 않는다 — 판정은 같은 런 폴드 짝 Δ 만. per_exp 미생성(스코어보드 오독 방지)."
   },
   {
    "id": "CG262",
