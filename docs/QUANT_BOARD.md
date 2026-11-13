@@ -30,6 +30,13 @@
    트레이더 장마감: quant-trader-postclose(평일 15:10)
 ```
 
+> **전달 대상(`deliver`)은 잡마다 명시한다.** 세션에서 만든 잡은 `origin` 으로 두면 그 세션의
+> 채널로 해석되지만, 스크립트/세션 없이 만든 잡은 `origin` 이 **어디로도 해석되지 않아**
+> 실행은 `completed` 인데 `delivery_outcome=not_configured` 로 남아 알림이 사라진다
+> (2026-11-13 실측: `quant-trader-tick`·`quant-postclose-ticks` → `discord:1543576211295309874` 로 지정).
+> 감시·보고 잡을 새로 만들 때는 **항상 명시적 채널**을 넣고, 검증은 stdout 이 아니라
+> `~/.hermes/cron/executions.db` 의 `delivery_outcome` 으로 한다.
+
 ### 트레이더 자율 사이클 (scripts/trader_cycle.py) — 2026-09-28 신설
 
 세 역할 중 트레이더만 **구동기·백로그·원장이 없어서** 협업 계약 3번(트레이더 → 리서처 환류)이
