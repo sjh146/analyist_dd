@@ -130,6 +130,14 @@ SPECS = [
     #   횡단면으로 실제 쓸 수 있는 수를 함께 본다(실측 138 = 164 − 26). 임계값은 두지 않는다
     #   (정보용 — 인구가 늘면 함께 늘어난다). 문턱이 필요해지면 실측 기준선 위에 잡아라.
     ("dq_feature_alive_xsec_count", "max", None, None, "횡단면 변별력 있는 살아있는 피처(시장레벨 제외)"),
+    # ⚠ 2026-11-13 신설(정보용 — 임계값 없음): 착시 개수는 **덮어쓰기 순서**로 26 ↔ 62 를 오간다.
+    #   전량 재계산(feature_coverage_report, 모델 창 120일)이 202행을 120 으로 덮으면 26(ok),
+    #   야간 빌더가 격자 스팬(513~514일)으로 그 피처들을 다시 쓰면 62(breach)가 된다.
+    #   실측 같은 날: 20:01 = 62(위반) → 21:11:40 전량 재계산 → 22:00 = 26(정상).
+    #   값만 보면 '수리됐다'로 오독되므로 **창 혼재 자체**를 매 틱 함께 본다(문턱은 리뷰보드 안건 R38).
+    ("dq_feature_window_variants_count", "max", None, None, "창 정의 가짓수(1=일관·정보용)"),
+    ("dq_feature_non_model_window_rows", "max", None, None, "모델 창(120일) 아닌 피처 행수(정보용)"),
+    ("dq_feature_illusion_at_120d_count", "max", None, None, "모델 창 120일 기준 착시 수(정보용)"),
 ]
 
 # ── 상시 보고(정보용이지만 매 틱 보여야 하는 것) ──────────────────────────────
@@ -138,7 +146,30 @@ SPECS = [
 # R14(feature_coverage 09-24 고정 128행) 정체가 11일간 아무 틱에도 보고되지 않았다.
 ALWAYS_REPORT = {
     "dq_feature_oldest_age_days": " — R14 feature_coverage 정체(09-24 고정 128행) 감시",
+    # 창 혼재는 조용히 진행되는 신호다(문턱 없음): 0 이면 창 정의 일관, >0 이면 야간 빌더가
+    # 스팬 창으로 되돌린 상태 = 착시 개수가 26 → 62 쪽으로 복귀 중(R38).
+    "dq_feature_non_model_window_rows": " — 창 혼재(야간 빌더가 격자 스팬 창으로 기록) 감시: >0 이면 착시 지표가 62 쪽으로 복귀 중",
 }
+
+# 0 이 정상인 ALWAYS_REPORT 항목 — 매 틱 '=0' 을 찍으면 잡음이므로 값이 0 일 때만 침묵한다.
+# (oldest_age_days 는 0 이어도 '정체 없음'이 아니라 '방금 측정됨'이라 매 틱 찍는다.)
+SILENT_AT_ZERO = {"dq_feature_non_model_window_rows"}
+
+
+def always_report_lines(metrics: dict) -> list:
+    """ALWAYS_REPORT 의 [정보] 줄을 만든다(출력과 분리해 회귀 테스트가 같은 코드를 검증하게).
+
+    SILENT_AT_ZERO 는 값이 **정확히 0** 일 때만 침묵한다 — nodata(None)는 '없음'으로 반드시 올린다
+    (모니터링 실명을 0 으로 숨기지 않는다).
+    """
+    out = []
+    for _n, _note in ALWAYS_REPORT.items():
+        _m = metrics.get(_n) or {}
+        if _n in SILENT_AT_ZERO and _m.get("value") == 0:
+            continue
+        _v = "없음" if _m.get("value") is None else f"{_m['value']:.2f}"
+        out.append(f"· [정보] {_m.get('label', _n)}({_n})={_v}{_note}")
+    return out
 
 # 차트 라벨은 영문으로 쓴다 — 이 WSL 에는 한글 폰트가 없어 글리프가 전부 깨진다
 # (실측 2026-09-25: "Glyph ... missing from current font" 경고가 라벨 수만큼 발생).
@@ -529,10 +560,8 @@ def main():
         mark = {"ok": "OK  ", "warn": "WARN", "breach": "위반", "info": "·   ", "nodata": "데이터X"}[m["status"]]
         print(f"  [{mark}] {m['label']:22s} {v:>12s}")
     # [정보] 상시 보고 — '·' 접두어가 곧 틱(researcher_cycle.snapshot_brief)이 뽑아 가는 형식이다.
-    for _n, _note in ALWAYS_REPORT.items():
-        _m = snap["metrics"].get(_n) or {}
-        _v = "없음" if _m.get("value") is None else f"{_m['value']:.2f}"
-        print(f"· [정보] {_m.get('label', _n)}({_n})={_v}{_note}")
+    for _line in always_report_lines(snap["metrics"]):
+        print(_line)
     if breaches:
         print(f"  ★ 위반 {len(breaches)}: " + " | ".join(breaches))
     if warns:

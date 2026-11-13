@@ -380,7 +380,19 @@ dq_feature:
       --   새 컬럼은 SELECT 맨 끝 + metrics 맨 끝에 함께 넣어야 한다(중간 삽입 시 전부 밀린다).
       COUNT(*) FILTER (WHERE nonzero_ratio > 0
                          AND COALESCE(cross_section_constant_ratio, 0) < 0.99)::float
-        AS alive_xsec_count
+        AS alive_xsec_count,
+      -- ⚠ 2026-11-13 신설(정보용 · 알림 규칙 없음 · 판정 불변): feature_coverage 의 window_days 는
+      --   피처군마다 다르다. 전량 재계산(feature_coverage_report, 모델 창 120일)은 202행을 한 번에
+      --   120 으로 덮고, 야간 빌더(build_supply_market_features 등, window_days = 격자 스팬)는 다시
+      --   513~514 로 되돌린다 → 같은 결함이 '덮어쓰기 순서'에 따라 26 ↔ 62 로 진동한다.
+      --   실측 2026-11-13: 20:01 스냅샷 62(breach) → 21:11:40 전량 재계산(202행 window_days=120)
+      --   → 22:00 스냅샷 26(ok). 데이터가 좋아진 게 아니라 모집단 창이 바뀐 것이다(R38).
+      --   그래서 착시 개수만 보면 '수리됐다'로 오독된다 — 창 혼재 자체를 시계열로 노출한다.
+      COUNT(DISTINCT window_days)::float AS window_variants_count,
+      COUNT(*) FILTER (WHERE window_days <> 120)::float AS non_model_window_rows,
+      COUNT(*) FILTER (WHERE window_days = 120
+                         AND nonzero_ratio_naive - nonzero_ratio_honest > 0.10)::float
+        AS illusion_at_120d_count
     FROM feature_coverage
   metrics:
     - stock_constant_ratio:
@@ -410,3 +422,12 @@ dq_feature:
     - alive_xsec_count:
         usage: "GAUGE"
         description: "살아있으면서 횡단면 변별력이 있는 피처 수(시장레벨 제외) — 북극성 보정치"
+    - window_variants_count:
+        usage: "GAUGE"
+        description: "feature_coverage 의 서로 다른 window_days 가짓수 — 1 이면 창 정의 일관(정보용, 알림 없음)"
+    - non_model_window_rows:
+        usage: "GAUGE"
+        description: "모델 창(120일)이 아닌 창으로 기록된 피처 행수 — 야간 빌더의 격자 스팬 기록(정보용)"
+    - illusion_at_120d_count:
+        usage: "GAUGE"
+        description: "모델 창(120일) 행만 셀 때의 커버리지 착시 개수 — R38 A안 기준값(정보용)"
