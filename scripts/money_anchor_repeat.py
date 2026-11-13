@@ -47,6 +47,7 @@ def run_sweep(a, anchor: str, preds: str) -> int:
         return 0
     cmd = [sys.executable, "-u", "/app/scripts/wf_label_sweep.py",
            "--panel", a.panel, "--asof-date", anchor, "--folds", str(a.folds),
+           "--limit", str(a.limit),
            "--seeds", str(a.seeds), "--only", a.config,
            "--dump-preds", preds,
            "--out", f"/app/reports/overnight/cg244/run_{anchor}.jsonl",
@@ -129,6 +130,8 @@ def main(argv=None) -> int:
     ap.add_argument("--panel", required=True)
     ap.add_argument("--config", required=True, help="wf_label_sweep 실험명(예 CO_smooth_d1_h5)")
     ap.add_argument("--anchors", required=True, help="YYYY-MM-DD,YYYY-MM-DD,...")
+    ap.add_argument("--limit", type=int, default=200,
+                    help="패널 meta 와 맞출 유니버스 크기(불일치 시 구동기가 측정무효로 판정)")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--k", default="3,5")
