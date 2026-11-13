@@ -789,6 +789,9 @@ PROBES = {
 BACKLOGS = (("engineer", MODEL_BACKLOG), ("researcher", RESEARCH_BACKLOG))
 
 
+CLOSED_HANDOFF_STATUSES = ("done", "closed_rejected", "rejected", "cancelled", "superseded")
+
+
 def handoff_report() -> dict:
     """역할 간 핸드오프 항목의 **채택 여부**를 센다.
 
@@ -796,7 +799,11 @@ def handoff_report() -> dict:
     채워야 실행 가능해진다. 실측(2026-09-28 14:35)에서 리서처→엔지니어 핸드오프 5건이
     전부 command 비어 있는 채로 멈춰 있었다 — 이걸 매 틱 세지 않으면 '조용한 공전'이 된다.
     """
-    out = {"total": 0, "unfilled": 0, "items": []}
+    # `unfilled` = 재현 명령이 없는 전체(과거 지표와 비교 가능하게 raw 유지)
+    # `open_unfilled` = 그중 **아직 열려 있는** 항목. 종결(done/closed_rejected 등)은
+    #   채울 필요가 없는데도 '미채택'으로 세어져 실질 2건이 19건으로 보였다
+    #   (2026-11-12 리뷰보드 지적 → 2026-11-13 수리).
+    out = {"total": 0, "unfilled": 0, "closed": 0, "open_unfilled": 0, "items": []}
     for target, path in BACKLOGS:
         try:
             with open(path, encoding="utf-8") as f:
@@ -814,12 +821,18 @@ def handoff_report() -> dict:
                 except ValueError:
                     pass
             filled = bool(i.get("command"))
+            status = str(i.get("status") or "").strip().lower()
+            closed = status in CLOSED_HANDOFF_STATUSES
             out["total"] += 1
+            if closed:
+                out["closed"] += 1
             if not filled:
                 out["unfilled"] += 1
+                if not closed:
+                    out["open_unfilled"] += 1
             out["items"].append({"target": target, "id": i.get("id"), "status": i.get("status"),
                                  "from": i.get("from_trader") or i.get("from_research"),
-                                 "filled": filled, "age_h": age_h})
+                                 "filled": filled, "closed": closed, "age_h": age_h})
     return out
 
 
@@ -971,9 +984,9 @@ def tick(force=False) -> int:
     # ⑤-2 협업 점검: 핸드오프가 채택되었는가
     ho = handoff_report()
     if ho["total"]:
-        stale = [i for i in ho["items"] if not i["filled"] and (i["age_h"] or 0) >= 24]
-        log("핸드오프: 총 {0}건 중 미채택 {1}건{2}".format(
-            ho["total"], ho["unfilled"],
+        stale = [i for i in ho["items"] if not i["filled"] and not i.get("closed") and (i["age_h"] or 0) >= 24]
+        log("핸드오프: 총 {0}건 · 종결 {1}건 제외 · 실질 미채택 {2}건{3}".format(
+            ho["total"], ho["closed"], ho["open_unfilled"],
             f" (24시간 초과 {len(stale)}건: {', '.join(str(i['id']) for i in stale)})" if stale else ""))
 
     # ⑥ 백로그 항목 1건 실행(있으면) — failed 항목은 12시간 뒤 자동 재시도
@@ -1072,7 +1085,8 @@ def main() -> int:
 
     if a.handoffs:
         ho = handoff_report()
-        print(f"핸드오프 총 {ho['total']}건 · 미채택(재현 명령 없음) {ho['unfilled']}건")
+        print(f"핸드오프 총 {ho['total']}건 · 종결 {ho['closed']}건 제외 · 실질 미채택 {ho['open_unfilled']}건"
+              f" (재현 명령 없는 전체 {ho['unfilled']}건)")
         for i in sorted(ho["items"], key=lambda x: (x["target"], str(x["id"]))):
             print("  [{0:10s}] {1:6s} from={2:18s} status={3:12s} command={4} age={5}h".format(
                 i["target"], str(i["id"]), str(i["from"]), str(i["status"]),
