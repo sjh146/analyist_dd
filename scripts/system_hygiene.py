@@ -30,8 +30,9 @@ import re
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
+from _paths import proj, proj_dir
 
-PROJ = os.environ.get("HYG_PROJ", "/home/jhshi/analyist_dd")
+PROJ = os.environ.get("HYG_PROJ", proj_dir())
 OUTDIR = os.path.join(PROJ, "data/reports/hygiene")
 KST = timezone(timedelta(hours=9))
 

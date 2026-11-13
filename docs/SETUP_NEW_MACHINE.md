@@ -42,12 +42,28 @@ git clone https://github.com/sjh146/analyist_dd.git ~/analyist_dd
 cd ~/analyist_dd
 ```
 
-**⚠ 경로 주의 — 이것이 유일한 함정입니다.**
-`scripts/` 18개, `config/` 4개 파일이 `/home/jhshi/analyist_dd` 를 **문자열로** 갖고 있습니다(운영 머신 기준).
+**⚠ 경로 주의 — `PROJ_DIR` 하나로 해결한다.**
 
-- WSL 사용자명이 `jhshi` 이면 `~/analyist_dd` 가 그 경로와 **정확히 일치** → 바로 동작
-- 다르면: 부트스트랩 2단계가 심볼릭 링크(`/home/jhshi/analyist_dd → 실제 경로`)를 만들려고 시도하고,
-  권한이 없으면 `sudo ln -sfn <실제경로> /home/jhshi/analyist_dd` 를 안내합니다
+호스트 스크립트는 이제 저장소 루트를 **`PROJ_DIR`**(없으면 자기 위치)에서 찾는다
+(`scripts/_paths.py`). 옛 운영 경로 `/home/jhshi/analyist_dd` 가 남아 있는 곳은
+`${PROJ_DIR:-/home/jhshi/analyist_dd}` 형태라 **이 머신에서는 동작이 그대로**이고,
+다른 경로에 클론했다면 한 줄이면 된다:
+
+```bash
+export PROJ_DIR="$HOME/analyist_dd"          # 크론에도 넣으려면 ~/cron/*.sh 상단 참조
+```
+
+남은 하드코딩을 확인·정리하는 도구:
+
+```bash
+python3 scripts/check_hardcoded_paths.py            # 운영/일회성/문서로 나눠 집계(exit 2 = 운영에 남음)
+python3 scripts/migrate_paths.py                    # 무엇이 바뀔지 예행
+python3 scripts/migrate_paths.py --apply --sh       # 파이썬·쉘 변환(문법 검증 후에만 기록)
+```
+
+2026-11-13 기준: 운영 99건/66파일까지 줄였다(시작 169건/111파일). 남은 것은
+`services/`(컨테이너 안 `/app` 전제), `reports/releases/*.json`(과거 산출물 기록),
+f-string 안의 경로다 — 운영 동작에는 영향이 없고, 새 머신에서는 `PROJ_DIR` 로 덮인다.
 
 ## 3. .env 만들기 (필수 단계)
 

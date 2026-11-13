@@ -16,8 +16,9 @@ import argparse
 import json
 import os
 import sys
+from _paths import proj, proj_dir
 
-DEFAULT_LEDGER = "/home/jhshi/analyist_dd/data/reports/model_engineer_ledger.jsonl"
+DEFAULT_LEDGER = proj("data/reports/model_engineer_ledger.jsonl")
 
 
 def u3_done(ledger=DEFAULT_LEDGER, item_id="U3"):

@@ -10,12 +10,12 @@ Hermes cron(no_agent, deliver=discord)이 이 스크립트의 stdout을 그대�
 """
 import sqlite3, json, os, subprocess, datetime, sys
 
-CRON = '/home/jhshi/.hermes/cron'
+CRON = os.environ.get('HERMES_CRON_DIR', os.path.expanduser('~/.hermes/cron'))
 DELIV = os.path.join(CRON, 'deliveries.db')
 EXEC = os.path.join(CRON, 'executions.db')
 JOBS = os.path.join(CRON, 'jobs.json')
-STATE = '/home/jhshi/.hermes/state/alerts_backlog.json'
-CURL = '/mnt/c/Windows/System32/curl.exe'
+STATE = os.environ.get('ALERTS_BACKLOG_STATE', os.path.expanduser('~/.hermes/state/alerts_backlog.json'))
+CURL = os.environ.get('CURL_EXE', '/mnt/c/Windows/System32/curl.exe')
 MAX_LINES = 12
 
 

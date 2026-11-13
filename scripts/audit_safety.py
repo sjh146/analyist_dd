@@ -23,8 +23,9 @@ import os
 import re
 import subprocess
 import sys
+from _paths import proj, proj_dir
 
-REPO = "/home/jhshi/analyist_dd"
+REPO = proj_dir()
 TA = "/mnt/c/Users/jhshi/analyist_dd/trader-agent"
 OUT_DIR = os.path.join(REPO, "reports", "safety")
 CURL = "/mnt/c/Windows/System32/curl.exe"

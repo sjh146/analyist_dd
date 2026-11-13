@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # pair_anchor_repair.sh — 짝 앵커 실측의 **소실 앵커만 재측정 + 전 앵커 재집계** (측정 정합성 수리)
 #
 # 왜 필요한가 (실측 2026-10-09 18:0x, CG146):
@@ -21,7 +22,7 @@
 #
 # rc: 0 = 전 앵커 완비(집계 성공) / 137 = 여전히 소실 앵커 있음(인프라 사고 → 구동기가 pending 재시도)
 set -uo pipefail
-REPO=/home/jhshi/analyist_dd
+REPO=${PROJ_DIR}
 OUTDIR=/app/reports/overnight
 HOSTOUT=$REPO/services/xgboost-ml/reports/overnight
 PFX=${TAGPFX:-cg146}

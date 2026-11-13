@@ -19,8 +19,9 @@ import os
 import sqlite3
 import subprocess
 import sys
+from _paths import proj, proj_dir
 
-REPO = "/home/jhshi/analyist_dd"
+REPO = proj_dir()
 TA = "/mnt/c/Users/jhshi/analyist_dd/trader-agent"
 WIN_CURL = "/mnt/c/Windows/System32/curl.exe"
 FEED = "http://127.0.0.1:8090/health"

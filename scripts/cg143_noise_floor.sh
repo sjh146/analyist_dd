@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # CG143 — 동일 모델·동일 프로토콜의 재현 잡음바닥 (2026-10-09 엔지니어 자율)
 #
 # 왜: 창 앵커가 CURRENT_DATE 라 하루만 지나도 표본 창·유니버스가 통째로 밀린다. 배포 챔피언은
@@ -12,7 +13,7 @@
 #       를 재고 combined JSON(reports/overnight/cg143_noise_floor.json)에 기록한다.
 # 사전등록 판정: 결정성 위반 → 결함(원인 규명) / 잡음 ≥ 0.02 → 사전문턱은 잡음과 구분 불가.
 set -uo pipefail
-REPO=/home/jhshi/analyist_dd
+REPO=${PROJ_DIR}
 OUTDIR=/app/reports/overnight
 HOSTOUT=$REPO/services/xgboost-ml/reports/overnight
 mkdir -p "$HOSTOUT"

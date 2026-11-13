@@ -13,8 +13,9 @@ import glob
 import json
 import os
 import sys
+from _paths import proj, proj_dir
 
-REPO = "/home/jhshi/analyist_dd"
+REPO = proj_dir()
 REL = os.path.join(REPO, "services", "xgboost-ml", "app", "models")
 OUT_DIR = os.path.join(REPO, "reports", "audit")
 CONF_TS = 0.55

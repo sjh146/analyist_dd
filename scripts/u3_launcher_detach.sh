@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # u3_launcher_detach.sh — 대기형 런처를 **새 세션**으로 격리해 띄운다.
 #
 # WHY: 크론 턴이 끝나면 하네스가 그 턴의 자식 프로세스 그룹을 정리할 수 있고, 그러면 대기형
@@ -10,4 +11,4 @@ if [ -z "${U3_DETACHED:-}" ]; then
     export U3_DETACHED=1
     exec setsid --fork bash "$0" "$@"
 fi
-exec bash /home/jhshi/analyist_dd/scripts/u3_launcher.sh
+exec bash ${PROJ_DIR}/scripts/u3_launcher.sh

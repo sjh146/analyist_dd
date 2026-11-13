@@ -1,4 +1,5 @@
 #!/bin/bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # macro_features 백필 대기 런처 — 이미 도는 supply→financial 체인(04:04 기동)이 끝난 뒤
 # macro_features 를 **직렬로** 빌드한다(동시 실행 금지: 4코어·경쟁 구간에서 서로를 죽인다).
 # 2026-10-11 04:1x 엔지니어 자율. 재현: bash scripts/run_cg165_macro_wait.sh
@@ -8,13 +9,13 @@
 #   회피는 대괄호 트릭 하나뿐이라, 아래 bash -c 본문에는 파일명을 **대괄호 형태로만** 쓴다
 #   (주석에도 평문 파일명을 쓰면 다시 자기매칭된다).
 set -u
-cd /home/jhshi/analyist_dd || exit 1
+cd ${PROJ_DIR} || exit 1
 set -a; . ./.env; set +a
 export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434
 TS=$(date +%Y%m%d_%H%M)
 LOG="$PWD/data/reports/cg165_macro_${TS}.log"
 setsid nohup bash -c '
-  cd /home/jhshi/analyist_dd
+  cd ${PROJ_DIR}
   echo "[cg165-macro] wait start $(date -Is)"
   for i in $(seq 1 240); do
     if ! pgrep -f "[b]uild_supply_market_features.py" >/dev/null 2>&1 \

@@ -7,11 +7,14 @@
 """
 import subprocess, json, os, sys, time, datetime
 
-CURL = '/mnt/c/Windows/System32/curl.exe'
-TADIR = '/mnt/c/Users/jhshi/analyist_dd/trader-agent'
-FEED = '/home/jhshi/analyist_dd/data/feed/screener_latest.json'
-HOL = '/home/jhshi/analyist_dd/data/krx_holidays.json'
-OUT = '/home/jhshi/analyist_dd/data/reports/preopen_watch_20261113.jsonl'
+from _paths import proj, proj_dir
+
+CURL = os.environ.get('CURL_EXE', '/mnt/c/Windows/System32/curl.exe')
+TADIR = os.environ.get('TRADER_AGENT_DIR', '/mnt/c/Users/jhshi/analyist_dd/trader-agent')
+WPY = os.environ.get('TRADER_PY64', '/mnt/c/Users/jhshi/Python312-64/python.exe')
+FEED = proj('data/feed/screener_latest.json')
+HOL = proj('data/krx_holidays.json')
+OUT = proj('data/reports/preopen_watch_%s.jsonl' % datetime.date.today().strftime('%Y%m%d'))
 GATES = ['08:20', '08:25', '08:30', '08:35', '08:40', '08:45', '08:50']
 
 

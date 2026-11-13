@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # 재시작 후 전체 상태 검증 (컴퓨터 이동 후 복귀 시 1회 실행).
 #
 # 사용: bash /home/jhshi/analyist_dd/scripts/post_restart_check.sh
 set -uo pipefail
-cd /home/jhshi/analyist_dd || { echo "✗ 프로젝트 경로 없음"; exit 1; }
+cd ${PROJ_DIR} || { echo "✗ 프로젝트 경로 없음"; exit 1; }
 PY=/mnt/c/Users/jhshi/Python312-64/python.exe
 OK=0; WARN=0; FAIL=0
 ok(){ echo "  ✅ $1"; OK=$((OK+1)); }
@@ -18,7 +19,7 @@ echo
 echo "[1] Docker 스택 (기대: 17개 컨테이너)"
 N=$(docker ps -q 2>/dev/null | wc -l)
 if [ "$N" -ge 15 ]; then ok "컨테이너 $N개 실행 중"; else
-  fail "컨테이너 $N개 (부족) → 다음 실행: cd /home/jhshi/analyist_dd && docker compose up -d --no-build"
+  fail "컨테이너 $N개 (부족) → 다음 실행: cd ${PROJ_DIR} && docker compose up -d --no-build"
 fi
 for c in stock_postgres stock_xgboost_ml stock_job_runner stock_strategy_agents; do
   S=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null)

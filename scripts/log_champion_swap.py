@@ -12,9 +12,10 @@ import datetime as dt
 import glob
 import json
 import os
+from _paths import proj, proj_dir
 
-REL = "/home/jhshi/analyist_dd/services/xgboost-ml/app/models"
-OUT = "/home/jhshi/analyist_dd/data/reports/champion_swaps.jsonl"
+REL = proj("services/xgboost-ml/app/models")
+OUT = proj("data/reports/champion_swaps.jsonl")
 
 
 def read_text(p):

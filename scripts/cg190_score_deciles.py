@@ -38,6 +38,7 @@ import pandas as pd  # noqa: E402
 
 import fillable_expectancy as fe          # noqa: E402
 import model_metric_protocol_audit as mpa  # noqa: E402
+from _paths import proj, proj_dir
 
 
 def spearman(xs, ys):
@@ -188,7 +189,7 @@ def main(argv=None) -> int:
 
     candidates = [args.trades,
                   "/app/app/reports/close_gate_probe_trades.csv",
-                  "/home/jhshi/analyist_dd/data/reports/close_gate_probe/trades.csv"]
+                  proj("data/reports/close_gate_probe/trades.csv")]
     trades_path = next((p for p in candidates if p and os.path.exists(p)), None)
     if trades_path is None:
         print(f"[c190] trades 없음 — 시도: {candidates}", flush=True)

@@ -14,8 +14,9 @@ import json
 import os
 import re
 import sys
+from _paths import proj, proj_dir
 
-REPO = "/home/jhshi/analyist_dd"
+REPO = proj_dir()
 OUT_DIR = os.path.join(REPO, "reports", "locks")
 BACKLOGS = ["docs/QUANT_MODEL_BACKLOG.json", "docs/QUANT_RESEARCH_BACKLOG.json",
             "docs/QUANT_TRADER_BACKLOG.json"]

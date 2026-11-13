@@ -31,8 +31,9 @@ import os
 import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from _paths import proj, proj_dir
 
-PROJ = os.environ.get("PROJ_DIR", "/home/jhshi/analyist_dd")
+PROJ = os.environ.get("PROJ_DIR", proj_dir())
 DEFAULT_FILLS_DIR = os.environ.get(
     "TRADER_FILLS_DIR",
     "/mnt/c/Users/jhshi/analyist_dd/trader-agent/data/fills",

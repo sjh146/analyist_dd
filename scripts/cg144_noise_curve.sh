@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # CG144 — 잡음바닥 **스케일링**: 앵커를 1·2·5·7거래일 옮기면 같은(불변) 챔피언의 로버스트 AUC 가
 #         얼마나 흔들리는가 (2026-10-09 엔지니어 자율, CG143 후속)
 #
@@ -10,7 +11,7 @@
 #       집계: cg144_noise_curve.json {auc{}, deltas{} vs d0, max_abs_delta, verdict}
 # 사전등록 판정: 어떤 이동폭에서 |Δ| >= 0.02 → 사전문턱은 '일 단위 판정'에 못 쓴다(프로토콜 재정의 근거).
 set -uo pipefail
-REPO=/home/jhshi/analyist_dd
+REPO=${PROJ_DIR}
 OUTDIR=/app/reports/overnight
 HOSTOUT=$REPO/services/xgboost-ml/reports/overnight
 LOG=$REPO/data/reports/me_cycle/logs/cg144_noise_curve.log

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # u3_market_pause.sh — U3(995일 창 패널 빌드) 장중 보호 정지. 1회성, 평일 장 시작 전(08:05) 호출.
 #
 # 왜 필요한가: U3 는 실측 20.8시간(0.42 pair/s, 32,626 페어) 작업이라 주말 저녁에 시작하면
@@ -16,7 +17,7 @@
 # 사용: bash scripts/u3_market_pause.sh [--dry-run]
 set -uo pipefail
 
-PROJ=/home/jhshi/analyist_dd
+PROJ=${PROJ_DIR}
 CONTAINER=stock_xgboost_ml
 LOGDIR=$PROJ/data/reports/me_cycle/logs
 WSL=/mnt/c/Windows/System32/wsl.exe
@@ -81,7 +82,7 @@ stop_state="정지 확인"
 # ── 4) est_minutes 갱신 (구동기 ETA 가드가 장중 재시작을 막게) ────────────────
 U3_REM=$rem_min /usr/bin/python3 - <<'PYEOF'
 import json, os, re
-p = "/home/jhshi/analyist_dd/docs/QUANT_MODEL_BACKLOG.json"
+p = "${PROJ_DIR}/docs/QUANT_MODEL_BACKLOG.json"
 rem = int(os.environ["U3_REM"])
 b = json.load(open(p, encoding="utf-8"))
 for it in b["items"]:

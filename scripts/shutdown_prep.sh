@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # 컴퓨터 이동 전 정리 (자기매칭 없이 — 브래킷 패턴 사용).
 set -uo pipefail
-cd /home/jhshi/analyist_dd || exit 1
+cd ${PROJ_DIR} || exit 1
 
 echo "=== 1) 실제 실행 중인 작업 (브래킷 패턴으로 자기매칭 회피) ==="
 for pat in 'run_factor_job' 'model_engineer_cycle\.py --run' 'researcher_cycle\.py --run' 'naver_daily_backfill' 'wf_label_sweep' 'ask_claude.sh' 'opencode'; do

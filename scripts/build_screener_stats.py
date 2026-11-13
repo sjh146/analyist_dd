@@ -38,8 +38,9 @@ import sys
 from datetime import datetime
 
 import psycopg2
+from _paths import proj, proj_dir
 
-PROJ = os.environ.get("PROJ_DIR", "/home/jhshi/analyist_dd")
+PROJ = os.environ.get("PROJ_DIR", proj_dir())
 OUT_PATHS = [
     os.path.join(PROJ, "data", "reports", "screener_stats.json"),
     os.path.join(PROJ, "reports", "screener_stats.json"),

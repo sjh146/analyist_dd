@@ -43,6 +43,7 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import model_engineer_cycle as base  # noqa: E402  (공용 가드·원장·락 로직 재사용)
+from _paths import proj, proj_dir
 
 PROJ = base.PROJ
 TR_BACKLOG = os.path.join(PROJ, "docs/QUANT_TRADER_BACKLOG.json")
@@ -346,9 +347,9 @@ def verify_model_handoff() -> dict:
         out["has"]["purge"] = True
     if "dry-run" in blob or "dry_run" in blob or "dryrun" in blob:
         out["has"]["promote_dryrun"] = True
-    for f in ("/home/jhshi/analyist_dd/services/xgboost-ml/app/models/champion/auc.txt",
-              "/home/jhshi/analyist_dd/models/champion/auc.txt",
-              "/home/jhshi/analyist_dd/services/xgboost-ml/models/champion/auc.txt"):
+    for f in (proj("services/xgboost-ml/app/models/champion/auc.txt"),
+              proj("models/champion/auc.txt"),
+              proj("services/xgboost-ml/models/champion/auc.txt")):
         try:
             with open(f, encoding="utf-8") as fh:
                 out["promoted_auc"] = float(fh.read().strip().split()[0])

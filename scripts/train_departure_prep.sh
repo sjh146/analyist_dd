@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # 기차 이동 전 긴급 종료 준비 (30분 제약). 자기매칭 회피를 위해 브래킷 패턴 사용.
 set -uo pipefail
-cd /home/jhshi/analyist_dd || exit 1
+cd ${PROJ_DIR} || exit 1
 
 echo "=== [1] 실행 중 작업 파악 ==="
 INFLIGHT=""

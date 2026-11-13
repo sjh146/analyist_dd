@@ -21,8 +21,9 @@ from __future__ import annotations
 import os
 import re
 import sys
+from _paths import proj, proj_dir
 
-PROJ = "/home/jhshi/analyist_dd"
+PROJ = proj_dir()
 
 # (설명, 크론 래퍼, 실제 수집 러너) — 크론이 직접 돌리는 DB 쓰기 경로만.
 TARGETS = [

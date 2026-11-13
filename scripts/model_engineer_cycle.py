@@ -46,8 +46,9 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from _paths import proj, proj_dir
 
-PROJ = os.environ.get("ME_PROJ", "/home/jhshi/analyist_dd")
+PROJ = os.environ.get("ME_PROJ", proj_dir())
 BACKLOG = os.path.join(PROJ, "docs/QUANT_MODEL_BACKLOG.json")
 LEDGER = os.path.join(PROJ, "data/reports/model_engineer_ledger.jsonl")
 RUNTIME = os.path.join(PROJ, "data/reports/me_cycle")

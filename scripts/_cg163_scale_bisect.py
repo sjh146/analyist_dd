@@ -44,6 +44,20 @@ MODELS = [
 OUT = "/app/app/reports/cg175_scale_bisect.json"
 
 
+def _parse_models(spec: str):
+    """`label=dir;label=dir` → [(label, dir)]. 빈 문자열이면 기본 MODELS."""
+    out = []
+    for part in (spec or "").split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        label, _, d = part.partition("=")
+        if label.strip() and d.strip():
+            out.append((label.strip(), d.strip()))
+    return out or MODELS
+
+
+
 def _stats(vals) -> dict:
     a = np.asarray([v for v in vals if v is not None], dtype=float)
     if a.size == 0:
@@ -65,8 +79,12 @@ def main() -> int:
     ap.add_argument("--max-per-day", type=int, default=30,
                     help="날짜별 표본 상한(발행 confidence 상위 K + 결정적 균등표본 K)")
     ap.add_argument("--out", default=OUT)
+    ap.add_argument("--models", default="",
+                    help="label=dir;label=dir … (미지정 시 기본 champion/cg166). "
+                         "CG177: 발행본을 재현하는 '모델 신원'을 찾기 위해 과거 챔피언 디렉터리를 후보로 넣는다.")
     args = ap.parse_args()
     dates = [d.strip() for d in args.dates.split(",") if d.strip()]
+    model_spec = _parse_models(args.models)
 
     from app.models.ensemble_model import EnsembleModel
     from app.feature_engine.feature_pipeline import FeaturePipeline
@@ -82,7 +100,7 @@ def main() -> int:
 
     # ---- 모델 로드 ---------------------------------------------------------
     models = []
-    for label, d in MODELS:
+    for label, d in model_spec:
         try:
             ens = EnsembleModel(model_dir=d)
             ens.load(d)
@@ -120,6 +138,13 @@ def main() -> int:
     fp = FeaturePipeline(pg_conn=conn)
     pub_all, ret = [], {label: [] for label, _, _ in models}
     pairs = {label: [] for label, _, _ in models}  # (published, re-scored)
+    # 피처 결손 센서스(CG177 후속): 서빙 경로가 173피처 중 몇 개를 결손(→0.0)으로 채우는가.
+    # predictor.py L189 `features.get(f, 0.0)` + L193 `np.nan_to_num(..., nan=0.0)` 는 결손을
+    # 조용히 0 으로 대체한다 — 결손률이 높으면 그 자체가 스코어를 기준선 쪽으로 압축한다.
+    census_names = models[0][2] if models else []
+    absent_cnt = {n: 0 for n in census_names}
+    zero_cnt = {n: 0 for n in census_names}
+    rows_cnt = 0
     fails = 0
     t0 = time.time()
     for i, (date, code, pub_conf) in enumerate(sample_rows, 1):
@@ -129,6 +154,13 @@ def main() -> int:
             fails += 1
             out["errors"].append(f"build_features {date}/{code}: {type(e).__name__}: {e}")
             continue
+        rows_cnt += 1
+        for n in census_names:
+            if n not in feats:
+                absent_cnt[n] += 1
+                zero_cnt[n] += 1
+            elif float(feats.get(n) or 0.0) == 0.0:
+                zero_cnt[n] += 1
         row = {"date": date, "code": code, "published": round(pub_conf, 4)}
         pub_all.append(pub_conf)
         for label, ens, names in models:
@@ -160,31 +192,55 @@ def main() -> int:
                 "rescored_gt_published_pct": round(100.0 * float(np.mean([d > 0 for d in deltas])), 1),
             }
     out["summary"] = summary
+    # ---- 피처 결손 센서스 요약 ----------------------------------------------
+    if rows_cnt and census_names:
+        always_absent = sorted(n for n, c in absent_cnt.items() if c == rows_cnt)
+        always_zero = sorted(n for n, c in zero_cnt.items() if c == rows_cnt)
+        out["feature_census"] = {
+            "n_rows": rows_cnt,
+            "n_features": len(census_names),
+            "always_absent": len(always_absent),
+            "always_zero": len(always_zero),
+            "absent_ratio_pct": round(100.0 * sum(absent_cnt.values())
+                                      / (rows_cnt * len(census_names)), 2),
+            "zero_ratio_pct": round(100.0 * sum(zero_cnt.values())
+                                    / (rows_cnt * len(census_names)), 2),
+            "absent_over_50pct": sorted(
+                (n for n, c in absent_cnt.items() if 2 * c > rows_cnt),
+                key=lambda n: -absent_cnt[n])[:20],
+            "absent_sample": always_absent[:20],
+        }
     out["n_sample_rows"] = len(sample_rows)
     out["n_failures"] = fails
     out["elapsed_s"] = round(time.time() - t0, 1)
 
     # ---- 판정(사전 등록) ---------------------------------------------------
-    champ = summary["rescored"].get("champion", {})
-    champ_delta = summary["paired_delta"].get("champion", {}).get("mean_rescored_minus_published")
+    # CG177 확장: 후보 모델 중 **발행본을 재현하는 신원**이 있는지 본다(단일 champion 고정 판정을
+    # 일반화). 재현 = 짝 Δ평균 |Δ| < 0.02. 재현 모델이 있으면 원인은 '서빙 모델 신원'이고,
+    # 후보 전부 |Δ| ≥ 0.02 면 원인은 후보군 밖(당시 입력 열화)이다.
     pub_s = summary["published_sample"]
-    if champ.get("n", 0) == 0:
-        out["verdict"] = "측정 불가 — 표본 없음"
-    elif champ_delta is None:
+    repro = {}
+    for label, _, _ in models:
+        d_ = summary["paired_delta"].get(label, {}).get("mean_rescored_minus_published")
+        if d_ is not None:
+            repro[label] = d_
+    out["reproduction"] = repro
+    if not repro:
         out["verdict"] = "판정 불가 — 짝 표본 없음"
-    elif abs(champ_delta) < 0.02:
-        out["verdict"] = (
-            f"발행본 재현됨 — 재채점 champion 이 발행본과 일치(짝 Δ평균 {champ_delta:+.4f} < 0.02)."
-            " 눌림은 발행 시점 입력/모델 신원의 성질이며 현재 (모델·피처) 로는 재현되지 않는다"
-            "(단, 스냅샷 부재로 원인 분리 불가).")
     else:
-        # |Δ| ≥ 0.02 — 큰 폭 불일치. 원인이 '모델 신원'인지 '당시 입력(피처) 열화'인지
-        # 이 프로브만으로는 분리할 수 없다(features_used 가 전 행 빈 배열 = 스냅샷 없음, CG164 실측).
-        out["verdict"] = (
-            f"발행본 미재현 — 재채점 champion 이 발행본과 뚜렷이 다르다(짝 Δ평균 {champ_delta:+.4f},"
-            f" |Δ|≥0.02). 후보 원인 = ①서빙 모델 신원(당시 다른 모델) ②당시 입력 피처 열화(원천 정지)."
-            " 이 프로브만으로는 분리 불가(발행 시 features_used 스냅샷 없음)."
-            " 참고: CG165 원천 정지(supply/financial/macro 09-30~10-08)와 시점이 겹친다.")
+        best_label, best_delta = min(repro.items(), key=lambda kv: abs(kv[1]))
+        hits = [lb for lb, dl in repro.items() if abs(dl) < 0.02]
+        if hits:
+            out["verdict"] = (
+                f"발행본 재현 — {', '.join(hits)} 가 발행본과 일치(최근접 {best_label} 짝 Δ평균 "
+                f"{best_delta:+.4f} < 0.02). → 원인 = **서빙 모델 신원**(압축 구간의 서빙 프로세스가"
+                f" 그 모델을 들고 있었다). 후보별 Δ: "
+                + ", ".join(f"{lb} {dl:+.4f}" for lb, dl in repro.items()))
+        else:
+            out["verdict"] = (
+                f"발행본 미재현 — 후보 {len(repro)}종 전부 |Δ| ≥ 0.02(최근접 {best_label} "
+                f"{best_delta:+.4f}). → 원인 = **후보군 밖**(당시 입력 피처 열화 또는 미보존 모델)."
+                f" 후보별 Δ: " + ", ".join(f"{lb} {dl:+.4f}" for lb, dl in repro.items()))
     cg = summary["rescored"].get("cg166", {})
     if cg.get("ge_055_pct") is not None and pub_s.get("ge_055_pct") is not None:
         out["threshold_recovery"] = {
@@ -195,8 +251,10 @@ def main() -> int:
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w") as f:
         json.dump(out, f, ensure_ascii=False, indent=1)
-    print(json.dumps({k: out[k] for k in ("verdict", "summary", "n_sample_rows", "n_failures", "elapsed_s")},
+    print(json.dumps({k: out[k] for k in ("verdict", "feature_census", "n_sample_rows",
+                                          "n_failures", "elapsed_s") if k in out},
                      ensure_ascii=False, indent=1))
+    print("[summary]", json.dumps(out["summary"], ensure_ascii=False))
     print(f"[ok] {args.out}")
     return 0
 

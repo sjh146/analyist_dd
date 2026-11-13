@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # CG220 — h5(5일 보유) 축 **검증**: 5시드 앙상블·8폴드로 재측정하고 체결성 필터를 적용한 비중첩 표본으로 확인.
 #
 # 왜 (2026-11-13 01:5x, CG216~CG219 실측)
@@ -11,7 +12,7 @@
 # 판정(사전 등록): 비중첩 h5 k=5 Δ ≥ +0.5%p & t ≥ 2 & 폴드 부호 6/8 이상 → h5 축을 검증통과로 표시.
 #   미달이면 h5 축도 종결(단일격자 우연). rc≠0/요약 미갱신 = 실행실패.
 set -uo pipefail
-cd /home/jhshi/analyist_dd || exit 1
+cd ${PROJ_DIR} || exit 1
 
 PANEL=/app/app/models/wf/panel_prod200.npz
 PREDS=/app/reports/overnight/cg220_preds.jsonl

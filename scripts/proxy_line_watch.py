@@ -8,8 +8,8 @@ REALERT_MIN 간격으로만 경보. 상태는 ~/.hermes/state/proxy_watch.json.
 """
 import json, os, subprocess, time, datetime, sys
 
-TUNNEL_LOG = '/mnt/c/Users/jhshi/proxy-tun/tunnel.log'
-STATE = '/home/jhshi/.hermes/state/proxy_watch.json'
+TUNNEL_LOG = os.environ.get('TRADER_TUNNEL_LOG', '/mnt/c/Users/jhshi/proxy-tun/tunnel.log')
+STATE = os.environ.get('TRADER_PROXY_STATE', os.path.expanduser('~/.hermes/state/proxy_watch.json'))
 CURL = '/mnt/c/Windows/System32/curl.exe'
 REALERT_MIN = 60
 

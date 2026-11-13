@@ -49,9 +49,10 @@ import shutil
 import subprocess
 import sys
 from collections import Counter, defaultdict
+from _paths import proj, proj_dir
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_LIVE_REPO = "/home/jhshi/analyist_dd"     # 크론(close_path_gap_probe 등)이 쓰는 정본
+DEFAULT_LIVE_REPO = proj_dir()     # 크론(close_path_gap_probe 등)이 쓰는 정본
 DEFAULT_FIXTURE = os.path.join(REPO, "tests", "fixtures", "money_scoreboard")
 WPY = "/mnt/c/Users/jhshi/Python312-64/python.exe"
 WIN_JOURNAL = r"C:\Users\jhshi\analyist_dd\trader-agent\journal\trade_journal.sqlite3"

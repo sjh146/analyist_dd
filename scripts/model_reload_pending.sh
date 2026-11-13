@@ -1,4 +1,5 @@
 #!/bin/sh
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # model_reload_pending.sh — 프로덕션 승격을 **서빙 프로세스에 실제로 반영**하는 지연 재기동.
 #
 # WHY (2026-10-01 22:0x 실측, 이 스크립트를 만든 이유)
@@ -13,7 +14,7 @@
 #  → 구동기 락·컨테이너 학습 프로세스가 **모두 빈 시각**에만, 창(06:00~07:30 KST) 안에서 재기동한다.
 #  창 안에서 조건이 안 되면 재기동하지 않고 로그만 남긴다(다음 사이클/사람이 판단).
 set -u
-PROJ=/home/jhshi/analyist_dd
+PROJ=${PROJ_DIR}
 LOG="$PROJ/data/reports/me_cycle/model_reload_$(date +%Y%m%d).log"
 log() { echo "[$(date '+%F %T')] $*" >> "$LOG"; }
 
@@ -25,7 +26,7 @@ ctr_started_epoch() {
 cycle_busy() {   # 구동기(모델엔지니어/리서처) 락 — 살아있는 pid 일 때만
   /usr/bin/python3 - <<'PY' 2>/dev/null
 import sys
-sys.path.insert(0, "/home/jhshi/analyist_dd/scripts")
+sys.path.insert(0, "${PROJ_DIR}/scripts")
 try:
     import model_engineer_cycle as m
     print("busy" if m.running_pid() else "free")

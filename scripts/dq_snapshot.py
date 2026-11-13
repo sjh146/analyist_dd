@@ -37,9 +37,10 @@ matplotlib.use("Agg")   # 헤드리스 — 디스플레이 없이 PNG 생성
 import matplotlib.dates as mdates   # noqa: E402
 import matplotlib.pyplot as plt     # noqa: E402
 from matplotlib import font_manager  # noqa: E402
+from _paths import proj, proj_dir
 
 PROM = os.environ.get("PROM_URL", "http://127.0.0.1:9090")
-PROJ = os.environ.get("RES_PROJ", "/home/jhshi/analyist_dd")
+PROJ = os.environ.get("RES_PROJ", proj_dir())
 OUTDIR = os.path.join(PROJ, "data/reports/dq_snapshots")
 HISTORY = os.path.join(OUTDIR, "history.jsonl")
 KST = timezone(timedelta(hours=9))

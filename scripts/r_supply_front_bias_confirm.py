@@ -7,11 +7,12 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
-PROJ = os.environ.get("PROJ_DIR", "/home/jhshi/analyist_dd")
+PROJ = os.environ.get("PROJ_DIR", proj_dir())
 os.environ.setdefault("PROJ_DIR", PROJ)
 
 import psycopg2  # noqa: E402
 import kis_supply_backfill as ks  # noqa: E402
+from _paths import proj, proj_dir
 
 conn = psycopg2.connect(host=os.environ.get("POSTGRES_HOST", "127.0.0.1"),
                         port=int(os.environ.get("POSTGRES_PORT", "5434")),

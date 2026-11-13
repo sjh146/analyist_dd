@@ -20,8 +20,9 @@ import os
 import re
 import subprocess
 import sys
+from _paths import proj, proj_dir
 
-REPO = "/home/jhshi/analyist_dd"
+REPO = proj_dir()
 OUT = os.path.join(REPO, "data", "reports", "promote_live_score_gate.json")
 # 승격 초크포인트(app/training/champion_promote.py)가 요구하는 토큰 — 컨테이너와 공유되는 경로.
 # (services/xgboost-ml -> /app 바인드 → 컨테이너에서는 /app/app/models/promote_live_score_gate.json)

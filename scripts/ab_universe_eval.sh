@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # ab_universe_eval.sh — champion_robust_eval 의 **표본 유니버스 축 A/B** (학습동형 vs 유동성).
 #
 # 왜(실측 2026-09-30, rank_universe_check + DB 조회):
@@ -17,7 +18,7 @@
 #
 # 실행: setsid nohup bash scripts/ab_universe_eval.sh >/dev/null 2>&1 & disown
 set -uo pipefail
-cd /home/jhshi/analyist_dd || exit 1
+cd ${PROJ_DIR} || exit 1
 LOG=data/reports/me_cycle/ab_universe_eval.log
 
 echo "[$(date '+%F %T')] 대기: 컨테이너의 선행 진단(rank_universe_check) 종료 대기 — 직렬화" >> "$LOG"

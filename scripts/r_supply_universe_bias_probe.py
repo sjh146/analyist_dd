@@ -6,8 +6,9 @@
 """
 import os
 import psycopg2
+from _paths import proj, proj_dir
 
-PROJ = os.environ.get("PROJ_DIR", "/home/jhshi/analyist_dd")
+PROJ = os.environ.get("PROJ_DIR", proj_dir())
 UNIVERSE = os.path.join(PROJ, "data", "kis", "supply_universe_800.txt")
 
 conn = psycopg2.connect(

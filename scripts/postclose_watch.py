@@ -6,13 +6,15 @@ stdout: 관문별 요약 + 이상 징후.
 """
 import subprocess, json, os, time, datetime, sqlite3
 
-CURL = '/mnt/c/Windows/System32/curl.exe'
-WPY = '/mnt/c/Users/jhshi/Python312-64/python.exe'
-JW = r'C:\Users\jhshi\Temp\jw_dump.py'
-TADIR = '/mnt/c/Users/jhshi/analyist_dd/trader-agent'
-EXEC = '/home/jhshi/.hermes/cron/executions.db'
-JOBS = '/home/jhshi/.hermes/cron/jobs.json'
-OUT = '/home/jhshi/analyist_dd/data/reports/postclose_watch_20261113.jsonl'
+from _paths import proj
+
+CURL = os.environ.get('CURL_EXE', '/mnt/c/Windows/System32/curl.exe')
+WPY = os.environ.get('TRADER_PY64', '/mnt/c/Users/jhshi/Python312-64/python.exe')
+JW = os.environ.get('JW_DUMP', r'C:\Users\jhshi\Temp\jw_dump.py')
+TADIR = os.environ.get('TRADER_AGENT_DIR', '/mnt/c/Users/jhshi/analyist_dd/trader-agent')
+EXEC = os.path.expanduser('~/.hermes/cron/executions.db')
+JOBS = os.path.expanduser('~/.hermes/cron/jobs.json')
+OUT = proj('data/reports/postclose_watch_%s.jsonl' % datetime.date.today().strftime('%Y%m%d'))
 
 WATCH_JOBS = {
     '5773c10b7147': 'quant-trader-postclose(15:10)',

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # U1 대기형 런처 v2 — 부하가 내려가면 U1(150종목 패널 빌드, 약 11시간)을 시작한다.
 #
 # WHY v2 (2026-09-25 21:00 실측): v1 은 90분 뒤 `--start U1 --force` 로 강제 시작했지만 그 시각
@@ -10,11 +11,11 @@
 #   ② 런처 v2: 하루 06:00 까지 5~10분 간격으로 재시도하고, 시작 후 **컨테이너에서 실제로
 #      wf_label_sweep 이 도는지** 확인한다(자기신고 금지). 확인 실패면 계속 재시도한다.
 set -uo pipefail
-cd /home/jhshi/analyist_dd || exit 1
+cd ${PROJ_DIR} || exit 1
 set -a && . ./.env && set +a
-export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd
+export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=${PROJ_DIR}
 
-LOG=/home/jhshi/analyist_dd/data/reports/me_cycle/u1_launcher.log
+LOG=${PROJ_DIR}/data/reports/me_cycle/u1_launcher.log
 mkdir -p "$(dirname "$LOG")"
 say() { echo "[$(date '+%m-%d %T')] $*" >> "$LOG"; }
 

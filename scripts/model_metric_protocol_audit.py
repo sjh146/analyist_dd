@@ -48,6 +48,7 @@ import champion_robust_eval as cre  # noqa: E402
 import fillable_expectancy as fe  # noqa: E402
 from app.feature_engine.feature_pipeline import FeaturePipeline  # noqa: E402
 from app.models.ensemble_model import EnsembleModel  # noqa: E402
+from _paths import proj, proj_dir
 
 CONF = 0.55
 ROUND_TRIP = (fe.FEE_BUY + fe.FEE_SELL + fe.TAX_SELL) * 100.0   # 0.21 %p
@@ -407,7 +408,7 @@ def part_c(models, pipeline, conn, args):
     # 호스트 경로가 없으면 서비스 내부 복사본(`app/reports/...`)을 쓴다. 둘 다 없으면 명확히 알린다.
     candidates = [args.trades,
                   "/app/app/reports/close_gate_probe_trades.csv",
-                  "/home/jhshi/analyist_dd/data/reports/close_gate_probe/trades.csv"]
+                  proj("data/reports/close_gate_probe/trades.csv")]
     trades_path = next((p for p in candidates if p and os.path.exists(p)), None)
     if trades_path is None:
         print(f"[c] trades 없음 — 시도한 경로: {candidates}\n"

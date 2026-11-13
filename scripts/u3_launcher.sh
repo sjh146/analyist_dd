@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # u3_launcher.sh — 995일 창 패널 빌드(U3)를 "재생성 창 이후 · 개장 전" 좁은 틈에 자동 착수시킨다.
 #
 # 왜 런처가 필요한가 (2026-09-28 실측):
@@ -11,9 +12,9 @@
 #     (실측: 고정하면 "체크포인트 재개: processed=15000/32576 (46.0%)").
 #
 # 중지: 이 스크립트의 pid 를 kill (pgrep -f u3_launcher.sh)
-LOG=/home/jhshi/analyist_dd/data/reports/me_cycle/u3_launcher.log
-PANEL=/home/jhshi/analyist_dd/services/xgboost-ml/app/models/wf/panel_995.npz
-cd /home/jhshi/analyist_dd || exit 1
+LOG=${PROJ_DIR}/data/reports/me_cycle/u3_launcher.log
+PANEL=${PROJ_DIR}/services/xgboost-ml/app/models/wf/panel_995.npz
+cd ${PROJ_DIR} || exit 1
 
 echo "[$(date '+%F %T')] u3_launcher 시작 (pid $$) — 창 20:35~21:15, 종료 상한 08:55" >> "$LOG"
 while true; do
@@ -25,7 +26,7 @@ while true; do
   #  wf_wave.build_panel 이 `panel cache 재사용` 으로 즉시 넘어가 재실행 비용은 스윕뿐이므로,
   #  런처는 살아남아 다음 창(20:35~21:15)에 그 스윕을 착수시켜야 한다.
   if [ -f "$PANEL" ]; then
-    u3_done=$(/usr/bin/python3 /home/jhshi/analyist_dd/scripts/u3_done_check.py 2>/dev/null)
+    u3_done=$(/usr/bin/python3 ${PROJ_DIR}/scripts/u3_done_check.py 2>/dev/null)
     if [ "$u3_done" = "1" ]; then
       echo "[$(date '+%F %T')] panel_995.npz 완성 + U3 rc=0 기록 — 런처 종료" >> "$LOG"
       exit 0
@@ -66,7 +67,7 @@ while true; do
     fi
     if pgrep -f "[w]f_label_sweep.py --panel /app/app/models/wf/panel_995" >/dev/null; then
       echo "[$(date '+%F %T')] 이미 빌드가 돌고 있다 — 대기" >> "$LOG"
-    elif [ -f /home/jhshi/analyist_dd/data/reports/me_cycle/running.pid ]; then
+    elif [ -f ${PROJ_DIR}/data/reports/me_cycle/running.pid ]; then
       echo "[$(date '+%F %T')] 사이클 lock 존재 — 대기" >> "$LOG"
     else
       out=$(/usr/bin/python3 scripts/model_engineer_cycle.py --start U3 --force 2>&1)

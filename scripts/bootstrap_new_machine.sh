@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # bootstrap_new_machine.sh — 다른 Windows(WSL) 머신에서 analyist_dd 를 클론한 뒤 1회 실행.
 #
 #   bash scripts/bootstrap_new_machine.sh --check        # 점검만(변경 없음) — 먼저 이걸 돌려라
@@ -43,8 +44,8 @@ command -v git >/dev/null && ok "git" || { bad "git 없음"; FAIL=1; }
 command -v curl >/dev/null && ok "curl" || warn "curl 없음(Prometheus 검증에 필요)"
 
 # ── 2. 경로 호환 ────────────────────────────────────────────────────────────
-step 2/6 "경로 호환 (스크립트·크론이 /home/jhshi/analyist_dd 를 전제로 작성돼 있음)"
-EXPECTED="/home/jhshi/analyist_dd"
+step 2/6 "경로 호환 (스크립트·크론이 ${PROJ_DIR} 를 전제로 작성돼 있음)"
+EXPECTED="${PROJ_DIR}"
 if [ "$PROJ" = "$EXPECTED" ]; then
   ok "경로 일치: $PROJ"
 else

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${PROJ_DIR:=${PROJ_DIR}}"
 # CG145 — 앵커 평균 프로토콜 실측: **짝 Δ(두 arm 을 같은 앵커에서 함께 측정)** 가
 #         레벨(단일 arm 의 앵커별 AUC)보다 안정적인가 (2026-10-09 엔지니어 자율, CG144 후속)
 #
@@ -15,7 +16,7 @@
 #                 부호가 뒤섞이면 → CG139(+0.0290)·CG140(+0.0056) 류 판정 자체가 앵커 산물.
 # ⚠ 이 항목은 판정 **절차**를 바꾸는 실측이다 — 문턱·기준선 변경은 리뷰보드 승인 대상(CG145 본항목).
 set -uo pipefail
-REPO=/home/jhshi/analyist_dd
+REPO=${PROJ_DIR}
 OUTDIR=/app/reports/overnight
 HOSTOUT=$REPO/services/xgboost-ml/reports/overnight
 LOG=$REPO/data/reports/me_cycle/logs/${TAGPFX:-cg145}_pair_anchor.log
