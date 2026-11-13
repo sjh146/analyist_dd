@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # CG143 — 동일 모델·동일 프로토콜의 재현 잡음바닥 (2026-10-09 엔지니어 자율)
 #
 # 왜: 창 앵커가 CURRENT_DATE 라 하루만 지나도 표본 창·유니버스가 통째로 밀린다. 배포 챔피언은

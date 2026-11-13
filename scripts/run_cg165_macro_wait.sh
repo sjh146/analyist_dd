@@ -1,5 +1,5 @@
 #!/bin/bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # macro_features 백필 대기 런처 — 이미 도는 supply→financial 체인(04:04 기동)이 끝난 뒤
 # macro_features 를 **직렬로** 빌드한다(동시 실행 금지: 4코어·경쟁 구간에서 서로를 죽인다).
 # 2026-10-11 04:1x 엔지니어 자율. 재현: bash scripts/run_cg165_macro_wait.sh

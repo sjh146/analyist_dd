@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # u3_market_pause.sh — U3(995일 창 패널 빌드) 장중 보호 정지. 1회성, 평일 장 시작 전(08:05) 호출.
 #
 # 왜 필요한가: U3 는 실측 20.8시간(0.42 pair/s, 32,626 페어) 작업이라 주말 저녁에 시작하면

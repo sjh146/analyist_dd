@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # u3_launcher.sh — 995일 창 패널 빌드(U3)를 "재생성 창 이후 · 개장 전" 좁은 틈에 자동 착수시킨다.
 #
 # 왜 런처가 필요한가 (2026-09-28 실측):

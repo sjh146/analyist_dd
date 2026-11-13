@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # res_cron_tick.sh — 크론이 부르는 얇은 래퍼(리서처 사이클).
 #
 # WHY 이 파일이 필요했나: quant-researcher-monitor 크론 잡이 `res_cron_tick.sh` 를

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # 기차 이동 전 긴급 종료 준비 (30분 제약). 자기매칭 회피를 위해 브래킷 패턴 사용.
 set -uo pipefail
 cd ${PROJ_DIR} || exit 1

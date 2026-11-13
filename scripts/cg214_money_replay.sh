@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # CG214 — 돈 지표 **표본 확대**: 패널 walk-forward 덤프(≈200세션)로 top-k 순기대를 잰다.
 #
 # 왜 (2026-11-13 01:0x 엔지니어 자율 틱, CG213 실측 근거)

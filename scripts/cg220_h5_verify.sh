@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # CG220 — h5(5일 보유) 축 **검증**: 5시드 앙상블·8폴드로 재측정하고 체결성 필터를 적용한 비중첩 표본으로 확인.
 #
 # 왜 (2026-11-13 01:5x, CG216~CG219 실측)

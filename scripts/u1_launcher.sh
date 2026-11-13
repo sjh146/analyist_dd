@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # U1 대기형 런처 v2 — 부하가 내려가면 U1(150종목 패널 빌드, 약 11시간)을 시작한다.
 #
 # WHY v2 (2026-09-25 21:00 실측): v1 은 90분 뒤 `--start U1 --force` 로 강제 시작했지만 그 시각

@@ -1,5 +1,5 @@
 #!/bin/sh
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # model_reload_pending.sh — 프로덕션 승격을 **서빙 프로세스에 실제로 반영**하는 지연 재기동.
 #
 # WHY (2026-10-01 22:0x 실측, 이 스크립트를 만든 이유)

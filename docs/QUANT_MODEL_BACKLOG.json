@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T06:10:21+09:00",
+ "updated_at": "2026-11-13T16:10:03+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -17267,6 +17267,44 @@
    ],
    "created_at": "2026-11-13T06:10:21+09:00",
    "note": "2026-11-13 06:1x 엔지니어 자율 — 모델계열 축 종결(CG238) 후 남은 라벨 정의 축. 생산 라벨 변경은 리뷰보드 사안이며, 이 항목은 실험 A/B 전용이다."
+  },
+  {
+   "status": "needs_setup",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "protocol_pair_anchor",
+   "created_at": "2026-11-13T16:09:30+09:00",
+   "id": "CG241",
+   "priority": 1,
+   "kind": "experiment",
+   "title": "[데이터 축·관측희소] SNS/감성 피처가 '관측일 희소'로 88% 행에서 사라진다 — as-of 전방채움 4종의 가산 효과",
+   "hypothesis": "SNS 3종은 죽은 피처가 아니다(관측된 값 2,368~3,689 유니크). 문제는 관측률 12.18% 이고 결측이 NaN 이라 트리가 88% 행에서 이 열을 쓰지 못한다는 것이다. as-of 종목별 전방채움(경과일 상한 5거래일) + 경과일 지표 4종을 선별 후에 덧붙이면 12.18%→14.03% 로 커버리지가 오르고, 신호가 있던 행이 주변 행으로 확장돼 로버스트 AUC 가 오르는가.",
+   "counterfactual": "CG241_ctl_h5 — 같은 ffill 패널·같은 앵커·같은 시드에서 ffill_* 을 쓰지 않는 arm(정보 동일)",
+   "baseline": "동일 런 대조군(짝 Δ). 참고 절대 레벨: 신선 패널 5폴드 평균 0.508~0.512",
+   "arm": "CG241_ff_h5",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_ffill.npz --arms CG241_ctl_h5,CG241_ff_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg241 --summary-out /app/reports/overnight/anchor_sweep/cg241_ffill_summary.json'",
+   "summary_out": "/app/reports/overnight/anchor_sweep/cg241_ffill_summary.json",
+   "success": "앵커평균 짝 Δ ≥ +0.02 & 전 앵커 부호 양(+) → 관측희소 축 생존(상한 20일·뉴스 이벤트로 후속). 미달 → 'SNS 관측희소는 AUC 레버가 아니다'로 축 종결(근거: 커버리지 Δ+1.9%p 실측 병기).",
+   "expected": "효과 기대 낮음 — 전방채움 커버리지 이득 +1.9%p. 단 관측이 존재하는 최근 2폴드(F4·F5)에서는 40%+ 행이 관측되므로, 프로토콜을 최근 2폴드로 좁히면 검정력이 생긴다(현행 5폴드 평균은 F1·F2 의 0 이 분모를 희석).",
+   "cost": "낮음(2 arm × 3 앵커 × 5폴드 × 5시드 = 150 cell ≈ 6분)",
+   "est_minutes": 8,
+   "ready_script": "scripts/_cg241_ffill_panel.py (자기검정 --test 전부 PASS) + wf_label_sweep.py 의 CG241_* config",
+   "setup_needed": "**실측으로 막힌 지점(2026-11-13 16:0x)**: ffill_* 4종이 두 arm 모두에서 선별 후보/ gate_add 로 통과하지 못했다(gate_add 통과 0/4 · exclude_names 대상 0개). 원인은 '시장레벨 오판'이 아니라 **시계열 커버리지**다 — 실측: sns_sentiment_score 는 패널에서 **2026-05-27~2026-09-30(86일)에만 관측**된다(원천 sns_posts 는 2026-11-13 까지 있음 = 패널 배선 6주 지연). 그래서 폴드별 학습행 관측수가 F1 0/8632 · F2 0/8763 · F3 48/8876 · F4 3886/8982 · F5 3710/9000 이고, F1·F2 는 std=0 이라 std 필터에서 탈락한다. 전방채움(상한 5거래일)은 커버리지를 12.18%→14.03% 밖에 못 올린다(종목별 게시 공백이 5일 초과).\n따라서 선행 조건 2개: ① 패널 SNS 배선 신선도 수리(원천은 살아 있으므로 '집계 경로' 문제 — CG165 신선도 계열) ② 관측이 최근 2폴드에만 있는 피처는 '5폴드 평균' 판정 자체가 무의미하므로, 이 축은 **최근 2폴드 한정 프로토콜**로 재정의해 판정해야 한다(프로토콜 변경 = 리뷰보드 사안). 우회 없이 지금 실행하면 두 arm 이 동일해져 Δ=0 이 나오고, 그 0 을 '신호 없음'으로 읽으면 오독이다.",
+   "depends_on": [
+    "CG73",
+    "CG234"
+   ],
+   "note": "2026-11-13T16:10 엔지니어 자율 — 패널 가산 구현·누수 자기검정(원본 비트동일·독립 재계산 0불일치)·커버리지/폴드별 관측수 실측 완료. 막는 것은 코드가 아니라 ①패널 SNS 6주 배선지연 ②최근 2폴드 한정 판정 프로토콜(둘 다 이 역할 밖/승인 대상). 부수 발견: 원천 sns_posts 는 2026-11-13 까지 정상인데 패널 피처는 2026-09-30 에 멈춰 있다 — 신선도 모니터가 '전 원천 정상'으로 보고하는 사각지대.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T16:10:03+09:00",
+     "rc": 1,
+     "verdict": "실행실패(측정 전) — ffill_* 4종이 사전필터에서 전부 탈락(F1·F2 는 관측 0행 → std=0)",
+     "detail": "로그: 'gate_add 통과 0/4' · 'exclude_names=[ffill_*] 가 아무 컬럼도 제외하지 않았다'. 원인 실측: SNS 관측구간 2026-05-27~2026-09-30(86일)뿐, 폴드1·2 관측 0행.",
+     "log": "services/xgboost-ml/reports/overnight/anchor_sweep/cg241_2026-11-02.log",
+     "elapsed_min": 0.2
+    }
+   ]
   }
  ],
  "updated": "2026-11-13T06:10:21+09:00"

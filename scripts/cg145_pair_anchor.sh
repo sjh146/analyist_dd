@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # CG145 — 앵커 평균 프로토콜 실측: **짝 Δ(두 arm 을 같은 앵커에서 함께 측정)** 가
 #         레벨(단일 arm 의 앵커별 AUC)보다 안정적인가 (2026-10-09 엔지니어 자율, CG144 후속)
 #

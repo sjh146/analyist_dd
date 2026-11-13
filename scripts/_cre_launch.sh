@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # 챔피언 다중창 견고 AUC 실측을 **세션과 분리**해 띄운다.
 # 왜 setsid 인가: Hermes 세션 정리(SIGKILL)가 자식 프로세스를 함께 죽인 실측 전례가 있다
 # (스킬: "런처는 세션과 함께 죽는다 — setsid 로 띄워라"). 70분짜리 측정이라 분리가 필요하다.

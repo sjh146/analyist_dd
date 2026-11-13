@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # 재시작 후 전체 상태 검증 (컴퓨터 이동 후 복귀 시 1회 실행).
 #
 # 사용: bash /home/jhshi/analyist_dd/scripts/post_restart_check.sh

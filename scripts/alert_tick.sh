@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # ~/.hermes/scripts/alert_tick.sh — Prometheus 알림 전달 틱(크론, no_agent).
 #
 # Alertmanager 가 없어 규칙 20개가 평가만 되고 전달되지 않던 문제의 해결(R15).

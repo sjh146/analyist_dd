@@ -1254,6 +1254,26 @@ CONFIGS = [
     {"id": "CG237_lin_all_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "all",
      "core_only": True, "linear": True, "linear_C": 0.1,
      "desc": "CG237 — 선형(C=0.1) + core48 전체 사용(선별 top30 대신) — 피처 수 민감도"},
+    # ── CG241(2026-11-13): SNS/감성 '관측 희소' 축 — as-of 전방채움으로 커버리지를 올리면 신호가 살아나는가
+    # 근거(실측, panel_200liq_fresh 213피처·200종목·279일): SNS 3종은 **죽지 않았고** 관측 커버리지만
+    #   낮다 — sns_sentiment_score/attention/momentum 관측률 각 0.1218(관측된 값은 3~5천 유니크).
+    #   결측 표식은 NaN 이므로 트리는 88% 행에서 이 피처를 못 쓴다.
+    # 선행 구현(자율): scripts/_cg239_ffill_panel.py → panel_200liq_ffill.npz(217열, 가산만).
+    #   as-of 종목별 전방채움 + 경과일 상한 5거래일 + 경과일 지표. 누수 자기검정
+    #   (`--test`: 원본 비트동일·독립 재계산 일치·NaN 규약) 전부 PASS.
+    # ⚠ 사전 관측: 상한 5일 채움으로 커버리지는 0.1218→0.1403(Δ+1.9%p) 만 오른다 —
+    #   종목별 게시 공백이 대부분 5거래일보다 길다는 뜻이다. 따라서 **효과 기대는 낮다**.
+    #   그래도 판정은 감이 아니라 같은 런 짝 Δ 로 남긴다(축 종결 근거를 수치로).
+    # 대조 프로토콜: 같은 패널에서 두 arm 모두 ffill_* 을 **선별 후보에서 제외**하고(exclude_names),
+    #   arm 만 gate_add 로 4종을 선별 후에 덧붙인다 → top30 집합 동일, 차이는 'ffill 4종 사용' 하나.
+    {"id": "CG241_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "exclude_names": ["ffill_*"],
+     "desc": "CG241 대조군 — ffill 패널에서 ffill_* 을 후보에서 제외(원본과 동일 정보)"},
+    {"id": "CG241_ff_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "exclude_names": ["ffill_*"],
+     "gate_add": ["ffill_sns_sentiment_score", "ffill_sns_attention_score",
+                  "ffill_sns_momentum_score", "ffill_sns_stale_days"],
+     "desc": "CG241 처리군 — 같은 선별 + as-of 전방채움 4종(상한 5거래일·경과일 지표) 강제 포함"},
 ]
 
 

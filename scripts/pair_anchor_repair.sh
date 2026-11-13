@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # pair_anchor_repair.sh — 짝 앵커 실측의 **소실 앵커만 재측정 + 전 앵커 재집계** (측정 정합성 수리)
 #
 # 왜 필요한가 (실측 2026-10-09 18:0x, CG146):

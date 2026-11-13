@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # 컴퓨터 이동 전 정리 (자기매칭 없이 — 브래킷 패턴 사용).
 set -uo pipefail
 cd ${PROJ_DIR} || exit 1

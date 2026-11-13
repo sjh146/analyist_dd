@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # bootstrap_new_machine.sh — 다른 Windows(WSL) 머신에서 analyist_dd 를 클론한 뒤 1회 실행.
 #
 #   bash scripts/bootstrap_new_machine.sh --check        # 점검만(변경 없음) — 먼저 이걸 돌려라

@@ -1,5 +1,5 @@
 #!/bin/bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # CG165 백필 런처 — 피처 원천 신선도 복구(배선된 원천의 정지).
 # 2026-10-11 04:0x 엔지니어 자율(장외). 실측: supply_market_features·financial_ratio_features
 # 2026-09-29 정지(6거래일 결손) · macro_features 2026-09-28 정지(7거래일) — 세 빌더 모두

@@ -1,5 +1,5 @@
 #!/bin/bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # 2026-10-06 엔지니어: R14 차단 해소 — exp_panel 캐시(200종목×120일)를 현재 DB 로 재빌드.
 cd ${PROJ_DIR}
 LOG=data/reports/me_cycle/logs/exp_panel_rebuild_20261006.log

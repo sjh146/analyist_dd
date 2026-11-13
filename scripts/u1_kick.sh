@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # ~/.hermes/scripts/u1_kick.sh — U1(150종목 패널 빌드)을 부하가 내려가면 시작시킨다.
 #
 # WHY: 백그라운드 런처가 SIGTERM 으로 죽어 U1 이 시작되지 않았다(실측 2026-09-25 21:0x).

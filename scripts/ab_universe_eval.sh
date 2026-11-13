@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # ab_universe_eval.sh — champion_robust_eval 의 **표본 유니버스 축 A/B** (학습동형 vs 유동성).
 #
 # 왜(실측 2026-09-30, rank_universe_check + DB 조회):

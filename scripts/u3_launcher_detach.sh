@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # u3_launcher_detach.sh — 대기형 런처를 **새 세션**으로 격리해 띄운다.
 #
 # WHY: 크론 턴이 끝나면 하네스가 그 턴의 자식 프로세스 그룹을 정리할 수 있고, 그러면 대기형
