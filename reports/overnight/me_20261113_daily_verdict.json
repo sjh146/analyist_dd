@@ -1,0 +1,160 @@
+{
+ "generated_at": "2026-11-13T22:32:57+09:00",
+ "job": "quant-model-engineer-daily",
+ "role": "engineer",
+ "champion": {
+  "auc_txt": 0.551318,
+  "robust_auc_json": {
+   "robust_auc": 0.5513,
+   "recorded_at": "2026-10-02T02:44:20"
+  }
+ },
+ "candidate_verdict": {
+  "candidate_dir": "app/models/champion_cand",
+  "trained_at": "2026-11-13T12:24:51",
+  "single_split_ensemble_auc": 0.6001,
+  "robust_oos_auc": 0.4811,
+  "robust_folds": [
+   0.481,
+   0.5075,
+   0.4549
+  ],
+  "robust_fold_mean": 0.4811,
+  "robust_fold_std": 0.0215,
+  "expectancy_pct": -0.0669,
+  "expectancy_t": -0.33,
+  "sessions": 113,
+  "trades": 1771,
+  "halves": {
+   "front_pct": -0.3938,
+   "back_pct": 0.2541,
+   "stable": "unstable"
+  },
+  "status_with_objective_flags": "kept_incumbent",
+  "reason": "돈 기준 게이트 거부: 순기대 -0.067%p ≤ 0%p; 분할표본 불안정(앞 -0.3938/뒤 0.2541)",
+  "note": "단일분할 0.6001 은 챔피언 0.5513 대비 +0.0488 이지만 다중폴드 OOS 는 0.4811(<0.5) — 스킬 최우선규칙 ④·판정규칙 ①(단일분할 금지)의 교과서적 사례. 승격하지 않았다."
+ },
+ "friday_walkforward": {
+  "panel": {
+   "/app/app/models/wf/panel_prod200.npz": {
+    "rows": 54800,
+    "codes": 200,
+    "date_range": "2025-08-04~2026-09-23",
+    "leak_gate": "CLEAN"
+   }
+  },
+  "configs": {
+   "LS_quant_q30_h5": {
+    "fold_aucs": [
+     0.5326,
+     0.5543,
+     0.5017,
+     0.5305,
+     0.5317
+    ],
+    "mean": 0.5302,
+    "pstd": 0.0167,
+    "sstd": 0.0187,
+    "delta_vs_base": 0.0,
+    "fold_win_rate": "0/5"
+   },
+   "PO_timevary_h5": {
+    "fold_aucs": [
+     0.5293,
+     0.5459,
+     0.5058,
+     0.5398,
+     0.5317
+    ],
+    "mean": 0.5305,
+    "pstd": 0.0137,
+    "sstd": 0.0153,
+    "delta_vs_base": 0.0003,
+    "fold_win_rate": "2/5"
+   },
+   "PO_const_h5": {
+    "fold_aucs": [
+     0.4895,
+     0.5508,
+     0.485,
+     0.4956,
+     0.478
+    ],
+    "mean": 0.4998,
+    "pstd": 0.0261,
+    "sstd": 0.0292,
+    "delta_vs_base": -0.0304,
+    "fold_win_rate": "0/5"
+   }
+  },
+  "identity_with_previous_run": {
+   "previous": "reports/overnight/wf_fri20261009.jsonl",
+   "fold_values_identical": true,
+   "meaning": "패널·config·시드가 동일해 폴드 AUC 가 소수 6자리까지 비트 동일 — 이번 주 측정은 '재현성 확인'이며 신규 정보는 0이다."
+  },
+  "verdict": "노이즈(모든 arm Δ<+0.02) · 기준선 0.5302 는 19사이클째 불변",
+  "money_note": "이 런은 AUC 프로토콜이며 순기대는 별도(챔피언 순기대 -0.182%p/세션, CG132 이래 불변)"
+ },
+ "leak_gate_repair": {
+  "finding": "panel_leak_gate 의 '종목당유니크 중앙'이 0 대체값을 값으로 세어, 유니버스 절반이 죽은 컬럼을 LEAKY 로 오탐한다. panel_200liq_fresh value_pcr: 비영 44.36%(98/200종목)·비영 종목 안에서는 279행 중 240+ 고유(일별 변동) 인데 판정은 '중앙 1'.",
+  "fix": "--dense-only 옵트인(비영 밀도 ≥50% 컬럼만 판정, 희소는 sparse_columns 로 분리). 기본 OFF = 종전 비트 동일.",
+  "commit": "012e4b3",
+  "tests": {
+   "scripts/_panel_leak_gate_dense_test.py": "5/5 PASS",
+   "scripts/_panel_leak_gate_test.py": "25/25 PASS"
+  },
+  "fleet_rerun_dense_only": {
+   "CLEAN": [
+    "panel_200liq_fresh",
+    "panel_200liq_ffill",
+    "panel_420_asof3",
+    "panel_prod200",
+    "panel_smoke"
+   ],
+   "LEAKY": [
+    "panel_420_asofpatch",
+    "panel_150u",
+    "panel_150d_fresh"
+   ]
+  },
+  "consequence": "승인 전까지 legacy 판정이 권위다 → 200liq 패널 실험은 여전히 금지. 오늘 CG240·CG244·CG245 판정은 이 오탐에 걸린 패널에서 나왔으므로 CG256 승인 후 재판정 대상."
+ },
+ "data_axis_closure": {
+  "sns_ceiling": {
+   "panel_cells": 54497,
+   "source_cells_matched": 7238,
+   "ceiling_pct": 13.28,
+   "current_obs_pct": 12.18,
+   "target_pct": 30.0,
+   "verdict": "도달 불가 — 상한이 원천에 있다"
+  },
+  "source_stats": {
+   "sns_post_features_distinct_dates": 234,
+   "last_days": "2026-11-10 181셀/201종목 · 11-11 201/169 · 11-12 233/188"
+  },
+  "closed_items": {
+   "CG252": "closed_rejected(재빌드 900분 착수 근거 없음)",
+   "CG257": "closed_rejected(컬럼패치 상한 동일)"
+  },
+  "artifact": "scripts/patch_panel_sns.py(검증 리포트 reports/overnight/cg257_sns_patch.json) · 혼합 패널은 삭제",
+  "note": "진단 중 'SNS 가 시장레벨'로 보인 것은 NaN!=0 오독이었다(비영 100% 오산) — 품질계약 ② 재확인."
+ },
+ "dq_metrics": {
+  "dq_feature_stock_constant_ratio": 0.3684,
+  "dq_feature_market_level_count": 25,
+  "dq_feature_coverage_illusion_max": 0.937062,
+  "dq_feature_null_ratio_high_count": 26,
+  "judgement": "신규 누수 신호 0 · 26/0.937 은 SNS·kalman 구조결측(기지 기준선)"
+ },
+ "delegation": {
+  "target": "claude-code review panel_leak_gate dense mode",
+  "result": "실패 — Claude Code 600s 타임아웃(출력 0b) → opencode 폴백 없음(rc=1)",
+  "adopted": false
+ },
+ "sources_freshness": {
+  "sns_post_features": "2026-11-13",
+  "supply_market_features": "2026-11-13",
+  "financial_ratio_features": "2026-11-13",
+  "note": "19:00·20:01 틱이 WARN(2거래일)으로 잡았던 financial_ratio 지연은 22:0x 현재 해소"
+ }
+}
