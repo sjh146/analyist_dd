@@ -25,14 +25,17 @@ PG = ["docker", "exec", DB, "psql", "-U", "stock_user", "-d", "stock_trading", "
 CURL = os.environ.get("CURL_EXE", "/mnt/c/Windows/System32/curl.exe")
 FEED = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                     "data", "feed", "screener_latest.json")
-EXPECT = {
+# 지연 소스(일봉·수급·공매도·프로그램·분봉)는 D-1 기준으로 본다.
+#   KRX OpenAPI 는 D-1/D-2 발행 지연, KIS 수급/공매도는 익일 반영, 분봉은 23:00 적재다.
+#   당일 기준으로 재면 매일 거짓 경보가 난다(2026-11-13 실측으로 확인).
+DELAYED = {
     "market_data": 3000,
     "minute_bars": 1000,
-    "ml_predictions": 3000,
     "supply_market_features": 1000,
     "krx_short_selling": 1,
     "krx_program_trading": 1,
 }
+SAME_DAY = {"ml_predictions": 3000}
 
 
 def psql(sql: str) -> list:
@@ -46,6 +49,25 @@ def psql(sql: str) -> list:
         if line:
             rows.append(line.split("|"))
     return rows
+
+
+def prev_trading_day(day: str) -> str:
+    """주말·휴장일을 건너뛴 직전 거래일."""
+    import datetime as _dt
+
+    holidays = set()
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "data", "krx_holidays.json"), encoding="utf-8") as handle:
+            holidays = {str(x)[:10].replace("-", "") for x in json.load(handle)}
+    except Exception:
+        holidays = set()
+    cursor = _dt.date.fromisoformat(day) - _dt.timedelta(days=1)
+    for _ in range(10):
+        if cursor.weekday() < 5 and cursor.strftime("%Y%m%d") not in holidays:
+            return cursor.isoformat()
+        cursor -= _dt.timedelta(days=1)
+    return ( _dt.date.fromisoformat(day) - _dt.timedelta(days=1)).isoformat()
 
 
 def counts_for(day: str) -> dict:
@@ -96,12 +118,18 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     day = args.date or datetime.datetime.now().strftime("%Y-%m-%d")
+    prev = prev_trading_day(day)
     problems = []
-    got = counts_for(day)
-    for table, minimum in EXPECT.items():
-        n = got.get(table, -1)
+    got_today = counts_for(day)
+    got_prev = counts_for(prev)
+    for table, minimum in SAME_DAY.items():
+        n = got_today.get(table, -1)
         if n < minimum:
             problems.append("{0} {1}행 (기대 ≥ {2}) — {3}".format(table, n, minimum, day))
+    for table, minimum in DELAYED.items():
+        n = got_prev.get(table, -1)
+        if n < minimum:
+            problems.append("{0} {1}행 (기대 ≥ {2}) — 직전 거래일 {3}".format(table, n, minimum, prev))
     news = news_last_24h()
     if news < 100:
         problems.append("news_analysis 최근 24h {0}건 (기대 ≥ 100)".format(news))
@@ -120,8 +148,8 @@ def main(argv=None) -> int:
             print("  - {0}".format(item))
         return 3
     if args.verbose:
-        print("[NIGHTLY OK] {0} · {1} · 컨테이너 {2} · 뉴스24h {3} · 피드 {4}".format(
-            day, got, up, news, feed or "없음"))
+        print("[NIGHTLY OK] {0} 당일 {1} / 직전 거래일 {2} {3} · 컨테이너 {4} · 뉴스24h {5} · 피드 {6}".format(
+            day, got_today, prev, got_prev, up, news, feed or "없음"))
     return 0
 
 
