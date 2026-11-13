@@ -49,6 +49,12 @@ class DerivativesCollector:
                         "volume": int(row.get("거래량", 0) if pd.notna(row.get("거래량", 0)) else 0),
                     })
                 logger.info(f"Collected {len(df)} days of OHLCV for {name}")
+            except KeyError as e:
+                # pykrx 내부가 '지수명' 컬럼을 읽다 죽는다 = 응답이 로그인 실패 페이지(자격증명 문제).
+                logger.warning(
+                    f"Index OHLCV collection failed for {name}: KeyError {e} — "
+                    "pykrx KRX 로그인(KRX_ID/KRX_PW)을 확인하라. 자격증명이 없으면 이 경로는 비활성"
+                )
             except Exception as e:
                 logger.warning(f"Index OHLCV collection failed for {name}: {e}")
 

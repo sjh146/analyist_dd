@@ -28,6 +28,12 @@ class KrxCollectorService:
     def run_daily_collection(self):
         logger.info("Starting daily KRX data collection...")
 
+        from app.collectors import krx_login
+
+        if krx_login.skip_if_unconfigured():
+            logger.info("KRX collection skipped — host runners (krx_offline.sh / KIS) own this data")
+            return
+
         counts = {"investor_trading": 0, "investor_net": 0, "program": 0, "short_selling": 0, "derivatives": 0}
 
         df = self.investor_collector.collect_trading_value()

@@ -40,3 +40,8 @@ CRON_TZ=Asia/Seoul
 # close 경로는 3개월 실측으로 종결(기대값 음수), swing 은 표본 부족으로 판정 보류 →
 # 하루 1회 프로브로 청산 표본을 쌓는다(60~70초/회, 읽기 전용).
 20 18 * * 1-5 root /home/jhshi/cron/swing_path_probe.sh >> /home/dduckbeagy/analyist_dd/reports/cron_swing_probe.log 2>&1
+
+# --- 2026-11-13 추가: 종토방 SNS 수집 (러너는 있었지만 스케줄이 없어 sns_posts 가 0건이었다) ---
+#   실측: 소스(scripts/sns_collect_runner.py)는 정상(1회 실행 1,500건 적재), 스케줄만 부재.
+#   ON CONFLICT DO NOTHING 이라 재실행 안전. 이 호스트는 root 없이 사용자 crontab 으로 돌린다.
+30 17 * * 1-5 /home/jhshi/cron/sns_collect.sh >> /home/jhshi/analyist_dd/reports/cron_sns_collect_wrap.log 2>&1
