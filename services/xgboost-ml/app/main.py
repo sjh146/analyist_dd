@@ -116,6 +116,7 @@ class XGBoostMLService:
         # 배포 추론 유니버스(CG159): 기본 OFF = 종전과 비트 동일. 켜면 ETF/ETN 제외.
         stocks = filter_prediction_universe(self.pg_storage.get_all_stocks())
         predictions = []
+        _existing = None   # 그날 기존 행수(재실행 혼합 가드·신규 0행 감지 공용)
 
         import time as _time
         _t0_f = _time.time()
@@ -177,6 +178,23 @@ class XGBoostMLService:
             )
         else:
             logger.info("ml_predictions 저장: %s/%s 성공", saved, len(predictions))
+
+        # 조용한 '신규 0행' 감지(2026-11-13): ON CONFLICT DO NOTHING 은 충돌해도 True 를 돌려주므로
+        # 날짜가 하루 밀리면 **전량 흡수 + '성공' 로그**가 된다(실측: 11-13 04:15 KST 실행이 UTC
+        # 날짜 11-12 로 찍혀 4,349행 전량 충돌 → 신규 0행). 저장 후 행수가 늘지 않았으면 경보를 남긴다.
+        if predictions:
+            try:
+                _after = self.pg_storage.count_predictions_for_date(
+                    predictions[0].get("prediction_date")
+                )
+                if _existing is not None and _after is not None and _after <= _existing:
+                    logger.warning(
+                        "ml_predictions 신규 0행 — prediction_date=%s 기존 %s행 → 이번 %s행이 "
+                        "전량 ON CONFLICT 흡수됐다(날짜 계산·재실행 여부 확인)",
+                        predictions[0].get("prediction_date"), _existing, len(predictions),
+                    )
+            except Exception as _e:  # 감지 실패가 발행을 막지 않는다
+                logger.debug("신규 0행 감지 생략: %s", _e)
 
         # Publish high-confidence predictions
         top_predictions = sorted(

@@ -77,6 +77,30 @@ _LEGACY_MODEL_VERSION = "v1.0"
 _MODEL_VERSION_CACHE: Optional[str] = None
 
 
+def _today_for_prediction() -> str:
+    """발행 기준일(YYYY-MM-DD). 기본값 = 종전과 동일(컨테이너 로컬 날짜).
+
+    WHY (실측 2026-11-13, 배포 경로 결측의 근본원인):
+      컨테이너 TZ 가 **UTC** 다. 서비스 스케줄러는 `schedule.every().day.at("19:00")` = 19:00 UTC
+      = **04:00 KST** 에 예측을 돌리고, `datetime.now()` 는 아직 UTC 전날이다 → 11-13 04:15 KST
+      실행이 `prediction_date='2026-11-12'` 로 찍혀 그날 이미 있는 4,349행과
+      `ON CONFLICT DO NOTHING` 으로 전량 충돌 → **신규 0행**인데 로그는 "저장: 4349/4349 성공".
+      그래서 ml_predictions 는 2026-10-11~11-08 전무, 11-11·11-13 도 0행으로 남아
+      배포 모델의 전방 표본(스킬: 유일한 실거래 증거)이 사라졌다.
+    `PREDICTION_DATE_TZ`(예: `Asia/Seoul`)를 설정하면 거래일 기준으로 찍는다.
+    기본은 미설정 = 종전 동작 그대로이므로 이 함수 자체는 발행 계약을 바꾸지 않는다
+    (켜는 것은 발행 날짜 의미 변경 → 리뷰보드 승인 대상).
+    """
+    tz = (os.environ.get("PREDICTION_DATE_TZ") or "").strip()
+    if tz:
+        try:
+            from zoneinfo import ZoneInfo
+            return datetime.now(ZoneInfo(tz)).strftime("%Y-%m-%d")
+        except Exception as e:  # noqa: BLE001 — 잘못된 TZ 로 예측이 죽으면 안 된다
+            logger.warning("PREDICTION_DATE_TZ=%s 적용 실패(로컬 날짜로 폴백): %s", tz, e)
+    return datetime.now().strftime("%Y-%m-%d")
+
+
 def _resolve_model_version(models_dir: Optional[str] = None) -> str:
     """배포 모델 식별자. 프로세스당 1회 계산해 캐시한다(모델 재로드 시 프로세스가 다시 뜬다).
 
@@ -180,7 +204,7 @@ class Predictor:
     def predict(self, stock_code: str, date: str = None) -> Optional[Dict]:
         """Predict direction for a single stock."""
         if date is None:
-            date = datetime.now().strftime("%Y-%m-%d")
+            date = _today_for_prediction()
 
         try:
             features = self.feature_pipeline.build_features(stock_code, date)

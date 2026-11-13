@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T18:27:16+09:00",
+ "updated_at": "2026-11-13T19:26:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -11,6 +11,31 @@
   "needs_setup 항목은 명령이 준비되기 전 실행하지 않는다(구동기가 건너뛴다)."
  ],
  "items": [
+  {
+   "id": "CG247",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "data_contract",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "source_freshness",
+   "title": "[배포 경로] ml_predictions 가 7주간 20일치만 — 컨테이너 UTC 날짜 + ON CONFLICT 흡수로 '저장 성공'이 신규 0행",
+   "hypothesis": "배포 모델의 전방 표본이 안 쌓이는 것은 데이터 부족이 아니라 발행 날짜 결함이다. 서비스 스케줄러는 schedule.every().day.at('19:00')(컨테이너 로컬=UTC) = 04:00 KST 에 예측을 돌리고 predictor.predict() 는 datetime.now()(UTC) 로 날짜를 찍는다 → 04:00 KST 실행은 전날 날짜로 기록돼 그날 이미 있는 행과 ON CONFLICT DO NOTHING 으로 전량 충돌한다. save_prediction 은 충돌해도 True 를 반환하므로 로그는 '4349/4349 성공'이다.",
+   "evidence": "2026-11-13 19:2x 엔지니어 자율 실측(읽기 전용 + 컨테이너 로그). ① DB: prediction_date 별 count → 2026-09-22~10-10 15일 연속(v1.0) · 11-09 4,349 · 11-10 4,349 · 11-12 4,349 (champ-20261002T024420-0.5513), 10-11~11-08 · 11-11 · 11-13 = 0행, distinct 날짜 20개. ② 로그(docker logs -t): 2026-11-12T19:01Z 'ML Service started. Predictions daily at 19:00' → 19:15Z 'rerun_no_add 기존 4349행 ≥ 이번 4349행' → 19:15Z 'ml_predictions 저장: 4349/4349 성공' — 그런데 created_at >= 2026-11-13 신규 행 0, prediction_date='2026-11-13' 0행. 19:15Z = 11-13 04:15 KST 이므로 UTC 날짜는 11-12 → 전량 충돌. ③ 코드: app/inference/predictor.py predict() 기본 date = datetime.now()(TZ 무지정) · app/storage/postgres_storage.py save_prediction 은 ON CONFLICT DO NOTHING 후 True 반환. ④ 영향: forward_scorecard 표본이 배포 챔피언 5일/2세션뿐(CG246) → 배포 모델의 실거래 성과를 판정할 수 없다.",
+   "counterfactual": "현행(UTC 날짜·기본 OFF) — 날짜 결함이 계속되어 매일 신규 0행",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && PREDICTION_DATE_TZ=Asia/Seoul python -u -c \"from app.inference.predictor import _today_for_prediction as f; print(f())\"'",
+   "arm": "PREDICTION_DATE_TZ=Asia/Seoul (거래일 기준 날짜)",
+   "baseline": "현행 UTC 날짜",
+   "success": "3거래일 연속 prediction_date=당일(KST) 로 ml_predictions 신규 ≥4,000행 · '신규 0행' 경보 0회 · forward_scorecard 표본이 세션 3개 이상 증가",
+   "expected": "날짜만 고치면 매일 4,349행이 쌓인다(이미 15일 연속 쌓였던 실적이 있다). 모델 AUC 변화는 없다 — 표본 복구가 목적이다.",
+   "cost": "코드 2곳 패치 완료(기본 OFF) + docker-compose env 1줄 + 재기동 1회(약 4분, 예측 재실행 포함)",
+   "est_minutes": 6,
+   "created_at": "2026-11-13T19:26:00+09:00",
+   "needs_approval": "env 활성화 = 발행 날짜 의미 변경(UTC 날짜 → KST 거래일) → 리뷰보드/사용자 승인 대상. 코드는 기본 OFF 로 커밋되어 현행 동작 불변.",
+   "ready_patch": "services/xgboost-ml/app/inference/predictor.py _today_for_prediction() + services/xgboost-ml/app/main.py '신규 0행' 경보 (2026-11-13 커밋)",
+   "setup_needed": "승인 후: docker-compose.yml 의 stock_xgboost_ml environment 에 PREDICTION_DATE_TZ: Asia/Seoul 추가 → docker compose up -d stock_xgboost_ml → 당일 예측 재실행 확인 → 다음 날 04:00 KST 자동 실행에서 prediction_date=당일 · 신규 4,349행 확인",
+   "verify_cmd": "docker exec stock_postgres psql -U stock_user -d stock_trading -c \"select prediction_date,count(*),max(created_at) from ml_predictions group by 1 order by 1 desc limit 3\""
+  },
   {
    "id": "CG207",
    "title": "[돈 경로·발행계약] 절대문턱 0.55 를 통과하는 후보의 절반 이상이 상수블록(ETF/ETN) — 그 행들은 가격 커버리지조차 없다",
@@ -17402,7 +17427,7 @@
   },
   {
    "id": "CG243",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 1,
    "kind": "data_contract",
    "owner": "engineer",
@@ -17420,7 +17445,14 @@
    "setup_needed": "**이 역할 밖(수집기 소유)**: ① services/krx-collector(또는 SNS 수집 러너 `scripts/sns_collect_runner.py`)의 수집 실패 원인 규명·복구 — 10월 전량 0건은 '스케줄은 도는데 0건'인지 '스케줄이 없음'인지 먼저 구분해야 한다 (cron grep 결과 `sns_features_writer.py` 를 부르는 잡은 어디에도 없다 = 파생 단계 스케줄 부재 확정). ② `sns_features_writer`(파생 집계) 일일 크론 배선 — XR26/CG179 와 같은 '크론 승인' 계열. ③ (엔지니어 완료) 신선도 게이트에 VOLUME 검사를 추가해 재발을 감지한다(자체검증: 붕괴 소스만 플래그).",
    "created_at": "2026-11-13T17:52:00+09:00",
    "note": "2026-11-13 17:5x 엔지니어 자율(장외 틱). CG241('SNS 관측 희소')의 **원인 정정** — 커버리지 12%의 뿌리는 피처 변환이 아니라 수집 중단이다. ⚠ 이 항목은 성능 실험이 아니라 데이터 계약 항목이다(축 재시험 아님). 남은 레버가 데이터 축뿐인 상황에서 가장 값싼 해소 경로다.",
-   "attempts": []
+   "attempts": [
+    {
+     "at": "2026-11-13T19:00:57+09:00",
+     "recovered": true
+    }
+   ],
+   "outcome": "기준 market_data=2026-11-13(lag 0) · 지연 원천 3/8 financial_ratio_features:2, macro_features:2, event_features:2 · 최악 financial_ratio_features 2거래일",
+   "finished_at": "2026-11-13T19:00:57+09:00"
   },
   {
    "id": "CG244",
@@ -17506,7 +17538,7 @@
   },
   {
    "id": "CG246",
-   "status": "backlog",
+   "status": "done",
    "priority": 2,
    "kind": "measurement",
    "owner": "engineer",
@@ -17516,17 +17548,20 @@
    "title": "[돈 지표·배포 실체] 배포 챔피언의 실제 서빙 예측으로 top-k − 풀평균을 잰다(재학습 아님)",
    "hypothesis": "CG244/CG245 는 스윕 arm 을 재학습해 잰 값이다. 승격 판정에 필요한 것은 **지금 서빙 중인 챔피언이 실제로 낸 예측**의 선택 엔진 성능이다. prediction 테이블의 일별 상위 k 를 그날 풀평균과 짝지으면, 스윕 하네스와 서빙 경로의 괴리(피처 스큐 CG164 등)를 제거한 최종 수치가 나온다.",
    "counterfactual": "같은 날짜 풀평균(체결성 필터 통과 동일가중) − 수수료 0.21%p",
-   "command": "(설계 필요) prediction 테이블 → fillable_topk_expectancy 입력 스키마(exp,fold,date,code,y_pred)로 덤프하는 스크립트 작성 후 CG244 프로토콜 재사용",
-   "arm": "배포 챔피언 top-k",
-   "baseline": "풀평균(무작위 k 기대)",
-   "success": "Δ>0 세션비율 ≥55% & t ≥ 2 → 배포 모델에 선택 엔진 존재. 미달이면 '챔피언 교체'가 아니라 '전략 자체(선택 vs 풀+타이밍)'를 리뷰보드 안건으로 올린다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/dump_serving_preds.py --out-dir /app/reports/overnight/cg246 --seed 42' && docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg246/svc_champ-20261002T024420-0.5513.jsonl --arm-tag svc_champ-20261002T024420-0.5513 --control-jsonl /app/reports/overnight/cg246/svc_champ-20261002T024420-0.5513_random.jsonl --control-tag svc_champ-20261002T024420-0.5513_rand --k 3,5,10 --exit next_open --horizon 1 --json-out /app/reports/overnight/cg246/cg246_champ_money.json'",
+   "arm": "배포 서빙 top-k(ml_predictions confidence)",
+   "baseline": "같은 세션 풀평균(무작위 k 기대·수수료 왕복 0.21%p) + 난수점수 대조군",
+   "success": "Δ(top-k − 풀평균) ≥ +0.10%p & t ≥ 2 & 분할 both_positive & 세션 ≥ 20",
    "expected": "라이브 순기대 -0.182%p(t -0.81, 87세션)와 같은 방향(미달)일 것으로 본다.",
    "cost": "중간(덤프 스크립트 작성 + 측정)",
    "est_minutes": 40,
-   "note": "2026-11-13 18:4x 엔지니어 자율 등록. CG244 가 '스윕 arm 은 풀 미달'을 보였으므로 다음 질문은 '서빙 예측도 같은가'다. 스크립트 작성 전까지는 착수하지 않는다(backlog).",
+   "note": "2026-11-13 18:4x 엔지니어 자율 등록. CG244 가 '스윕 arm 은 풀 미달'을 보였으므로 다음 질문은 '서빙 예측도 같은가'다. 스크립트 작성 전까지는 착수하지 않는다(backlog). | 2026-11-13 19:2x 엔지니어 자율 — 입력 덤프기 scripts/dump_serving_preds.py 신설(ml_predictions → fillable_topk_expectancy 스키마 + 난수 대조군). 재학습 아님(서빙 산출물 그대로).",
    "created_at": "2026-11-13T18:42:00+09:00",
-   "attempts": []
+   "attempts": [],
+   "summary_out": "/app/reports/overnight/cg246/cg246_champ_money.json",
+   "result": "노이즈(표본 미달) — 배포 서빙 예측에는 돈 방향 정보가 없다. ① 배포 챔피언(champ-20261002T024420-0.5513): 5일(10-09·10-10·11-09·11-10·11-12) 21,733행뿐, 가격·청산 결합 후 체결가능 2세션 → k=3 Δ+1.107(t 0.48) k=5 +0.528(t 0.34) k=10 −0.164, 판정불가. ② v1.0(15일·63,436행): 9세션, k=3 Δ−0.115(t −0.91) k=5 −0.063(t −0.37) k=10 +0.322(t 0.99) → 사전문턱 전부 미달. ③ 부수 실측: ml_predictions 는 20일치만 존재(09-22~10-10 연속 → 11-09·11-10·11-12), 10-11~11-08·11-11·11-13 은 0행 — 배포 경로 전방 표본이 애초에 쌓이지 않는다(원인은 CG247).",
+   "finished_at": "2026-11-13T19:25:00+09:00"
   }
  ],
- "updated": "2026-11-13T18:42:00+09:00"
+ "updated": "2026-11-13T19:26:00+09:00"
 }
