@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T16:10:03+09:00",
+ "updated_at": "2026-11-13T17:29:43+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -17242,7 +17242,7 @@
   },
   {
    "id": "CG240",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 1,
    "kind": "experiment",
    "owner": "engineer",
@@ -17251,22 +17251,68 @@
    "from_experiment": "CG238",
    "title": "[라벨 축·돈 정합] 라벨을 '당일 횡단면 평균 대비 초과수익'으로 바꾸면 로버스트 AUC·돈 지표가 움직이는가",
    "hypothesis": "지금까지 라벨은 전부 '선행 h일 수익률 상위 q' 절대수익 분위수다. 그런데 돈 지표(체결 가능 순기대)는 그날 살 수 있었던 풀의 평균 대비 초과를 재고, CG103 실측에서 arm 이 세션 풀평균을 못 넘었다(k3 Δ+0.462%p t 0.81 · k5 Δ-0.006). 학습 목표가 절대수익이면 '그날 시장이 다 오른 것'을 종목 신호로 배우게 된다 — 라벨을 당일 횡단면 평균 대비 초과수익(동일가중 demean)으로 바꾸면 학습 목표와 평가 목표가 같은 축이 된다. 조정 축(변환·HP·선별·모델계열)은 모두 +0.011~+0.016 에서 문턱 미달로 닫혔다 — 라벨 정의는 아직 절대수익 축만 봤다.",
-   "counterfactual": "CO_smooth_d1_h5 — 같은 패널·같은 폴드·같은 시드·같은 HP, 라벨만 절대수익 분위 q0.30",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CO_smooth_d1_h5,CG240_ex_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg240 --summary-out /app/reports/overnight/anchor_sweep/cg240_excess_summary.json'",
+   "counterfactual": "CO_smooth_d1_h5 — 같은 패널·같은 폴드·같은 시드·같은 HP(depth1·lr0.05), 라벨만 절대수익 smooth 분위(q0.30)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/wf_anchor_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --arms CO_smooth_d1_h5,CG240_ex_h5 --asofs 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --tag cg240 --summary-out /app/reports/overnight/anchor_sweep/cg240_excess_summary.json'",
    "summary_out": "/app/reports/overnight/anchor_sweep/cg240_excess_summary.json",
    "arm": "CG240_ex_h5",
-   "baseline": "CO_smooth_d1_h5 (같은 패널·같은 앵커, 절대수익 q0.30 라벨)",
-   "success": "앵커평균 Δ ≥ +0.02 & 전 앵커 양(+) → 라벨 축 신호(다음은 돈 지표로 체결성 평가). |Δ| < 앵커 std → 라벨 정의 무관(축 종결). rc≠0 → 실행실패(노이즈로 쓰지 않는다).",
+   "baseline": "CO_smooth_d1_h5 (같은 패널·앵커·시드, 절대수익 smooth 분위 라벨)",
+   "success": "앵커평균 짝 Δ ≥ +0.02 & 전 앵커 부호 양(+) → 라벨 축 신호. |Δ| < 앵커 std → '데이터·조정 축이 아니라 라벨 정의도 레버가 아니다'로 축 종결. rc≠0·요약 미갱신 → 실행실패(노이즈로 쓰지 않는다).",
    "expected": "초과수익 라벨은 시장 베타를 빼므로 폴드 간 분산이 줄고, AUC 는 +0.01 안팎 오를 것으로 본다(문턱 미달 가능성 높음).",
-   "cost": "낮음(2arm × 3앵커 × 5폴드 × 5시드 = 150 cell, 실측 유사 규모 1~4분) + setup 선행",
+   "cost": "낮음(2 arm × 3 앵커 × 5폴드 × 5시드 = 150 cell, 실측 유사 규모 5~8분)",
    "ready_script": "scripts/wf_anchor_sweep.py",
-   "setup_needed": "wf_label_sweep.py 에 실험 전용 라벨 모드 `label_mode=\"excess\"` 를 추가한다: 같은 거래일·같은 유니버스 안에서 선행 h일 수익률을 동일가중 평균으로 demean 한 뒤 q 분위(기본 0.30)로 라벨링. arm id `CG240_ex_h5` 등록(horizon 5 · q 0.30 · select top30 · smooth). 기본값은 절대수익(현행) 유지 — 생산 라벨 규칙 불변. 검증: ① 같은 패널에서 demean 라벨의 날짜별 평균이 0±1e-12 ② 절대 라벨과 상관 보고 ③ 기존 arm 결과 재현(회귀 무변경).",
-   "est_minutes": 15,
+   "setup_needed": "**해소(2026-11-13 17:1x, 엔지니어 자율)** — 구현·자기검정 16/16 PASS: `scripts/wf_wave.py::make_labels` 에 excess/excess_smooth/excess_thresh/excess_smooth_thresh 4종 추가(기본 경로 무변경: quantile·smooth·relative·voladj·abs_thresh 실패널 3종 + 합성 5종 비트 동일 확인) + `scripts/wf_label_sweep.py` CG240_ex_h5 config. **설계 정정(실측)**: 'demean + 분위' 는 no-op 이다 — 날짜별 상수 이동은 날짜 내 순서를 보존하므로 excess_smooth 라벨이 smooth 라벨과 **비트 동일**(합성 140행·실패널 32,166행 동일). 그래서 arm 은 분위 대신 '당일 풀평균 초과(>=0)' 절대문턱을 쓴다 — 같은 스무딩 위에서 라벨 규칙 하나만 바꾼다. 실측: 양성률 0.4168 · 유효 53,497/54,497행(대조 smooth 32,166행) · 날짜별 양성률 std 0.0553(min 0.2359~max 0.5650 = 국면 의존).",
+   "est_minutes": 8,
    "depends_on": [
     "CG238"
    ],
    "created_at": "2026-11-13T06:10:21+09:00",
-   "note": "2026-11-13 06:1x 엔지니어 자율 — 모델계열 축 종결(CG238) 후 남은 라벨 정의 축. 생산 라벨 변경은 리뷰보드 사안이며, 이 항목은 실험 A/B 전용이다."
+   "note": "2026-11-13 06:1x 엔지니어 자율 — 모델계열 축 종결(CG238) 후 남은 라벨 정의 축. 생산 라벨 변경은 리뷰보드 사안이며, 이 항목은 실험 A/B 전용이다. | **2026-11-13 17:1x~17:29 종결(엔지니어 자율)** — 라벨 축 닫음. ① 구현·자기검정 16/16 PASS(`scripts/_cg240_label_excess_test.py`: 기존 kind 5종 합성·실패널 비트동일, NaN 규약, 마지막날 전부 NaN). ② 설계 교훈: 'demean + 분위'는 **no-op**(날짜별 상수 이동 = 순서 보존 → excess_smooth 라벨 == smooth 라벨, 실패널 32,166행 비트동일) → arm 은 '당일 풀평균 초과(>=0)' 절대문턱으로 전환. ③ AUC 실측(panel_200liq_fresh·5폴드×5시드·앵커 3): 앵커별 짝 Δ +0.0049/+0.0069/+0.0098 = **평균 +0.0072±0.0020, 부호일관 3/3, 폴드승률 11/15, 문턱통과 0/3 → 노이즈**(+0.02 미달). ④ 돈 실측(CG242, 체결성 필터·수수료 0.21%p·225세션): k=3 Δ−0.530%p(t −1.0) · k=5 Δ−0.681 · k=10 Δ−0.803, arm 세 k 모두 **널(풀평균 +0.501%p) 미달** → '초과 라벨은 AUC 소폭이나 돈은 음(−)' = 축 종결. ⑤ 부수: 라벨 행도메인이 53,497 vs 대조 32,166(양성률 0.4168 vs 0.30)로 넓어졌는데도 돈이 안 늘었다.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T17:16:04+09:00",
+     "rc": 0,
+     "verdict": "노이즈(앵커평균 Δ +0.0072 < +0.02; |Δ| vs 앵커 std 0.0020)",
+     "detail": "앵커 3개 짝 Δ 2026-10-20:+0.0098 2026-10-27:+0.0069 2026-11-02:+0.0049 · 평균 +0.0072±0.002 · 문턱통과 0/3 (['2026-11-02:x', '2026-10-27:x', '2026-10-20:x']) · 부호일관 True · 레벨 std {'ctl': 0.0012, 'arm': 0.0015} · 계측기 검정(모델 팔 아님) — 무개선 카운터 무관",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG240_20261113-170453.log",
+     "elapsed_min": 11.2
+    }
+   ],
+   "result": {
+    "verdict": "축 종결 — AUC 급내 +0.0072(문턱 +0.02 미달) · 돈 지표는 세 k 모두 대조·널보다 낮음",
+    "auc": {
+     "anchors": {
+      "2026-11-02": 0.0049,
+      "2026-10-27": 0.0069,
+      "2026-10-20": 0.0098
+     },
+     "mean": 0.0072,
+     "std": 0.002,
+     "sign_consistent": true,
+     "fold_win": "11/15"
+    },
+    "money": {
+     "protocol": "fillable close_h h5 · fee 0.21%p · 225세션 · 풀중앙값 193",
+     "k3": {
+      "arm": 0.3046,
+      "ctl": 0.8344,
+      "delta": -0.5298,
+      "t": -1.0
+     },
+     "k5": {
+      "arm": 0.0993,
+      "ctl": 0.7806,
+      "delta": -0.6812,
+      "t": -1.36
+     },
+     "k10": {
+      "arm": 0.3984,
+      "ctl": 1.2017,
+      "delta": -0.8033,
+      "t": -1.9
+     },
+     "null_pool": 0.501
+    }
+   }
   },
   {
    "status": "needs_setup",
@@ -17305,6 +17351,54 @@
      "elapsed_min": 0.2
     }
    ]
+  },
+  {
+   "id": "CG242",
+   "status": "done",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "title": "[돈 지표·라벨 축] CG240 초과수익 라벨 arm 의 체결성 순기대 — AUC +0.0072 가 돈이 되는가",
+   "metric": "fillable_topk_expectancy",
+   "arm": "CG240_ex_h5",
+   "baseline": "CO_smooth_d1_h5 (같은 런·같은 앵커·같은 시드, 절대수익 smooth 분위 라벨)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1500 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_fresh.npz --limit 200 --asof-date 2026-11-02 --folds 5 --seeds 5 --only CO_smooth_d1_h5,CG240_ex_h5 --out /app/reports/overnight/cg240_money_run.jsonl --dump-preds /app/reports/overnight/cg240_preds.jsonl && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg240_preds.jsonl --arm-tag CG240_ex_h5 --control-jsonl /app/reports/overnight/cg240_preds.jsonl --control-tag CO_smooth_d1_h5 --k 3,5,10 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg240_money.json'",
+   "summary_out": "/app/reports/overnight/cg240_money.json",
+   "counterfactual": "CO_smooth_d1_h5 — 같은 패널·앵커·폴드·시드, 라벨만 절대수익 분위(q0.30). 체결성 필터(상한가 제외·거래대금 10억·일변동 25%) ON, 수수료 왕복 0.21%p 차감.",
+   "hypothesis": "CG240 실측(2026-11-13 17:16): 초과수익 라벨 arm 이 앵커 3개 전부 양(+) Δ +0.0049/+0.0069/+0.0098 = 평균 +0.0072±0.0020, 폴드승률 11/15 로 사전문턱(+0.02) 미달이지만 **부호일관·앵커std 초과**했다. 라벨을 돈 지표와 같은 초과 축으로 옮긴 것이므로, AUC 문턱 미달이어도 top-k 체결 순기대가 대조군보다 높은지가 최우선 규칙(실험은 돈 지표로 보고)의 판정이다.",
+   "success": "k=3/5/10 중 주 지표(top-k, close_h)에서 arm 순기대 − 대조군 순기대 ≥ +0.1%p & 분할표본 앞/뒤 절반 both_positive & t ≥ 2 → 돈 신호. Δ < +0.1%p 또는 분할 불안정 → '초과 라벨은 AUC 소폭·돈 무개선'으로 축 종결. rc≠0 → 실행실패(노이즈로 쓰지 않는다).",
+   "expected": "효과 기대 낮음 — AUC Δ+0.0072 는 문턱의 36%. 다만 방향이 3/3 일관이므로 돈 지표로 교차확인할 가치가 있다(대조군 top-k 순기대는 과거 실측에서 음수).",
+   "cost": "낮음(2 arm × 5폴드 × 5시드 = 50 cell ≈ 4분 + 체결성 계산 수십 초)",
+   "est_minutes": 8,
+   "from_experiment": "CG240",
+   "created_at": "2026-11-13T17:22:00+09:00",
+   "note": "2026-11-13 17:2x 엔지니어 자율(장외 틱). CG240 은 AUC 계측기(protocol_pair_anchor)라 판정 delta=None 으로 스코어보드 무개선 카운터에 영향이 없다 — 돈 지표가 별도로 필요하다. ⚠ 승격 아님: 배포 판단은 champion_promote --require-expectancy 통과 후 별건. | 2026-11-13 17:2x 1차 실행 rc=0 이었으나 구동기 판정 **측정무효** — 패널 meta(limit 200)와 요청 limit(기본 50) 불일치 경고. 같은 200종목 패널에서 두 arm 이 같은 조건으로 돌아 짝 비교 자체는 성립하나, 규칙상 측정무효를 그대로 남기지 않는다: `--limit 200` 을 붙여 재실행해 유효 판정을 받는다. 참고(1차 수치, fillable close_h h5 · 225세션): k=3 arm +0.3046%p vs 대조 +0.8344%p (짝 Δ -0.5298, t -1.0) · k=5 +0.0993 vs +0.7806 (Δ -0.6812) · k=10 +0.3984 vs +1.2017 (Δ -0.8033) · 널(풀평균) +0.501%p — arm 이 세 k 모두 널·대조보다 낮다. | 2026-11-13 17:29 2차 실행(`--limit 200`) rc=0 → **노이즈(돈)** 유효 판정: k=3 arm +0.305%p/세션 vs 대조 +0.834 (Δ −0.530, t −1.0, 양세션 52.0%, 분할 unstable [+3.201/−2.566]) · k=5 +0.099 vs +0.781 (Δ −0.681, t −1.36) · k=10 +0.398 vs +1.202 (Δ −0.803, t −1.9) · 널 풀평균 +0.501%p. 필터 OFF 참고: k=3 +0.234%p (Δ −0.423). → 사전문턱(Δ≥+0.1%p·t≥2·분할 both_positive) 미충족 + 부호 음(−) 이므로 '라벨 초과 축'은 종결.",
+   "attempts": [
+    {
+     "ts": "2026-11-13T17:21:28+09:00",
+     "rc": 0,
+     "verdict": "측정무효",
+     "detail": "패널 스냅샷 불일치로 요청 조건의 측정이 아니다 — 2026-11-13T08:17:17+00:00 ⚠ panel meta 불일치(스냅샷이 다름) — 이 npz 는 지금 요청과 다른 조건으로 만들어졌다: limit: meta=200 request=50 → 재빌드하거나 요청을 맞춰라(조용한 스냅샷 불일치 방지) | 원판정 arm CG240_ex_h5 vs 대조군 CO_smooth_d1_h5 · exit close_h h5 · 수수료 왕복 0.21%p · 세션 225 · 풀 중앙값 193 · k=3 arm +0.305%p/세션 · 대조",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG242_20261113-171714.log",
+     "elapsed_min": 4.2
+    },
+    {
+     "ts": "2026-11-13T17:29:43+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm CG240_ex_h5 vs 대조군 CO_smooth_d1_h5 · exit close_h h5 · 수수료 왕복 0.21%p · 세션 225 · 풀 중앙값 193 · k=3 arm +0.305%p/세션 · 대조 +0.834 · Δ-0.530(t -1.0) · 양세션 52.0% · 분할 unstable [+3.201/-2.566] ✗ · k=5 arm +0.099%p/세션 · 대조 +0.781 · Δ-0.681(t -1.36) · 양세션 54.2% · 분할 unstable [+2.994/-2.769] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.234%p · Δ-0.423 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG242_20261113-172217.log",
+     "elapsed_min": 7.4
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm CG240_ex_h5 vs 대조군 CO_smooth_d1_h5 · exit close_h h5 · 수수료 왕복 0.21%p · 세션 225 · 풀 중앙값 193 · k=3 arm +0.305%p/세션 · 대조 +0.834 · Δ-0.530(t -1.0) · 양세션 52.0% · 분할 unstable [+3.201/-2.566] ✗ · k=5 arm +0.099%p/세션 · 대조 +0.781 · Δ-0.681(t -1.36) · 양세션 54.2% · 분할 unstable [+2.994/-2.769] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.234%p · Δ-0.423 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+    "delta": -0.5298,
+    "per_exp": null,
+    "rc": 0
+   }
   }
  ],
  "updated": "2026-11-13T06:10:21+09:00"

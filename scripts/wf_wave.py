@@ -435,7 +435,8 @@ def _build_panel_locked(cache, limit, days, log=print, end_date=None, universe="
 
 
 def make_labels(df, kind, horizon, q, thresh=None):
-    """라벨 생성. kind: quantile(기본) / relative(시장상대) / smooth / voladj / voladj_smooth / abs_thresh.
+    """라벨 생성. kind: quantile(기본) / relative(시장상대) / smooth / voladj / voladj_smooth / abs_thresh
+    / excess / excess_smooth.
 
     ⚠ 시점정합: 모든 변형은 **앞만** 본다(선행수익 shift(-k), 후행변동성 rolling).
     smooth     = 선행 1~h일 수익률의 평균 — 5일 보유와 정합, 라벨 잡음 축소.
@@ -443,9 +444,12 @@ def make_labels(df, kind, horizon, q, thresh=None):
     abs_thresh = **절대** 임계 라벨 — 선행 h일 수익률 >= thresh(예 +0.02) 를 1, 그 밖을 0.
                  분위(quantile)와 달리 중간 분위를 버리지 않아 행 도메인이 넓고,
                  양성률이 시장 국면에 따라 변한다(돈 지표와 같은 절대 단위 — CG107).
+    excess/excess_smooth = 같은 거래일 **동일가중 평균 대비 초과** 선행수익(CG240, 실험 A/B 전용).
+                 학습 목표를 돈 지표(그날 체결가능 풀평균 대비 초과)와 같은 축으로 맞출 때 쓴다.
+                 현재 생산 라벨은 절대수익 분위(quantile/smooth)이며 이 값이 기본 경로를 바꾸지 않는다.
     """
     price = df.groupby("stock_code", sort=False)["price"]
-    if kind in ("smooth", "voladj_smooth"):
+    if kind in ("smooth", "voladj_smooth", "excess_smooth", "excess_smooth_thresh"):
         acc = None
         for k in range(1, horizon + 1):
             r = price.transform(lambda s, _k=k: s.shift(-_k) / s - 1.0)
@@ -459,6 +463,25 @@ def make_labels(df, kind, horizon, q, thresh=None):
         # 변동성 0/결측 → 라벨 결측(보수적: 추정 불가 구간은 학습에서 제외된다).
         ret = ret / vol.replace(0.0, np.nan)
     day = df["date"]
+    if kind in ("excess", "excess_smooth", "excess_thresh", "excess_smooth_thresh"):
+        # CG240(2026-11-13): 당일 횡단면 **동일가중 평균을 빼서** 초과수익 라벨을 만든다.
+        # 왜: 지금까지 라벨은 전부 절대수익 분위인데, 돈 지표(체결가능 순기대)는 그날 살 수
+        # 있었던 풀의 평균 대비 초과를 잰다 → 학습 목표가 '시장이 다 오른 날'을 종목 신호로
+        # 배우게 된다(CG103 실측: arm 이 세션 풀평균을 못 넘었다). 라벨만 demean 하고
+        # 패널·폴드·시드·HP 는 대조군과 동일하게 둔다. NaN 은 demean 후에도 NaN(그날 평균에서 제외).
+        # ⚠ 주의(실측 정리): demean 은 **날짜별 상수 이동**이므로 그 위에 분위(quantile) 라벨을
+        #   씌우면 순서가 보존돼 절대수익 분위 라벨과 **비트 동일**해진다(축이 아니라 no-op).
+        #   그래서 실제 실험 arm 은 절대 초과 문턱(excess_thresh)을 쓴다 — 그건 분위와 달리
+        #   '그날 평균을 넘었는가'를 직접 재므로 행 도메인도 양성률도 달라진다.
+        ret = ret - ret.groupby(day).transform("mean")
+    if kind in ("excess_thresh", "excess_smooth_thresh"):
+        # 초과수익 절대문턱 라벨(CG240): demean 된 선행수익 >= thresh(보통 0.0 = '그날 풀평균을 이겼다').
+        # excess_smooth_thresh 는 대조군(smooth 라벨)과 **같은 스무딩** 위에서 분위 대신 초과문턱만 바꾼다
+        # → 두 arm 의 차이가 라벨 규칙 하나로 고정된다(스무딩 교란 없음).
+        if thresh is None:
+            raise RuntimeError("excess_thresh 라벨에는 thresh 가 필요하다(예 0.0 = 당일 평균 초과)")
+        r = np.asarray(ret, dtype=float)
+        return np.where(np.isnan(r), np.nan, np.where(r >= float(thresh), 1.0, 0.0))
     if kind == "abs_thresh":
         # 절대 임계 라벨(CG107): 중간 분위를 버리지 않는다 → 행 도메인 = 수익률이 계산된 전 행.
         # 미지원 kind 는 조용히 quantile 로 떨어지지 않도록 여기서 명시적으로만 처리한다.
