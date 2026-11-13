@@ -884,6 +884,16 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
             return _container_path_to_host(out.strip("'\""))
         log("경고: topk_precision 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
+    if kind == "money_anchor_repeat":
+        # 돈 지표 앵커 반복성 — scripts/money_anchor_repeat.py --json-out (CG244).
+        # 왜 전용 metric 인가(2026-11-13): CG242 는 앵커 1개에서 top-k +0.834%p 를 '양(+)'으로
+        # 보고했으나 같은 세션 풀평균이 +1.404%p 였다 — 단일 앵커 돈 지표는 베타와 구분되지 않는다.
+        # 이 계측기는 앵커 N개에서 Δ(top-k − 풀평균)의 부호 반복만 본다.
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        log("경고: money_anchor_repeat 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
     if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool"):
         # 돈 지표(체결성·수수료 반영 top-k 순기대) — scripts/fillable_topk_expectancy.py --json-out.
         # `fillable_topk_vs_pool` 은 같은 --json-out 을 읽되 판정만 '모델 top-k vs 널(풀 평균)' 로
@@ -1576,6 +1586,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_topk_precision(spath, mtime_floor)
     if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_topk_spread"):
         return parse_fillable_topk_expectancy(spath, mtime_floor)
+    if kind == "money_anchor_repeat":
+        return parse_money_anchor_repeat(spath, mtime_floor)
     if kind == "rank_ic_money":
         return parse_rank_ic_money(spath, mtime_floor)
     if kind == "factor_money_screen":
@@ -2233,6 +2245,89 @@ def parse_fillable_topk_expectancy(path, mtime_floor) -> dict:
         # CG213(fillable_topk_spread) 전용 필드 — 없으면 판정기가 분위 단조성을 못 본다.
         "row_tag": d.get("row_tag"), "quintile5": d.get("quintile5"),
     }
+
+
+def parse_money_anchor_repeat(path, mtime_floor) -> dict:
+    """scripts/money_anchor_repeat.py --json-out 요약(앵커별 Δ(top-k − 풀평균)).
+
+    스키마: {config, panel, anchors[], folds, seeds, exit, horizon, ks[], fee_roundtrip_pct,
+             per_anchor: {anchor: {n_sessions, pool{mean,t,pos_pct}, k: {k: {arm, delta_vs_pool,
+                        halves}}, bottom_k, pool_ex_bottom}}, errors{}, aggregate{}, verdict}
+    앵커가 2개 미만이면 '실행실패'로 닫는다(조용한 판정불가 금지 — CG245 실측).
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패: {e}", "summary_mtime": mt}
+    per = {a: v for a, v in (d.get("per_anchor") or {}).items() if isinstance(v, dict) and v.get("k")}
+    if len(per) < 2:
+        return {"error": f"성공 앵커 {len(per)}개 < 2 — 앵커 반복성 판정 불가(errors={d.get('errors')})",
+                "summary_mtime": mt}
+    ks = sorted({k for v in per.values() for k in v["k"]}, key=lambda x: int(x))
+    return {
+        "metric_name": "money_anchor_repeat", "config": d.get("config"), "panel": d.get("panel"),
+        "anchors": list(per), "ks": ks, "folds": d.get("folds"), "seeds": d.get("seeds"),
+        "exit": d.get("exit"), "horizon": d.get("horizon"),
+        "fee_roundtrip_pct": d.get("fee_roundtrip_pct"),
+        "aggregate": d.get("aggregate"), "verdict_text": d.get("verdict"),
+        "per_anchor": {a: {"n_sessions": v.get("n_sessions"), "pool": v.get("pool"),
+                           "k": {k: {"arm_mean": b.get("arm", {}).get("mean"),
+                                     "delta": b.get("delta_vs_pool", {}).get("delta_mean"),
+                                     "t": b.get("delta_vs_pool", {}).get("t"),
+                                     "halves": b.get("halves")}
+                                 for k, b in (v.get("k") or {}).items()}}
+                       for a, v in per.items()},
+        "errors": d.get("errors"), "summary_mtime": mt, "verdict": "판정대기",
+    }
+
+
+def judge_money_anchor_repeat(item, parsed) -> tuple:
+    """앵커 반복성 판정 — 사전 등록(CG244): k=3 **과** k=5 둘 다
+
+      (a) Δ(top-k − 풀평균) > 0 인 앵커 ≥ 2  (b) 앵커평균 Δ ≥ +0.10%p
+      (c) 앵커별 t 중앙 ≥ 1.5
+    를 만족하면 '신호있음'(= 벡터 베타를 넘는 선택 엔진). 아니면 '노이즈'.
+    '노이즈' 의 의미가 중요하다: 단일 앵커에서 양(+)이던 돈 지표는 반복되지 않으며,
+    그 수치를 승격 근거로 쓰면 안 된다는 뜻이다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    agg = parsed.get("aggregate") or {}
+    if not agg:
+        return "판정불가", "aggregate 없음(집계 실패)", None
+    parts, ok_all, first = [], True, None
+    for k in (parsed.get("ks") or ["3"]):
+        if k not in ("3", "5"):
+            continue
+        g = agg.get(k) or {}
+        pos, n = g.get("positive_anchors"), g.get("n_anchor")
+        dm, mt_ = g.get("delta_mean"), g.get("median_t")
+        if not all(isinstance(x, (int, float)) for x in (pos, n, dm, mt_)):
+            return "판정불가", f"k={k} 집계 결측({g})", None
+        good = (pos >= 2 and dm >= 0.1 and mt_ >= 1.5)
+        ok_all = ok_all and good
+        if first is None:
+            first = dm
+        by = g.get("delta_by_anchor") or {}
+        parts.append(f"k={k} Δ평균 {dm:+.3f}%p · 양(+)앵커 {pos}/{n} · t중앙 {mt_:+.2f} · "
+                     f"앵커별 {json.dumps(by, ensure_ascii=False)}" + ("" if good else " ✗"))
+    detail = (f"config {parsed.get('config')} vs 풀평균(무작위 k 기대, 수수료 왕복 "
+              f"{parsed.get('fee_roundtrip_pct')}%p) · 폴드 {parsed.get('folds')}×시드 "
+              f"{parsed.get('seeds')} · 앵커 {len(parsed.get('anchors') or [])}개 · "
+              + " · ".join(parts)
+              + " · 사전문턱: 양(+)앵커 ≥2 & Δ평균 ≥+0.10%p & t중앙 ≥1.5")
+    if ok_all:
+        return "신호있음", detail + " → 선택 엣지가 앵커를 넘어 반복된다(승격 아님 — 별도 절차)", first
+    return "노이즈", detail + " → 사전등록 미충족(단일 앵커 돈 지표는 승격 근거로 쓰지 않는다)", first
 
 
 def judge_fillable_topk_expectancy(item, parsed) -> tuple:
@@ -3847,6 +3942,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_fillable_topk_vs_pool(item, parsed)
     if kind == "fillable_topk_spread":
         return judge_fillable_topk_spread(item, parsed)
+    if kind == "money_anchor_repeat":
+        return judge_money_anchor_repeat(item, parsed)
     if kind == "rank_ic_money":
         return judge_rank_ic_money(item, parsed)
     if kind == "factor_money_screen":

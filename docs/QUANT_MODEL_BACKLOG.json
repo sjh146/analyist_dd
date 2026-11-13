@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T17:29:43+09:00",
+ "updated_at": "2026-11-13T18:13:52+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -17212,7 +17212,7 @@
    }
   },
   {
-   "status": "backlog",
+   "status": "closed_rejected",
    "owner": "engineer",
    "affects_model": true,
    "metric": "protocol_pair_anchor",
@@ -17421,7 +17421,96 @@
    "created_at": "2026-11-13T17:52:00+09:00",
    "note": "2026-11-13 17:5x 엔지니어 자율(장외 틱). CG241('SNS 관측 희소')의 **원인 정정** — 커버리지 12%의 뿌리는 피처 변환이 아니라 수집 중단이다. ⚠ 이 항목은 성능 실험이 아니라 데이터 계약 항목이다(축 재시험 아님). 남은 레버가 데이터 축뿐인 상황에서 가장 값싼 해소 경로다.",
    "attempts": []
+  },
+  {
+   "id": "CG244",
+   "status": "done",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "fillable_topk_expectancy",
+   "from_experiment": "CG242",
+   "title": "[돈 지표·측정정합] top-k 순기대가 풀평균(무작위 k 기대)을 넘는가 — 앵커 3개 반복 측정",
+   "hypothesis": "CG242 는 CO_smooth_d1_h5 k=3 +0.834%p/세션을 '양(+)'으로 보고했지만 앵커 1개·분할표본 unstable 이었다. 같은 창의 풀평균이 +1.404%p/세션이면 top-k 는 시장 베타를 못 따라간 것이므로, 앵커를 3개로 늘려 Δ(top-k − 풀평균)의 부호가 반복되는지 본다. 부호가 전부 음(-)이면 'AUC 미세 상승'과 무관하게 이 config 의 선택 엔진은 돈이 아니다.",
+   "counterfactual": "세션별 필터 통과 풀의 동일가중 평균 − 수수료 왕복 0.21%p = 무작위 k 바스켓 기대값(널 기준선)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 900 python -u scripts/money_anchor_repeat.py --panel /app/app/models/wf/panel_200liq_fresh.npz --config CO_smooth_d1_h5 --anchors 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --k 3,5 --json-out /app/reports/overnight/cg244_money_anchor.json'",
+   "summary_out": "/app/reports/overnight/cg244_money_anchor.json",
+   "arm": "CO_smooth_d1_h5 top-k (k=3,5)",
+   "baseline": "풀평균(무작위 k 기대) 동일 세션 짝 비교",
+   "success": "Δ>0 인 앵커 ≥2/3 & 앵커평균 Δ ≥ +0.10%p & t중앙 ≥1.5 → 돈 신호 반복. 0/3 이면 선택 엣지 없음(단일 앵커 양(+) 수치는 베타).",
+   "verdict": "선택 엣지 없음 — 전 앵커에서 top-k < 풀평균(k=3 Δ평균 -0.435%p · 양(+)앵커 0/3 · t중앙 -1.0)",
+   "evidence": "실측(2026-11-13 18:0x~18:4x, 5폴드×5시드·체결성 필터 ON·exit close_h h5·수수료 왕복 0.210%p): 풀평균 2026-11-02 +1.404(t 3.05, n225) · 10-27 +1.665(t 3.67, n225) · 10-20 +1.744(t 3.78, n220). top-3 +0.834/+1.438/+1.237 → Δ -0.570/-0.228/-0.507(t -1.03/-0.43/-1.00, 분할 neither/unstable/neither). top-5 +0.781/+1.370/+1.475 → Δ -0.624/-0.295/-0.269(t -1.28/-0.69/-0.65). 반대쪽 검사: 하위3 Δpool -0.745/+0.339/-0.131(부호 뒤집힘) · '하위3 제외 풀' Δ +0.020/-0.009/+0.003(≈0, both_positive 1/3) → 점수는 양쪽 꼬리 어디에도 돈 정보가 없다. 즉 이 config 의 양(+) 순기대는 전부 시장 베타이고 선택 알파는 음(-)이다.",
+   "expected": "top-k 가 풀평균을 넘으면 AUC 축과 별개로 '선택 엔진'이 살아 있다는 뜻. 넘지 못하면 AUC 축 19사이클 무개선의 원인이 측정이 아니라 모델 부재로 확정된다.",
+   "cost": "낮음(학습 3앵커 합계 약 4분 + 돈계산 약 2분)",
+   "est_minutes": 8,
+   "note": "⚠ 창 특이점: 이 앵커들의 5일 풀평균이 +1.4~+1.7%p 로 강세 베타가 매우 크다(라이브 챔피언 -0.182%p/87세션과 창이 다름). 그럼에도 'top-k < 풀' 은 3/3 부호일관이라 결론은 창과 무관하게 유지된다. 도구: scripts/money_anchor_repeat.py(신규, 이 역할 소유) — 앵커별 학습(--dump-preds 재사용)·체결성 필터·풀 널·상하위 꼬리·분할표본을 한 번에 낸다.",
+   "created_at": "2026-11-13T18:20:00+09:00",
+   "attempts": []
+  },
+  {
+   "id": "CG245",
+   "status": "pending",
+   "priority": 2,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "money_anchor_repeat",
+   "from_experiment": "CG244",
+   "title": "[돈 지표·라벨 축] 초과수익 라벨 arm(CG240_ex_h5)도 풀평균을 못 넘는가 — 같은 프로토콜 3앵커",
+   "hypothesis": "CG244 는 절대수익 smooth 라벨 config(CO_smooth_d1_h5)의 top-k 가 3앵커 전부 풀평균 미달임을 보였다. CG240 이 만든 초과수익(demean) 라벨 arm 은 학습 목표가 '그날 평균 대비 초과'라 베타를 빼도록 학습됐으므로, 이 arm 만은 top-k − 풀평균이 양(+)으로 반복될 후보 0순위다. 여기서도 음(-)이면 라벨 정의 축은 AUC(+0.0072)와 돈(미달) 양쪽에서 종결된다.",
+   "counterfactual": "풀평균(같은 세션·같은 필터) — CG244 와 동일 프로토콜·동일 앵커 3개",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 900 python -u scripts/money_anchor_repeat.py --panel /app/app/models/wf/panel_200liq_fresh.npz --config CG240_ex_h5 --anchors 2026-11-02,2026-10-27,2026-10-20 --folds 5 --seeds 5 --k 3,5 --json-out /app/reports/overnight/cg245_money_label.json'",
+   "summary_out": "/app/reports/overnight/cg245_money_label.json",
+   "arm": "CG240_ex_h5 top-k (k=3,5)",
+   "baseline": "풀평균(무작위 k 기대) 동일 세션 짝 비교",
+   "success": "Δ>0 인 앵커 ≥2/3 & 앵커평균 Δ ≥ +0.10%p & t중앙 ≥1.5 → 라벨 축 돈 신호(후속: 게이트에 널 기준선 추가 + 넓은 유니버스 재측정). 0/3 이면 라벨 정의 축 종결.",
+   "expected": "CG240 의 AUC Δ+0.0072 를 감안하면 Δpool 은 -0.4%p 근처로 나올 것으로 본다(문턱 미달 가능성 높음).",
+   "cost": "낮음(3앵커 학습 약 4분 + 돈계산 2분, CG244 실측 기준)",
+   "est_minutes": 8,
+   "note": "2026-11-13 18:4x 엔지니어 자율 — CG244 의 직접 후속. 같은 스크립트·같은 앵커·같은 필터라 '같은 런·같은 프로토콜' 조건을 만족한다(스킬 교훈: 유니버스만 바꾼 비교 금지).",
+   "created_at": "2026-11-13T18:40:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-13T18:13:52+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "conditions.fillable.k 없음(집계 실패)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG245_20261113-181351.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "판정불가",
+    "detail": "conditions.fillable.k 없음(집계 실패)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG246",
+   "status": "backlog",
+   "priority": 2,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "fillable_topk_expectancy",
+   "from_experiment": "CG244",
+   "title": "[돈 지표·배포 실체] 배포 챔피언의 실제 서빙 예측으로 top-k − 풀평균을 잰다(재학습 아님)",
+   "hypothesis": "CG244/CG245 는 스윕 arm 을 재학습해 잰 값이다. 승격 판정에 필요한 것은 **지금 서빙 중인 챔피언이 실제로 낸 예측**의 선택 엔진 성능이다. prediction 테이블의 일별 상위 k 를 그날 풀평균과 짝지으면, 스윕 하네스와 서빙 경로의 괴리(피처 스큐 CG164 등)를 제거한 최종 수치가 나온다.",
+   "counterfactual": "같은 날짜 풀평균(체결성 필터 통과 동일가중) − 수수료 0.21%p",
+   "command": "(설계 필요) prediction 테이블 → fillable_topk_expectancy 입력 스키마(exp,fold,date,code,y_pred)로 덤프하는 스크립트 작성 후 CG244 프로토콜 재사용",
+   "arm": "배포 챔피언 top-k",
+   "baseline": "풀평균(무작위 k 기대)",
+   "success": "Δ>0 세션비율 ≥55% & t ≥ 2 → 배포 모델에 선택 엔진 존재. 미달이면 '챔피언 교체'가 아니라 '전략 자체(선택 vs 풀+타이밍)'를 리뷰보드 안건으로 올린다.",
+   "expected": "라이브 순기대 -0.182%p(t -0.81, 87세션)와 같은 방향(미달)일 것으로 본다.",
+   "cost": "중간(덤프 스크립트 작성 + 측정)",
+   "est_minutes": 40,
+   "note": "2026-11-13 18:4x 엔지니어 자율 등록. CG244 가 '스윕 arm 은 풀 미달'을 보였으므로 다음 질문은 '서빙 예측도 같은가'다. 스크립트 작성 전까지는 착수하지 않는다(backlog).",
+   "created_at": "2026-11-13T18:42:00+09:00",
+   "attempts": []
   }
  ],
- "updated": "2026-11-13T06:10:21+09:00"
+ "updated": "2026-11-13T18:42:00+09:00"
 }
