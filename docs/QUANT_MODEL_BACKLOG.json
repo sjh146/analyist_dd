@@ -18034,18 +18034,18 @@
    "affects_model": true,
    "metric": "wf_fold_auc",
    "from_experiment": "CG255",
-   "title": "[모델·선별] top30 선별이 CG255 의 |t|≥2 시간가변 후보를 버리고 있는가 — 같은 pool 에서 '선별 없음' vs 'top30' 짝 Δ",
+   "title": "[모델·선별] top30(풀링 edge) 선별이 CG255 의 |t|≥2 후보를 버리는가 — 크기 축(전량) vs 기준 축(날짜별 IC30) 짝 Δ",
    "hypothesis": "CG255 스크린 실측(panel_prod200, 213피처): 시간가변 후보 15개가 |IC t|≥2 였지만 top30 은 **AUC edge 순**으로 뽑으므로 event_mna_5d(AUC edge 0.0015, IC t -3.56) 같은 피처가 선별에서 탈락한다. 즉 상위 AUC 피처(=종목상수 재무)가 슬롯을 차지하고 IC 신호는 버려진다. 같은 pool(시간가변)·같은 시장레벨 제외에서 '전량'과 'top30'을 같은 런으로 재면 선별 자체의 짝 Δ 가 나온다.",
-   "counterfactual": "MK_timevary_nomkt_h5 (같은 pool·같은 시장레벨 제외, select top30) — 같은 런·같은 폴드·같은 시드",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 6000 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only TV_all_nomkt_h5,MK_timevary_nomkt_h5 --out /app/reports/overnight/cg261_selall.jsonl --summary-out /app/reports/overnight/cg261_selall_summary.json'",
-   "arm": "TV_all_nomkt_h5 (select all · pool timevary · exclude_market_level)",
-   "baseline": "MK_timevary_nomkt_h5 (같은 런)",
-   "success": "5폴드 평균 짝 Δ ≥ +0.02 이고 폴드 승률 ≥ 0.8 이면 신호(선별 크기가 레버). 폴드 평균 +0.02 미만이면 '노이즈'로 그 축 종결 — 피처 수 ~123개 과적합 위험이 크므로 단독 상승은 신호로 쓰지 않는다.",
-   "expected": "전량 arm 이 대조군보다 낮으면 '선별은 이미 최적' → 다음 레버는 선별 기준(AUC edge → IC t, 학습폴드 내 재계산)으로 이동한다. 높으면 선별 크기 자체가 레버.",
-   "cost": "중(2 arm × 5폴드 × 5시드)",
-   "est_minutes": 60,
+   "counterfactual": "MK_timevary_nomkt_h5 (같은 pool·같은 시장레벨 제외, select top30=풀링 edge) — 같은 런·같은 폴드·같은 시드",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 8400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only TV_all_nomkt_h5,IC30_nomkt_h5,MK_timevary_nomkt_h5 --out /app/reports/overnight/cg261_selall.jsonl --summary-out /app/reports/overnight/cg261_selall_summary.json'",
+   "arm": "TV_all_nomkt_h5 (선별 크기 축: select all) · IC30_nomkt_h5 (선별 기준 축: 날짜별 IC top30)",
+   "baseline": "MK_timevary_nomkt_h5 (같은 런, 풀링 edge top30)",
+   "success": "두 arm 각각 5폴드 평균 짝 Δ ≥ +0.02 · 폴드 승률 ≥ 0.8 이면 신호. 축별로 판정한다 — ① 크기 축이 양이면 선별 자체가 손실 ② 기준 축이 양이면 희소·IC 피처 탈락이 병목(CG67·EV1 실측과 정합). 둘 다 +0.02 미만이면 '노이즈'로 두 축 동시 종결. 피처 수 ~123개(TV_all) 과적합 위험 때문에 단독 상승은 신호로 쓰지 않는다.",
+   "expected": "IC30 이 이기면 '선별 기준 교체'가 다음 승격 후보(추론 계약 무변경). TV_all 이 지면 선별은 이미 최적 → 레버는 기준 쪽. 둘 다 지면 조정·선별 축 전체 종결 후 데이터 축(시점정합 신규 피처)으로.",
+   "cost": "중(3 arm × 5폴드 × 5시드)",
+   "est_minutes": 90,
    "created_at": "2026-11-14T00:05:00+09:00",
-   "note": "config 만 추가(TV_all_nomkt_h5) · 학습 로직 무변경 · --dry-run 으로 두 arm 해석 확인 완료. 승격 아님."
+   "note": "config 2개 추가(TV_all_nomkt_h5·IC30_nomkt_h5) · 학습 로직 무변경 · 두 arm dry-run 해석 확인 · 승격 아님."
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"

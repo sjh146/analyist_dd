@@ -156,6 +156,14 @@ CONFIGS = [
     {"id": "TV_all_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "all",
      "pool": "timevary", "exclude_market_level": True,
      "desc": "시간가변 전량(선별 없음) + 시장레벨 제외 — CG255 의 |t|≥2 후보를 버리지 않는 arm"},
+    # 선별 '기준' 축: 같은 pool·같은 크기(30)에서 풀링 edge 대신 **날짜별 횡단면 IC** 로 뽑는다.
+    # 근거(코드 주석 L195~: CG67·EV1 실측): 풀링 edge 는 희소 피처의 |AUC−0.5| 가 0 에 가까워
+    # 후보에서 영구 탈락시킨다 — event_* 17종 진입 0 · disclosure_count_5d 42% 커버리지에도 진입 0.
+    # CG255 스크린이 |t|≥2 로 잡은 후보들이 정확히 그 그룹이므로, 기준 교체가 크기 교체보다
+    # 표적에 가깝다. SL_*/CN_* 는 전부 codes_slice(30종목) arm 이라 전량 패널에서는 미측정.
+    {"id": "IC30_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
+     "pool": "timevary", "exclude_market_level": True,
+     "desc": "시간가변 + 날짜별 IC top30 선별 (풀링 edge top30 대조) + 시장레벨 제외"},
     # ── curated 게이트 대조 (2026-09-26 실측 — 처음엔 내 해석이 틀렸다) ──────────
     # ⚠ 정정: 이 스크립트는 L223~224 에서 **tc.select_curated_features 를 항등함수로
     # 몽키패치**한다 → 프로덕션 트레이너의 CORE_FEATURES(48) 게이트가 여기서는 꺼져 있다.
