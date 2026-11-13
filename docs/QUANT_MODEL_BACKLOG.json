@@ -17707,7 +17707,7 @@
   },
   {
    "id": "CG252",
-   "status": "needs_setup",
+   "status": "closed_rejected",
    "priority": 1,
    "kind": "model",
    "owner": "engineer",
@@ -17725,8 +17725,13 @@
    "expected": "회색지대: SNS 4열 중 kalman_* 2열이 원본과 중복(CG248 실측)이라 실효 신규 열은 sentiment·attention·momentum·post_count 4개뿐 → 기대 Δ 는 +0.005 수준으로 본다(문턱 미달 가능성 높음).",
    "cost": "높음(패널 빌드 12h 분할 + 스윕 3h)",
    "est_minutes": 900,
-   "note": "2026-11-13 23:0x 엔지니어 자율 등록. ⚠ 패널 빌드는 장중 금지·체크포인트 재개 전제. 착수 전 CG248 의 IC(|t| 최대 4.57)가 패널 선별에 실제로 들어가는지가 관건이며, 선별이 종목상수 재무로 채워지는 경향(패널 스크린 126/210 무정보)은 여전하다.",
-   "created_at": "2026-11-13T22:04:34+09:00"
+   "note": "2026-11-13 23:0x 엔지니어 자율 등록. ⚠ 패널 빌드는 장중 금지·체크포인트 재개 전제. 착수 전 CG248 의 IC(|t| 최대 4.57)가 패널 선별에 실제로 들어가는지가 관건이며, 선별이 종목상수 재무로 채워지는 경향(패널 스크린 126/210 무정보)은 여전하다. | 2026-11-13 22:1x 엔지니어 자율 종결: 원천 커버리지 상한 13.28% 실측(패널 격자 54,497 중 7,238) → 재빌드로 30% 달성 불가. 실효 신규 정보도 4계열뿐이라 기대 Δ +0.005 였음을 감안하면 비용 대비 근거 없음.",
+   "created_at": "2026-11-13T22:04:34+09:00",
+   "closed_at": "2026-11-13T22:19:24+09:00",
+   "result": {
+    "verdict": "축 종결 — 원천 커버리지 상한 13.28%",
+    "detail": "SNS 데이터 축은 패널 재빌드로 열리지 않는다 — 상한이 원천에 있다. 실측(2026-11-13 22:1x, sns_post_features 전수): ① 원천은 거래일 234개뿐(2018-10-22~2026-11-13)이고 최근 월별로도 11-10 181세포/201종목·11-11 201/169·11-12 233/188 수준 ② 패널 (종목·일) 격자 54,497셀 중 원천이 덮는 셀은 7,238 = **13.28%**(같은 격자 조인 실측) ③ 현행 패널 SNS 관측률 12.18% (NaN 87.82%) → 조인을 완벽히 고쳐도 **13.28% 가 천장**이다. 따라서 CG252 의 성공 기준 ('관측률 0.12 → 0.30 이상')은 어떤 배선 수리로도 도달 불가 — 15시간 패널 재빌드(est 900분)를 돌릴 근거가 없다. 매매·모델 결론에 영향 없음(비용 0 으로 축 종결)."
+   }
   },
   {
    "id": "CG253",
@@ -17843,6 +17848,77 @@
    "est_minutes": 5,
    "summary_out": "/app/reports/overnight/cg255_liq_screen.json",
    "note": "2026-11-13 22:1x 엔지니어 자율 등록. 선택규칙 축(유동성·관심도)은 CG253 로 종결됐고(CG249~254), 이 항목은 그 신호를 모델 축으로 번역할 수 있는지만 본다 — 규칙 자체의 발행은 트레이더/리뷰보드 영역. panel_prod200 은 2026-10-03 빌드(구간 ~2026-09)라 최근 국면은 못 본다: 목적이 '피처에 정보가 있는가'이므로 구간 노후는 허용하되 판정문에 명시하라."
+  },
+  {
+   "id": "CG256",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "panel_leak_gate_criterion",
+   "title": "[측정정합성·승인] panel_leak_gate 판정 기준 — 희소 컬럼(0 대체 절반)을 누수로 오탐한다(밀도 기반 분리 구현·검증 완료)",
+   "hypothesis": "게이트의 '종목당유니크 중앙'은 0 대체값을 값으로 세기 때문에, 유니버스 절반이 죽은 컬럼이 '고정 스냅샷'처럼 보인다. 밀도(비영 비율)로 후보를 가르면 오탐 없이 진짜 누수만 남는다.",
+   "counterfactual": "legacy 판정(0 포함 유니크) — 기본값 그대로",
+   "command": "docker exec stock_xgboost_ml python /app/scripts/panel_leak_gate.py --dense-only --json-out /app/reports/overnight/cg256_dense_gate.json",
+   "arm": "--dense-only (비영 ≥50% 컬럼만 판정)",
+   "baseline": "legacy 판정",
+   "success": "승인 후 ① 패널 함대 재판정에서 200liq 2종이 CLEAN 으로 복귀 ② asofpatch·150u 는 LEAKY 유지(검출력 불변) ③ 스코어보드 기준선 패널 결정(CG131)이 이 판정과 일치",
+   "expected": "200liq 패널(현행 최신 데이터 축의 유일한 패널)이 되살아난다 — 지금은 legacy LEAKY 때문에 실험 금지 상태다.",
+   "cost": "구현·검증 완료(커밋 012e4b3, 회귀 5/5+25/25). 승인 시 재판정 1분.",
+   "evidence": "2026-11-13 22:1x 엔지니어 자율 실측: ① panel_200liq_fresh value_pcr — 비영 44.36%·비영 종목 98개·그 안에서 279행 중 240+ 고유값(00150: 247/279) = 시간가변 · ② 반면 panel_420_asofpatch value_pbr — 비영 96.00%·종목당유니크 1 = 조밀·고정(진짜 누수) · ③ 0 포함 유니크로는 둘이 구별되지 않는다(둘 다 중앙 1). --dense-only 실측: CLEAN=[200liq_fresh, 200liq_ffill, 420_asof3, prod200, smoke] / LEAKY=[420_asofpatch, 150u, 150d_fresh].",
+   "needs_approval": "게이트 문턱/판정 기준 변경(헌장 §3 리뷰보드 대상). 코드는 기본 OFF 로 커밋되어 현행 판정 불변.",
+   "setup_needed": "승인 시: ① panel_leak_gate.py 기본을 dense_only 로 전환(1줄) ② 함대 재판정 후 CG131(기준선 패널 이관) 판단 근거 갱신 ③ 200liq 패널을 '실험 가능' 목록에 복귀.",
+   "created_at": "2026-11-13T22:16:54+09:00"
+  },
+  {
+   "id": "CG257",
+   "status": "closed_rejected",
+   "priority": 1,
+   "kind": "model",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "anchor_sweep",
+   "from_experiment": "CG252",
+   "title": "[데이터 축·모델] 12시간 패널 재빌드 대신 SNS 컬럼만 as-of 패치해 비교 가능한 패널을 만든다(patch_panel_sns)",
+   "hypothesis": "CG252 는 '패널 전체 재빌드(est 900분)'를 전제로 needs_setup 에 막혀 있다. 그러나 SNS 31열만 갱신하면 되고 원천 sns_post_features 는 (종목·일) 그레인으로 이미 최신(2026-11-13·18,807행·366종목)이므로, 같은 (code,date) 격자에 그대로 덮으면 열 전체를 다시 계산할 필요가 없다. patch_panel_fin_rcept.py 가 재무 16열에 대해 이미 같은 방식을 쓴다.",
+   "counterfactual": "패널 SNS 열이 2026-09-30 스냅샷인 현행 panel_200liq_fresh(관측률 12%)",
+   "command": "",
+   "arm": "SNS 31열 as-of 패치 패널(관측률 30%+)",
+   "baseline": "같은 패널의 미패치 arm",
+   "success": "① 패치 전후 SNS 관측률(비영 행 비율)을 기록: 0.12 → 0.30 이상 ② 같은 폴드·시드로 짝 Δ ≥ +0.02 이면 데이터 축 첫 신호, 미달이면 SNS 축 종결",
+   "expected": "실효 신규 정보는 sentiment·attention·momentum·post_count 4계열뿐(kalman_* 2열은 원본 중복) → 기대 Δ +0.005 수준(문턱 미달 가능성 높음). 그래도 '커버리지 복구가 AUC 를 움직이는가'는 한 번은 재야 한다.",
+   "cost": "패치 20~30분 + 짝 스윕 2h(패널 54,497행 기준 75cell ≈ 2h 실측)",
+   "est_minutes": 180,
+   "note": "2026-11-13 22:1x 엔지니어 자율 등록. CG252(est 900분 패널 재빌드)의 **비용 대체 경로**다. ⚠ as-of 규칙: sns_post_features.trade_date 를 그대로 쓰고 미래일 전방채움 금지(원 파이프라인과 동일 규칙) · 패치 후 build_m | 2026-11-13 22:1x 종결: 상한 13.28% 실측 → 대체 경로 무효. ※ 진단 중 '패널 SNS 가 시장레벨'로 보인 것은 NaN≠0 오독(col != 0 이 NaN 을 True 로 평가)이었다 — 품질계약 ② 재확인.",
+   "created_at": "2026-11-13T22:16:54+09:00",
+   "closed_at": "2026-11-13T22:19:24+09:00",
+   "result": {
+    "verdict": "경로 무효 — 컬럼 패치로는 축을 열 수 없다(상한이 원천)",
+    "detail": "patch_panel_sns.py 구현·실행 완료(검증 리포트 reports/overnight/cg257_sns_patch.json): 격자 적중 7,238/54,497 = 13.28% · SNS 관측률 12.18% → 13.28% · 값 변경 12.1~13.2%. 즉 패치가 정확히 '원천이 덮는 셀'까지만 채우고 나머지 86.7% 는 NaN 으로 남는다 — 이것이 곧 원천 상한이다(CG252 종결 근거와 동일). 패치 산출 패널은 panel_200liq_sns_MIXED_UNUSABLE.npz 로 이름을 바꿔 오용을 막았다(스냅샷 혼합)."
+   }
+  },
+  {
+   "id": "CG258",
+   "status": "done",
+   "priority": 2,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "source_coverage_ceiling",
+   "from_experiment": "CG252",
+   "title": "[데이터 축·한계] 패널 피처의 커버리지 상한은 '원천 (종목·일) 셀 수'로 먼저 계산하라 — 배선 수리로는 못 넘는다",
+   "hypothesis": "'관측률이 낮다'를 배선 결함으로 진단하면 재빌드를 반복한다. 상한(=원천 격자 ∩ 패널 격자 / 패널 격자)을 먼저 재면 5분에 축의 가부가 결정된다.",
+   "counterfactual": "배선 수리 가정(패널 재빌드 15시간)",
+   "command": "docker exec stock_xgboost_ml python /app/scripts/patch_panel_sns.py --in /app/app/models/wf/panel_200liq_fresh.npz --out /tmp/probe.npz --report /app/reports/overnight/cg258_ceiling.json",
+   "arm": "원천 격자 상한 측정",
+   "baseline": "배선 수리 후 기대 커버리지",
+   "success": "원천 상한을 먼저 보고하고, 상한 < 목표면 재빌드를 착수하지 않는다",
+   "expected": "SNS: 상한 13.28% < 목표 30% → 착수 금지(15시간 절약).",
+   "cost": "5분",
+   "evidence": "2026-11-13 22:1x 실측: sns_post_features 거래일 234개 · 패널 격자 적중 7,238/54,497 = 13.28%.",
+   "note": "이 항목이 오늘 CG252(est 900분)를 '비용 0'으로 닫은 근거다. 다른 데이터 축(CG197 인트라데이·CG129 분봉)도 착수 전 같은 상한 계산을 먼저 하라.",
+   "created_at": "2026-11-13T22:19:24+09:00"
   }
  ],
  "updated": "2026-11-13T23:05:00+09:00"
