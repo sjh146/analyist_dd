@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-: "${PROJ_DIR:=${PROJ_DIR}}"
 # postclose_ticks.sh — 장 마감 직후 리서처·엔지니어 장외 틱을 연속 실행한다(평일 15:35).
 #
 # WHY 12/14시가 아니라 15:35인가: 두 역할의 공용 가드가 **장중(09:00~15:30) 시작 금지**다
@@ -11,6 +10,11 @@
 # 순서는 계약대로 리서처(데이터) → 엔지니어(검증). 각 틱은 비블로킹이라 이 스크립트는
 # 수십 초 안에 끝난다(오래 걸리는 실험은 구동기가 nohup 으로 던진다).
 set -uo pipefail
+# PROJ_DIR 미설정 시 저장소 루트를 스크립트 위치에서 유도한다.
+# (2026-11-13 실측 사고: 이 줄이 기본값을 주지 않아 PROJ_DIR 이 빈 채로 `cd` 가 $HOME 으로 가
+#  /home/jhshi/scripts/*.py 를 찾다가 세 역할 틱이 전부 rc=2 로 죽었다 — 조용한 전면 미실행.)
+: "${PROJ_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
 cd ${PROJ_DIR} || exit 1
 
 echo "=== researcher tick ($(date '+%F %T')) ==="
