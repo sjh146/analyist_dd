@@ -18015,7 +18015,7 @@
    "title": "[측정정합성·스코어보드] 무개선 카운터의 기준선(0.5406)을 같은 도구·같은 청정 패널에서 다시 잰다 — 19사이클 미달의 절반이 프로토콜 격차일 수 있다",
    "hypothesis": "스코어보드 기준선 0.5406 은 panel_420_asofpatch(이후 CG85 에서 **누수** 판정) · 구도구에서 나온 값이다. CG166 은 프로토콜 간 격차를 0.0394 로, CG64 는 as-of 수리 패널에서 게이트ON 대조군을 0.5350 으로 쟀다. 즉 '+0.02 미달' 판정의 분모가 현재 배포가능 프로토콜과 같은 척도인지 확인되지 않았다. 같은 런에서 ① 등록 기준선 arm(LS_quant_q30_h5) ② 게이트ON 대조군(CO_core30_h5) ③ 역대 최고 두 arm(TR_rank_h5·CO_rank_smooth_d1_h5)을 나란히 재면 '기준선 자체의 값'과 'arm 델타'를 한 프레임에서 분리할 수 있다.",
    "counterfactual": "같은 패널·같은 폴드·같은 시드에서 기준선 arm 과 후보 arm 을 동시 측정(짝 Δ)",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,CO_core30_h5,TR_rank_h5,CO_rank_smooth_d1_h5 --out /app/reports/overnight/cg260_baseline.jsonl --summary-out /app/reports/overnight/cg260_baseline_summary.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 8400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,CO_core30_h5,TR_rank_h5,CO_rank_smooth_d1_h5 --out /app/reports/overnight/cg260_baseline.jsonl --summary-out /app/reports/overnight/cg260_baseline_summary.json'",
    "arm": "TR_rank_h5 · CO_rank_smooth_d1_h5",
    "baseline": "LS_quant_q30_h5 · CO_core30_h5 (같은 런)",
    "success": "같은 런 기준선 값과 등록 기준선(0.5406)의 격차를 수치로 기록하고, 후보 arm 의 짝 Δ 가 +0.02 를 넘는지 판정. 격차 ≥ 0.02 면 스코어보드 기준선 교체를 리뷰보드 승인 항목으로 올린다(교체 자체는 이 루프에서 하지 않는다).",
@@ -18024,7 +18024,29 @@
    "est_minutes": 90,
    "created_at": "2026-11-13T23:08:01+09:00",
    "note": "⚠ 승격 아님 — 측정이다. 기준선 '값'을 바꾸는 것은 리뷰보드 승인 대상(헌장 §3-B)이므로 이 항목은 실측·기록까지만 한다."
+  },
+  {
+   "id": "CG261",
+   "status": "pending",
+   "priority": 1,
+   "kind": "model",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "wf_fold_auc",
+   "from_experiment": "CG255",
+   "title": "[모델·선별] top30 선별이 CG255 의 |t|≥2 시간가변 후보를 버리고 있는가 — 같은 pool 에서 '선별 없음' vs 'top30' 짝 Δ",
+   "hypothesis": "CG255 스크린 실측(panel_prod200, 213피처): 시간가변 후보 15개가 |IC t|≥2 였지만 top30 은 **AUC edge 순**으로 뽑으므로 event_mna_5d(AUC edge 0.0015, IC t -3.56) 같은 피처가 선별에서 탈락한다. 즉 상위 AUC 피처(=종목상수 재무)가 슬롯을 차지하고 IC 신호는 버려진다. 같은 pool(시간가변)·같은 시장레벨 제외에서 '전량'과 'top30'을 같은 런으로 재면 선별 자체의 짝 Δ 가 나온다.",
+   "counterfactual": "MK_timevary_nomkt_h5 (같은 pool·같은 시장레벨 제외, select top30) — 같은 런·같은 폴드·같은 시드",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 6000 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 5 --only TV_all_nomkt_h5,MK_timevary_nomkt_h5 --out /app/reports/overnight/cg261_selall.jsonl --summary-out /app/reports/overnight/cg261_selall_summary.json'",
+   "arm": "TV_all_nomkt_h5 (select all · pool timevary · exclude_market_level)",
+   "baseline": "MK_timevary_nomkt_h5 (같은 런)",
+   "success": "5폴드 평균 짝 Δ ≥ +0.02 이고 폴드 승률 ≥ 0.8 이면 신호(선별 크기가 레버). 폴드 평균 +0.02 미만이면 '노이즈'로 그 축 종결 — 피처 수 ~123개 과적합 위험이 크므로 단독 상승은 신호로 쓰지 않는다.",
+   "expected": "전량 arm 이 대조군보다 낮으면 '선별은 이미 최적' → 다음 레버는 선별 기준(AUC edge → IC t, 학습폴드 내 재계산)으로 이동한다. 높으면 선별 크기 자체가 레버.",
+   "cost": "중(2 arm × 5폴드 × 5시드)",
+   "est_minutes": 60,
+   "created_at": "2026-11-14T00:05:00+09:00",
+   "note": "config 만 추가(TV_all_nomkt_h5) · 학습 로직 무변경 · --dry-run 으로 두 arm 해석 확인 완료. 승격 아님."
   }
  ],
- "updated": "2026-11-13T23:05:00+09:00"
+ "updated": "2026-11-14T00:02:35+09:00"
 }

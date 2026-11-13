@@ -146,6 +146,16 @@ CONFIGS = [
     {"id": "MK_timevary_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "pool": "timevary", "exclude_market_level": True,
      "desc": "시간가변 + 시장레벨 제외 (계약 #3·#6 동시 준수)"},
+    # ── CG261 (2026-11-14): 선별 크기가 |t|≥2 후보를 버리고 있는가 ────────────────
+    # 근거(CG255 스크린 실측, panel_prod200): 시간가변 후보 15개가 |IC t|≥2 였지만
+    # top30 은 **AUC edge 순**으로 뽑으므로 event_mna_5d(edge 0.0015)처럼 IC t=-3.56 인
+    # 피처가 선별에서 탈락한다. 같은 pool·같은 시장레벨 제외에서 '선별 없음(전량)'과
+    # 'top30'을 같은 런으로 재면 선별 자체가 이득인지/손실인지가 짝 Δ 로 나온다.
+    # ⚠ 이 arm 은 피처 수가 ~123개라 과적합 위험이 크다 — 단독 상승이 아니라
+    #   대조군(MK_timevary_nomkt_h5) 대비 짝 Δ 와 폴드 승률로만 판정한다.
+    {"id": "TV_all_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "all",
+     "pool": "timevary", "exclude_market_level": True,
+     "desc": "시간가변 전량(선별 없음) + 시장레벨 제외 — CG255 의 |t|≥2 후보를 버리지 않는 arm"},
     # ── curated 게이트 대조 (2026-09-26 실측 — 처음엔 내 해석이 틀렸다) ──────────
     # ⚠ 정정: 이 스크립트는 L223~224 에서 **tc.select_curated_features 를 항등함수로
     # 몽키패치**한다 → 프로덕션 트레이너의 CORE_FEATURES(48) 게이트가 여기서는 꺼져 있다.
