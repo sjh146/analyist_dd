@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-13T23:08:01+09:00",
+ "updated_at": "2026-11-14T01:02:58+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -18005,7 +18005,7 @@
   },
   {
    "id": "CG260",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "measurement",
    "owner": "engineer",
@@ -18023,7 +18023,40 @@
    "cost": "중(4 arm × 5폴드 × 5시드, 실측 30~60분)",
    "est_minutes": 90,
    "created_at": "2026-11-13T23:08:01+09:00",
-   "note": "⚠ 승격 아님 — 측정이다. 기준선 '값'을 바꾸는 것은 리뷰보드 승인 대상(헌장 §3-B)이므로 이 항목은 실측·기록까지만 한다."
+   "note": "⚠ 승격 아님 — 측정이다. 기준선 '값'을 바꾸는 것은 리뷰보드 승인 대상(헌장 §3-B)이므로 이 항목은 실측·기록까지만 한다.",
+   "attempts": [
+    {
+     "ts": "2026-11-14T00:19:31+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='baseline_protocol_gap')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG260_20261114-000238.log",
+     "elapsed_min": 16.9
+    },
+    {
+     "ts": "2026-11-14T01:02:58+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "같은 런 기준선 LS_quant_q30_h5 0.5302±0.0168 vs 등록 0.5406 → 격차 -0.0104(문턱 미달 — 기준선 유지) | TR_rank_h5 0.5267±0.0196(폴드 0.4933~0.5548 · 승률 0.80) · 짝Δ vs LS_quant_q30_h5 -0.0035(양(+) 1/5 [-0.0031, +0.0005, -0.0084, -0.0018, -0.0046]) ; CO_rank_smooth_d1_h5 0.5414±0.0164(폴드 0.5207~0.5634 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 +0.0112(양(+) 4/5 [-0.0053, +0.0091, +0.0190, +0.0084, +0.0250]) → 최고 후보 CO_rank_smooth_d1_h5 짝Δ +0.0112",
+     "log": "",
+     "elapsed_min": null,
+     "ingested": true
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "같은 런 기준선 LS_quant_q30_h5 0.5302±0.0168 vs 등록 0.5406 → 격차 -0.0104(문턱 미달 — 기준선 유지) | TR_rank_h5 0.5267±0.0196(폴드 0.4933~0.5548 · 승률 0.80) · 짝Δ vs LS_quant_q30_h5 -0.0035(양(+) 1/5 [-0.0031, +0.0005, -0.0084, -0.0018, -0.0046]) ; CO_rank_smooth_d1_h5 0.5414±0.0164(폴드 0.5207~0.5634 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 +0.0112(양(+) 4/5 [-0.0053, +0.0091, +0.0190, +0.0084, +0.0250]) → 최고 후보 CO_rank_smooth_d1_h5 짝Δ +0.0112",
+    "delta": 0.0112,
+    "per_exp": null,
+    "rc": 0
+   },
+   "paired_reference": "LS_quant_q30_h5",
+   "arm_list": [
+    "TR_rank_h5",
+    "CO_rank_smooth_d1_h5"
+   ],
+   "registered_baseline_value": 0.5406,
+   "panel": "panel_prod200.npz (200종목 · 5폴드 · 5시드 · 행 32,401/arm)"
   },
   {
    "id": "CG261",

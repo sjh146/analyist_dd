@@ -821,6 +821,13 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_wave_summary.json")
+    if kind == "baseline_protocol_gap":
+        # 같은 런 기준선 재측정(CG260) — wf_label_sweep 요약을 쓰므로 --summary-out 을 그대로 따른다.
+        # (실측 2026-11-14 00:19: 이 분기가 없어 파서·경로 둘 다 미등록 → rc=0 완주가 '판정불가'로 닫혔다.)
+        out = _arg(command or "", "--summary-out") or _arg(command or "", "--out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        raise ValueError("baseline_protocol_gap: --summary-out/--out 경로가 커맨드에 없다")
     if kind == "champion_robust_eval":
         # champion_robust_eval.py 는 컨테이너 cwd=/app 에서 --out /app/reports/... 로 쓴다
         # (/app = services/xgboost-ml). CG31 이 이 metric 으로 돌아간다.
@@ -1191,6 +1198,88 @@ def parse_wf_sweep(path, mtime_floor) -> dict:
             "fold_win_rate": round(sum(1 for m in means if m > 0.5) / len(means), 3),
         }
     return {"finished_at": d.get("finished_at"), "config": d.get("config"), "per_exp": per}
+
+
+def parse_baseline_protocol_gap(path, mtime_floor, item=None) -> dict:
+    """같은 런·같은 패널에서 '기준선 arm + 후보 arm' 을 나란히 잰 요약 → arm 통계 + 기준선 짝 Δ.
+
+    왜 별도 파서인가(실측 2026-11-14 00:19, CG260): metric='baseline_protocol_gap' 으로 등록된
+    항목이 rc=0(16.9분)으로 완주해 요약 JSON 에 4 arm 폴드 평균을 남겼는데 parse_by_metric 에
+    파서가 없어 '판정불가'로 닫혔다 — 측정값은 있는데 판정이 원장에서 사라졌다(CG43·CG10 과 같은
+    'metric 등록 누락' 함정).
+
+    ⚠ **per_exp 를 만들지 않는다**: 이 런의 arm 은 다른 패널(panel_prod200)에서 측정됐고,
+      스코어보드는 원장 per_exp 전체를 'arm 의 폴드 AUC' 로 읽어 등록 기준선(0.5406)과 직접
+      비교한다 → 패널 교체만으로 움직이는 폭(실측 Δ0.025)이 '돌파'로 둔갑한다(CG104 와 동형).
+      판정 입력은 `arms`(arm 별 폴드 통계) · `pairs`(같은 런 짝 Δ) 두 필드로만 싣는다.
+
+    item 에서 읽는 필드: `paired_reference`(짝 기준 arm) · `arm_list`(후보 arm 목록) ·
+    `registered_baseline_value`(등록 기준선 AUC — 격차 보고용).
+    """
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        d = json.load(f)
+    item = item or {}
+    arms: dict = {}
+    fold_names = None
+    for r in d.get("results", []):
+        folds = r.get("folds") or {}
+        names = list(folds.keys())
+        means = [float(v["mean"]) for v in folds.values()
+                 if isinstance(v, dict) and v.get("mean") is not None]
+        if not means:
+            continue
+        if fold_names is None:
+            fold_names = names
+        if names != fold_names:
+            # 폴드 키가 arm 마다 다르면 '같은 구간 짝' 이 성립하지 않는다 — 짝 Δ 를 만들지 않는다.
+            fold_names = [] if fold_names else fold_names
+        arms[r.get("exp")] = {
+            "desc": r.get("desc"),
+            "folds": [round(m, 4) for m in means],
+            "mean": round(statistics.mean(means), 4),
+            "std": round(statistics.pstdev(means), 4),
+            "min": round(min(means), 4),
+            "max": round(max(means), 4),
+            "fold_win_rate": round(sum(1 for m in means if m > 0.5) / len(means), 3),
+            "rows": r.get("n_rows_used"),
+            "n_features": r.get("n_effective_features"),
+        }
+    ref = item.get("paired_reference") or ""
+    pairs: dict = {}
+    if ref in arms and len(fold_names or []) > 1:
+        for name, a in arms.items():
+            if name == ref:
+                continue
+            ds = [round(x - y, 4) for x, y in zip(a["folds"], arms[ref]["folds"])]
+            pairs[name] = {
+                "vs": ref,
+                "deltas": ds,
+                "mean": round(statistics.mean(ds), 4),
+                "std": round(statistics.pstdev(ds), 4),
+                "pos": sum(1 for x in ds if x > 0),
+                "n": len(ds),
+            }
+    reg = item.get("registered_baseline_value")
+    gap = None
+    if reg is not None and ref in arms:
+        gap = round(arms[ref]["mean"] - float(reg), 4)
+    return {
+        "finished_at": d.get("finished_at"),
+        "panel": item.get("panel") or "",
+        "arms": arms,
+        "pairs": pairs,
+        "paired_reference": ref,
+        "registered_baseline_value": reg,
+        "baseline_gap_vs_registered": gap,
+        "source_rows": [a.get("rows") for a in arms.values()],
+        "note": "per_exp 미생성(패널 교체 잡음의 스코어보드 오독 방지)",
+    }
 
 
 def parse_champion_robust(path, mtime_floor) -> dict:
@@ -1584,6 +1673,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind in ("wf_sweep_summary", "wf_wave_summary"):
         # 두 요약의 스키마가 같다(results[].folds{}.mean · exp/desc) → 같은 파서를 쓴다.
         return parse_wf_sweep(spath, mtime_floor)
+    if kind == "baseline_protocol_gap":
+        # 같은 런 기준선 재측정(CG260). per_exp 를 싣지 않는 전용 파서 — judge 도 전용이다.
+        return parse_baseline_protocol_gap(spath, mtime_floor, item=item)
     if kind == "champion_robust_eval":
         return parse_champion_robust(spath, mtime_floor)
     if kind == "champion_promote_dryrun":
@@ -3995,6 +4087,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_scale_bisect_probe(item, parsed)
     if kind == "metric_audit_pair":
         return judge_metric_audit_pair(item, parsed)
+    if kind == "baseline_protocol_gap":
+        return judge_baseline_protocol_gap(item, parsed)
     if kind == "score_deciles":
         return judge_score_deciles(item, parsed)
     if kind == "robust_oos_audit":
@@ -4287,6 +4381,65 @@ def judge_per(item, per_exp) -> tuple:
             verdict, detail = "기준선없음", (f"최고 {best[0]} {best[1]['mean']:.4f} "
                                         f"(대조군 {cf_name} 미측정 · 기록 기준선 없음)")
     return verdict, detail, delta
+
+
+def judge_baseline_protocol_gap(item, parsed) -> tuple:
+    """같은 런 기준선 재측정의 판정 — 후보 arm 의 **같은 런 폴드 짝 Δ** 만 신호로 인정한다.
+
+    왜(실측 2026-11-14, CG260): 등록 기준선 0.5406 은 누수 판정된 panel_420_asofpatch·구도구 값이고,
+    무개선 카운터는 그 값을 분모로 19사이클을 셌다. 같은 도구·같은 패널에서 기준선 arm 을 다시 재면
+    '기준선 값 자체의 프로토콜 격차' 와 'arm 델타' 를 분리할 수 있다. 다만 절대값 비교는 금지 —
+    패널 교체만으로 폴드 평균이 Δ0.025 움직이므로(panel_prod200 vs panel_420_asphatch 실측) 신호는
+    같은 런 짝 Δ 로만 판정한다(사전등록: 평균 ≥ +0.02 · 양(+) 폴드 ≥ n−1).
+    기준선 '값' 교체는 리뷰보드 승인 대상이므로 여기서는 격차가 0.02 를 넘는지만 기록한다.
+
+    ⚠ 판정불가로 닫지 말 것: 파서가 arms/pairs 를 못 만들면 그건 '실행실패' 가 아니라 계약 위반이다.
+    """
+    arms = parsed.get("arms") or {}
+    if not arms:
+        return "판정불가", f"arm 통계 없음 ({parsed.get('error') or 'results 비어 있음'})", None
+    ref = parsed.get("paired_reference") or ""
+    pairs = parsed.get("pairs") or {}
+    cands = [a for a in (item.get("arm_list") or list(pairs.keys())) if a in arms]
+    best_line, best_arm, best_d = None, None, None
+    parts = []
+    for name in cands:
+        a = arms[name]
+        line = (f"{name} {a['mean']:.4f}±{a['std']:.4f}"
+                f"(폴드 {a['min']:.4f}~{a['max']:.4f} · 승률 {a['fold_win_rate']:.2f})")
+        p = pairs.get(name)
+        if p:
+            line += (f" · 짝Δ vs {p['vs']} {p['mean']:+.4f}"
+                     f"(양(+) {p['pos']}/{p['n']} [{', '.join(f'{x:+.4f}' for x in p['deltas'])}])")
+            if best_d is None or p["mean"] > best_d:
+                best_arm, best_d = name, p["mean"]
+        parts.append(line)
+        if best_line is None:
+            best_line = line
+    head = ""
+    if ref in arms:
+        head = (f"같은 런 기준선 {ref} {arms[ref]['mean']:.4f}±{arms[ref]['std']:.4f}")
+        gap = parsed.get("baseline_gap_vs_registered")
+        if gap is not None:
+            head += (f" vs 등록 {float(parsed['registered_baseline_value']):.4f} → 격차 {gap:+.4f}"
+                     f"({'문턱 +0.02 초과 — 기준선 교체 검토 대상' if abs(gap) >= 0.02 else '문턱 미달 — 기준선 유지'})")
+        head += " | "
+    detail = head + " ; ".join(parts) if parts else head + f"후보 arm 미측정(측정: {', '.join(arms)})"
+    if not cands:
+        return "기준선없음", detail + " → 후보 arm 없음(기준선 재측정 기록)", None
+    verdict = "판정불가"
+    if best_d is not None:
+        pb = pairs[best_arm]
+        if best_d >= 0.02 and pb["pos"] >= pb["n"] - 1:
+            verdict = "신호있음"
+        elif best_d <= -0.02:
+            verdict = "악화"
+        else:
+            verdict = "노이즈"
+        detail += f" → 최고 후보 {best_arm} 짝Δ {best_d:+.4f}"
+    else:
+        detail += " → 짝 Δ 계산 불가(폴드 키 불일치/기준 arm 미측정)"
+    return verdict, detail, best_d
 
 
 def judge_champion_baseline(item, parsed) -> tuple:
