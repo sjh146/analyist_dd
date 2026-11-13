@@ -18079,6 +18079,34 @@
    "est_minutes": 90,
    "created_at": "2026-11-14T00:05:00+09:00",
    "note": "config 2개 추가(TV_all_nomkt_h5·IC30_nomkt_h5) · 학습 로직 무변경 · 두 arm dry-run 해석 확인 · 승격 아님."
+  },
+  {
+   "id": "CG262",
+   "status": "pending",
+   "priority": 2,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "baseline_protocol_gap",
+   "from_experiment": "CG260",
+   "title": "[측정정합성] 등록 기준선(0.5406)이 나온 패널(panel_420_asofpatch)에서 같은 도구로 재측정 — 격차가 '패널 효과'인가 '도구 효과'인가",
+   "hypothesis": "CG260 은 panel_prod200 에서 기준선 arm 을 0.5302 로 재어 등록값 0.5406 과 격차 −0.0104 를 얻었다. 그런데 0.5406 은 다른 패널(panel_420_asofpatch)에서 측정된 값이라, 격차가 ①패널 교체 효과 ②도구·프로토콜 차이 중 어느 쪽인지 분리되지 않았다. 같은 4 arm 을 그 패널에서 재면 ①과 ②가 갈린다: LS 가 그 패널에서 0.5406 근처로 재현되면 격차는 패널 효과이고, 0.530 근처면 도구 효과(= 등록 기준선이 어느 패널에서든 ~0.01 높다)다. 동시에 TR_rank_h5 의 +0.0107 이 그 패널에서 재현되는지도 같은 런에서 확인된다(CG260 prod200 에서는 −0.0035 로 부호가 뒤집혔다).",
+   "counterfactual": "CG260 같은 런(panel_prod200) 의 동일 4 arm — 짝 Δ 의 패널 간 비교",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 8400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_420_asofpatch.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,CO_core30_h5,TR_rank_h5,CO_rank_smooth_d1_h5 --out /app/reports/overnight/cg262_panel420.jsonl --summary-out /app/reports/overnight/cg262_panel420_summary.json'",
+   "arm": "TR_rank_h5 · CO_rank_smooth_d1_h5",
+   "paired_reference": "LS_quant_q30_h5",
+   "arm_list": [
+    "TR_rank_h5",
+    "CO_rank_smooth_d1_h5"
+   ],
+   "registered_baseline_value": 0.5406,
+   "panel": "panel_420_asofpatch.npz (CG85 누수 판정 패널 — 값은 프로토콜 비교 전용, 승격 근거 아님)",
+   "success": "① LS 의 이 패널 값 vs 등록 0.5406 격차를 수치로 기록하고 |격차| < 0.02 면 '격차는 패널 효과'(= 무개선 카운터 분모는 그 패널에서 유효) 로 결론, ≥ 0.02 면 '도구 효과'로 결론 ② TR_rank 짝 Δ 의 부호가 prod200(−0.0035)과 같은지 다른지 기록 — 다르면 '이 arm 은 패널 특이'로 원장에 확정하고 스코어보드 채택 요건(2패널 재현)을 ② 승인 항목으로 올린다.",
+   "expected": "LS ≈0.536~0.540 이면 패널 효과 가설 지지. 그 경우 무개선 19사이클의 해석은 '기준선이 후보에게 0.01 관대하다'로 남고 기준선 교체는 불필요(문턱 미달).",
+   "cost": "중(4 arm × 5폴드 × 5시드 · CG260 실측 16.9분의 1.5~3배 추정)",
+   "est_minutes": 90,
+   "created_at": "2026-11-14T01:05:00+09:00",
+   "note": "⚠ 승격 아님 — 측정이다. panel_420_asofpatch 는 CG85 누수 판정 패널이므로 이 런의 절대값은 프로토콜 비교 전용이며 승격·기준선 교체 근거로 쓰지 않는다. CG261(선별 축) 뒤에 실행된다(priority 2)."
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
