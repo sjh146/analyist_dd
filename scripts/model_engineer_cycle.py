@@ -1099,6 +1099,14 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "data/reports/source_freshness.json")
+    if kind == "sns_money_control":
+        # SNS 점수/유동성 대조 top-k 돈 지표(scripts/sns_ic_probe.py --money ...). CG250.
+        # 기존 fillable_topk_* 파서는 다른 스키마라 이 산출물(money.result.<feature>.kN)을 못 읽는다
+        # → 그대로 두면 매 실행이 '판정불가'로 원장에 쌓인다. 전용 분기로 요약 경로만 잇는다.
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg250_sns_control.json")
     # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
     # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
     # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
@@ -1625,6 +1633,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_scorecard(spath, mtime_floor)
     if kind == "intraday_screen":
         return parse_intraday_screen(spath, mtime_floor)
+    if kind == "sns_money_control":
+        return parse_sns_money_control(spath, mtime_floor)
     if kind == "source_freshness":
         return parse_source_freshness(spath, mtime_floor)
     if kind == "protocol_noise_floor":
@@ -3838,6 +3848,87 @@ def judge_metric_audit_pair(item, parsed) -> tuple:
     return "노이즈", detail + " → 사전등록 미충족", None
 
 
+def parse_sns_money_control(path, mtime_floor) -> dict:
+    """SNS 점수/유동성 대조 top-k 돈 지표(scripts/sns_ic_probe.py --money). CG248·CG250.
+
+    스키마: {generated_at, since, rows_joined, min_stocks, max_day_chg_pct,
+             result:{<feat>:{fwd1:{n_dates,mean_ic,t,...}}},
+             money:{fee_roundtrip_pct,min_value_krw,max_day_chg_pct,result:{<feat>:{k3:{" \
+             "n_dates,delta_mean_pct,t,pos_dates_pct,split_half_pct,topk_net_pct,pool_net_pct}}}}}
+    ⚠ 모델 AUC 실험이 아니다 — per_exp 를 만들지 않는다(스코어보드가 arm 으로 오독한다).
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패: {e}", "summary_mtime": mt}
+    if not (d.get("money") or {}).get("result"):
+        return {"error": "money.result 없음(--money 미지정 또는 집계 실패)",
+                "summary_mtime": mt}
+    d["summary_mtime"] = mt
+    return d
+
+
+def judge_sns_money_control(item, parsed) -> tuple:
+    """SNS 점수(또는 유동성 대조변수) top-k − 풀평균 — 사전문턱으로 판정.
+
+    사전문턱(아이템 judge_spec): Δ ≥ +0.10%p · 짝 t ≥ 2 · 분할표본 앞/뒤 모두 양(+) ·
+    세션 ≥ session_min(기본 20). 대조군 판정(spec.role == "control")은 **문턱 판정 대상이 아니라
+    '처리군이 대조군을 이기는가'의 비교값**이므로 신호/노이즈 대신 '대조군' 판정을 낸다
+    (대조군이 더 크면 그 처리는 정보가 아니다 — CG249 실측: 저관심 +0.46 vs 저거래대금 +1.04).
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    spec = item.get("judge_spec") or {}
+    feat = spec.get("feature")
+    ks = spec.get("k") or [5, 10]
+    role = spec.get("role") or "arm"
+    sess_min = int(spec.get("session_min") or 20)
+    res = ((parsed.get("money") or {}).get("result") or {}).get(feat) or {}
+    if not res:
+        return "판정불가", f"money.result[{feat}] 없음 (keys={list(((parsed.get('money') or {}).get('result') or {}))})", None
+    parts, ok_all, first = [], True, None
+    for k in ks:
+        r = res.get(f"k{k}") or {}
+        d = r.get("delta_mean_pct")
+        t = r.get("t")
+        n = r.get("n_dates") or 0
+        halves = r.get("split_half_pct") or [None, None]
+        both = all(isinstance(x, (int, float)) and x > 0 for x in halves)
+        good = (isinstance(d, (int, float)) and d >= 0.10
+                and isinstance(t, (int, float)) and t >= 2
+                and both and n >= sess_min)
+        ok_all = ok_all and good
+        if first is None and isinstance(d, (int, float)):
+            first = d
+        if not isinstance(d, (int, float)):
+            parts.append(f"k={k} 통계 결측")
+            continue
+        parts.append(f"k={k} Δ {d:+.3f}%p (t {t:+.2f}, 세션 {n}, "
+                     f"+세션 {r.get('pos_dates_pct')}%, 분할 {halves}) "
+                     f"순기대 top {r.get('topk_net_pct')} vs 풀 {r.get('pool_net_pct')}"
+                     + ("" if good else " ✗"))
+    detail = (f"{feat}{'(역방향=낮은값 top)' if spec.get('invert') else ''} vs 풀평균"
+              f"(무작위 k 기대) · 수수료 왕복 {((parsed.get('money') or {}).get('fee_roundtrip_pct'))}%p"
+              f" · 체결성 필터 당일등락<{((parsed.get('money') or {}).get('max_day_chg_pct'))}%"
+              f"·거래대금≥{((parsed.get('money') or {}).get('min_value_krw'))}원"
+              f" · 표본 {parsed.get('since')}~ · " + " · ".join(parts)
+              + " · 사전문턱: Δ≥+0.10%p & t≥2 & 분할 both_positive & 세션≥" + str(sess_min))
+    if role == "control":
+        return "대조군", detail + " → 처리군과의 비교값(문턱 판정 대상 아님)", first
+    if ok_all:
+        return "신호있음", detail + " → 선택 규칙 후보(승격은 별도 절차·발행계약 = 리뷰보드)", first
+    return "노이즈", detail + " → 사전등록 미충족(선택 규칙 정보 미검출)", first
+
+
 def parse_source_freshness(path, mtime_floor) -> dict:
     """배선된 피처 원천 신선도(scripts/source_freshness_gate.py --json-out). CG165.
 
@@ -3964,6 +4055,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_champion_scorecard(item, parsed)
     if kind == "intraday_screen":
         return judge_intraday_screen(item, parsed)
+    if kind == "sns_money_control":
+        return judge_sns_money_control(item, parsed)
     if kind == "source_freshness":
         return judge_source_freshness(item, parsed)
     p = per if per is not None else (parsed.get("per_exp") or {})

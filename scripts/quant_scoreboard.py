@@ -239,7 +239,16 @@ def engineer_stanza() -> dict:
     cmp_panels: set = set()
     best_panel = None
     for rec in _jsonl(ME_LEDGER):
-        _panel = str(((rec.get("parsed") or {}).get("config") or {}).get("panel") or "?").rsplit("/", 1)[-1]
+        # ⚠ config 가 **문자열**인 요약도 있다(money_anchor_repeat 등: "config": "CG240_ex_h5").
+        # 2026-11-13 실측: CG245 두 레코드가 그 형태라 `'str' object has no attribute 'get'` 로
+        # 스코어보드가 **통째로 크래시**했다(북극성 조회 도구가 죽으면 개선 카운터도 못 본다).
+        # 모르는 스키마는 '?' 로 두고 계속 센다 — 패널명을 지어내지 않는다.
+        _parsed = rec.get("parsed") if isinstance(rec.get("parsed"), dict) else {}
+        _cfg = _parsed.get("config")
+        _panel_name = "?"
+        if isinstance(_cfg, dict) and _cfg.get("panel"):
+            _panel_name = _cfg["panel"]
+        _panel = str(_panel_name).rsplit("/", 1)[-1]
         for arm, val, ok, why in _rec_arm_entries(rec):
             mean = float(val["mean"])
             if ok is True:
