@@ -1761,6 +1761,15 @@ def main():
     # 기본 None → 기존 실행에는 아무 영향이 없다(파일도 쓰지 않는다).
     ap.add_argument("--dump-preds", default=None,
                     help="폴드 앙상블 확률 jsonl 저장 경로 (예: /app/scripts/_preds_CG21.jsonl)")
+    # ── CG278(2026-11-14): 라벨 극단만 담는 덤프의 **측정기 결함** 수리 ──────────────
+    # 왜: 아래 `d = d[~pd.isna(d["_y"])]` 가 중간 분위를 통째로 버리므로, 이 덤프로 돈 지표를
+    # 계산하면 '미래 상·하위 30%로 미리 걸러진 유니버스'가 후보집합이 된다(실측: 세션당 118행
+    # = 200종목의 59%, y_true 정확히 50/50). 그러면 풀평균이 거래가능 풀평균이 아니고 Δ 는
+    # 실전 초과기대가 아니다. 이 플래그를 켜면 **전 유니버스**(라벨 결측 포함) 예측을 따로 덤프해
+    # y_true=None 행으로 싣는다 → 체결성 필터·풀평균이 진짜 후보집합 위에서 계산된다.
+    # 기본 OFF = 기존 실행 비트·파일 완전 동일.
+    ap.add_argument("--dump-all-codes", action="store_true",
+                    help="--dump-preds 와 함께: 전 유니버스(라벨 결측 포함) 예측도 덤프(돈 지표 정합)")
     # ── 학습셋 AUC (2026-11-14 CG275) ──────────────────────────────────────────
     # 왜: AUC 가 19사이클 동안 안 움직인 이유가 ① 정보 상한(데이터에 신호가 없다)인지
     # ② 과적합/OOS 분산(용량·정규화 문제)인지 가르려면 **같은 폴드에서** in-sample AUC 와
@@ -1995,6 +2004,10 @@ def main():
             except Exception as e:      # 계산 실패 시 기존(달력) purge 로 계속
                 ml.log(f"  {exp_id}: 라벨 참조일 계산 실패({type(e).__name__}: {e}) — 달력 purge 유지")
                 d["_ref"] = None
+            # CG278: 라벨 필터 **전** 프레임을 보관 — 전 유니버스 덤프용(--dump-all-codes).
+            # 파생 피처·_fwd·_ref 는 위에서 이미 계산됐으므로 참조만 잡으면 된다(아래 d 재할당은
+            # 새 객체라 d_all 은 필터되지 않은 프레임을 계속 가리킨다).
+            d_all = d if (args.dump_preds and getattr(args, "dump_all_codes", False)) else None
             d = d[~pd.isna(d["_y"])]
             # ── 평가 앵커 절단(--asof-date, 2026-11-12 CG200) ────────────────────────
             # 앵커 이후 행은 라벨 유효 행에서 제외한다. 폴드 격자는 위에서 앵커 기준 역산이므로
@@ -2116,6 +2129,18 @@ def main():
                     transform_matrix(te[bn], ted, tkind, codes=te["stock_code"].values)
                     .astype(np.float32), nan=0.0)
                 yte = te["_y"].values.astype(int)
+                # CG278: 같은 폴드·같은 윈도의 **전 유니버스** 테스트 행(라벨 결측 포함).
+                # 학습에 쓰이지 않는 행만 추가로 채점하므로 판정(AUC)에는 영향이 없다(기본 OFF).
+                te_all = ted_all = codes_all = None
+                Xte_all = None
+                if d_all is not None:
+                    te_all = d_all[(d_all["date"] > cut) & (d_all["date"] <= nxt)]
+                    if len(te_all):
+                        ted_all = te_all["date"].astype(str).values
+                        codes_all = (te_all["stock_code"].astype(str).values
+                                     if "stock_code" in te_all.columns else [" " * 0] * len(te_all))
+                    else:
+                        te_all = None
                 # ── 하드 가드: 이름↔열 매핑이 깨지면 **즉시 실패**시킨다.
                 # 왜: 패널 피처명에 중복 라벨이 있으면(=있었다) `df[list]` 가 열을 부풀려
                 # (210→238) 선별 인덱스가 다른 열을 가리키고, 이름 기반 판정이 조용히 무효가 된다
@@ -2276,6 +2301,15 @@ def main():
                 ml.EnsembleModel = _LinearModel if cfg.get("linear") else _EnsGBDT
                 aucs = []
                 probs = []
+                probs_all = []      # CG278: 전 유니버스(라벨 결측 포함) 예측 — --dump-all-codes 전용
+                if te_all is not None:
+                    try:
+                        Xte_all = np.nan_to_num(
+                            transform_matrix(te_all[bn], ted_all, tkind, codes=codes_all)
+                            .astype(np.float32), nan=0.0)
+                    except Exception as e:
+                        ml.log(f"  {exp_id} fold{i}: 전 유니버스 행렬 실패({type(e).__name__}: {e})")
+                        Xte_all, te_all = None, None
                 tr_probs = []       # 학습셋(in-sample) 예측 — --report-train-auc 일 때만 채운다
                 n_eff_seen = set()
                 for seed in range(args.seeds):
@@ -2303,6 +2337,13 @@ def main():
                         probs.append(_p[:, -1] if _p.ndim > 1 else _p)
                     except Exception:
                         pass
+                    # CG278: 같은 모델로 전 유니버스를 채점(돈 지표 후보집합 정합).
+                    if te_all is not None:
+                        try:
+                            _pa = np.asarray(_e.predict(Xte_all[:, idx]), dtype=float)
+                            probs_all.append(_pa[:, -1] if _pa.ndim > 1 else _pa)
+                        except Exception:
+                            pass
                     # 학습셋 예측(CG275): '정보 상한 vs 과적합' 을 가르려면 같은 런·같은 폴드에서
                     # in-sample AUC 를 함께 재야 한다. 학습셋이 커서 비용은 학습 대비 작다.
                     if getattr(args, "report_train_auc", False):
@@ -2356,6 +2397,31 @@ def main():
                                 {"exp": exp_id, "fold": int(i), "date": str(ted[_j]),
                                  "code": str(_codes[_j]), "y_true": int(yte[_j]),
                                  "y_pred": float(ens_p[_j]), "fwd_ret": float(_fwd[_j])})
+                        # CG278: 전 유니버스 행(y_true=None)도 같은 파일에 싣는다 — 돈 지표의
+                        # 후보집합·풀평균이 '미래 극단'으로 미리 걸러지지 않게 하려면 이 행들이 필요하다.
+                        if te_all is not None and probs_all:
+                            _ens_pa = np.mean(np.vstack(probs_all), axis=0)
+                            _fwd_a = (np.asarray(te_all["_fwd"].values, dtype=float)
+                                      if "_fwd" in te_all.columns
+                                      else np.full(len(ted_all), np.nan))
+                            # 중복 제거(실측 2026-11-14 스모크): 패널에 같은 (날짜,종목) 행이 2개
+                            # 있는 경우가 있어(세션 318행 vs 유니크 198종목) 라벨행과 겹치는 행은
+                            # 버리고, 남은 행도 (날짜,종목) 첫 행만 싣는다 — 안 하면 풀평균이
+                            # 중복가중되고 top-k 가 같은 종목을 두 번 고른다.
+                            _seen_all = {(str(ted[_j]), str(_codes[_j])) for _j in range(len(ted))}
+                            _n_skip_dup = 0
+                            for _j in range(len(ted_all)):
+                                _key = (str(ted_all[_j]), str(codes_all[_j]))
+                                if _key in _seen_all:
+                                    _n_skip_dup += 1
+                                    continue
+                                _seen_all.add(_key)
+                                dump_recs.append(
+                                    {"exp": exp_id, "fold": int(i), "date": str(ted_all[_j]),
+                                     "code": str(codes_all[_j]), "y_true": None,
+                                     "y_pred": float(_ens_pa[_j]), "fwd_ret": float(_fwd_a[_j])})
+                            ml.log(f"  {exp_id} fold{i}: 전 유니버스 덤프 {len(ted_all)}행 중 "
+                                   f"{_n_skip_dup}행 중복/라벨중복 제외")
                 fold_means.append(float(np.mean(aucs)))
                 fold_sizes.append((len(tr), len(te)))
                 rec["folds"][f"fold{i}"] = {"train_rows": len(tr), "test_rows": len(te),

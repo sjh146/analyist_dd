@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-14T17:30:00+09:00",
+ "updated_at": "2026-11-14T18:45:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -18580,7 +18580,7 @@
   },
   {
    "id": "CG277",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 1,
    "kind": "money",
    "owner": "engineer",
@@ -18590,12 +18590,127 @@
    "hypothesis": "CG276 실측(5폴드×3시드, panel_prod200, 저용량 depth1): OOS AUC h1 0.5442±0.0065 > h3 0.5401 > h5 0.5352 > h10 0.5325 로 **완전 단조**이고, 갭도 0.018/0.034/0.052/0.086 으로 같이 줄어든다. h1−h5 Δ+0.0090 은 사전문턱 +0.02 미달이라 AUC 로는 '노이즈'지만, 짧은 지평은 회전율이 높아 **수수료 0.21%p 왕복이 더 자주 붙는다** → AUC 가 조금 높은 것이 돈으로는 역전될 수 있다. 또 CG275 로 용량 축(과적합)은 기각됐으므로, 지평 축을 AUC 만으로 닫으면 '돈으로는 살아 있는 축'을 근거 없이 버리게 된다(스킬 최우선 규칙: 축 종결도 돈 지표로 남긴다).",
    "counterfactual": "같은 dump·같은 유니버스의 **세션 풀평균**(널 기준선, k 무관)",
    "success": "① h1·h5 두 arm 의 top-k 초과기대(체결성 필터 ON · 수수료 0.21%p 차감)를 같은 dump 에서 산출 ② 호라이즌 표(h1/h3/h5/h10)에서 초과기대가 +0.1%p/세션 이상이고 앞/뒤 절반 부호가 같으면 '지평 축 생존'(그 지평으로 후속 실험) ③ 미달이면 지평 축을 **돈 근거로** 종결",
-   "command": null,
+   "command": "bash scripts/cg277_money_horizon.sh  # wf_label_sweep --dump-preds (2 arm) + fillable_topk_horizon_sweep",
    "setup_needed": "배선 필요(엔지니어 자율, 다음 틱): ① `wf_label_sweep.py --dump-preds` 로 CG276_h1·CO_smooth_d1_h5 두 arm 의 폴드 예측을 덤프(같은 폴드·같은 시드·같은 패널) ② `scripts/fillable_topk_horizon_sweep.py` (--arm-jsonl / --control-jsonl / --k 3,5,10,20,30 / --horizons 1,3,5,10 / --primary 1)로 초과기대 계산 ③ metric 을 `fillable_topk_vs_pool` 로 등록해 기존 판정기를 그대로 쓴다(새 판정기 금지). 선행 확인: 덤프 스키마(date·code·y_pred·fwd_ret)가 fillable 기대값 계산기에 그대로 먹는지 1회 검증 — 안 먹으면 컬럼 매핑만 고친다(CG246 패턴 재사용).",
    "expected": "h1 초과기대가 수수료 후 +0.1%p 미만(회전율 부담) — 즉 'AUC 우위가 돈으로 이어지지 않음' 쪽",
    "cost": "중간(덤프 2 arm × 5폴드 × 3시드 ≈ 10분 + 집계 수 분)",
    "est_minutes": 25,
-   "created_at": "2026-11-14T17:30:00+09:00"
+   "created_at": "2026-11-14T17:30:00+09:00",
+   "summary_out": "/app/reports/overnight/cg277_money_horizon.json",
+   "result": {
+    "verdict": "노이즈 + 측정기 결함 발견 — 지평 축을 돈 근거로 종결(CG278 에서 측정기 수리 후 재측정)",
+    "detail": "같은 덤프·5폴드×3시드·panel_prod200·230세션·exit close_h·체결성 ON·수수료 0.21%p. CG276_h1(arm) top-k − 세션 풀평균: h1 k3 -0.092(t-0.50) k5 +0.019 k10 +0.100(t0.88) k20 +0.145(t1.83) k30 +0.108(t1.76) · h3 k3 -0.305 k10 +0.195(t1.15) k20 +0.137 · h5 k3 -0.397 k10 +0.336(t1.58) · h10 k3 -0.719 · 전 k 에서 앞/뒤 절반 부호 불일치(앞 +0.17~+0.22 / 뒤 -0.04~-0.08). 최고 Δ +0.145%p(k20, t1.83) < 사전문턱 → 노이즈. ⚠ 측정기 결함: 이 덤프는 `d = d[~isna(_y)]` 뒤에 생성돼 세션당 118행(=200종목의 59%, y_true 정확히 50/50)만 담는다 — 후보집합이 '미래 상·하위 30%'로 미리 걸러진 유니버스이므로 풀평균이 거래가능 풀평균이 아니다. → 배포가능 arm 은 CG278(전 유니버스 덤프)에서 재측정.",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "attempts": [
+    {
+     "ts": "2026-11-14T18:05:00+09:00",
+     "rc": 0,
+     "verdict": "노이즈 + 측정기 결함 발견 — 지평 축을 돈 근거로 종결(CG278 에서 측정기 수리 후 재측정)",
+     "detail": "스윕 18:03 · 돈집계 18:04 · 합계 4.2분",
+     "log": "data/reports/me_cycle/logs/cg277_money_horizon.log",
+     "elapsed_min": 4.2
+    }
+   ]
+  },
+  {
+   "id": "CG278",
+   "status": "done",
+   "priority": 1,
+   "kind": "money",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "fillable_topk_vs_pool",
+   "title": "[돈 지표·측정기 수리] 덤프가 라벨 극단만 담던 문제를 고쳐(--dump-all-codes) 배포가능 arm 의 초과기대를 전 유니버스에서 재측정",
+   "hypothesis": "CG277 에서 확인: wf_label_sweep 덤프는 라벨 결측(중간 분위)을 버린 뒤 만들어져 후보집합이 '미래 상·하위 30%'다(세션 118행·y_true 50/50). 그 위에서 잰 Δ 는 실전 초과기대가 아니다. 전 유니버스(200종목)를 같은 모델로 채점해 풀평균을 거래가능 풀로 바꾸면, 배포가능 최고 arm CO_smooth_d1_h5(top30·depth1·스무딩)의 돈 우위가 유지되는지/사라지는지가 이 축의 최종 판정이다.",
+   "counterfactual": "세션 풀평균(전 유니버스·체결성 통과 종목 동일비중 − 수수료) = 무작위 k 기대",
+   "command": "bash scripts/cg278_money_allcodes.sh",
+   "summary_out": "/app/reports/overnight/cg278_money_allcodes.json",
+   "paired_reference": "세션 풀평균(전 유니버스)",
+   "success": "k∈{3,5,10} 중 하나라도 Δ(top-k − 풀평균) ≥ +0.1%p/세션 & t ≥ 2 & 앞/뒤 절반 부호 동일",
+   "expected": "Δ 가 0 근처로 내려앉음(앞선 CG96~CG116 의 '모델 랭킹은 베타를 못 넘는다'와 정합)",
+   "cost": "낮음(5폴드×3시드 4분 + 집계 1분)",
+   "est_minutes": 8,
+   "created_at": "2026-11-14T18:06:00+09:00",
+   "result": {
+    "verdict": "사전등록 미충족(분할 부호 불일치) — 평균은 유의하나 시간 재현 없음. 측정기 수리 자체는 완료",
+    "detail": "전 유니버스 덤프(2 arm × 5폴드×3시드 · 225세션 · fillable 풀 중앙값 76종목 · 수수료 0.21%p · exit close_h). CO_smooth_d1_h5 h5: 널(풀평균) -0.071%p/세션(t-0.19) · k3 arm +1.631 → Δ+1.703(t 3.50 · 132/225세션 양) · k5 Δ+0.902(t 2.60) · k10 Δ+0.539(t 2.27) · k20 Δ+0.395(t 2.38) · k30 Δ+0.259(t 2.02). 지평 사다리(k3): h1 +0.479(t2.45) · h3 +1.272(t3.43) · h5 +1.703(t3.50) · h10 +1.534(t2.48). ⚠ 그러나 앞/뒤 절반: k3 앞 +3.356(t4.33) / 뒤 -0.078(t-0.11) · 폴드 양세션 fold1 38/45 vs fold2 16/45 · 월별 Δ 9/12개월 양(+)이나 개별 유의는 2025-11 +6.285(t3.65) · 2026-02 +3.657(t2.24) 뿐이고 최근 2026-08 -0.391 · 2026-09 -1.065(n=8). → 사전등록(양쪽 절반 동부호) 미충족, '기간 의존'이 정직한 판독. 부수 확인: 라벨극단 유니버스에서도 h5 k3 Δ+1.759(t3.51)로 사실상 동일 → 제한 유니버스가 Δ 를 부풀린 것은 아니다.",
+    "delta": 1.703,
+    "per_exp": null,
+    "rc": 0
+   },
+   "attempts": [
+    {
+     "ts": "2026-11-14T18:09:12+09:00",
+     "rc": 0,
+     "verdict": "사전등록 미충족(분할 부호 불일치) — 평균은 유의하나 시간 재현 없음",
+     "detail": "스윕+집계 5.5분 · 세션 225 · 풀평균 -0.071%p · k3 Δ+1.703(t3.50) · 분기 분해 별도(_cg278_period_split.py)",
+     "log": "data/reports/me_cycle/logs/cg278_money_allcodes.log",
+     "elapsed_min": 5.5
+    }
+   ],
+   "note": "--dump-all-codes 는 wf_label_sweep 신규 플래그(기본 OFF = 기존 실행 비트 동일 · 스모크 2폴드×1시드로 y_true=None 35,855행 확인). 같은 (날짜,종목) 중복행은 라벨행 우선으로 제거. 이 플래그가 없으면 앞으로의 모든 돈 Δ 는 '미래 극단 유니버스' 조건부 수치다."
+  },
+  {
+   "id": "CG279",
+   "status": "done",
+   "priority": 1,
+   "kind": "money",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "fillable_topk_vs_pool",
+   "title": "[돈 지표·시간 안정성] 배포가능 arm 초과기대(+1.70%p/5일·t3.50)가 '국면 의존'인지 '표본 부족'인지 가른다 — 블록 부트스트랩 + 최근 6개월 단독 검정",
+   "hypothesis": "CG278 실측: h5 k3 Δ+1.703(t 3.50)인데 앞/뒤 절반이 +3.36/-0.08, 월별로는 12개월 중 9개 양(+)이고 2025-11(+6.29) · 2026-02(+3.66) 두 달이 평균을 캐리한다. 세션 Δ 의 sd 가 7.3%p 로 커서 단순 t 는 자기상관(같은 종목이 연속 세션에 뽑힘)을 무시한다 — 이동블록 부트스트랩(블록 10세션)으로 재검정하면 유의성이 사라질 수 있다. 최근 6개월(2026-04~09)만 보면 ΣΔ 부호가 음(-)일 가능성이 크다.",
+   "counterfactual": "같은 덤프의 세션 풀평균 + 무작위 k(풀에서 k개 무작위 추출) 분포",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg279_block_bootstrap.py --jsonl /app/reports/overnight/cg278_preds_allcodes.jsonl --tag CO_smooth_d1_h5 --k 3 --horizon 5 --block 10 --reps 5000 --since 2026-04-01 --json-out /app/reports/overnight/cg279_block_bootstrap.json'",
+   "summary_out": "/app/reports/overnight/cg279_block_bootstrap.json",
+   "paired_reference": "세션 풀평균",
+   "success": "블록 부트스트랩 95% CI 하한 > 0 이고 최근 6개월 구간 Δ > 0 이면 '시간 안정' → 배포 후보 검토(승격 아님) / CI 가 0 을 포함하거나 최근 구간 Δ ≤ 0 이면 '국면 의존'으로 돈 축 종결",
+   "expected": "CI 가 0 을 포함(국면 의존) — 최근 6개월 Δ ≤ 0",
+   "cost": "낮음(새 학습 0 · 같은 덤프 재집계 1~2분)",
+   "est_minutes": 3,
+   "created_at": "2026-11-14T18:30:00+09:00",
+   "setup_needed": "`scripts/_cg279_block_bootstrap.py` 신설 필요(다음 틱 자율): fillable_topk_expectancy 의 load_rows/enrich/apply_filters/baskets/pool_series 재사용 → 세션별 Δ 배열 → 이동블록 부트스트랩 5000회(블록 10세션)로 CI, --since 로 최근 구간 단독 Δ·t. 판정기는 기존 fillable_topk_vs_pool 재사용.",
+   "result": {
+    "verdict": "시간 안정(사전등록 충족) — 전체 95% CI [+0.338,+3.103] 0 배제 · 최근 6개월 Δ +0.936%p(양수)이나 최근 CI 는 0 포함 → 확정 아님, 전이 검정 필요",
+    "detail": "CO_smooth_d1_h5 · h5 · k=3 · 체결성 ON · 수수료 0.21%p · 225세션. 전체 Δ +1.703%p/세션 (t 3.50 · 양세션 58.7%) 이동블록(10세션·5,000회) 부트스트랩 CI95 [+0.338,+3.103] → 0 배제. 최근 구간(2026-04-01~, 111세션) Δ +0.936%p(t 1.44 · 양세션 57.7%) CI95 [-0.990,+2.751] → 0 포함. 즉 '전 기간 유의·최근 양수이나 최근 구간만으론 유의하지 않음'. 사전등록(CI하한>0 & 최근 Δ>0)은 충족. ⚠ 단 이 검정은 panel_prod200(현 시총 기준 유니버스) 위이고, +1.7%p/5일(연 ~90%p)은 이례적으로 큰 값이라 생존편향·유니버스 특이·체결가정(종가 매수) 중 하나가 원인일 수 있다 → CG280 전이 검정 전에는 배포 근거로 쓰지 않는다.",
+    "delta": 1.703,
+    "per_exp": null,
+    "rc": 0
+   },
+   "attempts": [
+    {
+     "ts": "2026-11-14T18:42:00+09:00",
+     "rc": 0,
+     "verdict": "시간 안정(사전등록 충족) — 전체 95% CI [+0.338,+3.103] 0 배제 · 최근 6개월 Δ +0.936%p(양수)이나 최근 CI 는 0 포함 → 확정 아님, 전이 검정 필요",
+     "detail": "스크립트 신설(_cg279_block_bootstrap.py) + 즉시 실행 · 새 학습 0 · 1.4분",
+     "log": "data/reports/me_cycle/logs/cg279_block_bootstrap.log",
+     "elapsed_min": 1.4
+    }
+   ]
+  },
+  {
+   "id": "CG280",
+   "status": "pending",
+   "priority": 1,
+   "kind": "money",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "fillable_topk_vs_pool",
+   "title": "[돈 지표·전이 검정] CG278/279 의 +1.70%p/5일 초과기대가 panel_prod200 특이인지 — 같은 arm·같은 프로토콜을 49종목 청정 패널에서 재측정",
+   "hypothesis": "CG278 실측으로 배포가능 arm(CO_smooth_d1_h5)이 전 유니버스 풀평균을 h5 k3 +1.703%p/세션(t 3.50 · 블록 CI [+0.338,+3.103]) 이겼고 최근 6개월도 +0.936%p 로 양수다. 그런데 CG11/CG5 실측에서 같은 config 가 유니버스를 바꾸면 부호가 뒤집혔다(49종목 +0.0227 → 150종목 -0.0109 AUC). +1.7%p/5일(연 ~90%p)은 이례적으로 커서 생존편향(현 시총 기준 유니버스 = L5c 미해결)이나 200종목 특이 구조일 가능성이 있다. 같은 프로토콜을 49종목 청정 패널(panel_420_asofpatch)에서 재현하면 '실재하는 랭킹 엣지'인지 '유니버스 인공물'인지 갈린다.",
+   "counterfactual": "같은 패널의 세션 풀평균(전 유니버스·체결성 통과 종목 동일가중)",
+   "command": "bash scripts/cg280_transfer_49.sh  # wf_label_sweep --panel panel_420_asofpatch.npz --folds 5 --seeds 3 --only CO_smooth_d1_h5,CO_core30_h5 --dump-preds --dump-all-codes + fillable_topk_horizon_sweep --k 3,5,10 --horizons 1,5 --primary 5",
+   "summary_out": "/app/reports/overnight/cg280_transfer_49.json",
+   "paired_reference": "세션 풀평균(49종목 패널)",
+   "success": "49종목 패널에서도 h5 k3 Δ ≥ +0.1%p/세션 & t ≥ 2 면 '전이됨'(그때 배포 후보 검토, 승격 아님) / Δ ≤ 0 이면 '유니버스 특이'로 종결하고 착수 전제(L5c PIT 유니버스)를 사람 승인 항목으로 올린다",
+   "expected": "Δ 가 0 근처 또는 음(-) — 49종목에서는 표본(세션당 후보 ~20종목)이 작아 k3 효과가 사라질 가능성",
+   "cost": "낮음(5폴드×3시드 ≈ 4분 + 집계 1분 · 스크립트 신설 10분)",
+   "est_minutes": 15,
+   "created_at": "2026-11-14T18:45:00+09:00",
+   "setup_needed": "`scripts/cg280_transfer_49.sh` 신설 필요(다음 틱 자율): cg278 스크립트에서 --panel 만 panel_420_asofpatch.npz 로 바꾸고 arm/control 을 CO_smooth_d1_h5 / CO_core30_h5 로, --horizons 1,5 --primary 5, summary_out cg280_transfer_49.json. 같은 --dump-all-codes 사용."
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
