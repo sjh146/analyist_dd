@@ -42,6 +42,34 @@ TABLES = {
         "krx_advance_decline_ratio", "krx_total_trading_value", "market_breadth",
         "market_impact_score", "relative_strength", "bb_position",
     ],
+    # ── CG273(2026-11-14): 스크린 범위 확장 — 3테이블 44컬럼 → 8테이블 89컬럼 ──────
+    # 왜: CG270/271/272 가 'DB 원천 축 종결'을 2라벨×2패널로 확정했지만 그 스크린은
+    # supply_market_features·financial_ratio_features·stock_sentiment **3테이블 44컬럼**만 봤다.
+    # DB 에는 패널에 한 번도 들어간 적 없는 종목 단위 테이블이 더 있다(아래 5개).
+    # 시장레벨 테이블(us_market_data·macro_features·krx_derivatives·krx_program_trading·
+    # futures_options·foreign_investor_futures)은 횡단면 모델 투입 금지(누수·구조 불일치)라 제외한다.
+    # financial_statements 는 report_date 키라 (code,date) 정확조인이 성립하지 않아 제외 —
+    # 공시지연 as-of 조인이 필요하고, 파생값은 financial_ratio_features 에 이미 있다.
+    "event_features": [
+        "event_capital_increase_5d", "event_cb_bw_5d", "event_contract_5d",
+        "event_delisting_5d", "event_disaster_5d", "event_exec_change_5d",
+        "event_litigation_5d", "event_mna_5d", "event_new_product_5d",
+        "event_partnership_5d", "event_patent_5d", "event_realized_5d",
+        "event_recall_5d", "event_regulation_5d", "event_stake_change_5d",
+        "event_treasury_5d", "disclosure_count_5d",
+    ],
+    "sns_post_features": [
+        "sentiment_score", "attention_score", "momentum_score", "author_quality_score",
+        "post_count", "bot_filtered_count", "kalman_sentiment", "kalman_attention",
+        "kalman_momentum", "kalman_activity",
+    ],
+    "krx_short_selling": ["short_volume", "short_value", "short_ratio", "balance_quantity",
+                          "total_volume"],
+    "foreign_institutional": ["foreign_net_buy", "institution_net_buy", "individual_net_buy",
+                              "foreign_net_buy_qty", "institution_net_buy_qty",
+                              "individual_net_buy_qty"],
+    "ownership": ["foreign_ownership_pct", "institution_ownership_pct", "foreign_held_qty",
+                  "listed_shares"],
     "financial_ratio_features": [
         "value_per", "value_pbr", "value_psr", "value_pcr", "value_ncav",
         "value_ev_ebit", "value_pfcr", "quality_cp_to_assets", "quality_op_to_equity",
