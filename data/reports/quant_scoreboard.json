@@ -1,20 +1,20 @@
 {
-  "ts": "2026-10-08T22:41:00+09:00",
+  "ts": "2026-11-13T22:40:31+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
     "north": "실현 순손익(₩)",
     "source": "/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3",
-    "realized_krw": -2936,
-    "trades": 4,
-    "wins": 1,
+    "realized_krw": -21306,
+    "trades": 8,
+    "wins": 2,
     "win_rate": 25.0,
-    "expectancy_krw": -734,
-    "avg_return_pct": -2.9,
+    "expectancy_krw": -2663,
+    "avg_return_pct": -4.43,
     "open_positions": 2,
-    "days_since_entry": 2.6,
+    "days_since_entry": 1.4,
     "alerts": [
-      "순손익 마이너스 -2,936원 — 기대값 -734원/건"
+      "순손익 마이너스 -21,306원 — 기대값 -2,663원/건"
     ],
     "error": null
   },
@@ -32,7 +32,7 @@
     "baseline": 0.5406,
     "baseline_name": "LS_quant_q30_h5 (h5·분위0.3·top30)",
     "delta": 0.0113,
-    "last_verdict": "노이즈 — 창 구성 민감(CG139 +0.0290 재현 실패, 6창 공통 Δ+0.0056·3/6)",
+    "last_verdict": "신호있음",
     "no_improve_cycles": 19,
     "no_improve_streak": 19,
     "last_improve": null,
@@ -53,7 +53,7 @@
         "horizon": 5
       },
       "arms_comparable": 50,
-      "arms_incomparable": 279,
+      "arms_incomparable": 303,
       "arms_unclassified": 5,
       "panels_comparable": [
         "panel_420_asofpatch.npz"
@@ -73,31 +73,26 @@
       "로버스트 AUC 가 19사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
     ],
     "measured_cycles": 19,
-    "invalid_cycles": 136
+    "invalid_cycles": 232
   },
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20261008-220052.json",
-    "status": "breach",
+    "sample": "dq_20261113-220734.json",
+    "status": "ok",
     "warns": [],
-    "breaches": [
-      "결측90%↑ 피처 수(기준선 8)(dq_feature_null_ratio_high_count)=26 ≥ 15"
-    ],
-    "alive_features": 191.0,
-    "alive_xsec_features": 166.0,
-    "dead_features": 11.0,
-    "stock_constant_ratio": 0.36649214659685864,
-    "news_freshness_hours": 0.41523728527777776,
-    "rows_delivered": 3209786.0,
+    "breaches": [],
+    "alive_features": 190.0,
+    "alive_xsec_features": 165.0,
+    "dead_features": 12.0,
+    "stock_constant_ratio": 0.3684210526315789,
+    "news_freshness_hours": 0.3218403847222222,
+    "rows_delivered": 2345336.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
-    "alerts": [
-      "DQ 위반: 결측90%↑ 피처 수(기준선 8)(dq_feature_null_ratio_high_count)=26 ≥ 15"
-    ]
+    "alerts": []
   },
   "needs_human": [
-    "[trader] 순손익 마이너스 -2,936원 — 기대값 -734원/건",
-    "[engineer] 로버스트 AUC 가 19사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)",
-    "[researcher] DQ 위반: 결측90%↑ 피처 수(기준선 8)(dq_feature_null_ratio_high_count)=26 ≥ 15"
+    "[trader] 순손익 마이너스 -21,306원 — 기대값 -2,663원/건",
+    "[engineer] 로버스트 AUC 가 19사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
   ]
 }
