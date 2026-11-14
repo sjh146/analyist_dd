@@ -1715,6 +1715,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_baseline_protocol_gap(spath, mtime_floor, item=item)
     if kind == "champion_robust_eval":
         return parse_champion_robust(spath, mtime_floor)
+    if kind == "insample_gap":
+        # CG275 — 폴드별 train vs OOS 갭 리포트(scripts/_insample_gap_report.py)
+        return parse_insample_gap(spath, mtime_floor)
     if kind == "champion_promote_dryrun":
         return parse_champion_promote_dryrun(spath, mtime_floor)
     if kind == "champion_seed_family":
@@ -3177,7 +3180,76 @@ def judge_db_feature_screen(item, parsed) -> tuple:
                 + ", ".join(r["feature"] for r in cand), max(r["abs_delta"] for r in cand))
     if block:
         detail += " · 문턱은 넘었으나 커버리지/종목상수 조건에서 탈락: " + ", ".join(r["feature"] for r in block)
-    return ("후보 없음 — DB 원천 축 종결(스크린 3테이블 44컬럼 한정)", detail, None)
+    # 범위는 **이번 스크린이 채점한 수**로 적는다(상수 문구 금지).
+    # 실측 2026-11-14: CG270 의 하드코딩 문구("3테이블 44컬럼 한정")가 CG274(8테이블 86피처)
+    # 에도 그대로 복사돼, 종결 범위를 실제보다 좁게 보고할 뻔했다.
+    return (f"후보 없음 — 데이터 축 종결({len(rows)}컬럼 중 {len(scored)}채점)", detail, None)
+
+
+def parse_insample_gap(path, mtime_floor=0.0) -> dict:
+    """학습셋(in-sample) vs OOS AUC 갭 리포트(scripts/_insample_gap_report.py --out) 파싱(CG275).
+
+    왜 전용 metric 인가(2026-11-14): 이 리포트의 판정 입력은 폴드 AUC 평균이 아니라 **갭**
+    (train − OOS)이고 스키마도 `arms{exp:{gap, gap_by_fold, train_mean, oos_mean}}` 로 다르다.
+    wf_sweep 파서로 읽히면 폴드 AUC 만 남고 갭이 사라져 항목의 유일한 산출물이 원장에서 없어진다
+    (CG43/CG10 함정). ⚠ per_exp 를 만들지 않는다 — 스코어보드는 per_exp 를 arm 폴드 AUC 로 읽어
+    best_robust·무개선 카운터를 만들므로, 갭 값을 넣으면 '돌파'로 오독된다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out/summary_out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각)", "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패: {e}", "summary_mtime": mt}
+    arms = d.get("arms") or {}
+    if not isinstance(arms, dict) or not arms:
+        return {"error": "arms 없음(리포트 실패)", "summary_mtime": mt}
+    return {"summary_mtime": mt, "arms": arms, "panel": d.get("panel"),
+            "thresholds": d.get("thresholds") or {}, "finished_at": d.get("finished_at"),
+            "report_verdict": d.get("verdict"), "source": os.path.relpath(path, PROJ)}
+
+
+def judge_insample_gap(item, parsed) -> tuple:
+    """CG275 판정 — 갭(train−OOS) 분포로 '정보 상한' 과 '모델 용량' 을 가른다.
+
+    문턱·처방은 **사전등록 그대로**(항목 success — 사후에 뒤집지 않는다):
+      갭 ≥ gap_ceiling(기본 0.30) → 학습셋을 외우고 일반화분이 없다 = **정보 상한** → 데이터 투자
+      갭 ≤ gap_floor(기본 0.10)   → 학습셋조차 못 맞힌다 = **모델 용량·표현력** → 용량/정규화 투자
+    ⚠ 두 해석이 갈릴 수 있으므로 판정 문구에 train_mean·OOS 를 반드시 함께 남긴다
+      (갭이 작은데 train AUC 도 낮으면 '정보 없음'이 아니라 '언더핏' 후보다 — 그 구분은
+      train_mean 을 보고 사람이/다음 실험이 확정한다).
+    판정은 리포트의 자기신고 문구가 아니라 **숫자에서 다시 계산**한다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    arms = {k: v for k, v in (parsed.get("arms") or {}).items() if isinstance(v, dict) and v.get("n_folds")}
+    if not arms:
+        return "판정불가", "폴드별 train_auc 없음(--report-train-auc 미지정 또는 학습 실패)", None
+    ceil_ = float(item.get("gap_ceiling") or 0.30)
+    floor_ = float(item.get("gap_floor") or 0.10)
+    ref = item.get("paired_reference") or "CO_core30_h5"
+    name = ref if ref in arms else max(arms, key=lambda k: arms[k]["n_folds"])
+    a = arms[name]
+    gap = a.get("gap")
+    if not isinstance(gap, (int, float)):
+        return "판정불가", f"{name}: gap 값 없음", None
+    parts = [f"{n}: train {v.get('train_mean')} vs OOS {v.get('oos_mean')} → 갭 {v.get('gap')}"
+             f"(폴드별 {v.get('gap_by_fold')})" for n, v in arms.items()]
+    detail = (f"{name} 기준 · 폴드 {a['n_folds']}개·시드 {a.get('n_seeds')} · "
+              f"train {a.get('train_mean')} vs OOS {a.get('oos_mean')} · 갭 {gap}±{a.get('gap_std')} "
+              f"(min {a.get('gap_min')} max {a.get('gap_max')}) · OOS−0.5 {a.get('oos_edge_vs_chance')} · "
+              f"문턱 갭≥{ceil_} 정보상한 / 갭≤{floor_} 용량 | " + " | ".join(parts))
+    if gap >= ceil_:
+        return ("정보 상한 — 학습셋 암기, 일반화분 없음(데이터 축)", detail, gap)
+    if gap <= floor_:
+        return ("모델 용량·표현력 축(언더핏) — 정규화·용량 투자", detail, gap)
+    return ("혼합 — 갭 중간대(단일 원인 아님)", detail, gap)
 
 
 def parse_blend_eval(path, mtime_floor) -> dict:
@@ -4254,6 +4326,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":
         return judge_champion_baseline(item, parsed)
+    if kind == "insample_gap":
+        return judge_insample_gap(item, parsed)
     if kind == "champion_promote_dryrun":
         return judge_promote_dryrun(item, parsed)
     if kind == "champion_seed_family":

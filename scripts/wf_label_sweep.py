@@ -1747,6 +1747,12 @@ def main():
     # 기본 None → 기존 실행에는 아무 영향이 없다(파일도 쓰지 않는다).
     ap.add_argument("--dump-preds", default=None,
                     help="폴드 앙상블 확률 jsonl 저장 경로 (예: /app/scripts/_preds_CG21.jsonl)")
+    # ── 학습셋 AUC (2026-11-14 CG275) ──────────────────────────────────────────
+    # 왜: AUC 가 19사이클 동안 안 움직인 이유가 ① 정보 상한(데이터에 신호가 없다)인지
+    # ② 과적합/OOS 분산(용량·정규화 문제)인지 가르려면 **같은 폴드에서** in-sample AUC 와
+    # OOS AUC 를 짝으로 재야 한다. 기본 OFF = 기존 실행 비트 동일.
+    ap.add_argument("--report-train-auc", action="store_true",
+                    help="폴드별 학습셋(in-sample) AUC 를 함께 기록(요약 folds[].train_auc)")
     args = ap.parse_args()
 
     if args.dry_run:
@@ -2256,6 +2262,7 @@ def main():
                 ml.EnsembleModel = _LinearModel if cfg.get("linear") else _EnsGBDT
                 aucs = []
                 probs = []
+                tr_probs = []       # 학습셋(in-sample) 예측 — --report-train-auc 일 때만 채운다
                 n_eff_seen = set()
                 for seed in range(args.seeds):
                     _obj = cfg.get("objective")
@@ -2282,6 +2289,14 @@ def main():
                         probs.append(_p[:, -1] if _p.ndim > 1 else _p)
                     except Exception:
                         pass
+                    # 학습셋 예측(CG275): '정보 상한 vs 과적합' 을 가르려면 같은 런·같은 폴드에서
+                    # in-sample AUC 를 함께 재야 한다. 학습셋이 커서 비용은 학습 대비 작다.
+                    if getattr(args, "report_train_auc", False):
+                        try:
+                            _q = np.asarray(_e.predict(Xtr[:, idx]), dtype=float)
+                            tr_probs.append(_q[:, -1] if _q.ndim > 1 else _q)
+                        except Exception:
+                            pass
                 # ── 정직 지표: pooled AUC(현재 판정값) 옆에 **날짜별 횡단면 AUC 평균**을 함께 남긴다.
                 # 라벨이 날짜내 분위(횡단면 상대)인데 판정은 날짜를 섞은 pooled AUC 라,
                 # 날짜 상수(시장레벨) 피처는 날짜별 점수를 통째로 밀어 pooled 만 부풀릴 수 있다.
@@ -2289,6 +2304,7 @@ def main():
                 ens_pooled_auc = None
                 daily_auc_mean = None
                 n_dates_scored = 0
+                train_auc = None        # in-sample AUC (--report-train-auc)
                 if probs:
                     from sklearn.metrics import roc_auc_score
                     ens_p = np.mean(np.vstack(probs), axis=0)
@@ -2305,6 +2321,16 @@ def main():
                             n_dates_scored = len(_da)
                     except Exception as e:
                         ml.log(f"  {exp_id} fold{i}: 날짜별 AUC 계산 실패({type(e).__name__}: {e})")
+                    # ── 학습셋(in-sample) AUC — 같은 런에서 OOS 와 짝을 이룬다(CG275) ──
+                    # 갭(train − OOS)이 크면 '정보 상한'(데이터 투자), 작으면 '분산'(용량·정규화).
+                    if tr_probs:
+                        try:
+                            _tp = np.mean(np.vstack(tr_probs), axis=0)
+                            train_auc = float(roc_auc_score(ytr, _tp))
+                            ml.log(f"  {exp_id} fold{i}: train AUC {train_auc:.4f} "
+                                   f"(in-sample) vs OOS {ens_pooled_auc}")
+                        except Exception as e:
+                            ml.log(f"  {exp_id} fold{i}: 학습셋 AUC 계산 실패({type(e).__name__}: {e})")
                     # ── 확률 덤프(CG21): 판정에는 쓰지 않고 매매 KPI 계산용으로만 남긴다 ──
                     if args.dump_preds:
                         _codes = (te["stock_code"].astype(str).values
@@ -2334,6 +2360,7 @@ def main():
                                                 "n_unique": int(len(np.unique(np.round(w_tr, 6))))}),
                                             "ens_pooled_auc": ens_pooled_auc,
                                             "daily_auc_mean": daily_auc_mean,
+                                            "train_auc": train_auc,
                                             "n_test_dates_scored": n_dates_scored,
                                             "selected_features": sel}
             if fold_means:
