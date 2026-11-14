@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-14T17:12:00+09:00",
+ "updated_at": "2026-11-14T17:17:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -18493,7 +18493,7 @@
   },
   {
    "id": "CG275",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "kind": "model",
    "owner": "engineer",
@@ -18509,11 +18509,57 @@
    "cost": "낮음(5폴드×3시드 · 유휴 시 10~20분)",
    "est_minutes": 10,
    "created_at": "2026-11-14T16:15:00+09:00",
-   "summary_out": "services/xgboost-ml/reports/overnight/cg275_insample_gap.json",
+   "summary_out": "/app/reports/overnight/cg275_insample_gap.json",
    "paired_reference": "CO_core30_h5",
    "gap_ceiling": 0.3,
    "gap_floor": 0.1,
-   "added_20261114": "arm 2종: CO_core30_h5(대조) · CO_smooth_d1_h5(depth1+스무딩 = 저용량)"
+   "added_20261114": "arm 2종: CO_core30_h5(대조) · CO_smooth_d1_h5(depth1+스무딩 = 저용량)",
+   "attempts": [
+    {
+     "ts": "2026-11-14T17:10:08+09:00",
+     "rc": 1,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 1 — PermissionError: [Errno 13] Permission denied: '/home/jhshi/analyist_dd/services/xgboost-ml/reports/overnight/cg275_insample_gap.json'",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG275_20261114-170723.log",
+     "elapsed_min": 2.8
+    },
+    {
+     "ts": "2026-11-14T17:15:00+09:00",
+     "rc": 0,
+     "verdict": "혼합 — 갭 중간대(단일 원인 아님)",
+     "detail": "CO_core30_h5 기준 · 폴드 5개·시드 3 · train 0.7602 vs OOS 0.5323 · 갭 0.228±0.0965 (min 0.1011 max 0.346) · OOS−0.5 0.0323 · 문턱 갭≥0.3 정보상한 / 갭≤0.1 용량 | CO_core30_h5: train 0.7602 vs OOS 0.5323 → 갭 0.228(폴드별 [0.2334, 0.1011, 0.1389, 0.346, 0.3207]) | CO_smooth_d1_h5: train 0.587 vs OOS 0.5352 → 갭 0.0518(폴드별 [0.044, 0.0152, 0.0851, 0.0609, 0.054])",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG275_20261114-170723.log",
+     "elapsed_min": null,
+     "ingested": true
+    }
+   ],
+   "result": {
+    "verdict": "혼합 — 갭 중간대(단일 원인 아님)",
+    "detail": "CO_core30_h5 기준 · 폴드 5개·시드 3 · train 0.7602 vs OOS 0.5323 · 갭 0.228±0.0965 (min 0.1011 max 0.346) · OOS−0.5 0.0323 · 문턱 갭≥0.3 정보상한 / 갭≤0.1 용량 | CO_core30_h5: train 0.7602 vs OOS 0.5323 → 갭 0.228(폴드별 [0.2334, 0.1011, 0.1389, 0.346, 0.3207]) | CO_smooth_d1_h5: train 0.587 vs OOS 0.5352 → 갭 0.0518(폴드별 [0.044, 0.0152, 0.0851, 0.0609, 0.054])",
+    "delta": 0.228,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG276",
+   "status": "pending",
+   "priority": 1,
+   "kind": "model",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "horizon_ladder",
+   "title": "[모델 축·지평 사다리] 정보 상한은 지평(h5)의 성질인가 피처의 성질인가 — 같은 피처·같은 저용량에서 라벨 지평만 h1/h3/h5/h10 으로 바꿔 OOS AUC 를 비교",
+   "hypothesis": "CG275 실측(2026-11-14, 5폴드×3시드): 기본 용량 arm CO_core30_h5 train 0.7602 vs OOS 0.5323(갭 0.228) · 저용량 arm CO_smooth_d1_h5 train 0.5870 vs OOS 0.5352(갭 0.052). 용량을 줄이면 갭이 4.4배 줄지만 OOS 는 오히려 +0.0029 좋아졌다 → 갭은 '외운 것'이고, **일반화되는 신호는 ~0.535 수준**이다. 즉 용량·정규화 투자로 얻을 것이 없다. 남은 질문: 그 0.535 가 **h5 라벨의 성질**인가(더 짧은 지평이면 정보가 더 많다) 아니면 **피처 집합의 성질**인가(지평을 바꿔도 0.53). 1폴드 스모크에서 h1 0.5469 · h3 0.5434 로 h5(0.5352)보다 높게 나와 이 축을 정식으로 재야 한다.",
+   "counterfactual": "CO_smooth_d1_h5 (같은 패널·같은 폴드·같은 시드·같은 저용량에서 지평 h5)",
+   "command": "timeout 3000 bash scripts/cg276_horizon_ladder.sh",
+   "summary_out": "/app/reports/overnight/cg276_horizon_ladder.json",
+   "paired_reference": "CO_smooth_d1_h5",
+   "success": "기준 arm(CO_smooth_d1_h5) 대비 어떤 지평의 OOS 폴드평균이 Δ ≥ +0.02 이고 그 arm 의 폴드승률 ≥ 4/5 → 신호(그 지평으로 라벨·홀드 축 실험 등록). 미달이면 '지평 축 종결'. ⚠ AUC 는 정보량 비교이며 돈 지표 대체가 아니다(지평별 거래비용·회전율 상이) — 신호가 나와도 순기대(%p/세션, 체결성 필터+수수료 0.21%p)로 별도 확인한다.",
+   "expected": "h1 0.540~0.550 · h3 0.535~0.545 · h5 0.530~0.540 · h10 0.520~0.535 (짧을수록 높을 것으로 추정)",
+   "cost": "낮음(4 arm × 5폴드 × 3시드 · 유휴 시 15~25분)",
+   "est_minutes": 20,
+   "created_at": "2026-11-14T17:17:00+09:00"
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"

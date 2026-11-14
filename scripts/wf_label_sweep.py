@@ -250,6 +250,20 @@ CONFIGS = [
     {"id": "CO_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "게이트 ON + 라벨 스무딩 + depth1·lr0.05 (rank 없음) — 추론 계약 무변경 배포 가능 후보"},
+    # ── CG276(2026-11-14): 정보 상한의 **지평 의존성** — CG275 실측(저용량 arm 갭 0.052 ·
+    # OOS 0.5352)은 '피처에 일반화되는 신호가 ~0.53 수준'임을 시사했다. 그렇다면 질문은
+    # "그 0.53 이 이 지평(h5)의 성질인가, 피처의 성질인가"다. 같은 피처·같은 저용량 설정에서
+    # 라벨 지평만 h1/h3/h5/h10 으로 바꿔 OOS AUC 를 비교한다(AUC 는 지평별 라벨 안에서 척도무관).
+    # 판정 기준은 CO_smooth_d1_h5(h5) 대비 OOS Δ ≥ +0.02 — 미달이면 '지평 축도 종결'.
+    {"id": "CG276_h1", "kind": "smooth", "horizon": 1, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "CG276 — 지평 h1 · 스무딩 불가(1일)라 원형 라벨 · depth1 (지평 사다리)"},
+    {"id": "CG276_h3", "kind": "smooth", "horizon": 3, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "CG276 — 지평 h3 · 스무딩 + depth1 (지평 사다리)"},
+    {"id": "CG276_h10", "kind": "smooth", "horizon": 10, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "CG276 — 지평 h10 · 스무딩 + depth1 (지평 사다리)"},
     # ── CG69(2026-10-02): 배포 가능 arm 의 **구간 짝(pairs) 검정** — CG64/CG66/CG67 삼중 재현 ──
     # 왜: 수리 패널(panel_420_asof3)에서 CO_smooth_d1_h5 0.5512 vs CO_core30_h5 0.5350 = Δ+0.0162 가
     # **세 번의 독립 실행에서 소수점까지 동일**하게 나왔다(CG64·CG66·CG67 = 비트 결정적). 즉 이 Δ 는

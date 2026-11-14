@@ -1718,6 +1718,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind == "insample_gap":
         # CG275 — 폴드별 train vs OOS 갭 리포트(scripts/_insample_gap_report.py)
         return parse_insample_gap(spath, mtime_floor)
+    if kind == "horizon_ladder":
+        # CG276 — 같은 리포트 스키마(arms{exp:{oos_mean,gap}})를 지평 사다리로 판정한다
+        return parse_insample_gap(spath, mtime_floor)
     if kind == "champion_promote_dryrun":
         return parse_champion_promote_dryrun(spath, mtime_floor)
     if kind == "champion_seed_family":
@@ -3252,6 +3255,41 @@ def judge_insample_gap(item, parsed) -> tuple:
     return ("혼합 — 갭 중간대(단일 원인 아님)", detail, gap)
 
 
+def judge_horizon_ladder(item, parsed) -> tuple:
+    """CG276 판정 — 같은 피처·같은 저용량에서 라벨 **지평**만 바꿨을 때 OOS AUC 가 움직이는가.
+
+    CG275 실측: 저용량(depth1+스무딩) 갭 0.052 (train 0.587 vs OOS 0.5352) — 모델이 학습셋조차
+    못 맞히므로 '표현력' 문제가 아니라 **피처에 담긴 일반화 신호가 작다**는 쪽이다. 그렇다면
+    남은 질문은 "그 작음이 이 지평(h5)의 성질인가"다. 지평 사다리의 OOS AUC 를 기준 arm(h5)과
+    비교해 Δ ≥ +0.02 면 신호, 미달이면 지평 축 종결로 닫는다.
+    ⚠ 지평이 다르면 라벨의 기저율·거래비용이 달라진다 → AUC 비교는 '정보량' 비교일 뿐
+      돈 지표가 아니다. 판정 문구에 그 한계를 함께 남긴다(돈 판정은 순기대 별도 측정).
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    arms = {k: v for k, v in (parsed.get("arms") or {}).items() if isinstance(v, dict) and v.get("n_folds")}
+    if not arms:
+        return "판정불가", "폴드 기록 없음(학습 실패 또는 --report-train-auc 미지정)", None
+    ref = item.get("paired_reference") or "CO_smooth_d1_h5"
+    if ref not in arms:
+        return "판정불가", f"기준 arm {ref} 이 결과에 없다(대조 없는 비교는 무효)", None
+    r = arms[ref]
+    others = {k: v for k, v in arms.items() if k != ref}
+    if not others:
+        return "판정불가", "비교 arm 이 없다", None
+    best = max(others, key=lambda k: others[k].get("oos_mean") or -1)
+    b = others[best]
+    delta = round((b.get("oos_mean") or 0) - (r.get("oos_mean") or 0), 4)
+    ladder = " · ".join(f"{k} OOS {v.get('oos_mean')}(갭 {v.get('gap')})" for k, v in arms.items())
+    detail = (f"기준 {ref} OOS {r.get('oos_mean')}(갭 {r.get('gap')}) vs 최고 {best} OOS "
+              f"{b.get('oos_mean')}(갭 {b.get('gap')}) → Δ{delta:+} · 폴드 {b['n_folds']}개·시드 "
+              f"{b.get('n_seeds')} · 사다리: {ladder} · ⚠ AUC 비교는 정보량 비교다(지평별 라벨 "
+              f"기저율·거래비용이 달라 돈 지표 대체 아님)")
+    if delta >= 0.02:
+        return (f"신호 — 지평 {best} 가 h5 대비 Δ{delta:+.4f}", detail, delta)
+    return (f"노이즈 — 지평 축 종결(최고 Δ{delta:+.4f} < +0.02)", detail, delta)
+
+
 def parse_blend_eval(path, mtime_floor) -> dict:
     """라벨 다양성 앙상블(scripts/blend_eval.py --out) 짝 집계를 파싱한다.
 
@@ -4328,6 +4366,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_champion_baseline(item, parsed)
     if kind == "insample_gap":
         return judge_insample_gap(item, parsed)
+    if kind == "horizon_ladder":
+        return judge_horizon_ladder(item, parsed)
     if kind == "champion_promote_dryrun":
         return judge_promote_dryrun(item, parsed)
     if kind == "champion_seed_family":
