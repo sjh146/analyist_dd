@@ -129,9 +129,14 @@ def load_ledger(limit=None):
             line = line.strip()
             if line:
                 try:
-                    out.append(json.loads(line))
+                    rec = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                # 스키마 정규화(읽기 측): 수동·복구 기록은 `detail` 없이 `note` 만 가질 수 있다.
+                # 소비자(틱 표시·스코어보드·감사)가 KeyError 로 죽지 않게 여기서 채운다(디스크 불변).
+                if not rec.get("detail"):
+                    rec["detail"] = rec.get("note") or "(근거 미기록)"
+                out.append(rec)
     return out[-limit:] if limit else out
 
 
@@ -5174,9 +5179,15 @@ def ensure_launcher(dry=False) -> str:
 def _print_results(rows):
     """원장 기록을 틱 stdout 으로 출력한다(자기신고 금지 — 요약 JSON 에서 계산된 값만)."""
     for r in rows:
-        print(f"=== 결과 도착: {r['id']} — {r['title']}")
-        print(f"  rc={r['rc']} 경과 {r['elapsed_min']}분 판정={r['verdict']}")
-        print(f"  근거: {r['detail']}")
+        # ⚠ 모든 필드를 .get 으로 읽는다 — 수동 기입·복구 기록은 스키마가 완전하지 않다.
+        # 실측 2026-11-14 16:05: 수동 실행분을 원장에 편입한 CG273 에 `detail` 이 없어
+        # (provenance 는 `note`) _print_results 가 KeyError 로 죽었고, **틱 전체가 rc=1** 로
+        # 끝나 그 결과가 사용자에게 전달되지 않았다(보고 지연 = 다음 틱이 미전달을 되돌려 재보고).
+        # 표시 함수는 어떤 기록 형태에도 죽지 않아야 한다(판정은 이미 원장에 있다).
+        detail = r.get("detail") or r.get("note") or "(근거 미기록)"
+        print(f"=== 결과 도착: {r.get('id')} — {r.get('title')}")
+        print(f"  rc={r.get('rc')} 경과 {r.get('elapsed_min')}분 판정={r.get('verdict')}")
+        print(f"  근거: {detail}")
         per: dict = (r.get("parsed") or {}).get("per_exp") or {}
         for name, v in per.items():
             # 표시용 통계는 없을 수 있다(정정·부분 기록) → .get 으로 읽어 절대 죽지 않게 한다.
@@ -5184,7 +5195,7 @@ def _print_results(rows):
             print(f"    {name}: 폴드 평균 {v.get('mean')} std {v.get('std', '-')} "
                   f"(min {v.get('min', '-')} max {v.get('max', '-')}) "
                   f"폴드승률 {v.get('fold_win_rate', '-')} {v.get('folds', [])}")
-        print(f"  로그: {r['log']}")
+        print(f"  로그: {r.get('log') or '(없음)'}")
 
 
 HANDOFF_KEYS = ("from_research", "from_trader", "handoff_from")
