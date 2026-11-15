@@ -1296,13 +1296,15 @@ CONFIGS = [
     # ⚠ 사전 관측: 상한 5일 채움으로 커버리지는 0.1218→0.1403(Δ+1.9%p) 만 오른다 —
     #   종목별 게시 공백이 대부분 5거래일보다 길다는 뜻이다. 따라서 **효과 기대는 낮다**.
     #   그래도 판정은 감이 아니라 같은 런 짝 Δ 로 남긴다(축 종결 근거를 수치로).
-    # 대조 프로토콜: 같은 패널에서 두 arm 모두 ffill_* 을 **선별 후보에서 제외**하고(exclude_names),
-    #   arm 만 gate_add 로 4종을 선별 후에 덧붙인다 → top30 집합 동일, 차이는 'ffill 4종 사용' 하나.
+    # 대조 프로토콜(2026-11-15 18:1x **교정**): ffill_* 은 CORE_FEATURES(48) 밖이므로 선별 후보에
+    #   애초에 들어가지 않는다 → exclude_names 없이도 두 arm 의 top30 이 동일하다. 게다가
+    #   exclude_names+gate_add 조합은 **측정 전에 죽는다**(같은 날 CG285 실측: exclude 가 cols 에서
+    #   dv 를 지워 `_der` 가 비고 "파생 피처가 필터를 통과하지 못했다" RuntimeError) → 제거.
     {"id": "CG241_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
-     "core_only": True, "exclude_names": ["ffill_*"],
-     "desc": "CG241 대조군 — ffill 패널에서 ffill_* 을 후보에서 제외(원본과 동일 정보)"},
+     "core_only": True,
+     "desc": "CG241 대조군 — ffill 패널에서 ffill_* 미사용(원본과 동일 정보)"},
     {"id": "CG241_ff_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
-     "core_only": True, "exclude_names": ["ffill_*"],
+     "core_only": True,
      "gate_add": ["ffill_sns_sentiment_score", "ffill_sns_attention_score",
                   "ffill_sns_momentum_score", "ffill_sns_stale_days"],
      "desc": "CG241 처리군 — 같은 선별 + as-of 전방채움 4종(상한 5거래일·경과일 지표) 강제 포함"},
@@ -1321,6 +1323,67 @@ CONFIGS = [
      "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "CG240 — 라벨을 '당일 횡단면 풀평균 초과(스무딩 동일)' 이진으로 (나머지 동일)"},
+    # ── CG285(2026-11-15 18:0x): 종목별 거래대금(유동성) 축 — 패널에 '금액' 피처가 없다 ─────────
+    # 근거(실측): 돈 지표의 체결성 필터가 버리는 71.6% 의 주원인은 상한가(0.3%·34행)가 아니라
+    #   **거래대금 10억 미만**이다(CG283). 그런데 panel_420_asofpatch 210피처에 종목별 거래대금은
+    #   0개다 — 있는 `krx_total_trading_value` 는 날짜별 유니크값 1개(시장레벨 집계)이고
+    #   `volume_ratio_20`·`price_volume` 은 거래량 스케일이지 금액이 아니다. 즉 모델은
+    #   '살 수 있는 종목'의 축을 볼 수 없다.
+    # 선행 구현(자율): scripts/_cg285_tv_panel.py → panel_420_tv.npz(214열, 가산만).
+    #   원본 210열 비트동일 · 절단 재계산 자기검정 8/8 PASS · 단일피처 AUC 0.4716~0.4976
+    #   (누수 게이트 0.75 미만) · 종목상수 ratio ≤ 0.021.
+    # 프로토콜: gate_add 경로는 이미 tv_* 를 **선별 후보에서 빼고 선별 후에 덧붙인다**(`_keep`=fn−dv).
+    #   따라서 exclude_names 는 쓰지 않는다 — 실측(2026-11-15 18:0x): exclude_names+gate_add 조합은
+    #   exclude 가 `cols` 에서 dv 를 지워버려 `_der` 가 비고 "파생 피처가 필터를 통과하지 못했다"로
+    #   측정 전에 죽는다(즉 두 장치는 배타적이다). CG241 의 같은 설계도 그래서 미검증 상태다.
+    #   대조군은 CO_smooth_d1_h5 와 동일 config → 이 패널에서 비트 동일이면 가산이 무해함이 증명된다.
+    {"id": "CG285_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "CG285 대조군 — tv 패널에서 tv_* 미사용(= CO_smooth_d1_h5 와 동일 설정)"},
+    {"id": "CG285_tv_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True,
+     "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "gate_add": ["tv_rank_cs_20", "tv_rank_cs_60", "tv_ratio_5_20", "tv_log"],
+     "desc": "CG285 처리군 — 같은 선별 + as-of 종목별 거래대금 4종(20/60일 횡단면 rank·5/20 비율·log) 강제 포함"},
+    # ── CG286(2026-11-15 18:2x): 학습 도메인 정합 재시험 — '살 수 있는 행'으로만 배운다 ─────────
+    # 왜 CG192 를 다시 재는가: CG192(당일등락 ≥ +25% 학습 제외)는 **0.60%(325/54,497)만** 뺐다 →
+    #   Δ+0.0003 은 '효과 없음'이 아니라 '검정력 없음'이다. 돈 지표의 체결성 필터가 실제로 버리는
+    #   것은 거래대금 10억 미만 = **71.6%**(CG283 실측)다. 즉 지금 모델은 71.6%의 '살 수 없는 행'
+    #   위에서 순위를 배우고, 그 예측을 36% 표본에서 평가받는다.
+    # ⚠ 마스크는 **학습 행에만** 건다(테스트 행 도메인 동일 → 짝 Δ 비교가능). 기준 컬럼 tv_log 는
+    #   CORE_FEATURES(48) 밖이라 선별 후보를 바꾸지 않는다 → 차이는 '학습 도메인' 하나.
+    #   임계 = log1p(1e9)=20.7233(돈 지표 필터와 동일) · 감도 = log1p(3e9)=21.8219.
+    {"id": "CG286_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "CG286 대조군 — 전체 행 학습(현행), tv_log 는 마스크로도 쓰지 않음"},
+    {"id": "CG286_liq1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "train_mask_col": "tv_log", "train_mask_gte": 20.72326583794641,
+     "desc": "CG286 arm — 학습에서 거래대금 < 10억 행 제외(테스트 그대로)"},
+    {"id": "CG286_liq3_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "train_mask_col": "tv_log", "train_mask_gte": 21.821878125947855,
+     "desc": "CG286 감도 arm — 학습에서 거래대금 < 30억 행 제외(마스크 강도 반응 확인)"},
+    # ── CG287(2026-11-15 18:4x): CG286(행 제거)의 반작용 — 행은 버리지 말고 '살 수 있는 행'에 가중 ──
+    # 왜: CG286 실측 — 학습 도메인을 유동성으로 자르면 AUC 가 0.5518 → 0.4970(−0.0549, 0/5 폴드)로
+    #   붕괴했고, 체결가능 부분집합 재채점에서도 0.5543 → 0.5115(−0.0428) 였다. 두 해석이 가능하다:
+    #   ① 정보는 illiquid 행에 있고 그 신호는 배포 모집단으로 전이되지 않는다(축 종결)
+    #   ② 행을 **버리면** 표본·정보가 함께 사라진다(가중이라면 다를 수 있다)
+    #   이 실험은 ②를 반증 가능한 형태로 검정한다: 같은 행 도메인, 가중만 이동.
+    {"id": "CG287_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "desc": "CG287 대조군 — 전체 행 동일 가중(CG286_ctl 과 동일 설정)"},
+    {"id": "CG287_wfill_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "weight": {"kind": "fillable", "col": "tv_log", "gte": 20.72326583794641,
+                "w_high": 2.0, "w_low": 0.5},
+     "desc": "CG287 arm — 같은 행 도메인, 체결가능 행 가중 2.0 / 불가 0.5 (평균 1 정규화)"},
+    {"id": "CG287_wfill4_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "weight": {"kind": "fillable", "col": "tv_log", "gte": 20.72326583794641,
+                "w_high": 4.0, "w_low": 0.25},
+     "desc": "CG287 감도 arm — 체결가능 가중 4.0 / 불가 0.25 (강한 이동)"},
 ]
 
 
@@ -1343,6 +1406,28 @@ def apply_train_domain_mask(tr, threshold):
                     dtype=float)
     drop = np.greater_equal(dc, float(threshold))     # NaN >= x → False (보존)
     return tr[~drop], int(drop.sum())
+
+
+def apply_train_mask_col(tr, col, threshold):
+    """학습 행만 **지정 컬럼 임계값**으로 거른다 (CG286, 2026-11-15) — 테스트 행은 그대로.
+
+    왜 필요한가(CG192 의 한계 실측): CG192 는 '당일등락 ≥ +25%'(체결 불가)를 학습에서 뺐지만
+    그런 행이 패널의 **0.60%(325/54,497)뿐**이라 Δ+0.0003 으로 검정력이 없었다. 반면 돈 지표의
+    체결성 필터가 실제로 버리는 것은 **거래대금 10억 미만 = 71.6%**(CG283 실측)이다 → 같은
+    '학습 도메인 정합' 가설을 훨씬 큰 마스크로 다시 잰다.
+
+    계약(apply_train_domain_mask 와 동일):
+      - col 없음/threshold None → 입력 그대로(n=0, 비트 동일 경로).
+      - 임계 미만·결측 행은 학습에서만 제거, **테스트 행은 손대지 않는다**(Δ 비교가능성).
+      - 마스크 기준 컬럼은 CORE_FEATURES(48) 밖(tv_*)이어야 한다 — 후보를 바꾸면 교란된다.
+    """
+    if not col or threshold is None:
+        return tr, 0
+    if col not in tr.columns:
+        raise RuntimeError(f"train_mask_col={col} 이 학습 프레임에 없다 — 패널에 그 컬럼이 필요하다")
+    v = pd.to_numeric(tr[col].to_numpy(dtype=float), errors="coerce")
+    keep = np.isfinite(v) & np.greater_equal(v, float(threshold))   # NaN(측정 불가)은 제거
+    return tr[keep], int((~keep).sum())
 
 
 def fold_window_indices(n, n_folds, step, right_anchored=False):
@@ -1412,7 +1497,7 @@ def transform_matrix(Xdf, dates, kind, codes=None):
     raise ValueError(f"unknown transform: {kind}")
 
 
-def make_weights(spec, dates_tr, fwd_tr=None, day_pos=None, t0_pos=None):
+def make_weights(spec, dates_tr, fwd_tr=None, day_pos=None, t0_pos=None, col_vals=None):
     """CG23 표본 가중 — 학습 행별 가중치 벡터(평균 1 정규화). None 이면 '가중 없음'.
 
     spec=None            → None  (원 경로 그대로: sample_weight 를 아예 넘기지 않는다)
@@ -1420,6 +1505,10 @@ def make_weights(spec, dates_tr, fwd_tr=None, day_pos=None, t0_pos=None):
     {"kind":"time_decay","hl":60} → 0.5 ** (경과 거래일 / hl). 가장 최근 학습일이 가중 1.
     {"kind":"absret","clip":0.05} → |h일 선행수익| 기반(상한 clip). h5 보유에서 '크게 움직인'
                                     표본에 집중하는 가설.
+    {"kind":"fillable","col":"tv_log","gte":20.72,"w_high":2.0,"w_low":0.5}
+                         → CG287(2026-11-15): **행을 버리지 않고** '살 수 있는 행'(거래대금 ≥ 임계)에
+                           만 가중을 올린다. CG286(행 제거)은 AUC 를 −0.055 붕괴시켰다 — 정보 손실이
+                           원인이라면, 가중은 정보를 유지한 채 배포 모집단 쪽으로 학습 신호만 옮긴다.
 
     거래일 축을 쓰는 이유: 패널은 거래일만 있고 캘린더 결측(휴장)이 있어 달력일 기준 감쇠는
     구간에 따라 다르게 깎인다. day_pos 는 폴드가 쓰는 dd(정렬된 날짜 목록)의 위치다.
@@ -1430,6 +1519,17 @@ def make_weights(spec, dates_tr, fwd_tr=None, day_pos=None, t0_pos=None):
     n = len(dates_tr)
     if kind == "uniform":
         w = np.ones(n, dtype=float)
+    elif kind == "fillable":
+        if col_vals is None:
+            raise RuntimeError(f"fillable 가중에 컬럼 값이 필요하다(spec={spec})")
+        v = np.asarray(col_vals, dtype=float)
+        if len(v) != n:
+            raise RuntimeError(f"fillable 가중 길이 불일치({len(v)} vs {n}) — tr 순서 보존 실패")
+        hi = float(spec.get("w_high") or 2.0)
+        lo = float(spec.get("w_low") or 0.5)
+        gte = float(spec.get("gte") or 20.72326583794641)
+        fill = np.isfinite(v) & (v >= gte)
+        w = np.where(fill, hi, lo)
     elif kind == "time_decay":
         hl = float(spec.get("hl") or 60.0)
         if day_pos is None or t0_pos is None:
@@ -1951,6 +2051,8 @@ def main():
                "exclude_market_level": bool(cfg.get("exclude_market_level")),
                "weight": cfg.get("weight"),
                "train_mask_daychg_gte": cfg.get("train_mask_daychg_gte"),
+               "train_mask_col": cfg.get("train_mask_col"),
+               "train_mask_gte": cfg.get("train_mask_gte"),
                "ts": ml.now_iso(), "status": "failed", "folds": {}}
         ml.log(f"=== {exp_id}: {cfg['desc']} ===")
         try:
@@ -2101,6 +2203,17 @@ def main():
                     if len(tr) < 100:
                         ml.log(f"  {exp_id} fold{i}: 마스크 후 학습행 {len(tr)} — 건너뜀")
                         continue
+                # ── CG286 학습 도메인 마스크(2026-11-15): '살 수 있는 행'으로만 배운다 ─────────
+                # CG192 는 당일등락 기준이라 0.6%만 뺐지만, 돈 지표가 실제로 버리는 71.6% 는
+                # 거래대금 10억 미만이다(CG283). 마스크 기준 컬럼은 tv_log(=log1p(거래대금),
+                # CORE_FEATURES 밖) → 후보 집합은 두 arm 이 동일하고 차이는 '학습 행 도메인' 하나.
+                _mcol = cfg.get("train_mask_col")
+                _mgte = cfg.get("train_mask_gte")
+                if _mcol and _mgte is not None:
+                    _n0 = len(tr)
+                    tr, _nm = apply_train_mask_col(tr, _mcol, _mgte)
+                    ml.log(f"  {exp_id} fold{i}: 학습 도메인 마스크 {_mcol} ≥ {float(_mgte):.4f} → "
+                           f"{_nm}행 제외 ({_n0} → {len(tr)})")
                 if min(len(tr), len(te)) < 100:
                     ml.log(f"  {exp_id} fold{i}: 표본 부족(tr={len(tr)} te={len(te)}), 건너뜀")
                     continue
@@ -2112,11 +2225,17 @@ def main():
                 w_tr = None
                 if cfg.get("weight"):
                     _dpos = {str(x): j for j, x in enumerate(dd)}
+                    _wspec = cfg["weight"]
+                    _wcol = _wspec.get("col") if str(_wspec.get("kind")).lower() == "fillable" else None
+                    if _wcol and _wcol not in tr.columns:
+                        raise RuntimeError(
+                            f"weight.col={_wcol} 이 학습 프레임에 없다 — 패널에 그 컬럼이 필요하다")
                     w_tr = make_weights(
-                        cfg["weight"], trd,
+                        _wspec, trd,
                         fwd_tr=(np.asarray(tr["_fwd"].values, dtype=float)
                                 if "_fwd" in tr.columns else None),
-                        day_pos=_dpos, t0_pos=_dpos.get(str(cut)))
+                        day_pos=_dpos, t0_pos=_dpos.get(str(cut)),
+                        col_vals=(tr[_wcol].to_numpy(dtype=float) if _wcol else None))
                     ml.log(f"  {exp_id} fold{i}: 가중 {cfg['weight']} — "
                            f"min={w_tr.min():.4f} max={w_tr.max():.4f} "
                            f"유니크={len(np.unique(np.round(w_tr, 6)))}")
