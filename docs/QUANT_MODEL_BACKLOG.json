@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-16T00:08:43%:z",
+ "updated_at": "2026-11-16T01:22:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -19288,7 +19288,7 @@
   },
   {
    "id": "CG295",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "promotion",
    "owner": "engineer",
@@ -19305,8 +19305,52 @@
    "cost": "평가 1회(10폴드×80일×200종목, 학습 0) ≈ 45~60분",
    "est_minutes": 70,
    "created_at": "2026-11-16T00:08:43%:z",
-   "updated_at": "2026-11-16T00:09:08%:z",
-   "note": "2026-11-16 00:5x 자율(장외 틱) 신설. 계기: CG292 에서 같은 파이프라인 재학습이 0.5385 를 냈는데 배포 챔피언 기록값은 0.4908(다른 프로토콜) — '지금 사는 모델이 무엣지인가'는 승격 판단의 전제인데 프로토콜이 달라 아무도 답하지 않았다. ⚠ 승격 자체는 이 항목에서 하지 않는다(champion_promote --dry-run + 사람 승인 별도). [00:5x 수정] 라벨은 챔피언 자신의 과제(rel)로 채점한다 — quantile q0.30 으로 재면 재학습 후보의 in-domain 이점이 섞여 '교체 필요'를 과대평가한다."
+   "updated_at": "2026-11-16T01:30:00+09:00",
+   "note": "2026-11-16 00:5x 자율(장외 틱) 신설. 계기: CG292 에서 같은 파이프라인 재학습이 0.5385 를 냈는데 배포 챔피언 기록값은 0.4908(다른 프로토콜) — '지금 사는 모델이 무엣지인가'는 승격 판단의 전제인데 프로토콜이 달라 아무도 답하지 않았다. ⚠ 승격 자체는 이 항목에서 하지 않는다(champion_promote --dry-run + 사람 승인 별도). [00:5x 수정] 라벨은 챔피언 자신의 과제(rel)로 채점한다 — quantile q0.30 으로 재면 재학습 후보의 in-domain 이점이 섞여 '교체 필요'를 과대평가한다. [2026-11-16 01:2x 후속] 돈 지표를 같은 dump 로 계산해 위 result 에 부기(수수료 0.21%p·stride5). 절대 순기대가 k3 +0.04%p 로 사실상 0 이라 '배포 챔피언 = 무엣지'는 돈 기준으로도 유지된다. 짝 비교(cand arm)는 CG296 으로 등록·실행.",
+   "attempts": [
+    {
+     "ts": "2026-11-16T01:01:52+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "detail": "워크포워드 견고 AUC 0.5321±0.0272 (시간창 10개 [0.4993, 0.4905, 0.5304, 0.5506, 0.5325, 0.5681, 0.5461, 0.5700, 0.4963, 0.5370]) · 풀링 0.5287 · 날짜별평균 0.5321 · 행 15760",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG295_20261116-000912.log",
+     "elapsed_min": 52.7
+    }
+   ],
+   "result": {
+    "verdict": "기준선 실측",
+    "detail": "워크포워드 견고 AUC 0.5321±0.0272 (시간창 10개 [0.4993, 0.4905, 0.5304, 0.5506, 0.5325, 0.5681, 0.5461, 0.5700, 0.4963, 0.5370]) · 풀링 0.5287 · 날짜별평균 0.5321 · 행 15760 | 돈(같은 런 dump·체결성 ON·1e9·close_h h5·0.21%p·stride5·20세션): k3 +0.043%p/세션 · k5 +0.231 · k10 -0.763 (널 풀평균 -1.479 → Δ +1.523/+1.710/+0.717, t 1.14/1.67/1.03, 분할 both_positive 없음). 필터 OFF 는 k3 +15.979%p(상한가 효과) — 체결성 필터 필수 재확인.",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG296",
+   "status": "pending",
+   "priority": 1,
+   "kind": "promotion",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "champion_robust_eval",
+   "title": "[배포 품질·짝 비교] 2026-11-13 재학습 후보를 배포 챔피언과 같은 프로토콜·같은 OOS 창에서 채점 — 재학습이 실제로 이기는가",
+   "hypothesis": "CG295 실측: 배포 챔피언(학습구간 2025-08-22~2025-11-20)은 학습경로 동형 200종목·10폴드에서 0.5321±0.0272, 같은 런의 돈(체결성 ON·stride5·20세션)은 k3 +0.043%p·k5 +0.231%p 로 사실상 0(널 풀평균 -1.479 대비 Δ+1.52/+1.71 이나 t 1.14/1.67). 등록 기준선 0.4908 은 80종목·ETF 26개 포함 유니버스의 도메인 불일치 측정이었다. 이제 재학습 후보(2026-11-13, 학습 2026-08-15~10-29, 199피처)가 같은 프로토콜에서 챔피언을 이기는지가 승격의 유일한 근거다. 후보 학습구간이 2026 창과 겹치므로 --train-start/--train-end 로 겹치는 창을 제외해 7폴드(2026-01-13~07-31)만 채점하고 챔피언도 같은 7폴드 부분집합(0.5311)으로 짝 비교한다.",
+   "method": "champion_robust_eval 로 후보(champion_cand)를 챔피언과 동일 인자(rel·h5·10폴드×8일·200종목 training·seed0·asof 2026-11-13)로 채점하되 학습구간 2026-08-15~2026-10-29 를 넘겨 겹치는 창을 자동 제외. 이어 양쪽 dump 를 fillable_topk_expectancy(체결성 ON·1e9·close_h h5·stride5·0.21%p)로 짝 돈 비교.",
+   "counterfactual": "배포 챔피언(app/models/champion) 같은 프로토콜·같은 폴드 — CG295 실측 0.5321±0.0272(10폴드), 7폴드 부분집합 0.5311",
+   "arm": "cand_20261113_rel",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand --label-kind rel --horizon 5 --folds 10 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2026-08-15 --train-end 2026-10-29 --asof-date 2026-11-13 --dump-preds /app/reports/overnight/cg296_cand_preds.jsonl --dump-tag cg296_cand --dump-all --out /app/reports/overnight/cg296_cand_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg296_cand_preds.jsonl --arm-tag cg296_cand --control-jsonl /app/reports/overnight/cg295_champ_preds.jsonl --control-tag cg295_champ --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg296_money_pair.json'",
+   "summary_out": "/app/reports/overnight/cg296_cand_robust.json",
+   "setup_needed": null,
+   "success": "같은 폴드 짝 Δ(AUC) ≥ +0.02 이고 돈 k3 또는 k5 Δ(후보-챔피언) ≥ +0.1%p & t ≥ 2 & 분할 both_positive → 승격 후보로 등록(champion_promote --dry-run --require-expectancy 는 별도 판단). Δ < +0.02 면 '재학습 축 노이즈'로 기록하고, 챔피언 교체 필요성은 돈 기준(절대 순기대≤0)에서만 다시 올린다.",
+   "expected": "후보가 학습구간 밖 2026-01~07 에서는 챔피언과 비슷하거나 소폭 우위(Δ 0~+0.02) — 단일분할 val 0.6001 은 상방 편향이므로 폴드 평균은 훨씬 낮게 나올 것.",
+   "cost": "채점 1회(7폴드×8일×200종목, 학습 0) + 돈 비교 ≈ 45~60분",
+   "est_minutes": 60,
+   "depends_on": [
+    "CG295"
+   ],
+   "created_at": "2026-11-16T01:22:00+09:00",
+   "updated_at": "2026-11-16T01:22:00+09:00",
+   "note": "2026-11-16 01:2x 자율(장외 틱) 신설. CG295 는 챔피언 arm 만 돌아 '짝 비교'가 미완이었다. 후보 학습구간(2026-08-15~10-29)이 평가 창 8~10 과 겹치므로 반드시 --train-start/--train-end 를 넘겨 겹치는 창을 제외해야 한다(안 넘기면 in-sample 폴드가 섞여 후보 AUC 가 부풀려진다 — CG295 가 챔피언에 2025 창을 넘겨 겹침 0 을 만든 것과 같은 이유)."
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
