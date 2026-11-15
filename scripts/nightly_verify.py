@@ -37,7 +37,11 @@ DELAYED = {
     "krx_short_selling": 1,
     "krx_program_trading": 1,
 }
-SAME_DAY = {"ml_predictions": 3000}
+# 예측(ml_predictions)도 실측상 다음날 새벽(04:15 백필)에 채워진다 → 지연 소스로 분류.
+#   2026-11-13 실측: prediction_date=11-13 행의 created_at 은 11-13 19:15 **UTC** = 11-14 04:15 KST.
+#   즉 20:20·22:20 검증 시점에는 아직 없고, 다음날 아침에 채워진다.
+SAME_DAY: dict = {}
+DELAYED["ml_predictions"] = 3000
 
 
 def psql(sql: str) -> list:
@@ -51,6 +55,23 @@ def psql(sql: str) -> list:
         if line:
             rows.append(line.split("|"))
     return rows
+
+
+def is_trading_day(day: str) -> bool:
+    """주말·휴장일 판정(휴장일에는 시장 데이터가 없는 것이 정상)."""
+    try:
+        cursor = datetime.date.fromisoformat(day)
+    except ValueError:
+        return True
+    if cursor.weekday() >= 5:
+        return False
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "data", "krx_holidays.json"), encoding="utf-8") as handle:
+            holidays = {str(x)[:10].replace("-", "") for x in json.load(handle)}
+    except Exception:
+        holidays = set()
+    return cursor.strftime("%Y%m%d") not in holidays
 
 
 def prev_trading_day(day: str) -> str:
@@ -178,17 +199,18 @@ def main(argv=None) -> int:
     day = args.date or datetime.datetime.now().strftime("%Y-%m-%d")
     prev = prev_trading_day(day)
     problems = []
-    got_today = counts_for(day)
+    trading = is_trading_day(day)
+    got_today = counts_for(day) if trading else {}
     got_prev = counts_for(prev)
-    for table, minimum in SAME_DAY.items():
+    for table, minimum in (SAME_DAY.items() if trading else []):
         n = got_today.get(table, -1)
         if n < minimum:
             problems.append("{0} {1}행 (기대 ≥ {2}) — {3}".format(table, n, minimum, day))
-    for table, minimum in DELAYED.items():
+    for table, minimum in (DELAYED.items() if trading else []):
         n = got_prev.get(table, -1)
         if n < minimum:
             problems.append("{0} {1}행 (기대 ≥ {2}) — 직전 거래일 {3}".format(table, n, minimum, prev))
-    state = pipeline_state(day)
+    state = pipeline_state(day) if trading else "skipped(휴장)"
     if state == "running":
         # 파이프라인이 아직 도는 중이면 예측·리포트는 아직 안 나온 것이 정상이다.
         if args.verbose:
@@ -206,7 +228,7 @@ def main(argv=None) -> int:
         problems.append("기동 컨테이너 {0}개 (기대 ≥ 15)".format(up))
     feed = feed_day()
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    if day == today and feed != day:
+    if trading and day == today and feed != day:
         # 과거 날짜 검증(--date)에서는 오늘 피드와 비교하지 않는다(거짓 경보).
         problems.append("피드 generated_at {0} (기대 {1})".format(feed or "없음", day))
 
