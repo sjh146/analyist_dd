@@ -195,6 +195,26 @@ def baskets(rows, ks, rt_pct, reverse=False):
     return out
 
 
+def stride_keys(rows, stride):
+    """비중첩 세션 키 집합 — 폴드별로 날짜 정렬 후 stride 칸 간격만 남긴다.
+
+    WHY(CG290 실측 2026-11-15): h5 라벨의 5일 보유창이 세션마다 겹쳐 연속 225세션의
+    t 통계가 sqrt(5)≈2.2배 부풀려진다(q0.05 돈 Δ+3.235 t 4.48 → 독립표본 환산 t≈2.0).
+    stride=h 로 채점하면 표본은 1/h 로 줄지만 세션 간 보유창이 겹치지 않아 t 가 정직해진다.
+    기본 stride=1 은 현행과 비트 동일(행 필터 없음).
+    """
+    if stride <= 1:
+        return None
+    per_fold = defaultdict(set)
+    for r in rows:
+        per_fold[r["fold"]].add(r["date"])
+    keep = set()
+    for fold, dates in per_fold.items():
+        for d in sorted(dates)[::stride]:
+            keep.add((fold, d))
+    return keep
+
+
 def pool_series(rows, rt_pct):
     """세션별 **풀 평균**(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓의 기대값.
 
@@ -285,6 +305,9 @@ def main(argv=None) -> int:
     ap.add_argument("--min-value", type=float, default=1e9)
     ap.add_argument("--min-price", type=float, default=None)
     ap.add_argument("--max-price", type=float, default=None)
+    ap.add_argument("--stride", type=int, default=1,
+                    help="세션 채점 간격 — h5 처럼 보유창이 겹치는 라벨은 --stride 5 로 "
+                         "비중첩 표본을 만든다(기본 1 = 현행 비트 동일)")
     ap.add_argument("--fee-buy", type=float, default=FEE_BUY)
     ap.add_argument("--fee-sell", type=float, default=FEE_SELL)
     ap.add_argument("--tax-sell", type=float, default=TAX_SELL)
@@ -316,6 +339,7 @@ def main(argv=None) -> int:
         "exit": a.exit, "horizon": a.horizon, "ks": ks,
         "arm_tag": a.arm_tag, "control_tag": a.control_tag,
         "fee_roundtrip_pct": round(rt_pct, 4),
+        "stride": a.stride,
         "rows": {"arm": len(arm_e), "control": len(ctl_e),
                  "arm_dropped_price": drop_a, "control_dropped_price": drop_c,
                  "bad_lines": bad_a + bad_c},
@@ -324,6 +348,10 @@ def main(argv=None) -> int:
     for cond, on in (("fillable", True), ("unfiltered", False)):
         fa, sk_a = apply_filters(arm_e, a, on)
         fc, sk_c = apply_filters(ctl_e, a, on)
+        keep = stride_keys(fa, a.stride)
+        if keep is not None:
+            fa = [r for r in fa if (r["fold"], r["date"]) in keep]
+            fc = [r for r in fc if (r["fold"], r["date"]) in keep]
         ba = baskets(fa, ks, rt_pct, reverse=flip)
         bc = baskets(fc, ks, rt_pct, reverse=flip)
         block = {"filtered_out": {"arm": sk_a, "control": sk_c}, "k": {}}

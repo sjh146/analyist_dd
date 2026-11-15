@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-15T19:11:36+09:00",
+  "updated_at": "2026-11-15T20:07:16+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -19007,7 +19007,7 @@
     },
     {
       "id": "CG290",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "kind": "label",
       "owner": "engineer",
@@ -19025,8 +19025,87 @@
       "est_minutes": 12,
       "created_at": "2026-11-15T19:11:36+09:00",
       "updated_at": "2026-11-15T19:11:36+09:00",
-      "result": null,
-      "note": "⚠ 유니버스 전이가 관건이다(CG5: 49종목 +0.0227 → 150종목 −0.0109). 이 항목은 '새 축'이 아니라 기존 양(+) 신호의 전이 검정이므로, 미달이면 축을 닫는 근거가 된다(재시험이 아님 — 대상 유니버스가 다르다). 배포 관점: 라벨 꼬리 두께는 학습 옵션이라 추론 계약을 건드리지 않는다."
+      "result": {
+        "verdict": "신호있음",
+        "detail": "가설 CO_q05_h5 0.5847 vs 대조군 CO_core30_h5 0.5315 → Δ+0.0532 (최고: CO_q05_h5 0.5847)",
+        "delta": 0.0532,
+        "per_exp": {
+          "CO_core30_h5": {
+            "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5214,
+              0.5575,
+              0.499,
+              0.5354,
+              0.5442
+            ],
+            "mean": 0.5315,
+            "std": 0.02,
+            "min": 0.499,
+            "max": 0.5575,
+            "fold_win_rate": 0.8
+          },
+          "CO_q05_h5": {
+            "desc": "게이트 ON + 분위0.05 — 극단 꼬리(게이트 OFF 실측 Δ+0.0420)",
+            "kind": "quantile",
+            "horizon": 5,
+            "folds": [
+              0.5476,
+              0.5325,
+              0.597,
+              0.6108,
+              0.6356
+            ],
+            "mean": 0.5847,
+            "std": 0.0388,
+            "min": 0.5325,
+            "max": 0.6356,
+            "fold_win_rate": 1.0
+          }
+        },
+        "rc": 0
+      },
+      "note": "⚠ 유니버스 전이가 관건이다(CG5: 49종목 +0.0227 → 150종목 −0.0109). 이 항목은 '새 축'이 아니라 기존 양(+) 신호의 전이 검정이므로, 미달이면 축을 닫는 근거가 된다(재시험이 아님 — 대상 유니버스가 다르다). 배포 관점: 라벨 꼬리 두께는 학습 옵션이라 추론 계약을 건드리지 않는다.",
+      "attempts": [
+        {
+          "ts": "2026-11-15T20:03:32+09:00",
+          "rc": 0,
+          "verdict": "신호있음",
+          "detail": "가설 CO_q05_h5 0.5847 vs 대조군 CO_core30_h5 0.5315 → Δ+0.0532 (최고: CO_q05_h5 0.5847)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG290_20261115-200006.log",
+          "elapsed_min": 3.4
+        }
+      ]
+    },
+    {
+      "id": "CG291",
+      "status": "pending",
+      "priority": 1,
+      "kind": "label",
+      "owner": "engineer",
+      "affects_model": true,
+      "metric": "multi_fold_oos+fillable_topk",
+      "title": "[라벨 축·돈 검증] CG290 의 q0.05 돈 이득(+3.24%p/세션)이 겹침·이상치·프로토콜 산물인가 — 10폴드 확장 + 비중첩 세션 + 트림 평균",
+      "hypothesis": "CG290(panel_prod200·5폴드×3시드)은 AUC Δ+0.0532(5/5)에 더해 돈 게이트도 통과했다(k=3 arm +4.400%p/세션 · 대조 +1.166 · 짝 Δ+3.235 t 4.48 · 분할 both_positive [+5.783/+3.030]). 그러나 ① 같은 축의 생산경로 돈 측정 CG95(panel_150u·10폴드·80세션)는 k=3 짝 Δ-0.912(t -1.45)로 부호가 반대였고 ② h5 창이 5세션 겹쳐 t 가 sqrt(5)≈2.2배 부풀려지며 ③ arm 픽의 |수익|>40% 극단값이 30/675(대조군 13/675)이고 ④ +4.4%p/세션은 연 ~0.9%/일 엣지로 경제적으로 비현실적이다. 즉 'AUC 는 오르는데 돈은 프로토콜에 따라 뒤집힌다'를 가르는 것이 이 실험이다.",
+      "evidence": "CG290 실측(2026-11-15 20:03, panel_prod200·5폴드×3시드·게이트 ON): CO_q05_h5 0.5847±0.0388 [0.5476,0.5325,0.597,0.6108,0.6356] vs CO_core30_h5 0.5315±0.0200 [0.5214,0.5575,0.499,0.5354,0.5442] → Δ+0.0532·승률 5/5. 돈(체결성 ON·1e9·close_h h5·0.21%p·225세션·풀평균 -0.071): k3 arm +4.400(t 5.63)/ctl +1.166(t 2.16)/Δ+3.235(t 4.48)/분할 both_positive · k5 Δ+2.188(t 4.41) · k10 Δ+1.093(t 3.63). 픽 진단: arm 세션 top3 gross 평균 4.61·중앙 2.84 · |gross|>40% 픽 30/675 · 코드 고유수 153. 대조군 CG95(panel_150u·10폴드·80세션·생산경로): k3 arm +1.754/ctl +2.667/Δ-0.912(t -1.45) — 부호 상충.",
+      "method": "같은 패널 panel_prod200 에서 10폴드×5시드 2-arm(CO_core30_h5 대조군·CO_q05_h5) 재측정 후, 돈 지표를 세 가지로 분해: (a) 현행 연속 세션(참고) (b) 비중첩 stride=5 세션(독립 표본 근사) (c) 픽 트림 평균(세션별 상·하위 5% 제외). 세 방식의 부호가 일치해야 신호로 인정한다.",
+      "counterfactual": "CO_core30_h5 — 같은 런·같은 폴드·같은 시드의 게이트 ON q0.30(h5)",
+      "arm": "CO_q05_h5",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 10 --seeds 5 --only CO_core30_h5,CO_q05_h5 --dump-preds /app/reports/overnight/cg291_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg291_sweep.jsonl --summary-out /app/reports/overnight/cg291_sweep_summary.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg291_preds.jsonl --arm-tag CO_q05_h5 --control-jsonl /app/reports/overnight/cg291_preds.jsonl --control-tag CO_core30_h5 --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg291_money_stride5.json'",
+      "summary_out": "/app/reports/overnight/cg291_sweep_summary.json",
+      "setup_needed": "fillable_topk_expectancy.py 에 --stride N(기본 1 = 현행 비트 동일) 옵션 추가 — 세션 키 정렬 후 N칸 간격만 채점(겹침 제거). 회귀: 같은 입력으로 --stride 1 결과가 cg290_money.json 과 비트 동일한지 확인.",
+      "success": "AUC: 폴드 짝 Δ >= +0.02 & 양(+) >= 8/10. 돈: stride=5 비중첩 세션에서 k=3 arm 순기대 > 0 & Δ(top3-풀평균) >= +0.1%p & t >= 2 & 분할 both_positive, 그리고 트림 평균에서도 Δ > 0. 하나라도 부호가 뒤집히면 'q0.05 라벨은 AUC 만 올리고 돈은 못 올린다'로 축 종결(승격 후보 아님).",
+      "expected": "AUC Δ 는 재현(+0.03~+0.05, 8~10/10). 돈은 비중첩·트림에서 크게 축소되거나 부호 반전 예상(현 +3.2%p → 0 근처).",
+      "cost": "10폴드×5시드 2arm ≈ 15분 + 돈 재계산 1분",
+      "est_minutes": 20,
+      "depends_on": [
+        "CG290",
+        "CG95"
+      ],
+      "created_at": "2026-11-15T20:07:16+09:00",
+      "updated_at": "2026-11-15T20:07:16+09:00"
     }
   ],
   "updated": "2026-11-14T00:02:35+09:00"
