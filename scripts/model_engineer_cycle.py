@@ -1216,6 +1216,13 @@ def parse_wf_sweep(path, mtime_floor) -> dict:
                 "summary_mtime": mt, "floor": mtime_floor}
     with open(path, encoding="utf-8") as f:
         d = json.load(f)
+    if not isinstance(d, dict) or "results" not in d:
+        # 왜 명시 오류인가(실측 2026-11-15, CG292): summary_out 이 **다른 스키마**(champion_robust_eval
+        # 의 robust_auc/folds[])인 항목을 wf_sweep_summary 로 등록하면 per_exp={} 가 되어
+        # judge_per 가 (판정불가, detail='') 로 닫혔다 — 149분짜리 실측이 근거 없이 사라졌다.
+        # 조용히 빈 판정을 내지 말고 '스키마 불일치'를 원장에 남긴다.
+        return {"error": (f"요약 스키마 불일치: results[] 없음(키={sorted(list(d))[:8]}) — "
+                          f"metric 등록이 산출물 형식과 다르다")}
     per: dict = {}
     for r in d.get("results", []):
         folds = r.get("folds") or {}
@@ -4557,7 +4564,9 @@ def judge_per(item, per_exp) -> tuple:
     verdict, detail, delta = "판정불가", "", None
     per = per_exp if isinstance(per_exp, dict) else {}
     if not per:
-        return verdict, detail, delta
+        # 빈 detail 은 '확인 안 함'과 구분되지 않는다(실측 2026-11-15 CG292: 149분 실측이
+        # 근거 문구 없이 판정불가로 닫혀 사람이 원인을 알 수 없었다).
+        return verdict, "요약에 폴드 평균(per_exp)이 없음 — 스키마/경로 불일치 의심", delta
     # ── 구간 짝(paired) 프로토콜 (2026-09-28, CG13 후속) ─────────────────────────
     # 왜: CG13 실측(5.7분)에서 **같은 크기(30종목) 서로소 5구간**의 게이트 ON 대조군 폴드 평균이
     # 0.5204([0:30)) ~ 0.4917([120:150)) = Δ0.0287 로 사전문턱 +0.02 를 유니버스 교체만으로 넘겼다.

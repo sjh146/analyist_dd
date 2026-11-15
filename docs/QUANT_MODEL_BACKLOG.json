@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-15T22:01:07+09:00",
+ "updated_at": "2026-11-16T00:08:43%:z",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -19180,7 +19180,7 @@
   },
   {
    "id": "CG292",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "label",
    "owner": "engineer",
@@ -19188,7 +19188,7 @@
    "metric": "wf_sweep_summary",
    "title": "[라벨 축·생산경로] q0.05 꼬리 라벨을 실제 챔피언 학습 경로로 재현하라 — CG291(스윕 +2.05%p)과 CG95(생산경로 -0.91)의 부호 충돌 해소",
    "hypothesis": "같은 q0.05 라벨 축이 스윕 경로에서는 돈 Δ+2.054(t 1.66, CG291·10폴드·prod200)인데 생산경로(retrain_champion)에서는 Δ-0.912(t -1.45, CG95·10폴드·panel_150u)로 부호가 반대다. 차이는 ① 유니버스(prod200 vs 150u) ② 학습 파이프라인(스윕 vs retrain_champion: 피처 게이트·HP·앙상블 가중) ③ 세션 수(50 vs 80)다. 이 중 무엇이 부호를 뒤집는지 분해하지 않으면 q0.05 는 배포 후보가 될 수 없다. 생산경로가 스윕과 같은 방향을 내는지가 승격 검토의 유일한 관문이다.",
-   "evidence": "CG291(2026-11-15 20:29, prod200 10폴드×5시드): AUC Δ+0.0432·8/10 · 돈 stride5 50세션 k3 arm +2.957 vs 대조 +0.904 (Δ+2.054 t 1.66 · vs 풀 +2.906 t 2.19 · 분할 both_positive). CG95(prod150u 10폴드 80세션·retrain_champion 경로): k3 arm +1.754 vs 대조 +2.667 (Δ-0.912 t -1.45) · vs 풀 미보고. CG92(같은 생산경로 5창): q0.05 가 q0.30 대비 AUC Δ+0.0459(5/5) 로 AUC 는 생산경로에서도 올랐다 — 즉 '생산경로에서 AUC 는 오르는데 돈은 안 오른다'가 CG95 의 결론이었다.",
+   "evidence": "CG291(2026-11-15 20:29, prod200 10폴드×5시드): AUC Δ+0.0432·8/10 · 돈 stride5 50세션 k3 arm +2.957 vs 대조 +0.904 (Δ+2.054 t 1.66 · vs 풀 +2.906 t 2.19 · 분할 both_positive). CG95(prod150u 10폴드 80세션·retrain_champion 경로): k3 arm +1.754 vs 대조 +2.667 (Δ-0.912 t -1.45) · vs 풀 미보고. CG92(같은 생산경로 5창): q0.05 가 q0.30 대비 AUC Δ+0.0459(5/5) 로 AUC 는 생산경로에서도 올랐다 — 즉 '생산경로에서 AUC 는 오르는데 돈은 안 오른다'가 CG95 의 결론이었다. | 2026-11-15 23:33 실측(CG292): 생산경로 AUC Δ+0.0673(8/10) 재현 · 돈 k3 Δ−1.718(t −1.24) k5 −0.287 k10 −0.750 — CG95 의 음(−) 방향이 재현되고 CG291 의 스윕 +2.05%p 는 전이되지 않았다.",
    "method": "panel_prod200 에서 retrain_champion 라벨 옵션(q0.05 vs q0.30)으로 챔피언을 2회 학습하고 champion_robust_eval --dump-all 로 5창 전 유니버스 채점 → fillable_topk_expectancy --stride 5 로 돈 비교. 같은 절차를 panel_150u 에도 돌려 CG95 를 같은 도구·같은 stride 로 재측정(프로토콜 차이 제거).",
    "counterfactual": "같은 패널·같은 창·같은 시드의 q0.30 챔피언(retrain_champion 기본 라벨)",
    "arm": "retrain_q05_prod200",
@@ -19205,12 +19205,29 @@
     "CG92"
    ],
    "created_at": "2026-11-15T20:36:52+09:00",
-   "updated_at": "2026-11-15T21:03:43+09:00",
-   "note": "[2026-11-15 21:0x 수리] 등록 명령이 q0.05 arm 만 학습·채점하고 최종 돈 비교에서 존재하지 않는 cg292_q30_preds.jsonl 을 참조했다(대조군 미생성 → 5단계에서 반드시 실패). CG92/CG95 검증된 형태로 2-arm 4단계+돈 비교로 교체: q0.30 학습·채점 추가 · arm 별 체크포인트 분리(동일 ckpt 재사용은 라벨이 달라 재개 오염 위험) · champion_robust_eval 에 --dump-all 추가(없으면 풀 기준선·널 계산 불가) · --asof-date 2026-11-13 고정(창 밀림 방지) · stride 5 유지. est_minutes 30→240(CG92 150분·CG95 138분 실측 기준, 2 retrain+2×10폴드 eval)."
+   "updated_at": "2026-11-16T00:08:43%:z",
+   "note": "[2026-11-15 21:0x 수리] 등록 명령이 q0.05 arm 만 학습·채점하고 최종 돈 비교에서 존재하지 않는 cg292_q30_preds.jsonl 을 참조했다(대조군 미생성 → 5단계에서 반드시 실패). CG92/CG95 검증된 형태로 2-arm 4단계+돈 비교로 교체: q0.30 학습·채점 추가 · arm 별 체크포인트 분리(동일 ckpt 재사용은 라벨이 달라 재개 오염 위험) · champion_robust_eval 에 --dump-all 추가(없으면 풀 기준선·널 계산 불가) · --asof-date 2026-11-13 고정(창 밀림 방지) · stride 5 유지. est_minutes 30→240(CG92 150분·CG95 138분 실측 기준, 2 retrain+2×10폴드 eval). [2026-11-16 00:3x 판정] 구동기는 summary_out(cg292_q05_robust.json = champion_robust_eval 스키마)을 wf_sweep_summary 파서로 읽어 per_exp={} → '판정불가(근거 미기록)'로 닫았다. 실측값은 정상 산출됐고 (위 result), 판정만 유실됐다 → 파서에 스키마 불일치 명시 오류 + judge_per 빈 detail 금지로 수리(커밋).",
+   "attempts": [
+    {
+     "ts": "2026-11-15T23:33:47+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG292_20261115-210409.log",
+     "elapsed_min": 149.6
+    }
+   ],
+   "result": {
+    "verdict": "기각 — q0.05 라벨 축 종결(스윕 전용 현상)",
+    "detail": "생산경로(retrain_champion, panel_prod200 200종목) 10폴드: q0.05 0.6059±0.097 [0.4225..0.7350] vs q0.30 0.5385±0.0384 [0.4871..0.6270] → 짝 Δ+0.0673±0.0824, 승 8/10 (AUC 이득은 생산경로에서도 재현). 그러나 돈(체결성 ON·1e9·close_h h5·stride5·0.21%p·20세션): k3 arm −2.480%p vs 대조 −0.761%p = Δ−1.718(t −1.24 · 양/음 8/11) · k5 Δ−0.287(t −0.25 · 14/6, 중앙 +1.02) · k10 Δ−0.750(t −0.95). 널(풀평균 −1.479%p) 대비 k3 −1.000(t −1.34)·k5 +0.016·k10 +0.359. 앞/뒤 절반 neither·unstable → 사전 문턱(Δ≥+0.1%p & t≥2 & both_positive) 전면 미달.",
+    "delta": -1.7185,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG293",
-   "status": "pending",
+   "status": "closed_rejected",
    "priority": 2,
    "kind": "label",
    "owner": "engineer",
@@ -19232,7 +19249,64 @@
     "CG292"
    ],
    "created_at": "2026-11-15T21:03:43+09:00",
-   "updated_at": "2026-11-15T21:03:43+09:00"
+   "updated_at": "2026-11-16T00:08:43%:z",
+   "note": " [2026-11-16 00:3x 종결] CG292 가 사전등록 규칙(Δ≤0 → 라벨 꼬리 축 종결)을 발동시켰다: 생산경로 돈 k3 Δ−1.718(t −1.24)·k5 −0.287·k10 −0.750, AUC 는 +0.0673(8/10)로 올랐지만 돈은 반대. q0.10 단조성은 '스윕 경로에서만 유효한 축'의 세부 형태라 승격 결정에 쓰이지 않는다(45분 비용 대비 결정가치 0). 라벨 꼬리 축은 닫는다.",
+   "result": {
+    "verdict": "종결(미실행) — 상위 축 종결로 결정가치 소멸",
+    "detail": "CG292 결과 참조",
+    "delta": null,
+    "per_exp": null,
+    "rc": null
+   }
+  },
+  {
+   "id": "CG294",
+   "status": "done",
+   "priority": 3,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "npm_diagnostic",
+   "title": "[측정정합성] 돈 게이트의 널 기준선(체결가능 풀평균 −1.48%p)은 측정 오류인가 시장 실체인가 — 필터 성분 분해 + 체결가능 AUC 분해",
+   "hypothesis": "CG292 돈 결과에서 arm·대조군 모두 음(−)이고 풀평균도 −1.48%p/세션이었다. 만약 풀평균이 무수정 주가·이상치 같은 측정 오류라면 'vs 풀' 판정이 전부 편향된다. 또 q0.05 의 AUC 이득이 체결 불가(저유동) 종목에서만 나온다면 돈으로 전이될 수 없다 — 둘 다 같은 preds 로 검증 가능하다.",
+   "method": "① fillable 필터 성분별 풀평균(그대로/|gross|>40% 제외/5% 트림/필터 OFF) ② 각 arm 의 날짜별 횡단면 AUC 를 전체 행 vs 체결가능 행으로 분해(scripts/fillable_auc_split.py, 필터 기본값 동일).",
+   "command": "docker exec stock_xgboost_ml python /app/scripts/_pool_decomp.py /app/reports/overnight/cg292_q30_preds.jsonl cg292_q30 5 /app/reports/overnight/cg294_pool_decomp.json && docker exec stock_xgboost_ml python /app/scripts/fillable_auc_split.py --preds /app/reports/overnight/cg292_q05_preds.jsonl --tags cg292_q05 --horizon 5 --out /app/reports/overnight/cg294_fillable_auc_q05.json && docker exec stock_xgboost_ml python /app/scripts/fillable_auc_split.py --preds /app/reports/overnight/cg292_q30_preds.jsonl --tags cg292_q30 --horizon 5 --out /app/reports/overnight/cg294_fillable_auc_q30.json",
+   "counterfactual": "필터 OFF(전체 행) 풀평균 · arm 내부 전체행 AUC",
+   "result": {
+    "verdict": "측정 오류 아님(널 기준선 유효) · 체결성 설명 기각",
+    "detail": "① 풀평균: 필터 ON −1.0199(19세션, 중앙 +0.2656, 양 10/19) vs 필터 OFF +0.9527(중앙 +0.7503) → 차이는 무수정주가·이상치가 아니라 **유동성 필터가 우량주만 남기는 선택효과**(상위 픽에 +53/+114/+217% 5일 수익이 있으나 대부분 거래대금<1e9 로 매수 불가). |gross|>40% 제외 −1.77, 5% 트림 −1.83 → 극단값이 널을 끌어내린 게 아니다. ② 체결가능 AUC: q0.05 전체 0.6020 → 체결가능 0.6298(+0.028), q0.30 0.5390 → 0.5636(+0.025). 체결가능 행에서 arm 간 격차는 +0.066(전체 +0.067) 로 그대로 → 'AUC 이득이 살 수 없는 종목에 몰려 있다'는 설명은 기각.",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "success": "널 기준선이 오류면 수리 항목 등록, 아니면 '유효'로 기록하고 다음 축으로.",
+   "cost": "2분(기존 preds 재사용, 학습 0)",
+   "est_minutes": 5,
+   "created_at": "2026-11-16T00:08:43%:z",
+   "updated_at": "2026-11-16T00:08:43%:z",
+   "note": "2026-11-16 00:3x 자율(장외 틱). 부수 확인: 전체 200종목 일별 수익률 |r|>25% 0.71%·분할흔적 2건(008470 −48.5%·115310 −80.0%)은 풀평균에 유의한 영향 없음(제외 시 오히려 더 음수)."
+  },
+  {
+   "id": "CG295",
+   "status": "pending",
+   "priority": 1,
+   "kind": "promotion",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "champion_robust_eval",
+   "title": "[배포 품질] 배포 챔피언(6주 전 학습 · 로버스트 0.4908)을 재학습 후보와 **같은 프로토콜**로 짝 비교 — 살아 있는 모델이 무엣지인가",
+   "hypothesis": "배포 챔피언의 robust_oos.json 은 2026-10-05 측정·5폴드·80종목·rel 라벨 0.4908 이다. 6주가 지난 지금 같은 라벨·최신 10폴드·200종목으로 다시 재면, ① 그대로 0.49 근처라면 '실매매 모델이 무엣지'가 확정되고 ② 0.52 이상이면 10월 측정이 표본(80종목·5폴드) 탓에 과소평가였던 것이다. 승격 논의의 전제(현 배포 모델의 실제 실력)를 확정한다.",
+   "method": "챔피언 디렉터리를 cg292 와 동일한 10폴드·prod200·q0.30·purge5 로 채점(--dump-all) 후 10폴드 평균·폴드별 짝 Δ(챔피언 − cg292_q30)를 계산. 학습·재학습 없음(평가만).",
+   "counterfactual": "챔피언 자신의 2026-10-05 기록값 0.4908(5폴드·80종목·rel) — 같은 라벨·같은 앵커로 10폴드·200종목 재측정",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --label-kind rel --horizon 5 --folds 10 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --asof-date 2026-11-13 --dump-preds /app/reports/overnight/cg295_champ_preds.jsonl --dump-tag cg295_champ --dump-all --out /app/reports/overnight/cg295_champ_robust.json'",
+   "summary_out": "/app/reports/overnight/cg295_champ_robust.json",
+   "success": "10폴드 rel 평균 < 0.50 이면 '배포 모델 무엣지' 확정(승격 교체 검토를 사람 승인으로 올린다) · 0.50~0.52 는 노이즈(교체 근거 없음) · ≥0.52 면 10월 이후 성능 저하는 없다로 기록. ⚠ 같은 실행에서 cg292_q30(분위 라벨 학습)과 AUC 를 직접 비교하지 않는다 — 라벨이 달라 in-domain 이점이 섞인다. 비교가 필요하면 rel 라벨로 후보를 한 번 더 채점한다(별도 항목).",
+   "expected": "0.47~0.51(6주 전 모델·피처 6종 상수화 이슈 CG164 포함) — 재학습 후보 우위 예상.",
+   "cost": "평가 1회(10폴드×80일×200종목, 학습 0) ≈ 45~60분",
+   "est_minutes": 70,
+   "created_at": "2026-11-16T00:08:43%:z",
+   "updated_at": "2026-11-16T00:09:08%:z",
+   "note": "2026-11-16 00:5x 자율(장외 틱) 신설. 계기: CG292 에서 같은 파이프라인 재학습이 0.5385 를 냈는데 배포 챔피언 기록값은 0.4908(다른 프로토콜) — '지금 사는 모델이 무엣지인가'는 승격 판단의 전제인데 프로토콜이 달라 아무도 답하지 않았다. ⚠ 승격 자체는 이 항목에서 하지 않는다(champion_promote --dry-run + 사람 승인 별도). [00:5x 수정] 라벨은 챔피언 자신의 과제(rel)로 채점한다 — quantile q0.30 으로 재면 재학습 후보의 in-domain 이점이 섞여 '교체 필요'를 과대평가한다."
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
