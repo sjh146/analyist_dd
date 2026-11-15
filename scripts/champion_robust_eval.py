@@ -287,6 +287,14 @@ def main() -> int:
                          "서빙 경로 모사용: 배포 챔피언의 일부 피처가 서빙에서 상수 0.0 이면 "
                          "실제 트레이더가 받는 성능은 그 부분집합을 0 으로 둔 점수다(CG164). "
                          "미지정이면 현행과 비트 동일.")
+    ap.add_argument("--scramble-features", dest="scramble_features", default=None,
+                    help="(선택) 쉼표구분 접두/이름 목록의 피처를 **날짜별로 종목 간 순열**한다 "
+                         "(주변분포 보존 · 횡단면 정보만 파괴). 서빙 스큐 원인 분해용(CG299): "
+                         "rank_* 를 0.0 으로 고정한 arm(CG297)과 실제 rank arm(CG295) 사이의 "
+                         "0.02 격차가 '값의 내용' 때문인지 '상수 컬럼' 때문인지 가른다. "
+                         "미지정이면 현행과 비트 동일.")
+    ap.add_argument("--scramble-seed", dest="scramble_seed", type=int, default=0,
+                    help="--scramble-features 순열 시드(기본 0 · 날짜별로 시드 파생)")
     ap.add_argument("--write", action="store_true",
                     help="robust_walkforward.json 도 기록(정보용 견고성 지표). "
                          "승격 기준선 robust_auc.json 은 champion_promote 가 지표 동형으로 "
@@ -401,6 +409,15 @@ def main() -> int:
         if not zero_idx:
             logger.error("zero-features 패턴이 어떤 피처와도 매칭되지 않았습니다 — 이름을 확인하세요")
             return 2
+    # 서빙 스큐 원인 분해(CG299): 지정 피처를 날짜별로 종목 간 순열한다(주변분포 보존).
+    scramble_names: list[str] = []
+    if args.scramble_features:
+        pats = [p.strip() for p in str(args.scramble_features).split(",") if p.strip()]
+        scramble_names = [f for f in feature_names if any(f == p or f.startswith(p) for p in pats)]
+        logger.info("scramble-features %s → %d/%d 피처 날짜별 종목간 순열", pats, len(scramble_names), len(feature_names))
+        if not scramble_names:
+            logger.error("scramble-features 패턴이 어떤 피처와도 매칭되지 않았습니다 — 이름을 확인하세요")
+            return 2
 
     prices = load_prices(conn, universe, dates_asc[0], dates_asc[-1])
 
@@ -441,6 +458,17 @@ def main() -> int:
                 logger.warning("%s: 유효 종목 %d개 — 건너뜀", date, len(features_by_code))
                 continue
             pipeline.compute_cross_sectional_ranks(features_by_code)
+
+            # CG299: 지정 피처를 날짜별로 종목 간 순열(값 집합은 보존, '어느 종목인가'만 파괴).
+            if scramble_names:
+                rng = np.random.default_rng([int(args.scramble_seed), int(str(date).replace("-", ""))])
+                feats_list = list(features_by_code.values())
+                for _name in scramble_names:
+                    vals = np.array([float(_f.get(_name, 0.0)) for _f in feats_list], dtype=np.float32)
+                    if len(vals) > 1:
+                        vals = vals[rng.permutation(len(vals))]
+                    for _f, _v in zip(feats_list, vals):
+                        _f[_name] = float(_v)
 
             codes, probs, rets = [], [], []
             for code, feats in features_by_code.items():
