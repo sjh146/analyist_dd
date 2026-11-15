@@ -294,6 +294,8 @@ def main(argv=None) -> int:
     ap.add_argument("--k", default="3,5,10")
     ap.add_argument("--sides", default="top",
                     help="top(기본) · bottom 추가 시 반대쪽 k 바스켓도 계산해 `bottom_k` 로 싣는다")
+    ap.add_argument("--regime-split", choices=("none", "pool_sign"), default="none",
+                    help="pool_sign: 세션별 풀평균 부호로 상승/하락 국면을 갈라 같은 paired 델타를 각각 계산(CG302)")
     ap.add_argument("--primary-side", choices=("top", "bottom"), default="top",
                     help="k 바스켓을 상위(기본)로 볼지 하위로 볼지 — 하위는 '점수 반전' 가설 검정(CG99)")
     ap.add_argument("--exit", choices=EXITS, default="close_h",
@@ -369,6 +371,19 @@ def main(argv=None) -> int:
             block["bottom_k"] = {
                 str(k): {"arm": stat(list(bb[k].values())),
                          "paired_vs_pool": paired_stats(bb[k], bpool)} for k in ks}
+        if (a.regime_split == "pool_sign") and bpool:
+            # 세션별 풀평균 부호로 국면을 가른다 — 모델 엣지가 상승/하락 국면에 의존하는지(CG302).
+            reg = {}
+            for name, sel in (("up", {kk for kk, v in bpool.items() if v > 0}),
+                              ("down", {kk for kk, v in bpool.items() if v <= 0})):
+                gp = {kk: v for kk, v in bpool.items() if kk in sel}
+                entry = {"n_sessions": len(gp), "pool": stat(list(gp.values())), "k": {}}
+                for k in ks:
+                    sa = {s: v for s, v in ba[k].items() if s in sel}
+                    entry["k"][str(k)] = {"arm": stat(list(sa.values())),
+                                          "paired_vs_pool": paired_stats(sa, gp)}
+                reg[name] = entry
+            block["regime"] = reg
         for k in ks:
             sa = ba[k]
             sc = bc[k]
@@ -419,6 +434,17 @@ def main(argv=None) -> int:
                 pv = bk["paired_vs_pool"]
                 print(f"    k={k:>2} arm {bk['arm'].get('mean', float('nan')):+.3f}%p/세션 "
                       f"· Δ(pool) {pv.get('delta_mean', float('nan')):+.3f} (t {pv.get('t')})")
+        if "regime" in cb:
+            print("  [국면분해] 세션별 풀평균 부호")
+            for name, lbl in (("up", "상승"), ("down", "하락")):
+                rg = cb["regime"][name]
+                rs = rg["pool"]
+                print(f"    {lbl}: 세션 {rg['n_sessions']} · 풀 {rs.get('mean', float('nan')):+.3f}%p (t {rs.get('t')})")
+                for k in ks:
+                    rk = rg["k"][str(k)]
+                    rp = rk["paired_vs_pool"]
+                    print(f"      k={k:>2} top {rk['arm'].get('mean', float('nan')):+.3f}%p "
+                          f"· Δ(pool) {rp.get('delta_mean', float('nan')):+.3f} (t {rp.get('t')})")
     if a.json_out:
         os.makedirs(os.path.dirname(a.json_out) or ".", exist_ok=True)
         with open(a.json_out, "w", encoding="utf-8") as f:
