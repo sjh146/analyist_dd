@@ -230,6 +230,37 @@ def pool_series(rows, rt_pct):
             for key, rs in by_sess.items() if rs}
 
 
+def trailing_pool_gate(rows, series, days, min_pct=0.0):
+    """진입 시점에 **알 수 있는** 트레일링 풀 모멘텀 게이트 (CG304).
+
+    WHY(2026-11-16 CG302 실측): top-k 초과수익은 국면 무관(상승 Δ+1.795 / 하락 Δ+2.353)인데
+    절대 기대는 하락국면 −3.157%p 로 무너진다 → '풀수익 부호'를 사후에 가른 것은 배포 불가다.
+    같은 부호를 t 시점 종가까지의 트레일링 풀수익으로 **예측**할 수 있는지만 본다.
+    lookahead 없음: t 종가까지의 종가만 쓰고, 진입도 t 종가(enrich 와 동일)다.
+    """
+    sess = defaultdict(lambda: defaultdict(list))
+    for r in rows:
+        sess[r["fold"]][r["date"]].append(r["code"])
+    close_map = {c: {d: v for d, v in zip(s["d"], s["c"])} for c, s in series.items()}
+    out = {}
+    for fold, by_date in sess.items():
+        ds = sorted(by_date)
+        for i in range(days, len(ds)):
+            d, d0 = ds[i], ds[i - days]
+            dd, dd0 = pd.Timestamp(d).date(), pd.Timestamp(d0).date()
+            vals = []
+            for c in by_date[d]:
+                cm = close_map.get(c)
+                if not cm:
+                    continue
+                p0, p1 = cm.get(dd0), cm.get(dd)
+                if p0 and p1 and p0 > 0:
+                    vals.append(p1 / p0 - 1.0)
+            if len(vals) >= 5:
+                out[(fold, d)] = (sum(vals) / len(vals)) * 100.0
+    return out
+
+
 def stat(vals):
     vals = [v for v in vals if v is not None and v == v]
     n = len(vals)
@@ -296,6 +327,14 @@ def main(argv=None) -> int:
                     help="top(기본) · bottom 추가 시 반대쪽 k 바스켓도 계산해 `bottom_k` 로 싣는다")
     ap.add_argument("--regime-split", choices=("none", "pool_sign"), default="none",
                     help="pool_sign: 세션별 풀평균 부호로 상승/하락 국면을 갈라 같은 paired 델타를 각각 계산(CG302)")
+    ap.add_argument("--gate-rule", choices=("none", "trailing_pool"), default="none",
+                    help="trailing_pool: 진입 시점에 알 수 있는 과거 N세션 풀수익(종목 동일비중)이 "
+                         "양(+)인 세션에서만 채점 — 사후(pool_sign) 분할을 예측 가능한 규칙으로 바꾼다(CG304). "
+                         "기본 none = 기존 경로 비트 동일")
+    ap.add_argument("--gate-days", type=int, default=5,
+                    help="trailing_pool 게이트의 룩백 세션 수(기본 5 = h5 보유기간과 동일)")
+    ap.add_argument("--gate-min-pct", type=float, default=0.0,
+                    help="trailing_pool 게이트 문턱(%%). 이 값 초과일 때만 ON (기본 0.0 = 부호)")
     ap.add_argument("--primary-side", choices=("top", "bottom"), default="top",
                     help="k 바스켓을 상위(기본)로 볼지 하위로 볼지 — 하위는 '점수 반전' 가설 검정(CG99)")
     ap.add_argument("--exit", choices=EXITS, default="close_h",
@@ -384,6 +423,29 @@ def main(argv=None) -> int:
                                           "paired_vs_pool": paired_stats(sa, gp)}
                 reg[name] = entry
             block["regime"] = reg
+        if (a.gate_rule == "trailing_pool") and bpool:
+            # 진입 시점에 알 수 있는 게이트로 세션을 ON/OFF 로 갈라 절대 기대를 본다(CG304).
+            tg = trailing_pool_gate(fa, series, a.gate_days, a.gate_min_pct)
+            on_keys = {kk for kk, v in tg.items() if v > a.gate_min_pct}
+            scored_keys = set(tg) & set(bpool)
+            bands = {}
+            for name, sel in (("on", on_keys & scored_keys),
+                              ("off", scored_keys - on_keys)):
+                gp = {kk: v for kk, v in bpool.items() if kk in sel}
+                entry = {"n_sessions": len(gp), "pool": stat(list(gp.values())), "k": {}}
+                for k in ks:
+                    sa = {s: v for s, v in ba[k].items() if s in sel}
+                    entry["k"][str(k)] = {"arm": stat(list(sa.values())),
+                                          "arm_halves": halves(sa),
+                                          "paired_vs_pool": paired_stats(sa, gp)}
+                bands[name] = entry
+            block["gate"] = {"rule": a.gate_rule, "days": a.gate_days,
+                             "min_pct": a.gate_min_pct, "n_scored": len(scored_keys),
+                             "n_on": len(on_keys & scored_keys),
+                             "n_off_sessions": len(scored_keys - on_keys),
+                             "n_unscored": len(set(bpool) - scored_keys),
+                             "trailing_pool": stat(list(tg.values())),
+                             "bands": bands}
         for k in ks:
             sa = ba[k]
             sc = bc[k]
@@ -445,6 +507,20 @@ def main(argv=None) -> int:
                     rp = rk["paired_vs_pool"]
                     print(f"      k={k:>2} top {rk['arm'].get('mean', float('nan')):+.3f}%p "
                           f"· Δ(pool) {rp.get('delta_mean', float('nan')):+.3f} (t {rp.get('t')})")
+        if "gate" in cb:
+            gt = cb["gate"]
+            print(f"  [예측 게이트] {gt['rule']} days={gt['days']} 문턱{gt['min_pct']:+.2f}% "
+                  f"→ ON {gt['n_on']}세션 / OFF {gt['n_off_sessions']}세션 (채점 {gt['n_scored']})")
+            for name, lbl in (("on", "게이트 ON"), ("off", "게이트 OFF")):
+                gb = gt["bands"][name]
+                gs = gb["pool"]
+                print(f"    {lbl}: 세션 {gb['n_sessions']} · 풀 {gs.get('mean', float('nan')):+.3f}%p (t {gs.get('t')})")
+                for k in ks:
+                    gk = gb["k"][str(k)]
+                    ar = gk["arm"]
+                    hh = gk["arm_halves"] or {}
+                    print(f"      k={k:>2} top {ar.get('mean', float('nan')):+.3f}%p (t {ar.get('t')}) "
+                          f"· 분할 {hh.get('stable')} [{ (hh.get('front') or {}).get('mean') }/{(hh.get('back') or {}).get('mean')} ]")
     if a.json_out:
         os.makedirs(os.path.dirname(a.json_out) or ".", exist_ok=True)
         with open(a.json_out, "w", encoding="utf-8") as f:
