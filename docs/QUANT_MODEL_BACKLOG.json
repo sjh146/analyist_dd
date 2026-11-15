@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-15T18:47:49+09:00",
+  "updated_at": "2026-11-15T19:11:36+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -18942,7 +18942,7 @@
     },
     {
       "id": "CG288",
-      "status": "needs_setup",
+      "status": "done",
       "priority": 2,
       "kind": "data_axis",
       "owner": "engineer",
@@ -18961,9 +18961,72 @@
         "CG282"
       ],
       "created_at": "2026-11-15T18:47:49+09:00",
-      "updated_at": "2026-11-15T18:47:49+09:00",
+      "updated_at": "2026-11-15T19:11:36+09:00",
+      "result": {
+        "verdict": "노이즈 — 창을 관측 구간으로 잘라도 전방채움 가산은 Δ−0.0012(폴드승률 0/2). SNS 축 최종 종결",
+        "detail": "슬라이스 패널(panel_200liq_ffill_2605.npz · 2026-05-27~11-09 · 112거래일 · 22,382행 · 200종목 · 217피처). 생성 자기검정 7/7 PASS(키 보존·누락 없음·표본 X/price 비트 동일). 슬라이스 안 SNS 관측률 29.7%(전체 12.2%). 같은 런 2폴드×3시드: 대조군 0.5145±0.0020 [fold1 0.5164 · fold2 0.5125] vs ffill arm 0.5133±0.0030 [0.5163 · 0.5103] → 짝 Δ−0.0012 (fold1 −0.0001 · fold2 −0.0022 · 승률 0/2). 돈(체결성 ON · close_h h5 · 수수료 0.21%p · 70세션 · 풀평균 −0.678%p): arm k3 +0.097%p/세션 (Δ vs 풀 +0.775 · t 0.93) · arm−대조군 Δ+0.300 (t 0.73) · k5 +0.121(t 0.57) · k10 −0.212(t −1.30). 결론: 원천 커버리지 상한 13.28%(CG252 실측)에 더해 **관측 구간 안에서도** 가산 효과 0 → SNS/감성 피처는 배선·창 조정으로 열리는 레버가 아니다. 재개 조건은 수집기 백필(승인 대상)뿐.",
+        "delta": -0.0012
+      },
+      "note": "CG241/CG282 를 '측정불가'로 닫은 뒤 남긴 재개 경로. 원천 백필(수집기 소유·승인 대상)이 오면 이 항목은 폐기하고 5폴드로 다시 잰다.",
+      "attempts": [
+        {
+          "ts": "2026-11-15T19:11:36+09:00",
+          "rc": 0,
+          "verdict": "노이즈 (Δ−0.0012 · 폴드승률 0/2)",
+          "detail": "슬라이스 빌드(7/7 PASS) → 2폴드×3시드 A/B → 돈 집계. 스크립트: scripts/_cg288_slice_panel.py",
+          "log": "services/xgboost-ml/reports/overnight/cg288_sweep_summary.json",
+          "elapsed_min": 9.0
+        }
+      ]
+    },
+    {
+      "id": "CG289",
+      "status": "done",
+      "priority": 1,
+      "kind": "model",
+      "owner": "engineer",
+      "affects_model": true,
+      "metric": "wf_sweep_summary",
+      "title": "[모델 축·앙상블] 지평 앙상블(rank-mean h1+h3+h5)이 단일 지평 h5 를 이기는가 — CG276 사다리의 미시험 결합",
+      "hypothesis": "CG276 실측에서 h1 0.5440±0.0066 · h3 0.5392±0.0075 · h5 0.5348±0.0145 로 h1 이 평균도 높고 폴드 분산이 2.2배 낮았다. 세 지평의 폴드 오차가 부분적으로 독립이면(fold3 h1 0.5484 vs h5 0.5200) 날짜별 횡단면 순위평균으로 묶을 때 분산이 줄어 사전문턱 +0.02 를 넘을 수 있다. 지평 앙상블은 기록상 0회 시험(HP3 는 모델 앙상블만).",
+      "counterfactual": "CO_smooth_d1_h5 — 같은 런·같은 폴드·같은 시드의 단일 지평(공통 라벨로 재채점)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 3 --only CO_smooth_d1_h5,CG276_h1,CG276_h3 --dump-preds /app/reports/overnight/cg289_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg289_sweep.jsonl --summary-out /app/reports/overnight/cg289_sweep_summary.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/_cg289_horizon_ensemble.py --json-out /app/reports/overnight/cg289_horizon_ensemble.json --emit-preds /app/reports/overnight/cg289_ens_preds.jsonl'",
+      "summary_out": "/app/reports/overnight/cg289_horizon_ensemble.json",
+      "success": "앙상블 짝 Δ(공통 h5 라벨) ≥ +0.02 & 폴드 승률 ≥ 4/5 → 신호(추론 계약 3모델 서빙 검토). 미달 → 지평 앙상블 축 종결",
+      "expected": "Δ +0.005 내외(분산 축소만) — 문턱 미달 예상",
+      "cost": "중(2 arm × 5폴드 × 3시드 ≈ 3분 + 앙상블 채점 1분)",
+      "est_minutes": 8,
+      "created_at": "2026-11-15T19:11:36+09:00",
+      "updated_at": "2026-11-15T19:11:36+09:00",
+      "result": {
+        "verdict": "노이즈 — Δ+0.0055(5/5 폴드 · 부호검정 p 0.031) < 사전문턱 +0.02 · 돈 차이는 0",
+        "detail": "panel_prod200 · 5폴드×3시드 · 게이트 ON · q0.30 · top30 · depth1 · 전 arm 을 공통 h5 스무딩 라벨로 채점(교집합 24,918행 · 210세션). h1 0.5348±0.0110 · h3 0.5374±0.0109 · h5 0.5356±0.0161 · rank-mean 앙상블 0.5411±0.0139 [0.5358, 0.5674, 0.5262, 0.5359, 0.5403] → Δ vs h5 +0.0055 (폴드 [0.0041, 0.0003, 0.0046, 0.0081, 0.0104] · 승률 5/5) · Δ vs h1 +0.0063(3/5) · Δ vs h3 +0.0037(3/5). 돈(체결성 ON · close_h · 0.21%p · 210세션 · 풀평균 +0.090%p): 앙상블 k3 +1.054 / k5 +1.005 / k10 +0.798 vs 대조군 h5 k3 +1.631 / k5 +0.831 / k10 +0.468 → arm−대조군 k3 −0.699(t −1.44) · k5 +0.068(t 0.22) · k10 +0.123(t 0.65). 즉 AUC 는 방향은 일관되나(5/5) 크기가 문턱의 1/4 이고 '돈'으로는 단일 지평과 구별되지 않는다. 스코어보드 등록 기준선 0.5406 대비 +0.0005 → 무개선 카운터 계속. 자기검정 3/3 PASS(항등성·단조불변·라벨셔플 검출). 재사용 도구: scripts/_cg289_horizon_ensemble.py",
+        "delta": 0.0055
+      },
+      "note": "⚠ 프로토콜 요점: arm 마다 자기 라벨로 채점하면 라벨 정의가 달라 비교 불가 → 공통 h5 라벨로 재채점했다(h1·h3 는 h5 라벨에 대해 채점하면 0.5348/0.5374 로 CG276 의 자기라벨 값 0.5440/0.5392 와 다르다). 즉 CG276 의 'h1 우위 +0.009' 는 라벨 정의 차이 일부를 포함한다. 순위평균은 날짜 내 횡단면 rank 로만 만들었다(누수 0)."
+    },
+    {
+      "id": "CG290",
+      "status": "pending",
+      "priority": 1,
+      "kind": "label",
+      "owner": "engineer",
+      "affects_model": true,
+      "metric": "wf_sweep_summary",
+      "title": "[라벨 축·전이] q0.05 꼬리 라벨(CG19~21 Δ+0.047)이 프로덕션 200종목 유니버스에서도 살아남는가 — 미측정 칸",
+      "hypothesis": "q0.05 꼬리 라벨은 panel_150u 에서 게이트 ON 짝 Δ+0.0470(CG19 · 5폴드×10시드) · 10폴드 Δ+0.0481(CG20) · 정밀도 이득(CG21)으로 세 번 재현됐다. 그런데 세 실행 모두 panel_150u 이고 **panel_prod200(q0.30) 칸은 미측정**이다. CG5/CG11 실측처럼 유니버스를 바꾸면 부호가 뒤집히는 사례가 있으므로, 돈 지표·챔피언이 사는 200종목 유니버스에서 같은 A/B 를 재야 이 레버가 배포 후보인지 확정된다.",
+      "counterfactual": "CO_core30_h5 — 같은 런·같은 폴드·같은 시드의 게이트 ON q0.30(h5)",
+      "arm": "CO_q05_h5",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 5 --seeds 3 --only CO_core30_h5,CO_q05_h5 --dump-preds /app/reports/overnight/cg290_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg290_sweep.jsonl --summary-out /app/reports/overnight/cg290_sweep_summary.json'",
+      "summary_out": "/app/reports/overnight/cg290_sweep_summary.json",
+      "success": "짝 Δ(q05 − core30) ≥ +0.02 & 폴드 승률 ≥ 4/5 → 신호(그때 돈 게이트: fillable_topk_horizon_sweep 로 Δ(top-k − 풀평균) ≥ +0.1%p & t ≥ 2 & 분할 both_positive 추가 확인). 미달 → 꼬리 라벨 레버를 '49·150종목 특이'로 종결",
+      "expected": "Δ 0~+0.02 — 150u 에서 +0.047 이었으나 200종목에서는 후보 밀도가 달라 약화 예상",
+      "cost": "낮음(2 arm × 5폴드 × 3시드 ≈ 4분)",
+      "est_minutes": 12,
+      "created_at": "2026-11-15T19:11:36+09:00",
+      "updated_at": "2026-11-15T19:11:36+09:00",
       "result": null,
-      "note": "CG241/CG282 를 '측정불가'로 닫은 뒤 남긴 재개 경로. 원천 백필(수집기 소유·승인 대상)이 오면 이 항목은 폐기하고 5폴드로 다시 잰다."
+      "note": "⚠ 유니버스 전이가 관건이다(CG5: 49종목 +0.0227 → 150종목 −0.0109). 이 항목은 '새 축'이 아니라 기존 양(+) 신호의 전이 검정이므로, 미달이면 축을 닫는 근거가 된다(재시험이 아님 — 대상 유니버스가 다르다). 배포 관점: 라벨 꼬리 두께는 학습 옵션이라 추론 계약을 건드리지 않는다."
     }
   ],
   "updated": "2026-11-14T00:02:35+09:00"
