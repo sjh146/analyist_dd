@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-16T01:22:00+09:00",
+ "updated_at": "2026-11-16T02:05:07+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -19327,7 +19327,7 @@
   },
   {
    "id": "CG296",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "promotion",
    "owner": "engineer",
@@ -19350,8 +19350,47 @@
    ],
    "created_at": "2026-11-16T01:22:00+09:00",
    "updated_at": "2026-11-16T01:22:00+09:00",
-   "note": "2026-11-16 01:2x 자율(장외 틱) 신설. CG295 는 챔피언 arm 만 돌아 '짝 비교'가 미완이었다. 후보 학습구간(2026-08-15~10-29)이 평가 창 8~10 과 겹치므로 반드시 --train-start/--train-end 를 넘겨 겹치는 창을 제외해야 한다(안 넘기면 in-sample 폴드가 섞여 후보 AUC 가 부풀려진다 — CG295 가 챔피언에 2025 창을 넘겨 겹침 0 을 만든 것과 같은 이유)."
+   "note": "2026-11-16 01:2x 자율(장외 틱) 신설. CG295 는 챔피언 arm 만 돌아 '짝 비교'가 미완이었다. 후보 학습구간(2026-08-15~10-29)이 평가 창 8~10 과 겹치므로 반드시 --train-start/--train-end 를 넘겨 겹치는 창을 제외해야 한다(안 넘기면 in-sample 폴드가 섞여 후보 AUC 가 부풀려진다 — CG295 가 챔피언에 2025 창을 넘겨 겹침 0 을 만든 것과 같은 이유).",
+   "attempts": [
+    {
+     "ts": "2026-11-16T01:38:36+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "detail": "워크포워드 견고 AUC 0.5100±0.0270 (시간창 7개 [0.5644, 0.4752, 0.4992, 0.4887, 0.5160, 0.5254, 0.5014]) · 풀링 0.5082 · 날짜별평균 0.51 · 행 10984",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG296_20261116-010723.log",
+     "elapsed_min": 31.2
+    }
+   ],
+   "result": {
+    "verdict": "기준선 실측",
+    "detail": "워크포워드 견고 AUC 0.5100±0.0270 (시간창 7개 [0.5644, 0.4752, 0.4992, 0.4887, 0.5160, 0.5254, 0.5014]) · 풀링 0.5082 · 날짜별평균 0.51 · 행 10984",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG297",
+   "status": "pending",
+   "priority": 1,
+   "kind": "training",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "champion_robust_eval",
+   "summary_out": "/app/reports/overnight/cg297_norank_robust.json",
+   "title": "[배포정합·짝] 배포 챔피언을 **서빙 입력 그대로**(rank_* 6개 0.0 고정) 재채점 — 트레이더가 실제로 받는 모델의 성능·돈은 얼마인가",
+   "hypothesis": "CG164 실측: 배포 챔피언 173피처 중 rank_* 6개(rank_return_5d·rank_return_20d·rank_volatility_20d·rank_volume_ratio_5·rank_volume_ratio_20·rank_ma_position_5)는 서빙 경로(app/inference/predictor.py 종목 단위 스트리밍)에서 **항상 0.0** 이다. CG166 은 '그 6개를 빼고 재학습'(다른 모델)으로 정합을 회복했지만, **지금 배포된 모델 자체**를 서빙 입력으로 채점한 적은 없다. 따라서 오프라인 0.5321(CG295)은 라이브 모델의 성능 서술이 아닐 수 있다. 같은 10폴드·같은 유니버스에서 rank_* 만 0.0 으로 고정해 짝 비교하면 스큐의 성능·돈 비용을 직접 잴 수 있다(다른 변수 전부 동일).",
+   "method": "champion_robust_eval 에 신설한 --zero-features rank_ (기본 off = 비트 동일)로 배포 챔피언을 CG295 와 동일 인자로 재채점한다. 이어 fillable_topk_expectancy(stride 1 = 80세션 · 수수료 0.21%p)로 CG295 챔피언 예측과 짝 돈 비교(같은 날짜·같은 종목, 다른 것은 6피처 0.0 뿐).",
+   "counterfactual": "CG295 배포 챔피언(rank_* 실값): robust 0.5321±0.0272(10폴드) · 같은 런 돈 k5 -1.045%p(t -1.57 · 80세션 · 풀평균 -1.733) · k3 -1.231(t -1.76)",
+   "arm": "champ_serving_sim_rank0",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --label-kind rel --horizon 5 --folds 10 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --asof-date 2026-11-13 --zero-features rank_ --dump-preds /app/reports/overnight/cg297_norank_preds.jsonl --dump-tag cg297_norank --dump-all --out /app/reports/overnight/cg297_norank_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg297_norank_preds.jsonl --arm-tag cg297_norank --control-jsonl /app/reports/overnight/cg295_champ_preds.jsonl --control-tag cg295_champ --k 3,5,10 --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg297_money.json'",
+   "success": "판정 규칙: ① |ΔAUC| ≤ 0.005 이면 '서빙 스큐는 성능에 무해' → CG164 ②(성능 레버) 종결, 오프라인 수치를 라이브 서술로 써도 됨. ② ΔAUC ≤ -0.01 이면 '배포 모델 실성능이 오프라인보다 낮다' → 이후 모든 챔피언 비교의 기준선을 이 값으로 바꾸고 배치 추론 승인 요청에 수치 근거로 첨부. ③ 돈은 k5 Δ vs 풀평균 t ≥ 2 이고 앞/뒤 절반 동일부호일 때만 신호로 인정. 80세션 미만 표본은 보고 금지.",
+   "est_minutes": 60,
+   "panel": "champion_robust_eval 200종목 training 유니버스(seed0) · 학습창 2026-08-15~2026-10-29 · asof 2026-11-13",
+   "note": "스크립트 변경: scripts/champion_robust_eval.py 에 --zero-features 추가(미지정 시 기존 동작과 비트 동일 · lint ok). ⚠ CG166(서빙불가 6개 제거 재학습)과 다른 질문이다 — CG166 은 새 모델, 이 항목은 **현 배포 모델의 서빙 조건**이다. ⚠ 돈 표본은 stride 1(80세션)로 낸다 — CG295 실측에서 k5 가 stride5(20세션) +0.231%p → stride1(80세션) −1.045%p 로 부호가 뒤집혔다.",
+   "created_at": "2026-11-16T02:03:45+09:00",
+   "updated_at": "2026-11-16T02:05:07+09:00"
   }
  ],
- "updated": "2026-11-14T00:02:35+09:00"
+ "updated": "2026-11-16T02:03:45+09:00"
 }

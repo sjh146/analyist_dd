@@ -282,6 +282,11 @@ def main() -> int:
                          "그 위에서 잰 top-k 정밀도·기대수익은 매매 가능한 바스켓이 아니다"
                          "(예측 시점에 그 꼬리를 알 수 없다). 돈 지표는 전 유니버스 채점 위에서 "
                          "재야 한다(scripts/fillable_topk_expectancy.py). 기본값은 현행 비트 동일.")
+    ap.add_argument("--zero-features", dest="zero_features", default=None,
+                    help="(선택) 쉼표구분 접두/이름 목록의 피처를 추론 벡터에서 0.0 으로 고정한다. "
+                         "서빙 경로 모사용: 배포 챔피언의 일부 피처가 서빙에서 상수 0.0 이면 "
+                         "실제 트레이더가 받는 성능은 그 부분집합을 0 으로 둔 점수다(CG164). "
+                         "미지정이면 현행과 비트 동일.")
     ap.add_argument("--write", action="store_true",
                     help="robust_walkforward.json 도 기록(정보용 견고성 지표). "
                          "승격 기준선 robust_auc.json 은 champion_promote 가 지표 동형으로 "
@@ -387,6 +392,15 @@ def main() -> int:
     with open(os.path.join(args.model_dir, "feature_names.json")) as f:
         feature_names = json.load(f)
     logger.info("챔피언 계약 %d피처", len(feature_names))
+    # 서빙 스큐 모사(CG164): 지정된 접두/이름의 피처를 0.0 으로 고정한다.
+    zero_idx: list[int] = []
+    if args.zero_features:
+        pats = [p.strip() for p in str(args.zero_features).split(",") if p.strip()]
+        zero_idx = [i for i, f in enumerate(feature_names) if any(f == p or f.startswith(p) for p in pats)]
+        logger.info("zero-features %s → %d/%d 피처 0.0 고정", pats, len(zero_idx), len(feature_names))
+        if not zero_idx:
+            logger.error("zero-features 패턴이 어떤 피처와도 매칭되지 않았습니다 — 이름을 확인하세요")
+            return 2
 
     prices = load_prices(conn, universe, dates_asc[0], dates_asc[-1])
 
@@ -440,6 +454,8 @@ def main() -> int:
                     vec = np.nan_to_num(
                         np.array([float(feats.get(f, 0.0)) for f in feature_names], dtype=np.float32)
                     )
+                    if zero_idx:
+                        vec[zero_idx] = 0.0
                     probs.append(float(ensemble.predict(np.array([vec]))[0]))
                     rets.append(r)
                     codes.append(code)
