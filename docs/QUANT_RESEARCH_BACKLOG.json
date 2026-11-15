@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-14T16:05:00+09:00",
+  "updated_at": "2026-11-16T00:11:53+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -615,13 +615,18 @@
           "ts": "2026-11-14T00:00:25+09:00",
           "rc": 0,
           "detail": "T17: 1 >= 1 → 충족"
+        },
+        {
+          "ts": "2026-11-15T00:00:26+09:00",
+          "rc": 0,
+          "detail": "T17: 1 >= 1 → 충족"
         }
       ],
       "result": {
         "detail": "T17: 1 >= 1 → 충족",
         "check_value": 1.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_T17_20261114-000025.log"
+        "log": "data/reports/res_cycle/logs/res_T17_20261115-000026.log"
       }
     },
     {
@@ -893,13 +898,18 @@
           "ts": "2026-11-14T02:01:29+09:00",
           "rc": 0,
           "detail": "R21: 3 <= 2 → 미달"
+        },
+        {
+          "ts": "2026-11-15T02:00:46+09:00",
+          "rc": 0,
+          "detail": "R21: 3 <= 2 → 미달"
         }
       ],
       "result": {
         "detail": "R21: 3 <= 2 → 미달",
         "check_value": 3.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R21_20261114-020117.log"
+        "log": "data/reports/res_cycle/logs/res_R21_20261115-020035.log"
       },
       "setup_needed": [
         "R21 감시 문턱/회전 주기 결정 필요 — 실측 2026-10-02 16:0x: 회전 = 250종목/일(호출 상한 500) ÷ 유니버스 794종목 = 3.18거래일 주기 → 수집이 완벽해도 꼬리 지연의 정상값이 3거래일이라 check(≤2)가 매 틱 2↔3 을 오간다(전량 스윕 직후에만 2). 선택지: (A) check 를 ≤3 으로 완화(문턱 변경 = 리뷰보드 승인) (B) 일일 호출 상한을 400종목/일(=800콜)로 확대해 주기를 2일로 단축(KIS 일일 한도 확인 필요). 권고 = (B). 어느 쪽이든 결정 전까지 이 줄은 오탐으로 읽어야 한다.",
@@ -1004,7 +1014,7 @@
         "detail": "R25: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R25_20261114-060111.log"
+        "log": "data/reports/res_cycle/logs/res_R25_20261115-040051.log"
       },
       "recurring": true,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
@@ -1102,6 +1112,11 @@
         },
         {
           "ts": "2026-11-14T06:01:11+09:00",
+          "rc": 0,
+          "detail": "R25: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-15T04:00:51+09:00",
           "rc": 0,
           "detail": "R25: 0 <= 0 → 충족"
         }
@@ -1231,13 +1246,23 @@
           "ts": "2026-11-13T18:01:10+09:00",
           "rc": 0,
           "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-14T20:01:21+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-15T18:00:56+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R27: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R27_20261113-180109.log"
+        "log": "data/reports/res_cycle/logs/res_R27_20261115-180055.log"
       },
       "note": " || **[2026-10-09 21:1x 스캔 — 자기신고 미배선 러너 목록]** 크론이 실제로 돌리는데 dq_runner_claim 행을 만들지 않는 수집 경로 3개(배선조차 없음, R23 텍스트 휴리스틱에도 걸린다): ① `kis_backfill_range.py`(kis_backfill.sh) — record_claim 문자열 0 ② `run_close_job.py`(close_job.sh) — 컨테이너 내부라 dq_claim.py 모듈 부재(R28 유형 → phase 로그 브리지 필요) ③ `run_swing_job.py`(swing_pipeline.sh 도 동일, claim 브리지 0). 다음 사이클: ②③은 full_pipeline_dd.sh 의 `scripts/yf_claim_from_phase_log.py` 를 그대로 재사용, ①은 러너 내부 배선(크론 파일 무수정)."
     },
@@ -1336,13 +1361,23 @@
           "ts": "2026-11-13T16:01:03+09:00",
           "rc": 0,
           "detail": "R28: 3 >= 1 → 충족"
+        },
+        {
+          "ts": "2026-11-14T18:01:03+09:00",
+          "rc": 0,
+          "detail": "R28: 4 >= 1 → 충족"
+        },
+        {
+          "ts": "2026-11-15T16:01:08+09:00",
+          "rc": 0,
+          "detail": "R28: 4 >= 1 → 충족"
         }
       ],
       "result": {
-        "detail": "R28: 3 >= 1 → 충족",
-        "check_value": 3.0,
+        "detail": "R28: 4 >= 1 → 충족",
+        "check_value": 4.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R28_20261113-160101.log"
+        "log": "data/reports/res_cycle/logs/res_R28_20261115-160104.log"
       },
       "setup_needed": [],
       "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 -m pytest -q tests/test_r28_yf_claim_check.py tests/test_yf_claim_from_phase_log.py && /usr/bin/python3 scripts/r28_yf_claim_check.py"
@@ -1568,13 +1603,18 @@
           "ts": "2026-11-14T16:00:45+09:00",
           "rc": 0,
           "detail": "R35: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-15T06:00:56+09:00",
+          "rc": 0,
+          "detail": "R35: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R35: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R35_20261114-160040.log"
+        "log": "data/reports/res_cycle/logs/res_R35_20261115-060053.log"
       }
     },
     {
@@ -1692,7 +1732,7 @@
       "recurring": true,
       "affects_model": true,
       "hypothesis": "`scripts/market_pattern_ledger.py --today` 는 크론 19:40 에 돌면서 **그 시각 DB 에 있는 봉만** 으로 세션 지표를 기록한다. 18:55 KRX OpenAPI 가 이름해석 실패로 중단되면 디스패처가 KIS 폴백(종목당 1콜≈3.5h)으로 넘어가 19:40 시점 적재율은 시장의 ~21% 다. 그 값이 결함 표시 없이 '그날 시장'으로 원장에 남고 breadth/ADR/거래대금/국면 라벨 + 다음세션 수익률 기준까지 오염된다. 수리 2단: (a) 같은 세션을 적재 완료 후 재기록(멱등 덮어쓰기), (b) '기록값 대비 현재 DB 봉수'를 비교해 미달을 매일 검출.",
-      "evidence": "2026-11-13 21:4x 실측: (a) 18:55 KRX 중단 사유 = `[Errno -3] Temporary failure in name resolution`(11-09·11-11·11-13 3/5 거래일 발생, 11-10·11-12 정상 — 같은 시각대의 이름해석 간헐 장애). KIS 폴백은 18:56:07 시작해 21:12 에도 2591/3979 진행 중 → 19:40 크론이 부분 시장을 읽었다. (b) 원장 실측 왜곡: 11-13 기록= scored 819 · trade_value 12.25조 · chg_mean 0.072% · chg_p90 2.433 vs **재실행 후** scored 3805 · trade_value 29.32조 · chg_mean 0.401% · chg_p90 3.35 → 거래대금이 2.4배 작게, 평균등락이 5.6배 작게 기록돼 있었다(전일 11-12: 3828 / 22.53조 / 1.803%). (c) 과거에도 같은 형태 3회(scored 161·1134·819). (d) 검사 스크립트 실행: 수리 전 `ratio=0.220 → 공백 1건(rc=1)`, 재기록 후 `ratio=1.022 → 충족(rc=0)`.",
+      "evidence": "2026-11-13 21:4x 실측: (a) 18:55 KRX 중단 사유 = `[Errno -3] Temporary failure in name resolution`(11-09·11-11·11-13 3/5 거래일 발생, 11-10·11-12 정상 — 같은 시각대의 이름해석 간헐 장애). KIS 폴백은 18:56:07 시작해 21:12 에도 2591/3979 진행 중 → 19:40 크론이 부분 시장을 읽었다. (b) 원장 실측 왜곡: 11-13 기록= scored 819 · trade_value 12.25조 · chg_mean 0.072% · chg_p90 2.433 vs **재실행 후** scored 3805 · trade_value 29.32조 · chg_mean 0.401% · chg_p90 3.35 → 거래대금이 2.4배 작게, 평균등락이 5.6배 작게 기록돼 있었다(전일 11-12: 3828 / 22.53조 / 1.803%). (c) 과거에도 같은 형태 3회(scored 161·1134·819). (d) 검사 스크립트 실행: 수리 전 `ratio=0.220 → 공백 1건(rc=1)`, 재기록 후 `ratio=1.022 → 충족(rc=0)`. [실측 2026-11-16 00:0x~00:4x] 종전 검사(마지막 레코드 1건만 비교)가 **두 결함을 통과**시켰다: ① 원장 세션 누락 21건 — 10-12~11-06 20세션 + 11-12. 원인 = 호스트 4주 오프라인 후 `--today` 만 돌아 지나간 세션을 아무도 채우지 않음(원장 22세션 vs DB 25세션, DB 에는 마감봉 3,719~3,730개로 전부 존재). ② 11-10 행 `trade_value_sum=0` — scored 3726(=DB 거래량>0 봉수)은 정상이라 종전 검사 침묵, DB 실값 20.735조. 수리 2종(자율): (a) `market_pattern_ledger.py --backfill 60` 멱등 재실행 → 원장 22→60세션, 11-10 거래대금 20.735조로 정정, 거래대금 0/null 세션 0건. (b) 검사 창 확대(`scripts/market_pattern_coverage_check.py`): 창 30세션에 대해 누락·부분기록(scored<DB×0.9)·거래대금 결손(원장 0/null 또는 DB×0.9 미만)을 각각 센다. 판정 근거 = 같은 스크립트를 수리 전 원장 사본에 돌리면 `창 30세션 / 원장 22세션 → 미달 (거래대금 1 · 누락 21) | 공백 22건`(rc=1), 수리 후 실 원장에는 `창 30세션 / 원장 60세션 → 충족 | 공백 0건`(rc=0). 회귀 13건 `tests/test_market_pattern_coverage_check.py` (누락·거래대금0·tv null 크래시·마지막 수치=결함수 포함).",
       "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/market_pattern_ledger.py --today",
       "check": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/market_pattern_coverage_check.py",
       "check_target": {
@@ -1701,7 +1741,7 @@
         "unit": "커버리지 미달 세션 수(scored < DB봉수×0.9 · 판정 불가=rc2)"
       },
       "setup_needed": [],
-      "note": "검사는 읽기 전용(scripts/market_pattern_coverage_check.py, 회귀 8건 tests/test_market_pattern_coverage_check.py). 원장 스크립트 자체(scripts/market_pattern_ledger.py)는 다른 역할 소유로 보여 **수정하지 않았다** — 근본 수리는 19:40 대신 '일봉 적재 완료 신호 후 실행' 또는 기록 시 `partial: true` 표시인데, 그건 크론 시각/소유 파일 변경이라 승인 항목이다. 이 항목은 재기록+검출만 자율로 유지한다. 선행 수리: 같은 날 KRX 이름해석 재시도(scripts/krx_daily.py, DNS 만 3→5회 백오프) 를 배선했다 — KRX 가 살면 폴백 자체가 안 일어나 이 결함도 5/5→드물게 줄어든다.",
+      "note": "검사는 읽기 전용(scripts/market_pattern_coverage_check.py, 회귀 8건 tests/test_market_pattern_coverage_check.py). 원장 스크립트 자체(scripts/market_pattern_ledger.py)는 다른 역할 소유로 보여 **수정하지 않았다** — 근본 수리는 19:40 대신 '일봉 적재 완료 신호 후 실행' 또는 기록 시 `partial: true` 표시인데, 그건 크론 시각/소유 파일 변경이라 승인 항목이다. 이 항목은 재기록+검출만 자율로 유지한다. 선행 수리: 같은 날 KRX 이름해석 재시도(scripts/krx_daily.py, DNS 만 3→5회 백오프) 를 배선했다 — KRX 가 살면 폴백 자체가 안 일어나 이 결함도 5/5→드물게 줄어든다. [2026-11-16] 검사는 이제 **창(기본 최근 30세션)** 판정이다 — 마지막 1건만 보던 종전 형태는 '원장에 아예 없는 세션'과 'scored 만 맞고 거래대금이 0 인 행'을 구조적으로 볼 수 없었다(실패할 수 없는 check). 원장 파일은 여전히 git 추적 상태라 다른 역할의 checkout 한 번에 되돌아갈 수 있다 — 런타임 산출물화는 소유자 확인 후.",
       "resumable_rc": [
         3
       ],
@@ -1710,13 +1750,23 @@
           "ts": "2026-11-13T22:01:11+09:00",
           "rc": 0,
           "detail": "R41: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-14T22:00:31+09:00",
+          "rc": 0,
+          "detail": "R41: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-16T00:01:03+09:00",
+          "rc": 0,
+          "detail": "R41: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R41: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R41_20261113-220105.log"
+        "log": "data/reports/res_cycle/logs/res_R41_20261116-000058.log"
       }
     }
   ]
