@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-14T18:45:00+09:00",
+ "updated_at": "2026-11-15T16:05:19+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -18693,7 +18693,7 @@
   },
   {
    "id": "CG280",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "money",
    "owner": "engineer",
@@ -18710,7 +18710,77 @@
    "cost": "낮음(5폴드×3시드 ≈ 4분 + 집계 1분 · 스크립트 신설 10분)",
    "est_minutes": 15,
    "created_at": "2026-11-14T18:45:00+09:00",
-   "setup_needed": "`scripts/cg280_transfer_49.sh` 신설 필요(다음 틱 자율): cg278 스크립트에서 --panel 만 panel_420_asofpatch.npz 로 바꾸고 arm/control 을 CO_smooth_d1_h5 / CO_core30_h5 로, --horizons 1,5 --primary 5, summary_out cg280_transfer_49.json. 같은 --dump-all-codes 사용."
+   "setup_needed": null,
+   "attempts": [
+    {
+     "ts": "2026-11-14T19:00:12+09:00",
+     "rc": 127,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 127",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG280_20261114-190012.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-15T16:04:21+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "요약 파일 없음",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG280_20261115-160257.log",
+     "elapsed_min": 1.4
+    },
+    {
+     "ts": "2026-11-15T16:05:19+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm CO_smooth_d1_h5 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 230 · k=3 arm +0.530%p/세션 · 풀평균 -0.096 · Δ(arm−풀) +0.625(t 1.63) · 양세션 50.4% · 분할 unstable [+2.752/-1.692] ✗ · k=5 arm +0.340%p/세션 · 풀평균 -0.096 · Δ(arm−풀) +0.436(t 1.61) · 양세션 49.1% · 분할 unstable [+2.546/-1.866] ✗ · 풀평균 t -0.23 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG280_20261115-160257.log",
+     "elapsed_min": null,
+     "ingested": true
+    }
+   ],
+   "result": "전이 미확인(노이즈) — 49종목 청정 패널(panel_420_asofpatch)에서 같은 arm·같은 프로토콜 재측정: AUC CO_smooth_d1_h5 0.5518±0.0242(폴드 0.5595/0.5369/0.5481/0.5888/0.5258 · 5폴드×3시드, 승률 3/5) vs 대조군 CO_core30_h5 0.5355±0.0188 → 짝 Δ+0.0163. 돈: 체결성 필터 ON h5 · 세션 230 · 풀평균 −0.096%p/세션(t −0.23) · k3 Δ(top−풀) +0.625(t 1.63 · 분할 +2.752/−1.692 unstable) · k5 +0.436(t 1.61) · k10 −0.004(t −0.03). 사전문턱(Δ≥+0.1 & t≥2 & 분할 both_positive) 미충족 → CG278 의 h5 k3 +1.703%p 는 200종목 패널 특이로 재현되지 않았다(같은 프로토콜에서 −63%). 증거: services/xgboost-ml/reports/overnight/cg280_transfer_49.json · cg280_sweep_summary.json · 원장 16:05 ingest(판정 노이즈). 하네스 수리: 11-14 rc=127 은 scripts/cg280_transfer_49.sh 부재가 원인 → 스크립트 신설(요약 경로를 summary_out 과 일치시켜 재발 방지).",
+   "updated_at": "2026-11-15T16:20:00+09:00",
+   "run_note": "2026-11-15 설정 완료: scripts/cg280_transfer_49.sh 신설(bash -n PASS, panel_420_asofpatch.npz 존재 확인). 11-14 rc=127 은 스크립트 부재가 원인."
+  },
+  {
+   "id": "CG281",
+   "status": "done",
+   "priority": 1,
+   "kind": "money",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "beta_attribution",
+   "title": "[돈 지표·귀속] top-k 초과기대는 '선택 알파'인가 '고베타 노출'인가 — 세션별 Δ 를 풀 수익률에 회귀 + 트레일링 국면 분해",
+   "hypothesis": "CG280 에서 Δ 평균 +0.625%p(t 1.63)였지만 분할표본이 흔들렸다. 초과가 시장 방향과 함께 움직이면 그것은 종목 선택 능력이 아니라 상승장 고베타 노출이며, 그 경우 실전 게이트(트레일링 시장추세)로도 잡히지 않아야 한다.",
+   "counterfactual": "같은 세션의 풀평균(무작위 k 기대) · 그리고 '진입 시점 정보만 쓰는' 트레일링 20세션 국면 분해",
+   "command": "python -u scripts/cg281_beta_attribution.py --arm-jsonl /app/reports/overnight/cg280_preds_49.jsonl --arm-tag CO_smooth_d1_h5 --k 3 --horizon 5 --regime-window 20 --json-out /app/reports/overnight/cg281_beta_attribution.json",
+   "summary_out": "/app/reports/overnight/cg281_beta_attribution.json",
+   "success": "회귀 intercept Δ ≥ +0.1%p/세션 & t(intercept) ≥ 2 면 선택 알파(축 계속) / 미달이면 베타 조건부 초과로 돈 축 종결",
+   "expected": "intercept 미달(베타 조건부) — CG280 의 t 1.63 과 일관",
+   "result": "베타 조건부 초과 — 선택 알파 미검출. 회귀 Δ = +0.647 + 0.2225·pool (t_a 1.74 < 2 · t_b 3.81 · R² 0.060 · n 230세션). 같은 세션 기준 국면: 상승장 Δ +1.598%p(t 2.77 · 112세션) / 하락장 Δ −0.297%p(t −0.60 · 118세션). 그러나 **거래 가능한** 트레일링 20세션 국면 게이트로 나누면 trail(+) Δ −0.102(t −0.22 · 123) / trail(−) Δ +0.982(t 1.59 · 97) — 어느 쪽도 t<2. 즉 상승장 초과는 같은 세션 수익률과 동시적(베타)이라 과거 정보로는 잡히지 않는다. Δ 분할 자체는 both_positive(+0.771/+0.480). 증거: services/xgboost-ml/reports/overnight/cg281_beta_attribution.json · 스크립트 scripts/cg281_beta_attribution.py(신설, 읽기전용·재학습 없음).",
+   "est_minutes": 10,
+   "cost": "낮음(기존 덤프 재사용 · DB 가격 조회 1회)",
+   "created_at": "2026-11-15T16:20:00+09:00",
+   "updated_at": "2026-11-15T16:20:00+09:00"
+  },
+  {
+   "id": "CG282",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "data",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "wf_auc",
+   "title": "[데이터 축] 희소 원천(SNS·뉴스)의 as-of 전방채움 최대 5거래일 가산 효과 — CG241 실측 준비",
+   "hypothesis": "SNS/뉴스 피처는 관측일이 희소해 패널 행의 88%에서 결측→0 대체된다(CG241). 0 대체 대신 '마지막 관측값을 최대 5거래일 전방채움'하면 같은 원천으로 유효 표본이 늘어 다중폴드 평균이 움직일 수 있다.",
+   "counterfactual": "현행 0 대체(비트 동일 arm CO_smooth_d1_h5)",
+   "success": "다중폴드(5폴드×3시드) 평균 Δ ≥ +0.02 & 폴드승률 ≥ 4/5 (돈 지표는 별도: 체결성 필터 + 0.21%p 차감)",
+   "expected": "Δ 0~+0.01 — 원천 이력(2026-04~)이 패널 앞구간을 못 덮어 폴드 2~3개만 효과",
+   "setup_needed": "다음 틱 자율 구현(엔지니어 소유 = services/xgboost-ml feature_pipeline): ① build 옵션 `--sparse-ffill-days 5` 추가(현행 기본 0 = 비트 동일) ② ffilled 컬럼에 원천별 `*_ffill_age` 동반 생성(관측 공백 자체를 피처로) ③ 패널 1회 빌드 후 same-run A/B(ffill vs 0대체) 스윕. 선행 확인: SNS 원천 커버리지가 panel_420_asofpatch 행의 14.5%뿐이라 'ffill 이 실제로 채우는 셀 수'를 먼저 세어 0이면 착수 취소(빌드 비용 낭비 방지).",
+   "est_minutes": 45,
+   "cost": "중(패널 재빌드 1회 + 5폴드×3시드 스윕)",
+   "created_at": "2026-11-15T16:20:00+09:00",
+   "updated_at": "2026-11-15T16:20:00+09:00"
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
