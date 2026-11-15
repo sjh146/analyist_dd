@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-15T20:36:52+09:00",
+ "updated_at": "2026-11-15T21:03:43+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -19192,20 +19192,47 @@
    "method": "panel_prod200 에서 retrain_champion 라벨 옵션(q0.05 vs q0.30)으로 챔피언을 2회 학습하고 champion_robust_eval --dump-all 로 5창 전 유니버스 채점 → fillable_topk_expectancy --stride 5 로 돈 비교. 같은 절차를 panel_150u 에도 돌려 CG95 를 같은 도구·같은 stride 로 재측정(프로토콜 차이 제거).",
    "counterfactual": "같은 패널·같은 창·같은 시드의 q0.30 챔피언(retrain_champion 기본 라벨)",
    "arm": "retrain_q05_prod200",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u -m app.training.retrain_champion --start-date 2025-08-22 --end-date 2025-11-20 --stock-limit 200 --label-kind quantile --label-q 0.05 --horizon 5 --out-dir app/models/wf/cg292_q05 --checkpoint-path /app/app/models/wf/cg292_q05.ckpt' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/wf/cg292_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 10 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --dump-preds /app/reports/overnight/cg292_q05_preds.jsonl --dump-tag cg292_q05 --out /app/reports/overnight/cg292_q05_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg292_q05_preds.jsonl --arm-tag cg292_q05 --control-jsonl /app/reports/overnight/cg292_q30_preds.jsonl --control-tag cg292_q30 --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg292_money_stride5.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u -m app.training.retrain_champion --start-date 2025-08-22 --end-date 2025-11-20 --stock-limit 200 --label-kind quantile --label-q 0.05 --horizon 5 --out-dir app/models/wf/cg292_q05 --checkpoint-path /app/app/models/wf/cg292_q05.ckpt' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u -m app.training.retrain_champion --start-date 2025-08-22 --end-date 2025-11-20 --stock-limit 200 --label-kind quantile --label-q 0.30 --horizon 5 --out-dir app/models/wf/cg292_q30 --checkpoint-path /app/app/models/wf/cg292_q30.ckpt' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/champion_robust_eval.py --model-dir app/models/wf/cg292_q05 --label-kind quantile --label-q 0.05 --horizon 5 --folds 10 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --asof-date 2026-11-13 --dump-preds /app/reports/overnight/cg292_q05_preds.jsonl --dump-tag cg292_q05 --dump-all --out /app/reports/overnight/cg292_q05_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/champion_robust_eval.py --model-dir app/models/wf/cg292_q30 --label-kind quantile --label-q 0.30 --horizon 5 --folds 10 --dates-per-fold 8 --stocks 200 --universe training --universe-seed 0 --train-start 2025-08-22 --train-end 2025-11-20 --asof-date 2026-11-13 --dump-preds /app/reports/overnight/cg292_q30_preds.jsonl --dump-tag cg292_q30 --dump-all --out /app/reports/overnight/cg292_q30_robust.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg292_q05_preds.jsonl --arm-tag cg292_q05 --control-jsonl /app/reports/overnight/cg292_q30_preds.jsonl --control-tag cg292_q30 --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg292_money_stride5.json'",
    "summary_out": "/app/reports/overnight/cg292_q05_robust.json",
-   "setup_needed": "대조군(q0.30) 학습·채점 2단계를 같은 명령에 추가해야 한다(CG92 명령의 --label-q 0.30 쌍둥이, out-dir app/models/wf/cg292_q30 · dump cg292_q30_preds.jsonl · dump-tag cg292_q30). retrain_champion CLI 실측 확인 완료(--label-kind quantile · --label-q · --horizon · --out-dir · --checkpoint-path).",
+   "setup_needed": null,
    "success": "생산경로 돈에서 k=3 Δ(arm-대조) ≥ +0.1%p & t ≥ 2 & 분할 both_positive & stride5 비중첩 표본 유지 → 그때만 champion_promote --dry-run --require-expectancy 로 승격 검토(승격 자체는 별도 판단). Δ ≤ 0 이면 'q0.05 라벨 축 종결 — 스윕 전용 현상'으로 기록하고 라벨 축을 닫는다.",
    "expected": "생산경로에서는 스윕 이득의 절반 이하로 축소되거나 부호 반전(CG95 방향) — 즉 노이즈 쪽에 무게.",
    "cost": "학습 2회 + 채점 2회 ≈ 25분",
-   "est_minutes": 30,
+   "est_minutes": 240,
    "depends_on": [
     "CG291",
     "CG95",
     "CG92"
    ],
    "created_at": "2026-11-15T20:36:52+09:00",
-   "updated_at": "2026-11-15T20:36:52+09:00"
+   "updated_at": "2026-11-15T21:03:43+09:00",
+   "note": "[2026-11-15 21:0x 수리] 등록 명령이 q0.05 arm 만 학습·채점하고 최종 돈 비교에서 존재하지 않는 cg292_q30_preds.jsonl 을 참조했다(대조군 미생성 → 5단계에서 반드시 실패). CG92/CG95 검증된 형태로 2-arm 4단계+돈 비교로 교체: q0.30 학습·채점 추가 · arm 별 체크포인트 분리(동일 ckpt 재사용은 라벨이 달라 재개 오염 위험) · champion_robust_eval 에 --dump-all 추가(없으면 풀 기준선·널 계산 불가) · --asof-date 2026-11-13 고정(창 밀림 방지) · stride 5 유지. est_minutes 30→240(CG92 150분·CG95 138분 실측 기준, 2 retrain+2×10폴드 eval)."
+  },
+  {
+   "id": "CG293",
+   "status": "pending",
+   "priority": 2,
+   "kind": "label",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "wf_sweep_summary",
+   "title": "[라벨 축·이웃] q0.05 이득이 '꼬리 두께 단조'인가 '한 점 스파이크'인가 — q0.10 을 끼워 q0.30>q0.10>q0.05 단조성 검정",
+   "hypothesis": "CG290(+0.0532)·CG291(+0.0432)로 q0.05 가 q0.30 을 앞섰지만 두 값만 비교하면 '꼬리가 얇을수록 좋다'는 단조 주장인지 '0.05 한 점에서만 솟는 우연'인지 구분되지 않는다. q0.10 을 같은 런에 끼워 q0.30 < q0.10 < q0.05 순서가 나오면 라벨 꼬리 두께가 연속 레버(승격 후보), q0.10 이 q0.30 수준으로 돌아오면 q0.05 는 한 점 스파이크(노이즈)로 판정한다. CG292(생산경로)와 독립인 스윕 경로 증거를 하나 더 쌓는 목적도 있다.",
+   "evidence": "CG290(prod200·5폴드×3시드): CO_q05_h5 0.5847±0.0388 vs CO_core30_h5 0.5315±0.0200 Δ+0.0532 승률 5/5. CG291(10폴드×5시드): 0.5783±0.0515 vs 0.5351±0.0269 Δ+0.0432 승률 9/10(최저폴드 0.4941). 두 런 모두 q0.10 은 미측정.",
+   "method": "같은 패널 panel_prod200 에서 3 arm(CO_core30_h5·CO_q10_h5·CO_q05_h5)을 한 런에 채점해 폴드별 짝 Δ를 q0.30→q0.10, q0.10→q0.05 두 구간으로 분해한다.",
+   "counterfactual": "CO_core30_h5 — 같은 런·같은 폴드·같은 시드의 게이트 ON q0.30(h5)",
+   "arm": "CO_q05_h5",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 10 --seeds 5 --only CO_core30_h5,CO_q10_h5,CO_q05_h5 --dump-preds /app/reports/overnight/cg293_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg293_sweep.jsonl --summary-out /app/reports/overnight/cg293_sweep_summary.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg293_preds.jsonl --arm-tag CO_q05_h5 --control-jsonl /app/reports/overnight/cg293_preds.jsonl --control-tag CO_core30_h5 --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg293_money_stride5.json'",
+   "summary_out": "/app/reports/overnight/cg293_sweep_summary.json",
+   "success": "단조성: q0.10 이 q0.30 대비 +0.02 이상이고 q0.05 가 q0.10 대비 +0.02 이상(폴드 승률 각 ≥0.8) → 꼬리 두께 연속 레버로 인정. q0.10 이 q0.30 과 ±0.01 이내면 q0.05 는 한 점 스파이크 → 라벨 축 종결 근거로 기록.",
+   "expected": "q0.10 은 q0.30 과 q0.05 사이(중간값) — 단조면 Δ(q10−q30)≈+0.02, Δ(q05−q10)≈+0.02",
+   "cost": "낮음(3 arm × 10폴드 × 5시드 ≈ 30분)",
+   "est_minutes": 45,
+   "depends_on": [
+    "CG292"
+   ],
+   "created_at": "2026-11-15T21:03:43+09:00",
+   "updated_at": "2026-11-15T21:03:43+09:00"
   }
  ],
  "updated": "2026-11-14T00:02:35+09:00"
