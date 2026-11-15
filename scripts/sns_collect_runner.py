@@ -127,6 +127,10 @@ async def main():
     ap.add_argument("--codes", type=str, default=None, help="쉼표 구분 종목코드(테스트)")
     ap.add_argument("--no-enrich", action="store_true", help="공감/댓글 보강 생략")
     ap.add_argument("--dry-run", action="store_true", help="DB 저장 없이 수집만")
+    ap.add_argument(
+        "--flush-every", type=int, default=25,
+        help="N종목마다 즉시 저장(외부 timeout 으로 죽어도 그때까지 분은 보존)",
+    )
     args = ap.parse_args()
 
     if args.codes:
@@ -141,7 +145,18 @@ async def main():
 
     collector = NaverBoardCollector()
     collected = []
+    buffer = []
     started = datetime.now()
+    flush_every = max(1, args.flush_every)
+    saved_total = 0
+    # 자기신고(R23): 실패해도 수집을 깨지 않는 헬퍼만 쓴다.
+    try:
+        from dq_claim import claim_start, claim_finish
+    except Exception:  # noqa: BLE001
+        claim_start = claim_finish = None
+    if claim_start and not args.dry_run:
+        claim_start("sns_collect", "sns_posts", note="naver board (limit=%d)" % len(codes))
+
     for i, code in enumerate(codes, 1):
         posts = await collector.collect_all(
             [code],
@@ -151,16 +166,29 @@ async def main():
             enrich=not args.no_enrich,
         )
         collected.extend(posts)
+        buffer.extend(posts)
         if i % 10 == 0 or i == len(codes):
             el = (datetime.now() - started).total_seconds()
             log.info("[%d/%d] 누적 %d건 (%.1f분 경과)", i, len(codes), len(collected), el / 60)
+        # 종목 N개마다 즉시 저장 — 외부 timeout(900s 하드킬)에 걸려도 그때까지가 남는다.
+        # 실제 사고: 2026-11-13 17:30 크론이 15분에 SIGTERM → 종전 코드는 끝에 한 번만
+        # 저장해서 250종목 41,100건을 모으고도 **0행 저장**으로 끝났다(rc=124).
+        if not args.dry_run and buffer and (i % flush_every == 0 or i == len(codes)):
+            saved_total += save_posts(buffer)
+            buffer = []
+            log.info("[sns] flush at %d/%d (누적 저장 %d건)", i, len(codes), saved_total)
 
     log.info("수집 완료: %d 건", len(collected))
     if args.dry_run:
         log.info("--dry-run: 저장 생략")
         return
-    saved = save_posts(collected)
-    log.info("저장 완료: %d 건 (중복 제외)", saved)
+    log.info("저장 완료: %d 건 (중복 제외)", saved_total)
+    if claim_finish and collected:
+        claim_finish(
+            "sns_collect",
+            claimed_rows=len(collected),
+            source_rows=len(collected),
+        )
 
 
 if __name__ == "__main__":
