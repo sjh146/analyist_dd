@@ -4943,9 +4943,37 @@ def execute(item, force=False):
     return 0
 
 
+def _duplicate_running(item_id):
+    """살아있는 **동일 ID** 사이클 pid(없으면 None). start_background 중복 기동 차단용.
+
+    실측(2026-11-17 00:0x): CG306 이 23:07:41·23:08:17 두 번 기동돼 학습 2개가 동시에 돌았다
+    (4코어 · load1 ~8). 두 실행 모두 58분 뒤 같은 단계(오타 플래그)에서 rc=2 로 죽어 CPU 를
+    2배로 낭비하고 원장에 실행실패가 2건 남았다. 원인은 `--start --force` — --force 는
+    '가드 무시'지 '같은 실험을 두 번'의 허가가 아니다.
+    """
+    try:
+        with open(STATE, encoding="utf-8") as f:
+            st = json.load(f) or {}
+    except (OSError, json.JSONDecodeError):
+        return None
+    pid = st.get("pid")
+    if st.get("id") != item_id or not pid:
+        return None
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return None
+    return pid if _pid_alive(pid) else None
+
+
 def start_background(item_id, force=False):
     """nohup 으로 자기 자신을 띄우고 즉시 반환(크론 틱을 붙잡지 않는다)."""
     os.makedirs(RUNTIME, exist_ok=True)
+    dup = _duplicate_running(item_id)
+    if dup:
+        log(f"시작 보류: {item_id} 가 이미 실행 중(pid={dup}) — 중복 기동 금지"
+            f"(--force 로도 같은 항목은 두 번 띄우지 않는다)")
+        return 3
     cmd = [sys.executable, os.path.abspath(__file__), "--run", item_id]
     if force:
         cmd.append("--force")
