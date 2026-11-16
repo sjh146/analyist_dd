@@ -31,9 +31,14 @@ scrape_configs:
   #     기록하고 rc=0 을 반환해 "모니터링 사각지대"가 "정상"으로 보고된다.
   #   DQ 메트릭은 분 단위로 변하지 않으므로 60s 인터벌로도 충분하고, 타임아웃 여유가 크다.
   #   부수 효과로 exporter 가 DB 에 쓰는 부하가 4배 줄어든다(스크랩당 ~13초 × 4회/분 → 1회/분).
+  #   ⚠ 타임아웃 45s 는 **이미 부족해졌다**(실측 2026-11-16 22:49~22:52, 호스트 재기동 직후):
+  #   /metrics 응답 wall = 콜드 **201.8초** / 웜(cache 축출 후 재시도) **49.7초** → 둘 다 45s 초과.
+  #   결과: dq_snapshot 이 24/24 nodata(rc=3 '모니터링 사각지대') 를 기록했고, 같은 순간 exporter 를
+  #   직접 curl 하면 dq_* 173줄이 **정상 반환**된다(값 자체는 건강: alive_xsec 165·illusion 26·상수비 0.368).
+  #   = 데이터는 멀쩡한데 스크랩만 시간 초과로 실명. 문턱을 응답시간 위로 올린다(간격 120s 로 부하도 절반).
   - job_name: 'postgres'
-    scrape_interval: 60s
-    scrape_timeout: 45s
+    scrape_interval: 120s
+    scrape_timeout: 100s
     static_configs:
       - targets: ['postgres-exporter:9187']
 
