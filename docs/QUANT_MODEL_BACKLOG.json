@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-17T02:12:19+09:00",
+ "updated_at": "2026-11-17T03:15:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -19795,7 +19795,7 @@
   },
   {
    "id": "CG310",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "kind": "experiment",
    "owner": "quant-model-engineer",
@@ -19817,7 +19817,79 @@
    "updated_at": "2026-11-16T22:47:55+09:00",
    "note": "CG306 완료 후 pending 으로 올린다(현재 backlog — 선행 산출물 champion_cand_cg306 필요).",
    "command_verified_at": "2026-11-17T01:16:00+09:00",
-   "command_fix": "2026-11-17 01:1x: `--json-out` 은 champion_robust_eval 에 존재하지 않는 플래그다(파서는 --out 만 받는다, scripts/champion_robust_eval.py L269). CG306 이 같은 이유로 00:05·00:06 두 번 rc=2 실행실패했고, CG310 에도 같은 오타가 남아 있었다 → --out 으로 수리."
+   "command_fix": "2026-11-17 01:1x: `--json-out` 은 champion_robust_eval 에 존재하지 않는 플래그다(파서는 --out 만 받는다, scripts/champion_robust_eval.py L269). CG306 이 같은 이유로 00:05·00:06 두 번 rc=2 실행실패했고, CG310 에도 같은 오타가 남아 있었다 → --out 으로 수리.",
+   "attempts": [
+    {
+     "ts": "2026-11-17T02:55:12+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "detail": "워크포워드 견고 AUC 0.4963±0.0191 (시간창 3개 [0.4700, 0.5150, 0.5038]) · 풀링 0.5031 · 날짜별평균 0.4963 · 행 480",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG310_20261117-020913.log",
+     "elapsed_min": 46.0
+    }
+   ],
+   "result": {
+    "folds3": {
+     "auc": 0.4963,
+     "std": 0.0191,
+     "folds": [
+      0.47,
+      0.515,
+      0.5038
+     ],
+     "min": 0.47,
+     "max": 0.515,
+     "win_vs_0.5": "2/3",
+     "dates": 24,
+     "rows": 480
+    },
+    "folds5": {
+     "auc": 0.5105,
+     "std": 0.0354,
+     "folds": [
+      0.5363,
+      0.5525,
+      0.48,
+      0.4587,
+      0.525
+     ],
+     "min": 0.4587,
+     "max": 0.5525,
+     "win_vs_0.5": "3/5",
+     "dates": 40,
+     "rows": 800
+    },
+    "folds10": {
+     "auc": 0.543,
+     "std": 0.1092,
+     "folds": [
+      0.7588,
+      0.545,
+      0.5875,
+      0.6325,
+      0.3588,
+      0.5813,
+      0.435,
+      0.4813,
+      0.6,
+      0.45
+     ],
+     "min": 0.3588,
+     "max": 0.7588,
+     "win_vs_0.5": "6/10",
+     "dates": 80,
+     "rows": 1600
+    },
+    "delta_vs_baseline_0.5406": [
+     -0.0443,
+     -0.0301,
+     0.0024
+    ],
+    "n_folds_below_chance": "8/18 (3폴드 1 · 5폴드 2 · 10폴드 5)"
+   },
+   "verdict": "노이즈 — 폴드 설정 의존 (사전등록 미달: 3설정 모두 ΔAUC≥+0.02 & 폴드승률≥0.7 이어야 강건인데 ΔAUC -0.0443/-0.0301/+0.0024 · 폴드승률 0.67/0.60/0.60)",
+   "verdict_note": "10폴드 0.5430 은 폴드1(0.7588) 단일 이상치가 끌어올린 값이고 std 0.1092(가정 ±0.03의 3.6배)다. 폴드 수를 5·3 으로 줄이면 0.5105 → 0.4963 로 떨어져 0.5 미만. 평균은 표본(날짜수 24/40/80)에 따라 단조 상승(0.4963→0.5105→0.5430)하지만 마지막 56날짜가 0.5627 를 만드는 구조라 시점 편중도 배제 못함. → AUC 축으로는 승격 근거 없음(등록 기준선 0.5406 대비 개선 0). 단 최우선 규칙대로 AUC 는 판정자가 아니며, 돈 축은 후보풀 오염(CG311 defect)을 고친 CG314(--dump-all, 200날짜)가 판정한다.",
+   "evidence_file": "services/xgboost-ml/reports/overnight/cg310_robust_f3.json · cg310_robust_f5.json · cg306_robust.json(10폴드)"
   },
   {
    "id": "CG311",
@@ -19850,7 +19922,9 @@
    "result": "close_h·stride1(80세션): k=3 +6.069%p/세션(t 3.66, 양세션 66.2%, 앞 +10.749/뒤 +1.389 both_positive) · k=5 +5.349(t 3.56) · k=10 +2.893(t 2.26, halves 앞 +7.597/뒤 −1.812 불안정) · 대조 cg297_norank +0.000%p · 널 +0.170%p. open_h1(비중첩 1일): k=3 +0.893%p(t 1.27, halves 불안정 +2.319/−0.533) · k=5 +1.090(t 1.62) · k=10 +0.026(t 0.05). 사전등록 판정: ① 충족(세션 80 ≥40 · t 3.66 ≥2 · both_positive) ② 미달(t 1.27 <1.5, 부호는 유지) → '5일 보유에서만 유의, 1일 보유는 미약'. 세션80 은 5일 창이 겹쳐 t 가 부풀려진 값이고, 비중첩 stride5 세션20 에서도 t 2.13 으로 부호는 유지된다(자기상관만으로 설명되지 않음). ⚠ 유효 독립표본: stride1 이면 80세션/5 = 16 → 유효 t ≈ 3.66/2.2 ≈ 1.7. 즉 stride1 의 t 3.66 을 문턱 통과 근거로 쓰면 안 되고, 비중첩 stride5(20세션·t 2.13)가 정직한 값이다.",
    "done_at": "2026-11-17T01:16:00+09:00",
    "verdict": "① 충족 · ② 미달 — 5일 보유 신호는 유지, 1일 청산은 유의하지 않음",
-   "verdict_note": "evidence: reports/overnight/cg311_q05_s1_closeh.json · cg311_q05_s1_h1.json"
+   "verdict_note": "evidence: reports/overnight/cg311_q05_s1_closeh.json · cg311_q05_s1_h1.json",
+   "defect": "CG311 이 쓴 arm 예측파일(cg306_preds.jsonl)이 라벨 꼬리 사후선택 풀(20행/date·y_true 완전균형)이라 top-k 순기대 +6.069%p 는 매매 불가 풀 측정치다. 재측정은 CG314(--dump-all) 로 대체.",
+   "defect_found_at": "2026-11-17T03:09:18+09:00"
   },
   {
    "id": "CG312",
@@ -19873,7 +19947,9 @@
    "result": "기준 +6.069%p/세션(t 3.66) · 상위1세션 제거 +5.599(t 3.47) · 상위3 제거 +4.859(t 3.11) · 상위5 제거 +4.212(t 2.74, 양세션 64%) · 상위 5세션 몫 = 총이익 34.9% · top-k 등장 종목 54개/200 · 상위 3종목(000250·011500·034730)이 총기여 53%(257.0/485.5%p) · 상위 3종목 제외 후 +3.214%p(t 1.76, 양세션 58.8%) · 000250 은 80세션 중 24세션 등장.",
    "verdict": "① 충족 · ② 부분(부호 유지·t 1.76) — 세션 분산은 넓고 종목 집중은 크다(3종목 53%)",
    "verdict_note": "evidence: services/xgboost-ml/reports/overnight/cg312_conc.json · 도구 scripts/_cg312_concentration.py(신설·재사용)",
-   "done_at": "2026-11-17T01:16:00+09:00"
+   "done_at": "2026-11-17T01:16:00+09:00",
+   "defect": "집중도 분해도 같은 오염 풀 위에서 계산됐다(상위3종목 53% = 꼬리 풀 안에서의 집중). 전 유니버스 풀 재측정은 CG314 결과로 갱신.",
+   "defect_found_at": "2026-11-17T03:09:18+09:00"
   },
   {
    "id": "CG313",
@@ -19897,7 +19973,9 @@
    "verdict": "신호 유지 — 겹침창 인플레이션 아님(t 2.93 > 2) & 하루 늦게 사도 남는다(Δpool +1.98 t 2.76 · 1일 청산). 단 독립세션 20 · 뒤 절반이 +0.3%p 로 사실상 0 · 종목 집중(CG312 상위3종목 53%) → 표본 확대 전 승격 금지.",
    "verdict_note": "근거 파일 reports/overnight/cg313_stride5_closeh.json · cg313_delay1_h1.json · cg313_delay1_h5.json · 지연 arm 생성 도구 scripts/_cg313_delay_placebo.py(폴드 내 다음 거래일 매핑, 1400/1600행 유지).",
    "done_at": "2026-11-17T02:12:19+09:00",
-   "created_at": "2026-11-17T02:12:19+09:00"
+   "created_at": "2026-11-17T02:12:19+09:00",
+   "defect": "stride5·지연1일 재측정도 오염 풀 위. 단 '지연1일에서도 부호 유지'라는 방향성은 풀과 무관한 성질이므로 부분 유효 — 크기(%p)는 신뢰 금지. 전량 재측정은 CG314.",
+   "defect_found_at": "2026-11-17T03:09:18+09:00"
   },
   {
    "id": "CG314",
@@ -19913,12 +19991,15 @@
    "arm": "champion_cand_cg306 (q0.05 라벨 재학습 후보, 200종목·2026창·rank 제거)",
    "baseline": "세션 체결가능 풀평균 + 대조군 cg297_norank(같은 폴드·같은 날짜)",
    "counterfactual": "cg297_norank (같은 폴드·같은 날짜·같은 필터)",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 13800 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand_cg306 --label-kind quantile --label-q 0.05 --folds 10 --dates-per-fold 20 --stocks 200 --universe training --universe-seed 0 --asof-date 2026-11-13 --dump-all --dump-preds /app/reports/overnight/cg314_preds.jsonl --out /app/reports/overnight/cg314_robust.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 12600 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand_cg306 --label-kind quantile --label-q 0.05 --folds 10 --dates-per-fold 20 --stocks 200 --universe training --universe-seed 0 --asof-date 2026-11-13 --dump-all --dump-preds /app/reports/overnight/cg314_preds.jsonl --out /app/reports/overnight/cg314_robust.json && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg314_preds.jsonl --control-jsonl reports/overnight/cg297_norank_preds.jsonl --control-tag cg297_norank --k 3,5,10 --sides top --regime-split pool_sign --stride 5 --exit close_h --horizon 5 --json-out reports/overnight/cg314_stride5.json && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg314_preds.jsonl --control-jsonl reports/overnight/cg297_norank_preds.jsonl --control-tag cg297_norank --k 3,5,10 --sides top --regime-split pool_sign --stride 1 --exit close_h --horizon 5 --json-out reports/overnight/cg314_stride1.json'",
    "summary_out": "/app/reports/overnight/cg314_robust.json",
    "est_minutes": 150,
    "success": "사전등록: 예측 전수 채점 후 ① stride5(독립 40세션) k=3 Δ(arm−풀평균) t ≥ 2 & halves both_positive ② stride1 k=3 순기대 > 0 & Δ대조 t ≥ 2 → 표본 확대에서도 유지 = 승격 후보로 리뷰보드에 올린다(라벨 규칙 변경 승인 대상, 최종 승격은 사람). ① 미달(Δ < +0.1%p 또는 t < 1.5) = 20세션 우연 → 라벨 축 종결.",
    "note": "2026-11-17 02:2x 자율 등록(CG313 결과 직후). 런타임 실측 근거: 10폴드×8날짜(=80날짜) 평가가 55분 → 200날짜 ≈ 137분. 컨테이너 timeout 13800s(3.8h)로 06:55 하드컷(개장 3시간 전 여유). 학습 없음 · GPU/CPU 경쟁은 CG310 종료 후 시작 전제.",
-   "created_at": "2026-11-17T02:12:19+09:00"
+   "created_at": "2026-11-17T02:12:19+09:00",
+   "command_amended_at": "2026-11-17T03:09:18+09:00",
+   "amendment": "2026-11-17 03:2x 결함 수리 2건. (1) 돈 지표 단계 누락: 사전등록 success 가 k=3 Δ(arm-풀평균) t>=2 인데 명령은 AUC 평가만 했다 -> fillable_topk_expectancy(stride5/stride1) 2회를 체인에 추가. (2) 후보풀 오염: CG311~313 이 쓴 cg306_preds.jsonl 은 실측 20행/date(=200종목의 10%)·y_true 800/800 완전균형 = 라벨 꼬리로 사후 선택된 풀(quantile 중간행 미덤프, CG95 함정). 그 풀의 top-k 는 '그날 크게 움직일 종목을 미리 안다'를 전제하므로 매매 불가 -> CG311 +6.07%p 는 트레이더블 수치가 아니다. 이 항목은 --dump-all 로 전 유니버스 풀을 덤프하므로 같은 결함이 없다. eval timeout 13800->12600s 로 줄여 expectancy 단계까지 07:50 전 종료(개장 09:00 여유).",
+   "precondition": "덤프 검증: cg314_preds.jsonl 의 date 별 행수가 ~200 이고 y_true null 이 존재해야 한다. 20행/date 면 --dump-all 미적용 -> 결과 무효."
   },
   {
    "id": "CG315",
@@ -19938,7 +20019,7 @@
    "summary_out": "/app/reports/overnight/cg315_robust.json",
    "est_minutes": 200,
    "success": "사전등록: k=3 Δ(arm−풀평균) 부호가 + 이고 t ≥ 2 이면 유니버스 강건(승격 검토 유지). 부호 반전 또는 t < 1 이면 '200종목 특이'로 축 종결.",
-   "note": "2026-11-17 자율 등록. CG314(표본 확대) 결과가 유지일 때만 착수 — 순서 의존. 재학습 3h + 평가 2h 라 밤 1회분.",
+   "note": "2026-11-17 자율 등록. CG314(표본 확대) 결과가 유지일 때만 착수 — 순서 의존. 재학습 3h + 평가 2h 라 밤 1회분. | 2026-11-17T03:09 보류 조건 추가: CG313 수치가 라벨 꼬리 풀 오염(CG311 defect) 위 측정이라, CG314 전 유니버스 풀 재측정에서 k=3 Δ(arm-풀평균) t>=2 가 유지될 때만 착수한다.",
    "created_at": "2026-11-17T02:12:19+09:00"
   }
  ],
