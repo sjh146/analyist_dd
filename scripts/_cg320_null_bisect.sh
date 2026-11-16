@@ -3,6 +3,8 @@
 # ⚠ 실측(2026-11-17 07:2x~07:5x, 4코어·부하 3~4): 5폴드 quant arm 은 50초인데
 #   10폴드 arm 과 relative 라벨 arm 은 같은 패널에서 900초를 넘겼다(arm 당 런타임 편차 20배).
 #   → arm 별 timeout 을 2700초로 올린다(900초로는 두 arm 이 rc=124 로 소실).
+# ⚠ 수리(2026-11-17 07:5x): run() 이 "$@" 를 docker exec 문자열에 붙이지 않아 --only 가 무시됐고
+#   전 config 스윕(100+ arm)이 돌아 3건이 rc=124 로 소실됐다. 이제 "$*" 로 전달한다.
 # 전제: CG319 산출물 panel_420_asofpatch_nullperm.npz (피처만 날짜내 교란된 패널).
 # A 폴드 폭·겹침 : --folds 10 (테스트 창 23일) vs 5(46일)
 # B 라벨 정의    : LS_rel_h5 (날짜내 중앙값 상대) vs LS_quant_q30_h5 (꼬리 30/30)
@@ -16,7 +18,7 @@ OUT=/app/reports/overnight
 run () {  # run <tag> <extra args...>
   local tag="$1"; shift
   docker exec stock_xgboost_ml sh -c "cd /app && OMP_NUM_THREADS=3 timeout 2700 python -u scripts/wf_label_sweep.py \
-    --panel $NULL --out $OUT/cg320_${tag}.jsonl --summary-out $OUT/cg320_${tag}.json" >/dev/null 2>&1
+    --panel $NULL --out $OUT/cg320_${tag}.jsonl --summary-out $OUT/cg320_${tag}.json $*" >/dev/null 2>&1
   echo "$tag rc=$?"
 }
 
