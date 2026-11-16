@@ -56,6 +56,36 @@ def sh(cmd, timeout=60):
         return f"__ERR__ {exc}"
 
 
+_CONTAINER_ID = re.compile(r"^[0-9a-f]{12,64}$")
+
+
+def docker_ids(out):
+    """`docker ps [-a]q` 출력에서 **컨테이너 ID 형태의 줄만** 돌려준다.
+
+    WHY(실측 2026-11-16 22:30): docker 데몬이 죽어 있으면 sh() 가 오류 문자열을 돌려주고,
+    종전 `len(sh(...).split())` 은 그 **단어 수**를 컨테이너 수로 기록했다 →
+    hygiene JSON 에 containers_running=30, unhealthy=["failed","to","connect",...](문자 낱개),
+    dangling_volumes=30 이 남아 "컨테이너 30개 정지"라는 **없는 사실**이 보고됐다.
+    판정 불가는 0 이 아니라 None 으로 내보내고 breach 로 올려야 한다.
+    """
+    return [ln.strip() for ln in (out or "").splitlines() if _CONTAINER_ID.match(ln.strip())]
+
+
+def docker_unreachable(out):
+    """데몬 부재/소켓 오류를 '출력 문자열'로 판별한다(sh() 는 예외를 문자열로 삼킨다)."""
+    o = out or ""
+    return (o.strip().startswith("__ERR__")
+            or "failed to connect to the docker API" in o
+            or "Cannot connect to the Docker daemon" in o
+            or "permission denied while trying to connect" in o)
+
+
+def docker_names(out):
+    """`--format '{{.Names}}'` 출력에서 이름 형태만 — 오류 문장의 단어를 이름으로 오독하지 않는다."""
+    return [ln.strip() for ln in (out or "").splitlines()
+            if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", ln.strip()) or "\t" in ln]
+
+
 def now():
     return datetime.now(KST)
 
@@ -195,17 +225,32 @@ def zombie_decision(cur_n, prev_n):
 
 def check_docker():
     info = {}
+    probe = sh("docker ps -aq")
+    if docker_unreachable(probe):
+        # 데몬이 없다. 0 으로 채우면 '정상'으로, 오류 문장을 split 하면 '컨테이너 30개'로 읽힌다 — 둘 다 거짓.
+        info["docker_down"] = (probe.strip().splitlines() or ["docker 응답 없음"])[0][:160]
+        info.update({"containers_running": None, "containers_stopped": None, "unhealthy": [],
+                     "dangling_volumes": 0, "dangling_images": 0, "restart_counts": {},
+                     "flapping": [], "flapping_cumulative": [], "inner_zombies": [],
+                     "build_cache_gb": 0.0, "build_cache_reclaim_gb": 0.0,
+                     "df": [info["docker_down"]]})
+        return info
     df = sh("docker system df --format '{{.Type}}|{{.TotalCount}}|{{.Size}}|{{.Reclaimable}}'")
     info["df"] = [ln for ln in df.splitlines() if ln.strip()]
-    info["containers_running"] = len(sh("docker ps -q").split())
-    info["containers_stopped"] = len(sh("docker ps -aq").split()) - info["containers_running"]
-    unhealthy = sh("docker ps --filter health=unhealthy --format '{{.Names}}'").split()
-    info["unhealthy"] = [u for u in unhealthy if u]
-    info["dangling_volumes"] = len([v for v in sh("docker volume ls -qf dangling=true").split() if v])
-    info["dangling_images"] = len([i for i in sh("docker images -qf dangling=true").split() if i])
+    ids_run = docker_ids(sh("docker ps -q"))
+    info["containers_running"] = len(ids_run)
+    info["containers_stopped"] = max(0, len(docker_ids(probe)) - info["containers_running"])
+    info["unhealthy"] = docker_names(sh("docker ps --filter health=unhealthy --format '{{.Names}}'"))
+    vol_out = sh("docker volume ls -qf dangling=true")
+    info["dangling_volumes"] = 0 if docker_unreachable(vol_out) else \
+        len([v for v in docker_names(vol_out)])
+    img_out = sh("docker images -qf dangling=true")
+    info["dangling_images"] = 0 if docker_unreachable(img_out) else len(docker_ids(img_out))
     # 재시작 횟수(플래핑 감지) — 문턱은 **증가분**에 건다(누적값은 정보로만 보관).
     counts = {}
-    for c in sh("docker ps --format '{{.Names}}'").split():
+    for c in docker_names(sh("docker ps --format '{{.Names}}'")):
+        if "\t" in c:
+            continue
         rc = sh(f"docker inspect -f '{{{{.RestartCount}}}}' {c}").strip()
         if rc.isdigit():
             counts[c] = int(rc)
@@ -230,7 +275,7 @@ def check_docker():
     info["build_cache_reclaim_gb"] = round(gc_reclaim, 3)
     # 컨테이너 내부 좀비 (exec 되는 것만)
     inner = []
-    for c in sh("docker ps --format '{{.Names}}'").split():
+    for c in docker_names(sh("docker ps --format '{{.Names}}'")):
         z = sh(f"docker exec {c} sh -c 'ps -eo stat --no-headers 2>/dev/null | grep -c \"^Z\"' 2>/dev/null")
         z = z.strip().splitlines()[-1] if z.strip() else "0"
         if z.isdigit() and int(z) > 0:
@@ -350,16 +395,20 @@ def main():
             breaches.append(f"좀비 {len(zs)}개({growth}) (부모: {', '.join(owners)})")
         else:
             warns.append(f"좀비 {len(zs)}개 누적({growth}) (부모: {', '.join(owners)})")
-    if dinfo["containers_stopped"] > 0:
-        warns.append(f"정지 컨테이너 {dinfo['containers_stopped']}개")
-    if dinfo["unhealthy"]:
-        breaches.append(f"비정상 컨테이너: {', '.join(dinfo['unhealthy'])}")
-    if dinfo["dangling_volumes"] > 0:
-        warns.append(f"댕글링 볼륨 {dinfo['dangling_volumes']}개")
-    if dinfo["flapping"]:
-        warns.append(f"재시작 반복: {', '.join(dinfo['flapping'])}")
-    if dinfo["inner_zombies"]:
-        warns.append(f"컨테이너 내부 좀비: {', '.join(dinfo['inner_zombies'])}")
+    if dinfo.get("docker_down"):
+        # 스택을 못 보는 것은 '정상'도 '컨테이너 N개 정지'도 아니다 — 판정 불가를 breach 로 올린다.
+        breaches.append(f"docker 데몬 응답 없음 — 스택 상태 판정 불가: {dinfo['docker_down']}")
+    else:
+        if (dinfo["containers_stopped"] or 0) > 0:
+            warns.append(f"정지 컨테이너 {dinfo['containers_stopped']}개")
+        if dinfo["unhealthy"]:
+            breaches.append(f"비정상 컨테이너: {', '.join(dinfo['unhealthy'])}")
+        if dinfo["dangling_volumes"] > 0:
+            warns.append(f"댕글링 볼륨 {dinfo['dangling_volumes']}개")
+        if dinfo["flapping"]:
+            warns.append(f"재시작 반복: {', '.join(dinfo['flapping'])}")
+        if dinfo["inner_zombies"]:
+            warns.append(f"컨테이너 내부 좀비: {', '.join(dinfo['inner_zombies'])}")
     if stale:
         # 어떤 프로세스가 걸렸는지 보여준다 — 이것이 없으면 "오탐인가?"를 판단할 수 없다.
         warns.append(f"자기매칭 대기 루프 {len(stale)}개: " + " / ".join(s[:70] for s in stale[:2]))

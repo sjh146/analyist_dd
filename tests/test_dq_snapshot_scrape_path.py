@@ -74,7 +74,7 @@ def test_missing_up_signal_is_nodata_not_ok():
 
 def test_slow_scrape_warns_before_timeout():
     """지연이 기준선을 넘으면 위반 전에 경고 — 소실 5분 전에 알린다(리드타임)."""
-    st, msg = J(1, 6, 6, 31.2)
+    st, msg = J(1, 6, 6, 62.5)   # 2026-11-16: warn 문턱 60초(타임아웃 100초) 위 값
     assert st == "warn" and "여유" in msg
 
 
@@ -94,8 +94,8 @@ def test_thresholds_sit_above_measured_baseline():
     """문턱은 실측 기준선(정상 최대 28.2초) **위**에 있어야 한다.
 
     기준선 아래에 두면 매 틱 경고가 떠서 신호가 죽는다(dq_feature_stock_constant_ratio 0.35/0.38 실측 사고와
-    같은 함정). 동시에 breach 는 scrape_timeout(45초)을 넘지 않아야 의미가 있다.
+    같은 함정). 동시에 breach 는 scrape_timeout(2026-11-16 부터 100초)을 넘지 않아야 의미가 있다.
     """
-    assert dq.SCRAPE_WARN_S > 28.2
-    assert dq.SCRAPE_WARN_S < dq.SCRAPE_BREACH_S <= 45.0
+    assert dq.SCRAPE_WARN_S > 49.7   # 2026-11-16 실측 웜 응답 최대
+    assert dq.SCRAPE_WARN_S < dq.SCRAPE_BREACH_S <= 100.0
     assert dq.SCRAPE_FAILS_BREACH >= 2  # 1 == 1 로 두면 단발 과도기가 위반이 된다

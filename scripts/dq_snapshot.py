@@ -211,8 +211,12 @@ EN = {
 # ── 수집 경로(스크랩) 건강 문턱 — 실측 2026-09-28 ────────────────────────────
 # 정상 범위 실측 3.9~28.2초(scrape_interval 60s / scrape_timeout 45s), 타임아웃은 45.009초.
 SCRAPE_JOB = "postgres"
-SCRAPE_WARN_S = 30.0      # 정상 실측 최대(28.2초) 위에 둔다 — 기준선 아래에 두면 매 틱 경고.
-SCRAPE_BREACH_S = 44.5    # scrape_timeout(45초) 도달 = 스크랩 실패 = dq_* 소실
+# 문턱은 **지금의 scrape_timeout 위에서** 의미가 있다(2026-11-16 변경: interval 60→120s / timeout 45→100s).
+# 실측: exporter 응답 wall = 콜드 201.8초 · 웜 49.7초 · 안정시 18.1초 — 45초 타임아웃에서는 전량 실패해
+#   dq_snapshot 이 24/24 nodata(rc=3) 를 냈다. 타임아웃만 올리면 '성공했는데 breach' 오탐이 남으므로
+#   판정 문턱도 함께 올린다(기준선이 이동하면 문턱도 옮긴다 — 상수비율·flapping 과 같은 원칙).
+SCRAPE_WARN_S = 60.0      # 정상 실측 최대(웜 49.7초 / 안정 18.1초) 위에 둔다 — 아래에 두면 매 틱 경고.
+SCRAPE_BREACH_S = 95.0    # scrape_timeout(100초) 도달 = 스크랩 실패 = dq_* 소실
 SCRAPE_SERIES = 'scrape_duration_seconds{job="postgres"}'
 SCRAPE_WINDOW = "6m"       # 실패가 '단발'인지 '지속'인지 가르는 창(스크랩 간격 60초 → 6~7 표본)
 SCRAPE_FAILS_BREACH = 2    # 창 안 실패가 이 개수 이상이면 지속 장애(단발 = 재기동 과도기, 실측 ~26초)
