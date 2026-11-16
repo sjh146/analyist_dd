@@ -1,8 +1,8 @@
 pykrx
-# 2026-11-16: run_830am_batch(미국 지수·VIX·USDKRW·KOSPI200 야간)가 이 패키지를 import 하는데
-# requirements 에 없어서 us_market_data 가 계속 0행이었다(컨테이너에서 ModuleNotFoundError).
-# 미국/매크로 축은 단변량 edge 0.0348 로 감성(0.003)의 10배라 이 경로를 살린다.
-yfinance>=0.2.40,<0.3
+# 2026-11-16: `run_830am_batch()` 는 `import yfinance` 를 하지만 이 이미지에는 없다(그래서 us_market_data 가
+# 0행이었다). yfinance 를 requirements 에 넣어 빌드를 시도했으나 pypi ReadTimeout/BuildKit lease 오류로
+# 실패했고, **컨테이너에 이미 있는 requests 로 같은 데이터를 받는 경로**(scripts/collect_us_market.py,
+# 크론 07:40)로 대체했다. yfinance 가 필요한 다른 기능이 생기면 그때 다시 추가한다.
 pandas==2.2.3
 numpy==2.2.4
 psycopg2-binary==2.9.10
