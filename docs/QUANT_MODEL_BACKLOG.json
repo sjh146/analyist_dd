@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-17T05:13:09+09:00",
+ "updated_at": "2026-11-17T06:35:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -19924,7 +19924,9 @@
    "verdict": "① 충족 · ② 미달 — 5일 보유 신호는 유지, 1일 청산은 유의하지 않음",
    "verdict_note": "evidence: reports/overnight/cg311_q05_s1_closeh.json · cg311_q05_s1_h1.json",
    "defect": "CG311 이 쓴 arm 예측파일(cg306_preds.jsonl)이 라벨 꼬리 사후선택 풀(20행/date·y_true 완전균형)이라 top-k 순기대 +6.069%p 는 매매 불가 풀 측정치다. 재측정은 CG314(--dump-all) 로 대체.",
-   "defect_found_at": "2026-11-17T03:09:18+09:00"
+   "defect_found_at": "2026-11-17T03:09:18+09:00",
+   "note": " | 2026-11-17 06:3x CG318 정정: 이 항목의 'Δ대조군 +6.069' 는 대조군 덤프가 arm 세션을 덮지 않은 상태의 (fold,date) 짝(교집합 8세션) 값이다. 판정 근거로 쓸 수 있는 것은 arm 절대 순기대(+6.069 t3.66, 80세션)와 Δpool 이며, 그 값은 이후 CG314(160세션)에서 재현되지 않았다(Δpool −0.209 t−0.55).",
+   "updated_at": "2026-11-17T06:35:00+09:00"
   },
   {
    "id": "CG312",
@@ -19995,7 +19997,7 @@
    "summary_out": "/app/reports/overnight/cg314_stride1.json",
    "est_minutes": 150,
    "success": "사전등록: 예측 전수 채점 후 ① stride5(독립 40세션) k=3 Δ(arm−풀평균) t ≥ 2 & halves both_positive ② stride1 k=3 순기대 > 0 & Δ대조 t ≥ 2 → 표본 확대에서도 유지 = 승격 후보로 리뷰보드에 올린다(라벨 규칙 변경 승인 대상, 최종 승격은 사람). ① 미달(Δ < +0.1%p 또는 t < 1.5) = 20세션 우연 → 라벨 축 종결.",
-   "note": "2026-11-17 02:2x 자율 등록(CG313 결과 직후). 런타임 실측 근거: 10폴드×8날짜(=80날짜) 평가가 55분 → 200날짜 ≈ 137분. 컨테이너 timeout 13800s(3.8h)로 06:55 하드컷(개장 3시간 전 여유). 학습 없음 · GPU/CPU 경쟁은 CG310 종료 후 시작 전제. 2026-11-17 04:1x 등록값 자기모순 수리(timeout 12600/1200 → 13800/1800): 구동기가 실행 시 13800 으로 올려 돌렸지만 등록값이 낮아 매 틱 경고가 났다. | 2026-11-17 05:3x 요약 경로 오지정 수리: summary_out 이 체인 첫 산출물(cg314_robust.json = AUC 평가)이라 돈 지표 파서가 조용히 \"conditions.fillable.k 없음\"을 냈다 → stride1 돈 지표 json 으로 정정하고 **재실행 없이 재판정**(80분 낭비 방지). 재판정기(rejudge_parser_gap)도 이 오류 클래스를 잡도록 배선.",
+   "note": "2026-11-17 02:2x 자율 등록(CG313 결과 직후). 런타임 실측 근거: 10폴드×8날짜(=80날짜) 평가가 55분 → 200날짜 ≈ 137분. 컨테이너 timeout 13800s(3.8h)로 06:55 하드컷(개장 3시간 전 여유). 학습 없음 · GPU/CPU 경쟁은 CG310 종료 후 시작 전제. 2026-11-17 04:1x 등록값 자기모순 수리(timeout 12600/1200 → 13800/1800): 구동기가 실행 시 13800 으로 올려 돌렸지만 등록값이 낮아 매 틱 경고가 났다. | 2026-11-17 05:3x 요약 경로 오지정 수리: summary_out 이 체인 첫 산출물(cg314_robust.json = AUC 평가)이라 돈 지표 파서가 조용히 \"conditions.fillable.k 없음\"을 냈다 → stride1 돈 지표 json 으로 정정하고 **재실행 없이 재판정**(80분 낭비 방지). 재판정기(rejudge_parser_gap)도 이 오류 클래스를 잡도록 배선. | 2026-11-17 06:3x CG318 정정: 여기 보고된 'Δ−6.082(t−3.06)' 는 (fold,date) 교집합 8세션 값. 수리 후 date 짝은 Δ−5.784(t−2.22·n=37)이고 그마저 대조군 80세션 중 37세션만 겹쳐 invalid 로 표시된다. 종결 판정 자체는 널(풀) 기준 Δ −0.209(t−0.55, n=160) 로 유지된다.",
    "created_at": "2026-11-17T02:12:19+09:00",
    "command_amended_at": "2026-11-17T03:09:18+09:00",
    "amendment": "2026-11-17 03:2x 결함 수리 2건. (1) 돈 지표 단계 누락: 사전등록 success 가 k=3 Δ(arm-풀평균) t>=2 인데 명령은 AUC 평가만 했다 -> fillable_topk_expectancy(stride5/stride1) 2회를 체인에 추가. (2) 후보풀 오염: CG311~313 이 쓴 cg306_preds.jsonl 은 실측 20행/date(=200종목의 10%)·y_true 800/800 완전균형 = 라벨 꼬리로 사후 선택된 풀(quantile 중간행 미덤프, CG95 함정). 그 풀의 top-k 는 '그날 크게 움직일 종목을 미리 안다'를 전제하므로 매매 불가 -> CG311 +6.07%p 는 트레이더블 수치가 아니다. 이 항목은 --dump-all 로 전 유니버스 풀을 덤프하므로 같은 결함이 없다. eval timeout 13800->12600s 로 줄여 expectancy 단계까지 07:50 전 종료(개장 09:00 여유).",
@@ -20018,7 +20020,7 @@
     "rc": 0
    },
    "verdict_note": "축 종결 — q0.05 라벨 축은 전 유니버스 깨끗한 풀에서 돈 엣지 0. 전수 채점(stride1·160세션·체결성 ON·수수료 0.210%p·close_h h5): arm top3 −0.705%p/세션(t −1.29) vs 풀평균 −0.496 → Δ −0.209(t −0.55·양세션 74/160) · k=5 −0.222 → Δ +0.274(t 0.82) · k=10 −0.478 → Δ +0.017(t 0.08). 분할 앞 +1.808 / 뒤 −3.218(unstable). stride5(32세션) k=3 −0.433 → Δ −0.265(t −0.36) · k=5 +0.534 → Δ +0.702(t 0.96). 국면별(전표본): 상승 76세션 풀 +2.690(t 11.2)·top3 +3.022(Δ +0.333, t 0.58) / 하락 84세션 풀 −3.378(t −8.2)·top3 −4.077(Δ −0.700). → CG311의 +6.07%p 는 20행/date 라벨 꼬리 풀(매매 불가) 측정치였고, 매매 가능한 전 유니버스 풀에서는 top-k 가 풀평균도 못 넘는다. 사전등록 ①(stride5 Δ t≥2 & halves both_positive) ②(k=3 순기대>0 & Δ대조 t≥2) 모두 미달 → 노이즈. 남은 기대는 선택(무엇을)이 아니라 타이밍(언제) — CG316 으로 축 이동. [주의] 원장 상세의 짝 Δ(arm−대조군 cg297_norank) −6.082(t −3.06)는 **판독 금지**: 대조군 덤프가 20행/date 라벨 꼬리 풀이라 겹치는 날짜가 8개뿐이다(양쪽 같은 날짜·같은 필터 아님). 정직한 비교 대상은 같은 덤프에서 계산한 세션 풀평균(무작위 k 기대)이다. 재판정 2026-11-17T05:11 (재실행 아님·요약 JSON 재파싱).",
-   "updated_at": "2026-11-17T05:11:07+09:00"
+   "updated_at": "2026-11-17T06:35:00+09:00"
   },
   {
    "id": "CG315",
@@ -20111,6 +20113,52 @@
    "note": "2026-11-17 05:1x CG316 직후 직접 실행(측정·모델 무변경). 수치는 요약 JSON 2개에서 직접 읽음.",
    "created_at": "2026-11-17T05:13:09+09:00",
    "updated_at": "2026-11-17T05:13:09+09:00"
+  },
+  {
+   "id": "CG318",
+   "status": "done",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "quant-model-engineer",
+   "affects_model": false,
+   "metric": "measurement_integrity",
+   "title": "[계측기 정합성] 짝 Δ 의 키가 (fold,date) 다 — 폴드 구조가 다른 두 덤프를 짝지으면 '우연히 같은 번호의 같은 날짜' 8세션으로 판정한다",
+   "hypothesis": "CG311/CG313/CG314 는 arm(q0.05 덤프)과 대조군(cg297_norank 덤프)을 (fold,date) 로 짝지어 Δ·t·분할 both_positive 를 보고했다. 두 덤프의 폴드 수가 다르면(8 vs 10) 같은 폴드 번호가 같은 평가창이라는 보장이 없어 교집합이 급감하고, 그 소표본이 축의 개폐 근거가 된다 → 계측기를 고치고 같은 입력으로 재측정해 결론이 유지되는지 본다.",
+   "evidence": "실측 2026-11-17 06:2x: cg314_preds.jsonl = 8폴드·160세션(2025-02-11~2026-09-28·198종목) vs cg297_norank_preds.jsonl = 10폴드·80세션(2026-01-13~2026-10-21·200종목). 날짜 교집합 37세션인데 (fold,date) 교집합은 8세션 → CG314 원장에 보고된 Δ−6.082(t−3.06)는 표본의 5%로 계산된 값이었다.",
+   "arm": "cg314_preds.jsonl (전 유니버스 덤프) · cg306_preds.jsonl",
+   "baseline": "같은 세션 풀평균(무작위 k 널) + 대조군 덤프",
+   "counterfactual": "수리 전 (fold,date) 짝 (Δ−6.082 t−3.06 · n=8)",
+   "command": "python3 scripts/_fillable_pair_key_test.py && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg314_preds.jsonl --control-jsonl reports/overnight/cg297_norank_preds.jsonl --control-tag cg297_norank --k 3,5,10 --sides top --stride 1 --exit close_h --horizon 5 --json-out reports/overnight/cg318_cg314_pairfix.json'",
+   "summary_out": "/app/reports/overnight/cg318_cg314_pairfix.json",
+   "est_minutes": 5,
+   "cost": "약 4분(재학습 없음)",
+   "expected": "계측기 수리 — 이후 모든 arm-vs-대조군 Δ 의 표본이 실제 세션 수와 일치",
+   "success": "사전등록: ① 회귀 테스트 4건 PASS(폴드 구조 동일→(fold,date) 비트 동일 · 불일치→date) ② 수리 후 재측정에서 Δ 의 n 이 (fold,date) 교집합보다 커야 하고, 교집합이 양쪽 세션수의 절반 미만이면 `invalid` 로 표시 ③ q0.05 축 종결 판정이 뒤집히지 않아야(널 기준선은 별개 입력이라 불변이어야 함).",
+   "result": {
+    "수리": "scripts/fillable_topk_expectancy.py 에 pair_plan()/by_date() 신설 — 폴드→날짜집합이 완전히 같을 때만 (fold,date) 짝, 아니면 date 짝. 출력에 pair 모드·expected_pairs·invalid 를 남기고, 구 방식 값은 paired_fold_date_legacy 로 보존.",
+    "재측정_cg314": {
+     "필터ON_k3": {
+      "arm": -0.705,
+      "pool": -0.496,
+      "Δpool": -0.209,
+      "t": -0.55,
+      "n": 160
+     },
+     "대조군_짝": {
+      "수리전_Δ": -6.082,
+      "수리전_n": 8,
+      "수리후_Δ": -5.784,
+      "수리후_t": -2.22,
+      "수리후_n": 37,
+      "invalid": "37/80 — 대조군 세션의 46% 만 겹침 → 짝 판정 불가"
+     }
+    },
+    "비정상성": "arm 160세션 앞/뒤 절반이 부호 반전 — 앞 80세션(2025-02~2026-02) top3 +1.808(t3.45, 풀 +0.841) vs 뒤 80세션(2026-02~2026-09) top3 −3.218(t−3.67, 풀 −1.832). q0.05 top-3 엣지는 앞 절반에만 있었고 뒤 절반에서 소멸.",
+    "판정": "q0.05 축 종결 유지 — 널 기준선(같은 덤프 160세션) Δpool −0.209(t−0.55)/+0.274(t0.82) 는 불변이고, 짝을 고쳐도 부호 반전(−)과 대조군 교집합 37/80 이라는 사실이 오히려 종결을 강화한다."
+   },
+   "verdict_note": "계측기 결함 확정·수리·회귀 PASS. 축 판정은 뒤집히지 않았으나, CG311/CG313/CG314 가 보고한 'Δ대조군' 수치는 표본 8세션짜리였으므로 이후 인용 금지(대체: 풀 기준 Δ + halves). 교훈: arm 과 대조군의 폴드 구조가 같다는 가정을 코드가 검증해야 한다.",
+   "created_at": "2026-11-17T06:35:00+09:00",
+   "updated_at": "2026-11-17T06:35:00+09:00"
   }
  ],
  "updated": "2026-11-17T02:12:19+09:00"

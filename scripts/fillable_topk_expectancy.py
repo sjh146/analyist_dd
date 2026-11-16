@@ -316,6 +316,37 @@ def paired_stats(arm_by_key, ctl_by_key, rt_pct=None):
     return s
 
 
+def session_sets(rows):
+    """폴드 → 날짜 집합 (덤프 구조 서명)."""
+    m = defaultdict(set)
+    for r in rows:
+        m[r["fold"]].add(r["date"])
+    return {k: set(v) for k, v in m.items()}
+
+
+def pair_plan(arm_rows, ctl_rows):
+    """짝 비교 키 결정 — 폴드 번호가 같아도 '같은 평가창'이라는 보장은 없다.
+
+    WHY(2026-11-17 실측, CG318): cg314_preds(8폴드) vs cg297_norank_preds(10폴드) 의
+    (fold,date) 교집합은 **8개**뿐이었고 그 8개는 서로 다른 평가창의 우연한 날짜 일치였다
+    (arm 160세션·ctl 80세션·날짜 교집합 37). 그런데 그 8세션 짝 Δ 가 CG311 '신호있음'
+    (+6.069 t 3.83)과 CG314 '노이즈'(−6.082 t −3.06)의 근거로 보고됐다 → 표본의 5%로
+    축을 열고 닫은 셈. 폴드→날짜집합이 **완전히 같을 때만** (fold,date) 로 짝짓고,
+    다르면 date 로 짝짓는다(같은 날짜 = 같은 세션, 폴드 번호는 무의미).
+    """
+    same = session_sets(arm_rows) == session_sets(ctl_rows)
+    return ("fold_date" if same else "date"), same
+
+
+def by_date(series_by_key):
+    """{(fold,date): v} → {date: 평균}. 폴드 구조가 다른 두 덤프의 짝 비교용."""
+    agg = defaultdict(list)
+    for k, v in series_by_key.items():
+        d = k[1] if isinstance(k, tuple) else k
+        agg[d].append(v)
+    return {d: sum(vs) / len(vs) for d, vs in agg.items()}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="체결성·수수료 반영 top-k 순기대 (돈 지표)")
     ap.add_argument("--arm-jsonl", required=True)
@@ -374,6 +405,7 @@ def main(argv=None) -> int:
 
     arm_e, drop_a = enrich(arm, series, a.horizon, a.exit)
     ctl_e, drop_c = enrich(ctl, series, a.horizon, a.exit)
+    pair_mode, same_folds = pair_plan(arm_e, ctl_e)
 
     out = {
         "metric_name": "fillable_topk_expectancy",
@@ -384,6 +416,17 @@ def main(argv=None) -> int:
         "rows": {"arm": len(arm_e), "control": len(ctl_e),
                  "arm_dropped_price": drop_a, "control_dropped_price": drop_c,
                  "bad_lines": bad_a + bad_c},
+        "pair": {
+            "mode": pair_mode,
+            "same_fold_structure": bool(same_folds),
+            "arm_folds": len(session_sets(arm_e)),
+            "control_folds": len(session_sets(ctl_e)),
+            "date_overlap": len(set(r["date"] for r in arm_e)
+                                & set(r["date"] for r in ctl_e)),
+            "note": ("폴드→날짜집합 동일 → (fold,date) 짝" if same_folds else
+                     "폴드 구조 불일치(다른 평가창) → date 짝. (fold,date) 교집합으로 "
+                     "계산한 Δ 는 무효 — CG318 실측 2026-11-17"),
+        },
         "conditions": {},
     }
     for cond, on in (("fillable", True), ("unfiltered", False)):
@@ -449,12 +492,25 @@ def main(argv=None) -> int:
         for k in ks:
             sa = ba[k]
             sc = bc[k]
+            if pair_mode == "date":
+                # 폴드 구조가 다르면 (fold,date) 교집합은 '우연히 같은 번호+같은 날짜'일 뿐이다.
+                pa = paired_stats(by_date(sa), by_date(sc))
+                legacy = paired_stats(sa, sc)
+            else:
+                pa = paired_stats(sa, sc)
+                legacy = None
+            ref = min(len(by_date(sa)), len(by_date(sc)))
+            pa["expected_pairs"] = ref
+            if ref and pa.get("n_dates", 0) < 0.5 * ref:
+                pa["invalid"] = (f"짝 교집합 {pa.get('n_dates', 0)}/{ref} 세션 — "
+                                 "다른 평가창 의심, 판정 불가")
             block["k"][str(k)] = {
                 "arm": stat(list(sa.values())),
                 "control": stat(list(sc.values())),
                 "arm_halves": halves(sa),
                 "control_halves": halves(sc),
-                "paired": paired_stats(sa, sc),
+                "paired": pa,
+                **({"paired_fold_date_legacy": legacy} if legacy is not None else {}),
             }
         out["conditions"][cond] = block
 
