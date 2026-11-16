@@ -19,16 +19,23 @@
 
 ```
 리서처(평일 21:10)
-   └→ 모델엔지니어(평일 22:00, context_from=리서처)
+   └→ 모델엔지니어(평일 22:25, context_from=리서처)
           └→ 트레이더(평일 08:20, context_from=모델엔지니어)
                  └→ 리뷰보드(매일 22:40, context_from=리서처+엔지니어+트레이더)
 
 장외 자율 틱(사람 없이 굴러가는 부분 — 각자 자기 백로그를 앞에서부터 실행)
-   리서처 틱   : scripts/res_cron_tick.sh → scripts/researcher_cycle.py --tick   (16,18,20,22,0,2,4,6시)
-   엔지니어 틱 : scripts/me_cron_tick.sh  → scripts/model_engineer_cycle.py --tick (16~07시 매시)
+   리서처 틱   : scripts/res_cron_tick.sh → scripts/researcher_cycle.py --tick   (16,18,20,22,0,2,4,6시 **47분**)
+   엔지니어 틱 : scripts/me_cron_tick.sh  → scripts/model_engineer_cycle.py --tick (16~07시 매시 **07분**)
    트레이더 틱 : scripts/tr_cron_tick.sh  → scripts/trader_cycle.py --tick        (평일 9,11,13,15시 25분)
    트레이더 장마감: quant-trader-postclose(평일 15:10)
 ```
+
+> **에이전트 잡은 정각(:00)·30분(:30)에 두지 않는다.** Hermes 프로세스가 둘(대화형 CLI + gateway)이면
+> 같은 잡을 서로 `fire_claim` 하고, claim TTL(300s)을 넘기면 상대가 "fire claim ownership lost;
+> interrupting stale run" 으로 **실행 중인 잡을 끊는다**(2026-11-15 실측 17건 `Interrupted by shutdown`).
+> 그래서 시각을 분산했다: 엔지니어 틱 :07, 리서처 틱 :47, engineer-daily 22:25, system-hygiene :12/:42,
+> alert-dispatch :05/:35. 새 에이전트 잡을 만들 때도 :00/:30 을 피하고, 20:00 저녁 파이프라인
+> (약 2시간)·03:30 야간 오케스트레이터와 겹치지 않게 둔다.
 
 > **전달 대상(`deliver`)은 잡마다 명시한다.** 세션에서 만든 잡은 `origin` 으로 두면 그 세션의
 > 채널로 해석되지만, 스크립트/세션 없이 만든 잡은 `origin` 이 **어디로도 해석되지 않아**
