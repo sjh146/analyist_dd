@@ -911,7 +911,7 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
             return _container_path_to_host(out.strip("'\""))
         log("경고: money_anchor_repeat 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
-    if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool"):
+    if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_gate_bands"):
         # 돈 지표(체결성·수수료 반영 top-k 순기대) — scripts/fillable_topk_expectancy.py --json-out.
         # `fillable_topk_vs_pool` 은 같은 --json-out 을 읽되 판정만 '모델 top-k vs 널(풀 평균)' 로
         # 바꾼 변형이다(2026-10-04 CG96: CG95 는 arm vs arm 만 봐 둘 다 양(+)이라 베타 구분 불가).
@@ -1734,7 +1734,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_seed_family(spath, mtime_floor)
     if kind == "topk_precision":
         return parse_topk_precision(spath, mtime_floor)
-    if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_topk_spread"):
+    if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_topk_spread",
+                "fillable_gate_bands"):
+        # fillable_gate_bands(CG316)는 같은 --json-out 스키마의 conditions.fillable.gate 를 읽는다.
         return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "money_anchor_repeat":
         return parse_money_anchor_repeat(spath, mtime_floor)
@@ -2507,6 +2509,14 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
     # t −0.09)인데 판정기 하드코딩 때문에 결과가 사라졌다. 3·5 가 있으면 그 둘(사전문턱),
     # 없으면 가장 작은 k 두 개로 같은 문턱을 적용한다.
     ks = [k for k in ("3", "5") if k in fill]
+    # 선언한 ks(요약의 ks 필드)와 실제 키가 어긋나면 **집계 실패**다 — 조용히 한 k 만으로 판정하면
+    # 사전문턱(3·5 둘 다)이 한쪽으로 약해진다. 실측(2026-11-17 자체점검 FAIL): '5' 키만 지운
+    # 요약이 k=3 만 보고 '신호있음'으로 통과했다. 반대로 실행 자체가 3·5 를 안 낸 경우(CG222:
+    # --k 5,10)는 결측이 아니므로 아래 fallback 으로 최소 두 k 에 같은 문턱을 적용한다.
+    declared = [str(x) for x in (parsed.get("ks") or [])]
+    missing = [k for k in ("3", "5") if (k in declared) and (k not in fill)]
+    if missing:
+        return "판정불가", f"k={missing} 통계 없음(선언 ks={declared} · keys={list(fill)})", None
     if not ks:
         try:
             ks = sorted(fill, key=lambda x: int(x))[:2]
@@ -2608,6 +2618,51 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
     if ok_all:
         return "신호있음", detail + " → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)", first
     return "노이즈", detail + " → 사전등록 미충족(베타 초과 미검출)", first
+
+
+def judge_fillable_gate_bands(item, parsed) -> tuple:
+    """국면 타이밍 게이트(진입 시점 정보만)의 돈 효용 — CG304/CG316.
+
+    사전등록(CG316): 트레일링 풀 모멘텀 게이트(days, min_pct)로 세션을 ON/OFF 로 갈랐을 때
+      ① ON 대역 풀 순기대 > 0 & t ≥ 2 & ON 세션 ≥ 40  ② OFF 대역 풀 순기대 < 0
+      ③ Δ(ON − OFF) ≥ +1.0%p/세션
+    를 모두 만족하면 '신호있음' = '언제 살까'가 진입 시점 정보만으로 갈린다(트레이더 경로 승인 대상).
+    하나라도 미달이면 '노이즈' = 타이밍 축 종결 근거.
+
+    ⚠ 판정 대상은 **풀(무작위 k) 기대**다. top-k(모델 선택)는 CG300·CG314 에서 베타 초과가
+    미검출로 축이 닫혔다 — 이 게이트는 '무엇을 살까'가 아니라 '언제 살까'의 레버다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    g = (((parsed.get("conditions") or {}).get("fillable") or {}).get("gate") or {})
+    bands = g.get("bands") or {}
+    onp = (bands.get("on") or {}).get("pool") or {}
+    offp = (bands.get("off") or {}).get("pool") or {}
+    on_mean, off_mean = onp.get("mean"), offp.get("mean")
+    n_on = onp.get("n")
+    if not isinstance(on_mean, (int, float)):
+        return ("판정불가",
+                f"gate.bands.on 없음(게이트 미적용 — gate-rule={g.get('rule')} · "
+                f"days={g.get('days')} · n_on={g.get('n_on')} · n_scored={g.get('n_scored')})", None)
+    d = (on_mean - off_mean) if isinstance(off_mean, (int, float)) else None
+    crit = [
+        ("① ON 풀>0 & t≥2 & 세션≥40",
+         bool(on_mean > 0 and (onp.get("t") or 0) >= 2 and (n_on or 0) >= 40)),
+        ("② OFF 풀<0", bool(isinstance(off_mean, (int, float)) and off_mean < 0)),
+        ("③ Δ(ON−OFF)≥+1.0%p", bool(isinstance(d, (int, float)) and d >= 1.0)),
+    ]
+    off_txt = (f"{off_mean:+.3f}%p(t {offp.get('t')})" if isinstance(off_mean, (int, float))
+               else "결측")
+    detail = (f"게이트 {g.get('rule')} d{g.get('days')} min{g.get('min_pct')}%p · "
+              f"ON {n_on}세션 풀 {on_mean:+.3f}%p(t {onp.get('t')}) · "
+              f"OFF {offp.get('n')}세션 풀 {off_txt} · "
+              + (f"Δ(ON−OFF) {d:+.3f}%p · " if isinstance(d, (int, float)) else "")
+              + " · ".join(f"{n} {'✓' if v else '✗'}" for n, v in crit))
+    if all(v for _, v in crit):
+        return ("신호있음",
+                detail + " → 진입 시점 정보만으로 하락국면 회피 가능(트레이더 경로 승인 대상)", d)
+    return ("노이즈",
+            detail + " → 진입 시점 정보만으로는 국면을 가를 수 없다(타이밍 축 종결 근거)", d)
 
 
 def judge_fillable_topk_spread(item, parsed) -> tuple:
@@ -4385,6 +4440,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_fillable_topk_expectancy(item, parsed)
     if kind == "fillable_topk_vs_pool":
         return judge_fillable_topk_vs_pool(item, parsed)
+    if kind == "fillable_gate_bands":
+        return judge_fillable_gate_bands(item, parsed)
     if kind == "fillable_topk_spread":
         return judge_fillable_topk_spread(item, parsed)
     if kind == "money_anchor_repeat":
@@ -4437,6 +4494,12 @@ def rejudge_parser_gap() -> list:
         gap = None
         if isinstance(pe, dict) and "parser 없음" in str(pe.get("error", "")):
             gap = "parser"
+        elif isinstance(pe, dict) and "conditions.fillable.k 없음" in str(pe.get("error", "")):
+            # 요약 경로 오지정(실측 2026-11-17 CG314): summary_out 이 체인의 첫 산출물(AUC 평가
+            # cg3xx_robust.json)을 가리켜 돈 지표 파서가 스키마 불일치로 '집계 실패'를 냈다.
+            # 실제 돈 지표 json 은 정상 생성돼 있었다(80분 재실행은 낭비) → 경로를 고친 뒤
+            # 같은 산출물로 재판정한다. 파일이 진짜 비어 있으면 아래 parse 가 다시 error 라 skip 된다.
+            gap = "summary_path"
         elif "통계 없음" in str(r.get("detail", "")):
             # 판정기 갭(실측 2026-11-13 CG222): 파싱은 정상인데 판정기가 없는 k 만 찾아
             # '판정불가'로 닫은 기록. 판정기를 고친 뒤에는 같은 요약으로 다시 판정할 수 있다.

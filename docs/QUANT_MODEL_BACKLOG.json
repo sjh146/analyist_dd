@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-17T03:15:00+09:00",
+ "updated_at": "2026-11-17T05:13:09+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -19979,7 +19979,7 @@
   },
   {
    "id": "CG314",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "measurement",
    "owner": "quant-model-engineer",
@@ -19992,18 +19992,37 @@
    "baseline": "세션 체결가능 풀평균 + 대조군 cg297_norank(같은 폴드·같은 날짜)",
    "counterfactual": "cg297_norank (같은 폴드·같은 날짜·같은 필터)",
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 13800 python -u scripts/champion_robust_eval.py --model-dir app/models/champion_cand_cg306 --label-kind quantile --label-q 0.05 --folds 10 --dates-per-fold 20 --stocks 200 --universe training --universe-seed 0 --asof-date 2026-11-13 --dump-all --dump-preds /app/reports/overnight/cg314_preds.jsonl --out /app/reports/overnight/cg314_robust.json && OMP_NUM_THREADS=2 timeout 1800 python -u scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg314_preds.jsonl --control-jsonl reports/overnight/cg297_norank_preds.jsonl --control-tag cg297_norank --k 3,5,10 --sides top --regime-split pool_sign --stride 5 --exit close_h --horizon 5 --json-out reports/overnight/cg314_stride5.json && OMP_NUM_THREADS=2 timeout 1800 python -u scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg314_preds.jsonl --control-jsonl reports/overnight/cg297_norank_preds.jsonl --control-tag cg297_norank --k 3,5,10 --sides top --regime-split pool_sign --stride 1 --exit close_h --horizon 5 --json-out reports/overnight/cg314_stride1.json'",
-   "summary_out": "/app/reports/overnight/cg314_robust.json",
+   "summary_out": "/app/reports/overnight/cg314_stride1.json",
    "est_minutes": 150,
    "success": "사전등록: 예측 전수 채점 후 ① stride5(독립 40세션) k=3 Δ(arm−풀평균) t ≥ 2 & halves both_positive ② stride1 k=3 순기대 > 0 & Δ대조 t ≥ 2 → 표본 확대에서도 유지 = 승격 후보로 리뷰보드에 올린다(라벨 규칙 변경 승인 대상, 최종 승격은 사람). ① 미달(Δ < +0.1%p 또는 t < 1.5) = 20세션 우연 → 라벨 축 종결.",
-   "note": "2026-11-17 02:2x 자율 등록(CG313 결과 직후). 런타임 실측 근거: 10폴드×8날짜(=80날짜) 평가가 55분 → 200날짜 ≈ 137분. 컨테이너 timeout 13800s(3.8h)로 06:55 하드컷(개장 3시간 전 여유). 학습 없음 · GPU/CPU 경쟁은 CG310 종료 후 시작 전제. 2026-11-17 04:1x 등록값 자기모순 수리(timeout 12600/1200 → 13800/1800): 구동기가 실행 시 13800 으로 올려 돌렸지만 등록값이 낮아 매 틱 경고가 났다.",
+   "note": "2026-11-17 02:2x 자율 등록(CG313 결과 직후). 런타임 실측 근거: 10폴드×8날짜(=80날짜) 평가가 55분 → 200날짜 ≈ 137분. 컨테이너 timeout 13800s(3.8h)로 06:55 하드컷(개장 3시간 전 여유). 학습 없음 · GPU/CPU 경쟁은 CG310 종료 후 시작 전제. 2026-11-17 04:1x 등록값 자기모순 수리(timeout 12600/1200 → 13800/1800): 구동기가 실행 시 13800 으로 올려 돌렸지만 등록값이 낮아 매 틱 경고가 났다. | 2026-11-17 05:3x 요약 경로 오지정 수리: summary_out 이 체인 첫 산출물(cg314_robust.json = AUC 평가)이라 돈 지표 파서가 조용히 \"conditions.fillable.k 없음\"을 냈다 → stride1 돈 지표 json 으로 정정하고 **재실행 없이 재판정**(80분 낭비 방지). 재판정기(rejudge_parser_gap)도 이 오류 클래스를 잡도록 배선.",
    "created_at": "2026-11-17T02:12:19+09:00",
    "command_amended_at": "2026-11-17T03:09:18+09:00",
    "amendment": "2026-11-17 03:2x 결함 수리 2건. (1) 돈 지표 단계 누락: 사전등록 success 가 k=3 Δ(arm-풀평균) t>=2 인데 명령은 AUC 평가만 했다 -> fillable_topk_expectancy(stride5/stride1) 2회를 체인에 추가. (2) 후보풀 오염: CG311~313 이 쓴 cg306_preds.jsonl 은 실측 20행/date(=200종목의 10%)·y_true 800/800 완전균형 = 라벨 꼬리로 사후 선택된 풀(quantile 중간행 미덤프, CG95 함정). 그 풀의 top-k 는 '그날 크게 움직일 종목을 미리 안다'를 전제하므로 매매 불가 -> CG311 +6.07%p 는 트레이더블 수치가 아니다. 이 항목은 --dump-all 로 전 유니버스 풀을 덤프하므로 같은 결함이 없다. eval timeout 13800->12600s 로 줄여 expectancy 단계까지 07:50 전 종료(개장 09:00 여유).",
-   "precondition": "덤프 검증: cg314_preds.jsonl 의 date 별 행수가 ~200 이고 y_true null 이 존재해야 한다. 20행/date 면 --dump-all 미적용 -> 결과 무효."
+   "precondition": "덤프 검증: cg314_preds.jsonl 의 date 별 행수가 ~200 이고 y_true null 이 존재해야 한다. 20행/date 면 --dump-all 미적용 -> 결과 무효.",
+   "attempts": [
+    {
+     "ts": "2026-11-17T04:29:45+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "conditions.fillable.k 없음(집계 실패)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG314_20261117-030924.log",
+     "elapsed_min": 80.4
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm None vs 대조군 cg297_norank · exit close_h h5 · 수수료 왕복 0.21%p · 세션 160 · 풀 중앙값 70 · k=3 arm -0.705%p/세션 · 대조 +0.000 · Δ-6.082(t -3.06) · 양세션 47.5% · 분할 unstable [+1.808/-3.218] ✗ · k=5 arm -0.222%p/세션 · 대조 +0.362 · Δ-3.453(t -1.67) · 양세션 51.9% · 분할 unstable [+2.003/-2.446] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.046%p · Δ+4.391 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "verdict_note": "축 종결 — q0.05 라벨 축은 전 유니버스 깨끗한 풀에서 돈 엣지 0. 전수 채점(stride1·160세션·체결성 ON·수수료 0.210%p·close_h h5): arm top3 −0.705%p/세션(t −1.29) vs 풀평균 −0.496 → Δ −0.209(t −0.55·양세션 74/160) · k=5 −0.222 → Δ +0.274(t 0.82) · k=10 −0.478 → Δ +0.017(t 0.08). 분할 앞 +1.808 / 뒤 −3.218(unstable). stride5(32세션) k=3 −0.433 → Δ −0.265(t −0.36) · k=5 +0.534 → Δ +0.702(t 0.96). 국면별(전표본): 상승 76세션 풀 +2.690(t 11.2)·top3 +3.022(Δ +0.333, t 0.58) / 하락 84세션 풀 −3.378(t −8.2)·top3 −4.077(Δ −0.700). → CG311의 +6.07%p 는 20행/date 라벨 꼬리 풀(매매 불가) 측정치였고, 매매 가능한 전 유니버스 풀에서는 top-k 가 풀평균도 못 넘는다. 사전등록 ①(stride5 Δ t≥2 & halves both_positive) ②(k=3 순기대>0 & Δ대조 t≥2) 모두 미달 → 노이즈. 남은 기대는 선택(무엇을)이 아니라 타이밍(언제) — CG316 으로 축 이동. [주의] 원장 상세의 짝 Δ(arm−대조군 cg297_norank) −6.082(t −3.06)는 **판독 금지**: 대조군 덤프가 20행/date 라벨 꼬리 풀이라 겹치는 날짜가 8개뿐이다(양쪽 같은 날짜·같은 필터 아님). 정직한 비교 대상은 같은 덤프에서 계산한 세션 풀평균(무작위 k 기대)이다. 재판정 2026-11-17T05:11 (재실행 아님·요약 JSON 재파싱).",
+   "updated_at": "2026-11-17T05:11:07+09:00"
   },
   {
    "id": "CG315",
-   "status": "backlog",
+   "status": "closed_rejected",
    "priority": 3,
    "kind": "measurement",
    "owner": "quant-model-engineer",
@@ -20020,7 +20039,78 @@
    "est_minutes": 200,
    "success": "사전등록: k=3 Δ(arm−풀평균) 부호가 + 이고 t ≥ 2 이면 유니버스 강건(승격 검토 유지). 부호 반전 또는 t < 1 이면 '200종목 특이'로 축 종결.",
    "note": "2026-11-17 자율 등록. CG314(표본 확대) 결과가 유지일 때만 착수 — 순서 의존. 재학습 3h + 평가 2h 라 밤 1회분. | 2026-11-17T03:09 보류 조건 추가: CG313 수치가 라벨 꼬리 풀 오염(CG311 defect) 위 측정이라, CG314 전 유니버스 풀 재측정에서 k=3 Δ(arm-풀평균) t>=2 가 유지될 때만 착수한다.",
-   "created_at": "2026-11-17T02:12:19+09:00"
+   "created_at": "2026-11-17T02:12:19+09:00",
+   "verdict_note": "CG314 종결로 불필요 — CG315 는 q0.05 라벨 신호의 유니버스 특이성을 반증하려던 항목인데, 그 신호 자체가 전 유니버스 깨끗한 풀에서 미검출(전수 160세션 k=3 Δ −0.209 t −0.55 · k=5 Δ +0.274 t 0.82)이므로 대상 신호가 없다. 같은 축의 300종목 재학습은 비용만 쓴다 → 종결.",
+   "updated_at": "2026-11-17T05:10:58+09:00"
+  },
+  {
+   "id": "CG316",
+   "status": "done",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "quant-model-engineer",
+   "affects_model": false,
+   "metric": "fillable_gate_bands",
+   "title": "[타이밍 축] 선택(top-k)이 아니라 '언제 살까' — 진입 시점에 알 수 있는 트레일링 풀 모멘텀 게이트로 하락국면을 걸러낼 수 있는가",
+   "hypothesis": "CG314 실측: 매매 가능한 전 유니버스 풀에서 top-k 선택 엣지는 0 이고, 손실은 전부 국면에서 온다 — 상승 76세션 풀 +2.690%p vs 하락 84세션 풀 −3.378%p(5일 보유·수수료 후). 즉 모델을 더 고치는 것보다 하락국면 세션을 안 사는 규칙이 훨씬 큰 돈이다. CG302 는 '그날 풀 부호'(사후 정보)로 갈랐기 때문에 배포 불가였고, 이 항목은 진입 시점에 아는 트레일링 풀 모멘텀(직전 5거래일 체결가능 풀수익)으로 같은 분리가 되는지만 본다. 분리되면 '언제 살까'가 새 레버이고, 안 되면 타이밍 축도 닫는다.",
+   "evidence": "CG314: stride1 160세션 풀 −0.496%p(t −1.45) · top3 −0.705(Δ −0.209 t −0.55) · 상승 76세션 pool +2.690(100% 양) · 하락 84세션 pool −3.378. CG302: top-k 초과수익은 국면 무관(상승 +1.795/하락 +2.353)이나 절대 기대는 하락국면 −3.157%p.",
+   "arm": "cg314_preds.jsonl (전 유니버스 --dump-all 덤프, 200거래일)",
+   "baseline": "게이트 OFF 대역(같은 세션 집합) + 전표본 풀평균 −0.496%p/세션",
+   "counterfactual": "게이트 OFF (트레일링 풀수익 ≤ 0 인 세션)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg314_preds.jsonl --control-jsonl reports/overnight/cg297_norank_preds.jsonl --control-tag cg297_norank --k 3,5 --sides top --gate-rule trailing_pool --gate-days 5 --gate-min-pct 0 --stride 1 --exit close_h --horizon 5 --json-out reports/overnight/cg316_gate_d5.json'",
+   "summary_out": "/app/reports/overnight/cg316_gate_d5.json",
+   "est_minutes": 20,
+   "cost": "약 20분(재학습 없음 · 기존 예측 덤프 재사용)",
+   "expected": "측정(모델 변경 없음) — 트레이더 경로(진입 게이트) 승인 근거",
+   "success": "사전등록: ① 게이트 ON 대역 풀 순기대 > 0 & t ≥ 2 & ON 세션 ≥ 40 ② OFF 대역 풀 순기대 < 0 ③ Δ(ON − OFF) ≥ +1.0%p/세션 → 셋 다 충족이면 '진입 시점 정보만으로 하락국면 회피 가능' = 트레이더 경로 승인 대상(내 권한 밖). 하나라도 미달이면 '타이밍 축 종결'. 판정 대상은 **풀(무작위 k) 기대**이며 top-k 는 판정 대상이 아니다(CG314 에서 축 종결).",
+   "note": "2026-11-17 05:3x 자율 등록(CG314 종결 직후). 같은 덤프를 쓰므로 재학습·GPU 불필요. 판정기 judge_fillable_gate_bands 신설.",
+   "created_at": "2026-11-17T05:10:58+09:00",
+   "updated_at": "2026-11-17T05:10:58+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-17T05:11:12+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "게이트 trailing_pool d5 min0.0%p · ON 80세션 풀 +0.116%p(t 0.31) · OFF 40세션 풀 -1.315%p(t -1.5) · Δ(ON−OFF) +1.431%p · ① ON 풀>0 & t≥2 & 세션≥40 ✗ · ② OFF 풀<0 ✓ · ③ Δ(ON−OFF)≥+1.0%p ✓ → 진입 시점 정보만으로는 국면을 가를 수 없다(타이밍 축 종결 근거)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG316_20261117-051110.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "게이트 trailing_pool d5 min0.0%p · ON 80세션 풀 +0.116%p(t 0.31) · OFF 40세션 풀 -1.315%p(t -1.5) · Δ(ON−OFF) +1.431%p · ① ON 풀>0 & t≥2 & 세션≥40 ✗ · ② OFF 풀<0 ✓ · ③ Δ(ON−OFF)≥+1.0%p ✓ → 진입 시점 정보만으로는 국면을 가를 수 없다(타이밍 축 종결 근거)",
+    "delta": 1.4314,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG317",
+   "status": "done",
+   "priority": 2,
+   "kind": "measurement",
+   "owner": "quant-model-engineer",
+   "affects_model": false,
+   "metric": "fillable_gate_bands",
+   "title": "[타이밍 축 종결] CG316 근접미달(t 0.31)이 표본 부족인지 — 게이트 강도·창 민감도 2변형(d5/+1%, d10/0%)으로 용량-반응 확인",
+   "hypothesis": "CG316 은 방향은 맞았는데(ON 80세션 +0.116 vs OFF 40세션 −1.315, Δ +1.431%p) ON 대역 t 가 0.31 이라 사전문턱 ①(t≥2)에서만 미달했다. 표본 부족이면 게이트를 강화(문턱 +1%)하거나 창을 늘리면(d10) ON 대역 평균이 올라가고 t 도 커져야 한다(용량-반응). 강화해도 ON 이 0 근처거나 음(−)이면 '진입 시점 정보로 국면을 못 가른다'로 종결.",
+   "evidence": "CG316: fillable ON 80세션 풀 +0.116%p(t 0.31) / OFF 40세션 −1.315(t −1.50) / Δ +1.431 · unfiltered ON 78 +0.020 / OFF 42 +1.668(t 2.42).",
+   "arm": "cg314_preds.jsonl 전 유니버스 덤프(재학습 없음)",
+   "baseline": "게이트 OFF 대역 + 전표본 풀평균 −0.496%p",
+   "counterfactual": "게이트 OFF(트레일링 풀수익 ≤ 문턱)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg314_preds.jsonl --control-jsonl reports/overnight/cg297_norank_preds.jsonl --control-tag cg297_norank --k 3,5 --sides top --gate-rule trailing_pool --gate-days 5 --gate-min-pct 1.0 --stride 1 --exit close_h --horizon 5 --json-out reports/overnight/cg317_gate_A_d5p1.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg314_preds.jsonl --control-jsonl reports/overnight/cg297_norank_preds.jsonl --control-tag cg297_norank --k 3,5 --sides top --gate-rule trailing_pool --gate-days 10 --gate-min-pct 0 --stride 1 --exit close_h --horizon 5 --json-out reports/overnight/cg317_gate_B_d10p0.json'",
+   "summary_out": "/app/reports/overnight/cg317_gate_A_d5p1.json",
+   "est_minutes": 3,
+   "cost": "약 2분(파일 2개)",
+   "success": "사전등록: 변형 중 하나라도 ① ON 풀>0 & t≥2 & 세션≥40 ② OFF 풀<0 ③ Δ(ON−OFF)≥+1.0%p 를 모두 충족하면 타이밍 축 유지(후속=문턱 스윕·트레이더 경로 승인), 아니면 타이밍 축 종결.",
+   "result": {
+    "verdict": "노이즈",
+    "detail": "A(d5·문턱+1%): ON 67세션 풀 −0.208%p(t −0.51) / OFF 53 −0.554(t −0.79) → 강화하니 ON 이 음(−)으로 내려앉음. B(d10·문턱0): ON 53세션 +0.143(t 0.24) / OFF 27 −1.056(t −1.24). d5/문턱0(CG316) ON +0.116(t 0.31) → 세 변형 모두 ON 이 0 근처(t<0.6)이고 문턱을 올리자 개선이 사라져 **용량-반응 없음**. OFF 대역이 음(−)인 패턴만 반복(40/53/21세션) → 하락국면 신호는 '있어 보이나' 유의성 미달."
+   },
+   "verdict_note": "타이밍(진입 시점 트레일링 풀 모멘텀) 축 종결 — 3변형 모두 사전문턱 미달, 문턱 강화 시 ON 이 음(−)으로 역행(용량-반응 부재). 이로써 이 데이터에서 남은 두 축(선택=CG300/CG314, 타이밍=CG316/CG317)은 모두 닫혔다. 다음 레버는 모델 입력의 새 시점정합 피처(데이터 축)뿐이며, 이는 승인 대상(②)이다.",
+   "note": "2026-11-17 05:1x CG316 직후 직접 실행(측정·모델 무변경). 수치는 요약 JSON 2개에서 직접 읽음.",
+   "created_at": "2026-11-17T05:13:09+09:00",
+   "updated_at": "2026-11-17T05:13:09+09:00"
   }
  ],
  "updated": "2026-11-17T02:12:19+09:00"
