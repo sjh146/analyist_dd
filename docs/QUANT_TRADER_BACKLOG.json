@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-16T09:28:56+09:00",
+  "updated_at": "2026-11-16T22:35:00+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -29,7 +29,7 @@
       "cost": "저",
       "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
       "result": {
-        "ts": "2026-11-16T08:33:36+09:00",
+        "ts": "2026-11-16T22:30:38+09:00",
         "value": 0.0,
         "check": "0.0 >= 1.0",
         "verdict": "미달",
@@ -130,7 +130,7 @@
     {
       "id": "T5",
       "title": "건당 기대값 흑자 전환",
-      "status": "failed",
+      "status": "pending",
       "priority": 5,
       "command": "python3 scripts/trader_cycle.py --probe expectancy",
       "metric": "expectancy_krw",
@@ -444,6 +444,20 @@
       "success": "월요일 발행에서 close 후보가 1건 이상이고, 나이 계산이 산출물의 실제 생성 시각(generated_at) 기준으로 로그에 남는다",
       "cost": "코드 3줄(스탬프 선택) + 회귀 1개. 계약 필드·소비자 동작 변경 없음",
       "note": "게이트 입력 해석 변경이라 리뷰보드 승인 대상으로 올린다(권고=승인, 위험 낮음). 승인 시: stamp = payload.get('generated_at') or payload.get('date') 로 바꾸고 date 만 있을 때는 23:59 KST 로 해석. T11(0건 덮어쓰기)과 함께 처리하면 발행 실패 시 직전 발행물 보존도 같이 고칠 수 있다."
+    },
+    {
+      "id": "T46",
+      "title": "보유 포지션이 있는데 루프가 죽어도 경보가 없다 — 11-16 10:57~15:30 감시 공백 4h33m, 틱 3회 실패와 겹쳐 무보고",
+      "status": "backlog",
+      "priority": 1,
+      "provenance": "트레이더 장외 틱(2026-11-16 22:30) — loop_state.json updated_at 10:57:08 · runner.log mtime 10:57 · bridge_sup.log 13:17~15:01 'Creon not running' · Windows python 프로세스 부재 실측",
+      "command": "cd /home/jhshi/analyist_dd && python3 scripts/trader_cycle.py --probe stale",
+      "metric": "보유 포지션>0 일 때 loop_state 갱신 지연(분)",
+      "check": {
+        "op": "<=",
+        "value": 60
+      },
+      "hypothesis": "loop_sup 은 브리지가 없으면 루프를 기동하지 않고, 루프 프로세스가 장중에 죽어도 아무도 재기동·경보하지 않는다. 오늘은 10:57 루프 사망 + 13:17부터 Creon 부재 + 틱 크론 4회 중 3회 공급자 실패(11:25 timeout, 13:25·15:25 provider)로 4h33m 공백이 장 마감까지 보고되지 않았다. 감시 주체(루프)와 보고 주체(틱 크론)가 같은 실패 축에 있으면 공백이 조용해진다 → 독립 경보(loop_stale>60분 && 보유>0 → 즉시 알림/킬스위치 검토) 필요."
     }
   ]
 }
