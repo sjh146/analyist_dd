@@ -58,3 +58,20 @@ probe(204) + DNS(discord.com) + `tunnel.log` 마지막 이벤트로 회선을 �
   `executions.delivery_outcome='delivered'` 확인 → 다음 틱에서 `pending 0` + stdout 침묵 확인.
 - 정상 상태의 침묵이 곧 "이상 없음"의 증거이므로, **배선 검증은 stdout 이 아니라
   `executions.db`(status/delivery_outcome)로 한다.**
+
+## 시장·수집 경로 감시 (market-path-watchdog, 15분)
+
+`config/watchdog/market_watchdog.py` (+`.sh`, Hermes 크론 `market-path-watchdog`, `*/15 * * * *`).
+
+| 항목 | 조건 | 조치 |
+|---|---|---|
+| 뉴스 수집 정지 | 07~22시 최신 적재 2h↑ (그 외 5h↑) | 2.5h↑면 컨테이너 1회 재시작(3h 쿨다운), 경보 |
+| 컨테이너 | 기대 17개 중 부족 | 경보 |
+| 브리지 | 평일 08~16시 connected=false **2회 연속** | 경보(1회는 무시 — 업데이터 재시작 흡수) |
+| 루프 | 평일 08:35~15:35 last_cycle 6분↑ 경과 | 경보 |
+| 피드 | 평일 08:35~10:00 generated_at 이 오늘 아님 | 경보 |
+
+- 같은 항목은 60분에 1회만 경보(상태 `~/.hermes/state/market_watchdog.json`).
+- 실측 근거(2026-11-14~15): 뉴스가 18:00 이후 **19시간** 0건이었고 컨테이너는 32분마다
+  `Collected 0 articles` 만 남겼다. 재시작 1회로 93건 수집 재개 — 이 공백을 2.5h 안에 잡는다.
+- 브리지는 WSL 127.0.0.1 로 닿지 않으므로 **Windows `curl.exe`** 로 확인한다.
