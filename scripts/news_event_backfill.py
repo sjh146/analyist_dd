@@ -193,6 +193,22 @@ def load_universe(pg, limit_curated=50, limit_turnover=200):
     return list(out.values())
 
 
+def load_all_stocks(pg):
+    """전 종목 [(code, name)] — 종목 귀속률을 유니버스로 제한하지 않는다.
+
+    뉴스 이벤트/감성 피처의 커버리지는 곧 '기사→종목 귀속률'이다. 250종목 유니버스는
+    같은 기사에서도 귀속을 46종목으로 잘라버린다(2026-11-16 실측: 전 종목명 사전 68종목).
+    """
+    cur = pg.cursor()
+    cur.execute(
+        "SELECT stock_code, stock_name FROM stocks "
+        "WHERE stock_name IS NOT NULL AND length(stock_name) >= 2"
+    )
+    rows = cur.fetchall()
+    cur.close()
+    return [(c, n) for c, n in rows]
+
+
 def match_stock(text, stocks_sorted):
     """텍스트에 포함된 종목명 중 가장 긴 것(우선) 반환. 없으면 None.
 
@@ -496,7 +512,13 @@ def stage_extract(args):
     cur.execute("SELECT stock_code FROM stocks")
     valid_codes = {r[0] for r in cur.fetchall()}
 
-    stocks = load_universe(pg, args.limit_curated, args.limit_turnover)
+    # 2026-11-16 실측: 유니버스가 curated 50 + turnover 200 = 최대 250종목뿐이라
+    # 같은 기사 347건에서 종목 귀속이 46종목에 그쳤다(전 종목명 사전으로 매칭하면 68종목 = +48%).
+    # 종목 귀속률이 곧 감성/이벤트 피처 커버리지이므로 기본을 전 종목으로 둔다.
+    if args.universe_all:
+        stocks = load_all_stocks(pg)
+    else:
+        stocks = load_universe(pg, args.limit_curated, args.limit_turnover)
     stocks = [(c, n) for c, n in stocks if c in valid_codes]
     stocks_sorted = sorted(stocks, key=lambda x: -len(x[1]))
     logger.info("[extract] 유니버스 %d 종목 (stocks 검증 통과)", len(stocks_sorted))
@@ -510,12 +532,15 @@ def stage_extract(args):
         """
         SELECT id, title, content, published_at, analyzed_at, sentiment_score
         FROM news_analysis
-        WHERE source = 'google_news'
+        WHERE source <> 'sns'
         ORDER BY id
         """
     )
     articles = cur.fetchall()
-    logger.info("[extract] 대상 기사 %d 건 (source='google_news')", len(articles))
+    # 2026-11-16 실측: 이 필터가 `source = 'google_news'` 로 고정돼 있었는데, 수집기는
+    # 언론사명(매일경제/이데일리/서울경제/한국경제신문)을 source 로 저장한다 → 백필 대상이
+    # **항상 0건**이었고 그래서 뉴스 이벤트 피처가 자라지 못했다. SNS만 제외한다.
+    logger.info("[extract] 대상 기사 %d 건 (source<>'sns')", len(articles))
 
     cur.execute("SELECT article_id, event_type FROM news_event_extraction")
     existing = {(r[0], r[1]) for r in cur.fetchall()}
@@ -954,6 +979,9 @@ def main():
                     help="extract 전 기존 백필 행(추출+클러스터) 삭제 → 멱등 재적재")
     ap.add_argument("--limit-curated", type=int, default=50)
     ap.add_argument("--limit-turnover", type=int, default=200)
+    # 기본 = 전 종목 사전(귀속률 최대화). 250종목 제한으로 되돌리려면 --no-universe-all.
+    ap.add_argument("--universe-all", dest="universe_all", action="store_true", default=True)
+    ap.add_argument("--no-universe-all", dest="universe_all", action="store_false")
     ap.add_argument("--match-content", dest="match_content", action="store_true", default=True,
                     help="제목 매칭 실패 시 본문(앞 1000자) 폴백 매칭")
     ap.add_argument("--no-match-content", dest="match_content", action="store_false")

@@ -12,7 +12,10 @@ LOG_FILE="$REPORT_DIR/news_cleanup_${TIMESTAMP}.log"
 CONTAINER="stock_postgres"
 DB_USER="stock_user"
 DB_NAME="stock_trading"
-RETENTION_DAYS=2
+# 2026-11-16: 2일 → 90일. 2일 보존은 (a) 뉴스가 stock_sentiment/event 피처의 유일한 원천인데
+#   종목 귀속률이 낮아 재처리·백필이 필요한데도 원문이 사라져 감성 피처 7개가 전멸했고,
+#   (b) 주말·휴장 2일이 겹치면 창이 0일이 됐다. 원천 테이블만 늘리고 파생 테이블은 그대로 둔다.
+RETENTION_DAYS=90
 CMD_TIMEOUT=300
 
 mkdir -p "$REPORT_DIR"
