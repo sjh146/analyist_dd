@@ -1,4 +1,8 @@
 pykrx
+# 2026-11-16: run_830am_batch(미국 지수·VIX·USDKRW·KOSPI200 야간)가 이 패키지를 import 하는데
+# requirements 에 없어서 us_market_data 가 계속 0행이었다(컨테이너에서 ModuleNotFoundError).
+# 미국/매크로 축은 단변량 edge 0.0348 로 감성(0.003)의 10배라 이 경로를 살린다.
+yfinance>=0.2.40,<0.3
 pandas==2.2.3
 numpy==2.2.4
 psycopg2-binary==2.9.10
