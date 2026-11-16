@@ -29,6 +29,10 @@ from app.feature_engine.sns_feature_bundle import SnsFeatureBundle
 from app.feature_engine.sns_feature_bundle import feature_names as sns_feature_names
 from app.feature_engine.intraday_features import IntradayFeatures
 from app.feature_engine.intraday_features import feature_names as intraday_feature_names
+from app.feature_engine.us_market_features import (
+    UsMarketFeatures,
+    feature_names as us_market_feature_names,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +60,12 @@ class FeaturePipeline:
         self.use_intraday = str(os.environ.get("INTRADAY_FEATURES", "")).strip().lower() in (
             "1", "true", "yes", "on")
         self.intraday = IntradayFeatures() if self.use_intraday else None
+        # 미국장/환율 as-of 피처 — 데이터 축. **기본 OFF**(env US_MARKET_FEATURES=1).
+        # 근거: macro_* 단변량 edge 0.0348(감성 0.003의 10배) + 미장은 한국장 전 세션이라 as-of 안전.
+        # 미설정이면 피처 이름/값이 종전과 비트 동일(패널 스키마 변경 없음).
+        self.use_us_market = str(os.environ.get("US_MARKET_FEATURES", "")).strip().lower() in (
+            "1", "true", "yes", "on")
+        self.us_market = UsMarketFeatures() if self.use_us_market else None
         self.pg_conn = pg_conn
         self.neo4j_conn = neo4j_conn
         if self.neo4j_conn is None:
@@ -180,6 +190,10 @@ class FeaturePipeline:
         # 인트라데이(분봉) 피처 — 당일 세션(≤15:30)만 쓴다(as-of). 기본 OFF(env INTRADAY_FEATURES=1).
         if self.intraday is not None and self.pg_conn is not None:
             features.update(self.intraday.get_all_features(stock_code, self.pg_conn, str(date)[:10]))
+
+        # 미국장/환율 as-of 피처 — 기본 OFF(env US_MARKET_FEATURES=1).
+        if self.us_market is not None and self.pg_conn is not None:
+            features.update(self.us_market.get_all_features(self.pg_conn, str(date)[:10]))
 
         # Quality score (F-Score from financial data, 0~1) — as-of 기준일을 넘긴다(위와 같은 이유).
         features["quality_score"] = self.scorer.get_f_score(stock_code, self.pg_conn, date=str(date))
@@ -1292,6 +1306,9 @@ class FeaturePipeline:
             # Intraday(minute bar) features — opt-in only (env INTRADAY_FEATURES=1).
             # 기본 OFF: env 미설정이면 목록이 종전과 **비트 동일**하다(패널 스키마 변경 없음).
             *(intraday_feature_names() if self.use_intraday else []),
+
+            # US market / FX as-of features — opt-in only (env US_MARKET_FEATURES=1).
+            *(us_market_feature_names() if self.use_us_market else []),
         ])
 
     def set_db_connections(self, pg_conn=None, neo4j_conn=None):
