@@ -213,19 +213,23 @@ class EdgeGateTest(unittest.TestCase):
         # 0.06 x 3.0 = 0.18 (tp 상한 0.20 안)
         self.assertAlmostEqual(clamp_plan.tp_pct, 0.18, places=6)
 
-    # ⑥ atr_pct 결측 → fixed(1.5/2.5) 폴백, algo_json.stop["model"]=="fixed"
+    # ⑥ atr_pct 결측 → 폴백 고정 라인, algo_json.stop["model"]=="fixed"
     def test_missing_atr_falls_back_to_fixed_lines(self) -> None:
-        # 기본 프로파일(profiles.py DEFAULT_PROFILES['daytrading'] =
-        # stop_mode "atr" + 폴백 고정 라인 1.5/2.5) — atr_pct 가 없으면 폴백.
-        cfg = self._config()
+        # atr 모드 프로파일을 명시하고 피드에 atr_pct 를 주지 않으면 폴백 고정 라인(1%/3%)을
+        # 쓴다 — 기본값(fixed)은 폴백 경로를 검증하지 못하므로 여기서 atr 모드를 강제한다.
+        cfg = self._config(
+            screener_profiles={"daytrading": {"stop_mode": "atr", "atr_stop_mult": 1.5,
+                                              "atr_tp_mult": 3.0,
+                                              "stop_pct": 0.01, "tp_pct": 0.03}}
+        )
         decision = self._evaluate(
             cfg, support.make_candidate(code="047080", day_range_pct="24.0")
         )
         self.assertTrue(decision.passed, decision.blocked_reason())
         plan = decision.plan
         assert plan is not None
-        self.assertAlmostEqual(plan.stop_pct, 0.015, places=6)
-        self.assertAlmostEqual(plan.tp_pct, 0.025, places=6)
+        self.assertAlmostEqual(plan.stop_pct, 0.01, places=6)
+        self.assertAlmostEqual(plan.tp_pct, 0.03, places=6)
         self.assertEqual(plan.algo["stop"]["model"], "fixed")
 
 

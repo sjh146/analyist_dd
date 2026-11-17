@@ -126,7 +126,10 @@ class FixedStopEngineTest(unittest.TestCase):
         self.assertEqual(plan.algo["stop"]["model"], "fixed")
 
     def test_daytrading_decision_uses_the_fixed_lines_even_when_volatile(self) -> None:
-        """④ 변동성이 커도(24% day range → 변동성 스톱이면 12%) 고정 1.5%/2.5% 를 쓴다."""
+        """④ 변동성이 커도(24% day range → 변동성 스톱이면 12%) 고정 1%/3% 를 쓴다.
+
+        (2026-11-17 엣지 백테스트 14,440건에서 1%/3% 가 최고 중립 기대값 — 1.5%/2.5% 를 대체.)
+        """
         cfg = self._config()
         payload = support.make_payload(
             close=[],
@@ -136,8 +139,8 @@ class FixedStopEngineTest(unittest.TestCase):
             ],
         )
         plan = self._evaluate(cfg, payload, "daytrading")
-        self.assertAlmostEqual(plan.stop_pct, 0.015, places=6)
-        self.assertAlmostEqual(plan.tp_pct, 0.025, places=6)
+        self.assertAlmostEqual(plan.stop_pct, 0.01, places=6)
+        self.assertAlmostEqual(plan.tp_pct, 0.03, places=6)
         self.assertEqual(plan.algo["stop"]["model"], "fixed")
 
     def test_swing_decision_keeps_the_volatility_path(self) -> None:
