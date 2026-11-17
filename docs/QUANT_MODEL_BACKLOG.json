@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T05:12:13+09:00",
+ "updated_at": "2026-11-18T05:13:12+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -20421,6 +20421,26 @@
     "min_detectable_delta_80pct": 0.0092,
     "script": "/app/reports/_cg323_power.py (docker cp 후 실행)"
    }
+  },
+  {
+   "id": "CG324",
+   "status": "backlog",
+   "priority": 1,
+   "owner": "quant-model-engineer",
+   "kind": "라벨 축·모집단 정합",
+   "affects_model": true,
+   "metric": "wf_sweep_summary",
+   "title": "[라벨 축] 분위 라벨의 '기준 모집단'을 체결가능 행으로 재정의 — 행은 버리지 않고 분위 기준만 바꾼다",
+   "hypothesis": "배포 소비자는 체결가능 36% 모집단인데(CG283) 학습 라벨의 q=0.30 은 **전 행(체결불가 포함)** 횡단면 분위로 매겨진다 → 라벨이 '살 수 없는 상한가 행'을 양성으로 가르치고, 소비 모집단에서는 그 행들이 사라져 순위 의미가 바뀐다. CG192(체결불가 행 제거)는 정보 손실로 AUC −0.055 였고, CG287(가중)은 행을 유지한 채 가중만 옮겼다. **행을 모두 유지하면서 분위 기준선만 체결가능 행으로 계산**하는 변형은 미시험이다(relative 라벨은 전체 중앙값 기준이라 이미 Δ−0.0161 로 기각 — 다른 축).",
+   "counterfactual": "CG323_ctl_h5 (같은 패널 panel_200liq_ffill_2605_ss · ss_* 제외 · q0.30 전행 분위 · top30 · 5폴드×5시드)",
+   "command": "# 선행 구현: wf_wave.make_labels 에 label_mask(체결가능 조건: 당일등락<+25% & tv_log>=20.72) 인자 추가 → config 'CG324_maskq_h5'. 구현 후 한 줄: docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=3 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_ffill_2605_ss.npz --folds 5 --seeds 5 --only CG323_ctl_h5,CG324_maskq_h5 --dump-preds /app/reports/overnight/cg324_preds.jsonl --out /app/reports/overnight/cg324_sweep.jsonl --summary-out /app/reports/overnight/cg324_summary.json'",
+   "success": "사전등록: 같은 런 짝 Δ(마스크분위 − 전행분위) 폴드 평균 ≥ +0.02 AND 폴드승률 ≥ 4/5 AND 체결가능 순기대(수수료 0.21%p·close_h h5)가 대조군보다 높을 때만 신호. 미달이면 '라벨 기준 모집단은 레버가 아니다'로 종결하고, 다음은 데이터 축(XR26 해제)으로 넘긴다.",
+   "expected": "라벨-소비 모집단 불일치 제거. 조정 축 상한(+0.011) 안쪽일 가능성이 높다고 보고, 판정은 짝 Δ 로만 한다.",
+   "est_minutes": 25,
+   "evidence": "CG283(북극성 표본 vs 체결가능 36% 모집단 불일치) · CG192(행 제거 −0.055) · CG287(fillable 가중) · LS_rel_h5 기존 실측 0.5245 vs 0.5406 = Δ−0.0161(중앙값 기준은 이미 기각).",
+   "needs_approval": false,
+   "created_at": "2026-11-18T05:13:12+09:00",
+   "note": "2026-11-18 05:1x 엔지니어 자율 등록(장외 틱, pending 0건 상태). 구현 전 상태(backlog)인 이유: make_labels 에 분위 기준 모집단 인자를 새로 넣어야 하고, 그 변경은 라벨 정의 축이라 구현·자체점검(마스크가 실제로 분위를 바꾸는지, 행 수는 동일한지) 후에 pending 으로 올린다. 공매도 축(CG323)은 같은 날 종결됐고, 조정 축 상한이 +0.011 로 반복 확인된 상태라 이 항목의 기대값도 낮다 — 신호가 안 나오면 라벨 축 전체를 닫고 XR26(분봉) 해제만 남긴다."
   }
  ],
  "updated": "2026-11-18T04:24:22+09:00"
