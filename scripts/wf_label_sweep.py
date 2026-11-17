@@ -1384,6 +1384,23 @@ CONFIGS = [
      "weight": {"kind": "fillable", "col": "tv_log", "gte": 20.72326583794641,
                 "w_high": 4.0, "w_low": 0.25},
      "desc": "CG287 감도 arm — 체결가능 가중 4.0 / 불가 0.25 (강한 이동)"},
+    # ── CG323(2026-11-18 04:1x): 공매도(krx_short_selling) 데이터 축 첫 측정 ──────────────────
+    # 왜 이제 가능한가: 미배선 원천 스윕이 커버리지를 낡은 패널(panel_prod200, ~2026-09-23)로 재서
+    #   cover 0.125(BLOCKED)로 판정했지만, 신선 패널(panel_200liq_ffill_2605)로 재면 0.880(176/200)이다
+    #   (data/reports/source_sweep_freshpanel_20261118.json). 원천 24,472행·306종목·119거래일.
+    #   현 217피처에는 공매도 정보가 사실상 없다(supply_market_features.short_selling_ratio 비영 2,373행).
+    # 설계: 두 arm 은 **같은 패널**(panel_200liq_ffill_2605_ss.npz, 221열)에서 돌고, 대조군만 ss_* 4열을
+    #   제외한다(exclude_names 접두어) → 차이는 '공매도 피처 가산' 하나뿐(같은 행·같은 폴드).
+    # as-of: 피처는 t-1 이전 관측값만 붙였다(patch_panel_ss.py 자체검정 ⑤). 원천 created_at 이 당일
+    #   10:3x 인 행이 많아 같은 날 값은 장중 부분집계다.
+    # ⚠ 판정은 같은 런 짝 Δ ≥ +0.02 (사전문턱) + 돈 지표 앞/뒤 절반 both_positive. 미달이면 축 종결.
+    {"id": "CG323_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "exclude_names": ["ss_*"],
+     "desc": "CG323 대조군 — 같은 패널에서 공매도 4열만 제외(게이트 OFF·top30)"},
+    {"id": "CG323_ss_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": False,
+     "desc": "CG323 arm — 공매도 4열 가산(ss_ratio·ma5·ma20·z20, t-1 지연)"},
 ]
 
 

@@ -72,15 +72,23 @@ def psql(sql: str, timeout: int = 90) -> list[list[str]]:
     return [l.rstrip().split("|") for l in out.stdout.splitlines() if l.strip()]
 
 
-def panel_codes() -> tuple[set[str], dict]:
-    """청정 패널의 종목 코드 + 스냅샷(파일 mtime·행수·기간) — 증거 형식 요구사항."""
+def panel_codes(panel: str | None = None) -> tuple[set[str], dict]:
+    """청정 패널의 종목 코드 + 스냅샷(파일 mtime·행수·기간) — 증거 형식 요구사항.
+
+    ⚠ `panel` 인자는 2026-11-18 에 추가했다(기본값 = PANEL 상수 → 무회귀).
+    왜: 커버리지를 낡은 패널(panel_prod200, 구간 ~2026-09-23)의 유니버스로만 재고 있었다.
+    실측(2026-11-18): krx_short_selling 306종목 중 panel_prod200 과 겹침 25/200=0.125(BLOCKED)
+    이지만 신선 패널(panel_200liq_ffill_2605)과는 176/200=0.880 → 커버리지 판정이 패널 선택에
+    따라 뒤집힌다. 게이트(cover≥0.75·days≥250)는 그대로 두고 '어느 유니버스로 재는가'만 바꿀 수 있게 한다.
+    """
+    panel = panel or PANEL
     code = ("import numpy as np,os,json;z=np.load(%r,allow_pickle=True);"
             "d=sorted(set(str(x) for x in z['dates']));"
             "print(','.join(sorted(set(str(x) for x in z['codes']))));"
             "print('#'+json.dumps({'shape':list(z['X'].shape),"
             "'dates':len(d),'start':d[0],'end':d[-1],"
             "'mtime':__import__('time').strftime('%%Y-%%m-%%dT%%H:%%M:%%S',"
-            "__import__('time').localtime(os.path.getmtime(%r)))}))" % (PANEL, PANEL))
+            "__import__('time').localtime(os.path.getmtime(%r)))}))" % (panel, panel))
     out = subprocess.run(["docker", "exec", "stock_xgboost_ml", "python", "-c", code],
                          capture_output=True, text=True, timeout=180)
     if out.returncode != 0:
@@ -182,9 +190,10 @@ def render_md(res: dict) -> str:
     return "\n".join(L)
 
 
-def sweep(json_out: str = EVID) -> dict:
+def sweep(json_out: str = EVID, panel: str | None = None) -> dict:
     """전 테이블 채점 → 증거 JSON 기록 → 결과 dict. (구동기에서 import 해 쓰는 진입점)"""
-    pc, snap = panel_codes()
+    panel = panel or PANEL
+    pc, snap = panel_codes(panel)
     tabs = introspect()
     rec = chunked_batch(tabs, pc)
     for r in rec.values():
@@ -194,7 +203,7 @@ def sweep(json_out: str = EVID) -> dict:
     rows = sorted(rec.values(), key=lambda r: (order[r["verdict"]],
                                                -(r.get("panel_cover_frac") or 0)))
     res = {"ts": __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds"),
-           "panel": "panel_prod200.npz", "panel_snapshot": snap,
+           "panel": os.path.basename(panel), "panel_snapshot": snap,
            "panel_universe": len(pc), "min_cover": MIN_COVER, "min_days": MIN_DAYS,
            "new_candidates": [r["table"] for r in rows if r["verdict"] == "NEW_CANDIDATE"],
            "tables": rows}
@@ -224,9 +233,11 @@ def summary_line(res: dict) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", dest="json_out", default=EVID)
+    ap.add_argument("--panel", default=None,
+                    help="커버리지 기준 패널(npz). 미지정 = PANEL 상수(현행 기본, 무회귀)")
     a = ap.parse_args()
 
-    res = sweep(a.json_out)
+    res = sweep(a.json_out, a.panel)
     rows = res["tables"]
     print(f"미배선 원천 스윕 (패널 유니버스 {res['panel_universe']}종목 · "
           f"게이트 cover≥{MIN_COVER} · days≥{MIN_DAYS})")

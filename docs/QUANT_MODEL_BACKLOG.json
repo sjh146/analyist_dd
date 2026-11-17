@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T04:25:00+09:00",
+ "updated_at": "2026-11-18T04:16:52+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -17963,7 +17963,7 @@
    "created_at": "2026-11-13T22:19:24+09:00"
   },
   {
-   "id": "CG256",
+   "id": "CG256b",
    "status": "done",
    "priority": 1,
    "kind": "measurement",
@@ -17991,7 +17991,7 @@
     "rc": 0
    },
    "evidence": "scripts/panel_liq_probe.py(신설, 이번 사이클) · /app/reports/overnight/cg256_panel_liq_mv0.json · mv3e9/mv1e9 파일 동봉",
-   "note": "⚠ 패널 스냅샷이 2026-09-23 까지라 최근 국면(10~11월)은 못 본다. CG253 의 60일 창은 09-14~11-13 이므로 창이 겹치지 않는다 — 이건 '유니버스' 비교이고 '창' 비교가 아니다."
+   "note": "⚠ 패널 스냅샷이 2026-09-23 까지라 최근 국면(10~11월)은 못 본다. CG253 의 60일 창은 09-14~11-13 이므로 창이 겹치지 않는다 — 이건 '유니버스' 비교이고 '창' 비교가 아니다. | 2026-11-18 04:3x id 중복 정정(엔지니어): 같은 CG256 이 panel_leak_gate 항목(needs_setup)과 충돌해 `--start CG256` 이 항상 첫 항목을 집었다 → 이 항목을 CG256b 로 개명(산출물 파일명 cg256_panel_liq_*.json 은 그대로)."
   },
   {
    "id": "CG259",
@@ -20337,7 +20337,31 @@
      "/app/reports/overnight/cg322b_retnull.json"
     ]
    }
+  },
+  {
+   "id": "CG323",
+   "status": "pending",
+   "priority": 1,
+   "kind": "데이터 축·신규 피처",
+   "owner": "quant-model-engineer",
+   "affects_model": true,
+   "metric": "robust_auc",
+   "title": "[데이터 축] 공매도(krx_short_selling) 피처 — 커버리지 차단이 오측정이었다(0.125→0.880), 신선 패널 창에서 첫 측정",
+   "hypothesis": "공매도 거래비중·잔고비중은 횡단면에서 음(−)의 정보(공매도 압력=하방)를 갖는 시간가변 신규 정보다. 현 217피처에는 사실상 없다(supply_market_features.short_selling_ratio 비영 2,373행뿐, XR10 실측). 조정 축 상한(+0.011)과 달리 데이터 축은 아직 이 원천을 재본 적이 없다.",
+   "counterfactual": "같은 런 대조군 = 신선 패널(panel_200liq_ffill_2605 · 200종목 · 2026-05-27~11-09 · 112거래일 · 217피처) 게이트 OFF top30 arm CG189_ctl_nog_h5(실측 0.5106±0.0151 · 5폴드). 공매도 피처 가산 arm 만 다르게(같은 행·같은 폴드).",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=3 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_ffill_2605_ss.npz --folds 5 --seeds 5 --only CG323_ctl_h5,CG323_ss_h5 --dump-preds /app/reports/overnight/cg323_preds.jsonl --out /app/reports/overnight/cg323_sweep.jsonl --summary-out /app/reports/overnight/cg323_summary.json'",
+   "arm": "CG323_ss_h5 (게이트 OFF + 공매도 4피처 가산)",
+   "baseline": "CG189_ctl_nog_h5",
+   "success": "사전등록(변경 금지): 같은 런 짝 Δ(가산−대조) 폴드 평균 ≥ +0.02 AND 돈 지표(체결성 필터·수수료 0.21%p·close_h h5) 순기대가 앞/뒤 절반 both_positive. 미달이면 '공매도 축은 모델 레버가 아니다'로 종결(돈 지표로 근거 남김).",
+   "expected": "시간가변·종목별 신규 원천 → 19사이클 무개선 뒤 남은 유일한 축(데이터). 커버리지 176/200 실측으로 차단 사유가 해소됨.",
+   "cost": "빌더 1h + 스윕 60분",
+   "est_minutes": 30,
+   "evidence": "data/reports/source_sweep_freshpanel_20261118.json — 같은 스윕을 신선 패널로 재실행: krx_short_selling cover 0.125(25/200, BLOCKED) → 0.880(176/200) · 24,472행 · 306종목 · 119거래일(2026-05-26~11-17). 비교: minute_bars 0.115→0.820 · sns_posts 0.15→0.900 · news_events 0.13→0.54.",
+   "needs_approval": false,
+   "setup_needed": "해소(2026-11-18 04:3x, 엔지니어 직접 구현·검증): ① `scripts/build_short_selling_features.py` (원천→ss_ratio·ma5·ma20·z20, 4열) ② `scripts/patch_panel_ss.py` (t-1 지연 주입, 자체검정 ①②③④⑤ PASS — 기존 217열 비트 동일·as-of 위반 0·상수 0) ③ 패널 `panel_200liq_ffill_2605_ss.npz`(221열, 결측 22~29%) ④ config 2종 + `scripts/_cg323_config_test.py` 14/14 PASS ⑤ 스모크(2폴드×2시드) 완주: 대조 0.5247±0.0216 vs 가산 0.5323±0.0266 → 짝 Δ+0.0076 (fold1 +0.0025 / fold2 +0.0126), ss_* 3열이 top30 선별에 실제 진입.",
+   "created_at": "2026-11-18T04:12:32+09:00",
+   "note": "2026-11-18 04:3x 엔지니어 자율(장외 틱). 이 항목의 근거는 '성능 주장'이 아니라 **측정 결함 발견**이다: 미배선 원천 스윕이 커버리지를 낡은 패널(panel_prod200 · 구간 ~2026-09-23) 유니버스로만 재고 있었고(코드 25/200 겹침), 신선 패널(panel_200liq_ffill_2605)로 재면 176/200 이다 → '데이터 축 고갈 · 남은 레버 없음'의 절반은 측정 artifact 였다. 수리: scripts/source_coverage_sweep.py 에 --panel 추가(기본값 = 기존 상수 → 무회귀, 자체점검 7/7 PASS). 남은 진짜 차단은 ①MIN_DAYS=250(신규 수집엔 영원히 불가) ②CLOSED_NOTE 의 낡은 커버리지 문구(news_events '15/200' 은 실제 0.54). | 2026-11-18 04:3x 구현 완료 → pending 승격. 스모크 Δ+0.0076 은 사전문턱 +0.02 미달이므로 '신호'가 아니라 '측정 가능' 확인일 뿐이다. 본 실행은 5폴드×5시드로 판정한다(est 30분, 실측 cell당 ~30초). ⚠ ss_value_ratio(공매도 대금/거래량)는 차원이 주당가격이라 가격 프록시로 판명(실측 std 4.0e6) → 제외하고 4열만 쓴다."
   }
  ],
- "updated": "2026-11-17T07:58:48+09:00"
+ "updated": "2026-11-18T04:16:52+09:00"
 }

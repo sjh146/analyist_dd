@@ -1,0 +1,429 @@
+{
+ "ts": "2026-11-18T04:11:39+09:00",
+ "panel": "panel_200liq_ffill_2605.npz",
+ "panel_snapshot": {
+  "shape": [
+   22382,
+   217
+  ],
+  "dates": 112,
+  "start": "2026-05-27",
+  "end": "2026-11-09",
+  "mtime": "2026-11-15T10:03:10"
+ },
+ "panel_universe": 200,
+ "min_cover": 0.75,
+ "min_days": 250,
+ "new_candidates": [],
+ "tables": [
+  {
+   "table": "stock_vectors",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 4350,
+   "n_codes": 4350,
+   "n_days": 7,
+   "span": "2026-09-22~2026-11-16",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "BLOCKED"
+  },
+  {
+   "table": "stocks",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 4350,
+   "n_codes": 4350,
+   "n_days": 7,
+   "span": "2026-09-22~2026-11-16",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "BLOCKED"
+  },
+  {
+   "table": "minute_close_bars",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 561081,
+   "n_codes": 297,
+   "n_days": 6,
+   "span": "2026-11-10~2026-11-17",
+   "panel_cover_n": 39,
+   "panel_cover_frac": 0.195,
+   "verdict": "BLOCKED"
+  },
+  {
+   "table": "foreign_institutional",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 195535,
+   "n_codes": 1168,
+   "n_days": 306,
+   "span": "2025-08-14~2026-11-17",
+   "panel_cover_n": 194,
+   "panel_cover_frac": 0.97,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "ownership",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 5898,
+   "n_codes": 1075,
+   "n_days": 17,
+   "span": "2026-09-23~2026-11-17",
+   "panel_cover_n": 194,
+   "panel_cover_frac": 0.97,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "sns_posts",
+   "code_col": "stock_code",
+   "date_col": "posted_at",
+   "rows": 458394,
+   "n_codes": 441,
+   "n_days": 534,
+   "span": "2018-10-22~2026-11-17",
+   "panel_cover_n": 180,
+   "panel_cover_frac": 0.9,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "krx_short_selling",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 24472,
+   "n_codes": 306,
+   "n_days": 119,
+   "span": "2026-05-26~2026-11-17",
+   "panel_cover_n": 176,
+   "panel_cover_frac": 0.88,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "sns_post_features",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 18807,
+   "n_codes": 366,
+   "n_days": 234,
+   "span": "2018-10-22~2026-11-13",
+   "panel_cover_n": 175,
+   "panel_cover_frac": 0.875,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "minute_bars",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 127290,
+   "n_codes": 301,
+   "n_days": 16,
+   "span": "2026-09-23~2026-11-17",
+   "panel_cover_n": 164,
+   "panel_cover_frac": 0.82,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "news_events",
+   "code_col": "stock_code",
+   "date_col": "event_date",
+   "rows": 12440,
+   "n_codes": 450,
+   "n_days": 202,
+   "span": "2026-04-01~2026-11-17",
+   "panel_cover_n": 108,
+   "panel_cover_frac": 0.54,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "stock_sentiment",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 137,
+   "n_codes": 107,
+   "n_days": 3,
+   "span": "2026-11-15~2026-11-17",
+   "panel_cover_n": 48,
+   "panel_cover_frac": 0.24,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "news_event_extraction",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 641,
+   "n_codes": 99,
+   "n_days": 3,
+   "span": "2026-11-15~2026-11-17",
+   "panel_cover_n": 30,
+   "panel_cover_frac": 0.15,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "market_data",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 3227630,
+   "n_codes": 3980,
+   "n_days": 945,
+   "span": "2023-01-02~2026-11-17",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "ml_predictions",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 105731,
+   "n_codes": 4350,
+   "n_days": 25,
+   "span": "2026-09-22~2026-11-17",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "stock_prices",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 3157428,
+   "n_codes": 3980,
+   "n_days": 945,
+   "span": "2023-01-02~2026-11-17",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "supply_market_features",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 1203533,
+   "n_codes": 3958,
+   "n_days": 349,
+   "span": "2025-06-16~2026-11-17",
+   "panel_cover_n": 200,
+   "panel_cover_frac": 1.0,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "disclosures",
+   "code_col": "stock_code",
+   "date_col": "rcept_dt",
+   "rows": 224094,
+   "n_codes": 3077,
+   "n_days": 457,
+   "span": "2025-01-02~2026-11-17",
+   "panel_cover_n": 191,
+   "panel_cover_frac": 0.955,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "event_features",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 222822,
+   "n_codes": 2710,
+   "n_days": 325,
+   "span": "2025-06-17~2026-11-17",
+   "panel_cover_n": 191,
+   "panel_cover_frac": 0.955,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "financial_ratio_features",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 861226,
+   "n_codes": 2603,
+   "n_days": 349,
+   "span": "2025-06-16~2026-11-17",
+   "panel_cover_n": 191,
+   "panel_cover_frac": 0.955,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "financial_statements",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 10370,
+   "n_codes": 2603,
+   "n_days": 2,
+   "span": "2026-09-22~2026-09-23",
+   "panel_cover_n": 191,
+   "panel_cover_frac": 0.955,
+   "verdict": "WIRED"
+  },
+  {
+   "table": "trader_fills",
+   "code_col": "code",
+   "date_col": null,
+   "rows": 10,
+   "panel_cover_n": 3,
+   "panel_cover_frac": 0.015,
+   "verdict": "STATIC"
+  },
+  {
+   "table": "trade_loss_reviews",
+   "code_col": "code",
+   "date_col": "created_at",
+   "rows": 6,
+   "n_codes": 6,
+   "n_days": 1,
+   "span": "2026-11-17~2026-11-17",
+   "panel_cover_n": 2,
+   "panel_cover_frac": 0.01,
+   "verdict": "STATIC"
+  },
+  {
+   "table": "position_theses",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 2,
+   "n_codes": 2,
+   "n_days": 1,
+   "span": "2026-11-17~2026-11-17",
+   "panel_cover_n": 0,
+   "panel_cover_frac": 0.0,
+   "verdict": "STATIC"
+  },
+  {
+   "table": "dq_runner_claim",
+   "code_col": null,
+   "date_col": null,
+   "rows": 371,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "economic_events",
+   "code_col": null,
+   "date_col": "event_date",
+   "rows": 318,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "feature_coverage",
+   "code_col": null,
+   "date_col": null,
+   "rows": 202,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "futures_options",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 115,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "krx_derivatives",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 3503,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "krx_program_trading",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 236,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "krx_trading",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 504,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "macro_features",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 349,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "macro_indicators",
+   "code_col": null,
+   "date_col": "date",
+   "rows": 47052,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "news_analysis",
+   "code_col": null,
+   "date_col": "published_at",
+   "rows": 573,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "strategy_config",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 6,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "strategy_runs",
+   "code_col": null,
+   "date_col": null,
+   "rows": 62,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "thesis_evidence",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 2,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "thesis_verdicts",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 2,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "us_market_data",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 151,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "foreign_investor_futures",
+   "code_col": null,
+   "date_col": "trade_date",
+   "rows": 0,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "positions",
+   "code_col": "stock_code",
+   "date_col": null,
+   "rows": 0,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "risk_management",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 0,
+   "verdict": "EMPTY"
+  },
+  {
+   "table": "trade_orders",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 0,
+   "n_codes": 0,
+   "n_days": 0,
+   "span": null,
+   "verdict": "EMPTY"
+  }
+ ]
+}
