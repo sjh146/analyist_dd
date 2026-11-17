@@ -37,6 +37,7 @@ from .config import Config, KST
 from .feed import Candidate, FeedSnapshot, candidate_change_pct
 from .journal import Journal
 from .killswitch import kill_switch_active, kill_switch_reason
+from .profiles import profile_for
 
 GATES = (
     "feed_fresh",
@@ -708,6 +709,31 @@ class TraderEngine:
                 tp_pct = stop_pct * (
                     self.config.take_profit_pct / self.config.stop_loss_pct
                 )
+            # Fixed-line override (2026-11-17 WP2 스펙,
+            # docs/spec_daytrading_fixed_lines.md): 프로파일이 stop_mode=="fixed" 이면
+            # 위 변동성 경로 대신 고정 손절/익절 라인을 쓴다(상한 max_stop_pct 로 자름).
+            # swing/close/rank_momentum 은 기본 "vol" 이라 이 블록을 지나친다
+            # (롤백 = stop_mode 를 "vol" 로 되돌린다).  사이징(동일위험 캡 포함)은
+            # 아래에서 그대로 이 고정 stop_pct 를 쓴다.
+            # engine 설정(trader_core.Config)에는 screener_profiles 필드가 없어서
+            # (2026-11-17 실행 확인: Config._coerce 가 미지 키를 버림) getattr 폴백으로
+            # profiles.py DEFAULT_PROFILES 를 읽는다 — 프리셋 경로는
+            # presets/daytrading_fixed.json 주석 참조.
+            stop_model = "vol-range" if day_range_pct > 0 else "fixed"
+            prof = profile_for(screener, getattr(self.config, "screener_profiles", None))
+            if (
+                str(getattr(prof, "stop_mode", "vol")) == "fixed"
+                and prof.stop_pct
+                and prof.tp_pct
+            ):
+                cap = prof.max_stop_pct
+                stop_pct = (
+                    min(float(prof.stop_pct), float(cap))
+                    if cap
+                    else float(prof.stop_pct)
+                )
+                tp_pct = float(prof.tp_pct)
+                stop_model = "fixed"
             risk_qty = 0
             if not equal_weight:
                 # Kelly 경로에서만 동일위험 캡을 적용한다 — 균등배분 모드의
@@ -883,7 +909,13 @@ class TraderEngine:
                             "equity": account.equity,
                         },
                         stop={
-                            "model": "vol-range" if day_range_pct > 0 else "fixed",
+                            # 사후 분석용 모델 라벨: "vol-range" = 변동성 스케일 스톱,
+                            # "fixed" = 프로파일 고정 라인(daytrading) 또는 변동성 경로의
+                            # 7% 바닥 — 두 경로가 구분된다(스펙의 "volatility"/"fixed"
+                            # 구분 의도).  "vol-range" 라벨은 기존 테스트
+                            # test_algo_attribution.py::test_plan_carries_the_algorithm_record
+                            # 가 고정한 기대값이라 바꾸지 않는다(기존 테스트 수정 금지).
+                            "model": stop_model,
                             "stop_pct": stop_pct,
                             "tp_pct": tp_pct,
                             "floor_pct": self.config.stop_loss_pct,

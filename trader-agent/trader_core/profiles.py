@@ -86,6 +86,22 @@ class ScreenerProfile:
     flat_stop_band: float = 0.02      # ... when |gain| <= this band
     kelly_fraction: Optional[float] = None
     max_entries_per_day: Optional[int] = None
+    # Fixed stop/take-profit lines (2026-11-17 WP2 스펙,
+    # docs/spec_daytrading_fixed_lines.md, 상위 지시서
+    # docs/spec_daytrading_shortstop_2026-11-17.md — 재측정 금지, 그대로 인용).
+    # "vol"  = 기존 변동성 스톱 경로(engine.volatility_stop_pct, 전역
+    #          stop_loss_pct 0.07 바닥) — swing/close/rank_momentum 은 그대로 "vol".
+    # "fixed" = 아래 고정값으로 손절/익절을 대체(daytrading 만 사용).
+    # WHY(실측): 그리드 11,300건(2026-04-01~11-14, scripts/_stoploss_grid.py)에서
+    #   7%/7% 중립 -0.822% → 1%/2% -0.151%(측정된 최고).  왕복비용 0.21%(실체결)라
+    #   ±1.5% 라인의 손익분기 승률은 57.0%, ±1% 는 60.5% — 좁은 라인은 수수료가
+    #   지배한다.  손절만 좁혀서는 기대값이 +로 돌아서지 않는다(병목은 진입:
+    #   무손절 기준선 -1.328%, 승률 36.0%) — 고정 라인의 효과는 손실 축소.
+    # 롤백: stop_mode="vol" 로 되돌리면 기존 변동성 스톱·7% 익절 동작 그대로.
+    stop_mode: str = "vol"
+    stop_pct: Optional[float] = None    # stop_mode=="fixed" 일 때 손절 폭
+    tp_pct: Optional[float] = None      # stop_mode=="fixed" 일 때 익절 폭(비율 스케일 금지)
+    max_stop_pct: Optional[float] = None  # 고정 손절의 상한(넘으면 이 값으로 자름)
     enabled: bool = True
     extras: Dict[str, Any] = field(default_factory=dict)
 
@@ -235,12 +251,25 @@ DEFAULT_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "daytrading": {
         # Never held overnight: in and out inside the session.
-        "entry_window": "09:00-14:50",
+        # 2026-11-17 WP2 스펙(docs/spec_daytrading_fixed_lines.md) 변경:
+        #   * 진입 창 09:00 → 09:05 (시가 추격 금지), 청산 창 15:25 → 15:20 (당일 전량 청산).
+        #   * 손절/익절을 고정 라인 1.5%/2.5% (R:R 1.67, 상한 2%)로 전환 — 전역
+        #     stop_loss_pct/take_profit_pct(0.07/0.07, 2026-11-17 실행 확인)는
+        #     스윙용으로 남고 daytrading 만 이 값을 쓴다.
+        # WHY(실측, 지시서 0-3/0-4 인용 — 재측정 금지): 그리드 11,300건에서 7%/7% 중립
+        #   -0.822% → 1%/2% -0.151%(측정된 최고).  왕복비용 0.21%(실체결)라 ±1.5%
+        #   손익분기 승률 57.0%, ±1% 60.5%.  라인을 1%/1% 로 바꾸려면 아래 stop_pct/
+        #   tp_pct 두 값만 고친다(프리셋 presets/daytrading_fixed.json 도 맞춘다).
+        "entry_window": "09:05-14:30",
         "exit_mode": EXIT_SAME_DAY_CLOSE,
-        "close_exit_window": "15:00-15:25",
+        "close_exit_window": "15:00-15:20",
         "hold_overnight": False,
         "kelly_fraction": 0.15,
         "max_entries_per_day": 3,
+        "stop_mode": "fixed",
+        "stop_pct": 0.015,
+        "tp_pct": 0.025,
+        "max_stop_pct": 0.02,
     },
     "rank_momentum": {
         "entry_window": "09:00-15:20",
