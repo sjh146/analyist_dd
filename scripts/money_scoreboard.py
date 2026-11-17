@@ -23,7 +23,8 @@ scripts/dq_claim.py 의 ``record_claim``(dq_runner_claim INSERT)은 쓰지 않�
   평균 이익         = 승 거래 pnl 평균   평균 손실 = 패 거래 |pnl| 평균
   손익비(profit factor) = Σ(pnl>0) / |Σ(pnl<0)|   (패 없으면 측정 불가, 승 없으면 0)
   총 수수료         = Σ fees (청산 거래)
-  자본 사용률       = Σ(수량×진입가) / 계좌 평가액   한도: 일 3건 · 종목 10% · 동시 3종목 · 총 30%
+  자본 사용률       = Σ(수량×진입가) / 계좌 평가액   한도: 실행 설정(trader_core/config.py)의
+                      일 거래수·종목당·동시보유·총노출 — 값은 출력의 capital_utilization.limits 참조
   차단 후보 기회비용 = ret_i = (다음 거래일 시가 / 신호일 종가 − 1) × 100  (close 프로파일 정의)
                       KRW 환산 = Σ ret_i/100 × 가정 포지션 크기 (실제 체결 평균 — 명시적 가정)
 
@@ -49,7 +50,14 @@ import shutil
 import subprocess
 import sys
 from collections import Counter, defaultdict
+
+# sys.path 보정: importlib(tests 등)로 이 파일만 로드하면 scripts/ 가 경로에 없어
+# 같은 디렉터리 모듈(_paths, risk_limits)을 못 찾는다 — 실행·importlib 양쪽에서 동작하게.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
 from _paths import proj, proj_dir
+from risk_limits import LIMITS, LIMITS_META, claim as limits_claim
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_LIVE_REPO = proj_dir()     # 크론(close_path_gap_probe 등)이 쓰는 정본
@@ -59,9 +67,10 @@ WIN_JOURNAL = r"C:\Users\jhshi\analyist_dd\trader-agent\journal\trade_journal.sq
 BRIDGE = "http://127.0.0.1:8100"
 _CURLS = ["/mnt/c/Windows/System32/curl.exe", shutil.which("curl") or "/usr/bin/curl"]
 
-# 실계좌 한도 (spec + trader_core/config.py + scripts/audit_safety.py LIMITS 와 동일)
-LIMITS = {"max_daily_trades": 3, "per_stock_pct": 0.10,
-          "max_open_positions": 3, "total_exposure_pct": 0.30}
+# 실계좌 한도 — 하드코딩 금지. 단일 진실원 scripts/risk_limits.py 가 실행 주체의
+# trader_core/config.py Config() 를 직접 읽는다(기존 하드코딩 10%/30% 는 실행 1/3·100%와
+# 불일치해 매일 거짓 '한도 초과'를 만들었다 — 근거: ceo_priority 2026-11-16 에스컬레이션).
+# LIMITS·LIMITS_META·limits_claim 은 위 import 블록에서 온다.
 # 청산 규칙 (trader_core/profiles.py: close exit_mode=EXIT_NEXT_OPEN, 청산창 09:00-09:10)
 EXIT_WINDOW = "09:00-09:10"
 
@@ -611,6 +620,9 @@ def build_report(cfg):
     rep["capital_utilization"]["cash_krw"] = bal_body.get("cash")
     rep["capital_utilization"]["d2_deposit_krw"] = bal_body.get("d2_deposit")
     rep["capital_utilization"]["total_eval_amount"] = bal_body.get("total_eval_amount")
+    # 한도 출처 — 위 capital_utilization.limits 가 어느 정본에서 온 값인지 보이게 한다
+    # (risk_limits 단일 진실원. 어긋남이 있으면 숨기지 않고 source 로 표시).
+    rep["limits_meta"] = LIMITS_META
 
     # --- 기회비용 ---
     blocks, ledger, _traded = _build_blocks(journal)
@@ -726,6 +738,7 @@ def build_report(cfg):
                         "blocked_codes": len(blocks),
                         "price_joined": len(price_map)},
         "persisted_rows": {"scoreboard_json": 1, "scoreboard_md": 1, "out_dir": cfg["out_dir"]},
+        "limits": limits_claim(),
         "note": "DB 쓰기 금지(읽기 전용 계약)라 dq_claim.record_claim 은 미사용 — "
                 "대신 출력 파일에 3분리 자기신고 내장. 재실행 시 같은 날짜 파일을 덮어쓴다(멱등).",
     }

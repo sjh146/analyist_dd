@@ -15,6 +15,13 @@
 import importlib.util
 import json
 import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                "scripts"))
+from risk_limits import LIMITS, LIMITS_META  # noqa: E402  (기존 관용구: tests → scripts 경로 삽입)
 
 SCOREBOARD = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                           "scripts", "money_scoreboard.py")
@@ -180,8 +187,12 @@ def test_utilization_peak_concurrent():
     assert cu["peak"]["concurrent"] == 3                 # 동시 3종목 (한도 3)
     assert cu["peak"]["notional"] == 60000.0             # 10k+20k+30k
     assert cu["peak"]["pct_approx"] == 30.0              # 60000/200000 = 30% (한도)
-    assert cu["limits"] == {"max_daily_trades": 3, "per_stock_pct": 0.10,
-                            "max_open_positions": 3, "total_exposure_pct": 0.30}
+    # 한도는 하드코딩이 아니라 실행 설정과의 일치로 검사한다 (spec_scoreboard_limits_source:
+    # Config(1/3·100%)가 정본 — 문자열 비교가 아니라 approx 로, 1/3 은 부동소수).
+    assert cu["limits"] == LIMITS
+    if LIMITS_META["loaded"]:
+        assert cu["limits"] == {"max_daily_trades": 3, "per_stock_pct": pytest.approx(1 / 3),
+                                "max_open_positions": 3, "total_exposure_pct": 1.0}
 
 
 def test_utilization_equity_unknown():
