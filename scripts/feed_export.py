@@ -644,9 +644,6 @@ def main(argv=None):
     stats = None if args.no_stats else load_stats()
     if stats:
         feed["scoring_summary"] = {"screener_stats": stats}
-    # 발행 요약에 edge_scored=N/M(스펙 §2). JSON 의 마지막 키로 두어 dry-run tail 확인이 쉽다.
-    if args.edge_score:
-        feed["edge_scored"] = "%d/%d" % (edge_scored, edge_total)
 
     # 자기신고(3분리): 소스 수신 → 파서 생성 → 실제 저장. 게이트로 일부가 빠지는 것이
     # 정상이라 claimed(build_items 합)와 persisted(최종 발행 합)는 다를 수 있다.
@@ -686,6 +683,12 @@ def main(argv=None):
             edge_total += len(items)
             if items:
                 logger.info("[%s] edge_scored=%d/%d", key, scored, len(items))
+
+    # 발행 요약에 edge_scored=N/M(스펙 §2). **집계 루프 뒤에 써야 한다** — 앞에서 쓰면
+    # 카운터가 아직 0 이라 아티팩트에 항상 "0/0" 이 찍히고 로그의 실제값(예 59/60)과
+    # 어긋난다(2026-11-18 실측: 파일 "0/0" vs 로그 59/60). JSON 의 마지막 키로 둔다.
+    if args.edge_score:
+        feed["edge_scored"] = "%d/%d" % (edge_scored, edge_total)
 
     edge_summary = ("edge_scored=%d/%d" % (edge_scored, edge_total)) if args.edge_score else ""
     text = json.dumps(feed, ensure_ascii=False, indent=1)
