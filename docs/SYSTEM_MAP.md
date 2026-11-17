@@ -22,7 +22,7 @@
 | 피처 | `services/xgboost-ml/app/feature_engine/*` + `scripts/build_*` | `financial_ratio_features` 78만행, `supply_market_features`, `event_features` 21.7만행 |
 | 학습·승격 | `services/xgboost-ml/app/training/*` (파이프라인 20:00) | 돈 게이트(`--require-expectancy`) + 라이브 스코어 토큰 |
 | 스크리너·피드 | `scripts/swing_screener.py` · `feed_server.py`(8090) · `data/feed/screener_latest.json` | 08:30/14:40/20:30 발행 |
-| 주문 | `trader-agent/`(WSL 밖, Windows) | 실계좌 783247576 · 봉투: 일 3건·종목 10%·총 30%·일손실 3% 자동중단 |
+| 주문 | `trader-agent/`(WSL 밖, Windows) | 실계좌 783247576 · 봉투: 일 3건·종목 1/3·총 100%·일손실 3% 자동중단 (정본 = `trader_core/config.py`, 2026-11-09 사용자 지시) |
 
 ## 3. 자원 실측
 

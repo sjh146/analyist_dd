@@ -100,4 +100,10 @@ def test_state_detects_envelope_overrun(tmp_path):
           "open_state": {"positions_bridge": 0}}
     env = st_mod.envelope_check(_valid_obj(), sb)
     joined = " ".join(env["breaches"])
-    assert "투자비중" in joined and "실현손익" in joined and "수수료" in joined
+    # 투자비중·수수료는 봉투 위반/경고다.
+    assert "투자비중" in joined and "수수료" in joined
+    # 누적 실현은 **일 손실한도와 비교하지 않는다**(2026-11-16 범주 오류 킬) — 참고로만 notes 에 남고,
+    # 당일 실현이 없으므로 일 손실 판정은 '판정 불가'로 적힌다.
+    assert "누적 실현손익" not in joined and "실현손익" not in joined.replace("누적 실현손익", "")
+    notes = " ".join(env["notes"])
+    assert "누적 실현손익" in notes and "판정 불가" in notes

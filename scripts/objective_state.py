@@ -26,6 +26,17 @@ sys.path.insert(0, os.path.join(REPO, "scripts"))
 from objective import load as load_objective  # noqa: E402
 
 
+def _exec_limits() -> dict:
+    """실행 설정의 한도 4값(risk_limits 단일 진실원). 읽기 실패 시 risk_limits 가 폴백을 준다."""
+    try:
+        import risk_limits  # noqa: PLC0415 — 같은 scripts/ 디렉터리
+
+        return dict(risk_limits.LIMITS)
+    except Exception:  # noqa: BLE001 — 상태 생성은 어떤 경우에도 죽지 않는다
+        return {"max_daily_trades": 3, "per_stock_pct": 1.0 / 3.0,
+                "max_open_positions": 3, "total_exposure_pct": 1.0}
+
+
 def _read_json(path):
     try:
         with open(path, encoding="utf-8") as f:
@@ -75,13 +86,23 @@ def data_freshness(repo: str = REPO):
 
 
 def envelope_check(obj: dict, sb: dict | None) -> dict:
-    """봉투(위험 한도) 사용률과 위반 — 트레이더 설정을 objective.json 사본으로 검사한다."""
+    """봉투(위험 한도) 사용률과 위반 — 트레이더 설정을 objective.json 사본으로 검사한다.
+
+    두 가지를 고쳤다(2026-11-17, ceo_priority day=2026-11-16 킬/에스컬레이션 근거):
+      1. 한도 키가 사본에 없을 때의 기본값이 0.10/0.30(낡은 값)이었다 → 실행 설정
+         (trader_core/config.py, `scripts/risk_limits.py`)에서 읽는다. 사본이 낡아도
+         실행과 다른 축으로 위반을 주장하지 않는다.
+      2. **누적 실현손익을 일 손실한도와 비교하던 범주 오류**를 제거했다. 누적은 `notes`
+         에 참고로만 남기고, 일 손실 판정은 계기판의 당일 실현(`realized.today.pnl`)이
+         있을 때만 한다 — 없으면 '판정 불가'로 적는다(0/누적으로 메우지 않는다).
+    """
     env = obj.get("envelope", {})
+    fallback = _exec_limits()
     limits = {"max_entries_per_day": env.get("max_entries_per_day", 3),
-              "per_stock_pct": env.get("max_position_pct", 0.10),
-              "max_invested_pct": env.get("max_invested_pct", 0.30),
+              "per_stock_pct": env.get("max_position_pct", fallback["per_stock_pct"]),
+              "max_invested_pct": env.get("max_invested_pct", fallback["total_exposure_pct"]),
               "daily_loss_limit_pct": env.get("daily_loss_limit_pct", 0.03)}
-    out = {"limits": limits, "used": {}, "breaches": []}
+    out = {"limits": limits, "used": {}, "breaches": [], "notes": []}
     if not sb:
         out["breaches"].append("수익 계기판 없음 — 실현손익·자본 사용을 확인할 수 없다")
         return out
@@ -103,8 +124,22 @@ def envelope_check(obj: dict, sb: dict | None) -> dict:
     if equity_reliable and used_pct is not None and used_pct > limits["max_invested_pct"] * 100:
         out["breaches"].append(f"총 투자비중 {used_pct}% > 한도 {limits['max_invested_pct'] * 100}%")
     pnl = (real.get("cum") or {}).get("pnl")
-    if equity_reliable and equity and pnl is not None and pnl / equity < -limits["daily_loss_limit_pct"]:
-        out["breaches"].append(f"누적 실현손익 {pnl}원 < 일 손실한도 {limits['daily_loss_limit_pct'] * 100}%×자본")
+    today_pnl = (real.get("today") or {}).get("pnl")
+    if equity_reliable and equity:
+        # 일 손실한도는 **당일** 실현으로만 판정한다. 누적 실현을 일 한도와 비교하면
+        # 범주 오류다(2026-11-16 ceo_priority 킬: 누적 -26,637 < 3%×자본 을 '봉투 위반'으로
+        # 오보 — 당일 실현은 -5,331 = -1.85% 로 한도 이내였다).
+        if today_pnl is not None and today_pnl / equity < -limits["daily_loss_limit_pct"]:
+            out["breaches"].append(f"당일 실현손익 {today_pnl}원 < 일 손실한도 {limits['daily_loss_limit_pct'] * 100}%×자본")
+        elif today_pnl is None:
+            out["notes"].append(
+                "일 손실한도 판정 불가 — 계기판에 당일 실현(realized.today)이 없다. "
+                "누적 실현으로 대신 판정하지 않는다")
+        if pnl is not None:
+            out["notes"].append(
+                f"누적 실현손익 {pnl}원 = 자본의 {pnl / equity * 100:.2f}% (참고 — 일 손실한도와 비교 대상 아님)")
+    elif pnl is not None:
+        out["notes"].append(f"누적 실현손익 {pnl}원 (자본 미상 — 비율 계산 불가)")
     if real.get("fees_unbooked_flag"):
         out["breaches"].append("수수료 미계상 — 과거 청산은 브로커 API(CpTd6032)가 당일만 제공해 "
                                "복구 불가(추정으로 채우지 않음). 신규 청산부터 16:05 틱이 자동 계상")
