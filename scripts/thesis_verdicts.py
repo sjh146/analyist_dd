@@ -139,8 +139,18 @@ def seed(cur, apply=True):
     return created
 
 
+def ensure_evidence_table(cur) -> None:
+    """근거 스냅샷 테이블 — thesis_verdicts 는 불변(트리거)이라 근거 문단은 여기에 따로 남긴다."""
+    cur.execute("""CREATE TABLE IF NOT EXISTS thesis_evidence (
+        id SERIAL PRIMARY KEY, thesis_id INTEGER NOT NULL REFERENCES position_theses(id),
+        asof DATE NOT NULL, score NUMERIC, narrative TEXT, evidence JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE (thesis_id, asof))""")
+
+
 def judge(cur, apply=True, asof: date | None = None):
     asof = asof or date.today()
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import evidence as evmod          # 근거 수집기(가격·수급·언론·공시·재무·거시·미국장)
     out = []
     cur.execute("""SELECT DISTINCT ON (stock_code) id, stock_code, entry_price, disproof_criteria
                    FROM position_theses WHERE status='active'
@@ -156,26 +166,17 @@ def judge(cur, apply=True, asof: date | None = None):
         entry = float(entry)
         ret = (px - entry) / entry * 100.0
 
-        # 상대강도: 같은 기간 유니버스 평균 수익률
-        cur.execute("""WITH d AS (SELECT max(trade_date) AS t FROM market_data WHERE stock_code=%s),
-                            u AS (SELECT stock_code,
-                                         (max(close_price) FILTER (WHERE trade_date=(SELECT t FROM d))
-                                          / NULLIF(max(close_price) FILTER (WHERE trade_date=(SELECT t-5 FROM d)),0)-1)*100 AS r
-                                  FROM market_data WHERE trade_date >= (SELECT t-5 FROM d) GROUP BY 1)
-                       SELECT round(avg(r)::numeric,3) FROM u WHERE r IS NOT NULL""", (code,))
-        mkt = float(cur.fetchone()[0] or 0.0)
-        rel = ret - mkt
+        # ── 근거 팩(여러 소스) — 테제 판정과 손실 사후분석이 같은 근거를 쓰게 한다
+        ev = evmod.collect(cur, code, str(asof))
+        ev_score = float(ev.get("score") or 0.0)
+        ev_text = evmod.narrative(ev)
+        rel5 = (ev.get("blocks", {}).get("price", {}) or {}).get("rel_5d")
 
-        # 이벤트
-        cur.execute("""SELECT event_type, count(*) FROM news_events
-                       WHERE stock_code=%s AND first_article_at >= now() - interval '5 days'
-                       GROUP BY 1""", (code,))
-        ev = cur.fetchall()
-        neg = sum(int(c) for t, c in ev if any(k in (t or "") for k in NEG_EVENTS))
-        pos = sum(int(c) for t, c in ev if any(k in (t or "") for k in POS_EVENTS))
+        # 보유 손익 성분(진입 대비)과 근거 성분을 반반 섞는다 — 손익만 보면 '이미 빠진 뒤'에야 반응한다
+        pos_score = max(-1.0, min(1.0, ret / 7.0))
+        score = round(0.5 * pos_score + 0.5 * ev_score, 3)
 
-        # 시간
-        cur.execute("SELECT min(entry_ts) FROM trader_fills WHERE code=%s AND exit_ts IS NULL", (code,))
+        cur.execute("SELECT min(entry_ts) FROM trader_fills WHERE code=%s", (code,))
         ets = cur.fetchone()[0]
         hold_days = 0
         if ets:
@@ -183,12 +184,6 @@ def judge(cur, apply=True, asof: date | None = None):
                 hold_days = max(0, (datetime.now().astimezone() - datetime.fromisoformat(str(ets))).days)
             except Exception:
                 hold_days = 0
-
-        price_s = max(-1.0, min(1.0, ret / 7.0))
-        rel_s = max(-1.0, min(1.0, rel / 5.0))
-        ev_s = max(-1.0, min(1.0, 0.5 * pos - 0.6 * neg))
-        time_s = 0.0 if hold_days <= PLAN_HOLD_DAYS else -0.4
-        score = round(0.55 * price_s + 0.20 * rel_s + 0.15 * ev_s + 0.10 * time_s, 3)
 
         if ret <= STOP_PCT:
             verdict = "파기"
@@ -203,17 +198,26 @@ def judge(cur, apply=True, asof: date | None = None):
         else:
             verdict = "파기"
 
-        summary = (f"현재가 {px:,.0f}({src}) / 진입 {entry:,.0f} = {ret:+.2f}% · 시장대비 {rel:+.2f}%p · "
-                   f"이벤트 +{pos}/-{neg} · 보유 {hold_days}일")
+        summary = (f"진입대비 {ret:+.2f}%(현재 {px:,.0f}/{src}) · 근거점수 {ev_score:+.3f} · "
+                   f"보유 {hold_days}일 || {ev_text}")[:1500]
         if apply:
             cur.execute("""INSERT INTO thesis_verdicts
                 (thesis_id, verdict_date, verdict, verdict_score, evidence_event_ids,
                  evidence_summary, model_version)
-                VALUES (%s,%s,%s,%s,%s,%s,'thesis_verdicts.py/v1')
+                VALUES (%s,%s,%s,%s,%s,%s,'thesis_verdicts.py/v2-evidence')
                 ON CONFLICT (thesis_id, verdict_date) DO NOTHING""",
                         (tid, asof, verdict, score, None, summary))
+        if apply:
+            ensure_evidence_table(cur)
+            cur.execute("""INSERT INTO thesis_evidence (thesis_id, asof, score, narrative, evidence)
+                VALUES (%s,%s,%s,%s,%s::jsonb)
+                ON CONFLICT (thesis_id, asof) DO UPDATE SET
+                  score=EXCLUDED.score, narrative=EXCLUDED.narrative, evidence=EXCLUDED.evidence""",
+                        (tid, asof, ev_score, ev_text,
+                         __import__('json').dumps(ev, ensure_ascii=False, default=str)))
         out.append({"thesis_id": tid, "code": code, "verdict": verdict, "score": score,
-                    "ret_pct": round(ret, 2), "rel_pct": round(rel, 2), "summary": summary})
+                    "ret_pct": round(ret, 2), "ev_score": ev_score, "rel5": rel5,
+                    "summary": summary[:240]})
     return out
 
 

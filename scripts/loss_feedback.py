@@ -237,6 +237,15 @@ def main() -> int:
         exit_day = str(r["exit_ts"])[:10] if r["exit_ts"] else str(r["fill_date"])
         r["rel5_pct"] = rel5_pct(cur, r["code"], exit_day)
         cause, why = classify(r)
+        # ── "왜 떨어졌나" 근거 팩(가격·수급·언론·공시·재무·거시·미국장) — 청산일 기준 as-of
+        try:
+            import evidence as evmod
+            ev = evmod.collect(cur, r["code"], exit_day)
+            r["evidence_text"] = evmod.narrative(ev)
+            r["evidence_score"] = ev.get("score")
+        except Exception as e:  # noqa: BLE001
+            r["evidence_text"] = f"(근거 수집 실패: {type(e).__name__})"
+            r["evidence_score"] = None
         r["cause"], r["why"] = cause, why
         r["owner"] = OWNER[cause]
         r["action"] = ACTION[cause]
@@ -260,12 +269,13 @@ def main() -> int:
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
                     ON CONFLICT (fill_date, code, exit_ts) DO UPDATE SET
                       cause=EXCLUDED.cause, owner=EXCLUDED.owner, action=EXCLUDED.action,
-                      rel5_pct=EXCLUDED.rel5_pct""",
+                      rel5_pct=EXCLUDED.rel5_pct, detail=EXCLUDED.detail""",
                             (r["fill_date"], r["code"], r["name"], r["screener"], r["exit_ts"],
                              r["net_pnl"], r["ret_pct"], r["hold_hours"], r["ml_prob"], r["exit_reason"],
                              r["market_ret_pct"], r["rel_pct"], r.get("rel5_pct"),
                              r["cause"], r["owner"], r["action"],
-                             json.dumps({"why": r["why"]}, ensure_ascii=False)))
+                             json.dumps({"why": r["why"], "evidence": r.get("evidence_text"),
+                                 "evidence_score": r.get("evidence_score")}, ensure_ascii=False)))
         conn.commit()
 
     total = sum(float(r["net_pnl"] or 0) for _k, r in new_rows)
@@ -279,6 +289,8 @@ def main() -> int:
     for _k, r in new_rows[:5]:
         print(f"    - {r['fill_date']} {r['name']}({r['code']}) {float(r['ret_pct'] or 0):+.2f}% "
               f"{float(r['net_pnl'] or 0):,.0f}원 · {r['cause']} · {r['why']}")
+        if r.get("evidence_text"):
+            print(f"      왜: {str(r['evidence_text'])[:400]}")
 
     if not a.dry_run:
         # 원인별로 한 번씩만 인계(같은 원인 중복 인계 방지)
