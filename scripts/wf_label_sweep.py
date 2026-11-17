@@ -1401,6 +1401,27 @@ CONFIGS = [
     {"id": "CG323_ss_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG323 arm — 공매도 4열 가산(ss_ratio·ma5·ma20·z20, t-1 지연)"},
+    # ── CG324(2026-11-18): 분위 라벨의 **기준 모집단**을 체결가능 행으로 재정의 ──────────────
+    # 왜: 돈 지표의 체결성 필터가 버리는 행이 패널의 71.6%(거래대금 10억 미만, CG283)인데
+    # quantile 문턱은 그 행들까지 모집단에 넣어 계산된다 → 학습 목표가 평가 도메인과 어긋난다.
+    # 여기서는 문턱만 체결가능 행으로 계산하고 **행은 버리지 않는다**(라벨 부여는 전행) →
+    # 대조군과 폴드 AUC 의 행 도메인이 같아 Δ 가 비교 가능하다.
+    # ⚠ 판정: 같은 런 짝 Δ(CG324_maskq−LS_quant_q30_h5) 폴드평균 ≥ +0.02 & 폴드승률 ≥ 4/5 &
+    #   체결가능 순기대가 대조군보다 높을 때만 신호. 미달이면 라벨 축 종결.
+    # 실행 패널은 tv_log 가 있는 panel_420_tv(49종목·281거래일) — 마스크가 실제로 문다:
+    #   실측 keep_frac 0.2735 · 문턱이 바뀐 날짜 276/276 · 라벨 뒤집힘 1.1% (자체점검 5/5 PASS).
+    #   ⚠ 액체 200종목 패널에서는 keep_frac 0.976(2.4%만 제외) → 사실상 no-op(뒤집힘 0.0%)이므로 쓰지 않는다.
+    {"id": "CG324_maskq_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "label_mask": {"daychg_lt": 25.0, "col": "tv_log", "col_gte": 20.72},
+     "desc": "CG324 arm — 분위 기준모집단을 체결가능 행(등락<+25% & tv_log≥20.72)으로 (행 유지)"},
+    # ── CG325(2026-11-18): **시드 잡음 바닥** — 같은 config·같은 패널·같은 폴드에서 시드만 바꾼
+    # 두 arm 의 짝 Δ 분포. 왜: 이 프로토콜의 판정 문턱은 Δ ≥ +0.02 인데, '같은 설정을 다시 돌리면
+    # Δ 가 얼마나 흔들리는가'는 한 번도 측정되지 않았다. 문턱이 시드 잡음 안쪽이면 지난 Δ 판정들도
+    # 재해석해야 한다(CG319/320/322 는 절대 AUC 바닥만 쟀고 Δ 바닥은 안 쟀다). 코드·데이터 무변경.
+    {"id": "CG325_seedA_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "seed_offset": 100, "desc": "CG325 시드잡음 A — LS_quant_q30_h5 와 동일, 시드 100~104"},
+    {"id": "CG325_seedB_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "seed_offset": 200, "desc": "CG325 시드잡음 B — LS_quant_q30_h5 와 동일, 시드 200~204"},
 ]
 
 
@@ -1423,6 +1444,43 @@ def apply_train_domain_mask(tr, threshold):
                     dtype=float)
     drop = np.greater_equal(dc, float(threshold))     # NaN >= x → False (보존)
     return tr[~drop], int(drop.sum())
+
+
+def build_label_mask(df, spec):
+    """CG324(2026-11-18): **분위 기준 모집단** 마스크 — 행은 버리지 않고 문턱 계산에서만 뺀다.
+
+    왜: 돈 지표의 체결성 필터(당일등락 < +25% & 거래대금 ≥ 10억, CG283)가 실제로 버리는 행이
+    패널의 71.6% 다. 그런데 quantile 라벨은 '살 수 없는 행'까지 모집단에 넣어 그날의 hi/lo 를
+    정한다 → 학습 목표가 평가 도메인(체결가능)과 어긋난다. 여기서는 **문턱만** 체결가능 행으로
+    계산하고 라벨 부여는 전행에 유지한다(행 도메인 보존 = 대조군과 폴드 AUC 비교 가능).
+
+    spec: {"daychg_lt": 25.0, "col": "tv_log", "col_gte": 20.72}
+      - daychg_lt: 종목별 종가 pct_change(%) ≥ 이 값이면 '못 사는 행' → 모집단 제외.
+        NaN(종목 첫 행·절단면)은 **보존**한다(CG192 와 같은 계약: 측정 불가 ≠ 체결 불가).
+      - col/col_gte: 지정 컬럼(예 tv_log=log1p(거래대금))이 임계 미만·결측이면 모집단 제외.
+    반환: (mask: np.bool_ 배열 len(df), diag: dict)
+    """
+    if not spec:
+        return None, {}
+    mask = np.ones(len(df), dtype=bool)
+    diag = {"rows": int(len(df))}
+    if spec.get("daychg_lt") is not None:
+        dc = df.groupby("stock_code", sort=False)["price"].pct_change().to_numpy(dtype=float) * 100.0
+        drop = np.isfinite(dc) & np.greater_equal(dc, float(spec["daychg_lt"]))
+        mask &= ~drop
+        diag["daychg_lt"] = float(spec["daychg_lt"])
+        diag["daychg_dropped"] = int(drop.sum())
+    col, cgte = spec.get("col"), spec.get("col_gte")
+    if col and cgte is not None:
+        if col not in df.columns:
+            raise RuntimeError(f"label_mask col={col} 이 패널에 없다")
+        v = pd.to_numeric(df[col].to_numpy(dtype=float), errors="coerce")
+        drop = ~(np.isfinite(v) & np.greater_equal(v, float(cgte)))   # NaN 도 제외(체결 불가로 본다)
+        mask &= ~drop
+        diag.update({"col": col, "col_gte": float(cgte), "col_dropped": int(drop.sum())})
+    diag["keep"] = int(mask.sum())
+    diag["keep_frac"] = round(float(mask.mean()), 4)
+    return mask, diag
 
 
 def apply_train_mask_col(tr, col, threshold):
@@ -2070,11 +2128,17 @@ def main():
                "train_mask_daychg_gte": cfg.get("train_mask_daychg_gte"),
                "train_mask_col": cfg.get("train_mask_col"),
                "train_mask_gte": cfg.get("train_mask_gte"),
+               "label_mask": cfg.get("label_mask"),
                "ts": ml.now_iso(), "status": "failed", "folds": {}}
         ml.log(f"=== {exp_id}: {cfg['desc']} ===")
         try:
+            _lm, _lmd = build_label_mask(df, cfg.get("label_mask"))
+            if _lm is not None:
+                rec["label_mask_diag"] = _lmd
+                ml.log(f"  {exp_id}: 라벨 기준모집단 마스크 {_lmd} → 유지 "
+                       f"{_lmd['keep']}/{_lmd['rows']} ({_lmd['keep_frac']:.1%}), 행은 버리지 않음")
             y = W.make_labels(df, cfg["kind"], cfg["horizon"], cfg["q"],
-                              thresh=cfg.get("thresh"))
+                              thresh=cfg.get("thresh"), label_mask=_lm)
             d = df.copy()
             # ── CG25 파생 피처(Δk): 라벨 결측 제거 **전에** 계산한다 ────────────────────
             # 왜 전에: 분위 라벨은 중간 분위도 NaN 이라, 결측 제거 후 shift 하면 Δ1 이 실제로는
@@ -2448,7 +2512,8 @@ def main():
                         Xte_all, te_all = None, None
                 tr_probs = []       # 학습셋(in-sample) 예측 — --report-train-auc 일 때만 채운다
                 n_eff_seen = set()
-                for seed in range(args.seeds):
+                for seed in range(int(cfg.get("seed_offset") or 0),
+                                  int(cfg.get("seed_offset") or 0) + args.seeds):
                     _obj = cfg.get("objective")
                     if _obj:
                         # CG80: 목적함수 축 — 같은 경로에 objective 만 바꾼 두 arm.

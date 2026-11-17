@@ -434,7 +434,7 @@ def _build_panel_locked(cache, limit, days, log=print, end_date=None, universe="
     return df, available
 
 
-def make_labels(df, kind, horizon, q, thresh=None):
+def make_labels(df, kind, horizon, q, thresh=None, label_mask=None):
     """라벨 생성. kind: quantile(기본) / relative(시장상대) / smooth / voladj / voladj_smooth / abs_thresh
     / excess / excess_smooth.
 
@@ -447,6 +447,9 @@ def make_labels(df, kind, horizon, q, thresh=None):
     excess/excess_smooth = 같은 거래일 **동일가중 평균 대비 초과** 선행수익(CG240, 실험 A/B 전용).
                  학습 목표를 돈 지표(그날 체결가능 풀평균 대비 초과)와 같은 축으로 맞출 때 쓴다.
                  현재 생산 라벨은 절대수익 분위(quantile/smooth)이며 이 값이 기본 경로를 바꾸지 않는다.
+    label_mask(quantile 전용, CG324) = 분위 **기준 모집단**을 지정하는 bool 배열(df 행 정렬).
+                 마스크 밖 행도 라벨은 받는다(문턱 계산에서만 빠진다) → 행 도메인이 보존된다.
+                 None 이면 기존 경로와 비트 동일(회귀 없음).
     """
     price = df.groupby("stock_code", sort=False)["price"]
     if kind in ("smooth", "voladj_smooth", "excess_smooth", "excess_smooth_thresh"):
@@ -495,8 +498,20 @@ def make_labels(df, kind, horizon, q, thresh=None):
         y = (ret > med).astype(float)
         y[ret.isna()] = np.nan
         return y.values
-    hi = ret.groupby(day).transform(lambda s: s.quantile(1 - q))
-    lo = ret.groupby(day).transform(lambda s: s.quantile(q))
+    if label_mask is not None:
+        # CG324(2026-11-18): 분위 **기준 모집단**만 바꾼다 — 돈 지표가 살 수 있다고 보는 행
+        # (당일등락 < +25% & 거래대금 ≥ 10억)으로 그날의 hi/lo 를 계산하고, 라벨 부여는 전행에
+        # 그대로 한다. 왜: 지금 분위는 '상한가로 못 사는 행'까지 모집단에 넣어 문턱을 끌어올린다
+        # → 학습 목표가 평가(체결가능) 분포와 어긋난다. 행을 지우지 않으므로 폴드 AUC 의 행
+        # 도메인이 대조군과 동일해 Δ 가 비교 가능하다(테스트 도메인 보존).
+        m = np.asarray(label_mask, dtype=bool)
+        if m.shape[0] != len(df):
+            raise RuntimeError(f"label_mask 길이 {m.shape[0]} ≠ 패널 행 {len(df)}")
+        ref = ret.where(pd.Series(m, index=df.index))
+    else:
+        ref = ret
+    hi = ref.groupby(day).transform(lambda s: s.quantile(1 - q))
+    lo = ref.groupby(day).transform(lambda s: s.quantile(q))
     y = pd.Series(np.nan, index=df.index, dtype=float)
     y[ret > hi] = 1.0
     y[ret < lo] = 0.0
