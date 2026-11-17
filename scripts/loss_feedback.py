@@ -91,6 +91,9 @@ def ensure_table(cur) -> None:
             created_at TIMESTAMPTZ DEFAULT NOW(),
             UNIQUE (fill_date, code, exit_ts)
         )""")
+    # 2026-11-17: 손절 손실의 원인(종목선택 vs 시장베타)을 저장할 상대약세 열
+    cur.execute("ALTER TABLE trade_loss_reviews ADD COLUMN IF NOT EXISTS rel5_pct NUMERIC")
+    conn_note = None  # noqa: F841  (스키마 변경은 커밋 시 반영)
 
 
 def market_return(cur, day) -> float | None:
@@ -109,6 +112,36 @@ def market_return(cur, day) -> float | None:
     return float(r) if r is not None else None
 
 
+def rel5_pct(cur, code: str, until_day) -> float | None:
+    """종목의 최근 5거래일 누적 수익률 − 같은 기간 유니버스 평균 (상대 약세 측정).
+
+    손절은 '설계된 방어'지만, 손절을 맞았다는 사실만으로는 원인이 안 갈린다.
+    시장이 버티는데 그 종목만 빠졌다면 원인은 **종목 선택(신호 품질)** 이고,
+    시장이 같이 빠졌다면 베타다. 이 함수가 그 둘을 가른다.
+    """
+    cur.execute("""SELECT trade_date, close_price FROM market_data
+                   WHERE stock_code=%s AND trade_date <= %s::date
+                   ORDER BY trade_date DESC LIMIT 6""", (code, until_day))
+    rows = cur.fetchall()
+    if len(rows) < 6:
+        return None
+    d_new, p_new = rows[0]
+    d_old, p_old = rows[-1]
+    if not p_old:
+        return None
+    stock_ret = (float(p_new) / float(p_old) - 1.0) * 100.0
+    cur.execute("""
+        SELECT round(avg(r)::numeric, 3) FROM (
+          SELECT (max(close_price) FILTER (WHERE trade_date=%s)
+                  / NULLIF(max(close_price) FILTER (WHERE trade_date=%s),0) - 1) * 100 AS r
+          FROM market_data WHERE trade_date IN (%s, %s) GROUP BY stock_code) z
+        WHERE r IS NOT NULL""", (d_new, d_old, d_new, d_old))
+    u = cur.fetchone()[0]
+    if u is None:
+        return None
+    return round(stock_ret - float(u), 3)
+
+
 def classify(row: dict) -> tuple[str, str]:
     ret = float(row["ret_pct"] or 0)
     hold = float(row["hold_hours"] or 0)
@@ -121,12 +154,20 @@ def classify(row: dict) -> tuple[str, str]:
         return "rule_gap", "손실폭 -7% 이하인데 stop 사유 아님"
     if hold < 2.0 or "reconcile" in reason:
         return "timing", f"보유 {hold:.1f}시간 / 사유 {row['exit_reason']}"
+    # 손절은 설계된 방어다. 그 손절이 '종목 선택 실패'인지 '시장 베타'인지는 상대 약세로 가른다.
+    rel5 = row.get("rel5_pct")
+    if "stop" in reason and rel5 is not None and rel5 <= -3.0:
+        return "signal", f"손절 + 5거래일 상대 약세 {rel5:+.1f}%p (시장은 버팀) — 종목 선택 실패"
     if prob is None or float(prob) < 0.55:
         return "signal", f"ml_prob={prob} (문턱 0.55)"
+    if "stop" in reason and rel5 is not None and rel5 > -3.0 and (row.get("market_ret_pct") or 0) <= -0.5:
+        return "market_beta", f"손절 + 5거래일 상대 {rel5:+.1f}%p · 시장 {row['market_ret_pct']:+.2f}%"
     if mkt is not None and mkt <= -0.5 and rel is not None and abs(rel) <= 1.0:
         return "market_beta", f"시장 {mkt:+.2f}% · 상대 {rel:+.2f}%p"
     if "owner_exit" in reason or "manual" in reason:
         return "execution", "규칙 밖 수동 청산"
+    if "stop" in reason:
+        return "signal", f"손절 청산(사유 {row['exit_reason']}) — 상대약세 측정 불가, 종목 선택 실패로 기록"
     return "other", "분류 규칙 미해당"
 
 
@@ -192,6 +233,9 @@ def main() -> int:
         entry = float(r["ret_pct"] or 0)
         r["market_ret_pct"] = mkt
         r["rel_pct"] = round(entry - mkt, 3) if mkt is not None else None
+        # 손절 손실의 원인 판별용: 손실이 확정된 날(없으면 진입일) 기준 5거래일 상대 약세
+        exit_day = str(r["exit_ts"])[:10] if r["exit_ts"] else str(r["fill_date"])
+        r["rel5_pct"] = rel5_pct(cur, r["code"], exit_day)
         cause, why = classify(r)
         r["cause"], r["why"] = cause, why
         r["owner"] = OWNER[cause]
@@ -207,16 +251,20 @@ def main() -> int:
     if not a.dry_run:
         os.makedirs(os.path.dirname(OUT), exist_ok=True)
         with open(OUT, "a", encoding="utf-8") as f:
-            for _key, r in new_rows:
-                f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
+            for key, r in new_rows:
+                if key not in seen:          # JSONL 은 append-only — 같은 거래를 두 번 쓰지 않는다
+                    f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
                 cur.execute("""INSERT INTO trade_loss_reviews
                     (fill_date, code, name, screener, exit_ts, net_pnl, ret_pct, hold_hours, ml_prob,
-                     exit_reason, market_ret_pct, rel_pct, cause, owner, action, detail)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
-                    ON CONFLICT (fill_date, code, exit_ts) DO NOTHING""",
+                     exit_reason, market_ret_pct, rel_pct, rel5_pct, cause, owner, action, detail)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                    ON CONFLICT (fill_date, code, exit_ts) DO UPDATE SET
+                      cause=EXCLUDED.cause, owner=EXCLUDED.owner, action=EXCLUDED.action,
+                      rel5_pct=EXCLUDED.rel5_pct""",
                             (r["fill_date"], r["code"], r["name"], r["screener"], r["exit_ts"],
                              r["net_pnl"], r["ret_pct"], r["hold_hours"], r["ml_prob"], r["exit_reason"],
-                             r["market_ret_pct"], r["rel_pct"], r["cause"], r["owner"], r["action"],
+                             r["market_ret_pct"], r["rel_pct"], r.get("rel5_pct"),
+                             r["cause"], r["owner"], r["action"],
                              json.dumps({"why": r["why"]}, ensure_ascii=False)))
         conn.commit()
 
