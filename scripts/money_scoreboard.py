@@ -13,12 +13,20 @@ WHY (2026-10-02 실측): 이 리포의 궁극 목표는 수익인데, "무엇이
   - 계좌/보유/미체결: 트레이더 브리지 http://127.0.0.1:8100 (읽기 전용)
   - 게이트 차단 로그: 저널 ``decisions.gates_json`` (게이트별 통과/차단)
 
+2026-11-17 추가(``realized.today`` — spec_scoreboard_realized_today): 4349274(누적↔일
+범주 오류 제거) 이후 objective_state 의 일 손실한도 판정이 '판정 불가'로 멈춰 있었다 —
+계기판에 당일 실현이 없어서다. ``today`` 키로 판정을 복구한다. 실측: 저널 오늘(2026-11-17)
+청산은 id=10 한 건(290720, exit_ts=2026-11-17T09:04:31, pnl=-6,831, fees=0) →
+``today.pnl=-6,831`` (조회 명령은 아래 '실측 조회 명령' 참조).
+
 읽기 전용 계약: DB 는 SELECT 만, 주문·피드·실거래 경로는 읽기만. **DB 쓰기 금지**이므로
 scripts/dq_claim.py 의 ``record_claim``(dq_runner_claim INSERT)은 쓰지 않고, 소스 수신/
 파서 생성/실제 저장 3분리 자기신고를 출력 파일에 내장한다(출력 JSON 의 ``claim`` 절).
 
 수식 정의 (모든 값은 조회한 실측치, 없으면 '측정 불가'):
-  실현손익 pnl      = 체결가 차이 × 수량 (저널 pnl 컬럼, 수수료 미차감. net = pnl - fees)
+  실현손익 pnl      = 체결가 차이 × 수량 − 수수료 (저널 pnl 컬럼이 **이미 비용 차감 후** —
+                      2026-11-17 실측: 청산 11건 전부 pnl = gross − fees. net_pnl = pnl)
+  당일 실현         = 오늘(KST) exit_ts 를 가진 청산 거래의 pnl 합 (realized.today)
   승률              = 승수 / (승수 + 패수)   (pnl>0 승 · pnl<0 패 · pnl==0 제외, 분모 0 이면 측정 불가)
   평균 이익         = 승 거래 pnl 평균   평균 손실 = 패 거래 |pnl| 평균
   손익비(profit factor) = Σ(pnl>0) / |Σ(pnl<0)|   (패 없으면 측정 불가, 승 없으면 0)
@@ -31,6 +39,11 @@ scripts/dq_claim.py 의 ``record_claim``(dq_runner_claim INSERT)은 쓰지 않�
 실측 조회 명령 (근거 기록):
   저널:   /mnt/c/Users/jhshi/Python312-64/python.exe -c "…sqlite3.connect(
           r'C:/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3')…"
+  today:  /mnt/c/Users/jhshi/Python312-64/python.exe -c "import sqlite3;c=sqlite3.connect(
+          r'C:/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3');
+          [print(r) for r in c.execute('select id,code,exit_ts,pnl,fees from trades
+          where exit_ts is not null order by id')]"
+          → 2026-11-17 실측: 오늘 exit 은 id=10(290720) 한 건, pnl=-6831.0 fees=0.0
   DB:     set -a; . /home/jhshi/analyist_dd/.env; set +a; export POSTGRES_HOST=127.0.0.1 \
           POSTGRES_PORT=5434; psycopg2(host,5434,stock_trading,stock_user)
   브리지: curl.exe -s --noproxy '*' http://127.0.0.1:8100/{health,balance,positions,orders}
@@ -73,6 +86,9 @@ _CURLS = ["/mnt/c/Windows/System32/curl.exe", shutil.which("curl") or "/usr/bin/
 # LIMITS·LIMITS_META·limits_claim 은 위 import 블록에서 온다.
 # 청산 규칙 (trader_core/profiles.py: close exit_mode=EXIT_NEXT_OPEN, 청산창 09:00-09:10)
 EXIT_WINDOW = "09:00-09:10"
+# KST 관용구 (기존: scripts/_me_backlog_update_20261115b.py, _cg319_cg320_register.py —
+# KST = timezone(timedelta(hours=9))). 당일 실현의 '오늘'은 런타임 TZ 무관하게 KST 로 고정.
+KST = dt.timezone(dt.timedelta(hours=9))
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +130,22 @@ def _stats(closed):
     }
 
 
+def _today_realized(trades, now=None):
+    """당일 실현: 오늘(KST) exit_ts 를 가진 청산 거래의 pnl·fees 합과 승/패 분류.
+
+    WHY (spec_scoreboard_realized_today, 2026-11-17): objective_state 의 일 손실한도 판정이
+    ``(real.get("today") or {}).get("pnl")`` 을 읽는다 — 키가 없으면 '판정 불가'로 멈춘다.
+    승/패/flat 분류는 ``_stats``(= cum 과 같은 규칙: pnl>0 승, pnl<0 패, 그 외 flat)를
+    재사용한다. 오늘 청산이 0건이어도 키는 존재한다(closed 0 · pnl 0.0 · win_rate None → null).
+
+    now: 테스트 주입용 날짜(생략 시 KST 오늘 — 실행 시각을 쓰지 않아 재실행 멱등).
+    """
+    day = (now or dt.datetime.now(KST).date()).isoformat()
+    st = _stats([t for t in _closed(trades) if (t.get("exit_ts") or "")[:10] == day])
+    return {"day": day, **{k: st[k] for k in
+                           ("closed", "pnl", "fees", "wins", "losses", "flat", "win_rate")}}
+
+
 def realized_stats(trades, now=None, window_days=30):
     """실현손익: 누적 · 최근 N일 · 주간 · 전략별(close/swing) 분해.
 
@@ -134,7 +166,11 @@ def realized_stats(trades, now=None, window_days=30):
     for s in sorted({t.get("screener") or "unknown" for t in closed}):
         by_screener[s] = _stats([t for t in closed if (t.get("screener") or "unknown") == s])
     cum = _stats(closed)
-    cum["net_pnl"] = round(cum["pnl"] - cum["fees"], 2)
+    # 2026-11-17 실측 정정: 저널 `trades.pnl` 은 **이미 비용 차감 후 순손익**이다
+    # (id=11 440110: (34050−36642.5)×2 = −5,185, −5,185−146(fees) = −5,331 = pnl.
+    #  청산 11건 전부 pnl = gross − fees 로 일치 확인). 따라서 net_pnl 에서 fees 를
+    #  또 빼면 이중 차감이다(구 코드: −33,468 − 146 = −33,614 로 손실을 146원 과대계상).
+    cum["net_pnl"] = round(cum["pnl"], 2)
     if closed:
         cum["first_trade"] = min(t["ts"] for t in closed)
         cum["last_trade"] = max(t["ts"] for t in closed)
@@ -144,6 +180,7 @@ def realized_stats(trades, now=None, window_days=30):
         "weekly": [{"week_start": str(w), **_stats(ws)} for w, ws in sorted(weeks.items())],
         "by_screener": by_screener,
         "open_trades": len(trades) - len(closed),
+        "today": _today_realized(trades, now=now),
     }
 
 
@@ -736,7 +773,8 @@ def build_report(cfg):
         "parsed_rows": {"trades": len(trades),
                         "decisions": len(journal.get("decisions") or []) if "error" not in journal else 0,
                         "blocked_codes": len(blocks),
-                        "price_joined": len(price_map)},
+                        "price_joined": len(price_map),
+                        "today_closed": rep["realized"]["today"]["closed"]},
         "persisted_rows": {"scoreboard_json": 1, "scoreboard_md": 1, "out_dir": cfg["out_dir"]},
         "limits": limits_claim(),
         "note": "DB 쓰기 금지(읽기 전용 계약)라 dq_claim.record_claim 은 미사용 — "

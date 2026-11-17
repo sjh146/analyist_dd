@@ -135,6 +135,10 @@ def envelope_check(obj: dict, sb: dict | None) -> dict:
             out["notes"].append(
                 "일 손실한도 판정 불가 — 계기판에 당일 실현(realized.today)이 없다. "
                 "누적 실현으로 대신 판정하지 않는다")
+        else:
+            out["notes"].append(
+                f"당일 실현 {today_pnl}원 = 자본의 {today_pnl / equity * 100:.2f}% "
+                f"(일 손실한도 -{limits['daily_loss_limit_pct'] * 100:.0f}% 이내)")
         if pnl is not None:
             out["notes"].append(
                 f"누적 실현손익 {pnl}원 = 자본의 {pnl / equity * 100:.2f}% (참고 — 일 손실한도와 비교 대상 아님)")

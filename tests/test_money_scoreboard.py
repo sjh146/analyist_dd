@@ -12,6 +12,7 @@
 
 데이터 접촉 금지: 이 파일은 DB·브리지·저널·네트워크를 절대 만지지 않는다.
 """
+import datetime as dt
 import importlib.util
 import json
 import os
@@ -90,8 +91,10 @@ def test_fees_summed():
     ]
     stats = M.realized_stats(trades)["cum"]
     assert stats["fees"] == 300.0                     # 총 수수료 = Σ fees
-    assert stats["net_pnl"] == round(-700.0 - 300.0, 2)  # net = pnl − fees
-    assert stats["pnl"] == -700.0                     # pnl 자체는 수수료 미차감
+    # 저널 pnl 은 이미 비용 차감 후다(2026-11-17 실측: 청산 11건 전부 pnl = gross − fees).
+    # 따라서 net_pnl == pnl 이고, fees 를 또 빼면 이중 차감이다.
+    assert stats["net_pnl"] == round(-700.0, 2)       # net = pnl (이중 차감 금지)
+    assert stats["pnl"] == -700.0                     # pnl 자체가 net
 
 
 def test_fees_unbooked_flag():
@@ -221,7 +224,56 @@ def test_weekly_and_recent_window():
 
 
 # ---------------------------------------------------------------------------
-# 7) 픽스처 모드 종단 + 멱등 (재실행 시 같은 날짜 파일을 덮어쓴다)
+# 7) 당일 실현(realized.today) — spec_scoreboard_realized_today
+# ---------------------------------------------------------------------------
+
+def test_today_realized_closed_rows_only():
+    # 픽스처 3건: 오늘 청산 2건(승 1 + 패 1) + 미청산 1건 — 오늘(exit 날짜 일치) 청산 행만 합산
+    trades = [
+        _trade("A", 10, 1000, 500.0, fees=100.0, exit_ts="2026-09-30T09:04:31+09:00"),  # 오늘 승
+        _trade("B", 20, 1000, -300.0, fees=50.0, exit_ts="2026-09-30T09:10:00+09:00"),   # 오늘 패
+        _trade("C", 30, 1000, None, exit_ts=None),                                      # 미청산 → 제외
+    ]
+    today = M._today_realized(trades, now=dt.date(2026, 9, 30))
+    assert today["day"] == "2026-09-30"
+    assert today["closed"] == 2                          # 미청산 1건은 안 센다
+    assert today["pnl"] == 200.0                         # pnl 합 = 500 − 300
+    assert today["fees"] == 150.0                        # fees 합 = 100 + 50
+    assert today["wins"] == 1 and today["losses"] == 1 and today["flat"] == 0
+    assert today["win_rate"] == 0.5                      # cum 과 같은 규칙(승/(승+패))
+
+
+def test_today_realized_filters_exit_date():
+    # exit 날짜가 오늘이 아닌 청산은 당일 실현에서 제외된다
+    trades = [
+        _trade("A", 10, 1000, 500.0, exit_ts="2026-09-30T09:00:00+09:00"),  # 오늘
+        _trade("B", 20, 1000, -300.0, exit_ts="2026-09-29T09:00:00+09:00"),  # 어제 → 제외
+    ]
+    today = M._today_realized(trades, now=dt.date(2026, 9, 30))
+    assert today["closed"] == 1 and today["pnl"] == 500.0
+
+
+def test_today_realized_zero_closed_keeps_schema():
+    # 오늘 청산 0건이어도 키는 존재: closed 0 · pnl 0.0 · fees 0.0 · win_rate None(JSON null)
+    trades = [_trade("A", 10, 1000, 500.0, exit_ts="2026-09-29T09:00:00+09:00")]
+    today = M._today_realized(trades, now=dt.date(2026, 9, 30))
+    assert today["day"] == "2026-09-30"
+    assert today["closed"] == 0
+    assert today["pnl"] == 0.0 and today["fees"] == 0.0
+    assert today["wins"] == 0 and today["losses"] == 0 and today["flat"] == 0
+    assert today["win_rate"] is None                   # JSON null — '측정 불가'
+
+
+def test_realized_stats_includes_today_key():
+    # realized_stats 산출물에 today 가 연결돼 있다(키 누락 금지 — objective_state 판정 입력)
+    trades = [_trade("A", 10, 1000, 500.0, exit_ts="2026-09-30T09:00:00+09:00")]
+    rep = M.realized_stats(trades, now=dt.date(2026, 9, 30), window_days=30)
+    assert rep["today"]["day"] == "2026-09-30"
+    assert rep["today"]["closed"] == 1 and rep["today"]["pnl"] == 500.0
+
+
+# ---------------------------------------------------------------------------
+# 8) 픽스처 모드 종단 + 멱등 (재실행 시 같은 날짜 파일을 덮어쓴다)
 # ---------------------------------------------------------------------------
 
 def _write_fixture(tmp_path):
