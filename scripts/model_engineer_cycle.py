@@ -5611,7 +5611,7 @@ def data_axis_readiness_note(promote=True):
         return [f"  데이터 축 준비도: 점검 실패({type(e).__name__}: {str(e)[:100]})"]
     out = []
     for ax in axes:
-        flag = "READY" if ax["ready"] else "BLOCKED"
+        flag = "CLOSED" if ax.get("closed") else ("READY" if ax["ready"] else "BLOCKED")
         detail = " · ".join(f"{k}={v}" for k, v in ax["measured"].items())
         out.append(f"  · {ax['axis']} [{flag}] {detail}")
         if ax["ready"]:

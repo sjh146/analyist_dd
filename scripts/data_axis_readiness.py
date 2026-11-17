@@ -31,7 +31,9 @@ import sys
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKLOG = os.path.join(PROJ, "docs", "QUANT_MODEL_BACKLOG.json")
-PANEL = "/app/app/models/wf/panel_prod200.npz"  # 컨테이너 경로(청정 패널)
+PANEL = "/app/app/models/wf/panel_prod200.npz"  # 폴백(구 기본값) — 아래 panel_path() 가 신선 패널을 우선한다
+_PANEL_TEST_TOKENS = ("perm", "null", "synth")   # 널/순열/합성 패널은 측정 대상이 아니다
+_PANEL_CACHE: str | None = None
 
 # 문턱 — 백로그 항목의 setup_needed/note 에 적힌 '해소 조건'에서 그대로 옮긴 값.
 TH = {
@@ -40,6 +42,16 @@ TH = {
     "panel_cover_frac": 0.75,       # 패널 유니버스(200) 대비 75% = 150종목
     "short_min_days": 250,          # 279일 패널 폴드 전체를 덮으려면 ≥250거래일 이력
     "news_min_days": 400,           # 420일 패널 창을 덮으려면 ≥400일 이력
+}
+
+# 이미 실측으로 **종결된** 축 — '커버리지/이력 대기'로 오보하지 않도록 사유를 고정한다.
+# (종결 = 그 축을 실제로 학습·검증해 판정까지 냈다는 뜻. 데이터가 더 쌓여도 재시험하지 않는다.)
+CLOSED_AXES = {
+    "short_selling": "축 종결(CG323, 2026-11-18 · 신선 패널 5폴드×5시드 첫 측정: 짝 Δ+0.0096 · "
+                     "돈 k3 −0.61%p t−1.68/k5 −0.23 t−0.84 → 모델 레버 아님)",
+    "news::sns_posts": "축 종결(CG327, 2026-11-18 · SNS 관심·모멘텀·게시량 9피처 패널 주입 후 "
+                       "단일피처 스크린: 선별문턱 |AUC−0.5|≥0.044 통과 0/9, 최고 snsa_posts "
+                       "0.4700(edge 0.030) · 행 채움 30%)",
 }
 
 
@@ -59,11 +71,49 @@ def _psql(sql: str) -> list[list[str]]:
     return rows
 
 
+def panel_path() -> str:
+    """측정 대상 패널 경로 — env DAR_PANEL > 최신 신선 패널(mtime) > 구 기본값.
+
+    WHY (2026-11-18 CG326 실측): 커버리지를 **고정 패널**(panel_prod200, 구간 ~2026-09-23)
+    유니버스로만 재고 있었다. 같은 원천을 신선 패널로 재면 short_selling 커버리지가
+    0.115 → 0.880, news_events 0.13 → 0.54 로 달라진다 — 즉 '커버리지 부족' 보고의 상당 부분이
+    측정 artifact 였다(수집이 늘어도 분모가 낡아 영원히 0.1 대로 보인다).
+    """
+    global _PANEL_CACHE
+    if _PANEL_CACHE:
+        return _PANEL_CACHE
+    env = os.environ.get("DAR_PANEL")
+    if env:
+        _PANEL_CACHE = env
+        return env
+    code = (
+        "import glob,os;"
+        "ps=[p for p in glob.glob('/app/app/models/wf/panel_*.npz') "
+        "if not any(t in os.path.basename(p) for t in "
+        f"{list(_PANEL_TEST_TOKENS)!r})];"
+        # 생산형(유동성/프로덕션) 패널을 우선 — 실험용 소형 패널이 분모를 흔들지 않게
+        "pp=[p for p in ps if ('liq' in os.path.basename(p) or 'prod' in os.path.basename(p))];"
+        "ps=pp or ps;"
+        "ps.sort(key=lambda p: os.path.getmtime(p), reverse=True);"
+        "print(ps[0] if ps else '')"
+    )
+    try:
+        out = subprocess.run(["docker", "exec", "stock_xgboost_ml", "python", "-c", code],
+                             capture_output=True, text=True, timeout=60)
+        if out.returncode == 0 and out.stdout.strip():
+            _PANEL_CACHE = out.stdout.strip()
+            return _PANEL_CACHE
+    except Exception:                                # noqa: BLE001 — 조회 실패는 폴백으로
+        pass
+    _PANEL_CACHE = PANEL
+    return _PANEL_CACHE
+
+
 def panel_codes() -> set[str]:
-    """청정 패널(prod200)의 종목 코드 집합 — 커버리지 분모."""
+    """측정 패널(panel_path())의 종목 코드 집합 — 커버리지 분모."""
     code = (
         "import numpy as np;"
-        f"z=np.load({PANEL!r},allow_pickle=True);"
+        f"z=np.load({panel_path()!r},allow_pickle=True);"
         "c=sorted(set(str(x) for x in z['codes']));"
         "print(','.join(c))"
     )
@@ -156,9 +206,11 @@ def evaluate(pc: set[str]) -> list[dict]:
     sh = check_short()
     cover = len(sh["codes"] & pc) / denom
     ready = cover >= TH["panel_cover_frac"] and sh["n_days"] >= TH["short_min_days"]
+    closed = CLOSED_AXES.get("short_selling")
     out.append({
-        "axis": "short_selling", "items": ["CG141"], "ready": ready,
-        "blocking": "수집 범위(수집기 소유)·이력 누적 필요" if not ready else "",
+        "axis": "short_selling", "items": ["CG141"], "ready": ready and not closed,
+        "closed": closed or "",
+        "blocking": (closed or ("수집 범위(수집기 소유)·이력 누적 필요" if not ready else "")),
         "measured": {"n_rows": sh["n_rows"], "n_codes": sh["n_codes"], "n_days": sh["n_days"],
                      "span": f"{sh['min_date']}~{sh['max_date']}",
                      "panel_cover_frac": round(cover, 3)},
@@ -175,8 +227,10 @@ def evaluate(pc: set[str]) -> list[dict]:
             continue
         cover = len(d["codes"] & pc) / denom
         ready = cover >= TH["panel_cover_frac"] and d["n_days"] >= TH["news_min_days"]
-        rec = {"axis": f"news::{tbl}", "items": ["CG73", "CG60"], "ready": ready,
-               "blocking": "커버리지(패널 유니버스)·이력(≥400d) 동시 필요" if not ready else "",
+        closed = CLOSED_AXES.get(f"news::{tbl}")
+        rec = {"axis": f"news::{tbl}", "items": ["CG73", "CG60"], "ready": ready and not closed,
+               "closed": closed or "",
+               "blocking": (closed or ("커버리지(패널 유니버스)·이력(≥400d) 동시 필요" if not ready else "")),
                "measured": {"n_rows": d["n_rows"], "n_codes": d["n_codes"], "n_days": d["n_days"],
                             "span": f"{d['min_date']}~{d['max_date']}",
                             "panel_cover_frac": round(cover, 3)},
@@ -232,9 +286,9 @@ def main() -> int:
 
     pc = panel_codes()
     axes = evaluate(pc)
-    print(f"데이터 축 준비도 (패널 유니버스 {len(pc)}종목 · panel_prod200)")
+    print(f"데이터 축 준비도 (패널 유니버스 {len(pc)}종목 · {os.path.basename(panel_path())})")
     for ax in axes:
-        flag = "READY" if ax["ready"] else "BLOCKED"
+        flag = "CLOSED" if ax.get("closed") else ("READY" if ax["ready"] else "BLOCKED")
         m = ax["measured"]
         detail = " · ".join(f"{k}={v}" for k, v in m.items() if k != "codes")
         print(f"  [{flag:7}] {ax['axis']:18} {detail}")
