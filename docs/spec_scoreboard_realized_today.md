@@ -22,7 +22,7 @@ $ python3 -c "import sys;sys.path.insert(0,'scripts');import objective_state as 
 ```json
 "realized": {
   "cum": {...기존...}, "recent_30d": {...기존...}, "weekly": [...기존...],
-  "today": {"day": "2026-11-17", "closed": 1, "pnl": -6831.0, "fees": 0.0,
+  "today": {"day": "2026-11-17", "closed": 1, "pnl": -7128.0, "fees": 0.0,
             "wins": 0, "losses": 1, "flat": 0, "win_rate": 0.0}
 }
 ```
@@ -61,8 +61,8 @@ print('today:', d['realized']['today'])"
 /usr/bin/python3 scripts/money_scoreboard.py --no-live --out-dir /tmp/msb_fx1 && /usr/bin/python3 scripts/money_scoreboard.py --no-live --out-dir /tmp/msb_fx1 && md5sum /tmp/msb_fx1/*
 ```
 기대:
-- 2026-11-17 실측 기준 `realized.today = {"day": "2026-11-17", "closed": 1, "pnl": -6831.0, "fees": 0.0, "wins": 0, "losses": 1, "flat": 0, "win_rate": 0.0}`
-  (저널 id=10 290720 청산 `2026-11-17T09:04:31`, pnl −6,831, fees 0)
+- 2026-11-17 실측 기준 `realized.today = {"day": "2026-11-17", "closed": 1, "pnl": -7128.0, "fees": 0.0, "wins": 0, "losses": 1, "flat": 0, "win_rate": 0.0}`
+  (저널 id=10 290720 청산 `2026-11-17T09:04:31`, pnl −7,128 — 15:30 브로커 정정 반영, 정정 전 −6,831 · fees 0)
 - `objective_state.build()` 의 notes 에서 **'판정 불가'가 사라지고** 당일 실현이 한도 내(-6,831 = 자본의 약 -2.78% > -3% 한도)이므로 `breaches` 에 일 손실 항목이 **없어야** 한다. 누적 참고 줄은 유지.
 - fixture 2회 실행 md5 동일, pytest 전부 통과.
 
