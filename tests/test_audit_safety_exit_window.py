@@ -113,6 +113,7 @@ class TestMainWiring:
         monkeypatch.setattr(mod, "TA", str(tmp_path))          # kill_switch.txt 는 없는 것으로
         monkeypatch.setattr(mod, "exit_window_receive", lambda path=None: (rec, None))
         monkeypatch.setattr(mod, "_exit_window_claim", lambda **kw: "mocked-ok")
+        monkeypatch.setattr(mod, "_limits_claim", lambda **kw: "mocked-ok")
         monkeypatch.setattr(mod, "bridge", lambda p: {"ok": True, "connected": True})
         monkeypatch.setattr(mod, "processes", lambda: {"bridge": 1, "loop": 1})
         monkeypatch.setattr(mod, "config_limits", lambda: {})

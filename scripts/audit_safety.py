@@ -16,21 +16,53 @@ WHY(실측): objective_state top_lever = exit_window_miss −1,814원(evidence '
 통합 방식(3분리·멱등): exit_window_receive(소스 수신) → exit_window_parse(파서 생성) →
 rec['alerts'/'info'] 저장(실제 저장) + dq_claim.record_claim 자기신고. safety_<date>.json 은
 덮어쓰기이고 경보는 매 실행 새로 구성된다 → 재실행 안전(중복 적재 없음).
+
+2026-11-17 한도 축 복구(스펙 docs/spec_audit_limits_source.md — 커밋 dc8256b '계기판 한도를
+실행 설정에서 직접 읽는다'의 자매 작업):
+  WHY(실측): 33행 LIMITS 가 계기판과 같은 낡은 10%/30% 하드코딩이었고, config_limits() 는
+  정규식으로 per_stock_pct/total_exposure_pct 키를 찾지만 config.py 실제 필드명은
+  max_position_pct/max_invested_pct → cfg 에 그 두 키가 아예 없어 212행 'if k in cfg' 가
+  조용히 건너뛰었다. 종목당·총노출 두 축은 한 번도 비교된 적 없다(통과가 아니라 미실행).
+  실행 설정 Config() 실측: daily_max_trades=3, max_position_pct=0.3333333333333333,
+  max_open_positions=3, max_invested_pct=1.0 — 정책 사본 config/objective.json envelope 와
+  같은 값(불일치 0건). 정책 사본에는 max_open_positions 키가 없다.
+  (조회: cd /mnt/c/Users/jhshi/analyist_dd/trader-agent && /usr/bin/python3 -c "import sys;sys.path.insert(0,'.');from trader_core.config import Config;c=Config();print(c.daily_max_trades,c.max_position_pct,c.max_open_positions,c.max_invested_pct)"
+        python3 -c "import json;print(json.load(open('config/objective.json'))['envelope'])")
+  복구 방식: 계기판과 같은 단일 진실원 scripts/risk_limits.py 의 execution_limits() 로 실행값·
+  출처를 읽고(한도 4값은 모듈 전역 LIMITS·LIMITS_META), policy_limits_receive→parse 로 정책
+  사본을 매핑해 불일치(>1e-9)만 limit_mismatch 로 경보한다. max_open_positions 는 정책에
+  키가 없어 대조하지 않고 rec["limits_note"] 로만 남긴다. 멱등: safety_<date>.json 덮어쓰기
+  (경보는 매 실행 재구성) · policy_envelope 자기신고는 dq_runner_claim append(기존 규약).
 """
 import datetime as dt
 import json
 import os
-import re
 import subprocess
 import sys
-from _paths import proj, proj_dir
+
+# sys.path 보정: importlib(tests 등)로 이 파일만 로드하면 scripts/ 가 경로에 없어
+# 같은 디렉터리 모듈(_paths, risk_limits)을 못 찾는다 — money_scoreboard.py 와 같은 관용구.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+from _paths import proj, proj_dir  # noqa: E402
+from risk_limits import execution_limits  # noqa: E402
 
 REPO = proj_dir()
 TA = "/mnt/c/Users/jhshi/analyist_dd/trader-agent"
 OUT_DIR = os.path.join(REPO, "reports", "safety")
 CURL = "/mnt/c/Windows/System32/curl.exe"
 WPY = "/mnt/c/Users/jhshi/Python312-64/python.exe"
-LIMITS = {"max_daily_trades": 3, "per_stock_pct": 0.10, "max_open_positions": 3, "total_exposure_pct": 0.30}
+# 한도 단일 진실원 — 계기판(money_scoreboard.py)과 같은 risk_limits.execution_limits() 에서
+# 실행 설정(Config)의 한도 4값 + 출처 메타를 읽는다(정책 값이 아니다). 읽기 실패 시
+# risk_limits 계약대로 FALLBACK 값 + loaded=False(source=fallback) — 예외를 던지지 않는다.
+LIMITS, LIMITS_META = execution_limits()
+# 정책 사본(config/objective.json envelope) — 실행 설정과 대조하는 대상(WHY 는 상단 docstring).
+POLICY_JSON = os.path.join(REPO, "config", "objective.json")
+# 정책 사본 키 → 감사 한도 키. max_open_positions 는 정책에 키가 없어 대조하지 않는다.
+POLICY_MAP = (("max_entries_per_day", "max_daily_trades"),
+              ("max_position_pct", "per_stock_pct"),
+              ("max_invested_pct", "total_exposure_pct"))
 EXIT_WINDOW_JSON = os.path.join(REPO, "data", "reports", "audit", "exit_window.json")
 # 이보다 묵은 exit_window.json 은 '최근'이라 할 수 없어 경보 근거로 쓰지 않는다(틱 정지 시 오경보 방지).
 # audit_exit_window 자신의 조회 범위(--days 10)와 같다.
@@ -54,22 +86,51 @@ def bridge(path):
 
 
 def config_limits():
-    """trader_core/config.py + 런처 오버라이드에서 한도 실측."""
-    found = {}
-    for pat, key in ((r"max_daily_trades\s*[:=]\s*(\d+)", "max_daily_trades"),
-                     (r"max_open_positions\s*[:=]\s*(\d+)", "max_open_positions"),
-                     (r"per_stock_pct\s*[:=]\s*([0-9.]+)", "per_stock_pct"),
-                     (r"total_exposure_pct\s*[:=]\s*([0-9.]+)", "total_exposure_pct"),
-                     (r"kelly_fraction\s*[:=]\s*([0-9.]+)", "kelly_fraction")):
-        for f in ("trader_core/config.py", "runner/config.py"):
-            p = os.path.join(TA, f)
-            if not os.path.exists(p):
-                continue
-            m = re.search(pat, open(p, encoding="utf-8", errors="replace").read())
-            if m:
-                found[key] = float(m.group(1)) if "." in m.group(1) else int(m.group(1))
-                break
-    return found
+    """실행 설정(Config)에서 한도 4값을 돌려준다. 실패하면 {} (기존 계약: 빈 dict 허용).
+
+    WHY(2026-11-17, 스펙 docs/spec_audit_limits_source.md): 종전 정규식 긁기는
+    per_stock_pct/total_exposure_pct 키를 찾는데 config.py 실제 필드명은
+    max_position_pct/max_invested_pct → 그 두 축은 cfg 에 아예 없어 비교가 한 번도
+    실행된 적 없다(212행 'if k in cfg' 가 조용히 건너뜀). 이제 risk_limits.execution_limits()
+    가 실제 Config() 를 import 해 읽는다(계기판과 같은 단일 진실원 — 정규식 없음).
+    출처는 limits_sources()/LIMITS_META 로 남는다.
+    """
+    return dict(LIMITS) if LIMITS_META.get("loaded") else {}
+
+
+def limits_sources():
+    """한도 출처 메타 — 실행 설정 경로(source)·loaded·매핑 원본값(values)·후보 경로 사본."""
+    return dict(LIMITS_META)
+
+
+def policy_limits_receive(path=None):
+    """소스 수신(1/3) — 정책 사본 config/objective.json 의 envelope 를 읽는다.
+
+    없거나 깨졌으면 (None, 사유) — 감사가 이것 때문에 죽으면 안 된다(exit_window_receive 와
+    같은 계약). 판정은 policy_limits_parse 가 한다.
+    """
+    p = path or POLICY_JSON
+    if not os.path.exists(p):
+        return None, f"no file: {p}"
+    try:
+        with open(p, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError) as e:  # noqa: BLE001
+        return None, f"{type(e).__name__}: {e}"
+    env = doc.get("envelope") if isinstance(doc, dict) else None
+    if not isinstance(env, dict):
+        return None, "envelope 키 없음/비dict"
+    return env, None
+
+
+def policy_limits_parse(envelope):
+    """파서 생성(2/3) — envelope 키를 감사 한도 키로 매핑한다(POLICY_MAP, 값이 있는 키만).
+
+    max_open_positions 는 정책 사본에 키가 없으므로(envelope.source: "소스 오브 트루스는
+    트레이더 설정") 여기서 만들지 않는다 — 그 사유는 main() 이 rec["limits_note"] 로 남긴다.
+    """
+    return {audit_k: envelope[policy_k] for policy_k, audit_k in POLICY_MAP
+            if policy_k in envelope and envelope[policy_k] is not None}
 
 
 def journal_stats():
@@ -170,6 +231,30 @@ def _exit_window_claim(source_rows, claimed, persisted, note):
         return f"{type(e).__name__}: {e}"
 
 
+def _limits_claim(source_rows, claimed, persisted, note):
+    """자기신고(3/3-보조) — 한도 대조(정책 사본 수신 → 매핑 → 경보 저장) 3값을 남긴다.
+
+    _exit_window_claim 과 같은 규약: scripts/dq_claim.py 의 record_claim 재사용.
+    source_rows=정책 사본에서 매핑한 축 수, claimed=실제 비교한 축 수(실행값이 없으면 0 —
+    gap 이 0 이 아니면 Prometheus RunnerClaimGap 이 울린다 — '검사가 안 돌았다'를 보이게),
+    persisted=불일치 경보 수. 자기신고 실패는 사유 문자열로 info 에만 남기고 감사를
+    깨지 않는다(dq_claim.py 설계 원칙).
+    """
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from dq_claim import _open_conn, record_claim  # noqa: PLC0415 — psycopg2 지연 import
+        conn = _open_conn()
+        try:
+            record_claim(conn, runner="audit_safety", table_name="policy_envelope",
+                         claimed_rows=int(claimed), persisted_rows=int(persisted),
+                         source_rows=int(source_rows), note=str(note)[:400])
+        finally:
+            conn.close()
+        return "ok"
+    except Exception as e:  # noqa: BLE001
+        return f"{type(e).__name__}: {e}"
+
+
 def processes():
     out = sh(["/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", "-NoProfile", "-Command",
               "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | ForEach-Object "
@@ -208,11 +293,33 @@ def main():
     if kill:
         rec["alerts"].append({"check": "kill_switch_present",
                               "detail": "trader-agent/kill_switch.txt 존재 — 루프는 신규 진입을 멈춘다"})
-    # 2) 한도 일치
-    for k, v in LIMITS.items():
-        if k in cfg and abs(float(cfg[k]) - float(v)) > 1e-9:
+    # 2) 한도 대조 — 실행 설정(정본) vs 정책 사본(config/objective.json envelope).
+    #    WHY(2026-11-17): 종전 루프는 하드코딩 LIMITS(10%/30%) 대 정규식 cfg 를 비교했는데,
+    #    정규식이 실제 필드명(max_position_pct/max_invested_pct)을 못 찾아 per_stock_pct·
+    #    total_exposure_pct 는 cfg 에 없어 '통과'가 아니라 아예 비교가 안 돌았다. 이제
+    #    실행값은 risk_limits 로 읽고 정책 사본과 어긋난 축(>1e-9)만 경보한다.
+    rec["limits"] = dict(cfg)
+    rec["limits_meta"] = limits_sources()
+    rec["limits_note"] = ("max_open_positions 는 정책 사본(config/objective.json envelope)에 "
+                          "키가 없어 대조하지 않는다 — envelope.source: '소스 오브 트루스는 "
+                          "트레이더 설정'")
+    policy_env, policy_err = policy_limits_receive()
+    policy_cfg = policy_limits_parse(policy_env) if isinstance(policy_env, dict) else {}
+    n_compared = n_mismatch = 0
+    for k, v in policy_cfg.items():
+        if k not in cfg:
+            continue
+        n_compared += 1
+        if abs(float(cfg[k]) - float(v)) > 1e-9:
+            n_mismatch += 1
             rec["alerts"].append({"check": "limit_mismatch",
-                                  "detail": f"{k}: 설정 {cfg[k]} vs 기대 {v}"})
+                                  "detail": (f"{k}: 실행 {cfg[k]} vs 정책 {v} "
+                                             f"(출처 실행={LIMITS_META.get('source')}, "
+                                             f"정책={POLICY_JSON} envelope)")})
+    rec["limits_claim"] = _limits_claim(
+        source_rows=len(policy_cfg), claimed=n_compared, persisted=n_mismatch,
+        note=(f"policy={POLICY_JSON} err={policy_err or '-'} "
+              f"src={LIMITS_META.get('source')}"))
     # 3) 세션 생존 (창 전 사람 단계) — 청산창 마감 시각과 **실측 비용**을 함께 알린다.
     #    WHY(2026-10-02 실측): close 프로파일의 청산 창은 익일 09:00-09:10 뿐이고, 09-30 에는
     #    루프가 09:19 에 기동해 3건이 창 밖(09:26)에서 청산됐다 → 시가 대비 −1,814원 = 그날 실현손실 전액.
