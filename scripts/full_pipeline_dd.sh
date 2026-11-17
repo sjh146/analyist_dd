@@ -224,7 +224,23 @@ else:
         print('[claim] emit failed: %s: %s' % (type(e).__name__, e), file=sys.stderr)
 print('yfinance DONE')
 PYEOF
-run_docker_phase stock_yfinance_collector /tmp/phase_1_1.py 7200
+
+# ── 1-1 신선도 게이트 (2026-11-17 추가) ─────────────────────────────────────
+# yfinance 전 종목 재수집은 실측 16종목/분 = 4,350종목 **4.5시간**이고, 18:55 KRX 일봉 크론이
+# 같은 데이터를 이미 2콜로 채운다. 그래서 데이터가 최신이면 건너뛰고, 낡았을 때(KRX 차단 등)만
+# 폴백으로 돌린다. 강제 실행: PIPELINE_FORCE_YF=1
+DATA_MAX=$(docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \
+            "SELECT max(trade_date) FROM market_data" 2>/dev/null | tr -d '[:space:]')
+FRESH_LIMIT=$(date -d '4 days ago' +%F)
+if [ "${PIPELINE_FORCE_YF:-0}" = "1" ]; then
+    echo "--- 1-1. yfinance 실행 (PIPELINE_FORCE_YF=1) ---"
+    run_docker_phase stock_yfinance_collector /tmp/phase_1_1.py 7200
+elif [ -n "$DATA_MAX" ] && [ ! "$DATA_MAX" \< "$FRESH_LIMIT" ]; then
+    echo "--- 1-1. yfinance 건너뜀 (market_data 최신 $DATA_MAX ≥ $FRESH_LIMIT — KRX 경로가 적재) ---"
+else
+    echo "--- 1-1. yfinance 실행 (market_data 최신 ${DATA_MAX:-없음} < $FRESH_LIMIT — 낡음/비어 있음) ---"
+    run_docker_phase stock_yfinance_collector /tmp/phase_1_1.py 7200
+fi
 echo "1" > "$PROGRESS_FILE"
 sleep 10
 
