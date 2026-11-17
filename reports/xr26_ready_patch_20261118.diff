@@ -1,0 +1,32 @@
+--- services/kis-collector/kis_app/collectors/minute_collector.py	2026-10-09 23:03:47.042995202 +0900
++++ /tmp/xr26fix/repo/services/kis-collector/kis_app/collectors/minute_collector.py	2026-11-18 05:11:34.004133423 +0900
+@@ -21,7 +21,7 @@
+ MARKET_CLOSE_TIME = "153000"
+ FID_PERIOD_1MIN = "0"       # FID_PERIOD_DIV: 0 = 1분봉
+ FID_CNT_DEFAULT = 100       # 1회 응답 최대 건수
+-MAX_PAGES_DEFAULT = 10      # 안전장치 (정규장 391분 → 100건×4페이지면 충분)
++MAX_PAGES_DEFAULT = 20      # 안전장치 (KIS 실측 1회 30봉 → 정규장 391분은 14페이지 필요)
+ 
+ 
+ def parse_minute_bars(resp, target_date=None):
+@@ -87,8 +87,8 @@
+             if not page_bars:
+                 break  # 데이터 없음
+             oldest = min(b["time"] for b in page_bars)
+-            if len(page_bars) < int(fid_cnt) or oldest == MARKET_OPEN_TIME:
+-                break  # 마지막 페이지
++            if oldest == MARKET_OPEN_TIME:
++                break  # 장 시작 도달 = 마지막 페이지(KIS 1회 상한 30봉 < fid_cnt 이므로 길이 비교는 조기종료 버그)
+             nxt = add_minutes(oldest, -1)
+             if nxt >= reference:
+                 logger.warning("%s: 페이지 진행 없음(기준 %s→%s) — 중단",
+--- services/kis-collector/kis_app/client/kis_client.py	2026-10-02 20:27:39.324477085 +0900
++++ /tmp/xr26fix/repo/services/kis-collector/kis_app/client/kis_client.py	2026-11-18 05:11:34.004487423 +0900
+@@ -401,6 +401,7 @@
+             "FID_INPUT_HOUR_1": str(input_hour),
+             "FID_PW_DATA_INCU_YN": str(include_past),
+             "FID_ETC_CLS_CODE": "",
++            "FID_CNT": str(fid_cnt),          # XR26: 서버 상한(30)까지 실제로 요청
+         }
+         return self._quotes(MINUTE_QUOTE_PATH, self._minute_tr_id, params)
+ 
