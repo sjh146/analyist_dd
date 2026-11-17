@@ -30,7 +30,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bridge.orders import fetch_daily_pnl  # noqa: E402
 from bridge.plus import BridgeError  # noqa: E402
-from trader_core.fees import derive_fees, journal_row_from_trade, same_day_guard  # noqa: E402
+from trader_core.fees import (  # noqa: E402
+    appliable,
+    derive_fees,
+    journal_row_from_trade,
+    same_day_guard,
+)
 from trader_core.journal import Journal  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -114,14 +119,28 @@ def main(argv=None) -> int:
         print("\n[예행] --apply 를 붙이면 위 비용을 저널 fees 에 쓰고 pnl 을 net 으로 다시 계산한다.")
         return 0
 
+    # flag != ok (음수/과대 비용)은 **쓰지 않는다** — 단위 불일치(브로커 천원 단위)나
+    # 컬럼 오독의 신호다. 여기서 걸러야 gross 거래가 net 1,000분의 1로 기록되는 사고를 막는다.
+    refused = [a for a in allocations if not appliable(a)]
     updated = 0
+    applied_fee = 0.0
     for a in allocations:
+        if not appliable(a):
+            continue
+        applied_fee += float(a["fee"])
         for row in a["rows"]:
             if journal.set_fees(int(row["id"]), float(row["fee"])):
                 updated += 1
-    print("\n반영: {0}행 fees/pnl 갱신 · 총 비용 {1:,.0f}원".format(updated, total_fee))
+    print("\n반영: {0}행 fees/pnl 갱신 · 총 비용 {1:,.0f}원".format(updated, applied_fee))
+    for a in refused:
+        print("  [미반영] {0}: 비용 {1:,.0f}원 flag={2} — 저널에 쓰지 않았다. 브로커 금액이 "
+              "천원 단위이거나 다른 컬럼을 읽었을 수 있다(사람 확인 필요).".format(
+                  a["code"], float(a["fee"]), a["flag"]))
     if unmatched_j or unmatched_b:
         print("주의: 미대응 항목이 있다 — 위 목록을 사람이 확인하라(추측 금지).")
+    if refused:
+        print("주의: {0}건은 플래그 때문에 반영하지 않았다(위 [미반영]).".format(len(refused)))
+        return 3
     return 0
 
 

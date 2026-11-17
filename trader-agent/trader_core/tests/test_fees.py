@@ -12,7 +12,13 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from trader_core import Journal
-from trader_core.fees import derive_fees, journal_row_from_trade, normalise_code, same_day_guard
+from trader_core.fees import (
+    appliable,
+    derive_fees,
+    journal_row_from_trade,
+    normalise_code,
+    same_day_guard,
+)
 
 KST = timezone(timedelta(hours=9))
 NOW = datetime(2026, 9, 28, 10, 0, tzinfo=KST)
@@ -137,6 +143,39 @@ class SameDayGuardTest(unittest.TestCase):
 
     def test_future_day_is_refused(self) -> None:
         self.assertIsNotNone(same_day_guard("2026-10-07", "2026-10-04"))
+
+
+class AppliableGateTest(unittest.TestCase):
+    """음수/과대 비용은 저널에 쓰지 않는다 (2026-11-16 실측 회귀).
+
+    실측: 파두(440110) 청산 gross -5,185 인데 브로커 CpTd6032 ``realized_pnl`` 이 **천원 단위
+    반올림**된 -5 로 왔다. 그러면 cost = gross - net = -5,180 (음수 비용) 이 되고,
+    이 값을 그대로 쓰면 저널의 net 손익이 -5원이 된다(1,000배 축소). 도구는 flag 에
+    ``check(음수비용)`` 을 찍었지만 apply 경로가 무시하고 기록했다.
+    """
+
+    def test_thousand_won_unit_mismatch_is_not_appliable(self) -> None:
+        rows = [{"id": 11, "code": "440110", "qty": 2, "entry": 36642.5, "exit_px": 34050.0}]
+        items = [{"code": "440110", "sell_qty": 2, "avg_sell_price": 33977, "realized_pnl": -5}]
+        allocations, _j, _b = derive_fees(rows, items)
+        alloc = allocations[0]
+        self.assertAlmostEqual(float(alloc["gross"]), -5185.0)
+        self.assertLess(float(alloc["fee"]), 0)              # 음수 비용 = 단위 이상 신호
+        self.assertNotEqual(alloc["flag"], "ok")
+        self.assertFalse(appliable(alloc))                   # ⇒ 저널에 쓰지 않는다
+
+    def test_normal_cost_is_appliable(self) -> None:
+        rows = [{"id": 1, "code": "437730", "qty": 27, "entry": 2800.0, "exit_px": 2563.0}]
+        items = [{"code": "437730", "sell_qty": 27, "realized_pnl": -6516.0}]
+        allocations, _j, _b = derive_fees(rows, items)
+        self.assertTrue(appliable(allocations[0]))
+
+    def test_oversized_cost_is_not_appliable(self) -> None:
+        rows = [{"id": 3, "code": "005930", "qty": 1, "entry": 10000.0, "exit_px": 10000.0}]
+        items = [{"code": "005930", "sell_qty": 1, "realized_pnl": -500.0}]  # 비용 500 = 회전의 5%
+        allocations, _j, _b = derive_fees(rows, items)
+        self.assertEqual(allocations[0]["flag"], "check(과대)")
+        self.assertFalse(appliable(allocations[0]))
 
 
 if __name__ == "__main__":

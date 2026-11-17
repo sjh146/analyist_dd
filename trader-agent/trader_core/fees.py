@@ -155,6 +155,20 @@ def derive_fees(
     return allocations, unmatched_journal, unmatched_broker
 
 
+def appliable(alloc: Dict[str, Any]) -> bool:
+    """파생 비용을 저널에 써도 되는지 — ``flag`` 가 ``ok`` 일 때만 참이다(fail-closed).
+
+    WHY (2026-11-16 실측): 브로커 CpTd6032 의 종목별 ``realized_pnl`` 이 **천원 단위로
+    반올림**되어 오는 경우가 있다(파두 -5,331 → -5). 그러면 ``cost = gross - net`` 이
+    -5,180 처럼 **음수 비용**이 되고, 그 값을 그대로 저널에 쓰면 gross -5,185 짜리 거래가
+    net -5원으로 기록된다 — 누적 기대값이 1,000배 틀어지고, 청산이 대부분 그런 날은
+    "비용 0" 처럼 보인다.  음수/과대 비용은 단위 불일치·컬럼 오독의 신호이므로
+    **기록하지 않고 사람에게 넘긴다**.  (모듈 docstring: "check 플래그가 뜨면 그 행은
+    사람이 확인한다" 를 코드로 강제한 것.)
+    """
+    return str(alloc.get("flag") or "") == "ok"
+
+
 def journal_row_from_trade(trade: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """JournalTrade 스타일 dict -> derive_fees 입력 행(닫힌 행만)."""
     if trade.get("exit_ts") in (None, "") or trade.get("exit_price") in (None, ""):
