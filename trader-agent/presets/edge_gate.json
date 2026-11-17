@@ -1,0 +1,12 @@
+{
+  "_comment": "엣지 게이트/ATR 라인 스위치(docs/spec_trader_edge_gate.md, 2026-11-17). 값은 data/state/edge_params.json(백테스트 추천)에서 온다 — 그 파일이 없는 현재는 스펙 기본값(5 / 2.0 / atr 1.5·3.0)을 여기 적어 둔다. Config 는 screener_profiles 를 받지 않으므로(Config._coerce 가 미지 키를 버림 — 2026-11-17 실행 확인) 실제 프로파일 정본은 profiles.py DEFAULT_PROFILES['daytrading'] 이고, 이 프리셋의 screener_profiles 는 RunnerConfig 경로(runner/config.py, loop/monitor)에서만 인식된다. daytrading stop_mode 를 되돌리려면 profiles.py 의 stop_mode 를 'fixed' 또는 'vol' 로 바꾼다(고정 라인 폴백값은 그대로 남아 있다).",
+  "min_edge_score": 5,
+  "min_rr": 2.0,
+  "screener_profiles": {
+    "daytrading": {
+      "stop_mode": "atr",
+      "atr_stop_mult": 1.5,
+      "atr_tp_mult": 3.0
+    }
+  }
+}

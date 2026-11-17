@@ -156,7 +156,8 @@ def test_simulate_worst_best_hand_calculated():
     assert w["avg_loss_pct"] == pytest.approx(2.83 / 3, abs=1e-4)   # (1.21+1.21+0.41)/3
     assert w["r"] == pytest.approx(3.79 / (2.83 / 3), abs=1e-4)
     assert w["profit_factor"] == pytest.approx(3.79 / 2.83, abs=1e-4)
-    assert w["maxdd_pct"] == pytest.approx(1.62, abs=1e-4)          # cum [−1.21,−2.42,−2.83,0.96]
+    # 복리 자본곡선 eq=∏(1+r) = [0.9879, 0.9759, 0.9719, 1.0088] → dd = 0.9719/0.9879−1 = −1.615%
+    assert w["maxdd_pct"] == pytest.approx(1.615, abs=1e-3)
     assert w["tp_rate"] == pytest.approx(50.0, abs=1e-4)
     assert w["sl_rate"] == pytest.approx(50.0, abs=1e-4)
     assert w["ambiguous"] == pytest.approx(25.0, abs=1e-4)
@@ -164,7 +165,8 @@ def test_simulate_worst_best_hand_calculated():
     assert b["win_pct"] == pytest.approx(50.0, abs=1e-4)
     assert b["avg_pct"] == pytest.approx(1.49, abs=1e-4)
     assert b["avg_loss_pct"] == pytest.approx(1.62 / 2, abs=1e-4)
-    assert b["maxdd_pct"] == pytest.approx(1.62, abs=1e-4)
+    # eq = [1.0379, 1.0253, 1.0211, 1.0599] → dd = 1.0211/1.0379−1 = −1.615%
+    assert b["maxdd_pct"] == pytest.approx(1.615, abs=1e-3)
     # 중립 = (worst+best)/2
     assert (w["avg_pct"] + b["avg_pct"]) / 2 == pytest.approx(0.865, abs=1e-4)
     assert (w["win_pct"] + b["win_pct"]) / 2 == pytest.approx(37.5, abs=1e-4)

@@ -91,17 +91,24 @@ class ScreenerProfile:
     # docs/spec_daytrading_shortstop_2026-11-17.md — 재측정 금지, 그대로 인용).
     # "vol"  = 기존 변동성 스톱 경로(engine.volatility_stop_pct, 전역
     #          stop_loss_pct 0.07 바닥) — swing/close/rank_momentum 은 그대로 "vol".
-    # "fixed" = 아래 고정값으로 손절/익절을 대체(daytrading 만 사용).
+    # "fixed" = 아래 고정값으로 손절/익절을 대체(ATR 폴백·롤백용).
+    # "atr"   = 피드 atr_pct × atr_stop_mult/atr_tp_mult 로 손절/익절을 매긴다
+    #          (비대칭 R:R — docs/spec_trader_edge_gate.md, 2026-11-17).
     # WHY(실측): 그리드 11,300건(2026-04-01~11-14, scripts/_stoploss_grid.py)에서
     #   7%/7% 중립 -0.822% → 1%/2% -0.151%(측정된 최고).  왕복비용 0.21%(실체결)라
     #   ±1.5% 라인의 손익분기 승률은 57.0%, ±1% 는 60.5% — 좁은 라인은 수수료가
     #   지배한다.  손절만 좁혀서는 기대값이 +로 돌아서지 않는다(병목은 진입:
     #   무손절 기준선 -1.328%, 승률 36.0%) — 고정 라인의 효과는 손실 축소.
+    #   ATR 라인은 여기에 **비대칭**을 더한다: R:R 3(1.5/3.0 배)의 손익분기 승률은
+    #   43.8% — 무손절 기준선 36.0%에 +8%p 진입 필터(엣지 게이트)를 얹으면 성립한다.
     # 롤백: stop_mode="vol" 로 되돌리면 기존 변동성 스톱·7% 익절 동작 그대로.
     stop_mode: str = "vol"
     stop_pct: Optional[float] = None    # stop_mode=="fixed" 일 때 손절 폭
     tp_pct: Optional[float] = None      # stop_mode=="fixed" 일 때 익절 폭(비율 스케일 금지)
     max_stop_pct: Optional[float] = None  # 고정 손절의 상한(넘으면 이 값으로 자름)
+    # ATR 비대칭 라인 배수 (stop_mode=="atr" 일 때 사용 — spec_trader_edge_gate).
+    atr_stop_mult: Optional[float] = None  # 손절 = atr_pct × 이 값 (하한 0.5%, 상한 max_stop_pct|0.08)
+    atr_tp_mult: Optional[float] = None    # 익절 = atr_pct × 이 값 (하한 0.5%, 상한 20%)
     enabled: bool = True
     extras: Dict[str, Any] = field(default_factory=dict)
 
@@ -260,6 +267,23 @@ DEFAULT_PROFILES: Dict[str, Dict[str, Any]] = {
         #   -0.822% → 1%/2% -0.151%(측정된 최고).  왕복비용 0.21%(실체결)라 ±1.5%
         #   손익분기 승률 57.0%, ±1% 60.5%.  라인을 1%/1% 로 바꾸려면 아래 stop_pct/
         #   tp_pct 두 값만 고친다(프리셋 presets/daytrading_fixed.json 도 맞춘다).
+        # 2026-11-17 엣지 게이트 스펙(docs/spec_trader_edge_gate.md) 추가 변경:
+        #   * stop_mode 를 "atr" 로 전환 — 피드가 실어 보내는 atr_pct × 1.5/3.0 로
+        #     손절/익절을 매긴다(**비대칭 R:R 3**, 손익분기 승률 43.8%).
+        #     WHY(실측, 스펙 인용): 실계좌 11건 손익비 0.203(역방향) · 기대값
+        #     −2,943원/건 — 손실은 작게(ATR×1.5, 상한 2%), 이익은 크게(ATR×3.0,
+        #     상한 20%) 잡아 역방향을 뒤집는다.
+        #   * 아래 고정 라인(stop_pct/tp_pct/max_stop_pct)은 **폴백·롤백용으로 유지**:
+        #     atr_pct 가 없거나 퇴화(0/음수)면 엔진이 이 고정 라인을 쓴다
+        #     (algo_json.stop.model="fixed" 로 기록).  롤백 프리셋은
+        #     presets/daytrading_fixed.json.
+        # 2026-11-17 엣지 백테스트 결과 반영(측정이 결정):
+        #   data/reports/edge_stack_backtest.json — 같은 신호 14,440건에서 중립 기대값
+        #     7%/7% -0.79% · 1.5%/4.5% -0.15% · 1.5%/6% -0.12% · **1%/3% -0.05%(최고)**
+        #     · 1.5×ATR/3.0×ATR -1%대(측정 최악).
+        #   → 그래서 기본은 **고정 1%/3%(R:R 3, 손익분기 승률 30.25%)** 이고,
+        #     ATR 모드는 측정이 더 나빠서 기본에서 끈다(atr_* 값은 남겨 언제든 전환 가능).
+        #     엣지 점수 문턱도 기대값을 올리지 못했으므로 min_edge_score 는 0(비활성) 유지.
         "entry_window": "09:05-14:30",
         "exit_mode": EXIT_SAME_DAY_CLOSE,
         "close_exit_window": "15:00-15:20",
@@ -267,8 +291,10 @@ DEFAULT_PROFILES: Dict[str, Dict[str, Any]] = {
         "kelly_fraction": 0.15,
         "max_entries_per_day": 3,
         "stop_mode": "fixed",
-        "stop_pct": 0.015,
-        "tp_pct": 0.025,
+        "atr_stop_mult": 1.5,
+        "atr_tp_mult": 3.0,
+        "stop_pct": 0.01,
+        "tp_pct": 0.03,
         "max_stop_pct": 0.02,
     },
     "rank_momentum": {

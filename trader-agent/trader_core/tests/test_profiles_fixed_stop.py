@@ -37,10 +37,12 @@ class FixedLineProfileTest(unittest.TestCase):
     """① daytrading 기본값 = 고정 라인 / ② 다른 프로파일 = 기존 "vol" 보존."""
 
     def test_daytrading_profile_uses_the_fixed_lines(self) -> None:
+        # 2026-11-17 엣지 백테스트(14,440건)에서 고정 1%/3%(R:R 3)가 최고 중립 기대값
+        # (-0.05%/건, 7%/7% -0.79% 대비)이었고 ATR 1.5/3.0 은 더 나빴다 → 기본은 fixed 1%/3%.
         profile = profile_for("daytrading")
         self.assertEqual(profile.stop_mode, "fixed")
-        self.assertEqual(profile.stop_pct, 0.015)
-        self.assertEqual(profile.tp_pct, 0.025)
+        self.assertEqual(profile.stop_pct, 0.01)
+        self.assertEqual(profile.tp_pct, 0.03)
         self.assertEqual(profile.max_stop_pct, 0.02)
         self.assertIs(profile.hold_overnight, False)
         self.assertEqual(profile.entry_window, "09:05-14:30")

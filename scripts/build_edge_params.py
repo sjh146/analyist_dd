@@ -7,10 +7,12 @@ WHY (docs/spec_feed_edge_score.md §3, 2026-11-17): 엣지 게이트는 발행�
 data/state/edge_params.json 으로 기록해 하드코딩을 없앤다.
 
 실측(2026-11-17):
-    ls /home/jhshi/analyist_dd/data/reports/edge_stack_backtest.json
-    → No such file or directory
-백테스트 산출물이 아직 없다 → 스펙 §3 의 규정대로 {"threshold": null,
-"source": "backtest_missing"} 을 기록한다. 백테스트가 생기면 이 스크립트를 재실행하면 된다.
+    ls data/reports/edge_stack_backtest.json → 16:29 에 병렬 실행된 백테스트가 산출
+    recommendation = {"found": false, "threshold": null, "stop": null, "tp": null,
+                      "why": "추천 조건(①②③④ 모두)을 만족하는 조합 없음. ..."}
+백테스트가 추천할 조합을 찾지 못했다 → threshold=null(+ found/why/limits 보존)을 기록한다.
+추천이 생기면 이 스크립트를 재실행하면 된다(스펙 §3: 하드코딩 금지 — 항상 백테스트를 읽는다).
+백테스트가 아예 없던 시점에는 {"threshold": null, "source": "backtest_missing"} 을 기록한다.
 
 멱등: 매 실행마다 백테스트를 **다시 읽어** 같은 내용을 tmp+replace 로 원자 교체한다.
 실행 시각을 기록하지 않으므로 같은 입력이면 같은 바이트다.
@@ -46,13 +48,20 @@ def build_params():
             data = json.load(fh)
         rec = data.get("recommendation") or {}
         # 스펙 §3 스키마 중 확실한 것만 채운다. stop_mode/atr_stop_mult/atr_tp_mult/
-        # min_rr 은 recommendation 의 stop/tp 표기가 확정된 뒤(백테스트 산출) 매핑한다 —
-        # 지금은 추측 매핑 금지(규칙: 추측 금지). stop/tp 는 원본 그대로 보존한다.
+        # min_rr 은 recommendation 의 stop/tp 표기가 확정된 뒤 매핑한다 —
+        # 지금은 추측 매핑 금지(규칙: 추측 금지). stop/tp 는 원본 그대로 보존하고,
+        # 추천이 없을 때(found=false) 그 이유(why/limits)를 함께 기록해 소비측이
+        # threshold=null 의 의미를 오해하지 않게 한다.
         params = {
             "threshold": rec.get("threshold"),
             "stop": rec.get("stop"),
             "tp": rec.get("tp"),
             "min_rr": None,
+            "recommendation": {
+                "found": rec.get("found"),
+                "why": rec.get("why"),
+                "limits": rec.get("limits"),
+            },
             "source": "data/reports/edge_stack_backtest.json",
             "measured": {
                 "data_range": data.get("data_range"),
@@ -60,7 +69,8 @@ def build_params():
                 "edge_score_dist": data.get("edge_score_dist"),
             },
         }
-        return params, 1, "backtest_found threshold=%r" % (params["threshold"],)
+        return params, 1, "backtest_found found=%r threshold=%r" % (
+            rec.get("found"), params["threshold"])
     return {"threshold": None, "source": "backtest_missing"}, 0, "backtest_missing"
 
 

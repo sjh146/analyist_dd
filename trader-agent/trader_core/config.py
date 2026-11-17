@@ -220,6 +220,23 @@ class Config:
     # 게이트는 engine._post_exit_cooldown 이 맡는다(기본 30분 차단, GateResult 로 기록).
     post_exit_cooldown_min: float = 30.0  # 0 이면 비활성; 음수는 0 으로 취급
     post_exit_cooldown_scope: str = "screener"  # "screener" = 같은 경로만 | "global" = 모든 경로
+    # --- 엣지 게이트 (docs/spec_trader_edge_gate.md, 2026-11-17) -------------- #
+    # WHY(실측 — 스펙 선행 실측 인용, 재측정 금지): 실계좌 11건 승률 22.2% ·
+    #   평균이익 1,028원 / 평균손실 5,075원(= 손익비 0.203, 역방향) · 기대값
+    #   −2,943원/건.  손익분기 승률(왕복 0.21%): ±1% 60.5% · ±1.5% 57.0% ·
+    #   R:R 3 = 43.8% · R:R 4 = 40.0%.  현 신호 무손절 기준선 승률 36.0% →
+    #   진입 필터로 +8%p 를 벌어야 R:R 3 이 성립한다 — 그래서 게이트는 엣지 점수와
+    #   손익비(R:R) 두 축으로 심사한다(승률 단일 지표 금지).
+    #   (저널 확인 조회 — trade_journal.sqlite3 /tmp 복사본, read-only:
+    #    "SELECT id, ts, screener, code, qty, price, exit_ts, exit_reason, pnl
+    #     FROM trades ORDER BY id" → 실계좌 청산 11건 중 승 2건
+    #    (id 3 +416, id 6 +1,640 → 평균이익 1,028원) — 스펙 수치와 일치.)
+    # 기본값은 전부 비활성(0/0/True)이라 구피드·구계정에서 동작이 달라지지 않는다.
+    # 스위치 값(5 / 2.0)은 presets/edge_gate.json → data/state/edge_params.json
+    # (백테스트 추천) 경로로 들어온다.
+    min_edge_score: int = 0        # 0 = 비활성. 피드 edge_score 가 이 값 미만이면 진입 차단
+    min_rr: float = 0.0            # 0 = 비활성. (tp_pct/stop_pct) < 이 값이면 진입 차단
+    edge_gate_fail_open: bool = True  # edge_score None(이력부족·구피드)일 때: True=통과+algo_json 로그, False=차단
     # Volatility-aware stop & sizing.  A fixed 7 % stop is inside the daily
     # noise of a momentum list (measured day ranges 19-32 %), so the stop scales
     # with the name's own range and the position shrinks to keep the KRW risk

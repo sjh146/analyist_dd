@@ -212,8 +212,11 @@ def _stats(net, hit_tp, hit_sl) -> dict:
         out["profit_factor"] = None                 # 손실 0건 → 측정 불가
     else:
         out["profit_factor"] = 0.0                  # 승 0건
-    cum = np.cumsum(net)
-    out["maxdd_pct"] = _r4(-(cum - np.maximum.accumulate(cum)).min() * 100)
+    # MaxDD: 복리 자본곡선(∏(1+r)) 기준 — net 은 이미 분수(예: −0.0121)이고, 누적합(%p)은
+    # 거래 수에 비례해 무한정 커지므로 표준 관례대로 고점 대비 하락률 % 로 보고한다
+    # (거래 순서는 진입일 정렬).
+    eq = np.cumprod(1.0 + net)
+    out["maxdd_pct"] = _r4(-(eq / np.maximum.accumulate(eq) - 1.0).min() * 100)
     out["tp_rate"] = _r4(hit_tp.mean() * 100)
     out["sl_rate"] = _r4(hit_sl.mean() * 100)
     out["ambiguous"] = _r4((hit_tp & hit_sl).mean() * 100)
@@ -377,7 +380,7 @@ def recommend(wf: dict) -> dict:
         "일봉 순서 불확실성 — worst/best 밴드의 중립값이며 실제 경로는 밴드 안 어딘가",
         "왕복 비용 0.21%(실체결) 가정 — 슬리피지·호가 갭 미반영",
         "홀드아웃 1회(2026-08-16~11-14) — 우연성 배제 못함",
-        "MaxDD 는 진입일 순서 기준 — 동일일 내 순서는 종목코드 정렬(임의)",
+        "MaxDD 는 복리 자본곡선(∏(1+r)) 기준·진입일 순서 — 동일일 내 순서는 종목코드 정렬(임의)",
         "p* 는 스펙 계약식 (stop+0.21)/(stop+tp) — ATR 셀은 트레이드별 p* 평균",
     ]
     passed = []
@@ -512,7 +515,7 @@ def build_md(rep: dict) -> str:
     a("")
     a("## 3. 1구간 상위 조합 (선택 2026-04-01~08-15 → 홀드아웃 08-16~11-14, 재조정 없음)")
     a("")
-    a("| # | 손절/익절 | R:R | 문턱 | 선택n | 선택EV%% | 승률%% | R | MaxDD%% | 홀드아웃EV%% | ①②③④ |")
+    a("| # | 손절/익절 | R:R | 문턱 | 선택n | 선택EV% | 승률% | R | MaxDD% | 홀드아웃EV% | ①②③④ |")
     a("|---|---|---|---|---|---|---|---|---|---|---|")
     for p in rep["walkforward"]["picks"]:
         sel, hold = p["select"], p["holdout"]
@@ -562,6 +565,7 @@ def main(argv=None) -> int:
 
     warm = (date.fromisoformat(args.start) - timedelta(days=WARMUP_DAYS)).isoformat()
     df = load(warm, args.end)
+    df = edge_factors(compute_features(df))
     raw, sig = signal_frame(df, args.start, args.end)
     cfg = {"json_out": args.json_out, "md_out": args.md_out}
     rep = build_report(sig, args.start, args.end, cfg, n_loaded=len(df),

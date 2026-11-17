@@ -9,6 +9,16 @@ crash parsing (Kelly priors then fall back to config).
 This module is stdlib-only (``urllib.request``) and parses defensively: empty
 strings become ``None``, malformed numbers become ``None``, non-6-digit stock
 codes are dropped, and anything unusable raises a typed :class:`FeedError`.
+
+Edge-stack fields (pair spec ``docs/spec_feed_edge_score.md``, gate spec
+``docs/spec_trader_edge_gate.md``, 2026-11-17): ``edge_score`` (int 0..7),
+``edge_factors`` (``{name: bool}``), ``atr_pct`` (ratio, e.g. 0.0231 = 2.3 %)
+and ``edge_reason`` (str) are *not* core keys, so ``_parse_candidate`` keeps
+them verbatim in ``Candidate.extras`` — a feed that does not publish them yet
+simply yields ``extras.get(...) -> None``, exactly what the engine's edge gate
+needs for its fail-open path (구버전 피드 호환 필수).  Measured 2026-11-17
+(old feed, no edge keys yet):
+``/usr/bin/python3 -c "import json;d=json.load(open('data/feed/screener_latest.json'));print(sorted((d['candidates']['swing']['items'] or [{}])[0].keys()))"``
 """
 
 from __future__ import annotations
@@ -78,6 +88,35 @@ def candidate_change_pct(candidate: Any) -> Optional[float]:
         if value is not None:
             return value
     return None
+
+
+def candidate_edge_score(candidate: Any) -> Optional[int]:
+    """Return the feed's consensus edge score (int 0..7), or ``None``.
+
+    The edge stack (``docs/spec_feed_edge_score.md``) publishes ``edge_score``
+    as an int, but the screener feed carries every value as a STRING and an
+    old feed carries no such key at all.  ``None`` therefore means "no
+    history / old feed", and the engine's edge gate treats it according to
+    ``Config.edge_gate_fail_open`` (구버전 피드 호환).
+    """
+    value = (getattr(candidate, "extras", None) or {}).get("edge_score")
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(float(str(value).strip()))
+    except (TypeError, ValueError):
+        return None
+
+
+def candidate_atr_pct(candidate: Any) -> Optional[float]:
+    """Return the candidate's ATR/close ratio (0.023 = 2.3 %), or ``None``.
+
+    Missing, empty and malformed values all parse to ``None``; the engine's
+    ATR stop line then falls back to the profile's fixed lines (or the
+    volatility path).  ``edge_factors`` / ``edge_reason`` stay in ``extras``
+    verbatim for the journal record.
+    """
+    return _parse_float((getattr(candidate, "extras", None) or {}).get("atr_pct"))
 
 
 def _parse_int(value: Any) -> Optional[int]:

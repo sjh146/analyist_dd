@@ -11,6 +11,11 @@
         reports/daytrading_latest.json(daytrading_screener --json-out 산출물)을 발행한다.
         실측 조회: data/feed/screener_latest.json 의 candidates 키는 {close, swing} 뿐
         (2026-10-07T14:40 발행본), reports/daytrading_latest.json 은 아직 존재하지 않음.
+        엣지 점수(2026-11-17 추가, docs/spec_feed_edge_score.md): 각 후보에
+        edge_score/edge_factors/atr_pct/edge_reason 4키를 **추가**한다(기존 키 불변).
+        market_data 최근 40거래일을 한 번의 배치 쿼리로 읽어 scripts/edge_stack.py 의
+        compute_edge() 로 계산한다. 이력 부족·DB 실패는 edge_score=null 로 fail-open.
+        --edge-score/--no-edge-score 로 켜고 끈다(기본 on).
 
 계약 준수 포인트:
 - generated_at 은 발행 시각(KST, tz 포함 ISO-8601) — 과거 값 재사용 시 전 후보 차단
@@ -39,6 +44,8 @@ if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
 
 # 유니버스 파일 형식은 스크리너와 이 발행측이 **같은 모듈**을 쓴다(형식 어긋남 방지).
 from screener_universe import load_scores, percentile_of  # noqa: E402
+# 엣지 스택(7요인 합의 점수) — 순수 함수 모듈(spec_feed_edge_score.md §1)
+from edge_stack import compute_edge  # noqa: E402
 try:
     from zoneinfo import ZoneInfo
 
@@ -133,6 +140,101 @@ def load_prev_closes(codes, upto_date=None):
         return {}
     finally:
         conn.close()
+
+
+EDGE_LOOKBACK = 40  # 스펙 §2: "market_data 최근 40거래일"
+
+
+def load_edge_bars(codes):
+    """후보 전 종목의 최근 40거래일 OHLCV 를 **한 번의 배치 쿼리**로 읽는다(엣지 점수용).
+
+    반환: {stock_code: [날짜 오름차순 dict(open,high,low,close,volume,trading_value)]}
+    연결·조회 실패 시 None — 발행은 계속하고 edge_reason="db_error" 로 fail-open 한다
+    (스펙 §2). market_data 는 SELECT 전용(스펙 §6).
+    """
+    if not codes:
+        return {}
+    try:
+        import psycopg2
+    except ImportError:  # pragma: no cover
+        return None
+    host = os.environ.get("POSTGRES_HOST", "127.0.0.1")
+    if host in ("postgres", "db"):
+        host = "127.0.0.1"
+    port = int(os.environ.get("POSTGRES_PORT", "5434") or 5434)
+    if port == 5432:
+        port = 5434
+    try:
+        conn = psycopg2.connect(
+            host=host, port=port,
+            user=os.environ.get("POSTGRES_USER", "stock_user"),
+            password=os.environ.get("POSTGRES_PASSWORD", ""),
+            dbname=os.environ.get("POSTGRES_DB", "stock_trading"),
+            connect_timeout=5,
+        )
+    except Exception as e:
+        logger.warning("DB 연결 실패 — 엣지 점수 생략(fail-open): %s", e)
+        return None
+    try:
+        cur = conn.cursor()
+        # 종목별 최근 40봉을 창함수 한 번으로 가져온 뒤 날짜 오름차순 정렬(compute_edge 계약).
+        cur.execute(
+            """
+            SELECT stock_code, open_price, high_price, low_price, close_price,
+                   volume, trading_value
+            FROM (
+                SELECT stock_code, open_price, high_price, low_price, close_price,
+                       volume, trading_value,
+                       ROW_NUMBER() OVER (PARTITION BY stock_code
+                                          ORDER BY trade_date DESC) AS rn
+                FROM market_data
+                WHERE stock_code = ANY(%s)
+            ) w
+            WHERE rn <= %s
+            ORDER BY stock_code, trade_date ASC
+            """, (list(codes), EDGE_LOOKBACK))
+        rows = cur.fetchall()
+        cur.close()
+        bars = {}
+        for code, o, h, l, c, v, tv in rows:
+            bars.setdefault(str(code), []).append({
+                "open": _num(o), "high": _num(h), "low": _num(l),
+                "close": _num(c), "volume": _num(v), "trading_value": _num(tv),
+            })
+        return bars
+    except Exception as e:
+        logger.warning("엣지 바 조회 실패 — 생략(fail-open): %s", e)
+        return None
+    finally:
+        conn.close()
+
+
+def attach_edge_scores(items, edge_bars):
+    """후보 item 에 엣지 키 4개를 **추가**한다(기존 키 삭제·의미변경 없음 — 스펙 §2/§6).
+
+    edge_bars 가 None(DB 실패)이면 전부 edge_reason="db_error", 종목별 이력이 없으면
+    "no_history", compute_edge 의 퇴화 판정("degenerate")도 그대로 전달한다.
+    모든 경우 edge_score 는 null 이고 발행은 계속된다(fail-open).
+    """
+    for item in items:
+        if edge_bars is None:
+            item["edge_score"] = None
+            item["edge_factors"] = {}
+            item["atr_pct"] = None
+            item["edge_reason"] = "db_error"
+            continue
+        bars = edge_bars.get(str(item.get("stock_code")))
+        if not bars:
+            item["edge_score"] = None
+            item["edge_factors"] = {}
+            item["atr_pct"] = None
+            item["edge_reason"] = "no_history"
+            continue
+        res = compute_edge(bars)
+        item["edge_score"] = res["edge_score"]
+        item["edge_factors"] = res["edge_factors"]
+        item["atr_pct"] = res["atr_pct"]
+        item["edge_reason"] = res["edge_reason"]
 
 
 UNIVERSE_TEMPLATES = {
@@ -401,6 +503,10 @@ def main(argv=None):
                          "reports/swing_universe_<date>.json 이 있을 때만 동작한다.")
     ap.add_argument("--ignore-holiday", action="store_true",
                     help="KRX 휴장일이어도 정상 발행(기본: 휴장일엔 전략을 비운다)")
+    ap.add_argument("--edge-score", dest="edge_score", action="store_true", default=True,
+                    help="후보마다 엣지 점수(7요인, spec_feed_edge_score.md)를 계산해 부착(기본 on)")
+    ap.add_argument("--no-edge-score", dest="edge_score", action="store_false",
+                    help="엣지 점수 부착을 끈다")
     args = ap.parse_args(argv)
 
     publish_date = datetime.now(KST).date()
@@ -451,6 +557,9 @@ def main(argv=None):
                 codes.add(c)
     upto = max((p.get("date") for p in payloads.values() if p.get("date")), default=None)
     prev_closes = load_prev_closes(codes, upto)
+    # 엣지 점수: 후보 전 종목의 최근 40거래일 OHLCV 를 한 번의 배치 쿼리로 읽는다(스펙 §2).
+    # DB 실패 시 load_edge_bars 가 None → 전 후보 edge_reason="db_error" 로 fail-open.
+    edge_bars = load_edge_bars(codes) if args.edge_score else {}
 
     candidates = {}
     publish_dt = datetime.now(KST)
@@ -521,6 +630,9 @@ def main(argv=None):
                 "[%s] 유효 후보 %d건(< 최소 %d건) → 이 전략은 빈 리스트로 발행",
                 key, len(items), args.min_items)
             items = []
+        # 엣지 키 부착(게이트 통과 후보만 — 점수 내림차순·기존 키 불변 유지)
+        if args.edge_score and items:
+            attach_edge_scores(items, edge_bars)
         candidates[key] = {"items": items}
 
     feed = {
@@ -531,6 +643,9 @@ def main(argv=None):
     stats = None if args.no_stats else load_stats()
     if stats:
         feed["scoring_summary"] = {"screener_stats": stats}
+    # 발행 요약에 edge_scored=N/M(스펙 §2). JSON 의 마지막 키로 두어 dry-run tail 확인이 쉽다.
+    if args.edge_score:
+        feed["edge_scored"] = "%d/%d" % (edge_scored, edge_total)
 
     # 자기신고(3분리): 소스 수신 → 파서 생성 → 실제 저장. 게이트로 일부가 빠지는 것이
     # 정상이라 claimed(build_items 합)와 persisted(최종 발행 합)는 다를 수 있다.
@@ -542,13 +657,15 @@ def main(argv=None):
         persisted_total = sum(len(b["items"]) for b in candidates.values())
         if src_total or claimed_total:
             _record_feed_claim(src_total, claimed_total, persisted_total,
-                               note="close=%d swing=%d daytrading=%d"
+                               note="close=%d swing=%d daytrading=%d edge_scored=%d/%d"
                                     % (built_counts.get("close", 0),
                                        built_counts.get("swing", 0),
-                                       built_counts.get("daytrading", 0)))
+                                       built_counts.get("daytrading", 0),
+                                       edge_scored, edge_total))
 
     # 검증 + 분포 요약 (계약 §5: 점수가 좁게 뭉치면 문턱·상위 N 선별이 무의미)
     ok = True
+    edge_scored, edge_total = 0, 0
     for key, block in candidates.items():
         items = block["items"]
         scores = [i["score"] for i in items]
@@ -563,11 +680,18 @@ def main(argv=None):
                                key, spread)
         else:
             logger.info("[%s] 후보 0건", key)
+        if args.edge_score:
+            scored = sum(1 for i in items if i.get("edge_score") is not None)
+            edge_scored += scored
+            edge_total += len(items)
+            if items:
+                logger.info("[%s] edge_scored=%d/%d", key, scored, len(items))
 
+    edge_summary = ("edge_scored=%d/%d" % (edge_scored, edge_total)) if args.edge_score else ""
     text = json.dumps(feed, ensure_ascii=False, indent=1)
     if args.dry_run:
         print(text)
-        logger.info("dry-run — 파일 쓰기 생략 (%s)", args.output)
+        logger.info("dry-run — 파일 쓰기 생략 (%s) %s", args.output, edge_summary)
         return 0 if ok else 1
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
@@ -575,8 +699,8 @@ def main(argv=None):
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(text)
     os.replace(tmp, args.output)   # 원자적 교체 (폴링 중 반쪽 파일 방지)
-    logger.info("발행 완료: %s (%d bytes, generated_at=%s)",
-                args.output, len(text), feed["generated_at"])
+    logger.info("발행 완료: %s (%d bytes, generated_at=%s) %s",
+                args.output, len(text), feed["generated_at"], edge_summary)
     return 0
 
 

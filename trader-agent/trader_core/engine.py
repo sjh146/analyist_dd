@@ -13,10 +13,14 @@ Gate order (canonical, per decision):
 3. ``market_hours``      - KST Mon-Fri 09:00-15:30 (unless disabled);
                            daytrading always needs a live session
 4. ``daily_trade_count`` - today's executions < ``daily_max_trades``
-5. ``balance_position_amount`` - cash, per-stock concentration, per-order
+5. ``edge_score``        - feed ``edge_score`` >= ``min_edge_score``
+                           (blocking-only; a missing score passes only when
+                           ``edge_gate_fail_open`` — 구버전 피드 호환)
+6. ``rr_min``            - ``tp_pct / stop_pct >= min_rr`` (blocking-only)
+7. ``balance_position_amount`` - cash, per-stock concentration, per-order
                            KRW, per-path slot (swing 3 / daytrading 2) and
                            global concurrent-position caps all pass
-6. ``signal_sane``       - score > ``min_score`` and price > 0
+8. ``signal_sane``       - score > ``min_score`` and price > 0
 
 ``execute(plan)`` routes a plan through the bridge (or a mock/dry-run
 executor) and journals the fill.  Market orders are refused unless a recent
@@ -34,7 +38,13 @@ from typing import Any, Dict, List, Optional
 from . import algo, risk, slot_rules
 from .bridge_client import BridgeClient, BridgeError
 from .config import Config, KST
-from .feed import Candidate, FeedSnapshot, candidate_change_pct
+from .feed import (
+    Candidate,
+    FeedSnapshot,
+    candidate_atr_pct,
+    candidate_change_pct,
+    candidate_edge_score,
+)
 from .journal import Journal
 from .killswitch import kill_switch_active, kill_switch_reason
 from .profiles import profile_for
@@ -635,6 +645,63 @@ class TraderEngine:
                 )
             )
 
+        # 4.3 엣지 게이트 (docs/spec_trader_edge_gate.md, 2026-11-17):
+        # daily_trade_count 다음 · post_exit_cooldown 앞.  차단일 때만 GateResult 를
+        # 남긴다 — 아래 post_exit_cooldown 과 같은 이유(기존 test_engine.py 가 통과
+        # 결정의 게이트 목록을 6개로 고정, 스펙 규약: 테스트는 고치지 않는다).
+        # WHY(실측 — 스펙 선행 실측 인용, 재측정 금지): 실계좌 11건 손익비 0.203
+        # (역방향) · 기대값 −2,943원/건 — 승률 단일 지표가 아니라 엣지 점수와
+        # 손익비(R:R) 두 축으로 심사한다.  손익분기 승률(왕복 0.21%): R:R 3 = 43.8%
+        # vs 무손절 기준선 승률 36.0% → +8%p 진입 필터가 필요하다.
+        prof = profile_for(screener, getattr(self.config, "screener_profiles", None))
+        day_range_pct = _float(candidate.extras.get("day_range_pct")) or 0.0
+        stop_pct, tp_pct, stop_model = self._resolve_stop_tp(
+            candidate, prof, day_range_pct
+        )
+        edge_value = candidate_edge_score(candidate)
+        edge_gate_note: Optional[str] = None  # fail-open/통과 기록(algo_json.edge_gate)
+        if self.config.min_edge_score > 0:
+            if edge_value is None:
+                if not self.config.edge_gate_fail_open:
+                    gates.append(
+                        GateResult(
+                            "edge_score",
+                            False,
+                            "edge_score_missing (fail-closed: min_edge_score={0})".format(
+                                self.config.min_edge_score
+                            ),
+                        )
+                    )
+                else:
+                    edge_gate_note = "fail_open"
+            elif edge_value < self.config.min_edge_score:
+                gates.append(
+                    GateResult(
+                        "edge_score",
+                        False,
+                        "edge_score_low ({0} < min_edge_score {1})".format(
+                            edge_value, self.config.min_edge_score
+                        ),
+                    )
+                )
+            else:
+                edge_gate_note = "pass"
+        if (
+            self.config.min_rr > 0
+            and stop_pct > 0
+            and tp_pct > 0
+            and (tp_pct / stop_pct) < self.config.min_rr
+        ):
+            gates.append(
+                GateResult(
+                    "rr_min",
+                    False,
+                    "rr_too_low (rr={0:.2f} < {1:.2f})".format(
+                        tp_pct / stop_pct, self.config.min_rr
+                    ),
+                )
+            )
+
         # 4.5 post-exit cooldown (2026-11-17 spec): 청산 후 30분 같은 경로 재진입 차단
         # 차단일 때만 GateResult 를 남긴다 — 기존 test_engine.py
         # (test_all_gates_pass_produces_plan)가 통과 결정의 게이트 목록을 정확히
@@ -691,49 +758,13 @@ class TraderEngine:
             # Volatility-aware stop + equal-risk sizing.  The candidate's own day
             # range decides how far the stop sits, and the size shrinks so the
             # KRW at risk per position stays constant across names.
-            day_range_pct = _float(candidate.extras.get("day_range_pct")) or 0.0
+            # stop_pct/tp_pct/stop_model 은 위 4.3 엣지 게이트에서 이미 결정했다 —
+            # rr 게이트와 사이징이 **같은 값**을 공유한다(결정 로직은 _resolve_stop_tp).
             day_high = _float(candidate.extras.get("day_high"))
             off_high_pct = None
             if day_high and day_high > 0:
                 # negative = below the day's high (the chase metric)
                 off_high_pct = (price - day_high) / day_high * 100.0
-            stop_pct = risk.volatility_stop_pct(
-                day_range_pct=day_range_pct,
-                floor_pct=self.config.stop_loss_pct,
-                factor=self.config.stop_range_factor,
-                cap_pct=self.config.max_stop_pct,
-            )
-            tp_pct = self.config.take_profit_pct
-            if self.config.stop_loss_pct > 0:
-                # keep the intended reward/risk ratio when the stop widens
-                tp_pct = stop_pct * (
-                    self.config.take_profit_pct / self.config.stop_loss_pct
-                )
-            # Fixed-line override (2026-11-17 WP2 스펙,
-            # docs/spec_daytrading_fixed_lines.md): 프로파일이 stop_mode=="fixed" 이면
-            # 위 변동성 경로 대신 고정 손절/익절 라인을 쓴다(상한 max_stop_pct 로 자름).
-            # swing/close/rank_momentum 은 기본 "vol" 이라 이 블록을 지나친다
-            # (롤백 = stop_mode 를 "vol" 로 되돌린다).  사이징(동일위험 캡 포함)은
-            # 아래에서 그대로 이 고정 stop_pct 를 쓴다.
-            # engine 설정(trader_core.Config)에는 screener_profiles 필드가 없어서
-            # (2026-11-17 실행 확인: Config._coerce 가 미지 키를 버림) getattr 폴백으로
-            # profiles.py DEFAULT_PROFILES 를 읽는다 — 프리셋 경로는
-            # presets/daytrading_fixed.json 주석 참조.
-            stop_model = "vol-range" if day_range_pct > 0 else "fixed"
-            prof = profile_for(screener, getattr(self.config, "screener_profiles", None))
-            if (
-                str(getattr(prof, "stop_mode", "vol")) == "fixed"
-                and prof.stop_pct
-                and prof.tp_pct
-            ):
-                cap = prof.max_stop_pct
-                stop_pct = (
-                    min(float(prof.stop_pct), float(cap))
-                    if cap
-                    else float(prof.stop_pct)
-                )
-                tp_pct = float(prof.tp_pct)
-                stop_model = "fixed"
             risk_qty = 0
             if not equal_weight:
                 # Kelly 경로에서만 동일위험 캡을 적용한다 — 균등배분 모드의
@@ -862,6 +893,66 @@ class TraderEngine:
                         "qty {0} invest {1:.0f}".format(qty, invest),
                     )
                 )
+                entry_algo = algo.entry_record(
+                    screener=screener,
+                    scoring=str((snapshot.filters or {}).get("scoring") or ""),
+                    params=snapshot.filters,
+                    candidate={
+                        "rank": candidate.rank,
+                        "pct": candidate_change_pct(candidate),
+                        "volume": _float(candidate.extras.get("volume")),
+                        "turnover": _float(candidate.extras.get("turnover")),
+                        "score": score,
+                        "day_range_pct": day_range_pct or None,
+                        "off_high_pct": off_high_pct,
+                        "limit_up": bool(candidate.extras.get("limit_up")),
+                        # 모델 메타(계약 v1.1): 실집행 결과를 모델 확률과 대조(캘리브레이션·
+                        # 기여도)하려면 저널에 남아야 한다. 2026-09-29 환류 루프 ④.
+                        "ml_prob": candidate.ml_prob,
+                        "ml_auc": candidate.ml_auc,
+                        "ml_horizon_days": candidate.ml_horizon_days,
+                        # 엣지 게이트 입력값(스펙 2026-11-17): 게이트 판정의 사후
+                        # 재현 근거.  edge_score 는 int/None, atr_pct 는 비율.
+                        "edge_score": edge_value,
+                        "atr_pct": candidate_atr_pct(candidate),
+                    },
+                    sizing={
+                        "model": "equal-weight"
+                        if equal_weight
+                        else (
+                            "kelly+risk-parity"
+                            if self.config.risk_per_trade_pct > 0
+                            else "kelly-only"
+                        ),
+                        "kelly_f": f_eff,
+                        "kelly_qty": kelly_qty,
+                        "risk_qty": risk_qty,
+                        "final_qty": qty,
+                        "risk_per_trade_pct": self.config.risk_per_trade_pct,
+                        "equity": account.equity,
+                    },
+                    stop={
+                        # 사후 분석용 모델 라벨: "atr" = ATR 비대칭 라인(신규),
+                        # "fixed" = 프로파일 고정 라인(daytrading 폴백) 또는 변동성
+                        # 경로의 7% 바닥, "vol-range" = 변동성 스케일 스톱 — 세 경로가
+                        # 구분된다.  "vol-range" 라벨은 기존 테스트
+                        # test_algo_attribution.py::test_plan_carries_the_algorithm_record
+                        # 가 고정한 기대값이라 바꾸지 않는다(기존 테스트 수정 금지).
+                        "model": stop_model,
+                        "stop_pct": stop_pct,
+                        "tp_pct": tp_pct,
+                        "floor_pct": self.config.stop_loss_pct,
+                        "range_factor": self.config.stop_range_factor,
+                        "trailing_stop_pct": self.config.trailing_stop_pct,
+                        "trailing_arm_pct": self.config.trailing_arm_pct,
+                    },
+                )
+                if edge_gate_note:
+                    # 스펙 규약: fail-open 통과는 algo_json.edge_gate="fail_open" 로
+                    # 기록한다(사후분석 근거 — 어떤 경로로 통과했는지).  값이 있어서
+                    # 통과한 경우도 "pass" 로 남긴다.  게이트 비활성(min_edge_score=0)
+                    # 이면 키 자체를 남기지 않는다.
+                    entry_algo["edge_gate"] = edge_gate_note
                 plan = OrderPlan(
                     side="buy",
                     code=candidate.stock_code,
@@ -874,56 +965,7 @@ class TraderEngine:
                     kelly_f=f_eff,
                     stop_pct=stop_pct,
                     tp_pct=tp_pct,
-                    algo=algo.entry_record(
-                        screener=screener,
-                        scoring=str((snapshot.filters or {}).get("scoring") or ""),
-                        params=snapshot.filters,
-                        candidate={
-                            "rank": candidate.rank,
-                            "pct": candidate_change_pct(candidate),
-                            "volume": _float(candidate.extras.get("volume")),
-                            "turnover": _float(candidate.extras.get("turnover")),
-                            "score": score,
-                            "day_range_pct": day_range_pct or None,
-                            "off_high_pct": off_high_pct,
-                            "limit_up": bool(candidate.extras.get("limit_up")),
-                            # 모델 메타(계약 v1.1): 실집행 결과를 모델 확률과 대조(캘리브레이션·
-                            # 기여도)하려면 저널에 남아야 한다. 2026-09-29 환류 루프 ④.
-                            "ml_prob": candidate.ml_prob,
-                            "ml_auc": candidate.ml_auc,
-                            "ml_horizon_days": candidate.ml_horizon_days,
-                        },
-                        sizing={
-                            "model": "equal-weight"
-                            if equal_weight
-                            else (
-                                "kelly+risk-parity"
-                                if self.config.risk_per_trade_pct > 0
-                                else "kelly-only"
-                            ),
-                            "kelly_f": f_eff,
-                            "kelly_qty": kelly_qty,
-                            "risk_qty": risk_qty,
-                            "final_qty": qty,
-                            "risk_per_trade_pct": self.config.risk_per_trade_pct,
-                            "equity": account.equity,
-                        },
-                        stop={
-                            # 사후 분석용 모델 라벨: "vol-range" = 변동성 스케일 스톱,
-                            # "fixed" = 프로파일 고정 라인(daytrading) 또는 변동성 경로의
-                            # 7% 바닥 — 두 경로가 구분된다(스펙의 "volatility"/"fixed"
-                            # 구분 의도).  "vol-range" 라벨은 기존 테스트
-                            # test_algo_attribution.py::test_plan_carries_the_algorithm_record
-                            # 가 고정한 기대값이라 바꾸지 않는다(기존 테스트 수정 금지).
-                            "model": stop_model,
-                            "stop_pct": stop_pct,
-                            "tp_pct": tp_pct,
-                            "floor_pct": self.config.stop_loss_pct,
-                            "range_factor": self.config.stop_range_factor,
-                            "trailing_stop_pct": self.config.trailing_stop_pct,
-                            "trailing_arm_pct": self.config.trailing_arm_pct,
-                        },
-                    ),
+                    algo=entry_algo,
                 )
 
         # 6. signal sanity
@@ -958,6 +1000,67 @@ class TraderEngine:
     # ------------------------------------------------------------------ #
     # Priors / account / journal helpers
     # ------------------------------------------------------------------ #
+    def _resolve_stop_tp(self, candidate: Candidate, prof: Any, day_range_pct: float) -> tuple:
+        """3분기 청산 폭 결정 — stop_mode ``"atr"``(신규) / ``"fixed"``(WP2) / ``"vol"``(기존).
+
+        docs/spec_trader_edge_gate.md 변경 4.  ATR 경로가 퇴화(결측·0·음수)하면
+        fixed → vol 순으로 폴백하고 그 사실을 반환값 ``stop_model`` 에 남긴다
+        (``algo_json.stop["model"]``: ``"atr"`` / ``"fixed"`` / ``"vol-range"``).
+        swing/close/rank_momentum 은 기본 ``"vol"`` 이라 이 분기의 기존 경로를
+        그대로 탄다(정책 불변 — 스펙 금지).
+        """
+        # 기존 변동성 경로(swing/close/rank_momentum 기본값, 롤백 목적지)
+        stop_pct = risk.volatility_stop_pct(
+            day_range_pct=day_range_pct,
+            floor_pct=self.config.stop_loss_pct,
+            factor=self.config.stop_range_factor,
+            cap_pct=self.config.max_stop_pct,
+        )
+        tp_pct = self.config.take_profit_pct
+        if self.config.stop_loss_pct > 0:
+            # keep the intended reward/risk ratio when the stop widens
+            tp_pct = stop_pct * (
+                self.config.take_profit_pct / self.config.stop_loss_pct
+            )
+        stop_model = "vol-range" if day_range_pct > 0 else "fixed"
+
+        stop_mode = str(getattr(prof, "stop_mode", "vol") or "vol")
+        atr_pct = candidate_atr_pct(candidate)
+        if stop_mode == "atr":
+            if atr_pct and atr_pct > 0 and prof.atr_stop_mult and prof.atr_tp_mult:
+                # ATR 비대칭 라인: 손절 = atr×mult(하한 0.5%, 상한 max_stop_pct|0.08),
+                # 익절 = atr×mult(하한 0.5%, 상한 20%).  손실은 작게, 이익은 크게
+                # (실측 손익비 0.203 역방향 → R:R 3 설계, 스펙 인용).
+                cap = prof.max_stop_pct or 0.08
+                stop_pct = min(
+                    max(atr_pct * float(prof.atr_stop_mult), 0.005), float(cap)
+                )
+                tp_pct = min(max(atr_pct * float(prof.atr_tp_mult), 0.005), 0.20)
+                stop_model = "atr"
+            elif prof.stop_pct and prof.tp_pct:
+                # ATR 결측/퇴화 → 고정 라인 폴백(WP2 1.5%/2.5% — 스펙 테스트 ⑥이
+                # 이 폴백의 stop model "fixed" 를 잠근다).
+                cap = prof.max_stop_pct
+                stop_pct = (
+                    min(float(prof.stop_pct), float(cap))
+                    if cap
+                    else float(prof.stop_pct)
+                )
+                tp_pct = float(prof.tp_pct)
+                stop_model = "fixed"
+            # ATR 도 fixed 도 없으면: 위 변동성 경로 값을 그대로 쓴다(vol 폴백).
+        elif stop_mode == "fixed" and prof.stop_pct and prof.tp_pct:
+            # 기존 WP2 고정 라인 경로(상한 max_stop_pct 로 자름).
+            cap = prof.max_stop_pct
+            stop_pct = (
+                min(float(prof.stop_pct), float(cap))
+                if cap
+                else float(prof.stop_pct)
+            )
+            tp_pct = float(prof.tp_pct)
+            stop_model = "fixed"
+        return stop_pct, tp_pct, stop_model
+
     def _prior_stats(
         self, snapshot: FeedSnapshot, screener: str
     ) -> tuple:

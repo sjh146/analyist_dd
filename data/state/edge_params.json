@@ -1,0 +1,37 @@
+{
+ "threshold": null,
+ "stop": null,
+ "tp": null,
+ "min_rr": null,
+ "source": "data/reports/edge_stack_backtest.json",
+ "measured": {
+  "data_range": {
+   "end": "2026-11-14",
+   "source": "market_data — close>=1000 & open>0 · 신호 chg>=3% & vol_ratio>=1.5 & 거래대금>=5억 · 진입 t+1 시가 · 왕복비용 0.21%",
+   "start": "2026-04-01"
+  },
+  "signals": {
+   "after_join": 14440,
+   "raw": 14559
+  },
+  "edge_score_dist": {
+   "0": 72,
+   "1": 1061,
+   "2": 2255,
+   "3": 2631,
+   "4": 3012,
+   "5": 2565,
+   "6": 1944,
+   "7": 900,
+   "thresholds": {
+    "0": 14440,
+    "3": 11052,
+    "4": 8421,
+    "5": 5409,
+    "6": 2844,
+    "7": 900
+   },
+   "total": 14440
+  }
+ }
+}
