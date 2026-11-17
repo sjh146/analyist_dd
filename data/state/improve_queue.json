@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-08T10:44:29",
+  "updated": "2026-11-17T03:30:32",
   "tasks": [
     {
       "id": "Q20261004-01",
@@ -52,13 +52,15 @@
       ],
       "protected": true,
       "priority": 1,
-      "state": "todo",
-      "attempts": 0,
+      "state": "rejected",
+      "attempts": 1,
       "max_attempts": 2,
-      "commit": null,
-      "note": null,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
       "created": "2026-10-08T10:44:29",
-      "source": ""
+      "source": "",
+      "claimed_at": "2026-10-09T03:30:05",
+      "finished_at": "2026-10-09T03:30:07"
     },
     {
       "id": "Q20261008-03",
@@ -69,13 +71,15 @@
       ],
       "protected": true,
       "priority": 1,
-      "state": "todo",
-      "attempts": 0,
+      "state": "rejected",
+      "attempts": 1,
       "max_attempts": 2,
-      "commit": null,
-      "note": null,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
       "created": "2026-10-08T10:44:29",
-      "source": ""
+      "source": "",
+      "claimed_at": "2026-10-09T03:30:07",
+      "finished_at": "2026-10-09T03:30:08"
     },
     {
       "id": "Q20261008-04",
@@ -86,13 +90,255 @@
       ],
       "protected": true,
       "priority": 2,
-      "state": "todo",
-      "attempts": 0,
+      "state": "rejected",
+      "attempts": 1,
       "max_attempts": 2,
-      "commit": null,
-      "note": null,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
       "created": "2026-10-08T10:44:29",
-      "source": ""
+      "source": "",
+      "claimed_at": "2026-10-10T03:30:57",
+      "finished_at": "2026-10-10T03:30:58"
+    },
+    {
+      "id": "Q20261009-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-10-09T03:30:05",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-10-09T03:30:08",
+      "finished_at": "2026-10-09T03:30:09"
+    },
+    {
+      "id": "Q20261010-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-10-10T03:30:55",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-10-10T03:30:55",
+      "finished_at": "2026-10-10T03:30:57"
+    },
+    {
+      "id": "Q20261011-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-10-11T03:30:45",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-10-11T03:30:45",
+      "finished_at": "2026-10-11T03:30:47"
+    },
+    {
+      "id": "Q20261109-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-09T18:15:45",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-09T18:15:45",
+      "finished_at": "2026-11-09T18:15:50"
+    },
+    {
+      "id": "Q20261110-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-10T13:33:42",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-10T13:33:43",
+      "finished_at": "2026-11-10T13:33:52"
+    },
+    {
+      "id": "Q20261111-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-11T03:30:14",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-11T03:30:14",
+      "finished_at": "2026-11-11T03:30:16"
+    },
+    {
+      "id": "Q20261112-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-12T03:30:56",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-12T03:30:56",
+      "finished_at": "2026-11-12T03:30:59"
+    },
+    {
+      "id": "Q20261113-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-13T03:30:34",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-13T03:30:34",
+      "finished_at": "2026-11-13T03:30:36"
+    },
+    {
+      "id": "Q20261114-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-14T03:30:17",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-14T03:30:18",
+      "finished_at": "2026-11-14T03:30:20"
+    },
+    {
+      "id": "Q20261115-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-15T03:30:26",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-15T03:30:26",
+      "finished_at": "2026-11-15T03:30:28"
+    },
+    {
+      "id": "Q20261116-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-16T03:30:58",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-16T03:30:58",
+      "finished_at": "2026-11-16T03:31:01"
+    },
+    {
+      "id": "Q20261117-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-17T03:30:29",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-17T03:30:29",
+      "finished_at": "2026-11-17T03:30:32"
     }
   ]
 }

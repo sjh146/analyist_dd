@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-17T08:33:15+09:00",
+  "updated_at": "2026-11-17T13:26:02+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -15,7 +15,7 @@
     {
       "id": "T1",
       "title": "청산 수수료·세금이 저널에 반영되는가 (fees 컬럼 실측)",
-      "status": "failed",
+      "status": "done",
       "priority": 1,
       "command": "python3 scripts/trader_cycle.py --probe fees",
       "metric": "fees_sum",
@@ -29,12 +29,12 @@
       "cost": "저",
       "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
       "result": {
-        "ts": "2026-11-16T22:30:38+09:00",
-        "value": 0.0,
-        "check": "0.0 >= 1.0",
-        "verdict": "미달",
+        "ts": "2026-11-17T13:26:02+09:00",
+        "value": 146.0,
+        "check": "146.0 >= 1.0",
+        "verdict": "충족",
         "rc": 0,
-        "stdout_tail": "0.0",
+        "stdout_tail": "146.0",
         "stderr_tail": ""
       },
       "impl": {
@@ -130,7 +130,7 @@
     {
       "id": "T5",
       "title": "건당 기대값 흑자 전환",
-      "status": "pending",
+      "status": "failed",
       "priority": 5,
       "command": "python3 scripts/trader_cycle.py --probe expectancy",
       "metric": "expectancy_krw",
@@ -144,12 +144,12 @@
       "cost": "저",
       "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
       "result": {
-        "ts": "2026-11-16T09:25:37+09:00",
-        "value": -2201.889077777778,
-        "check": "-2201.889077777778 > 0.0",
+        "ts": "2026-11-17T11:25:47+09:00",
+        "value": -3042.5456090909092,
+        "check": "-3042.5456090909092 > 0.0",
         "verdict": "미달",
         "rc": 0,
-        "stdout_tail": "-2201.889077777778",
+        "stdout_tail": "-3042.5456090909092",
         "stderr_tail": ""
       }
     },
@@ -487,7 +487,7 @@
     {
       "id": "T48",
       "title": "피드 발행(08:20)이 swing 파이프라인(08:30)보다 먼저 돌아 항상 하루 낡은 스크리너를 발행한다",
-      "status": "pending",
+      "status": "failed",
       "priority": 1,
       "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/feed_export.py",
       "metric": "feed_signal_age_days",
@@ -499,7 +499,16 @@
       "evidence": "2026-11-17 실측: 08:20:40 발행본 signal_date=2026-11-15(직전 11-16 파이프라인 산출물), 08:31:13 파이프라인이 signal_date=2026-11-16 유니버스(swing_universe_2026-11-16.json)를 새로 씀 → 08:32:28 재발행하니 signal_date=11-16·valid_until=11-21 로 신선화되고 후보 리스트도 교체(096530 씨젠 1위 등). 전일(11-16) 루프 로그: 'PRE filter swing: 20 -> 7 (stale/blocked 0, window 0, price 13)' — 13건이 R3 가격편차로 탈락.",
       "success": "매 거래일 발행본의 signal_date 가 직전 거래일이고, 장 시작 전 PRE filter 의 price 탈락이 5건 이하로 줄어든다.",
       "cost": "저",
-      "note": "즉시 조치(2026-11-17 08:32): 발행을 한 번 더 돌려 오늘 피드를 신선화했다. 항구 조치(크론 시각 08:20→08:40 이동 또는 발행 래퍼에 '파이프라인 완료 대기')는 크론 파일 수정이라 승인 항목으로 올린다."
+      "note": "즉시 조치(2026-11-17 08:32): 발행을 한 번 더 돌려 오늘 피드를 신선화했다. 항구 조치(크론 시각 08:20→08:40 이동 또는 발행 래퍼에 '파이프라인 완료 대기')는 크론 파일 수정이라 승인 항목으로 올린다.",
+      "result": {
+        "ts": "2026-11-17T09:25:36+09:00",
+        "value": null,
+        "check": null,
+        "verdict": "수치 없음",
+        "rc": 0,
+        "stdout_tail": "",
+        "stderr_tail": "INFO [close] 후보 0건\n2026-11-17 09:25:36,156 INFO [swing] 20건 | score min=55.7 median=57.7 max=61.6 spread=5.9\n2026-11-17 09:25:36,156 INFO [daytrading] 후보 0건\n2026-11-17 09:25:36,157 INFO 발행 완료: /home/jhshi/analyist_dd/data/feed/screener_latest.json (9063 bytes, generated_at=2026-11-17T09:25:36+09:00)"
+      }
     },
     {
       "id": "T49",

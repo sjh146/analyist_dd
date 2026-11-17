@@ -1,0 +1,189 @@
+{
+ "audit": "CG206 — 무개선 카운터 잡음바닥 감사(CG156 구현)",
+ "baseline": 0.5406,
+ "pre_registered_threshold": 0.02,
+ "noise_floor": 0.003,
+ "floor_basis": "CG201 짝 Δ std 0.0013 · CG203 앵커간격 1~60거래일 짝 Δ std 0.0014(level std 0.0026)",
+ "measured_cycles": 19,
+ "counts": {
+  "noise_band": 11,
+  "below_threshold": 7,
+  "worse_than_noise": 1
+ },
+ "no_improve_streak": 19,
+ "max_delta": 0.0113,
+ "cycles": [
+  {
+   "id": "L1",
+   "ts": "2026-09-25T13:28:04+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5406,
+   "delta": 0.0,
+   "class": "noise_band",
+   "verdict": "악화"
+  },
+  {
+   "id": "L2",
+   "ts": "2026-09-25T15:28:47+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5406,
+   "delta": 0.0,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "RB1",
+   "ts": "2026-09-26T04:14:57+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5412,
+   "delta": 0.0006,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "HP1",
+   "ts": "2026-09-26T05:14:19+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5477,
+   "delta": 0.0071,
+   "class": "below_threshold",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "HP2",
+   "ts": "2026-09-26T05:22:53+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.55,
+   "delta": 0.0094,
+   "class": "below_threshold",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "HP3",
+   "ts": "2026-09-26T05:32:19+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.55,
+   "delta": 0.0094,
+   "class": "below_threshold",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "F3",
+   "ts": "2026-09-26T05:36:19+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5414,
+   "delta": 0.0008,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "SEL1",
+   "ts": "2026-09-26T05:45:36+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5414,
+   "delta": 0.0008,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "HP4",
+   "ts": "2026-09-26T06:05:39+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5478,
+   "delta": 0.0072,
+   "class": "below_threshold",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "TR1",
+   "ts": "2026-09-26T06:08:31+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5519,
+   "delta": 0.0113,
+   "class": "below_threshold",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "TR2",
+   "ts": "2026-09-26T06:11:59+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5495,
+   "delta": 0.0089,
+   "class": "below_threshold",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "MK1",
+   "ts": "2026-09-26T07:04:45+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5412,
+   "delta": 0.0006,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "LB1",
+   "ts": "2026-09-28T04:21:17+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5414,
+   "delta": 0.0008,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "LB2",
+   "ts": "2026-09-28T04:28:07+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5495,
+   "delta": 0.0089,
+   "class": "below_threshold",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "CG1",
+   "ts": "2026-09-28T05:08:44+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5414,
+   "delta": 0.0008,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "CG2",
+   "ts": "2026-09-28T05:16:13+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5414,
+   "delta": 0.0008,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "CG17",
+   "ts": "2026-09-28T18:16:27+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5414,
+   "delta": 0.0008,
+   "class": "noise_band",
+   "verdict": "신호있음"
+  },
+  {
+   "id": "CG44",
+   "ts": "2026-10-01T02:08:20+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5414,
+   "delta": 0.0008,
+   "class": "noise_band",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "CG10",
+   "ts": "2026-10-03T04:02:42+09:00",
+   "metric": "wf_wave_summary",
+   "best_mean": 0.5302,
+   "delta": -0.0104,
+   "class": "worse_than_noise",
+   "verdict": "기준선없음"
+  }
+ ],
+ "verdict": "카운터는 잡음 위에서 세어졌다 — 최고 Δ +0.0113(TR1)가 잡음바닥 ±0.003 밖이지만 사전문턱 +0.02 미달 = '실재하지만 미미한 효과'. 무개선 19사이클은 측정 불가가 아니라 문턱 미달의 누적이다(잔차를 잡음으로 오독하지 말 것)."
+}

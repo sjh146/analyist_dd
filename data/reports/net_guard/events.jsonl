@@ -8,3 +8,6 @@
 {"ts": "2026-10-03T20:29:45", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
 {"ts": "2026-10-03T20:29:45", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
 {"ts": "2026-10-03T20:29:45", "key": "dart", "event": "guard_error", "error": "PermissionError(13, 'Permission denied')"}
+{"ts": "2026-11-09T19:08:45", "key": "ecos", "event": "transport_error", "error": "TimeoutError('The read operation timed out')"}
+{"ts": "2026-11-09T19:09:40", "key": "ecos", "event": "transport_error", "error": "TimeoutError('The read operation timed out')"}
+{"ts": "2026-11-09T19:50:46", "key": "ecos", "event": "transport_error", "error": "TimeoutError('The read operation timed out')"}

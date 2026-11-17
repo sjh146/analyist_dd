@@ -1,0 +1,9 @@
+{
+ "candidate": "app/models/champion_cand",
+ "status": "blocked",
+ "detail": "후보 신호 0건(문턱 0.55 초과, 챔피언 41건, 최대 0.5332538999198081)",
+ "ts": "2026-11-13T21:46:53",
+ "candidate_signals": 0,
+ "champion_signals": 41,
+ "candidate_max": 0.5332538999198081
+}

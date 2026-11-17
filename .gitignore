@@ -111,3 +111,18 @@ data/reports/close_gate_probe/
 # 루프 원자적 쓰기의 백업 잔여(소음)
 *.bak-*
 *.tmp
+
+# ── 자율 루프 산출물 (2026-11-17 정리: 215건 미커밋의 정체) ──
+reports/money/
+reports/audit/
+reports/safety/
+reports/locks/
+data/state/net_guard/
+# 모델 아티팩트 (재생성 가능) — 운영 챔피언(champion/)은 추적 유지
+services/xgboost-ml/app/models/cand_*/
+services/xgboost-ml/app/models/challenger_*/
+services/xgboost-ml/app/models/champion_prev_*/
+services/xgboost-ml/app/models/champion_backup_*/
+services/xgboost-ml/app/models/champion_wtest/
+services/xgboost-ml/app/models/scratch_*/
+services/xgboost-ml/app/models/*_probe/

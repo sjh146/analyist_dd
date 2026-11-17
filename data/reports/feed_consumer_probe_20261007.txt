@@ -1,12 +1,12 @@
 # MT189 단타 소비 배선 · MT70 swing R1 문턱 — 오프라인 증명 (읽기 전용)
-# 생성: 2026-10-07T17:09:54+09:00  · 엔진 = quant-model-engineer
+# 생성: 2026-10-08T22:42:01+09:00  · 엔진 = quant-model-engineer
 # 레포(엔지니어) = /home/jhshi/analyist_dd
 # 레포(트레이더 소비자) = /mnt/c/Users/jhshi/analyist_dd/trader-agent
 
 ## 1. 피드 측 — 후보가 발행되는가 (data/feed/screener_latest.json)
-  generated_at = 2026-10-07T15:06:52+09:00 · source = analyist_dd
-  · close      n=20  score_kind=['screener'] top10avg=89.7300 (min 85.90 max 90.00) signal_date=['2026-10-06']
-  · swing      n=20  score_kind=['calibrated_prob'] top10avg=61.9070 (min 55.24 max 68.64) signal_date=['2026-10-06']
+  generated_at = 2026-10-08T20:30:01+09:00 · source = analyist_dd
+  · close      n=20  score_kind=['screener'] top10avg=87.1400 (min 80.10 max 92.30) signal_date=['2026-10-07']
+  · swing      n=19  score_kind=['calibrated_prob'] top10avg=56.7210 (min 50.03 max 66.63) signal_date=['2026-10-07']
   · daytrading n=20  score_kind=['composite'] top10avg=63.6600 (min 61.30 max 64.70) signal_date=['2026-10-06']
 
 ## 2. 소비자 체인 — 라이브 루프가 읽는 screener 목록 (트레이더 레포)
@@ -28,7 +28,7 @@
   daytrading: kind=composite → _declared_score_kind 폴백('screener') → r1_min_avg_score 에
               키 없음 → rules.apply_r1 이 `continue` = **R1 게이트 없음(무제한)**
   → daytrading top10avg=63.6600 (spread 3.40 — 좁아 문턱 선별력 낮음)
-  → swing top10 avg prob 0.6191 vs 0.58 → PASS(문턱 위)   [MT70 현행 실측]
+  → swing top10 avg prob 0.5672 vs 0.58 → BLOCK(문턱 아래)   [MT70 현행 실측]
 
 ## 5. 결론
   · 피드 측은 정상: daytrading 20건이 score_kind=composite 로 발행된다(커밋 8725d12).

@@ -1,0 +1,49 @@
+{
+ "checked_at": "2026-11-17T15:56:45+09:00",
+ "checks": [
+  {
+   "id": "DATA-1",
+   "name": "시세 최신성",
+   "ok": true,
+   "detail": "최신 거래일 2026-11-16 (오늘-1일, 문턱 4)",
+   "owner": "리서처"
+  },
+  {
+   "id": "FEAT-1",
+   "name": "피처 생존/측정 최신성",
+   "ok": true,
+   "detail": "죽은 피처 38/202 (문턱 45), 측정 2026-11-16 (1일 전)",
+   "owner": "엔지니어"
+  },
+  {
+   "id": "NEWS-1",
+   "name": "뉴스→종목 귀속",
+   "ok": true,
+   "detail": "최근 7일 귀속 종목 216개 (문턱 30)",
+   "owner": "리서처"
+  },
+  {
+   "id": "NEWS-2",
+   "name": "뉴스 원문 가용성",
+   "ok": true,
+   "detail": "news_analysis(source<>sns) 521건",
+   "owner": "리서처"
+  },
+  {
+   "id": "FEED-1",
+   "name": "피드 신선도/가격/신호나이",
+   "ok": true,
+   "detail": "발행 0.0일 전 · 후보 60건 · 가격누락 0 · 낡은신호 0",
+   "owner": "트레이더"
+  },
+  {
+   "id": "FEED-2",
+   "name": "소비자 문턱(MT116)",
+   "ok": true,
+   "detail": "swing: 확률>0.55 = 20/20건 · close: score_kind=screener (문턱검사 생략)",
+   "owner": "엔지니어↔트레이더"
+  }
+ ],
+ "fails": [],
+ "ok": true
+}

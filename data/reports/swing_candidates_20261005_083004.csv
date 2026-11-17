@@ -1,0 +1,336 @@
+{
+  "request_type": "swing_screener",
+  "date": "2026-10-04",
+  "generated_at": "2026-10-04T23:31:22.892934Z",
+  "total": 20,
+  "up": 20,
+  "down": 0,
+  "high_confidence": 0,
+  "batch_type": "signal",
+  "auc": "0.551318",
+  "top_up": [
+    {
+      "stock_code": "475830",
+      "stock_name": "오름테라퓨틱",
+      "sector": "Unknown",
+      "confidence": 0.6406,
+      "expected_return": 28.12,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "039200",
+      "stock_name": "오스코텍",
+      "sector": "Unknown",
+      "confidence": 0.6177,
+      "expected_return": 23.54,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "319400",
+      "stock_name": "현대무벡스",
+      "sector": "Unknown",
+      "confidence": 0.6131,
+      "expected_return": 22.62,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "035760",
+      "stock_name": "CJ ENM",
+      "sector": "Unknown",
+      "confidence": 0.6105,
+      "expected_return": 22.1,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "003380",
+      "stock_name": "하림지주",
+      "sector": "Unknown",
+      "confidence": 0.6007,
+      "expected_return": 20.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "112040",
+      "stock_name": "위메이드",
+      "sector": "Unknown",
+      "confidence": 0.5992,
+      "expected_return": 19.84,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "263750",
+      "stock_name": "펄어비스",
+      "sector": "Unknown",
+      "confidence": 0.5855,
+      "expected_return": 17.1,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "347850",
+      "stock_name": "디앤디파마텍",
+      "sector": "Unknown",
+      "confidence": 0.5782,
+      "expected_return": 15.64,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "007390",
+      "stock_name": "네이처셀",
+      "sector": "Unknown",
+      "confidence": 0.5669,
+      "expected_return": 13.38,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "090710",
+      "stock_name": "휴림로봇",
+      "sector": "Unknown",
+      "confidence": 0.5653,
+      "expected_return": 13.06,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "142280",
+      "stock_name": "녹십자엠에스",
+      "sector": "Unknown",
+      "confidence": 0.5587,
+      "expected_return": 11.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "019210",
+      "stock_name": "와이지-원",
+      "sector": "Unknown",
+      "confidence": 0.5557,
+      "expected_return": 11.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "240550",
+      "stock_name": "동방메디컬",
+      "sector": "Unknown",
+      "confidence": 0.549,
+      "expected_return": 9.8,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "213420",
+      "stock_name": "덕산네오룩스",
+      "sector": "Unknown",
+      "confidence": 0.548,
+      "expected_return": 9.6,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "358570",
+      "stock_name": "지아이이노베이션",
+      "sector": "Unknown",
+      "confidence": 0.5406,
+      "expected_return": 8.12,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "476830",
+      "stock_name": "알지노믹스",
+      "sector": "Unknown",
+      "confidence": 0.5403,
+      "expected_return": 8.06,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "031330",
+      "stock_name": "에스에이엠티",
+      "sector": "Unknown",
+      "confidence": 0.54,
+      "expected_return": 8.0,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "099320",
+      "stock_name": "쎄트렉아이",
+      "sector": "Unknown",
+      "confidence": 0.5393,
+      "expected_return": 7.86,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "041510",
+      "stock_name": "에스엠",
+      "sector": "Unknown",
+      "confidence": 0.5387,
+      "expected_return": 7.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "277810",
+      "stock_name": "레인보우로보틱스",
+      "sector": "Unknown",
+      "confidence": 0.5342,
+      "expected_return": 6.84,
+      "batch_type": "signal"
+    }
+  ],
+  "top_down": [],
+  "candidates": [
+    {
+      "stock_code": "475830",
+      "stock_name": "오름테라퓨틱",
+      "sector": "Unknown",
+      "confidence": 0.6406,
+      "expected_return": 28.12,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "039200",
+      "stock_name": "오스코텍",
+      "sector": "Unknown",
+      "confidence": 0.6177,
+      "expected_return": 23.54,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "319400",
+      "stock_name": "현대무벡스",
+      "sector": "Unknown",
+      "confidence": 0.6131,
+      "expected_return": 22.62,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "035760",
+      "stock_name": "CJ ENM",
+      "sector": "Unknown",
+      "confidence": 0.6105,
+      "expected_return": 22.1,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "003380",
+      "stock_name": "하림지주",
+      "sector": "Unknown",
+      "confidence": 0.6007,
+      "expected_return": 20.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "112040",
+      "stock_name": "위메이드",
+      "sector": "Unknown",
+      "confidence": 0.5992,
+      "expected_return": 19.84,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "263750",
+      "stock_name": "펄어비스",
+      "sector": "Unknown",
+      "confidence": 0.5855,
+      "expected_return": 17.1,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "347850",
+      "stock_name": "디앤디파마텍",
+      "sector": "Unknown",
+      "confidence": 0.5782,
+      "expected_return": 15.64,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "007390",
+      "stock_name": "네이처셀",
+      "sector": "Unknown",
+      "confidence": 0.5669,
+      "expected_return": 13.38,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "090710",
+      "stock_name": "휴림로봇",
+      "sector": "Unknown",
+      "confidence": 0.5653,
+      "expected_return": 13.06,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "142280",
+      "stock_name": "녹십자엠에스",
+      "sector": "Unknown",
+      "confidence": 0.5587,
+      "expected_return": 11.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "019210",
+      "stock_name": "와이지-원",
+      "sector": "Unknown",
+      "confidence": 0.5557,
+      "expected_return": 11.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "240550",
+      "stock_name": "동방메디컬",
+      "sector": "Unknown",
+      "confidence": 0.549,
+      "expected_return": 9.8,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "213420",
+      "stock_name": "덕산네오룩스",
+      "sector": "Unknown",
+      "confidence": 0.548,
+      "expected_return": 9.6,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "358570",
+      "stock_name": "지아이이노베이션",
+      "sector": "Unknown",
+      "confidence": 0.5406,
+      "expected_return": 8.12,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "476830",
+      "stock_name": "알지노믹스",
+      "sector": "Unknown",
+      "confidence": 0.5403,
+      "expected_return": 8.06,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "031330",
+      "stock_name": "에스에이엠티",
+      "sector": "Unknown",
+      "confidence": 0.54,
+      "expected_return": 8.0,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "099320",
+      "stock_name": "쎄트렉아이",
+      "sector": "Unknown",
+      "confidence": 0.5393,
+      "expected_return": 7.86,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "041510",
+      "stock_name": "에스엠",
+      "sector": "Unknown",
+      "confidence": 0.5387,
+      "expected_return": 7.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "277810",
+      "stock_name": "레인보우로보틱스",
+      "sector": "Unknown",
+      "confidence": 0.5342,
+      "expected_return": 6.84,
+      "batch_type": "signal"
+    }
+  ]
+}

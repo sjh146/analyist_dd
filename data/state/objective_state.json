@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-04T13:23:53",
+  "updated": "2026-11-16T23:30:49",
   "goal_metric": "fillable_oos_net_expectancy_pct",
   "acceptance": {
     "primary": "expectancy_pct > 0",
@@ -16,13 +16,14 @@
     "promote_require_expectancy": true,
     "promote_require_robust": false,
     "auto_rollback": true,
+    "orchestrator_auto_merge": true,
     "min_improvement_auc": 0.02,
     "note": "promote_require_* 는 파이프라인이 champion_promote 로 넘기는 플래그의 기본값이다. true = 증거 없으면 승격하지 않는다. auto_rollback = 되돌림 감시가 실제로 원복까지 실행할지(기본 false = 권고·경보만)."
   },
   "value": {
     "champion_expectancy_pct": -0.182,
     "champion_sessions": 87,
-    "champion_robust_auc": 0.501,
+    "champion_robust_auc": 0.4908,
     "candidate_expectancy_pct": null,
     "candidate_robust_auc": null,
     "evidence_present": {
@@ -32,28 +33,28 @@
     "note": "순기대는 체결성 필터·수수료 반영 OOS 값(%p/세션). 증거가 없으면 승격도 없다."
   },
   "money": {
-    "realized_pnl_krw": -1446.0,
-    "closed_trades": 3,
-    "equity_krw": 526243.0,
-    "open_positions": 0,
-    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-10-04.json"
+    "realized_pnl_krw": -26637.0,
+    "closed_trades": 10,
+    "equity_krw": 249455.0,
+    "open_positions": 2,
+    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-11-16.json"
   },
   "envelope": {
     "limits": {
       "max_entries_per_day": 3,
-      "per_stock_pct": 0.1,
-      "max_invested_pct": 0.3,
+      "per_stock_pct": 0.3333333333333333,
+      "max_invested_pct": 1.0,
       "daily_loss_limit_pct": 0.03
     },
     "used": {
-      "equity_krw": 526243.0,
-      "invested_pct_now": 0.0,
+      "equity_krw": 249455.0,
+      "invested_pct_now": 68.72,
       "peak_concurrent": 3,
-      "closed_trades": 3,
-      "realized_pnl_krw": -1446.0
+      "closed_trades": 10,
+      "realized_pnl_krw": -26637.0
     },
     "breaches": [
-      "수수료 미계상(fees=0) — 순손익 신뢰도 결손"
+      "누적 실현손익 -26637.0원 < 일 손실한도 3.0%×자본"
     ]
   },
   "top_lever": {
@@ -63,10 +64,10 @@
     "evidence": "중간"
   },
   "data_freshness": {
-    "feed_generated_at": "2026-10-02T20:30:03+09:00",
-    "feed_age_h": 40.9,
-    "screener_stats_mtime": "2026-10-02T20:30:02",
-    "swing_probe_mtime": "2026-10-02T18:21:28",
-    "close_gap_history_mtime": "2026-10-02T15:42:35"
+    "feed_generated_at": "2026-11-16T08:40:01+09:00",
+    "feed_age_h": 14.8,
+    "screener_stats_mtime": "2026-11-16T08:40:01",
+    "swing_probe_mtime": "2026-11-13T18:22:56",
+    "close_gap_history_mtime": "2026-10-09T09:20:39"
   }
 }

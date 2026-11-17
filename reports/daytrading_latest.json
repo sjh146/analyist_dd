@@ -1,0 +1,226 @@
+{
+ "generated_at": "2026-11-17T15:56:39+09:00",
+ "source": "analyist_dd",
+ "items": [
+  {
+   "stock_code": "140070",
+   "stock_name": "서플러스글로벌",
+   "close_price": 2205.0,
+   "score": 65.7,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 1.968,
+   "volume_ratio": 12.86
+  },
+  {
+   "stock_code": "192440",
+   "stock_name": "슈피겐코리아",
+   "close_price": 30800.0,
+   "score": 65.7,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 3.607,
+   "volume_ratio": 21.66
+  },
+  {
+   "stock_code": "086960",
+   "stock_name": "MDS테크",
+   "close_price": 2065.0,
+   "score": 65.5,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 3.075,
+   "volume_ratio": 20.5
+  },
+  {
+   "stock_code": "010280",
+   "stock_name": "아이티센엔텍",
+   "close_price": 5680.0,
+   "score": 65.5,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 2.816,
+   "volume_ratio": 6.11
+  },
+  {
+   "stock_code": "397810",
+   "stock_name": "애드포러스",
+   "close_price": 6830.0,
+   "score": 65.4,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 0.747,
+   "volume_ratio": 11.19
+  },
+  {
+   "stock_code": "011560",
+   "stock_name": "세보엠이씨",
+   "close_price": 20500.0,
+   "score": 65.3,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 1.071,
+   "volume_ratio": 3.87
+  },
+  {
+   "stock_code": "187220",
+   "stock_name": "디티앤씨",
+   "close_price": 2000.0,
+   "score": 65.1,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 3.446,
+   "volume_ratio": 9.2
+  },
+  {
+   "stock_code": "052790",
+   "stock_name": "액토즈소프트",
+   "close_price": 5390.0,
+   "score": 64.9,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 3.623,
+   "volume_ratio": 4.25
+  },
+  {
+   "stock_code": "018290",
+   "stock_name": "브이티",
+   "close_price": 10510.0,
+   "score": 64.9,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 2.801,
+   "volume_ratio": 5.48
+  },
+  {
+   "stock_code": "056090",
+   "stock_name": "시지메드텍",
+   "close_price": 4470.0,
+   "score": 64.5,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 3.7,
+   "volume_ratio": 3.04
+  },
+  {
+   "stock_code": "015710",
+   "stock_name": "코콤",
+   "close_price": 2700.0,
+   "score": 64.2,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 3.948,
+   "volume_ratio": 24.23
+  },
+  {
+   "stock_code": "418420",
+   "stock_name": "라온텍",
+   "close_price": 3460.0,
+   "score": 64.0,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 2.326,
+   "volume_ratio": 15.05
+  },
+  {
+   "stock_code": "299170",
+   "stock_name": "더블유에스아이",
+   "close_price": 1164.0,
+   "score": 63.8,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 2.227,
+   "volume_ratio": 4.94
+  },
+  {
+   "stock_code": "096250",
+   "stock_name": "와이즈넛",
+   "close_price": 5240.0,
+   "score": 63.7,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 3.474,
+   "volume_ratio": 12.74
+  },
+  {
+   "stock_code": "206650",
+   "stock_name": "유바이오로직스",
+   "close_price": 8490.0,
+   "score": 63.6,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 1.692,
+   "volume_ratio": 3.07
+  },
+  {
+   "stock_code": "227950",
+   "stock_name": "엔투텍",
+   "close_price": 1386.0,
+   "score": 63.2,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 2.889,
+   "volume_ratio": 8.33
+  },
+  {
+   "stock_code": "131100",
+   "stock_name": "티엔엔터테인먼트",
+   "close_price": 4040.0,
+   "score": 63.1,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": -0.389,
+   "volume_ratio": 3.4
+  },
+  {
+   "stock_code": "122350",
+   "stock_name": "삼기",
+   "close_price": 1506.0,
+   "score": 62.5,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 2.56,
+   "volume_ratio": 62.89
+  },
+  {
+   "stock_code": "036190",
+   "stock_name": "금화피에스시",
+   "close_price": 31250.0,
+   "score": 62.2,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 3.46,
+   "volume_ratio": 3.44
+  },
+  {
+   "stock_code": "370090",
+   "stock_name": "퓨런티어",
+   "close_price": 4675.0,
+   "score": 61.8,
+   "score_kind": "composite",
+   "signal_date": "2026-11-16",
+   "model_prob": null,
+   "slope_permille": 2.008,
+   "volume_ratio": 12.18
+  }
+ ]
+}
