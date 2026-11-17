@@ -487,6 +487,44 @@ class Journal:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def last_exit_ts(self, screener: Optional[str] = None) -> Optional[datetime]:
+        """가장 최근 청산 시각(exit_ts 기준). screener 지정 시 그 경로만.
+
+        청산 후 재투입 쿨다운 게이트(``engine._post_exit_cooldown``)가 "마지막
+        청산이 언제였는가"를 물을 때 쓰는 조회 전용 메서드다 — 쓰기·스키마 변경
+        없음.  ``ts``(진입 시각)가 아니라 **``exit_ts``** 기준.
+
+        WHY(실측): 청산 직후 같은 경로로 재진입해 두 번 손실을 본 사례 —
+        data/reports/reentry_after_exit.json(2026-11-17): 재투입 5쌍 합산 -33,463원.
+        (세부 조회 명령은 config.py 의 post_exit_cooldown_min 주석 참조)
+
+        ``max(exit_ts)`` 는 ``closed_trades``/``closed_on`` 과 같은 ISO 문자열
+        비교 관용구를 그대로 쓴다(모든 행이 ``_iso`` = KST aware +09:00 형식이라
+        사전순 = 시간순).  ISO 문자열을 ``datetime``(KST aware)으로 파싱해
+        돌려주고, 행이 없거나 파싱에 실패하면 ``None`` — 파싱은
+        ``feed.parse_timestamp`` 관용구(``datetime.fromisoformat`` + naive 면
+        KST 부여)를 재사용한다.
+        """
+        if screener is None:
+            row = self._conn.execute(
+                "SELECT max(exit_ts) AS m FROM trades WHERE exit_ts IS NOT NULL"
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                "SELECT max(exit_ts) AS m FROM trades"
+                " WHERE exit_ts IS NOT NULL AND screener = ?",
+                (str(screener),),
+            ).fetchone()
+        if row is None or row["m"] is None:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(row["m"]))
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=KST)
+        return parsed
+
     def summary(self, period_days: int = 30,
                 now: Optional[datetime] = None) -> Dict[str, Any]:
         """Aggregate closed-trade performance over *period_days* (rolling).

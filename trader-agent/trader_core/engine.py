@@ -634,6 +634,16 @@ class TraderEngine:
                 )
             )
 
+        # 4.5 post-exit cooldown (2026-11-17 spec): 청산 후 30분 같은 경로 재진입 차단
+        # 차단일 때만 GateResult 를 남긴다 — 기존 test_engine.py
+        # (test_all_gates_pass_produces_plan)가 통과 결정의 게이트 목록을 정확히
+        # 6개로 고정해 두어, 통과 시에도 남기면 기존 기대값이 깨진다
+        # (스펙 규약: '기존 테스트가 깨지면 코드를 고친다' — 테스트는 고치지 않는다).
+        # '어떤 게이트가 막았는가'는 이렇게 차단 사유로 그대로 저널에 기록된다.
+        cooldown_reason = self._post_exit_cooldown(screener)
+        if cooldown_reason is not None:
+            gates.append(GateResult("post_exit_cooldown", False, cooldown_reason))
+
         # 5. balance / position / order-amount caps (needs a sized qty)
         win_rate, avg_win, avg_loss = self._prior_stats(snapshot, screener)
         plan: Optional[OrderPlan] = None
@@ -945,6 +955,51 @@ class TraderEngine:
         if avg_loss is None or avg_loss <= 0:
             avg_loss = cfg.default_avg_loss
         return win_rate, avg_win, avg_loss
+
+    def _post_exit_cooldown(self, screener: str) -> Optional[str]:
+        """청산 후 쿨다운 — 차단이면 사유 문자열, 허용이면 None.
+
+        WHY(실측): 청산 직후 같은 경로로 재진입해 두 번 손실을 본 사례 — 재투입
+        5쌍 합산 -33,463원(data/reports/reentry_after_exit.json, 2026-11-17).
+        2026-11-16 tick stop -5,331원 3.9초 뒤 74,400원 재진입,
+        2026-11-17 tick stop -6,831원 45.7초 뒤 72,310원 재진입
+        (journal/trade_journal.sqlite3 조회로 확인 — 조회 명령은 config.py 의
+        post_exit_cooldown_min 주석 참조).  기본 30분 동안 같은 경로(screener)의
+        신규 진입을 막는다; ``post_exit_cooldown_min=0`` 이면 비활성.
+
+        fail-closed: cooldown > 0 인데 저널이 없거나 조회가 실패하면 사유를 돌려
+        차단한다 (얼마나 지났는지 셀 수 없는데 열어주면 쿨다운을 보증할 수 없다).
+        """
+        cooldown = max(0.0, float(self.config.post_exit_cooldown_min or 0.0))
+        if cooldown <= 0:
+            return None  # 비활성
+        scope = str(
+            getattr(self.config, "post_exit_cooldown_scope", "screener") or "screener"
+        )
+        if self.journal is None:
+            return "청산 후 쿨다운 {0:.0f}분: 저널 없음 (scope {1})".format(
+                cooldown, scope
+            )
+        try:
+            if scope == "global":
+                last = self.journal.last_exit_ts()
+            else:  # "screener"/미지정/알 수 없는 값 → 같은 경로만
+                last = self.journal.last_exit_ts(screener=screener)
+        except Exception:  # noqa: BLE001 - fail-closed
+            return "청산 후 쿨다운 {0:.0f}분: 저널 조회 실패 (scope {1})".format(
+                cooldown, scope
+            )
+        if last is None:
+            return None  # 청산 이력 없음
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=KST)
+        now = datetime.now(KST)
+        elapsed_min = (now - last).total_seconds() / 60.0
+        if elapsed_min < cooldown:
+            return "청산 후 쿨다운 {0:.1f}분 < {1:.0f}분 (마지막 청산 {2}, scope {3})".format(
+                elapsed_min, cooldown, last.isoformat(), scope
+            )
+        return None
 
     def _slot_allows(self, screener: str, planned_same_screener: int = 0) -> bool:
         """경로별 동시보유 슬롯 게이트 — journal.open_trades(screener=) 로 센다.

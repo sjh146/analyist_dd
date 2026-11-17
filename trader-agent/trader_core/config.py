@@ -205,6 +205,21 @@ class Config:
         default_factory=lambda: {"swing": 2, "daytrading": 2}
     )  # 2026-11-09: 전역 3칸 안에서 경로별 상한(합계 4지만 전역 3이 실질 상한)
     max_invested_pct: float = 1.0  # total cost basis as a fraction of equity — 2026-11-09 사용자 지시로 0.30 → 1.0 (예수금 100%)
+    # 청산 후 재투입 쿨다운(post_exit_cooldown) — 실주문 경로 게이트
+    # (docs/spec_post_exit_cooldown.md, 2026-11-17 사용자 승인 "응 진행해줘").
+    # WHY(실측): 청산 직후 같은 경로(screener)로 재진입해 두 번 손실을 본 사례 —
+    #   data/reports/reentry_after_exit.json(2026-11-17T13:16 생성): 재투입 5쌍 합산
+    #   -33,463원.  세부(저널 조회로 확인):
+    #   조회: journal/trade_journal.sqlite3 의 /tmp 복사본에서
+    #   "SELECT id, ts, screener, code, qty, price, exit_ts, exit_reason, pnl
+    #    FROM trades WHERE ts LIKE '2026-11-1%' OR exit_ts LIKE '2026-11-1%' ORDER BY id"
+    #   → id 11 (440110, swing) tick stop -5,331원, exit 2026-11-16T10:05:27.094281+09:00
+    #     바로 뒤 id 12 (033100) ts 10:05:30.947190 = **3.9초** 뒤 2x37,200=74,400원 재진입,
+    #     id 10 (290720, swing) tick stop -6,831원, exit 2026-11-17T09:04:31.661733+09:00
+    #     바로 뒤 id 13 (096530) ts 09:05:17.389720 = **45.7초** 뒤 3x24,103=72,310원 재진입.
+    # 게이트는 engine._post_exit_cooldown 이 맡는다(기본 30분 차단, GateResult 로 기록).
+    post_exit_cooldown_min: float = 30.0  # 0 이면 비활성; 음수는 0 으로 취급
+    post_exit_cooldown_scope: str = "screener"  # "screener" = 같은 경로만 | "global" = 모든 경로
     # Volatility-aware stop & sizing.  A fixed 7 % stop is inside the daily
     # noise of a momentum list (measured day ranges 19-32 %), so the stop scales
     # with the name's own range and the position shrinks to keep the KRW risk
