@@ -212,11 +212,11 @@ def _stats(net, hit_tp, hit_sl) -> dict:
         out["profit_factor"] = None                 # 손실 0건 → 측정 불가
     else:
         out["profit_factor"] = 0.0                  # 승 0건
-    # MaxDD: 복리 자본곡선(∏(1+r)) 기준 — net 은 이미 분수(예: −0.0121)이고, 누적합(%p)은
-    # 거래 수에 비례해 무한정 커지므로 표준 관례대로 고점 대비 하락률 % 로 보고한다
-    # (거래 순서는 진입일 정렬).
-    eq = np.cumprod(1.0 + net)
-    out["maxdd_pct"] = _r4(-(eq / np.maximum.accumulate(eq) - 1.0).min() * 100)
+    # MaxDD 는 여기서 내지 않는다(2026-11-17 정정). 거래 9,500건을 전액 재투입 복리(∏(1+r))로
+    # 이으면 5,873% 같은 비현실 값이 나오고, 동일비중 누적합은 자본 개념이 없어 해석이 안 된다.
+    # 우리 계좌는 고정자본(약 25만원)·종목당 1/3·동시 3종목이라 **자본 제약 시뮬레이터**가 정본이다
+    # (다음 단계 스펙: 가격대 필터·부분익절·트레일링 포함). 그때까지는 null 로 두고 md 에 사유를 쓴다.
+    out["maxdd_pct"] = None
     out["tp_rate"] = _r4(hit_tp.mean() * 100)
     out["sl_rate"] = _r4(hit_sl.mean() * 100)
     out["ambiguous"] = _r4((hit_tp & hit_sl).mean() * 100)

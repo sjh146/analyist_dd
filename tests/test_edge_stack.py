@@ -80,6 +80,8 @@ def _tr(tr):
 
 
 # ① 7요인 각각 참/거짓 합성 봉 — (요인, 기대값, 생성기)
+# 기대값의 근거는 정본(scripts/edge_stack_backtest.py) 함수에 같은 합성 봉을 넣어 실측한 값
+# (2026-11-17 — edge_stack.py docstring 하단의 대조 명령·결과와 동일).
 FACTOR_CASES = [
     ("trend_dir", True, _rising),
     ("trend_dir", False, _flat),
@@ -88,7 +90,10 @@ FACTOR_CASES = [
     ("sr_breakout", True, _flat),          # 1000 ≥ 0.98×1010
     ("sr_breakout", False, _sr_false),
     ("candle_quality", True, lambda: _candle(1070.0)),   # body 70/100, 위치 0.7
-    ("candle_quality", False, lambda: _candle(1050.0)),  # body 0.5, 위치 0.5 < 0.667
+    ("candle_quality", False, lambda: _candle(1050.0)),  # body 0.5, 위치 0.5
+    # 정본 f4 = close_pos*3 >= 2-1e-9 ("상위 1/3" = 2/3-ε) — 2/3 경계 포함/미달
+    ("candle_quality", True, lambda: _candle(1000.0 + 200.0 / 3.0)),   # 위치 2/3
+    ("candle_quality", False, lambda: _candle(1066.0)),                # 위치 0.66
     ("volume_confirm", True, lambda: _volume(2200.0)),   # 2200/1060 = 2.075 ≥ 2
     ("volume_confirm", False, _flat),
     ("vol_fit", True, lambda: _tr(100.0)),   # ATR14/close = 1.0% (경계 포함)
@@ -186,11 +191,14 @@ def _overheat(prev_close, t_close, t_minus5):
 
 
 def test_08_overheat_boundary_12pct_25pct():
-    # chg 정확히 12%(1120/1000) · 누적 12% → 통과(경계 포함)
-    assert compute_edge(_overheat(1000.0, 1120.0, 1000.0))["edge_factors"]["overheat_avoid"] is True
-    # chg 12.1% → 과열
+    # 정본(edge_stack_backtest) 실측: f7 = (chg*100 <= 12.0) & (chg5*100 <= 25.0), ε 없음.
+    # "정확히 12%"(1120/1000)는 0.12 의 이진 부정확으로 chg% = 12.000000000000002 가 되어
+    # False 가 된다 — 정의 변경 금지(스펙 §6)라 정본과 같은 행동을 그대로 고정한다.
+    assert compute_edge(_overheat(1000.0, 1120.0, 1000.0))["edge_factors"]["overheat_avoid"] is False
+    # chg 11.9% → 통과, 12.1% → 과열
+    assert compute_edge(_overheat(1000.0, 1119.0, 1000.0))["edge_factors"]["overheat_avoid"] is True
     assert compute_edge(_overheat(1000.0, 1121.0, 1000.0))["edge_factors"]["overheat_avoid"] is False
-    # 5일 누적 정확히 25%(1120/896 = 1.25) · chg 12% → 통과(경계 포함)
-    assert compute_edge(_overheat(1000.0, 1120.0, 896.0))["edge_factors"]["overheat_avoid"] is True
+    # 5일 누적 정확히 25%(1000/800 = 1.25 — 0.25 는 이진 정확, chg 0%) → 통과
+    assert compute_edge(_overheat(1000.0, 1000.0, 800.0))["edge_factors"]["overheat_avoid"] is True
     # 5일 누적 25.1% → 과열
-    assert compute_edge(_overheat(1000.0, 1120.0, 895.0))["edge_factors"]["overheat_avoid"] is False
+    assert compute_edge(_overheat(1000.0, 1000.0, 799.0))["edge_factors"]["overheat_avoid"] is False

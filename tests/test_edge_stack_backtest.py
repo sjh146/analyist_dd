@@ -156,8 +156,9 @@ def test_simulate_worst_best_hand_calculated():
     assert w["avg_loss_pct"] == pytest.approx(2.83 / 3, abs=1e-4)   # (1.21+1.21+0.41)/3
     assert w["r"] == pytest.approx(3.79 / (2.83 / 3), abs=1e-4)
     assert w["profit_factor"] == pytest.approx(3.79 / 2.83, abs=1e-4)
-    # 복리 자본곡선 eq=∏(1+r) = [0.9879, 0.9759, 0.9719, 1.0088] → dd = 0.9719/0.9879−1 = −1.615%
-    assert w["maxdd_pct"] == pytest.approx(1.615, abs=1e-3)
+    # MaxDD 는 이 스크립트에서 내지 않는다(2026-11-17 정정): 9,500건 복리 곡선은 5,873% 같은
+    # 비현실 값이 되고, 자본 제약 시뮬레이터가 정본이다 → null 계약.
+    assert w["maxdd_pct"] is None
     assert w["tp_rate"] == pytest.approx(50.0, abs=1e-4)
     assert w["sl_rate"] == pytest.approx(50.0, abs=1e-4)
     assert w["ambiguous"] == pytest.approx(25.0, abs=1e-4)

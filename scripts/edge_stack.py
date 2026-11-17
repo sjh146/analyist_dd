@@ -12,11 +12,19 @@ WHY (docs/spec_feed_edge_score.md, 2026-11-17, 사용자 지시 "트레이더 �
 **진입 품질**이다. 같은 신호 11,300건 그리드 실측에서도 청산 폭 변경만으로는 + 전환이 안 됐다.
 따라서 진입 품질을 다요인 점수로 만들어 게이트한다.
 
-요인 정의는 백테스트 스펙(docs/spec_edge_stack_backtest.md §엣지 스택)과 **동일 정의**
-(스펙 §6 금지: 정의를 다르게 바꾸지 말 것 — 변경은 새 버전 이름으로만). 신호일 t 시점 정보만
-사용(미래 정보 금지). 백테스트 산출물(data/reports/edge_stack_backtest.json)이 아직 없어
-(조회: ls data/reports/edge_stack_backtest.json → No such file, 2026-11-17) 이 모듈이
-정의의 정본이 되므로, 구현 선택을 전부 주석으로 남겨 백테스트 구현이 따라올 수 있게 한다:
+요인 정의는 백테스트와 **동일 정의** — 스펙 §6 금지(정의 변경은 새 버전 이름으로만), 그리고
+피드 스펙의 "선행 산출물이 있으면 그것을 정본으로 따른다"에 따라 **scripts/edge_stack_backtest.py
+의 edge_factors() 를 정본으로 대조했다**(2026-11-17 16:29 산출물 기준). 대조 결과 채택한
+정본 구현 선택(합성 봉으로 백테스트 함수에 넣어 실측 — 조회 명령은 이 파일 하단 주석 참고):
+- ATR14 = TR 14일 **단순평균**(rolling(14).mean()). Wilder 평활 아님 —
+  백테스트 MD: "스펙이 정의하지 않아 단순평균 채택".
+- f4 = body/rng >= 0.5 AND close_pos*3 >= 2-1e-9 (정본 코드 그대로 — "상위 1/3"은
+  0.667 이 아니라 2/3-ε 로 판정. close_pos=2/3 합성 봉에서 정본 f4=True 실측).
+- f6 = 1.0 <= ATR14/close*100 <= 6.0 (퍼센트 스케일, ε 없음 — 정본 코드 그대로).
+- f7 = chg*100 <= 12.0 AND chg5*100 <= 25.0 (퍼센트 스케일, ε 없음). 정본에서
+  "정확히 12%" 합성 봉(1120/1000)은 chg% = 12.000000000000002 > 12.0 으로 **False**
+  가 된다(0.12 의 이진 부정확 — 정본과 같은 행동을 의도적으로 유지).
+- chg = close_t/close_{t-1}-1, chg5(5일 누적) = close_t/close_{t-5}-1 (pct_change 와 동일식).
 
 | 요인 | 정의 |
 |---|---|
@@ -28,21 +36,27 @@ WHY (docs/spec_feed_edge_score.md, 2026-11-17, 사용자 지시 "트레이더 �
 | vol_fit        | 0.01 <= ATR14/close_t <= 0.06 |
 | overheat_avoid | chg_t <= 12% AND 5일 누적 <= 25% |
 
-구현 선택(백테스트와 공유할 정의):
-- MA = 단순이동평균(SMA). MA20_{t-5} = closes[t-24..t-5] 평균(기울기 5일).
-- HHV20_t = highs[t-19..t] 최대. HHV20_{t-1} = highs[t-20..t-1] 최대(20일 고점, t-1 기준).
-- ATR14 = Wilder 방식: 시드 = 처음 14개 TR 단순평균(TR_0 = high_0-low_0), 이후
-  ATR_i = (ATR_{i-1}*13 + TR_i)/14. TR_i = max(high-low, |high-c_{i-1}|, |low-c_{i-1}|).
-  (TR 이 일정한 계열에서 SMA14와 같아, 경계 테스트는 손계산 가능.)
+구현 선택(백테스트 정본과 공유할 정의 — 정본 대조 실측은 파일 하단 주석):
+- MA = 단순이동평균(SMA). MA20_{t-5} = closes[t-24..t-5] 평균(정본의 ma20.shift(5)).
+- HHV20_t = highs[t-19..t] 최대(rolling(20).max). HHV20_{t-1} = highs[t-20..t-1] 최대.
+- TR_i = max(high-low, |high-c_{i-1}|, |low-c_{i-1}|), TR_0 = high_0-low_0
+  (정본은 shift(1) NaN 을 skipna 로 같은 값). ATR14 = TR 14일 단순평균.
 - chg_t = close_t/close_{t-1} - 1, 5일 누적 = close_t/close_{t-5} - 1.
-- 부동소수점 경계: chg(0.12)·누적(0.25)·vol_fit(0.01/0.06)은 이진 부정확 때문에 1e-9
-  허용 폭을 더해 손계산 경계값(예: 1120/1000-1 = 정확히 12%)이 참이 되게 한다.
-  0.5·0.667·2.0 은 손계산 값이 리터럴과 같은 double 로 반올림되므로 그대로 비교한다.
 - 30봉 미만 → no_history. 신호봉 퇴화(high<=low, close<=0, 값 결측) → degenerate.
 
 사용:
     from edge_stack import compute_edge, FACTORS
     res = compute_edge(bars)  # bars: 날짜 오름차순 list[dict(open,high,low,close,volume,trading_value)]
+
+정본 대조 실측(2026-11-17, /usr/bin/python3 — 이 모듈·테스트의 기대값 근거):
+    import edge_stack_backtest as bt
+    df = <합성 40봉 DataFrame(stock_code, trade_date, open_price, high_price, low_price,
+                              close_price, volume, trading_value)>
+    bt.edge_factors(bt.compute_features(df)).iloc[-1][["f1","f2","f3","f4","f5","f6","f7","score"]]
+결과(정본 값):
+    평탄: f3·f6·f7 T → score 3 | 상승: f1·f2·f3·f6·f7 T → score 5
+    close_pos=2/3 봉: f4 True | chg 정확히 12%(1120/1000): f7 False(12.000000000000002>12.0)
+    TR=100·close 10000: f6 True(1.0%) | TR=600: f6 True(6.0%) | TR=99.99: False | TR=600.01: False
 """
 from __future__ import annotations
 
@@ -75,14 +89,6 @@ def _num(value):
 def _none_result(reason):
     return {"edge_score": None, "edge_factors": {}, "atr_pct": None,
             "ma20": None, "hhv20": None, "edge_reason": reason}
-
-
-def _wilder_atr14(trs, upto):
-    """Wilder ATR14 — 시드 = TR 처음 14개 단순평균, 이후 (전일ATR*13 + TR)/14."""
-    atr = sum(trs[:14]) / 14.0
-    for i in range(14, upto + 1):
-        atr = (atr * 13.0 + trs[i]) / 14.0
-    return atr
 
 
 def _ma(values, back, end):
@@ -118,13 +124,14 @@ def compute_edge(bars, signal_index=None):
     if highs[t] <= lows[t] or closes[t] <= 0:
         return _none_result("degenerate")
 
-    # True Range(첫 봉은 고가-저가, 이후는 전일 종가 포함 3-way) → Wilder ATR14
+    # True Range(첫 봉은 고가-저가, 이후는 전일 종가 포함 3-way) → ATR14 = TR 14일 단순평균
+    # (정본 edge_stack_backtest.py: rolling(14).mean() — Wilder 아님)
     trs = [highs[0] - lows[0]]
     for i in range(1, t + 1):
         trs.append(max(highs[i] - lows[i],
                        abs(highs[i] - closes[i - 1]),
                        abs(lows[i] - closes[i - 1])))
-    atr14 = _wilder_atr14(trs, t)
+    atr14 = _ma(trs, 14, t)
 
     ma5 = _ma(closes, 5, t)
     ma20 = _ma(closes, 20, t)
@@ -137,7 +144,8 @@ def compute_edge(bars, signal_index=None):
     body = abs(closes[t] - opens[t])
     candle_pos = (closes[t] - lows[t]) / rng
     vol_ratio = volumes[t] / ma20_vol if ma20_vol > 0 else 0.0
-    atr_pct_raw = atr14 / closes[t]
+    atr_pct_raw = atr14 / closes[t]          # 출력용 비율(0.023 = 2.3%, 스펙 §1)
+    atr_pct_pct = atr_pct_raw * 100.0        # 정본 f6 판정은 퍼센트 스케일(ε 없음)
     chg = closes[t] / closes[t - 1] - 1.0
     cum5 = closes[t] / closes[t - 5] - 1.0
 
@@ -145,10 +153,11 @@ def compute_edge(bars, signal_index=None):
         "trend_dir": closes[t] > ma20 and ma5 > ma20,
         "trend_slope": ma20 > ma20_prev5,
         "sr_breakout": closes[t] >= 0.98 * hhv20 or closes[t] > hhv20_prev,
-        "candle_quality": body / rng >= 0.5 and candle_pos >= 0.667,
+        # 정본: (body/rng >= 0.5) & (close_pos*3 >= 2-1e-9) — "상위 1/3" 은 2/3-ε 판정
+        "candle_quality": body / rng >= 0.5 and candle_pos * 3.0 >= 2.0 - _EPS,
         "volume_confirm": vol_ratio >= 2.0,
-        "vol_fit": 0.01 - _EPS <= atr_pct_raw <= 0.06 + _EPS,
-        "overheat_avoid": chg <= 0.12 + _EPS and cum5 <= 0.25 + _EPS,
+        "vol_fit": 1.0 <= atr_pct_pct <= 6.0,
+        "overheat_avoid": chg * 100.0 <= 12.0 and cum5 * 100.0 <= 25.0,
     }
     return {
         "edge_score": int(sum(factors.values())),
