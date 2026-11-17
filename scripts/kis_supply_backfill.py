@@ -22,6 +22,7 @@ import argparse
 import os
 import random
 import sys
+import time
 from datetime import date, datetime, timedelta
 
 import psycopg2
@@ -47,6 +48,35 @@ PG = dict(
 
 # 검증 대상 종목은 언제나 포함한다 (리더 피처 검증에 쓰인다)
 ALWAYS_INCLUDE = ["005930"]
+
+# DB 커넥션이 **죽는** 경우(서버 재시작·컨테이너 재기동). psycopg2 는 이미 닫힌 커넥션에
+# InterfaceError('connection already closed'), 서버가 끊으면 OperationalError 를 던진다.
+# WHY(2026-11-17 실측): 수급 러너(19:10)가 800종목 중 260종목을 적재한 20:00 에 postgres 컨테이너가
+# 재시작(StartedAt 11:00:16Z)하면서 남은 종목이 전부 'connection already closed' 로 실패했고,
+# 요약 조회(conn.cursor())에서 traceback 으로 죽어 **'완료:' 줄도 자기신고도 남기지 못했다** —
+# 로그 꼬리에 traceback 만 남아 원인이 보이지 않았다. 재연결·계속 수집이 정답이다.
+DB_ERR = (psycopg2.InterfaceError, psycopg2.OperationalError)
+
+
+def _reconnect(old=None, attempts: int = 5):
+    """죽은 커넥션을 버리고 새로 연결한다(서버 재시작 대비). 실패하면 예외를 올린다."""
+    try:
+        if old is not None:
+            old.close()
+    except Exception:  # noqa: BLE001 - 이미 죽은 커넥션 정리는 실패해도 무해
+        pass
+    last = None
+    for i in range(1, max(1, attempts) + 1):
+        try:
+            return psycopg2.connect(**PG)
+        except Exception as e:  # noqa: BLE001
+            last = e
+            wait = min(30, 3 * i)
+            print(f"  DB 재연결 실패({type(e).__name__}: {e}) {i}/{attempts} — {wait}초 대기",
+                  flush=True)
+            time.sleep(wait)
+    raise last
+
 
 
 def latest_trading_date(conn):
@@ -217,6 +247,8 @@ def main():
     drop_rows = 0  # 시장은 거래했는데 이 종목 행이 없어 제외된 행수(상장 전·거래정지)
     unloaded_rows = 0  # 시장에 그 날짜 일봉이 아직 없어 **보존**한 행수(적재 순서 — 버리지 않는다)
     quota_hit = False
+    db_down = False
+    db_skipped = 0  # DB 재기동으로 건너뛴 종목수(진행파일에 없으므로 다음 실행이 재개한다)
 
     for idx, (code, name) in enumerate(todo, start=1):
         if calls >= max_calls:
@@ -249,6 +281,21 @@ def main():
                     extra += f", 일봉 미적재일 보존 {unloaded_rows}행"
                 print(f"  [{idx}/{len(todo)}] {code} {name}: 수급 {n}행, "
                       f"지분율 {own}행 (as-of {stock_as_of}){extra}", flush=True)
+        except DB_ERR as e:
+            # DB 가 죽었다(재시작·컨테이너 재기동) → 재연결하고 **이 종목은 건너뛴다**.
+            # 진행파일에 기록하지 않으므로 다음 실행이 같은 종목부터 이어받는다(재시도로
+            # API 콜·source 를 두 번 세지 않으려고 그 자리 재시도는 하지 않는다).
+            try:
+                conn = _reconnect(conn)
+                coll._conn = conn  # noqa: SLF001 - 저장소와 같은 커넥션을 공유한다
+                print(f"  [{idx}/{len(todo)}] {code} {name} DB 연결 끊김"
+                      f"({type(e).__name__}) — 재연결 완료, 이 종목은 다음 실행에서 재개", flush=True)
+            except Exception as e2:  # noqa: BLE001
+                print(f"  ⛔ DB 재연결 실패({type(e2).__name__}: {e2}) — 수집 중단", flush=True)
+                db_down = True
+                break
+            fail += 1
+            db_skipped += 1
         except KisApiError as e:
             fail += 1
             print(f"  [{idx}/{len(todo)}] {code} {name} 실패: {e}", flush=True)
@@ -260,16 +307,25 @@ def main():
             fail += 1
             print(f"  [{idx}/{len(todo)}] {code} {name} 실패: {type(e).__name__}: {e}", flush=True)
 
+    if db_down:
+        print("실행 중단(DB 재연결 불가) — 다음 실행에서 재개", flush=True)
+        return 3
+
     # ── 결과 집계 ──────────────────────────────────────────────────────────
-    cur = conn.cursor()
-    cur.execute("""SELECT COUNT(DISTINCT stock_code), COUNT(*), MIN(trade_date), MAX(trade_date)
-                   FROM foreign_institutional""")
-    fc, fr, fmin, fmax = cur.fetchone()
-    cur.execute("""SELECT COUNT(DISTINCT stock_code), COUNT(*), MIN(trade_date), MAX(trade_date),
-                          COUNT(foreign_ownership_pct)
-                   FROM ownership""")
-    oc, orr, omin, omax, ocov = cur.fetchone()
-    cur.close()
+    # 집계도 DB 재기동에 걸린다(2026-11-17 실측: 여기서 traceback 으로 죽어 자기신고가 사라졌다).
+    try:
+        (fc, fr, fmin, fmax), (oc, orr, omin, omax, ocov) = _summary_counts(conn)
+    except DB_ERR as e:
+        print(f"  ⚠ 집계 질의 DB 연결 끊김({type(e).__name__}) — 재연결 후 재시도", flush=True)
+        try:
+            conn = _reconnect(conn)
+            coll._conn = conn  # noqa: SLF001
+            (fc, fr, fmin, fmax), (oc, orr, omin, omax, ocov) = _summary_counts(conn)
+        except DB_ERR as e2:
+            print(f"  ⛔ 집계 불가(재연결 후에도 {type(e2).__name__}: {e2}) — 자기신고 생략, 중단",
+                  flush=True)
+            return 3
+
     print(f"\n완료: ok={ok} fail={fail} no_data={nodata} 호출≈{calls}"
           f"{' (한도 중단)' if quota_hit else ''}", flush=True)
     print(f"  foreign_institutional: {fc}종목 {fr}행 ({fmin}~{fmax})", flush=True)
@@ -292,12 +348,32 @@ def main():
                                   ok, fail, nodata, calls)
     conn.close()
     # 종료코드 4 = 자기신고상 명확한 파서/적재 실패(소스는 줬는데 저장 0).
-    # 3=호출 한도 중단, 1=API 실패. 크론 로그에서 '조용한 실패'를 구분하기 위한 값이다.
+    # 3=다음 실행에서 재개(호출 한도 중단 · DB 재기동으로 종목 건너뜀), 1=API 실패.
+    # 크론 로그에서 '조용한 실패'를 구분하기 위한 값이다.
     if claim_failed:
         return 4
-    if quota_hit:
+    if quota_hit or db_skipped:
         return 3
     return 0 if fail == 0 else 1
+
+
+def _summary_counts(conn):
+    """(foreign_institutional 요약, ownership 요약). 커넥션이 죽으면 DB_ERR 로 올린다."""
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT COUNT(DISTINCT stock_code), COUNT(*), MIN(trade_date), MAX(trade_date)
+                       FROM foreign_institutional""")
+        flow = cur.fetchone()
+        cur.execute("""SELECT COUNT(DISTINCT stock_code), COUNT(*), MIN(trade_date), MAX(trade_date),
+                              COUNT(foreign_ownership_pct)
+                       FROM ownership""")
+        own = cur.fetchone()
+        return flow, own
+    finally:
+        try:
+            cur.close()
+        except Exception:  # noqa: BLE001 - 죽은 커넥션의 커서 정리 실패는 무해
+            pass
 
 
 def _count_rows(conn, table):
@@ -330,11 +406,16 @@ def _record_claims(conn, before, flow_rows, own_rows, src_rows, ok, fail, nodata
     ]
     parse_failed_any = False
     for table, claimed, src in pairs:
-        after = _count_rows(conn, table)
-        persisted = after - before.get(table, 0)
-        record_claim(conn, "kis_supply_backfill", table,
-                     claimed_rows=claimed, persisted_rows=persisted, source_rows=src,
-                     note=f"{note} rows {before.get(table, 0)}->{after}")
+        # 자기신고 실패가 수집 결과 보고를 깨면 안 된다(러너 자기신고 규칙) — DB 오류는 건너뛴다.
+        try:
+            after = _count_rows(conn, table)
+            persisted = after - before.get(table, 0)
+            record_claim(conn, "kis_supply_backfill", table,
+                         claimed_rows=claimed, persisted_rows=persisted, source_rows=src,
+                         note=f"{note} rows {before.get(table, 0)}->{after}")
+        except DB_ERR as e:
+            print(f"  ⚠ 자기신고[{table}] 생략 — DB 오류 {type(e).__name__}: {e}", flush=True)
+            continue
         if src > 0 and claimed == 0:
             state = "★파서/적재 실패(소스는 줬는데 저장 0)"
             parse_failed_any = True
