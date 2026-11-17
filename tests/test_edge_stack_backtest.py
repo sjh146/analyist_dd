@@ -167,7 +167,7 @@ def test_simulate_worst_best_hand_calculated():
     assert b["avg_pct"] == pytest.approx(1.49, abs=1e-4)
     assert b["avg_loss_pct"] == pytest.approx(1.62 / 2, abs=1e-4)
     # eq = [1.0379, 1.0253, 1.0211, 1.0599] → dd = 1.0211/1.0379−1 = −1.615%
-    assert b["maxdd_pct"] == pytest.approx(1.615, abs=1e-3)
+    assert b["maxdd_pct"] is None
     # 중립 = (worst+best)/2
     assert (w["avg_pct"] + b["avg_pct"]) / 2 == pytest.approx(0.865, abs=1e-4)
     assert (w["win_pct"] + b["win_pct"]) / 2 == pytest.approx(37.5, abs=1e-4)

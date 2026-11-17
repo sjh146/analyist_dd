@@ -380,7 +380,8 @@ def recommend(wf: dict) -> dict:
         "일봉 순서 불확실성 — worst/best 밴드의 중립값이며 실제 경로는 밴드 안 어딘가",
         "왕복 비용 0.21%(실체결) 가정 — 슬리피지·호가 갭 미반영",
         "홀드아웃 1회(2026-08-16~11-14) — 우연성 배제 못함",
-        "MaxDD 는 복리 자본곡선(∏(1+r)) 기준·진입일 순서 — 동일일 내 순서는 종목코드 정렬(임의)",
+        "MaxDD 는 이 스크립트에서 측정하지 않는다(전액 재투입 복리는 9,500건에서 5,873% 같은 비현실 값) — "
+        "고정자본(약 25만원·종목당 1/3·동시 3)·가격대 필터를 넣은 자본 제약 시뮬레이터가 정본(다음 단계)",
         "p* 는 스펙 계약식 (stop+0.21)/(stop+tp) — ATR 셀은 트레이드별 p* 평균",
     ]
     passed = []
@@ -515,17 +516,17 @@ def build_md(rep: dict) -> str:
     a("")
     a("## 3. 1구간 상위 조합 (선택 2026-04-01~08-15 → 홀드아웃 08-16~11-14, 재조정 없음)")
     a("")
-    a("| # | 손절/익절 | R:R | 문턱 | 선택n | 선택EV% | 승률% | R | MaxDD% | 홀드아웃EV% | ①②③④ |")
+    a("| # | 손절/익절 | R:R | 문턱 | 선택n | 선택EV% | 승률% | R | MaxDD | 홀드아웃EV% | ①②③④ |")
     a("|---|---|---|---|---|---|---|---|---|---|---|")
     for p in rep["walkforward"]["picks"]:
         sel, hold = p["select"], p["holdout"]
         cond = "".join("✓" if p["conditions"][k] else "✗"
                        for k in ("c1_ev_gt_010", "c2_n_ge_300",
                                  "c3_holdout_ev_gt_0", "c4_win_ge_breakeven"))
-        a("| %d | %s/%s | %.2f | %d | %d | %+.2f | %.1f | %s | %.2f | %+.2f | %s |"
+        a("| %d | %s/%s | %.2f | %d | %d | %+.2f | %.1f | %s | %s | %+.2f | %s |"
           % (p["pick_rank"], p["stop"], p["tp"], p["rr"], p["threshold"], sel["n"],
              sel["neutral"]["avg_pct"], sel["neutral"]["win_pct"],
-             _f(sel["neutral"]["r"]), sel["neutral"]["maxdd_pct"],
+             _f(sel["neutral"]["r"]), _f(sel["neutral"]["maxdd_pct"]),
              hold["neutral"]["avg_pct"], cond))
     a("")
     a("## 4. 추천")

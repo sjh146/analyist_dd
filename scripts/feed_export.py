@@ -180,10 +180,10 @@ def load_edge_bars(codes):
         # 종목별 최근 40봉을 창함수 한 번으로 가져온 뒤 날짜 오름차순 정렬(compute_edge 계약).
         cur.execute(
             """
-            SELECT stock_code, open_price, high_price, low_price, close_price,
+            SELECT stock_code, trade_date, open_price, high_price, low_price, close_price,
                    volume, trading_value
             FROM (
-                SELECT stock_code, open_price, high_price, low_price, close_price,
+                SELECT stock_code, trade_date, open_price, high_price, low_price, close_price,
                        volume, trading_value,
                        ROW_NUMBER() OVER (PARTITION BY stock_code
                                           ORDER BY trade_date DESC) AS rn
@@ -196,7 +196,7 @@ def load_edge_bars(codes):
         rows = cur.fetchall()
         cur.close()
         bars = {}
-        for code, o, h, l, c, v, tv in rows:
+        for code, _trade_date, o, h, l, c, v, tv in rows:
             bars.setdefault(str(code), []).append({
                 "open": _num(o), "high": _num(h), "low": _num(l),
                 "close": _num(c), "volume": _num(v), "trading_value": _num(tv),
@@ -564,6 +564,7 @@ def main(argv=None):
     candidates = {}
     publish_dt = datetime.now(KST)
     built_counts = {}
+    edge_scored, edge_total = 0, 0
     for key in ("close", "swing", "daytrading"):
         payload = payloads.get(key, {})
         universe = load_universe(key, [payload.get("date"), publish_dt.date().isoformat()])
@@ -665,7 +666,6 @@ def main(argv=None):
 
     # 검증 + 분포 요약 (계약 §5: 점수가 좁게 뭉치면 문턱·상위 N 선별이 무의미)
     ok = True
-    edge_scored, edge_total = 0, 0
     for key, block in candidates.items():
         items = block["items"]
         scores = [i["score"] for i in items]
