@@ -2501,6 +2501,18 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
     """
     if parsed.get("error"):
         return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    # 대조군이 arm 과 **같은 태그**면 이 판정기는 비교할 짝이 없다 — 짝 Δ 가 0/240 ties 로 나와
+    # '노이즈'라는 가짜 결론이 된다(실측 2026-11-18 CG343: arm=control=LS_quant_q30_h5, ties 240/240,
+    # Δ+0.000 → '노이즈'로 원장에 남았다. 실제로는 같은 런의 baseline_pool 짝이
+    # top-k−풀평균 +1.006%p(t 2.01)를 이미 계산해 두고 있었다). 그럴 때는 널(풀평균) 판정기로 넘긴다.
+    conds0 = parsed.get("conditions") or {}
+    _fl = ((conds0.get("fillable") or {}).get("k") or {})
+    _ties = sum(((_fl.get(str(k)) or {}).get("paired") or {}).get("ties") or 0 for k in _fl)
+    _nd = sum(((_fl.get(str(k)) or {}).get("paired") or {}).get("n_dates") or 0 for k in _fl)
+    if parsed.get("arm_tag") and parsed.get("arm_tag") == parsed.get("control_tag"):
+        v, det, first = judge_fillable_topk_vs_pool(item, parsed)
+        return v, ("[대조군 태그=arm → arm-vs-arm 비교 무효(짝 ties "
+                   f"{_ties}/{_nd}) → 널(세션 풀평균) 비교로 대체] " + det), first
     conds = parsed.get("conditions") or {}
     fill = (conds.get("fillable") or {}).get("k") or {}
     unf = (conds.get("unfiltered") or {}).get("k") or {}

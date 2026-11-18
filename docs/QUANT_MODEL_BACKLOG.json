@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T21:27:53+09:00",
+ "updated_at": "2026-11-18T21:36:55+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -21150,7 +21150,7 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 3,
-   "status": "pending",
+   "status": "done",
    "metric": "fillable_topk_expectancy",
    "title": "[점수 부호 검정·돈] 등록 라벨 arm(LS_quant_q30_h5)의 bottom-k 가 세션 풀평균을 유의하게 하회하는가 — 점수가 '오를 종목'이 아니라 '변동성 프록시'인지 돈으로 직접 확인(전 유니버스 덤프)",
    "hypothesis": "CG341 실측(241세션·체결성 ON): 모델 top-k 순기대가 풀평균 +0.712%p/세션보다 k=3 −0.573(t−1.34)·k=5 −0.551(t−1.66)·k=10 −0.582(t−2.42)로 **전부 하회**했다. 그리고 전방 성적표 h5 top10 −3.55% vs 풀 −0.87%. 즉 지금 점수는 양(+)의 선별 정보가 아니라 **음(−)의 방향 정보**(또는 변동성 대리변수)일 수 있다. 이걸 직접 가르는 검정은 같은 덤프에서 bottom-k(= 점수 최하위)를 재는 것이다: ① top-k < 풀평균 < bottom-k 이면 점수는 **부호가 반대인 정렬 정보**(→ 소비 정책을 뒤집거나 리스크 축으로 재정의), ② top-k·bottom-k 둘 다 풀평균 미만이면 점수는 **무정보 + 고변동성 선택**(→ 선별 자체를 폐기). 판정은 돈 지표로만 한다.",
@@ -21161,9 +21161,45 @@
    "cost": "전 유니버스 덤프 10폴드×5시드 ≈ 19분(CG341 실측 18.8분) + 돈 집계 3분",
    "est_minutes": 25,
    "created_at": "2026-11-18T21:40:00+09:00",
-   "attempts": [],
+   "attempts": [
+    {
+     "ts": "2026-11-18T21:36:55+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm LS_quant_q30_h5 vs 대조군 LS_quant_q30_h5 · exit close_h h5 · 수수료 왕복 0.21%p · 세션 240 · 풀 중앙값 189 · k=3 arm +1.717%p/세션 · 대조 +1.717 · Δ+0.000(t 0.0) · 양세션 55.0% · 분할 unstable [+4.709/-1.275] ✗ · k=5 arm +1.442%p/세션 · 대조 +1.442 · Δ+0.000(t 0.0) · 양세션 54.6% · 분할 unstable [+3.941/-1.058] ✗ · 참고(체결성 필터 OFF): k=3 arm +1.508%p · Δ+0.000 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG343_20261118-213039.log",
+     "elapsed_min": 6.3
+    }
+   ],
    "arm": "LS_quant_q30_h5",
-   "note": "2026-11-18 21:4x 신설(자율) — CG341 이 라벨 중립화 축을 돈으로 닫은 직후(bottom/top 부호 검정으로 '모델 선별이 돈이 되는가'를 단일 덤프에서 마무리). ⚠ CG330 덤프는 --dump-all-codes OFF 라 널(풀평균)이 상하위 극단만 담겨 쓸 수 없다(CG278 교훈) → 새 덤프 필수."
+   "note": "2026-11-18 21:4x 신설(자율) — CG341 이 라벨 중립화 축을 돈으로 닫은 직후(bottom/top 부호 검정으로 '모델 선별이 돈이 되는가'를 단일 덤프에서 마무리). ⚠ CG330 덤프는 --dump-all-codes OFF 라 널(풀평균)이 상하위 극단만 담겨 쓸 수 없다(CG278 교훈) → 새 덤프 필수.",
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm LS_quant_q30_h5 vs 대조군 LS_quant_q30_h5 · exit close_h h5 · 수수료 왕복 0.21%p · 세션 240 · 풀 중앙값 189 · k=3 arm +1.717%p/세션 · 대조 +1.717 · Δ+0.000(t 0.0) · 양세션 55.0% · 분할 unstable [+4.709/-1.275] ✗ · k=5 arm +1.442%p/세션 · 대조 +1.442 · Δ+0.000(t 0.0) · 양세션 54.6% · 분할 unstable [+3.941/-1.058] ✗ · 참고(체결성 필터 OFF): k=3 arm +1.508%p · Δ+0.000 · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+    "delta": 0.0,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG344",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 2,
+   "status": "pending",
+   "metric": "fillable_topk_expectancy",
+   "title": "[돈·유니버스 불변성] top-k − 풀평균 Δ+1.006%p(t 2.01) 는 유니버스 특이인가 — 청정 panel_prod200(50종목)에서 같은 라벨·같은 프로토콜로 재측정하고 짝 중앙값으로 꼬리 의존성까지 판정",
+   "hypothesis": "CG343(panel_200liq_ffill, 200종목, 240세션)에서 top-k 가 풀평균을 +1.006%p/세션(t 2.01) 이겼지만 앞/뒤 절반이 +4.71/−1.27 로 뒤집혔고 짝 중앙값 −0.039·양세션 116/124 였다 = 평균이 소수 극단세션에 실린 정황. 스킬 교훈상 이런 신호는 유니버스를 바꾸면 부호가 뒤집힌다(CG11/panel_150u 사례). 유니버스·꼬리 두 관문을 같은 사전문턱으로 통과해야만 '모델 선택 엣지'로 인정한다.",
+   "counterfactual": "같은 세션 풀의 세션별 풀평균(무작위 k 기대, baseline_pool) — 체결성 필터 ON · 수수료 왕복 0.21%p · exit close_h h5",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 10 --seeds 5 --only LS_quant_q30_h5 --dump-preds /app/reports/overnight/cg344_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg344_sweep.jsonl --summary-out /app/reports/overnight/cg344_summary.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg344_preds.jsonl --arm-tag LS_quant_q30_h5 --k 3,5,10 --sides top,bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg344_money.json'",
+   "success": "① rc=0 + cg344_money.json 갱신 + 덤프 세션당 종목수 ≥ 40 ② 사전등록: k=3 **과** k=5 둘 다 Δ(top−풀) ≥ +0.1%p & t ≥ 2 & 짝 중앙값 > 0 & 앞/뒤 절반 모두 양수 → '유니버스 불변·꼬리 비의존 엣지'(그때만 소비 정책을 리뷰보드 안건으로) ③ 둘 중 하나라도 미달 → top-k 초과 엣지 축 종결: 남은 레버는 새 데이터 원천(분봉 XR26·대차잔고)과 추론 계약(배치 횡단면)뿐임을 원장에 남긴다 ④ 폴드 AUC 도 함께 기록(판정은 돈 지표).",
+   "expected": "Δ 가 0 근처로 축소되거나 부호 반전. 근거: CG343 짝 중앙값 −0.039(양세션 48.3%)로 이미 평균이 꼬리에 의존 · 청정 50종목 패널은 세션당 후보가 적어 top-3 이 풀의 큰 비중을 차지 → 베타 제거 초과가 줄어든다.",
+   "cost": "sweep 5.6분(CG340 실측) + money ~1분",
+   "est_minutes": 12,
+   "created_at": "2026-11-18T22:12:00+09:00",
+   "attempts": [],
+   "note": "2026-11-18 22:1x 신설(자율). CG343 의 '노이즈' 판정은 비교 자체가 무효(arm=control 동일 태그)였고, 같은 산출물의 널 비교에서 Δ+1.006(t 2.01)이라는 미검출이 아닌 '미확정' 수치가 나왔다 — 축을 닫기 전에 유니버스·꼬리 두 관문을 같은 문턱으로 통과시키는 것이 목적이다."
   }
  ],
  "updated": "2026-11-18T18:10:48+09:00"
