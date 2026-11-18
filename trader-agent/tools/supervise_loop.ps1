@@ -53,7 +53,13 @@ while ($true) {
     Start-Sleep -Seconds 60
     continue
   }
-  $p = Start-Process -FilePath $py -ArgumentList '-u', 'run_market_loop.py', 'run', '--loop', '--live', '--yes', '--feed', $feed -WorkingDirectory $repo -WindowStyle Hidden -PassThru
+  # 2026-11-18: 단타 전면 전환 — 감독자가 재기동할 때도 config_live.json(daytrading 전용)을 쓰게 한다.
+  $cfg = Join-Path $repo 'config_live.json'
+  if (Test-Path $cfg) {
+    $p = Start-Process -FilePath $py -ArgumentList '-u', 'run_market_loop.py', 'run', '--loop', '--live', '--yes', '--feed', $feed, '--config', $cfg -WorkingDirectory $repo -WindowStyle Hidden -PassThru
+  } else {
+    $p = Start-Process -FilePath $py -ArgumentList '-u', 'run_market_loop.py', 'run', '--loop', '--live', '--yes', '--feed', $feed -WorkingDirectory $repo -WindowStyle Hidden -PassThru
+  }
   Log ("started loop pid {0}" -f $p.Id)
   $state = 'started'
   Start-Sleep -Seconds 60

@@ -312,7 +312,10 @@ DEFAULT_PROFILES: Dict[str, Dict[str, Any]] = {
         #   (보유분 실측: 1%/3% 6.8분 · 1.5%/4.5% 15.0분 · ATR 트레일 50.3분).
         #   조회: grep -E "fixed_1_3|fixed_15_45|trail_atr" data/reports/minute_replay.md
         # 0 으로 되돌리면 기존 same_day_close(15:00-15:20) 청산만 남는다(롤백 한 줄).
-        "max_hold_minutes": 30,
+        # 2026-11-18 14:1x 사용자 지시: 30 → 90분. 실측 근거 — 30분 스캘프 2건의 변동이
+        # +0.04%/−0.07% 로 왕복비용(약 0.21%)에 못 미쳐 본전 근처였다(021320 +29원,
+        # 143240 −41원). 시간을 늘려 변동 여지를 주되 15:00~15:20 강제청산은 유지한다.
+        "max_hold_minutes": 90,
     },
     "rank_momentum": {
         "entry_window": "09:00-15:20",

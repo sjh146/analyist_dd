@@ -42,6 +42,7 @@ from .feed import (
     Candidate,
     FeedSnapshot,
     candidate_atr_pct,
+    candidate_edge_factors,
     candidate_change_pct,
     candidate_edge_score,
 )
@@ -915,6 +916,9 @@ class TraderEngine:
                         # 재현 근거.  edge_score 는 int/None, atr_pct 는 비율.
                         "edge_score": edge_value,
                         "atr_pct": candidate_atr_pct(candidate),
+                        # 요인별 0/1 (2026-11-18 docs/spec_feed_feedback.md):
+                        # 실현손익 ↔ 요인 기여도를 사후 측정하려면 진입 시점 값이 남아야 한다.
+                        "edge_factors": candidate_edge_factors(candidate),
                     },
                     sizing={
                         "model": "equal-weight"

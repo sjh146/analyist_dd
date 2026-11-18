@@ -108,6 +108,27 @@ def candidate_edge_score(candidate: Any) -> Optional[int]:
         return None
 
 
+def candidate_edge_factors(candidate: Any) -> Optional[dict]:
+    """Return the feed's ``edge_factors`` mapping (요인별 0/1), or ``None``.
+
+    피드(2026-11-17 edge stack)는 ``edge_factors`` 를 dict 또는 JSON 문자열로
+    내보내고 구피드에는 키가 없다. 저널에 그대로 남겨 **실현손익↔요인 기여도**
+    를 사후 측정할 수 있게 한다(docs/spec_feed_feedback.md).
+    """
+    raw = (getattr(candidate, "extras", None) or {}).get("edge_factors")
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, dict):
+        return raw
+    try:
+        import json as _json
+
+        parsed = _json.loads(str(raw))
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def candidate_atr_pct(candidate: Any) -> Optional[float]:
     """Return the candidate's ATR/close ratio (0.023 = 2.3 %), or ``None``.
 
