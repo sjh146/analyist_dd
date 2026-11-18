@@ -1951,7 +1951,16 @@ def main():
     # OOS AUC 를 짝으로 재야 한다. 기본 OFF = 기존 실행 비트 동일.
     ap.add_argument("--report-train-auc", action="store_true",
                     help="폴드별 학습셋(in-sample) AUC 를 함께 기록(요약 folds[].train_auc)")
+    # ── CG339(2026-11-18): 선별 문턱 미달 피처 강제 포함 ──────────────────────────
+    # 왜: CG338 실측 — 신규 원천(공매도)이 단변량 AUC 0.5333(t 4.59)로 살아 있어도 선별 문턱
+    # (|AUC−0.5| ≥ 0.044)에 못 미치면 10폴드 중 9폴드 AUC 가 **비트 동일**했다(학습행렬 무변화).
+    # "정보가 없다"와 "선별이 버렸다"를 가르는 유일한 직접 검정이 '강제로 넣고 재는 것'이다.
+    # 기본 None = 기존 실행 비트 완전 동일. 개수는 30→32 로 늘어나므로 로그에 대조군 개수를 함께 남긴다.
+    ap.add_argument("--force-features", default=None,
+                    help="선별 후 강제로 덧붙일 피처 이름 목록(쉼표 구분). 후보 풀에 없으면 측정 전 실패")
     args = ap.parse_args()
+    _ff_names = [x.strip() for x in (args.force_features or "").split(",") if x.strip()]
+    _ff_set = set(_ff_names)
 
     if args.dry_run:
         for c in CONFIGS:
@@ -2451,6 +2460,26 @@ def main():
                     n_dup = int((cols & _dupm).sum())
                     cols = cols & np.logical_not(_dupm)
                     ml.log(f"  {exp_id}: 중복 라벨 제거 {n_dup}개 (후보 {int(cols.sum())})")
+                # ── CG339: --force-features 는 **사전필터까지 우회**한다 ─────────────
+                # 왜: 공매도 컬럼은 원천 시작일(2026-05-26) 이전 폴드에서 std=0 이라 여기서 탈락한다.
+                # 그러면 '선별이 버렸다'가 아니라 '학습창에 데이터가 없다'가 되어 강제 포함 실험이
+                # 성립하지 않는다. 강제 지정한 이름은 후보 풀에 반드시 남기고, 학습창 비영 비율을
+                # 함께 로그로 남겨 Δ0 을 '정보 없음'으로 오독하지 않게 한다(측정 정합).
+                _ff_info = []
+                if _ff_names:
+                    _fmiss = sorted(_ff_set - set(bn))
+                    if _fmiss:
+                        raise RuntimeError(
+                            f"force_features={_fmiss} 가 패널 피처 이름에 없다 — 표기 오류")
+                    for j, f in enumerate(bn):
+                        if f in _ff_set and not cols[j]:
+                            cols[j] = True
+                    _mat_tr = tr[bn].values
+                    for j, f in enumerate(bn):
+                        if f in _ff_set:
+                            _nz = float((_mat_tr[:, j] != 0).mean())
+                            _ff_info.append(f"{f}(비영 {_nz * 100:.1f}%)")
+                    ml.log(f"  {exp_id} fold{i}: 강제 피처 학습창 " + " · ".join(_ff_info))
                 fn = [f for f, m in zip(bn, cols) if m]
                 Xtr, Xte = Xtr[:, cols], Xte[:, cols]
                 # ── CG25 선별: 파생을 **선별 후보에서 빼고** top30 을 고른 뒤 강제로 덧붙인다 ──
@@ -2472,6 +2501,21 @@ def main():
                            f"{' (gate_add 포함)' if ga_names else ''}")
                 else:
                     idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr, trd)
+                # ── CG339: 강제 포함(--force-features) — 선별 문턱이 병목인지 직접 검정 ──
+                # 선별 집합은 그대로 두고 후보 풀에만 있던 피처를 **덧붙인다**(개수 30→32).
+                # 후보 풀에 없으면 사전필터(std0·pool·시장레벨)에서 탈락한 것이므로 측정 전에
+                # 실패시킨다(0개 추가된 arm 을 '효과 없음'으로 오독하는 사고 방지).
+                if _ff_names:
+                    _have = {fn[j] for j in idx}
+                    _add = [j for j, f in enumerate(fn) if f in _ff_set and f not in _have]
+                    _in_pool = sorted(_ff_set & set(fn))
+                    _base_n = len(idx)
+                    if _add:
+                        idx = list(idx) + _add
+                        sel_desc = f"{sel_desc} + 강제 {len(_add)}개"
+                    ml.log(f"  {exp_id} fold{i}: 강제 피처 후보 {len(_in_pool)}/{len(_ff_set)} · "
+                           f"선별 기진입 {len(_have & _ff_set)} · append {len(_add)} "
+                           f"→ n_features {len(idx)} (대조군 {_base_n})")
                 sel = [fn[j] for j in idx]
                 # ── CG234: gate_add 후보가 실제로 선별에 들어갔는지 남긴다 ─────────────────────
                 # gate_add 는 dv_names 경로로 **선별 후에 강제 append** 되므로(top30 집합은 두 arm
