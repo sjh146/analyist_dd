@@ -36,7 +36,7 @@ _UTF8 = "utf-8"
 
 # route -> (required_method, handler_suffix)
 _GET_ROUTES = frozenset(
-    {"/health", "/balance", "/positions", "/orders", "/quotes", "/rank"}
+    {"/health", "/balance", "/positions", "/orders", "/quotes", "/rank", "/daily_pnl"}
 )
 _POST_ROUTES = frozenset({"/order", "/cancel", "/subscribe", "/unsubscribe", "/shutdown"})
 
@@ -156,6 +156,7 @@ class _Handler(BaseHTTPRequestHandler):
                 "/orders": self._get_orders,
                 "/quotes": self._get_quotes,
                 "/rank": self._get_rank,
+                "/daily_pnl": self._get_daily_pnl,
             }[path]
             handler(query=parse_qs(parsed.query))
             return
@@ -202,6 +203,21 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_exception(exc)
             return
         self._send_ok({"orders": orders, "ts": self._ts()})
+
+    def _get_daily_pnl(self, query: Dict[str, list] = None) -> None:
+        """체결기준 당일 매매손익(CpTd6032) — 읽기 전용.
+
+        WHY(2026-11-18): 시장 종료 후 저널의 청산가·수수료를 브로커 체결 기록으로
+        검증할 수단이 없었다(fills 파일이 비어 있고, 브리지가 이 조회를 노출하지 않았다).
+        ``summary`` = {eval_pnl, realized_pnl, return_rate}, ``items`` = 종목별
+        {avg_buy_price, avg_sell_price, realized_pnl, buy_qty, sell_qty, ...}.
+        """
+        try:
+            data = fetch_daily_pnl(self.app.plus)
+        except Exception as exc:  # noqa: BLE001
+            self._send_exception(exc)
+            return
+        self._send_ok({"daily_pnl": data, "ts": self._ts()})
 
     def _get_quotes(self, query: Dict[str, list] = None) -> None:
         query = query or {}
