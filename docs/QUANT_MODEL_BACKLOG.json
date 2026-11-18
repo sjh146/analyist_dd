@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T22:46:52+09:00",
+ "updated_at": "2026-11-18T23:07:19+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -21319,7 +21319,7 @@
    "hypothesis": "배포 챔피언은 robust_auc.json 기록일 2026-10-02(=47일 전)에 학습됐다. 그 사이 패널·피처 원천이 갱신됐고(공매도 실데이터 유입·재무 rcept as-of 격자 교체 XR12), 스코어보드는 무개선 20사이클이다. 조정 축·선별 문턱·라벨·top-k 엣지가 모두 종결된 지금, 남은 자율 선택지는 '같은 구조·같은 라벨로 최신 데이터를 다시 학습'하는 것뿐이다. 이 후보가 챔피언 대비 다중폴드 견고 AUC 에서 움직이는가(그리고 돈 게이트를 통과하는가)를 잰다.",
    "counterfactual": "현 배포 챔피언(app/models/champion) — 같은 champion_robust_eval 프로토콜(5폴드)로 나란히 측정",
    "success": "① rc=0 + 견고 AUC 폴드 평균·폴드 목록이 요약에 존재 ② 후보 − 챔피언(같은 프로토콜) Δ ≥ +0.02 이고 폴드 승률 ≥ 4/5 → 그때만 champion_promote --dry-run --require-expectancy 로 승격 심사 ③ Δ < +0.02 면 '모델 신선도' 축도 종결(무개선 원인이 데이터 신선도가 아님을 기록). ⚠ AUC 만 오른 경우 승격 금지 — 돈 게이트(--require-expectancy: 순기대>0·분할표본 both_positive·챔피언 대비 +0.1%p)가 최종 권위.",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u -m app.training.retrain_champion --days 420 --end-date 2026-11-18 --out-dir app/models/retrain_cg346 && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --model-dir app/models/retrain_cg346 --folds 5 --out /app/reports/overnight/cg346_robust.json --dump-preds /app/reports/overnight/cg346_preds.jsonl --dump-tag retrain_cg346 --dump-all'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 8400 python -u -m app.training.retrain_champion --days 420 --end-date 2026-11-18 --out-dir app/models/retrain_cg346 && OMP_NUM_THREADS=4 timeout 8400 python -u scripts/champion_robust_eval.py --model-dir app/models/retrain_cg346 --folds 5 --out /app/reports/overnight/cg346_robust.json --dump-preds /app/reports/overnight/cg346_preds.jsonl --dump-tag retrain_cg346 --dump-all'",
    "expected": "Δ 0 안팎. 근거: 같은 라벨·같은 구조의 재학습은 과거 사이클에서 폴드 평균 ±0.005 지터를 넘지 않았고, 무개선 20사이클의 원인이 '모델 낡음'인지 '정보 부족'인지는 이 실험이 분리한다. Δ 가 0 이면 후자는 확정되고 남은 레버는 데이터 원천·추론 계약뿐이다.",
    "cost": "재학습 20~40분 + 5폴드 견고 평가 10~20분(est 90분)",
    "est_minutes": 90,

@@ -579,6 +579,8 @@ def eta_blocks(item) -> tuple:
 # ② execute() 가 필요 벽시계를 계산해 명령의 timeout 을 **올려서** 실행한다 — 내리는 방향은
 #    절대 하지 않는다(상한을 넓히는 것만 안전).
 _CMD_TIMEOUT_RE = re.compile(r"\btimeout\s+(\d+)\b")
+# `--only TAG1,TAG2` (값은 공백·따옴표 전까지) — 스윕 명령의 config 선별 목록.
+_ONLY_RE = re.compile(r"--only[=\s]+([^\s'\"]+)")
 
 
 def command_timeout_seconds(command):
@@ -638,6 +640,65 @@ def effective_command_for(item):
         new_cmd, chg = widen_command_timeouts(cmd, need)
         return new_cmd, chg, t, need
     return cmd, [], t, need
+
+
+def sweep_only_tags(command):
+    """`wf_label_sweep` 류 명령의 `--only` 태그 목록. 없으면 None(= 선별 없이 전 config)."""
+    if not command:
+        return None
+    m = _ONLY_RE.search(str(command))
+    if not m:
+        return None
+    return [t.strip() for t in m.group(1).split(",") if t.strip()]
+
+
+def prereg_control_gap(item):
+    """같은 런에 대조군이 없어 **판정이 원천 불가**한 등록이면 경고 문자열, 아니면 None.
+
+    실측(2026-11-18): 최근 40판정 중 8건이 '기준선없음' 으로 닫혔다 — 전부 `--only` 에
+    대조군 태그가 없고 기록 `baseline.value` 도 없는 스윕이었다(10~60분 CPU 소모 후 판정 불가,
+    원장 verdict='기준선없음'). 판정식은 (arm − 같은런 대조군) 또는 (arm − 기록 기준선) 둘 중
+    하나만 인정하므로, 둘 다 없으면 결과가 나와도 무효다. **차단하지 않고 경고만** 한다
+    (차단하면 ETA 가드처럼 큐를 굶긴다 — next_item 교훈).
+    """
+    if not item:
+        return None
+    tags = sweep_only_tags(item.get("command"))
+    if not tags:
+        return None
+    arm = item.get("arm")
+    cf = ((item.get("counterfactual") or "").split(" ") or [""])[0]
+    have = set(tags)
+    # 함정: counterfactual 문구가 arm 이름으로 시작하면('LS_quant_q30_h5 (기본 분위…') 첫 토큰이
+    # arm 과 같아 '대조군이 있다'로 오인된다 — 그건 **자기대조**라 Δ 항상 0 = 판정 무효다.
+    if cf and cf in have and cf != arm:
+        return None
+    # `--force-paired` 가 만드는 <arm>/<arm>__ff 쌍은 같은 런 대조군이 있다.
+    if arm and (f"{arm}__ff" in have or (arm.endswith("__ff") and arm[:-4] in have)):
+        return None
+    if any(t.endswith("__ff") for t in have):
+        return None
+    base = item.get("baseline") or {}
+    if base.get("value") is not None:
+        return None
+    if arm and arm in have and len(have) == 1:
+        return (f"{item.get('id')}: `--only {','.join(tags)}` 단일 arm — 같은 런 대조군도 "
+                f"기록 기준선도 없어 결과가 나와도 '기준선없음'(무효)으로 닫힌다. "
+                f"대조군 태그를 `--only` 에 함께 넣거나 baseline.value 를 등록하라")
+    return (f"{item.get('id')}: `--only {','.join(tags)}` 에 대조군({cf or '미지정'}) 태그가 없고 "
+            f"기록 기준선도 없다 — 판정 불가 위험(같은 런 짝 Δ 를 못 만든다)")
+
+
+def prereg_selfcheck_warnings(items):
+    """pending 항목의 '판정 불가' 등록을 경고 문자열 목록으로 돌려준다(읽기 전용)."""
+    out = []
+    for it in items or []:
+        if it.get("status") != "pending":
+            continue
+        w = prereg_control_gap(it)
+        if w:
+            out.append(w)
+    return out
 
 
 def timeout_selfcheck_warnings(items):
@@ -4938,6 +4999,12 @@ def execute(item, force=False):
         log(f"⚠ timeout 자기모순 수리: 명령 timeout {_t}s < 필요 {_need}s "
             f"(est_minutes={item.get('est_minutes')}) → {_chg} 로 상향")
         log(f"  효과 명령: {eff_command}")
+    # ── 사전등록 '판정 불가' 경고(2026-11-18) ──────────────────────────────────────────
+    # 같은 런 대조군도 기록 기준선도 없으면 10~60분을 쓰고도 verdict='기준선없음' 으로 닫힌다
+    # (최근 40판정 중 8건). 시작 전에 드러내 실행 중지·재등록 판단을 가능하게 한다.
+    _pg = prereg_control_gap(item)
+    if _pg:
+        log(f"⚠ 사전등록 판정불가 위험: {_pg}")
     with open(run_log, "w", encoding="utf-8") as lf:
         lf.write(f"# {item['id']} {item['title']}\n# started {started.isoformat()}\n"
                  f"# command: {item['command']}\n")
@@ -5874,6 +5941,8 @@ def tick(force=False):
     # 출력되므로 조용한 틱을 오염시키지 않는다(2026-10-11 CG173 실측 후 추가).
     for _w in timeout_selfcheck_warnings(_hb.get("items")):
         print(f"  ⚠ 백로그 자기모순: {_w}")
+    for _w in prereg_selfcheck_warnings(_hb.get("items")):
+        print(f"  ⚠ 판정불가 등록: {_w}")
     _promoted = promote_handoffs(_hb)
     if _promoted:
         save_backlog(_hb)
@@ -6035,6 +6104,8 @@ def status():
                 print(f"                 → {r}")
     for _w in timeout_selfcheck_warnings(b.get("items")):
         print(f"  ⚠ 백로그 자기모순: {_w}")
+    for _w in prereg_selfcheck_warnings(b.get("items")):
+        print(f"  ⚠ 판정불가 등록: {_w}")
     pid = running_pid()
     print(f"실행 중: {pid if pid else '없음'}")
     led = load_ledger(5)
