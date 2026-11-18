@@ -246,6 +246,14 @@ def main() -> int:
                     help="학습 데이터 **종료일**(YYYY-MM-DD). 주면 학습 종료 **이후** 창(진짜 미래 "
                          "구간)도 채점 대상에 포함된다 — 컷오프를 과거로 고정해 학습한 모델을 "
                          "그 이후 창에서 평가할 때 필요하다. 미지정 시 meta 의 data_end")
+    ap.add_argument("--oos-start", dest="oos_start", default=None,
+                    help="OOS 창의 **시작 하한**(YYYY-MM-DD) — 주면 이 날짜 이전 거래일을 버린 뒤 "
+                         "창을 나눈다. 왜(2026-11-19 CG349 실측): 두 arm 의 학습 종료일이 다르면 "
+                         "(champion data_end=2026-10-01 vs retrain fit_end=2026-08-27) 각자의 "
+                         "meta 로 창을 거르는 순간 **서로 다른 창**을 채점해 짝 Δ 가 무의미해지고, "
+                         "게다가 창 앵커가 CURRENT_DATE 라 train_end 를 10-01 로 고정하면 창 시작이 "
+                         "모두 그 이전(마지막 창 09-11~)이라 OOS 창 0개가 된다. 이 옵션으로 "
+                         "'양쪽 모두 진짜 OOS'인 공통 구간만 남겨 같은 창에서 짝 비교한다.")
     ap.add_argument("--model-dir", default="app/models/champion")
     ap.add_argument("--asof-date", dest="asof_date", default=None,
                     help="창 앵커(YYYY-MM-DD) — 주면 표본 거래일 창을 그 날짜 기준으로 **고정**한다"
@@ -323,6 +331,15 @@ def main() -> int:
         logger.error("거래일을 찾지 못했습니다")
         return 2
     dates_asc = sorted(dates_desc)
+    if args.oos_start:
+        before = len(dates_asc)
+        dates_asc = [d for d in dates_asc if str(d) >= args.oos_start]
+        logger.info("OOS 하한 %s 적용 — 거래일 %d → %d개 (%s ~ %s)",
+                    args.oos_start, before, len(dates_asc),
+                    dates_asc[0] if dates_asc else "-", dates_asc[-1] if dates_asc else "-")
+        if not dates_asc:
+            logger.error("OOS 하한 이후 거래일 없음 — 창 구성 불가")
+            return 2
     logger.info("거래일 %d개 확보 (%s ~ %s) — 창 앵커 %s",
                 len(dates_asc), dates_asc[0], dates_asc[-1],
                 args.asof_date or "CURRENT_DATE(현행)")
