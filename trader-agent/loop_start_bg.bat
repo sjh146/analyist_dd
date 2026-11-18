@@ -26,5 +26,6 @@ for /f "usebackq tokens=*" %%p in (`powershell -NoProfile -ExecutionPolicy Bypas
 )
 
 echo [%DATE% %TIME%] starting market loop (--loop --live --feed %TRADER_FEED%) >> loop.out.log
-start "trader-loop" /min "%PY%" -u run_market_loop.py run --loop --live --yes --feed %TRADER_FEED% %TRADER_CONFIG_EXTRA% >> loop.out.log 2>> loop.err.log
+REM 2026-11-18 단타 전면 전환: 거래 스크리너를 daytrading 하나로 고정(config_live.json).
+start "trader-loop" /min "%PY%" -u run_market_loop.py run --loop --live --yes --feed %TRADER_FEED% --config "%~dp0config_live.json" %TRADER_CONFIG_EXTRA% >> loop.out.log 2>> loop.err.log
 endlocal
