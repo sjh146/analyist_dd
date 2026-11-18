@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T17:15:00+09:00",
+ "updated_at": "2026-11-18T18:10:48+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -20716,7 +20716,7 @@
   },
   {
    "id": "CG332",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "experiment",
    "owner": "engineer",
@@ -20732,7 +20732,89 @@
    "est_minutes": 60,
    "note": "2026-11-18 17:1x 신설(CG331 후속). ⚠ 전구간 폴드 평균만 보면 이 질문에 답할 수 없다 — 반드시 fold_auc_decompose 를 같은 명령에 체이닝해 최근 구간을 함께 낸다. | 2026-11-18 17:16 실측 착수: 7분에 cell 19/150(≈2.7배 느림 — 유휴 실측 2.8s/cell 이 이 패널(221col)에서 22s/cell). ETA 약 55분 → est_minutes 20→60 정정. 17:21 h5 arm 완료 폴드평균 0.5375±0.1167(10폴드·5시드) — 이전 런과 일치(누수 급등 아님). ⚠ 개별 모델 로그에 val AUC 0.8486 이 찍힌 fold 가 있었다(부스팅 1500·early stop 20) — 폴드 평균이 0.54 대라 누수 아님으로 판단하되 CG332 판정 시 폴드별 최대값을 함께 확인하라.",
    "created_at": "2026-11-18T17:15:00+09:00",
-   "attempts": []
+   "attempts": [
+    {
+     "ts": "2026-11-18T17:25:34+09:00",
+     "rc": 0,
+     "verdict": "기준선없음",
+     "detail": "최고 LS_quant_q30_h8 0.5438 (대조군 같은 미측정 · 기록 기준선 없음)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG332_20261118-171613.log",
+     "elapsed_min": 9.3
+    }
+   ],
+   "result": {
+    "verdict": "기준선없음",
+    "detail": "최고 LS_quant_q30_h8 0.5438 (대조군 같은 미측정 · 기록 기준선 없음)",
+    "delta": null,
+    "per_exp": {
+     "LS_quant_q30_h5": {
+      "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.6808,
+       0.6977,
+       0.6589,
+       0.4884,
+       0.3454,
+       0.5814,
+       0.4948,
+       0.5169,
+       0.5505,
+       0.3598
+      ],
+      "mean": 0.5375,
+      "std": 0.1167,
+      "min": 0.3454,
+      "max": 0.6977,
+      "fold_win_rate": 0.6
+     },
+     "LS_quant_q30_h8": {
+      "desc": "분위0.3 h8 top30 — wave5 최고 설정을 동일 프로토콜로 검증",
+      "kind": "quantile",
+      "horizon": 8,
+      "folds": [
+       0.6968,
+       0.7069,
+       0.6209,
+       0.3829,
+       0.3902,
+       0.5915,
+       0.4591,
+       0.348,
+       0.6058,
+       0.6364
+      ],
+      "mean": 0.5438,
+      "std": 0.1287,
+      "min": 0.348,
+      "max": 0.7069,
+      "fold_win_rate": 0.6
+     },
+     "LS_quant_q30_h10": {
+      "desc": "분위0.3 h10 top30 — 호라이즌 상단(과확장 여부 확인)",
+      "kind": "quantile",
+      "horizon": 10,
+      "folds": [
+       0.7108,
+       0.6038,
+       0.3086,
+       0.4006,
+       0.5861,
+       0.4925,
+       0.3187,
+       0.6443,
+       0.6349
+      ],
+      "mean": 0.5223,
+      "std": 0.1401,
+      "min": 0.3086,
+      "max": 0.7108,
+      "fold_win_rate": 0.556
+     }
+    },
+    "rc": 0
+   }
   },
   {
    "id": "CG333",
@@ -20764,7 +20846,67 @@
     ],
     "rc": 0
    }
+  },
+  {
+   "id": "CG334",
+   "status": "done",
+   "priority": 2,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "fillable_topk_expectancy",
+   "title": "[돈·호라이즌] CG332 의 h10 AUC 우위(전구간 0.5223)가 돈이 되는가 — cg332 덤프로 h10 vs h5 체결성 필터·수수료 0.21%p 순기대",
+   "hypothesis": "CG333 이 최근 1/3 국면에서 h10 0.596(t 3.67) vs h5 0.43 을 보였다. AUC 가 돈으로 이어지는지(최우선 규칙) 재학습 없이 기존 덤프로 확인한다.",
+   "counterfactual": "같은 덤프의 LS_quant_q30_h5 (5일 라벨) — 같은 (fold,date) 짝.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/fillable_topk_horizon_sweep.py --arm-jsonl /app/reports/overnight/cg332_preds.jsonl --arm-tag LS_quant_q30_h8 --control-jsonl /app/reports/overnight/cg332_preds.jsonl --control-tag LS_quant_q30_h5 --k 3,5,10 --horizons 5,8,10 --primary 5 --json-out /app/reports/overnight/cg332_money_h8.json' && docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg332_preds.jsonl --arm-tag LS_quant_q30_h10 --control-jsonl /app/reports/overnight/cg332_preds.jsonl --control-tag LS_quant_q30_h5 --k 3,5,10 --exit close_h --horizon 10 --gate-rule trailing_pool --gate-days 5 --json-out /app/reports/overnight/cg334_money_h10_gate.json'",
+   "success": "양(+) 순기대 + Δ ≥ +0.1%p & t ≥ 2 & 앞/뒤 절반 both_positive → 호라이즌 축 생존. 하나라도 미달이면 종결.",
+   "result": {
+    "verdict": "노이즈 — 호라이즌(h8/h10) 축 돈 기준 종결",
+    "detail": "체결성 ON·수수료 0.21%p·90세션. ① h8 vs h5(청산 h5): k3 -0.468 vs +0.450(Δ-0.918) · k5 -1.070 vs +0.093(Δ-1.163) · k10 -0.832 vs -0.108(Δ-0.724) → h8 열위. ② h10 vs h5(청산 h10, 81세션): k3 Δ-0.422 · k5 Δ+0.450 · k10 Δ+1.665 이나 arm 절대 -0.062%p(t -0.12)이고 앞/뒤 절반 +1.985 / -2.059(부호 반전, unstable). ③ 널 풀평균 자체가 음수(h5 -1.176 · h8 -1.744 · h10 -2.338%p/세션): 상승 없이 top-k 가 풀을 이기는 초과분만으론 수수료를 못 넘는다.",
+    "files": [
+     "/app/reports/overnight/cg332_money_h8.json",
+     "/app/reports/overnight/cg334_money_h10_gate.json"
+    ]
+   }
+  },
+  {
+   "id": "CG335",
+   "status": "done",
+   "priority": 2,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "title": "[돈·국면] 최근 45세션 h5 AUC 0.43~0.50 이 역방향 엣지인가 — 같은 덤프를 2026-08-13 이후로 잘라 top/bottom 양쪽 꼬리 순기대",
+   "hypothesis": "최근 국면 AUC 가 유의하게 0.5 미만이면 순위를 뒤집은 bottom-k 가 돈이 될 수 있다. 8/13 이후 행만 남겨 top-k·bottom-k 초과기대를 각각 측정.",
+   "counterfactual": "같은 창의 널 기준선 = 그날 체결가능 풀평균(무작위 k 기대).",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u -c \"import json; ...\" && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg335_recent_preds.jsonl --arm-tag LS_quant_q30_h5 --control-jsonl /app/reports/overnight/cg335_recent_preds.jsonl --control-tag LS_quant_q30_h10 --k 3,5,10 --sides top,bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg335_recent_money.json'",
+   "success": "bottom-k Δ(풀평균) ≥ +0.1%p & t ≥ 2 → 역방향 엣지 생존. top·bottom 모두 풀평균 하회면 국면 반전 축 종결.",
+   "result": {
+    "verdict": "노이즈 — 역방향 엣지 없음(양쪽 꼬리 모두 풀평균 하회), 국면 반전 축 종결",
+    "detail": "2026-08-13 이후 45세션·체결성 ON. 풀평균 -1.060%p/세션. ① top-k Δ(풀) k3 -0.414(t -0.43) · k5 -0.625 · k10 -0.880(t -1.30) ② bottom-k Δ(풀) k3 -0.880(t -0.75) · k5 -0.486 · k10 -0.592 → 뒤집어도 양(+)이 안 나온다. 즉 최근 AUC 0.43 은 '역신호'가 아니라 순위 정보 소실(양 끝 모두 더 나쁨).",
+    "files": [
+     "/app/reports/overnight/cg335_recent_money.json"
+    ]
+   }
+  },
+  {
+   "id": "CG336",
+   "status": "pending",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "wf_sweep_summary",
+   "title": "[복제·독립 패널] CG332 의 '청정 패널 복제'는 독립이 아니었다 — 다른 스냅샷 패널(panel_200liq_ffill, 54,497행·2025-09-15~2026-11-09)에서 같은 3arm 10폴드×5시드 재측정",
+   "hypothesis": "CG332 는 panel_200liq_ffill_2605_ss(22382×221) 를 썼고 CG330 은 같은 패널의 _tv(22382×225) 를 썼다 — 행·종목·기간이 동일하고 tv 4피처만 다르다(폴드 Δ ≤ +0.0018). 따라서 '패널 특이성'은 검증되지 않았다. 기간이 다른(2025-09-15~) 독립 패널에서 같은 3arm 을 재측정해 전구간 수준과 최근 국면 붕괴(AUC 0.43~0.50)가 재현되는지 본다.",
+   "counterfactual": "같은 런의 LS_quant_q30_h5 (5일 라벨) — 판정은 같은 런 짝 Δ 와 널 풀평균.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_ffill.npz --folds 10 --seeds 5 --only LS_quant_q30_h5,LS_quant_q30_h8,LS_quant_q30_h10 --out /app/reports/overnight/cg336_sweep.jsonl --summary-out /app/reports/overnight/cg336_summary.json --dump-preds /app/reports/overnight/cg336_preds.jsonl'",
+   "success": "사전등록: ① 전구간 폴드 평균이 0.52~0.55 로 재현 ② fold_auc_decompose 로 최근 1/3 구간 h5 AUC ≤ 0.50 & t ≤ -2 이면 '국면 붕괴가 패널·기간 특이 아님' 확정 ③ 최근 1/3 0.52 이상이면 cg331/cg333 결론을 기간 특이로 철회 ④ rc≠0 또는 덤프 미생성 = 실행실패(노이즈로 쓰지 않는다).",
+   "expected": "CG333 의 국면 붕괴가 15개월 패널에서도 나오면 '모델 엣지 소실'은 구조적 → 데이터 축(신규 PIT 피처) 승인 요청의 근거가 된다. 재현 안 되면 2026-05~11 창 특이.",
+   "cost": "3arm×10폴드×5시드=150 cell · 22k행에서 9~13분 → 54k행 약 25~35분",
+   "est_minutes": 35
   }
  ],
- "updated": "2026-11-18T17:15:00+09:00"
+ "updated": "2026-11-18T18:10:48+09:00"
 }
