@@ -4999,6 +4999,14 @@ def execute(item, force=False):
         log(f"⚠ timeout 자기모순 수리: 명령 timeout {_t}s < 필요 {_need}s "
             f"(est_minutes={item.get('est_minutes')}) → {_chg} 로 상향")
         log(f"  효과 명령: {eff_command}")
+    # ── 체크포인트 없는 빌드형 명령 경고(2026-11-19 CG346 실측) ────────────────────────
+    # 실측: CG346 이 `--checkpoint-path` 없이 timeout 8400s(140분)로 떠서 빌드 ETA 192분보다 짧아
+    # 23.7%(13,000/54,746)에서 잘릴 구조였고, 중단 시 58분 진행이 전량 소실됐다(재시도 0%부터).
+    # 체크포인트 유무는 등록 누락이 잦으므로 시작 시점에 드러낸다.
+    _BUILD_TOKENS = ("retrain_champion", "wf_wave", "rebuild_panel", "build_training_features")
+    if any(t in eff_command for t in _BUILD_TOKENS) and "--checkpoint" not in eff_command:
+        log("⚠ 체크포인트 없음: 빌드형 명령에 --checkpoint-path 가 없다 — 컨테이너 재생성·timeout 으로 "
+            "끊기면 진행분이 전량 소실되고 재시도가 0%부터 시작한다(실측 CG346: 23.7% 지점 58분 소실)")
     # ── 사전등록 '판정 불가' 경고(2026-11-18) ──────────────────────────────────────────
     # 같은 런 대조군도 기록 기준선도 없으면 10~60분을 쓰고도 verdict='기준선없음' 으로 닫힌다
     # (최근 40판정 중 8건). 시작 전에 드러내 실행 중지·재등록 판단을 가능하게 한다.
