@@ -1,0 +1,199 @@
+{
+ "measured_at": "2026-11-19T03:05:41+09:00",
+ "v1": {
+  "panel": {
+   "shape": [
+    54800,
+    213
+   ],
+   "features": 213,
+   "dates": 279,
+   "span": [
+    "2025-08-04",
+    "2026-09-23"
+   ],
+   "codes": 200,
+   "path": "/home/jhshi/analyist_dd/services/xgboost-ml/app/models/wf/panel_prod200.npz",
+   "mtime": 1790965521.2047262
+  },
+  "summary": {
+   "total": 213,
+   "alive": 117,
+   "dead": 69,
+   "conditional": 27,
+   "by_class": {
+    "DEAD_ALL_NULL": 0,
+    "DEAD_CONST_ZERO": 24,
+    "DEAD_CONST_OTHER": 0,
+    "DEAD_SPARSE": 45,
+    "CONST_MARKET": 24,
+    "CONST_STOCK": 0,
+    "LEAK_SUSPECT": 3,
+    "ALIVE": 117
+   },
+   "alive_and_dead": {
+    "alive": 117,
+    "dead": 69,
+    "note": "계기판 정의와 다름 — 계기판(feature_coverage.nonzero_ratio)은 결측 0 치환 후 nonzero>0 여부로 세므로 같은 패널에 그 정의를 적용하면 alive=189 dead=24. 이 파일은 DEAD_* 4종=dead(69), ALIVE=alive(117), CONST_MARKET/CONST_STOCK/LEAK_SUSPECT=조건부(27, 횡단면·시계열 중 한 축만 유효)로 갈라 센다. 계기판 파일(quant_scoreboard.json)에는 feature_alive_count 키가 없어 (스펙 작성 시점 n/a) 이 파일이 그 공백을 메운다."
+   }
+  }
+ },
+ "v2": {
+  "panel": {
+   "shape": [
+    61640,
+    213
+   ],
+   "features": 213,
+   "dates": 314,
+   "span": [
+    "2025-08-04",
+    "2026-11-17"
+   ],
+   "codes": 200,
+   "path": "services/xgboost-ml/app/models/wf/panel_prod200_v2.npz",
+   "mtime": 1795025068.6110597
+  },
+  "summary": {
+   "total": 213,
+   "alive": 117,
+   "dead": 69,
+   "conditional": 27,
+   "by_class": {
+    "DEAD_ALL_NULL": 0,
+    "DEAD_CONST_ZERO": 12,
+    "DEAD_CONST_OTHER": 0,
+    "DEAD_SPARSE": 57,
+    "CONST_MARKET": 24,
+    "CONST_STOCK": 0,
+    "LEAK_SUSPECT": 3,
+    "ALIVE": 117
+   },
+   "alive_and_dead": {
+    "alive": 117,
+    "dead": 69,
+    "note": "계기판 정의와 다름 — 계기판(feature_coverage.nonzero_ratio)은 결측 0 치환 후 nonzero>0 여부로 세므로 같은 패널에 그 정의를 적용하면 alive=201 dead=12. 이 파일은 DEAD_* 4종=dead(69), ALIVE=alive(117), CONST_MARKET/CONST_STOCK/LEAK_SUSPECT=조건부(27, 횡단면·시계열 중 한 축만 유효)로 갈라 센다. 계기판 파일(quant_scoreboard.json)에는 feature_alive_count 키가 없어 (스펙 작성 시점 n/a) 이 파일이 그 공백을 메운다."
+   }
+  }
+ },
+ "universe_caveat": "v1/v2 유니버스 교집합 23/200 — prod 유니버스는 최근데이터순이라 구성이 바뀐다. 델타는 '같은 종목 개선'이 아니다.",
+ "class_changes": 12,
+ "transition_counts": {
+  "DEAD_CONST_ZERO->DEAD_SPARSE": 12
+ },
+ "revived": [],
+ "zero_to_sparse": [
+  {
+   "feature": "negative_ratio",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 4.9e-05,
+   "std_v2": 0.005243
+  },
+  {
+   "feature": "news_count_20d",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 0.000195,
+   "std_v2": 0.020536
+  },
+  {
+   "feature": "news_count_5d",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 0.000195,
+   "std_v2": 0.020536
+  },
+  {
+   "feature": "positive_ratio",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 0.000146,
+   "std_v2": 0.010927
+  },
+  {
+   "feature": "sentiment_avg",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 0.000195,
+   "std_v2": 0.005679
+  },
+  {
+   "feature": "sentiment_avg_20d",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 0.000195,
+   "std_v2": 0.005679
+  },
+  {
+   "feature": "sentiment_avg_5d",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 0.000195,
+   "std_v2": 0.005679
+  },
+  {
+   "feature": "sentiment_avg_db",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 0.00013,
+   "std_v2": 0.004305
+  },
+  {
+   "feature": "sentiment_momentum",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 9.7e-05,
+   "std_v2": 0.009866
+  },
+  {
+   "feature": "sentiment_trend",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 4.9e-05,
+   "std_v2": 0.004435
+  },
+  {
+   "feature": "sentiment_volatility",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 4.9e-05,
+   "std_v2": 0.002218
+  },
+  {
+   "feature": "theme_exposure_5d",
+   "from": "DEAD_CONST_ZERO",
+   "to": "DEAD_SPARSE",
+   "nnz_v1": 0.0,
+   "nnz_v2": 0.000227,
+   "std_v2": 0.092367
+  }
+ ],
+ "worse": [],
+ "still_const_zero": [
+  "authenticity_avg",
+  "credit_balance_change",
+  "days_to_cover",
+  "etf_flow_5d",
+  "event_patent_5d",
+  "event_recall_5d",
+  "institution_ownership_pct",
+  "margin_balance_change",
+  "sector_count",
+  "sector_momentum",
+  "short_interest_ratio",
+  "value_ncav"
+ ],
+ "verdict": "재빌드로 클래스가 바뀐 피처 12개(전부 상수0→희박). 그중 nnz≥1% 는 0개 — 즉 재빌드만으로는 실질 부활이 거의 없다. 남은 상수0 12개는 소스 부재다."
+}

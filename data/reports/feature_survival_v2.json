@@ -1,0 +1,6508 @@
+{
+  "panel": {
+    "shape": [
+      61640,
+      213
+    ],
+    "features": 213,
+    "dates": 314,
+    "span": [
+      "2025-08-04",
+      "2026-11-17"
+    ],
+    "codes": 200,
+    "path": "services/xgboost-ml/app/models/wf/panel_prod200_v2.npz",
+    "mtime": 1795025068.6110597
+  },
+  "params": {
+    "h": 5,
+    "min_coverage": 0.05,
+    "top_pairs": 20,
+    "thresholds": {
+      "null_ratio": 0.999,
+      "xsec_const": 0.95,
+      "time_std_eps": 1e-09,
+      "leak_L1": 0.9,
+      "leak_L2": 0.95,
+      "leak_min_n": 500,
+      "redundant_corr": 0.9999
+    }
+  },
+  "summary": {
+    "total": 213,
+    "alive": 117,
+    "dead": 69,
+    "conditional": 27,
+    "by_class": {
+      "DEAD_ALL_NULL": 0,
+      "DEAD_CONST_ZERO": 12,
+      "DEAD_CONST_OTHER": 0,
+      "DEAD_SPARSE": 57,
+      "CONST_MARKET": 24,
+      "CONST_STOCK": 0,
+      "LEAK_SUSPECT": 3,
+      "ALIVE": 117
+    },
+    "alive_and_dead": {
+      "alive": 117,
+      "dead": 69,
+      "note": "계기판 정의와 다름 — 계기판(feature_coverage.nonzero_ratio)은 결측 0 치환 후 nonzero>0 여부로 세므로 같은 패널에 그 정의를 적용하면 alive=201 dead=12. 이 파일은 DEAD_* 4종=dead(69), ALIVE=alive(117), CONST_MARKET/CONST_STOCK/LEAK_SUSPECT=조건부(27, 횡단면·시계열 중 한 축만 유효)로 갈라 센다. 계기판 파일(quant_scoreboard.json)에는 feature_alive_count 키가 없어 (스펙 작성 시점 n/a) 이 파일이 그 공백을 메운다."
+    }
+  },
+  "features": [
+    {
+      "feature": "atr",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 5512.537261,
+        "nunique": 61604,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 101.85685,
+        "xsec_std_median": 5237.213825,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 466.455222
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.014742,
+        "corr_L2": -0.004456,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.014742 L2=-0.004456"
+      }
+    },
+    {
+      "feature": "atr_pct",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 3.452941,
+        "nunique": 61539,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 5.58732,
+        "xsec_std_median": 2.715777,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 1.528064
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.031799,
+        "corr_L2": -0.019263,
+        "n": 60440,
+        "note": "임계 미만: L1=0.031799 L2=-0.019263"
+      }
+    },
+    {
+      "feature": "authenticity_avg",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "avg_similarity_top10",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.012987,
+        "nunique": 200,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.997944,
+        "xsec_std_median": 0.012974,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 5.8e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.005711,
+        "corr_L2": 0.003116,
+        "n": 60440,
+        "note": "임계 미만: L1=0.005711 L2=0.003116"
+      }
+    },
+    {
+      "feature": "basis",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.423605,
+        "std": 4.507415,
+        "nunique": 112,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 26111,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 4.500155
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.049979,
+        "corr_L2": -0.026405,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.049979 L2=-0.026405"
+      }
+    },
+    {
+      "feature": "basis_change_5d",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.408582,
+        "std": 4.522973,
+        "nunique": 108,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 25185,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 4.516311
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.027336,
+        "corr_L2": -0.015315,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.027336 L2=-0.015315"
+      }
+    },
+    {
+      "feature": "bayes_gain_uncertainty",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999822,
+        "std": 0.012505,
+        "nunique": 61577,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61629,
+        "const_value": 0.002113,
+        "xsec_std_median": 0.01169,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.00142
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.025461,
+        "corr_L2": -0.013711,
+        "n": 60440,
+        "note": "임계 미만: L1=0.025461 L2=-0.013711"
+      }
+    },
+    {
+      "feature": "bayes_momentum_1d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999822,
+        "std": 0.012674,
+        "nunique": 61613,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61629,
+        "const_value": -0.000619,
+        "xsec_std_median": 0.009701,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.003379
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.020017,
+        "corr_L2": 0.106217,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.020017 L2=0.106217"
+      }
+    },
+    {
+      "feature": "bayes_momentum_5d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999822,
+        "std": 0.011325,
+        "nunique": 61606,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61629,
+        "const_value": -0.000658,
+        "xsec_std_median": 0.008281,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.002606
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.018419,
+        "corr_L2": 0.009093,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.018419 L2=0.009093"
+      }
+    },
+    {
+      "feature": "bayes_volatility",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999822,
+        "std": 0.491362,
+        "nunique": 61534,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61629,
+        "const_value": 0.51953,
+        "xsec_std_median": 0.499386,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.040423
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.079058,
+        "corr_L2": 0.057089,
+        "n": 60440,
+        "note": "임계 미만: L1=0.079058 L2=0.057089"
+      }
+    },
+    {
+      "feature": "bb_position",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999059,
+        "std": 0.331609,
+        "nunique": 61260,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61582,
+        "const_value": 0.66869,
+        "xsec_std_median": 0.291274,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.154399
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.001332,
+        "corr_L2": 0.184807,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.001332 L2=0.184807"
+      }
+    },
+    {
+      "feature": "bb_width",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999091,
+        "std": 31.807097,
+        "nunique": 61068,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61584,
+        "const_value": 13.034739,
+        "xsec_std_median": 20.814202,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 8.552595
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.010751,
+        "corr_L2": 0.214517,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.010751 L2=0.214517"
+      }
+    },
+    {
+      "feature": "beta_60d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.997112,
+        "std": 1.788506,
+        "nunique": 61167,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61462,
+        "const_value": 0.338598,
+        "xsec_std_median": 1.241856,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.368521
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.000961,
+        "corr_L2": 0.127149,
+        "n": 60440,
+        "note": "임계 미만: L1=0.000961 L2=0.127149"
+      }
+    },
+    {
+      "feature": "cpi_yoy",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.447746,
+        "nunique": 16,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 1.66754,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.447849
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.019325,
+        "corr_L2": 0.003181,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.019325 L2=0.003181"
+      }
+    },
+    {
+      "feature": "credit_balance_change",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "credit_spread",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.100553,
+        "nunique": 189,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.496,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.100443
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.017396,
+        "corr_L2": 0.005617,
+        "n": 60440,
+        "note": "임계 미만: L1=0.017396 L2=0.005617"
+      }
+    },
+    {
+      "feature": "cross_trend",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.992797,
+        "std": 2066.333397,
+        "nunique": 61146,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61196,
+        "const_value": 1.682487,
+        "xsec_std_median": 109.497625,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 193.262202
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.008783,
+        "corr_L2": 0.886124,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.008783 L2=0.886124"
+      }
+    },
+    {
+      "feature": "cycle_down",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.210594,
+        "std": 0.40773,
+        "nunique": 2,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 12981,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.407444
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.026283,
+        "corr_L2": -0.003424,
+        "n": 60440,
+        "note": "임계 미만: L1=0.026283 L2=-0.003424"
+      }
+    },
+    {
+      "feature": "cycle_up",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.555191,
+        "std": 0.496945,
+        "nunique": 2,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 34222,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.496703
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.007835,
+        "corr_L2": 0.010516,
+        "n": 60440,
+        "note": "임계 미만: L1=0.007835 L2=0.010516"
+      }
+    },
+    {
+      "feature": "days_to_cover",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "debt_ratio",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.943105,
+        "std": 172.092104,
+        "nunique": 551,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 58133,
+        "const_value": 18.74,
+        "xsec_std_median": 178.079093,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 6.666983
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.000372,
+        "corr_L2": -0.000144,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.000372 L2=-0.000144"
+      }
+    },
+    {
+      "feature": "derivatives_volume",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.423605,
+        "std": 917709.807401,
+        "nunique": 117,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 26111,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 918067.401652
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.030243,
+        "corr_L2": -0.001095,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.030243 L2=-0.001095"
+      }
+    },
+    {
+      "feature": "disclosure_count_5d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.311616,
+        "std": 1.247681,
+        "nunique": 22,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 19208,
+        "const_value": 0.0,
+        "xsec_std_median": 1.002378,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.447641
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.013315,
+        "corr_L2": 0.022586,
+        "n": 60440,
+        "note": "임계 미만: L1=0.013315 L2=0.022586"
+      }
+    },
+    {
+      "feature": "economic_event_count_7d",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.331376,
+        "std": 4.367778,
+        "nunique": 11,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 20426,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 4.337155
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.041971,
+        "corr_L2": -0.006105,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.041971 L2=-0.006105"
+      }
+    },
+    {
+      "feature": "economic_event_impact",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.331376,
+        "std": 12.475189,
+        "nunique": 19,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 20426,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 12.381078
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.038037,
+        "corr_L2": -0.007184,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.038037 L2=-0.007184"
+      }
+    },
+    {
+      "feature": "etf_flow_5d",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "event_capital_increase_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.008631 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.008631,
+        "std": 0.209564,
+        "nunique": 8,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 532,
+        "const_value": 0.0,
+        "xsec_std_median": 0.13404,
+        "xsec_constant_ratio": 0.22293,
+        "time_std": 0.015067
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.000101,
+        "corr_L2": -0.001959,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.000101 L2=-0.001959"
+      }
+    },
+    {
+      "feature": "event_cb_bw_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.009539 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.009539,
+        "std": 0.18729,
+        "nunique": 8,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 588,
+        "const_value": 0.0,
+        "xsec_std_median": 0.100499,
+        "xsec_constant_ratio": 0.248408,
+        "time_std": 0.01586
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.005115,
+        "corr_L2": 0.017516,
+        "n": 60440,
+        "note": "임계 미만: L1=0.005115 L2=0.017516"
+      }
+    },
+    {
+      "feature": "event_contract_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.019225 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.019225,
+        "std": 0.326882,
+        "nunique": 10,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 1185,
+        "const_value": 0.0,
+        "xsec_std_median": 0.2267,
+        "xsec_constant_ratio": 0.073248,
+        "time_std": 0.030954
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.004622,
+        "corr_L2": -0.002211,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.004622 L2=-0.002211"
+      }
+    },
+    {
+      "feature": "event_delisting_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.004445 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.004445,
+        "std": 0.077425,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 274,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.550955,
+        "time_std": 0.007114
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.153622,
+        "corr_L2": 0.174796,
+        "n": 60440,
+        "note": "임계 미만: L1=0.153622 L2=0.174796"
+      }
+    },
+    {
+      "feature": "event_disaster_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000941 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000941,
+        "std": 0.049803,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 58,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.83121,
+        "time_std": 0.003623
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -5.9e-05,
+        "corr_L2": 0.001507,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.000059 L2=0.001507"
+      }
+    },
+    {
+      "feature": "event_exec_change_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.042521 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.042521,
+        "std": 0.648147,
+        "nunique": 16,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 2621,
+        "const_value": 0.0,
+        "xsec_std_median": 0.418147,
+        "xsec_constant_ratio": 0.076433,
+        "time_std": 0.063178
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.005388,
+        "corr_L2": 8.5e-05,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.005388 L2=0.000085"
+      }
+    },
+    {
+      "feature": "event_litigation_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.003504 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.003504,
+        "std": 0.116168,
+        "nunique": 6,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 216,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.503185,
+        "time_std": 0.008173
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.010159,
+        "corr_L2": -0.000455,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.010159 L2=-0.000455"
+      }
+    },
+    {
+      "feature": "event_macro_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000065 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 6.5e-05,
+        "std": 0.008055,
+        "nunique": 2,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 4,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.987261,
+        "time_std": 0.000566
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.001648,
+        "corr_L2": 0.001503,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.001648 L2=0.001503"
+      }
+    },
+    {
+      "feature": "event_market_liquidity_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000065 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 6.5e-05,
+        "std": 0.008055,
+        "nunique": 2,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 4,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.987261,
+        "time_std": 0.000571
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.000847,
+        "corr_L2": 0.000224,
+        "n": 60440,
+        "note": "임계 미만: L1=0.000847 L2=0.000224"
+      }
+    },
+    {
+      "feature": "event_mna_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.008533 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.008533,
+        "std": 0.203671,
+        "nunique": 8,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 526,
+        "const_value": 0.0,
+        "xsec_std_median": 0.142492,
+        "xsec_constant_ratio": 0.270701,
+        "time_std": 0.014865
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.003141,
+        "corr_L2": -0.003287,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.003141 L2=-0.003287"
+      }
+    },
+    {
+      "feature": "event_new_product_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.001298 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.001298,
+        "std": 0.052797,
+        "nunique": 5,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 80,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.875796,
+        "time_std": 0.005294
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.004234,
+        "corr_L2": -0.001167,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.004234 L2=-0.001167"
+      }
+    },
+    {
+      "feature": "event_partnership_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000633 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000633,
+        "std": 0.027011,
+        "nunique": 3,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 39,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.904459,
+        "time_std": 0.002344
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.005186,
+        "corr_L2": -0.002634,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.005186 L2=-0.002634"
+      }
+    },
+    {
+      "feature": "event_patent_5d",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "event_realized_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.029607 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.029607,
+        "std": 0.235434,
+        "nunique": 6,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 1825,
+        "const_value": 0.0,
+        "xsec_std_median": 0.071066,
+        "xsec_constant_ratio": 0.433121,
+        "time_std": 0.062246
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.003907,
+        "corr_L2": 0.002838,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.003907 L2=0.002838"
+      }
+    },
+    {
+      "feature": "event_recall_5d",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "event_regulation_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000535 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000535,
+        "std": 0.026097,
+        "nunique": 3,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 33,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.910828,
+        "time_std": 0.002032
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.002786,
+        "corr_L2": -0.001156,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.002786 L2=-0.001156"
+      }
+    },
+    {
+      "feature": "event_stake_change_5d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.056051,
+        "std": 0.39248,
+        "nunique": 9,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 3455,
+        "const_value": 1.0,
+        "xsec_std_median": 0.374752,
+        "xsec_constant_ratio": 0.076433,
+        "time_std": 0.045191
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.004366,
+        "corr_L2": 0.010738,
+        "n": 60440,
+        "note": "임계 미만: L1=0.004366 L2=0.010738"
+      }
+    },
+    {
+      "feature": "event_treasury_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.011502 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.011502,
+        "std": 0.224657,
+        "nunique": 8,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 709,
+        "const_value": 0.0,
+        "xsec_std_median": 0.100499,
+        "xsec_constant_ratio": 0.178344,
+        "time_std": 0.018924
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.000265,
+        "corr_L2": 0.000878,
+        "n": 60440,
+        "note": "임계 미만: L1=0.000265 L2=0.000878"
+      }
+    },
+    {
+      "feature": "foreign_net_buy",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.248702,
+        "std": 5438887462.736672,
+        "nunique": 5898,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 15330,
+        "const_value": 0.0,
+        "xsec_std_median": 3689322888.842282,
+        "xsec_constant_ratio": 0.028662,
+        "time_std": 435849128.991366
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.001282,
+        "corr_L2": 0.021952,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.001282 L2=0.021952"
+      }
+    },
+    {
+      "feature": "foreign_net_buy_5d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.252239,
+        "std": 3127967648.568339,
+        "nunique": 8117,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 15548,
+        "const_value": 0.0,
+        "xsec_std_median": 2283410957.456714,
+        "xsec_constant_ratio": 0.028662,
+        "time_std": 253234346.971941
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.00184,
+        "corr_L2": 0.006513,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.001840 L2=0.006513"
+      }
+    },
+    {
+      "feature": "foreign_ownership_pct",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.045506 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.045506,
+        "std": 3.741543,
+        "nunique": 448,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 2805,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.88535,
+        "time_std": 1.456188
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.019149,
+        "corr_L2": -0.007107,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.019149 L2=-0.007107"
+      }
+    },
+    {
+      "feature": "futures_premium",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.423605,
+        "std": 562.477964,
+        "nunique": 116,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 26111,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 562.594281
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.049816,
+        "corr_L2": -0.000974,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.049816 L2=-0.000974"
+      }
+    },
+    {
+      "feature": "fx_change_1m",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 2.733472,
+        "nunique": 309,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 1.543253,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 2.733252
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.040849,
+        "corr_L2": -0.010985,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.040849 L2=-0.010985"
+      }
+    },
+    {
+      "feature": "fx_change_3m",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 5.060028,
+        "nunique": 312,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.621574,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 5.050253
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.000416,
+        "corr_L2": -0.001381,
+        "n": 60440,
+        "note": "임계 미만: L1=0.000416 L2=-0.001381"
+      }
+    },
+    {
+      "feature": "fx_usd_krw",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 58.140035,
+        "nunique": 302,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 1385.709961,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 58.013903
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.011324,
+        "corr_L2": 0.002211,
+        "n": 60440,
+        "note": "임계 미만: L1=0.011324 L2=0.002211"
+      }
+    },
+    {
+      "feature": "institution_net_buy",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.196074,
+        "std": 5046756970.842247,
+        "nunique": 5301,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 12086,
+        "const_value": 0.0,
+        "xsec_std_median": 3209207309.933533,
+        "xsec_constant_ratio": 0.028662,
+        "time_std": 427854426.964952
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.004449,
+        "corr_L2": 0.032072,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.004449 L2=0.032072"
+      }
+    },
+    {
+      "feature": "institution_net_buy_5d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.219484,
+        "std": 2712469738.821957,
+        "nunique": 7097,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 13529,
+        "const_value": 0.0,
+        "xsec_std_median": 2038907542.923501,
+        "xsec_constant_ratio": 0.028662,
+        "time_std": 226820196.281646
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.007231,
+        "corr_L2": 0.009665,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.007231 L2=0.009665"
+      }
+    },
+    {
+      "feature": "institution_ownership_pct",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "interest_rate",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.19363,
+        "nunique": 3,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 2.5,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.193109
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.01228,
+        "corr_L2": -0.003912,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.012280 L2=-0.003912"
+      }
+    },
+    {
+      "feature": "interest_rate_change_1m",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.130662,
+        "std": 0.084258,
+        "nunique": 2,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 8054,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.084233
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.025782,
+        "corr_L2": 0.006461,
+        "n": 60440,
+        "note": "임계 미만: L1=0.025782 L2=0.006461"
+      }
+    },
+    {
+      "feature": "interest_rate_change_3m",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.316807,
+        "std": 0.178194,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 19528,
+        "const_value": -0.25,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.177919
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.001965,
+        "corr_L2": 0.002378,
+        "n": 60440,
+        "note": "임계 미만: L1=0.001965 L2=0.002378"
+      }
+    },
+    {
+      "feature": "kalman_activity",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.024286 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.024286,
+        "std": 0.024138,
+        "nunique": 498,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 1497,
+        "const_value": 0.0162,
+        "xsec_std_median": 0.00972,
+        "xsec_constant_ratio": 0.66242,
+        "time_std": 0.007823
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.11215,
+        "corr_L2": 0.059009,
+        "n": 1457,
+        "note": "임계 미만: L1=0.112150 L2=0.059009"
+      }
+    },
+    {
+      "feature": "kalman_attention",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.025357 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.025357,
+        "std": 0.246269,
+        "nunique": 886,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 1563,
+        "const_value": 0.0256,
+        "xsec_std_median": 0.144864,
+        "xsec_constant_ratio": 0.66242,
+        "time_std": 0.186948
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.038468,
+        "corr_L2": 0.042557,
+        "n": 1457,
+        "note": "임계 미만: L1=-0.038468 L2=0.042557"
+      }
+    },
+    {
+      "feature": "kalman_momentum",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.022080 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.02208,
+        "std": 0.561013,
+        "nunique": 522,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 1361,
+        "const_value": 0.7616,
+        "xsec_std_median": 0.321607,
+        "xsec_constant_ratio": 0.665605,
+        "time_std": 0.442754
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.018121,
+        "corr_L2": -0.007881,
+        "n": 1457,
+        "note": "임계 미만: L1=0.018121 L2=-0.007881"
+      }
+    },
+    {
+      "feature": "kalman_momentum_1d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999822,
+        "std": 0.011259,
+        "nunique": 61609,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61629,
+        "const_value": 0.00233,
+        "xsec_std_median": 0.009642,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.005014
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.012617,
+        "corr_L2": 0.200022,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.012617 L2=0.200022"
+      }
+    },
+    {
+      "feature": "kalman_momentum_5d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999822,
+        "std": 0.009685,
+        "nunique": 61611,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61629,
+        "const_value": 0.000431,
+        "xsec_std_median": 0.008473,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.004193
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.004059,
+        "corr_L2": 0.041746,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.004059 L2=0.041746"
+      }
+    },
+    {
+      "feature": "kalman_sentiment",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.021674 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.021674,
+        "std": 0.266784,
+        "nunique": 688,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 1336,
+        "const_value": 0.0,
+        "xsec_std_median": 0.229147,
+        "xsec_constant_ratio": 0.66879,
+        "time_std": 0.157255
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.030337,
+        "corr_L2": 0.403822,
+        "n": 1457,
+        "note": "임계 미만: L1=-0.030337 L2=0.403822"
+      }
+    },
+    {
+      "feature": "kalman_volatility",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999822,
+        "std": 0.651529,
+        "nunique": 61315,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61629,
+        "const_value": 0.465736,
+        "xsec_std_median": 0.375993,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.177971
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.00312,
+        "corr_L2": 0.165159,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.003120 L2=0.165159"
+      }
+    },
+    {
+      "feature": "krx_advance_decline_ratio",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 1.595069,
+        "nunique": 314,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 2.815951,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 1.594508
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.00966,
+        "corr_L2": 0.109998,
+        "n": 60440,
+        "note": "임계 미만: L1=0.009660 L2=0.109998"
+      }
+    },
+    {
+      "feature": "krx_total_trading_value",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.788157,
+        "std": 16646214909268.523,
+        "nunique": 249,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 48582,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 16657814383667.906
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.00806,
+        "corr_L2": -0.002519,
+        "n": 60440,
+        "note": "임계 미만: L1=0.008060 L2=-0.002519"
+      }
+    },
+    {
+      "feature": "ma_position_120",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.994111,
+        "std": 39.900903,
+        "nunique": 61076,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61277,
+        "const_value": -5.269175,
+        "xsec_std_median": 30.966707,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 8.42076
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.030527,
+        "corr_L2": 0.265468,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.030527 L2=0.265468"
+      }
+    },
+    {
+      "feature": "ma_position_20",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.998572,
+        "std": 16.790871,
+        "nunique": 59245,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61552,
+        "const_value": 2.143157,
+        "xsec_std_median": 9.842477,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 4.184373
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.016377,
+        "corr_L2": 0.539512,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.016377 L2=0.539512"
+      }
+    },
+    {
+      "feature": "ma_position_5",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.99403,
+        "std": 6.526222,
+        "nunique": 49373,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61272,
+        "const_value": 0.785051,
+        "xsec_std_median": 4.047339,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 1.980436
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.017966,
+        "corr_L2": 0.738437,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.017966 L2=0.738437"
+      }
+    },
+    {
+      "feature": "ma_position_60",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.997128,
+        "std": 29.174101,
+        "nunique": 60894,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61463,
+        "const_value": -0.262611,
+        "xsec_std_median": 20.039592,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 7.27916
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.031693,
+        "corr_L2": 0.358371,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.031693 L2=0.358371"
+      }
+    },
+    {
+      "feature": "macd",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999968,
+        "std": 3258.109451,
+        "nunique": 61627,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61638,
+        "const_value": 1.792409,
+        "xsec_std_median": 3002.327243,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 613.438665
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.002152,
+        "corr_L2": 0.009038,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.002152 L2=0.009038"
+      }
+    },
+    {
+      "feature": "margin_balance_change",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "market_impact_score",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.001655 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.001655,
+        "std": 0.877561,
+        "nunique": 64,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 102,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.847134,
+        "time_std": 0.069574
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.002777,
+        "corr_L2": 0.000448,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.002777 L2=0.000448"
+      }
+    },
+    {
+      "feature": "max_similarity",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.007232,
+        "nunique": 199,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.99865,
+        "xsec_std_median": 0.007226,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 3.5e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.007568,
+        "corr_L2": 0.004153,
+        "n": 60440,
+        "note": "임계 미만: L1=0.007568 L2=0.004153"
+      }
+    },
+    {
+      "feature": "momentum_1m_reverse",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.992067,
+        "std": 0.506619,
+        "nunique": 47679,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61151,
+        "const_value": -0.030526,
+        "xsec_std_median": 0.222744,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.083339
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.021007,
+        "corr_L2": -0.254142,
+        "n": 60440,
+        "note": "임계 미만: L1=0.021007 L2=-0.254142"
+      }
+    },
+    {
+      "feature": "momentum_3_12m",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.94072,
+        "std": 1.08871,
+        "nunique": 57851,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 57986,
+        "const_value": 0.0,
+        "xsec_std_median": 0.8749,
+        "xsec_constant_ratio": 0.035032,
+        "time_std": 0.114292
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.019545,
+        "corr_L2": -0.071578,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.019545 L2=-0.071578"
+      }
+    },
+    {
+      "feature": "momentum_divergence",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.990964,
+        "std": 2.241911,
+        "nunique": 61016,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61083,
+        "const_value": 0.027898,
+        "xsec_std_median": 0.369586,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.278752
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.012187,
+        "corr_L2": 0.493326,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.012187 L2=0.493326"
+      }
+    },
+    {
+      "feature": "momentum_ni",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.576606,
+        "std": 2154.556404,
+        "nunique": 337,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 35542,
+        "const_value": 0.0,
+        "xsec_std_median": 2131.381976,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 197.996846
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.00277,
+        "corr_L2": 0.001626,
+        "n": 60440,
+        "note": "임계 미만: L1=0.002770 L2=0.001626"
+      }
+    },
+    {
+      "feature": "momentum_op",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.631473,
+        "std": 259.656207,
+        "nunique": 373,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 38924,
+        "const_value": 0.0,
+        "xsec_std_median": 251.830487,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 24.614419
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.002159,
+        "corr_L2": -0.000621,
+        "n": 60440,
+        "note": "임계 미만: L1=0.002159 L2=-0.000621"
+      }
+    },
+    {
+      "feature": "momentum_vs_volatility",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.957852,
+        "std": 0.23849,
+        "nunique": 59025,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 59042,
+        "const_value": 0.000804,
+        "xsec_std_median": 0.003267,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.021322
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.007688,
+        "corr_L2": 0.903477,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.007688 L2=0.903477"
+      }
+    },
+    {
+      "feature": "negative_ratio",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000049 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 4.9e-05,
+        "std": 0.005243,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 3,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.000437
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "net_income",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.860172,
+        "std": 339566634970.2511,
+        "nunique": 514,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 53021,
+        "const_value": -4723549184.0,
+        "xsec_std_median": 346233978878.32886,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 11374041879.550014
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.002713,
+        "corr_L2": -0.001183,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.002713 L2=-0.001183"
+      }
+    },
+    {
+      "feature": "net_margin",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.842067,
+        "std": 200.933443,
+        "nunique": 503,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 51905,
+        "const_value": -20.237774,
+        "xsec_std_median": 156.491148,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 8.271481
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.004152,
+        "corr_L2": 0.001655,
+        "n": 60440,
+        "note": "임계 미만: L1=0.004152 L2=0.001655"
+      }
+    },
+    {
+      "feature": "news_count_20d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000195 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000195,
+        "std": 0.020536,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 12,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.003434
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "news_count_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000195 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000195,
+        "std": 0.020536,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 12,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.003434
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "oil_change_1m",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 16.192884,
+        "nunique": 312,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": -1.174226,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 16.181495
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.033543,
+        "corr_L2": 0.008773,
+        "n": 60440,
+        "note": "임계 미만: L1=0.033543 L2=0.008773"
+      }
+    },
+    {
+      "feature": "oil_change_3m",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 29.888047,
+        "nunique": 309,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 11.43661,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 30.011483
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.027947,
+        "corr_L2": 0.01451,
+        "n": 60440,
+        "note": "임계 미만: L1=0.027947 L2=0.014510"
+      }
+    },
+    {
+      "feature": "oil_wti",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 17.435865,
+        "nunique": 294,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 67.330002,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 17.454539
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.010039,
+        "corr_L2": 0.00662,
+        "n": 60440,
+        "note": "임계 미만: L1=0.010039 L2=0.006620"
+      }
+    },
+    {
+      "feature": "op_margin",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.878147,
+        "std": 81.037763,
+        "nunique": 524,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 54129,
+        "const_value": -15.965677,
+        "xsec_std_median": 81.118148,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 2.058673
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.006191,
+        "corr_L2": 0.002809,
+        "n": 60440,
+        "note": "임계 미만: L1=0.006191 L2=0.002809"
+      }
+    },
+    {
+      "feature": "op_margin_change_yoy",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.880191,
+        "std": 212.585676,
+        "nunique": 526,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 54255,
+        "const_value": -2.132102,
+        "xsec_std_median": 67.294555,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 10.647865
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.001859,
+        "corr_L2": -0.000659,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.001859 L2=-0.000659"
+      }
+    },
+    {
+      "feature": "operating_profit",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.901347,
+        "std": 476112494775.5678,
+        "nunique": 538,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 55559,
+        "const_value": -3726430720.0,
+        "xsec_std_median": 494933896485.9903,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 21745524333.664875
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.004159,
+        "corr_L2": -0.001642,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.004159 L2=-0.001642"
+      }
+    },
+    {
+      "feature": "pbr_current",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.1878,
+        "std": 1.770303,
+        "nunique": 186,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 11576,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.799363,
+        "time_std": 0.744044
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.013697,
+        "corr_L2": 0.000933,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.013697 L2=0.000933"
+      }
+    },
+    {
+      "feature": "pbr_percentile",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 16.325832,
+        "nunique": 175,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 50.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.697452,
+        "time_std": 1.565539
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.00011,
+        "corr_L2": -0.001667,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.000110 L2=-0.001667"
+      }
+    },
+    {
+      "feature": "per_current",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.120912,
+        "std": 50.297456,
+        "nunique": 120,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 7453,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.799363,
+        "time_std": 10.916119
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.004113,
+        "corr_L2": -0.002596,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.004113 L2=-0.002596"
+      }
+    },
+    {
+      "feature": "per_percentile",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 12.790879,
+        "nunique": 119,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 50.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.697452,
+        "time_std": 0.458816
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.01416,
+        "corr_L2": 0.004318,
+        "n": 60440,
+        "note": "임계 미만: L1=0.014160 L2=0.004318"
+      }
+    },
+    {
+      "feature": "positive_ratio",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000146 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000146,
+        "std": 0.010927,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 9,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.001574
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "ppi_yoy",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 2.989474,
+        "nunique": 16,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.611493,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 2.990701
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.004381,
+        "corr_L2": 0.006044,
+        "n": 60440,
+        "note": "임계 미만: L1=0.004381 L2=0.006044"
+      }
+    },
+    {
+      "feature": "price",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 105781.609168,
+        "nunique": 6436,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 1823.0,
+        "xsec_std_median": 104023.985314,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 3155.831429
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.013771,
+        "corr_L2": -0.001496,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.013771 L2=-0.001496"
+      }
+    },
+    {
+      "feature": "price_volume",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999481,
+        "std": 115311.357066,
+        "nunique": 61587,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61608,
+        "const_value": 2217.008057,
+        "xsec_std_median": 102260.539033,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 6039.993288
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.013553,
+        "corr_L2": 0.00827,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.013553 L2=0.008270"
+      }
+    },
+    {
+      "feature": "price_vs_sector",
+      "class": "LEAK_SUSPECT",
+      "reasons": [
+        "L2 |corr|=1.000000 >= 0.95 (당일 수익률과 사실상 동일)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.958777,
+        "std": 0.1325,
+        "nunique": 31730,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 59099,
+        "const_value": 0.027042,
+        "xsec_std_median": 0.038282,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.02122
+      },
+      "leak": {
+        "L1": false,
+        "L2": true,
+        "corr_L1": -0.010404,
+        "corr_L2": 1.0,
+        "n": 60440,
+        "note": "의심: L1=-0.010404 L2=1.000000 (임계 L1>=0.90 L2>=0.95)"
+      }
+    },
+    {
+      "feature": "program_trading_ratio",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.423605,
+        "std": 0.328421,
+        "nunique": 120,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 26111,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.328259
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.041347,
+        "corr_L2": 0.001615,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.041347 L2=0.001615"
+      }
+    },
+    {
+      "feature": "quality_asset_growth",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.945993,
+        "std": 37.823974,
+        "nunique": 565,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 58311,
+        "const_value": -7.912166,
+        "xsec_std_median": 35.213793,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 2.642513
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.008904,
+        "corr_L2": 0.004139,
+        "n": 60440,
+        "note": "임계 미만: L1=0.008904 L2=0.004139"
+      }
+    },
+    {
+      "feature": "quality_beta",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.823426,
+        "std": 1.017717,
+        "nunique": 50695,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 50756,
+        "const_value": 0.0,
+        "xsec_std_median": 0.902001,
+        "xsec_constant_ratio": 0.175159,
+        "time_std": 0.413498
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 2e-05,
+        "corr_L2": 0.009859,
+        "n": 60440,
+        "note": "임계 미만: L1=0.000020 L2=0.009859"
+      }
+    },
+    {
+      "feature": "quality_cp_to_assets",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.73037,
+        "std": 0.084935,
+        "nunique": 436,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 45020,
+        "const_value": -0.053271,
+        "xsec_std_median": 0.084331,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.002541
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.003468,
+        "corr_L2": -0.001396,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.003468 L2=-0.001396"
+      }
+    },
+    {
+      "feature": "quality_debt_ratio_change",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.948118,
+        "std": 197.089509,
+        "nunique": 540,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 58442,
+        "const_value": 6.28,
+        "xsec_std_median": 81.053284,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 11.712222
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.007232,
+        "corr_L2": 0.003221,
+        "n": 60440,
+        "note": "임계 미만: L1=0.007232 L2=0.003221"
+      }
+    },
+    {
+      "feature": "quality_earnings_volatility",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.502223,
+        "std": 85084932813.21571,
+        "nunique": 340,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 30957,
+        "const_value": 0.0,
+        "xsec_std_median": 100407366484.95772,
+        "xsec_constant_ratio": 0.417197,
+        "time_std": 13503569409.316736
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.009055,
+        "corr_L2": -0.003545,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.009055 L2=-0.003545"
+      }
+    },
+    {
+      "feature": "quality_f_score",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.944419,
+        "std": 1.617029,
+        "nunique": 6,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 58214,
+        "const_value": 2.0,
+        "xsec_std_median": 1.612694,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.18172
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.008283,
+        "corr_L2": -0.003658,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.008283 L2=-0.003658"
+      }
+    },
+    {
+      "feature": "quality_op_growth",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.631473,
+        "std": 259.656207,
+        "nunique": 373,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 38924,
+        "const_value": 0.0,
+        "xsec_std_median": 251.830487,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 24.614419
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.002159,
+        "corr_L2": -0.000621,
+        "n": 60440,
+        "note": "임계 미만: L1=0.002159 L2=-0.000621"
+      }
+    },
+    {
+      "feature": "quality_op_to_equity",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.89828,
+        "std": 0.173939,
+        "nunique": 535,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 55370,
+        "const_value": -0.11476,
+        "xsec_std_median": 0.168125,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.005719
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.013181,
+        "corr_L2": -0.005277,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.013181 L2=-0.005277"
+      }
+    },
+    {
+      "feature": "quality_price_volatility_60d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999043,
+        "std": 1.788205,
+        "nunique": 61286,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61581,
+        "const_value": 0.338598,
+        "xsec_std_median": 1.241091,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.36828
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.00071,
+        "corr_L2": 0.12707,
+        "n": 60440,
+        "note": "임계 미만: L1=0.000710 L2=0.127070"
+      }
+    },
+    {
+      "feature": "quality_roa",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.860172,
+        "std": 11.235514,
+        "nunique": 514,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 53021,
+        "const_value": -12.250516,
+        "xsec_std_median": 11.585244,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.518003
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.005086,
+        "corr_L2": -0.002731,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.005086 L2=-0.002731"
+      }
+    },
+    {
+      "feature": "quality_roe",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.857106,
+        "std": 23.697747,
+        "nunique": 511,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 52832,
+        "const_value": -14.546761,
+        "xsec_std_median": 19.467984,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 2.014001
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.013484,
+        "corr_L2": -0.006686,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.013484 L2=-0.006686"
+      }
+    },
+    {
+      "feature": "quality_score",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.162774,
+        "nunique": 6,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.625,
+        "xsec_std_median": 0.147449,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.032155
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.017486,
+        "corr_L2": -0.007347,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.017486 L2=-0.007347"
+      }
+    },
+    {
+      "feature": "relative_strength",
+      "class": "LEAK_SUSPECT",
+      "reasons": [
+        "L2 |corr|=0.992464 >= 0.95 (당일 수익률과 사실상 동일)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999968,
+        "std": 0.131267,
+        "nunique": 59061,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61638,
+        "const_value": 0.016193,
+        "xsec_std_median": 0.038282,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.011234
+      },
+      "leak": {
+        "L1": false,
+        "L2": true,
+        "corr_L1": -0.009853,
+        "corr_L2": 0.992464,
+        "n": 60440,
+        "note": "의심: L1=-0.009853 L2=0.992464 (임계 L1>=0.90 L2>=0.95)"
+      }
+    },
+    {
+      "feature": "retail_ownership_pct",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.046918 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.046918,
+        "std": 19.013696,
+        "nunique": 449,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 2892,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.88535,
+        "time_std": 11.584766
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.029392,
+        "corr_L2": -0.003184,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.029392 L2=-0.003184"
+      }
+    },
+    {
+      "feature": "return_1d",
+      "class": "LEAK_SUSPECT",
+      "reasons": [
+        "L2 |corr|=1.000000 >= 0.95 (당일 수익률과 사실상 동일)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.958777,
+        "std": 0.1325,
+        "nunique": 31730,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 59099,
+        "const_value": 0.027042,
+        "xsec_std_median": 0.038282,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.02122
+      },
+      "leak": {
+        "L1": false,
+        "L2": true,
+        "corr_L1": -0.010404,
+        "corr_L2": 1.0,
+        "n": 60440,
+        "note": "의심: L1=-0.010404 L2=1.000000 (임계 L1>=0.90 L2>=0.95)"
+      }
+    },
+    {
+      "feature": "return_20d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.992083,
+        "std": 0.497576,
+        "nunique": 47532,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61152,
+        "const_value": 0.048907,
+        "xsec_std_median": 0.209932,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.080817
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.020633,
+        "corr_L2": 0.259437,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.020633 L2=0.259437"
+      }
+    },
+    {
+      "feature": "return_5d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.983971,
+        "std": 0.254382,
+        "nunique": 39548,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 60652,
+        "const_value": 0.023582,
+        "xsec_std_median": 0.076402,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.039812
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.017132,
+        "corr_L2": 0.503661,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.017132 L2=0.503661"
+      }
+    },
+    {
+      "feature": "return_5d_mean_10d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999708,
+        "std": 0.14754,
+        "nunique": 61515,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61622,
+        "const_value": 0.023582,
+        "xsec_std_median": 0.049091,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.021114
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.014553,
+        "corr_L2": 0.077356,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.014553 L2=0.077356"
+      }
+    },
+    {
+      "feature": "revenue",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.908631,
+        "std": 3870174262267.9146,
+        "nunique": 542,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 56008,
+        "const_value": 23340259328.0,
+        "xsec_std_median": 4144785063018.6304,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 257803290720.3782
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.006923,
+        "corr_L2": -0.002925,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.006923 L2=-0.002925"
+      }
+    },
+    {
+      "feature": "revenue_growth_yoy",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.909653,
+        "std": 65.18675,
+        "nunique": 543,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 56071,
+        "const_value": 21.701134,
+        "xsec_std_median": 33.286422,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 29.897104
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.007208,
+        "corr_L2": 0.001663,
+        "n": 60440,
+        "note": "임계 미만: L1=0.007208 L2=0.001663"
+      }
+    },
+    {
+      "feature": "roe",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.171707,
+        "std": 12.423002,
+        "nunique": 171,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 10584,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.799363,
+        "time_std": 0.673027
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.002048,
+        "corr_L2": -0.000571,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.002048 L2=-0.000571"
+      }
+    },
+    {
+      "feature": "rsi",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999951,
+        "std": 12.178082,
+        "nunique": 58946,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61637,
+        "const_value": 52.078205,
+        "xsec_std_median": 10.763943,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 5.269301
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.006813,
+        "corr_L2": 0.168773,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.006813 L2=0.168773"
+      }
+    },
+    {
+      "feature": "sector_count",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "sector_momentum",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "sentiment_avg",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000195 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000195,
+        "std": 0.005679,
+        "nunique": 8,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 12,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.000682
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "sentiment_avg_20d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000195 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000195,
+        "std": 0.005679,
+        "nunique": 8,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 12,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.000682
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "sentiment_avg_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000195 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000195,
+        "std": 0.005679,
+        "nunique": 8,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 12,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.000682
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "sentiment_avg_db",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000130 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.00013,
+        "std": 0.004305,
+        "nunique": 7,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 8,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.000256
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "sentiment_momentum",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000097 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 9.7e-05,
+        "std": 0.009866,
+        "nunique": 3,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 6,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.000402
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "sentiment_trend",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000049 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 4.9e-05,
+        "std": 0.004435,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 3,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.996815,
+        "time_std": 0.0001
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "sentiment_volatility",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000049 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 4.9e-05,
+        "std": 0.002218,
+        "nunique": 4,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 3,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.996815,
+        "time_std": 0.000263
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "short_interest_ratio",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "short_medium_term_momentum",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.945214,
+        "std": 1.050183,
+        "nunique": 56085,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 58263,
+        "const_value": 0.000638,
+        "xsec_std_median": 0.0081,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.093726
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.007559,
+        "corr_L2": 0.895791,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.007559 L2=0.895791"
+      }
+    },
+    {
+      "feature": "short_selling_ratio",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.033825 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.033825,
+        "std": 0.021147,
+        "nunique": 2086,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 2085,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.621019,
+        "time_std": 0.004139
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.01079,
+        "corr_L2": -0.008442,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.010790 L2=-0.008442"
+      }
+    },
+    {
+      "feature": "similar_count",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.888189,
+        "std": 132.019233,
+        "nunique": 63,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 54748,
+        "const_value": 300.0,
+        "xsec_std_median": 131.943142,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 1.171927
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.001185,
+        "corr_L2": 0.000519,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.001185 L2=0.000519"
+      }
+    },
+    {
+      "feature": "similar_stocks_return_avg",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.080641,
+        "nunique": 61610,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": -0.000341,
+        "xsec_std_median": 0.042855,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.039979
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.002609,
+        "corr_L2": 0.086967,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.002609 L2=0.086967"
+      }
+    },
+    {
+      "feature": "similar_stocks_return_std",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.167855,
+        "nunique": 61549,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.037768,
+        "xsec_std_median": 0.072908,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.036744
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.004983,
+        "corr_L2": 0.037661,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.004983 L2=0.037661"
+      }
+    },
+    {
+      "feature": "similarity_std",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.003101,
+        "nunique": 200,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.000324,
+        "xsec_std_median": 0.003099,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 1.6e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.001742,
+        "corr_L2": -0.000981,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.001742 L2=-0.000981"
+      }
+    },
+    {
+      "feature": "sns_attention_score",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.025357 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.025357,
+        "std": 0.246269,
+        "nunique": 886,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 1563,
+        "const_value": 0.0256,
+        "xsec_std_median": 0.144864,
+        "xsec_constant_ratio": 0.66242,
+        "time_std": 0.186948
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.038468,
+        "corr_L2": 0.042557,
+        "n": 1457,
+        "note": "임계 미만: L1=-0.038468 L2=0.042557"
+      }
+    },
+    {
+      "feature": "sns_attention_score_best_lag",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.021447 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.021447,
+        "std": 2.545841,
+        "nunique": 11,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1322,
+        "const_value": 0.0,
+        "xsec_std_median": 2.489392,
+        "xsec_constant_ratio": 0.678344,
+        "time_std": 0.551238
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.024904,
+        "corr_L2": -0.020135,
+        "n": 1969,
+        "note": "임계 미만: L1=0.024904 L2=-0.020135"
+      }
+    },
+    {
+      "feature": "sns_attention_score_corr0",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.029332 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.029332,
+        "std": 0.259947,
+        "nunique": 1255,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1808,
+        "const_value": 0.0,
+        "xsec_std_median": 0.257287,
+        "xsec_constant_ratio": 0.66879,
+        "time_std": 0.071846
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.020979,
+        "corr_L2": 0.097762,
+        "n": 1969,
+        "note": "임계 미만: L1=0.020979 L2=0.097762"
+      }
+    },
+    {
+      "feature": "sns_attention_score_lag_sign",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.021447 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.021447,
+        "std": 0.763424,
+        "nunique": 3,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1322,
+        "const_value": 0.0,
+        "xsec_std_median": 0.729756,
+        "xsec_constant_ratio": 0.678344,
+        "time_std": 0.213008
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.032673,
+        "corr_L2": -0.000917,
+        "n": 1969,
+        "note": "임계 미만: L1=-0.032673 L2=-0.000917"
+      }
+    },
+    {
+      "feature": "sns_attention_score_max_corr",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.029332 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.029332,
+        "std": 0.198541,
+        "nunique": 1255,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1808,
+        "const_value": 0.0,
+        "xsec_std_median": 0.151335,
+        "xsec_constant_ratio": 0.66879,
+        "time_std": 0.132823
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.097076,
+        "corr_L2": 0.05989,
+        "n": 1969,
+        "note": "임계 미만: L1=0.097076 L2=0.059890"
+      }
+    },
+    {
+      "feature": "sns_author_quality_score",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.011632 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.011632,
+        "std": 0.108092,
+        "nunique": 627,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 717,
+        "const_value": 0.0,
+        "xsec_std_median": 0.056324,
+        "xsec_constant_ratio": 0.796178,
+        "time_std": 0.093989
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.019095,
+        "corr_L2": -0.004731,
+        "n": 1457,
+        "note": "임계 미만: L1=-0.019095 L2=-0.004731"
+      }
+    },
+    {
+      "feature": "sns_author_quality_score_best_lag",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.015834 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.015834,
+        "std": 2.799945,
+        "nunique": 11,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 976,
+        "const_value": 0.0,
+        "xsec_std_median": 1.686522,
+        "xsec_constant_ratio": 0.796178,
+        "time_std": 0.397417
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.042631,
+        "corr_L2": 0.010698,
+        "n": 1969,
+        "note": "임계 미만: L1=0.042631 L2=0.010698"
+      }
+    },
+    {
+      "feature": "sns_author_quality_score_corr0",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.017586 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.017586,
+        "std": 0.112658,
+        "nunique": 550,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1084,
+        "const_value": 0.0,
+        "xsec_std_median": 0.042356,
+        "xsec_constant_ratio": 0.796178,
+        "time_std": 0.024254
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.047342,
+        "corr_L2": 0.054035,
+        "n": 1969,
+        "note": "임계 미만: L1=0.047342 L2=0.054035"
+      }
+    },
+    {
+      "feature": "sns_author_quality_score_lag_sign",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.015834 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.015834,
+        "std": 0.676876,
+        "nunique": 3,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 976,
+        "const_value": 0.0,
+        "xsec_std_median": 0.479061,
+        "xsec_constant_ratio": 0.796178,
+        "time_std": 0.110841
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.037562,
+        "corr_L2": -0.008315,
+        "n": 1969,
+        "note": "임계 미만: L1=-0.037562 L2=-0.008315"
+      }
+    },
+    {
+      "feature": "sns_author_quality_score_max_corr",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.017586 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.017586,
+        "std": 0.136895,
+        "nunique": 550,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1084,
+        "const_value": 0.0,
+        "xsec_std_median": 0.080733,
+        "xsec_constant_ratio": 0.796178,
+        "time_std": 0.079202
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.096052,
+        "corr_L2": -0.01721,
+        "n": 1969,
+        "note": "임계 미만: L1=-0.096052 L2=-0.017210"
+      }
+    },
+    {
+      "feature": "sns_bot_filtered_count",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000195 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.000195,
+        "std": 12.015002,
+        "nunique": 12,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 12,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.964968,
+        "time_std": 2.603343
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.006112,
+        "corr_L2": -0.077097,
+        "n": 1457,
+        "note": "임계 미만: L1=-0.006112 L2=-0.077097"
+      }
+    },
+    {
+      "feature": "sns_momentum_score",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.024935 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.024935,
+        "std": 0.407763,
+        "nunique": 842,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 1537,
+        "const_value": 0.7616,
+        "xsec_std_median": 0.294881,
+        "xsec_constant_ratio": 0.684713,
+        "time_std": 0.297626
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.00782,
+        "corr_L2": 0.027164,
+        "n": 1457,
+        "note": "임계 미만: L1=-0.007820 L2=0.027164"
+      }
+    },
+    {
+      "feature": "sns_momentum_score_best_lag",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.025762 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.025762,
+        "std": 2.921982,
+        "nunique": 11,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1588,
+        "const_value": 0.0,
+        "xsec_std_median": 2.785802,
+        "xsec_constant_ratio": 0.675159,
+        "time_std": 0.60479
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.023716,
+        "corr_L2": -0.003725,
+        "n": 1969,
+        "note": "임계 미만: L1=-0.023716 L2=-0.003725"
+      }
+    },
+    {
+      "feature": "sns_momentum_score_corr0",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.029332 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.029332,
+        "std": 0.165412,
+        "nunique": 1255,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1808,
+        "const_value": 0.0,
+        "xsec_std_median": 0.150229,
+        "xsec_constant_ratio": 0.66879,
+        "time_std": 0.031613
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.030058,
+        "corr_L2": -0.023463,
+        "n": 1969,
+        "note": "임계 미만: L1=0.030058 L2=-0.023463"
+      }
+    },
+    {
+      "feature": "sns_momentum_score_lag_sign",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.025762 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.025762,
+        "std": 0.86485,
+        "nunique": 3,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1588,
+        "const_value": 0.0,
+        "xsec_std_median": 0.847028,
+        "xsec_constant_ratio": 0.675159,
+        "time_std": 0.191615
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.032273,
+        "corr_L2": 0.00157,
+        "n": 1969,
+        "note": "임계 미만: L1=0.032273 L2=0.001570"
+      }
+    },
+    {
+      "feature": "sns_momentum_score_max_corr",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.029332 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.029332,
+        "std": 0.16363,
+        "nunique": 1254,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1808,
+        "const_value": 0.0,
+        "xsec_std_median": 0.124404,
+        "xsec_constant_ratio": 0.66879,
+        "time_std": 0.114504
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.079193,
+        "corr_L2": 0.054031,
+        "n": 1969,
+        "note": "임계 미만: L1=0.079193 L2=0.054031"
+      }
+    },
+    {
+      "feature": "sns_post_count",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.025357 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.025357,
+        "std": 37.357736,
+        "nunique": 140,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 1563,
+        "const_value": 1.0,
+        "xsec_std_median": 17.53193,
+        "xsec_constant_ratio": 0.665605,
+        "time_std": 12.524723
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.061304,
+        "corr_L2": 0.018592,
+        "n": 1457,
+        "note": "임계 미만: L1=-0.061304 L2=0.018592"
+      }
+    },
+    {
+      "feature": "sns_sentiment_score",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.021674 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.974643,
+        "nnz_ratio_honest": 0.021674,
+        "std": 0.266784,
+        "nunique": 688,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.17,
+        "n_valid": 1563,
+        "n_nonzero": 1336,
+        "const_value": 0.0,
+        "xsec_std_median": 0.229147,
+        "xsec_constant_ratio": 0.66879,
+        "time_std": 0.157255
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.030337,
+        "corr_L2": 0.403822,
+        "n": 1457,
+        "note": "임계 미만: L1=-0.030337 L2=0.403822"
+      }
+    },
+    {
+      "feature": "sns_sentiment_score_best_lag",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.007008 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.007008,
+        "std": 1.573829,
+        "nunique": 11,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 432,
+        "const_value": 0.0,
+        "xsec_std_median": 1.33512,
+        "xsec_constant_ratio": 0.684713,
+        "time_std": 0.250866
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.060595,
+        "corr_L2": -0.037552,
+        "n": 1969,
+        "note": "임계 미만: L1=-0.060595 L2=-0.037552"
+      }
+    },
+    {
+      "feature": "sns_sentiment_score_corr0",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.029332 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.029332,
+        "std": 0.251034,
+        "nunique": 1255,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1808,
+        "const_value": 0.0,
+        "xsec_std_median": 0.225412,
+        "xsec_constant_ratio": 0.66879,
+        "time_std": 0.132901
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.066448,
+        "corr_L2": 0.038116,
+        "n": 1969,
+        "note": "임계 미만: L1=0.066448 L2=0.038116"
+      }
+    },
+    {
+      "feature": "sns_sentiment_score_lag_sign",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.007008 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.007008,
+        "std": 0.449595,
+        "nunique": 3,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 432,
+        "const_value": 0.0,
+        "xsec_std_median": 0.398341,
+        "xsec_constant_ratio": 0.684713,
+        "time_std": 0.09186
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.034774,
+        "corr_L2": 0.034789,
+        "n": 1969,
+        "note": "임계 미만: L1=0.034774 L2=0.034789"
+      }
+    },
+    {
+      "feature": "sns_sentiment_score_max_corr",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.029332 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.965558,
+        "nnz_ratio_honest": 0.029332,
+        "std": 0.226775,
+        "nunique": 1255,
+        "coverage_days": 0.356688,
+        "coverage_codes": 0.155,
+        "n_valid": 2123,
+        "n_nonzero": 1808,
+        "const_value": 0.0,
+        "xsec_std_median": 0.186004,
+        "xsec_constant_ratio": 0.66879,
+        "time_std": 0.153963
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.098527,
+        "corr_L2": 0.048122,
+        "n": 1969,
+        "note": "임계 미만: L1=0.098527 L2=0.048122"
+      }
+    },
+    {
+      "feature": "stoch_d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 25.117447,
+        "nunique": 59834,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 22.167933,
+        "xsec_std_median": 22.551171,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 11.656294
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.002658,
+        "corr_L2": 0.016378,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.002658 L2=0.016378"
+      }
+    },
+    {
+      "feature": "stoch_k",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999935,
+        "std": 25.850663,
+        "nunique": 53275,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61636,
+        "const_value": 21.444082,
+        "xsec_std_median": 23.150506,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 11.945489
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.003955,
+        "corr_L2": 0.052193,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.003955 L2=0.052193"
+      }
+    },
+    {
+      "feature": "target_ma_10",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999627,
+        "std": 0.041161,
+        "nunique": 61375,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61617,
+        "const_value": 0.027042,
+        "xsec_std_median": 0.012633,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.005721
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.019019,
+        "corr_L2": 0.311536,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.019019 L2=0.311536"
+      }
+    },
+    {
+      "feature": "target_ma_20",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.99974,
+        "std": 0.028801,
+        "nunique": 61382,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61624,
+        "const_value": 0.027042,
+        "xsec_std_median": 0.009707,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.004027
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.020485,
+        "corr_L2": 0.22535,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.020485 L2=0.225350"
+      }
+    },
+    {
+      "feature": "target_ma_5",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999351,
+        "std": 0.058775,
+        "nunique": 61278,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61600,
+        "const_value": 0.027042,
+        "xsec_std_median": 0.017136,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.008835
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.020872,
+        "corr_L2": 0.445433,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.020872 L2=0.445433"
+      }
+    },
+    {
+      "feature": "theme_count",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.160318,
+        "std": 1.448574,
+        "nunique": 9,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 9882,
+        "const_value": 0.0,
+        "xsec_std_median": 1.444806,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.007643
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.006654,
+        "corr_L2": -0.003169,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.006654 L2=-0.003169"
+      }
+    },
+    {
+      "feature": "theme_exposure_5d",
+      "class": "DEAD_SPARSE",
+      "reasons": [
+        "nnz_ratio_honest 0.000227 < 0.050000"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.000227,
+        "std": 0.092367,
+        "nunique": 8,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 14,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 0.993631,
+        "time_std": 0.016317
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "theme_max_relevance",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.160318,
+        "std": 0.243362,
+        "nunique": 10,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 9882,
+        "const_value": 0.0,
+        "xsec_std_median": 0.242615,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.001477
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.006609,
+        "corr_L2": 0.001795,
+        "n": 60440,
+        "note": "임계 미만: L1=0.006609 L2=0.001795"
+      }
+    },
+    {
+      "feature": "trend_confirmation",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.982771,
+        "std": 92.102216,
+        "nunique": 60520,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 60578,
+        "const_value": 0.05054,
+        "xsec_std_median": 2.176283,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 8.738275
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.012909,
+        "corr_L2": 0.653521,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.012909 L2=0.653521"
+      }
+    },
+    {
+      "feature": "trend_interaction",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.976979,
+        "std": 1.899999,
+        "nunique": 59378,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 60221,
+        "const_value": 0.001153,
+        "xsec_std_median": 0.040103,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.178523
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.014053,
+        "corr_L2": 0.482242,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.014053 L2=0.482242"
+      }
+    },
+    {
+      "feature": "twin_avg_correlation",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.75782,
+        "std": 0.310553,
+        "nunique": 151,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 46712,
+        "const_value": 0.0,
+        "xsec_std_median": 0.309757,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.005336
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.023458,
+        "corr_L2": 0.01082,
+        "n": 60440,
+        "note": "임계 미만: L1=0.023458 L2=0.010820"
+      }
+    },
+    {
+      "feature": "twin_count",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.75782,
+        "std": 6.991045,
+        "nunique": 23,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 46712,
+        "const_value": 0.0,
+        "xsec_std_median": 6.978926,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.041957
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.000293,
+        "corr_L2": 9e-05,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.000293 L2=0.000090"
+      }
+    },
+    {
+      "feature": "value_ev_ebit",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.614909,
+        "std": 38778.624749,
+        "nunique": 28960,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 37903,
+        "const_value": 0.0,
+        "xsec_std_median": 485.59139,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 2502.574683
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.007199,
+        "corr_L2": 0.022389,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.007199 L2=0.022389"
+      }
+    },
+    {
+      "feature": "value_ncav",
+      "class": "DEAD_CONST_ZERO",
+      "reasons": [
+        "유효값 61640개 전부 0"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.0,
+        "std": 0.0,
+        "nunique": 1,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 0,
+        "const_value": 0.0,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.0
+      },
+      "leak": {
+        "L1": null,
+        "L2": null,
+        "corr_L1": null,
+        "corr_L2": null,
+        "n": 60440,
+        "note": "x 분산0 — 판정 불가"
+      }
+    },
+    {
+      "feature": "value_pbr",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.943105,
+        "std": 9.950135,
+        "nunique": 35773,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 58133,
+        "const_value": 5.330402,
+        "xsec_std_median": 8.541192,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.753964
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.011057,
+        "corr_L2": 0.004355,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.011057 L2=0.004355"
+      }
+    },
+    {
+      "feature": "value_pcr",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.522177,
+        "std": 1270.089758,
+        "nunique": 23529,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 32187,
+        "const_value": 0.0,
+        "xsec_std_median": 57.097021,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 72.618981
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.003545,
+        "corr_L2": -0.000193,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.003545 L2=-0.000193"
+      }
+    },
+    {
+      "feature": "value_per",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.580662,
+        "std": 444.090233,
+        "nunique": 20911,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 35792,
+        "const_value": 0.0,
+        "xsec_std_median": 339.901924,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 19.959641
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.001718,
+        "corr_L2": 0.001622,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.001718 L2=0.001622"
+      }
+    },
+    {
+      "feature": "value_pfcr",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.31916,
+        "std": 1270.61303,
+        "nunique": 14331,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 19673,
+        "const_value": 0.0,
+        "xsec_std_median": 103.229816,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 66.377941
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.003715,
+        "corr_L2": -0.000263,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.003715 L2=-0.000263"
+      }
+    },
+    {
+      "feature": "value_psr",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.908631,
+        "std": 36.817796,
+        "nunique": 43747,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 56008,
+        "const_value": 7.415772,
+        "xsec_std_median": 35.370678,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 4.468535
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.016416,
+        "corr_L2": 0.008565,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.016416 L2=0.008565"
+      }
+    },
+    {
+      "feature": "vix_proxy",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999043,
+        "std": 1.921093,
+        "nunique": 61294,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61581,
+        "const_value": 0.471887,
+        "xsec_std_median": 0.382557,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.32808
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.016176,
+        "corr_L2": 0.204089,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.016176 L2=0.204089"
+      }
+    },
+    {
+      "feature": "volatility_20d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999043,
+        "std": 0.121018,
+        "nunique": 61296,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61581,
+        "const_value": 0.029726,
+        "xsec_std_median": 0.024099,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.020667
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.016176,
+        "corr_L2": 0.204088,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.016176 L2=0.204088"
+      }
+    },
+    {
+      "feature": "volatility_20d_mean_10d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999043,
+        "std": 0.110095,
+        "nunique": 61507,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61581,
+        "const_value": 0.029726,
+        "xsec_std_median": 0.029076,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.019733
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.008771,
+        "corr_L2": 0.016894,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.008771 L2=0.016894"
+      }
+    },
+    {
+      "feature": "volatility_20d_rank",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.997112,
+        "std": 30.046047,
+        "nunique": 35469,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61462,
+        "const_value": 57.013577,
+        "xsec_std_median": 27.035747,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 15.948847
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.023938,
+        "corr_L2": 0.036844,
+        "n": 60440,
+        "note": "임계 미만: L1=0.023938 L2=0.036844"
+      }
+    },
+    {
+      "feature": "volatility_60d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999043,
+        "std": 0.112646,
+        "nunique": 61292,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61581,
+        "const_value": 0.02133,
+        "xsec_std_median": 0.078181,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.023199
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.00071,
+        "corr_L2": 0.12707,
+        "n": 60440,
+        "note": "임계 미만: L1=0.000710 L2=0.127070"
+      }
+    },
+    {
+      "feature": "volatility_skew",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999027,
+        "std": 0.18426,
+        "nunique": 61340,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61580,
+        "const_value": 0.01205,
+        "xsec_std_median": 0.020292,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.025597
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.018139,
+        "corr_L2": 0.199963,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.018139 L2=0.199963"
+      }
+    },
+    {
+      "feature": "volatility_volume",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.998702,
+        "std": 0.120143,
+        "nunique": 61506,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61560,
+        "const_value": 0.036151,
+        "xsec_std_median": 0.042482,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.01749
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.005413,
+        "corr_L2": 0.088777,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.005413 L2=0.088777"
+      }
+    },
+    {
+      "feature": "volume_price_trend",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.983842,
+        "std": 0.270272,
+        "nunique": 60624,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 60644,
+        "const_value": 0.028679,
+        "xsec_std_median": 0.130516,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.045225
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.008812,
+        "corr_L2": 0.246802,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.008812 L2=0.246802"
+      }
+    },
+    {
+      "feature": "volume_ratio_20",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.998751,
+        "std": 1.298136,
+        "nunique": 61497,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61563,
+        "const_value": 0.09766,
+        "xsec_std_median": 1.218476,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.196108
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.017295,
+        "corr_L2": 0.08472,
+        "n": 60440,
+        "note": "임계 미만: L1=0.017295 L2=0.084720"
+      }
+    },
+    {
+      "feature": "volume_ratio_5",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999481,
+        "std": 0.621112,
+        "nunique": 61508,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61608,
+        "const_value": 1.216132,
+        "xsec_std_median": 0.613937,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.120376
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.018081,
+        "corr_L2": 0.067546,
+        "n": 60440,
+        "note": "임계 미만: L1=0.018081 L2=0.067546"
+      }
+    },
+    {
+      "feature": "volume_ratio_5_mean_10d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999708,
+        "std": 0.173575,
+        "nunique": 61319,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61622,
+        "const_value": 1.216132,
+        "xsec_std_median": 0.161011,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.048807
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.01734,
+        "corr_L2": 0.04066,
+        "n": 60440,
+        "note": "임계 미만: L1=0.017340 L2=0.040660"
+      }
+    },
+    {
+      "feature": "volume_ratio_vs_avg",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.998751,
+        "std": 1.298136,
+        "nunique": 61497,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61563,
+        "const_value": 0.09766,
+        "xsec_std_median": 1.218476,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.196108
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.017295,
+        "corr_L2": 0.08472,
+        "n": 60440,
+        "note": "임계 미만: L1=0.017295 L2=0.084720"
+      }
+    },
+    {
+      "feature": "yield_spread",
+      "class": "CONST_MARKET",
+      "reasons": [
+        "xsec_constant_ratio 1.000000 >= 0.95 (시장 공통값)"
+      ],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.429383,
+        "nunique": 275,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": -0.079,
+        "xsec_std_median": 0.0,
+        "xsec_constant_ratio": 1.0,
+        "time_std": 0.429261
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.002578,
+        "corr_L2": 0.004425,
+        "n": 60440,
+        "note": "임계 미만: L1=0.002578 L2=0.004425"
+      }
+    },
+    {
+      "feature": "momentum_vs_volatility",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.957852,
+        "std": 0.23849,
+        "nunique": 59025,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 59042,
+        "const_value": 0.000804,
+        "xsec_std_median": 0.003267,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.021322
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.007688,
+        "corr_L2": 0.903477,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.007688 L2=0.903477"
+      }
+    },
+    {
+      "feature": "trend_interaction",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.976979,
+        "std": 1.899999,
+        "nunique": 59378,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 60221,
+        "const_value": 0.001153,
+        "xsec_std_median": 0.040103,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.178523
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.014053,
+        "corr_L2": 0.482242,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.014053 L2=0.482242"
+      }
+    },
+    {
+      "feature": "volume_price_trend",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.983842,
+        "std": 0.270272,
+        "nunique": 60624,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 60644,
+        "const_value": 0.028679,
+        "xsec_std_median": 0.130516,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.045225
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.008812,
+        "corr_L2": 0.246802,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.008812 L2=0.246802"
+      }
+    },
+    {
+      "feature": "cross_trend",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.992797,
+        "std": 2066.333397,
+        "nunique": 61146,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61196,
+        "const_value": 1.682487,
+        "xsec_std_median": 109.497625,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 193.262202
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.008783,
+        "corr_L2": 0.886124,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.008783 L2=0.886124"
+      }
+    },
+    {
+      "feature": "volatility_volume",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.998702,
+        "std": 0.120143,
+        "nunique": 61506,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61560,
+        "const_value": 0.036151,
+        "xsec_std_median": 0.042482,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.01749
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.005413,
+        "corr_L2": 0.088777,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.005413 L2=0.088777"
+      }
+    },
+    {
+      "feature": "short_medium_term_momentum",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.945214,
+        "std": 1.050183,
+        "nunique": 56085,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 58263,
+        "const_value": 0.000638,
+        "xsec_std_median": 0.0081,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.093726
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.007559,
+        "corr_L2": 0.895791,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.007559 L2=0.895791"
+      }
+    },
+    {
+      "feature": "trend_confirmation",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.982771,
+        "std": 92.102216,
+        "nunique": 60520,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 60578,
+        "const_value": 0.05054,
+        "xsec_std_median": 2.176283,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 8.738275
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.012909,
+        "corr_L2": 0.653521,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.012909 L2=0.653521"
+      }
+    },
+    {
+      "feature": "price_volume",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999481,
+        "std": 115311.357066,
+        "nunique": 61587,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61608,
+        "const_value": 2217.008057,
+        "xsec_std_median": 102260.539033,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 6039.993288
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.013553,
+        "corr_L2": 0.00827,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.013553 L2=0.008270"
+      }
+    },
+    {
+      "feature": "return_5d_mean_10d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999708,
+        "std": 0.14754,
+        "nunique": 61515,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61622,
+        "const_value": 0.023582,
+        "xsec_std_median": 0.049091,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.021114
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.014553,
+        "corr_L2": 0.077356,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.014553 L2=0.077356"
+      }
+    },
+    {
+      "feature": "volatility_20d_mean_10d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999043,
+        "std": 0.110095,
+        "nunique": 61507,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61581,
+        "const_value": 0.029726,
+        "xsec_std_median": 0.029076,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.019733
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.008771,
+        "corr_L2": 0.016894,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.008771 L2=0.016894"
+      }
+    },
+    {
+      "feature": "volume_ratio_5_mean_10d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999708,
+        "std": 0.173575,
+        "nunique": 61319,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61622,
+        "const_value": 1.216132,
+        "xsec_std_median": 0.161011,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.048807
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.01734,
+        "corr_L2": 0.04066,
+        "n": 60440,
+        "note": "임계 미만: L1=0.017340 L2=0.040660"
+      }
+    },
+    {
+      "feature": "rank_return_5d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.28867,
+        "nunique": 3048,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.923858,
+        "xsec_std_median": 0.288671,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 3.6e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.014037,
+        "corr_L2": 0.143219,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.014037 L2=0.143219"
+      }
+    },
+    {
+      "feature": "rank_return_20d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.288671,
+        "nunique": 2969,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.84264,
+        "xsec_std_median": 0.288671,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 3.6e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.011237,
+        "corr_L2": 0.085449,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.011237 L2=0.085449"
+      }
+    },
+    {
+      "feature": "rank_volatility_20d",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.288671,
+        "nunique": 2818,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.741117,
+        "xsec_std_median": 0.288671,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 3.6e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.019387,
+        "corr_L2": 0.040093,
+        "n": 60440,
+        "note": "임계 미만: L1=0.019387 L2=0.040093"
+      }
+    },
+    {
+      "feature": "rank_volume_ratio_5",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.288671,
+        "nunique": 2819,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.903553,
+        "xsec_std_median": 0.288671,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 3.6e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.014275,
+        "corr_L2": 0.039747,
+        "n": 60440,
+        "note": "임계 미만: L1=0.014275 L2=0.039747"
+      }
+    },
+    {
+      "feature": "rank_ma_position_5",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.288671,
+        "nunique": 2933,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.862944,
+        "xsec_std_median": 0.288671,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 3.6e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.016603,
+        "corr_L2": 0.190882,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.016603 L2=0.190882"
+      }
+    },
+    {
+      "feature": "rank_volume_ratio_20",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 1.0,
+        "std": 0.288671,
+        "nunique": 2819,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61640,
+        "const_value": 0.045685,
+        "xsec_std_median": 0.288671,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 3.6e-05
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": 0.006815,
+        "corr_L2": 0.03779,
+        "n": 60440,
+        "note": "임계 미만: L1=0.006815 L2=0.037790"
+      }
+    },
+    {
+      "feature": "target_ma_5",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999351,
+        "std": 0.058775,
+        "nunique": 61278,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61600,
+        "const_value": 0.027042,
+        "xsec_std_median": 0.017136,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.008835
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.020872,
+        "corr_L2": 0.445433,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.020872 L2=0.445433"
+      }
+    },
+    {
+      "feature": "target_ma_10",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.999627,
+        "std": 0.041161,
+        "nunique": 61375,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61617,
+        "const_value": 0.027042,
+        "xsec_std_median": 0.012633,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.005721
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.019019,
+        "corr_L2": 0.311536,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.019019 L2=0.311536"
+      }
+    },
+    {
+      "feature": "target_ma_20",
+      "class": "ALIVE",
+      "reasons": [],
+      "stats": {
+        "rows": 61640,
+        "null_ratio": 0.0,
+        "nnz_ratio_honest": 0.99974,
+        "std": 0.028801,
+        "nunique": 61382,
+        "coverage_days": 1.0,
+        "coverage_codes": 1.0,
+        "n_valid": 61640,
+        "n_nonzero": 61624,
+        "const_value": 0.027042,
+        "xsec_std_median": 0.009707,
+        "xsec_constant_ratio": 0.0,
+        "time_std": 0.004027
+      },
+      "leak": {
+        "L1": false,
+        "L2": false,
+        "corr_L1": -0.020485,
+        "corr_L2": 0.22535,
+        "n": 60440,
+        "note": "임계 미만: L1=-0.020485 L2=0.225350"
+      }
+    }
+  ],
+  "redundant_pairs": [
+    {
+      "a": "cross_trend",
+      "b": "cross_trend",
+      "corr": 1.0
+    },
+    {
+      "a": "kalman_attention",
+      "b": "sns_attention_score",
+      "corr": 1.0
+    },
+    {
+      "a": "kalman_sentiment",
+      "b": "sns_sentiment_score",
+      "corr": 1.0
+    },
+    {
+      "a": "momentum_op",
+      "b": "quality_op_growth",
+      "corr": 1.0
+    },
+    {
+      "a": "momentum_vs_volatility",
+      "b": "momentum_vs_volatility",
+      "corr": 1.0
+    },
+    {
+      "a": "news_count_20d",
+      "b": "news_count_5d",
+      "corr": 1.0
+    },
+    {
+      "a": "price_volume",
+      "b": "price_volume",
+      "corr": 1.0
+    },
+    {
+      "a": "price_vs_sector",
+      "b": "return_1d",
+      "corr": 1.0
+    },
+    {
+      "a": "quality_price_volatility_60d",
+      "b": "volatility_60d",
+      "corr": 1.0
+    },
+    {
+      "a": "return_5d_mean_10d",
+      "b": "return_5d_mean_10d",
+      "corr": 1.0
+    },
+    {
+      "a": "sentiment_avg",
+      "b": "sentiment_avg_20d",
+      "corr": 1.0
+    },
+    {
+      "a": "sentiment_avg",
+      "b": "sentiment_avg_5d",
+      "corr": 1.0
+    },
+    {
+      "a": "sentiment_avg_20d",
+      "b": "sentiment_avg_5d",
+      "corr": 1.0
+    },
+    {
+      "a": "short_medium_term_momentum",
+      "b": "short_medium_term_momentum",
+      "corr": 1.0
+    },
+    {
+      "a": "target_ma_10",
+      "b": "target_ma_10",
+      "corr": 1.0
+    },
+    {
+      "a": "target_ma_20",
+      "b": "target_ma_20",
+      "corr": 1.0
+    },
+    {
+      "a": "target_ma_5",
+      "b": "target_ma_5",
+      "corr": 1.0
+    },
+    {
+      "a": "trend_confirmation",
+      "b": "trend_confirmation",
+      "corr": 1.0
+    },
+    {
+      "a": "trend_interaction",
+      "b": "trend_interaction",
+      "corr": 1.0
+    },
+    {
+      "a": "vix_proxy",
+      "b": "volatility_20d",
+      "corr": 1.0
+    }
+  ],
+  "duplicate_columns": [
+    {
+      "name": "cross_trend",
+      "columns": [
+        16,
+        196
+      ],
+      "identical": true
+    },
+    {
+      "name": "momentum_vs_volatility",
+      "columns": [
+        79,
+        193
+      ],
+      "identical": true
+    },
+    {
+      "name": "price_volume",
+      "columns": [
+        98,
+        200
+      ],
+      "identical": true
+    },
+    {
+      "name": "return_5d_mean_10d",
+      "columns": [
+        118,
+        201
+      ],
+      "identical": true
+    },
+    {
+      "name": "short_medium_term_momentum",
+      "columns": [
+        133,
+        198
+      ],
+      "identical": true
+    },
+    {
+      "name": "target_ma_10",
+      "columns": [
+        163,
+        211
+      ],
+      "identical": true
+    },
+    {
+      "name": "target_ma_20",
+      "columns": [
+        164,
+        212
+      ],
+      "identical": true
+    },
+    {
+      "name": "target_ma_5",
+      "columns": [
+        165,
+        210
+      ],
+      "identical": true
+    },
+    {
+      "name": "trend_confirmation",
+      "columns": [
+        169,
+        199
+      ],
+      "identical": true
+    },
+    {
+      "name": "trend_interaction",
+      "columns": [
+        170,
+        194
+      ],
+      "identical": true
+    },
+    {
+      "name": "volatility_20d_mean_10d",
+      "columns": [
+        182,
+        202
+      ],
+      "identical": true
+    },
+    {
+      "name": "volatility_volume",
+      "columns": [
+        186,
+        197
+      ],
+      "identical": true
+    },
+    {
+      "name": "volume_price_trend",
+      "columns": [
+        187,
+        195
+      ],
+      "identical": true
+    },
+    {
+      "name": "volume_ratio_5_mean_10d",
+      "columns": [
+        190,
+        203
+      ],
+      "identical": true
+    }
+  ],
+  "r13_crosstab": {
+    "r13_dead_total": 35,
+    "r13_ts": "2026-09-29T06:06:21+09:00",
+    "measured_dead": 69,
+    "bucket_x_class": {
+      "buildable": {
+        "ALIVE": 10,
+        "DEAD_CONST_ZERO": 1
+      },
+      "market_level": {
+        "CONST_MARKET": 5,
+        "DEAD_SPARSE": 2
+      },
+      "source_absent": {
+        "DEAD_CONST_ZERO": 5,
+        "CONST_MARKET": 1,
+        "ALIVE": 2,
+        "DEAD_SPARSE": 1,
+        "NOT_IN_PANEL": 1
+      },
+      "coverage_low": {
+        "DEAD_CONST_ZERO": 4,
+        "DEAD_SPARSE": 3
+      }
+    },
+    "r13_dead_not_now_dead": [
+      "atr_pct",
+      "basis",
+      "basis_change_5d",
+      "bayes_gain_uncertainty",
+      "bayes_momentum_1d",
+      "bayes_momentum_5d",
+      "bayes_volatility",
+      "credit_spread",
+      "derivatives_volume",
+      "futures_premium",
+      "program_trading_ratio",
+      "quality_beta",
+      "quality_price_volatility_60d",
+      "similarity_std",
+      "theme_count",
+      "theme_max_relevance",
+      "theme_momentum",
+      "twin_avg_correlation",
+      "twin_count"
+    ],
+    "now_dead_not_in_r13": [
+      "event_capital_increase_5d",
+      "event_cb_bw_5d",
+      "event_contract_5d",
+      "event_delisting_5d",
+      "event_disaster_5d",
+      "event_exec_change_5d",
+      "event_litigation_5d",
+      "event_mna_5d",
+      "event_new_product_5d",
+      "event_partnership_5d",
+      "event_patent_5d",
+      "event_realized_5d",
+      "event_recall_5d",
+      "event_regulation_5d",
+      "event_treasury_5d",
+      "foreign_ownership_pct",
+      "kalman_activity",
+      "kalman_attention",
+      "kalman_momentum",
+      "kalman_sentiment"
+    ]
+  },
+  "claim": {
+    "runner": "feature_survival_report",
+    "source": "panel_npz",
+    "source_rows": 61640,
+    "source_bytes": 19806436,
+    "parsed_features": 213,
+    "persisted_features": 213,
+    "persisted_files": [
+      "data/reports/feature_survival_v2.json",
+      "data/reports/feature_survival_v2.md"
+    ],
+    "note": "3분리: 소스 수신(panel 행수·바이트) / 파서 생성(통계 산출 피처 수) / 실제 저장(JSON 재독해 대조 피처 수). DB 접근 금지(스펙)로 scripts/dq_claim.py record_claim 대신 출력 파일 안 자기신고."
+  }
+}
