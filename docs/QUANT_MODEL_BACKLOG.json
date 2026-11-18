@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-19T06:38:20+09:00",
+ "updated_at": "2026-11-19T06:48:37+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -12,6 +12,53 @@
   "07. 백로그 `command` 의 플래그는 **스크립트 파서에서 실재를 확인**한 뒤 등록하라 — champion_robust_eval 은 --out 만 받는다(--json-out 없음). 2026-11-17 CG306 이 이 오타로 rc=2 두 번, CG310 에도 같은 오타가 남아 있었다. 등록 시 `--help` 대조 1줄이면 막을 수 있다."
  ],
  "items": [
+  {
+   "id": "CG351",
+   "title": "[측정 잡음] 유니버스 시드 잡음 밴드를 5시드로 확장 — CG347(3시드 범위 0.0227)의 σ 추정을 df=4 로 재산출",
+   "status": "done",
+   "priority": 2,
+   "est_minutes": 14,
+   "owner": "model_engineer",
+   "metric": "robust_seed_range",
+   "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg351_seed_range5.json",
+   "command": "timeout 2600 docker exec stock_xgboost_ml sh -c 'cd /app && for s in 3 4; do OMP_NUM_THREADS=4 timeout 600 python -u scripts/champion_robust_eval.py --model-dir app/models/retrain_cg346 --folds 5 --universe training --universe-seed $s --out /app/reports/overnight/cg351_seed$s.json || exit 1; done' && python3 scripts/robust_seed_range.py --inputs services/xgboost-ml/reports/overnight/cg346c_robust_trainuniv.json services/xgboost-ml/reports/overnight/cg347_seed1.json services/xgboost-ml/reports/overnight/cg347_seed2.json services/xgboost-ml/reports/overnight/cg351_seed3.json services/xgboost-ml/reports/overnight/cg351_seed4.json --out data/reports/overnight/cg351_seed_range5.json",
+   "counterfactual": "CG347 3시드: 0.4887/0.5114/0.5011 → 범위 0.0227 · std 0.0114 (df=2, σ 추정 불안정). 같은 모델·같은 10날짜에서 시드만 3/4 추가.",
+   "success": "① rc=0 ② 5시드 σ 와 범위 산출 ③ 범위 ≥ 0.02 유지면 '단일 시드 절대 비교 반폭'을 σ 기반(±1.4σ)으로 확정 보고. 범위가 0.02 미만으로 내려가면 3시드 우연이었으므로 그 사실을 함께 기록(어느 쪽이든 프로토콜 변경 근거는 리뷰보드).",
+   "expected": "스코어보드 기준선 비교에 붙일 오차 막대(반폭)의 신뢰도 확보.",
+   "created": "2026-11-19T06:58:00+09:00",
+   "rationale": "CG347 의 σ=0.0114 는 3점 추정이라 신뢰구간이 넓다. 리뷰보드에 '기준선 비교 반폭'을 올리려면 시드 5개가 필요하다(2잡 추가 = 약 6분, 유휴 CPU).",
+   "attempts": [
+    {
+     "ts": "2026-11-19T06:48:37+09:00",
+     "rc": 0,
+     "verdict": "문턱 미해상 — 시드 표집 잡음이 사전문턱과 동급",
+     "detail": "시드 5개 절대 AUC {'0': 0.4887, '1': 0.5114, '2': 0.5011, '3': 0.496, '4': 0.4744} · 평균 0.49432 · std 0.013865 · **범위 0.037** (문턱 +0.02 의 1.85배) · 같은 런 날짜별 std 평균 [10]날짜/[800]행. 함의: 단일 시드·단일 창의 '기록 기준선 대비 Δ'는 부호조차 신뢰 불가 (반폭 ±0.0185). 유효한 비교는 **같은 유니버스 시드의 짝 Δ**(시드 잡음 상쇄)뿐. 프로토콜 변경은 리뷰보드 안건(②).",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG351_20261119-064256.log",
+     "elapsed_min": 5.7
+    }
+   ],
+   "result": {
+    "verdict": "문턱 미해상 — 시드 표집 잡음이 사전문턱과 동급",
+    "detail": "시드 5개 절대 AUC {'0': 0.4887, '1': 0.5114, '2': 0.5011, '3': 0.496, '4': 0.4744} · 평균 0.49432 · std 0.013865 · **범위 0.037** (문턱 +0.02 의 1.85배) · 같은 런 날짜별 std 평균 [10]날짜/[800]행. 함의: 단일 시드·단일 창의 '기록 기준선 대비 Δ'는 부호조차 신뢰 불가 (반폭 ±0.0185). 유효한 비교는 **같은 유니버스 시드의 짝 Δ**(시드 잡음 상쇄)뿐. 프로토콜 변경은 리뷰보드 안건(②).",
+    "delta": 0.037,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG350",
+   "title": "[프로토콜·승인대기] champion_robust_eval 창 격자에 '학습구간 이후 부분창' 절단 옵션 추가 — 챔피언과 재학습 후보를 같은 날짜창에서 짝 비교하기 위한 선행조건",
+   "status": "needs_setup",
+   "priority": 1,
+   "est_minutes": 40,
+   "owner": "model_engineer",
+   "counterfactual": "CG349 실측: 창 격자(2026-01-16~2026-11-11, 5창)에 train_end 2026-10-01 이후 창이 없어 OOS 창 0개 → rc=1. 챔피언(2026-07-03~10-01 학습)과 후보(2025-09-24~08-27 학습)에게 공통인 OOS 구간은 2026-10-02~11-11 뿐인데 격자가 그 구간을 시작점으로 잡지 못한다.",
+   "success": "① --allow-partial-post-train 옵션(기본 OFF = 현행 유지)으로 겹치는 창을 train_end+1 부터 절단해 부분창으로 채점 ② 두 arm 이 같은 절단 창 서명을 갖는지 window_mismatch=[] 로 확인 ③ 3시드 짝 Δ SE ≤ 0.010 이면 +0.02 해상 가능 판정.",
+   "expected": "챔피언 vs 후보 비교가 처음으로 같은 창에서 성립 — 배포 챔피언 교체 판단의 측정 근거 확보.",
+   "created": "2026-11-19T06:56:00+09:00",
+   "setup_needed": "리뷰보드 승인 필요(프로토콜 변경): champion_robust_eval 의 OOS 창 정의를 바꾼다. 기본값은 현행 유지(옵션 OFF)이므로 기존 기준선 수치는 불변. 승인 후 내가 구현할 것: ① _split_oos 에 clip_partial 인자 ② --allow-partial-post-train 플래그 ③ 회귀 테스트(기존 창 결과 비트 동일) ④ CG349 재실행.",
+   "rationale": "측정 해상도 문제(CG347)와 창 불일치(CG348)를 잇는 마지막 블로커다. 이 옵션 없이는 챔피언 대비 어떤 후보도 '같은 창'에서 비교된 적이 없다 — 20사이클 무개선 카운터의 근거 자체가 프로토콜 혼합 위에 서 있다."
+  },
   {
    "id": "CG349",
    "title": "[측정 프로토콜] 채점 창을 train_end=2026-10-01 로 고정한 3시드 짝 Δ — 배포 챔피언 vs 재학습 후보(cg346) (CG348 창 불일치 수리 후 재측정)",
@@ -38,12 +85,12 @@
     }
    ],
    "result": {
-    "verdict": "실행실패",
-    "detail": "측정값 없음 — 종료코드 1(로그 꼬리에서 예외 줄 미발견)",
-    "delta": null,
-    "per_exp": null,
-    "rc": 1
-   }
+    "verdict": "실행실패 — 창 격자에 train_end 이후 창이 없음(프로토콜 한계, 측정값 없음)",
+    "detail": "train_end=2026-10-01 로 고정하니 5창 전부 학습구간과 겹쳐 OOS 창 0개 → rc=1 ('학습구간 이전 창이 없습니다'). 원인: 창 격자는 2026-01-16~2026-11-11 의 고정 5창이고 마지막 창이 2026-09-11 에 **시작**한다 → 10-01 이후 구간(2026-10-02~11-11)을 채점하는 창이 격자에 없다. 챔피언(train 2026-07-03~10-01)과 후보(train 2025-09-24~08-27)는 학습구간이 달라 **두 모델 모두에게 OOS 인 겹침 창이 존재하지 않는다** — 현 프로토콜로는 챔피언 vs 후보 짝 비교 자체가 불가능하다(계측기 실패가 아니라 격자 한계).",
+    "rc": 1,
+    "delta": null
+   },
+   "followup": "CG350 — 창 절단 옵션(프로토콜 변경, 리뷰보드 승인 대상)"
   },
   {
    "id": "CG348",
