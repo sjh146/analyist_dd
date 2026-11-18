@@ -106,6 +106,11 @@ def _run_publish(tmp_path, monkeypatch):
     monkeypatch.setattr(feed_export, "load_prev_closes", lambda *a, **k: {})
     monkeypatch.setattr(feed_export, "load_universe", lambda *a, **k: {})
     monkeypatch.setattr(feed_export, "_record_feed_claim", lambda *a, **k: None)
+    # 엣지 점수 배치도 DB 의존이다(2026-11-17 피드 엣지 스택). 실 DB 에 후보 종목 봉이
+    # 쌓이면 발행본에는 edge_score/edge_factors/atr_pct 가 붙는데, 아래 ④ 는 그것과
+    # 무관한 'close/swing 구조 불변' 계약을 검사하므로 DB 상태에 흔들리면 안 된다.
+    # (실측: 이 줄이 없으면 오늘 DB 봉 유입 후 ④ 가 실패 — 커밋 dd9c118 에서도 동일)
+    monkeypatch.setattr(feed_export, "load_edge_bars", lambda *a, **k: {})
 
     rc = feed_export.main([
         "--close", paths["close"], "--swing", paths["swing"],
@@ -223,6 +228,10 @@ def test_close_swing_publish_structure_unchanged(tmp_path, monkeypatch):
     for key, payload in (("close", _close_payload()), ("swing", _swing_payload())):
         published = feed["candidates"][key]["items"]
         expected = feed_export.build_items(key, payload, {}, None)
+        # 발행 경로(feed_export.main)는 items 에 엣지 4키(edge_score/edge_factors/atr_pct/
+        # edge_reason)를 덧붙인다. 기대값도 같은 단계를 거쳐야 '구조 동일'이 성립한다
+        # (edge_bars={} 는 위 _run_publish 의 monkeypatch 와 동일한 조건).
+        feed_export.attach_edge_scores(expected, {})
         assert [i["stock_code"] for i in published] == [i["stock_code"] for i in expected]
         for got, want in zip(published, expected):
             # valid_until 은 발행 시각(now) 기준이라 제외하고 나머지 구조가 비트 동일해야 한다.
