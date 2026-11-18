@@ -39,6 +39,16 @@ TOKEN_ERROR_CODES = {"EGW00115", "EGW00116", "EGW00117"}
 CREDENTIAL_ERROR_CODES = {"EGW00102", "EGW00103"}
 # 입력 필드 스키마 오류 → 설정 버그, 재시도 없이 raise
 SCHEMA_ERROR_CODES = {"OPSQ2001"}
+# 서버 내부 처리 오류 — 같은 요청을 잠시 뒤 다시 보내면 대개 성공한다.
+# WHY(2026-11-18 실측): 19:10 수급 러너가 327종목 중 136종목(41.6%)에서 OPSQ0008
+# (호출 후처리/MCI전송 오류, rt_cd=1·http=200)을 받았는데, 20:50 에 같은 계열 4종목을
+# 재프로브하니 3종목이 정상 수집됐다(=일시적). 종전 분류는 이를 '비일시적'으로 보고
+# **재시도 없이 종목을 버렸고**, 그 종목의 수급은 다음 회전(≈3거래일)까지 동결됐다.
+# 상한을 작게(2회) 두는 이유: 진짜 고착 종목(실측 039490 은 2시간 간격 2회 연속 실패)에서
+# 호출 쿼터를 태우지 않기 위해서다. 새 코드는 실측된 것만 넣는다(추측 금지).
+INTERNAL_TRANSIENT_CODES = {"OPSQ0008"}
+INTERNAL_RETRY_MAX = 2
+INTERNAL_RETRY_DELAY = 2.0
 
 
 def _load_net_guard():
@@ -130,6 +140,11 @@ class KisApiError(Exception):
     @property
     def schema_error(self):
         return self.msg_cd in SCHEMA_ERROR_CODES
+
+    @property
+    def internal_transient(self):
+        """서버 내부 처리 오류 — 짧은 재시도로 대개 회복된다(OPSQ0008 등)."""
+        return self.msg_cd in INTERNAL_TRANSIENT_CODES
 
 
 class KisTransportError(Exception):
@@ -472,6 +487,7 @@ class KisClient:
 
     def _call_with_retry(self, fn):
         last_err = None
+        internal_retries = 0
         for attempt in range(self._retry_max + 1):
             if attempt:
                 backoff = self._retry_base_delay * (2 ** (attempt - 1))
@@ -491,6 +507,18 @@ class KisClient:
                     # 6회 백오프를 다 태우고 실패했다)
                     logger.error("KIS 자격증명 거부(%s): %s — 재시도 중단 "
                                  "(개발자센터 앱키/시크릿·도메인 확인)", e.msg_cd, e.msg1)
+                    raise
+                if e.internal_transient and internal_retries < INTERNAL_RETRY_MAX:
+                    internal_retries += 1
+                    delay = INTERNAL_RETRY_DELAY * internal_retries
+                    logger.warning("서버 내부 처리 오류(%s) — 재시도 %d/%d %.1fs 후: %s",
+                                   e.msg_cd, internal_retries, INTERNAL_RETRY_MAX,
+                                   delay, e.msg1)
+                    self._sleep(delay)
+                    continue
+                if e.internal_transient:
+                    logger.error("서버 내부 처리 오류(%s) — 재시도 상한(%d) 소진, 이번 실행에서 제외: %s",
+                                 e.msg_cd, INTERNAL_RETRY_MAX, e.msg1)
                     raise
                 if not (e.rate_limited or e.token_error):
                     logger.error("비일시적 오류(%s) — 재시도 중단: %s", e.msg_cd, e)
