@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-19T04:17:21+09:00",
+ "updated_at": "2026-11-19T06:38:20+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -12,6 +12,73 @@
   "07. 백로그 `command` 의 플래그는 **스크립트 파서에서 실재를 확인**한 뒤 등록하라 — champion_robust_eval 은 --out 만 받는다(--json-out 없음). 2026-11-17 CG306 이 이 오타로 rc=2 두 번, CG310 에도 같은 오타가 남아 있었다. 등록 시 `--help` 대조 1줄이면 막을 수 있다."
  ],
  "items": [
+  {
+   "id": "CG349",
+   "title": "[측정 프로토콜] 채점 창을 train_end=2026-10-01 로 고정한 3시드 짝 Δ — 배포 챔피언 vs 재학습 후보(cg346) (CG348 창 불일치 수리 후 재측정)",
+   "status": "failed",
+   "priority": 1,
+   "est_minutes": 25,
+   "owner": "model_engineer",
+   "metric": "robust_paired_seeds",
+   "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg349_paired.json",
+   "command": "timeout 2600 docker exec stock_xgboost_ml sh -c 'cd /app && for m in champion retrain_cg346; do for s in 0 1 2; do OMP_NUM_THREADS=4 timeout 600 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --folds 5 --dates-per-fold 10 --train-start 2025-09-24 --train-end 2026-10-01 --universe training --universe-seed $s --out /app/reports/overnight/cg349_${m}_s${s}.json || exit 1; done; done' && python3 scripts/robust_paired_seeds.py --arm-a services/xgboost-ml/reports/overnight/cg349_champion_s0.json services/xgboost-ml/reports/overnight/cg349_champion_s1.json services/xgboost-ml/reports/overnight/cg349_champion_s2.json --arm-b services/xgboost-ml/reports/overnight/cg349_retrain_cg346_s0.json services/xgboost-ml/reports/overnight/cg349_retrain_cg346_s1.json services/xgboost-ml/reports/overnight/cg349_retrain_cg346_s2.json --label-a champion --label-b retrain_cg346 --out data/reports/overnight/cg349_paired.json",
+   "counterfactual": "CG348: 창을 고정하지 않아 챔피언(2026-01~05·2폴드)과 후보(2026-09~11·1폴드)를 다른 구간에서 채점 → Δ +0.0102·SE 0.0230 은 무의미. 창을 맞추면 두 arm 이 같은 10날짜에서 채점되어 시드 표집 잡음이 짝 안에서 상쇄된다.",
+   "success": "① rc=0 + cg349_paired.json ② window_mismatch·fold_mismatch 가 빈 리스트(창 일치 확인) ③ 짝 Δ SE ≤ 0.010 이면 '짝 프로토콜로 +0.02 해상 가능' 기록·리뷰보드 안건 상정. SE > 0.010 이면 시드 5개로 확장(CG350). 어느 경우든 Δ 부호로 승격 판단 금지.",
+   "expected": "해상 가능한 측정 프로토콜 확보 — 20사이클 무개선이 잡음인지 실재인지 가른다.",
+   "created": "2026-11-19T06:55:00+09:00",
+   "rationale": "CG347 이 절대 AUC 시드 범위 0.0227(문턱 1.14배)을, CG348 이 '창이 다르면 짝도 무의미하다'를 실측했다. 두 교훈을 합치면 창을 고정한 같은 시드 짝만이 문턱을 해상할 후보 프로토콜이다.",
+   "attempts": [
+    {
+     "ts": "2026-11-19T06:38:20+09:00",
+     "rc": 1,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 1(로그 꼬리에서 예외 줄 미발견)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG349_20261119-063813.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "실행실패",
+    "detail": "측정값 없음 — 종료코드 1(로그 꼬리에서 예외 줄 미발견)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 1
+   }
+  },
+  {
+   "id": "CG348",
+   "title": "[측정 프로토콜] 같은 유니버스 시드 짝 Δ 가 사전문턱 +0.02 를 해상하는가 — 배포 챔피언 vs 재학습 후보(cg346) 3시드 짝 비교",
+   "status": "done",
+   "priority": 1,
+   "est_minutes": 25,
+   "owner": "model_engineer",
+   "metric": "robust_paired_seeds",
+   "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg348_paired.json",
+   "command": "timeout 2600 docker exec stock_xgboost_ml sh -c 'cd /app && for m in champion retrain_cg346; do for s in 0 1 2; do OMP_NUM_THREADS=4 timeout 600 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --folds 5 --universe training --universe-seed $s --out /app/reports/overnight/cg348_${m}_s${s}.json || exit 1; done; done' && python3 scripts/robust_paired_seeds.py --arm-a services/xgboost-ml/reports/overnight/cg348_champion_s0.json services/xgboost-ml/reports/overnight/cg348_champion_s1.json services/xgboost-ml/reports/overnight/cg348_champion_s2.json --arm-b services/xgboost-ml/reports/overnight/cg348_retrain_cg346_s0.json services/xgboost-ml/reports/overnight/cg348_retrain_cg346_s1.json services/xgboost-ml/reports/overnight/cg348_retrain_cg346_s2.json --label-a champion --label-b retrain_cg346 --out data/reports/overnight/cg348_paired.json",
+   "counterfactual": "절대 AUC 비교(CG347): 같은 모델·같은 날짜에서 유니버스 seed 0/1/2 = 0.4887/0.5114/0.5011 (범위 0.0227 ≥ 문턱 0.02) → 절대 비교는 부호조차 불확실. 짝 Δ 는 이 표집 잡음을 상쇄해야 한다.",
+   "success": "① rc=0 + cg348_paired.json 생성 ② 짝 Δ SE ≤ 0.010(문턱의 1/2) 이고 ③ 3/3 시드 부호 일관 → '짝 프로토콜로 +0.02 해상 가능' 기록 + 이후 arm 판정을 짝 Δ 로 전환(리뷰보드 안건). SE > 0.010 또는 부호 불일치면 시드를 5로 늘리는 축(CG349)으로 이동.",
+   "expected": "측정 해상도 확보 — 20사이클 무개선 판정이 잡음인지 실재인지 가릴 프로토콜을 얻는다.",
+   "created": "2026-11-19T06:20:00+09:00",
+   "rationale": "CG347 이 '단일 시드 절대 AUC 는 반폭 ±0.011 잡음'을 실측했다. 문턱 +0.02 와 동급이므로, 짝 프로토콜이 실제로 잡음을 줄이는지 같은 데이터로 검증해야 이후 어떤 신호도 해석할 수 있다. 판정은 여전히 다중 폴드·다중 시드만 쓴다.",
+   "timeout_note": "2026-11-19: 등록 자기모순 경고(timeout 900 < est 25분) 수리 — 바깥 timeout 2600(전체 6잡) + 잡당 600(실측 165s/잡). 실측 근거: CG347 seed1 165s · seed2 166s.",
+   "attempts": [
+    {
+     "ts": "2026-11-19T06:34:16+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "시드 3개 짝 Δ 평균 +0.0102 (SE 0.022992 · t 0.444 · 양(+) 2) · 대조군 0.5 vs 챌린저 0.5102 · 문턱 +0.02 → 문턱 미달",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG348_20261119-061054.log",
+     "elapsed_min": 23.4
+    }
+   ],
+   "result": {
+    "verdict": "측정무효 — arm 간 채점 창 불일치(Δ 무의미)",
+    "detail": "챔피언 train_end 2026-10-01(메타) → OOS 창 2026-01-16~05-08(2폴드) vs 후보 cg346 train_end 2026-08-27 → OOS 창 2026-09-11~11-04(1폴드). 짝 Δ [s0 +0.0508, s1 -0.0288, s2 +0.0086] 평균 +0.0102·SE 0.0230 은 서로 다른 날짜 구간을 뺀 값이라 판정 근거가 아니다. 계측기 수리: robust_paired_seeds.py 가 window_mismatch/fold_mismatch 를 계산해 불일치면 meets_threshold=false + 판정기(judge_seed_family)가 '판정불가'로 막는다. 부수 실측: 절대 AUC 시드 변동 — 챔피언 0.5383/0.4826/0.5097(범위 0.0557!), 후보 0.4875/0.5114/0.5011(범위 0.0239, s1·s2 는 CG347 과 소수점 일치 → 결정적).",
+    "rc": 0,
+    "delta": null
+   },
+   "followup": "CG349 — 같은 train_end 로 창을 고정한 재측정"
+  },
   {
    "id": "CG247",
    "status": "done",
@@ -21346,7 +21413,7 @@
   {
    "id": "CG347",
    "title": "[측정 잡음] champion_robust_eval 유니버스 표집 잡음이 사전문턱 +0.02 를 해상할 수 있는가 — 같은 모델·같은 10날짜·유니버스 seed 0/1/2 재채점",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "est_minutes": 24,
    "owner": "model_engineer",
@@ -21355,7 +21422,27 @@
    "success": "① rc=0 + cg347_seed1/2.json 생성 ② seed 3개의 AUC 범위(range)를 산출: range ≥ 0.02 이면 '이 프로토콜로는 +0.02 문턱이 해상 불가'로 기록하고 스코어보드 기준선·프로토콜 변경을 리뷰보드 안건으로 올린다 ③ range < 0.02 이면 seed 잡음은 문턱 미만 → 남은 분산원은 날짜 표집뿐임을 기록(창 확대 축으로 이동) ④ 판정에 AUC 만 쓰지 말고 같은 런의 순기대도 함께 남긴다(체결성·0.21%p).",
    "expected": "유니버스 표집 잡음 정량화 — 이후 모든 단일창 견고 AUC 해석의 오차범위 근거",
    "created": "2026-11-19T04:17:21+09:00",
-   "rationale": "CG346 이 단일창(폴드 1·800행)으로 판정 불가였고, 유니버스 교체만으로 AUC 가 0.111 움직였다 → 프로토콜 자체의 해상도를 먼저 재야 이후 실험의 문턱 판정이 성립한다."
+   "rationale": "CG346 이 단일창(폴드 1·800행)으로 판정 불가였고, 유니버스 교체만으로 AUC 가 0.111 움직였다 → 프로토콜 자체의 해상도를 먼저 재야 이후 실험의 문턱 판정이 성립한다.",
+   "attempts": [
+    {
+     "ts": "2026-11-19T05:13:17+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric=None)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG347_20261119-050736.log",
+     "elapsed_min": 5.7
+    }
+   ],
+   "result": {
+    "verdict": "문턱 미해상 — 시드 표집 잡음이 사전문턱과 동급",
+    "detail": "시드 3개 절대 AUC {'0': 0.4887, '1': 0.5114, '2': 0.5011} · 평균 0.5004 · std 0.011366 · **범위 0.0227** (문턱 +0.02 의 1.14배) · 같은 런 날짜별 std 평균 [10]날짜/[800]행. 함의: 단일 시드·단일 창의 '기록 기준선 대비 Δ'는 부호조차 신뢰 불가 (반폭 ±0.0114). 유효한 비교는 **같은 유니버스 시드의 짝 Δ**(시드 잡음 상쇄)뿐. 프로토콜 변경은 리뷰보드 안건(②).",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "metric": "robust_seed_range",
+   "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg347_seed_range.json",
+   "rejudge_note": "2026-11-19: metric 미등록으로 rc=0 완주가 '판정불가'로 닫힘 → scripts/robust_seed_range.py + driver 파서(robust_seed_range) 배선 후 같은 산출물로 재판정(재실행 아님)"
   }
  ],
  "updated": "2026-11-19T04:17:21+09:00"

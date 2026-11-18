@@ -1544,6 +1544,123 @@ def parse_protocol_pair_anchor(path, mtime_floor) -> dict:
     }
 
 
+def parse_robust_paired_seeds(path, mtime_floor) -> dict:
+    """같은 유니버스 시드 짝 Δ(scripts/robust_paired_seeds.py)를 champion_seed_family 스키마로 옮긴다.
+
+    왜(실측 2026-11-19 CG347): 절대 AUC 는 시드 표집만으로 0.0227 흔들린다 → arm 비교는 같은
+    시드 짝 Δ 로만 유효하다. 스키마를 seed_family 와 똑같이 맞춰 판정기(judge_seed_family)를
+    재사용한다 — 시드 ≥3·Δ평균 ≥ +0.02·양(+) 시드 전부라는 사전 등록 규칙이 동일하기 때문이다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(summary_out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if d.get("error"):
+        return {"error": d["error"]}
+    a, b = d.get("auc_a") or {}, d.get("auc_b") or {}
+    paired = {
+        "n": d.get("n_seeds"),
+        "delta_mean": d.get("delta_mean"),
+        "se": d.get("delta_se"),
+        "t": d.get("t"),
+        "pos_seeds": d.get("pos_seeds"),
+        "pos_frac": d.get("pos_frac"),
+        "threshold": d.get("threshold", 0.02),
+        "seeds": d.get("seeds"),
+        "deltas": d.get("deltas"),
+        "challenger_arm": d.get("label_a"),
+        "base_arm": d.get("label_b"),
+        # 창/폴드 불일치를 그대로 넘긴다 → judge_seed_family 가 '판정불가'로 막는다
+        "window_mismatch": d.get("window_mismatch") or None,
+        "fold_mismatch": d.get("fold_mismatch") or None,
+    }
+    return {
+        "measured_at": d.get("measured_at"),
+        "protocol": "같은 유니버스 시드 짝 Δ (champion_robust_eval 다중 시드)",
+        "arms": {d.get("label_a"): {"mean": sum(a.values()) / len(a) if a else None},
+                 d.get("label_b"): {"mean": sum(b.values()) / len(b) if b else None}},
+        "robust_auc": sum(a.values()) / len(a) if a else None,
+        "baseline_auc": sum(b.values()) / len(b) if b else None,
+        "seeds": d.get("seeds"),
+        "paired": paired,
+        "threshold": d.get("threshold", 0.02),
+        "summary_mtime": mt,
+    }
+
+
+def parse_robust_seed_range(path, mtime_floor) -> dict:
+    """유니버스 시드 표집 잡음 범위(scripts/robust_seed_range.py)를 파싱한다.
+
+    왜 이 metric 이 필요한가(실측 2026-11-19 CG347): champion_robust_eval 은 실행 하나가
+    유니버스 표집 하나다. 같은 모델·같은 10날짜에서 시드 0/1/2 = 0.4887/0.5114/0.5011 →
+    범위 0.0227 로 **사전문턱 +0.02 를 넘었다.** 종전에는 이 실험의 metric 이 등록되지 않아
+    rc=0 완주가 '판정불가(parser 없음)'로 닫혔다(측정은 있는데 결론이 사라짐).
+    per_exp 를 만들지 않는다 — 모델 팔 실험이 아니라 계측기이므로 스코어보드 무개선 카운터와
+    무관해야 한다(원장에 arm 값이 실리면 기준선 비교에 섞인다).
+    """
+    if not path:
+        return {"error": "요약 경로 없음(summary_out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if d.get("error"):
+        return {"error": d["error"], "seed_aucs": d.get("seed_aucs")}
+    return {
+        "metric": "robust_seed_range",
+        "n_seeds": d.get("n_seeds"),
+        "seed_aucs": d.get("seed_aucs"),
+        "range": d.get("range"),
+        "std": d.get("std"),
+        "se": d.get("se"),
+        "mean": d.get("mean"),
+        "threshold": d.get("threshold", 0.02),
+        "resolvable": d.get("resolvable"),
+        "dates_scored": d.get("dates_scored"),
+        "rows_scored": d.get("rows_scored"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_robust_seed_range(item, parsed) -> tuple:
+    """시드 표집 잡음 판정 — 사전 등록 규칙: 범위 ≥ +0.02 면 단일 시드 절대 비교는 해상 불가."""
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    n = int(parsed.get("n_seeds") or 0)
+    rng = parsed.get("range")
+    thr = float(parsed.get("threshold") or 0.02)
+    seeds = parsed.get("seed_aucs") or {}
+    detail = (f"시드 {n}개 절대 AUC {seeds} · 평균 {parsed.get('mean')} · std {parsed.get('std')} · "
+              f"**범위 {rng}** (문턱 {thr:+.2f} 의 {round((rng or 0)/thr, 2)}배) · "
+              f"같은 런 날짜별 std 평균 {parsed.get('dates_scored')}날짜/{parsed.get('rows_scored')}행")
+    if n < 3:
+        return "판정불가", f"시드 수 부족({n}<3) — 범위 추정 불가. {detail}", None
+    if rng is None:
+        return "판정불가", f"범위 없음. {detail}", None
+    if rng >= thr:
+        return ("문턱 미해상 — 시드 표집 잡음이 사전문턱과 동급",
+                f"{detail}. 함의: 단일 시드·단일 창의 '기록 기준선 대비 Δ'는 부호조차 신뢰 불가 "
+                f"(반폭 ±{round(rng/2, 4)}). 유효한 비교는 **같은 유니버스 시드의 짝 Δ**(시드 잡음 상쇄)뿐. "
+                f"프로토콜 변경은 리뷰보드 안건(②).", rng)
+    return ("문턱 해상 가능", f"{detail} → 시드 잡음이 문턱 미만. 남은 분산원은 날짜 표집.", rng)
+
+
 def parse_champion_seed_family(path, mtime_floor) -> dict:
     """다중 시드(유니버스) 짝 판정 집계(champion_seed_family_agg.py)를 파싱한다.
 
@@ -1793,6 +1910,12 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_promote_dryrun(spath, mtime_floor)
     if kind == "champion_seed_family":
         return parse_champion_seed_family(spath, mtime_floor)
+    if kind == "robust_seed_range":
+        # CG347 — 유니버스 시드 표집 잡음 범위(계측기). arm 값(per_exp)을 만들지 않는다.
+        return parse_robust_seed_range(spath, mtime_floor)
+    if kind == "robust_paired_seeds":
+        # CG348 — 같은 유니버스 시드 짝 Δ (시드 잡음 상쇄). 판정기는 judge_seed_family 재사용.
+        return parse_robust_paired_seeds(spath, mtime_floor)
     if kind == "topk_precision":
         return parse_topk_precision(spath, mtime_floor)
     if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_topk_spread",
@@ -4506,6 +4629,12 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
     if kind == "champion_promote_dryrun":
         return judge_promote_dryrun(item, parsed)
     if kind == "champion_seed_family":
+        return judge_seed_family(item, parsed)
+    if kind == "robust_seed_range":
+        # CG347 — 시드 표집 잡음 범위 판정(계측기 검정, 모델 팔 아님)
+        return judge_robust_seed_range(item, parsed)
+    if kind == "robust_paired_seeds":
+        # CG348 — 같은 시드 짝 Δ. 시드 ≥3·Δ평균 ≥+0.02·양(+) 시드 전부 규칙이 seed_family 와 동일.
         return judge_seed_family(item, parsed)
     if kind == "topk_precision":
         return judge_topk_precision(item, parsed)

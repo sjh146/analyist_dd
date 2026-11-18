@@ -1,0 +1,28 @@
+{
+  "metric": "robust_seed_range",
+  "n_seeds": 3,
+  "seed_aucs": {
+    "0": 0.4887,
+    "1": 0.5114,
+    "2": 0.5011
+  },
+  "mean": 0.5004,
+  "std": 0.011366,
+  "range": 0.0227,
+  "min": 0.4887,
+  "max": 0.5114,
+  "se": 0.006562,
+  "threshold": 0.02,
+  "resolvable": false,
+  "range_over_threshold": 1.135,
+  "half_range": 0.01135,
+  "dates_scored": [
+    10
+  ],
+  "rows_scored": [
+    800
+  ],
+  "n_windows_excluded": 12,
+  "within_fold_date_auc_std_mean": 0.054567,
+  "failed_inputs": []
+}
