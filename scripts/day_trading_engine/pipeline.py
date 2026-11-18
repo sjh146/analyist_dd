@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import sys
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -132,6 +132,16 @@ class ChampionPredictor:
         return 0.0
 
 
+def normalize_code_value(value: Any) -> str:
+    """'A003780' / 3780 / ' 003780 ' → '003780' (6자리 숫자 문자열, 불가하면 '')."""
+    import re as _re
+
+    text = str(value or "").strip().lstrip("Aa").strip()
+    if text.isdigit() and len(text) < 6:
+        text = text.zfill(6)
+    return text if _re.match(r"^\d{6}$", text) else ""
+
+
 def run_screener(provider: MarketDataProvider,
                  top_n: int = 20,
                  lookback: int = 20,
@@ -139,8 +149,13 @@ def run_screener(provider: MarketDataProvider,
                  min_trading_value: float = 300_000_000,
                  min_price: float = 1000,
                  date_str: str | None = None,
-                 predictor: Optional[ChampionPredictor] = None) -> pd.DataFrame:
+                 predictor: Optional[ChampionPredictor] = None,
+                 allow_codes: Optional[set] = None) -> pd.DataFrame:
     """Full pipeline: universe → lookback → kalman → (model) → score → rank.
+
+    ``allow_codes`` (docs/spec_rank_universe.md, 2026-11-18): 후보 유니버스를 이 코드
+    집합으로 **압축**한다(크레온 상승률 랭킹 ∩ KOSDAQ 20거래일). None/빈 집합이면 기존과
+    동일하게 전체 유니버스를 쓴다. 점수·필터·출력 계약은 바뀌지 않는다.
 
     Returns a ranked DataFrame in :data:`OUTPUT_COLUMNS` order (may be empty).
     """
@@ -148,6 +163,14 @@ def run_screener(provider: MarketDataProvider,
     logger.info(f"시그널 기준일: {signal_date}")
 
     universe = provider.get_universe(min_history=min_history)
+    if allow_codes:
+        before = len(universe)
+        wanted = {normalize_code_value(c) for c in allow_codes}
+        wanted.discard("")
+        universe = [s for s in universe if s.stock_code in wanted]
+        logger.info(
+            "유니버스 압축(rank_universe): %d → %d 종목 (요청 %d 코드)",
+            before, len(universe), len(wanted))
     universe_codes = {s.stock_code for s in universe}
     logger.info(f"유니버스: {len(universe)} 종목")
 

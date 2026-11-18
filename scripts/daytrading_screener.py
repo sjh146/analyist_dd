@@ -169,6 +169,33 @@ def _record_claim(source_rows, claimed_rows, persisted_rows, note=""):
                        type(e).__name__, e)
 
 
+def _load_universe_codes(path):
+    """유니버스 압축 파일 → set[str] 또는 None (fail-open).
+
+    docs/spec_rank_universe.md §2: 파일이 없거나 ok:false/codes:[] 면 경고만 남기고
+    **제한 없이** 전체 유니버스로 실행한다(피드가 비어 매매가 멈추는 것보다 낫다).
+    """
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except FileNotFoundError:
+        logger.warning("유니버스 파일 없음(%s) — 전체 유니버스로 실행", path)
+        return None
+    except Exception as exc:  # noqa: BLE001 (fail-open: 어떤 파손이든 전체 유니버스)
+        logger.warning("유니버스 파일 파손(%s: %s) — 전체 유니버스로 실행", path, exc)
+        return None
+    codes = payload.get("codes") if isinstance(payload, dict) else None
+    if not isinstance(codes, list) or not codes:
+        logger.warning("유니버스 파일 비어 있음(ok=%s) — 전체 유니버스로 실행",
+                       payload.get("ok") if isinstance(payload, dict) else "?")
+        return None
+    out = {str(c).strip() for c in codes if str(c).strip()}
+    logger.info("유니버스 압축 파일 적용: %d 코드 (%s)", len(out), path)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="단타스크리너 — 칼만 노이즈 제거 + 챔피언 모델 기반 당일 매수 후보 선별")
@@ -181,6 +208,9 @@ def main():
     ap.add_argument("--min-trading-value", type=float, default=300_000_000, help="최소 거래대금 (기본 3억)")
     ap.add_argument("--min-price", type=float, default=1000, help="최소 종가 (기본 1000원)")
     ap.add_argument("--lookback", type=int, default=20, help="칼만 평활화 룩백 거래일 (기본 20)")
+    ap.add_argument("--universe-file", dest="universe_file", default=None,
+                    help="유니버스 압축 파일(scripts/rank_universe.py 산출 JSON). "
+                         "파일이 없거나 ok:false/codes:[] 면 제한 없이 실행한다(fail-open)")
     args = ap.parse_args()
 
     pg = None
@@ -199,6 +229,7 @@ def main():
         if not predictor.available:
             logger.warning("챔피언 모델 미가용 — 칼만/거래량/변동성 점수만 사용")
 
+        allow_codes = _load_universe_codes(args.universe_file)
         ranked = run_screener(
             provider,
             top_n=args.top_n,
@@ -208,6 +239,7 @@ def main():
             min_price=args.min_price,
             date_str=args.date,
             predictor=predictor,
+            allow_codes=allow_codes,
         )
 
         rows = build_output_rows(ranked)
