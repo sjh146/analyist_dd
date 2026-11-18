@@ -1,0 +1,91 @@
+{
+  "runner": "patch_panel_news",
+  "panel": {
+    "path": "services/xgboost-ml/app/models/wf/panel_prod200_v2.npz",
+    "out": "data/panels/panel_prod200_v3.npz",
+    "shape": [
+      61640,
+      213
+    ],
+    "out_shape": [
+      61640,
+      213
+    ],
+    "dates_span": [
+      "2025-08-04",
+      "2026-11-17"
+    ]
+  },
+  "params": {
+    "from": "2026-10-07",
+    "to": "2026-11-17",
+    "append": false,
+    "dry_run": false,
+    "mentions_file": null,
+    "window": {
+      "rows": 5773,
+      "dates": 29,
+      "codes": 200
+    }
+  },
+  "mode": "replace",
+  "columns": [
+    {
+      "name": "news_count_5d",
+      "action": "replace",
+      "k": 5,
+      "nnz_before": 12,
+      "nnz_after": 3915,
+      "nonzero_rows": 3915,
+      "changed_rows": 4123,
+      "null_rows": 208,
+      "mean": 0.563664,
+      "std": 3.785551,
+      "null_ratio": 0.003374,
+      "window": {
+        "rows": 5773,
+        "computed_rows": 5565,
+        "missing_rows": 208
+      }
+    },
+    {
+      "name": "news_count_20d",
+      "action": "replace",
+      "k": 20,
+      "nnz_before": 12,
+      "nnz_after": 4716,
+      "nonzero_rows": 4716,
+      "changed_rows": 4951,
+      "null_rows": 235,
+      "mean": 1.533181,
+      "std": 9.585358,
+      "null_ratio": 0.003812,
+      "window": {
+        "rows": 5773,
+        "computed_rows": 5538,
+        "missing_rows": 235
+      }
+    }
+  ],
+  "verify": {
+    "rows_identical": true,
+    "feature_names_identical": true,
+    "non_target_columns_identical": true,
+    "target_columns_outside_window_identical": true,
+    "checks_failed": 0,
+    "note": "저장 후 disk 재독해 대조"
+  },
+  "claim": {
+    "note": "3분리: 소스 수신(패널 행수·바이트 + news_stock_mentions 일별 행수 + news_mention_features 그리드 행수) / 파서 생성(창 내 계산 셀 = 창 행수 × 컬럼 수) / 실제 저장(디스크 재독해 npz 대조). 스펙 §4 DB 쓰기 금지(SELECT 전용)라 scripts/dq_claim.py record_claim(INSERT)은 재사용 불가 — feature_survival_report.py 전례로 출력 파일 안 자기신고.",
+    "source_rows": 61640,
+    "source_bytes": 19806436,
+    "mention_rows": 2603,
+    "grid_rows": 6398,
+    "parsed_cells": 11546,
+    "persisted": {
+      "rows": 61640,
+      "features": 213,
+      "bytes": 24692584
+    }
+  }
+}
