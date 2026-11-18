@@ -134,3 +134,32 @@ def test_last_number_in_stdout_is_defect_count(tmp_path, monkeypatch, capsys):
     nums = re.findall(r"[-+]?\d+(?:\.\d+)?", capsys.readouterr().out)
     # 결함 3 = 11-12 부분기록 + 11-12 거래대금 + 11-13 누락
     assert float(nums[-1]) == 3
+
+
+def test_db_null_trading_value_is_defect(tmp_path, monkeypatch, capsys):
+    """실측 2026-11-16: root crontab 소실로 KIS 일봉이 안 돌아 yfinance 스윕만 적재 →
+    trading_value 3,724/3,725 NULL(합계 0.001조). 원장↔DB 를 비교하면 양쪽 다 ~0 이라
+    비율 1.0 = 거짓 통과했다(자기참조). DB NULL 비율로 판정해야 잡힌다."""
+    p = _write(tmp_path, [{"session": "2026-11-16", "scored": 3725, "trade_value_sum": 1.0e9}])
+    monkeypatch.setattr(chk, "db_sessions",
+                        lambda limit=30: [("2026-11-16", 3725, 1.0e9, 0.9997)])
+    rc = chk.main(["--ledger", p])
+    out = capsys.readouterr().out
+    assert rc == 1 and "원천결손" in out and "공백 1건" in out
+    assert "krx_daily.py --from 20261116 --to 20261116" in out, "수리 경로를 보고에 실어야 한다"
+    assert "거래대금" not in out, "원천결손이면 거래대금 비교는 자기참조라 이중계상하지 않는다"
+
+
+def test_baseline_null_ratio_is_not_defect(tmp_path, monkeypatch):
+    """정상일의 trading_value NULL 은 22~30% 다 — 문턱 0.5 아래는 결함이 아니다."""
+    p = _write(tmp_path, [{"session": "2026-11-17", "scored": 3720, "trade_value_sum": 35.3e12}])
+    monkeypatch.setattr(chk, "db_sessions",
+                        lambda limit=30: [("2026-11-17", 3720, 35.3e12, 0.30)])
+    assert chk.main(["--ledger", p]) == 0
+
+
+def test_three_tuple_sessions_still_supported():
+    """db_sessions 3-튜플(구 형태)도 판정이 죽지 않아야 한다 — 계약 확장은 후방호환."""
+    records = {"2026-11-17": {"session": "2026-11-17", "scored": 3720, "trade_value_sum": 35.3e12}}
+    defects, _ = chk.judge(records, [("2026-11-17", 3720, 35.3e12)])
+    assert defects == []

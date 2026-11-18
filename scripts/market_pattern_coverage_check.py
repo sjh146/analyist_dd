@@ -17,6 +17,14 @@ WHY 확장 (실측 2026-11-16 00:3x): 종전 검사는 **마지막 레코드 하
 수리 경로(자율): `market_pattern_ledger.py --backfill <N>` 은 멱등(같은 세션 덮어쓰기)이므로
 그대로 재실행하면 결함이 0 이 된다 — '고치면 통과'하는 check 다.
 
+WHY 3차 확장 (실측 2026-11-18 16:5x): 이 검사는 **DB 를 진실로 삼는다** — 그래서 DB 자신이
+불완전하면 구조적으로 눈이 먼다. 2026-11-16 은 root crontab 소실(R42)로 KIS 일봉이 안 돌고
+yfinance 스윕만 적재돼 `trading_value` 가 3,724/3,725 NULL(거래대금 합 0.001조)이었는데,
+검사는 원장의 ~0 값과 DB 의 ~0 값을 비교해 **비율 1.0 = 통과**로 흘렸다(합계가 양쪽 다 0 인
+자기참조). 다른 날짜 기준선은 NULL 22~30% 이므로 문턱을 50% 로 두고 '원천결손'을 결함으로 센다.
+→ 이 결함의 수리 경로는 원장 재실행이 아니라 **DB 재수집**(`krx_daily.py --from <날짜> --to <날짜>`,
+2콜)이다.
+
 종료코드: 0 = 결함 0 / 1 = 결함 있음 / 2 = 판정 불가(원장 없음·DB 조회 실패).
 Stdout 의 **마지막 수치**가 결함 건수다(구동기 eval_check 가 마지막 수치를 check_value 로 읽는다).
 """
@@ -29,6 +37,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEDGER = os.path.join(REPO, "data", "reports", "market_pattern_ledger.jsonl")
 TOLERANCE = 0.10  # DB 값의 10% 까지는 정상(상장폐지·거래정지·신규상장 차이)
+NULL_TV_DEFECT = 0.50  # 거래대금 NULL 비율이 이 이상이면 '그 세션은 DB 자체가 불완전'(기준선 0.22~0.30)
 WINDOW_SESSIONS = int(os.environ.get("MPC_WINDOW_SESSIONS") or 30)
 
 
@@ -51,7 +60,7 @@ def read_records(path=LEDGER):
 
 
 def db_sessions(limit=WINDOW_SESSIONS):
-    """최근 limit 세션의 (session, 마감봉 수, 거래대금 합) — 미완성/무거래 봉은 분모에서 뺀다."""
+    """최근 limit 세션의 (session, 마감봉 수, 거래대금 합, 거래대금 NULL 비율) — 미완성/무거래 봉은 분모에서 뺀다."""
     sys.path.insert(0, os.path.join(REPO, "scripts"))
     import psycopg2  # noqa: E402
 
@@ -69,7 +78,10 @@ def db_sessions(limit=WINDOW_SESSIONS):
         cur.execute(
             """SELECT trade_date,
                       COUNT(*) FILTER (WHERE volume > 0) AS n,
-                      COALESCE(SUM(trading_value), 0) AS tv
+                      COALESCE(SUM(trading_value), 0) AS tv,
+                      CASE WHEN COUNT(*) > 0
+                           THEN COUNT(*) FILTER (WHERE trading_value IS NULL)::float / COUNT(*)
+                           ELSE 0 END AS null_ratio
                  FROM market_data
                 WHERE trade_date IN (SELECT DISTINCT trade_date FROM market_data
                                       WHERE volume > 0
@@ -77,7 +89,7 @@ def db_sessions(limit=WINDOW_SESSIONS):
                 GROUP BY 1 ORDER BY 1""",
             (limit,),
         )
-        out = [(str(r[0]), int(r[1] or 0), float(r[2] or 0)) for r in cur.fetchall()]
+        out = [(str(r[0]), int(r[1] or 0), float(r[2] or 0), float(r[3] or 0)) for r in cur.fetchall()]
         cur.close()
     finally:
         conn.close()
@@ -85,10 +97,15 @@ def db_sessions(limit=WINDOW_SESSIONS):
 
 
 def judge(records, sessions, tol=TOLERANCE):
-    """세션별 판정 → (결함 목록, 요약 줄 목록). 결함 = 누락 · 부분기록 · 거래대금 결손."""
+    """세션별 판정 → (결함 목록, 요약 줄 목록). 결함 = 누락 · 부분기록 · 거래대금 결손 · 원천결손.
+
+    sessions 원소는 (session, n, tv) 3-튜플도 허용한다(호출부·구 테스트 호환).
+    """
     defects = []
     lines = []
-    for session, n, tv in sessions:
+    for row in sessions:
+        session, n, tv = row[0], row[1], row[2]
+        null_ratio = float(row[3]) if len(row) > 3 and row[3] is not None else None
         rec = records.get(session)
         if rec is None:
             defects.append((session, "누락", f"DB {n}봉인데 원장에 세션 없음"))
@@ -100,8 +117,14 @@ def judge(records, sessions, tol=TOLERANCE):
         ratio = float(scored) / n if n else 0.0
         if n and ratio < (1 - tol):
             defects.append((session, "부분기록", f"scored={scored} / DB {n}봉 = {ratio:.3f}"))
+        source_broken = null_ratio is not None and null_ratio >= NULL_TV_DEFECT
+        if source_broken:
+            # DB 자신이 불완전하면 원장↔DB 비교는 자기참조다(양쪽 다 0 → 비율 1.0 = 거짓 통과).
+            defects.append((session, "원천결손",
+                            f"DB trading_value NULL {null_ratio:.1%} (≥{NULL_TV_DEFECT:.0%}) "
+                            f"— 수리: krx_daily.py --from {session.replace('-', '')} --to {session.replace('-', '')}"))
         rec_tv = rec.get("trade_value_sum")
-        if tv > 0:
+        if tv > 0 and not source_broken:
             if not rec_tv:
                 defects.append((session, "거래대금", f"원장 0/null vs DB {tv / 1e12:.3f}조"))
             elif float(rec_tv) < tv * (1 - tol):
