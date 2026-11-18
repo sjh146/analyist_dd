@@ -11,7 +11,10 @@
 - 엣지 게이트 차단 분포(오늘): 2점 185건 · 3점 95건 · 1점 31건, 통과 26건.
 - 이 값들을 **매일 자동 집계**해 어떤 점수·요인이 실제 돈과 연결되는지 피드백한다.
 
-## 1. 트레이더측 1줄 변경 (선행)
+## 1. 트레이더측 1줄 변경 (선행 — **이미 반영 완료**, 커밋 d3c4938)
+
+> 위임 받은 구현자는 이 항목을 **건드리지 말 것**(실주문 경로는 사람 승인 대상이며 가드가 위임을 거부한다).
+> `feed.candidate_edge_factors()` + `engine` 진입 `algo_json.candidate.edge_factors` 가 라이브까지 반영됨.
 
 `trader-agent/trader_core/engine.py` — 진입 `algo_json.candidate` 에 **`edge_factors`** 를 추가한다
 (현재 `edge_score`·`atr_pct` 는 기록됨). 값은 피드의 `edge_factors` dict 그대로(없으면 `None`).
