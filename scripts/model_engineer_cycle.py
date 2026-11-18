@@ -4512,6 +4512,12 @@ def rejudge_parser_gap() -> list:
             # 실제 돈 지표 json 은 정상 생성돼 있었다(80분 재실행은 낭비) → 경로를 고친 뒤
             # 같은 산출물로 재판정한다. 파일이 진짜 비어 있으면 아래 parse 가 다시 error 라 skip 된다.
             gap = "summary_path"
+        elif (str(r.get("verdict", "")) == "기준선없음"
+              and isinstance(pe, dict) and isinstance(pe.get("per_exp"), dict)
+              and len(pe["per_exp"]) >= 2):
+            # 판정기 갭(실측 2026-11-18 CG342): 같은 런에 arm·대조군 두 config 가 다 있는데도
+            # 대조군 이름 파싱 실패로 '기준선없음'이 된 기록. 재실행하지 않고 요약으로 재판정한다.
+            gap = "judge_pair"
         elif "통계 없음" in str(r.get("detail", "")):
             # 판정기 갭(실측 2026-11-13 CG222): 파싱은 정상인데 판정기가 없는 k 만 찾아
             # '판정불가'로 닫은 기록. 판정기를 고친 뒤에는 같은 요약으로 다시 판정할 수 있다.
@@ -4670,13 +4676,30 @@ def judge_per(item, per_exp) -> tuple:
             return verdict, detail, delta
     arm = item.get("arm")
     cf_name = (item.get("counterfactual") or "").split(" ")[0]
+    # 함정 ③(실측 2026-11-18 CG342): 대조군이 '같은 런의 arm 쌍둥이'인 항목은 counterfactual 이
+    # 한국어 설명으로 시작해 첫 토큰('같은')이 config 이름이 아니다 → 같은 런에 두 arm 이 다 있는데도
+    # '기준선없음'(비교 불가)으로 닫혀 12.7분 실측이 무효가 됐다. `--force-paired` 가 만드는
+    # <id>/<id>__ff 쌍은 **이름 규칙**으로 복원한다(문구 파싱에 의존하지 않는다).
+    if arm and cf_name not in per:
+        _twin = arm[:-4] if arm.endswith("__ff") else (arm + "__ff")
+        if _twin in per:
+            cf_name = _twin
     base_rec = item.get("baseline")
     best = max(per.items(), key=lambda kv: kv[1]["mean"])
     if arm and arm in per and cf_name in per and cf_name != arm:
         delta = round(per[arm]["mean"] - per[cf_name]["mean"], 4)
         verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
+        # 폴드 짝 승률 — 같은 런·같은 폴드·같은 시드면 폴드별 Δ 를 계산할 수 있다(사전등록 ②).
+        # 평균만 보면 '소수 폴드가 만든 Δ'를 구분할 수 없다(CG343 교훈: 평균 +1.01 vs 중앙값 −0.04).
+        fa, fc = per[arm].get("folds"), per[cf_name].get("folds")
+        fw = ""
+        if isinstance(fa, list) and isinstance(fc, list) and len(fa) == len(fc) and fa:
+            ds = [a - c for a, c in zip(fa, fc)]
+            fw = (f" · 폴드 짝승률 {sum(1 for d in ds if d > 0)}/{len(ds)}"
+                  f" (Δ폴드 중앙값 {sorted(ds)[len(ds)//2]:+.4f} · 범위 {min(ds):+.4f}~{max(ds):+.4f})")
         detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 대조군 {cf_name} "
-                  f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f} "
+                  f"{per[cf_name]['mean']:.4f} → Δ{delta:+.4f}"
+                  f" (같은 런 짝 · 폴드 std {per[arm].get('std', float('nan')):.4f}){fw} "
                   f"(최고: {best[0]} {best[1]['mean']:.4f})")
     elif arm and arm in per and base_rec and base_rec.get("value") is not None:
         # 대조군이 이 런에 없거나(다른 패널) arm 과 동명(자기대조) → 기록 기준선과 비교한다.

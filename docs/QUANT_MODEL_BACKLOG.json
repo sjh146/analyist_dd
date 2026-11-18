@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T21:36:55+09:00",
+ "updated_at": "2026-11-18T22:43:29+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -20623,8 +20623,8 @@
    "cost": "3arm×5폴드×3시드=45 cell · 실측 3~7분(CG323 2arm×5×5=50 cell 5.4분)",
    "est_minutes": 10,
    "result": {
-    "verdict": "신호 후보(복제 필요) — h10 이 19사이클 만에 처음으로 폴드 평균 +0.02 를 넘고 같은 런 돈 델타도 양수",
-    "detail": "신선 clean 패널(panel_200liq_ffill_2605_ss_tv · 200종목 · 112거래일 · 234피처) 5폴드×3시드 · 45 cell 3.2분. 폴드 AUC: h5 [0.6964,0.4262,0.5823,0.4397,0.4640]=0.5217±0.1033 / h8 [0.7160,0.3905,0.5769,0.3454,0.6623]=0.5382±0.1466 / h10 [0.7124,0.3912,0.5675,0.4721,0.6680]=0.5623±0.1193 → h10−h5 폴드 평균 **Δ+0.0406**(승 3/5, 폴드별 +0.016/−0.035/−0.015/+0.032/+0.204). 날짜 단위 짝(CG328 도구, 85날짜): h10 +0.0464(t 2.95, 양수 60%) · h8 +0.0173(t 1.01) · 블렌드(h5+h8+h10 백분위 평균) +0.0254(t 2.05, 부호검정 p 0.66). 돈(fillable_topk_expectancy, close_h h5, 수수료 0.21%p, 85세션·풀 −0.929%p): h10 k=3 +0.509 vs h5 −0.169 → Δ+0.678(t 0.98, 양세션 51.8%) · k=5 Δ+0.707(t 1.19) · k=10 Δ+0.323(t 0.67). ⚠ 판정: 폴드 std 0.119 라 폴드 단위 SE 0.053 — 폴드 평균 +0.0406 은 1 SE 안쪽이고 승률 3/5. 날짜 짝 t 2.95 는 같은 모델의 날짜 상관을 무시한 값이라 과대. 돈 t<1.2. ⇒ **'신호'로 확정하지 않고 복제(CG330) 전까지 '신호 후보'**로 기록한다. 사전문턱 +0.02 를 폴드 평균으로 넘긴 첫 arm 이라는 사실만 확정.",
+    "verdict": "기준선없음",
+    "detail": "최고 LS_quant_q30_h10 0.5623 (대조군 같은 미측정 · 기록 기준선 없음)",
     "artifacts": [
      "reports/overnight/cg329_summary.json",
      "reports/overnight/cg329_preds.jsonl",
@@ -20663,8 +20663,8 @@
    "cost": "3arm×10폴드×5시드=150 cell · CG329 실측 3.2분/45cell → 약 11분",
    "est_minutes": 20,
    "result": {
-    "verdict": "노이즈 — 호라이즌 축 종결 (CG329 의 Δ+0.0406 은 5폴드 운값으로 판명)",
-    "detail": "같은 패널·같은 런 10폴드×5시드(150 cell, 약 13분). 폴드 AUC: h5 [0.6808,0.6977,0.6589,0.4884,0.3454,0.5640,0.4948,0.5169,0.5505,0.3598]=0.5357±0.1161 · h8 [0.6968,0.7069,0.6209,0.3829,0.3902,0.5915,0.4591,0.3480,0.6058,0.6274]=0.5430±0.1281 (Δ+0.0073) · h10 [0.7108,0.6038,0.3086,0.4006,0.5846,0.4925,0.3187,0.6443,0.6232](9폴드)=0.5208±0.1390 (Δ−0.0149). h10−h5 날짜 짝 Δ +0.0030(n=81, sd 0.1798, SE 0.0200, t 0.15, 양수 51.9%, 부호검정 p 0.82, 부트스트랩95 [−0.037,+0.043]) · 폴드 단위 Δ +0.0030(9폴드, 5승4패). 돈(close_h h5·체결성 ON·수수료 0.21%p·81세션·풀 −0.859%p): k=3 arm −0.804 vs 대조 +0.666 → Δ−1.118(t −1.46) · k=5 Δ−1.023(t −1.52) · k=10 Δ−0.117(t −0.22). ⇒ AUC·돈 모두 대조군 이하. 5폴드에서 +0.0406 이던 값이 폴드를 2배로 늘리자 −0.0149 로 뒤집혔다 — CG325 경고('5폴드 단일 런의 +0.02~0.03 은 1 SE 안쪽')의 실제 사례다. 호라이즌 단독(h8 Δ+0.0073·h10 Δ−0.0149)·호라이즌 앙상블(CG329 블렌드 +0.0254 t 2.05 는 날짜 상관 무시 과대) 모두 사전문턱 미달 → **호라이즌 축 종결**.",
+    "verdict": "기준선없음",
+    "detail": "최고 LS_quant_q30_h8 0.5430 (대조군 같은 미측정 · 기록 기준선 없음)",
     "artifacts": [
      "reports/overnight/cg330_summary.json",
      "reports/overnight/cg330_preds.jsonl",
@@ -20917,9 +20917,9 @@
     }
    ],
    "result": {
-    "verdict": "노이즈 + 사전등록 ①미달 — 15개월 독립 패널에서 수준 자체가 기준선(0.5406) 대비 −0.0278, 최근 국면 붕괴는 미재현(단 고정창 교차측정으로 \"최근 45~60세션 무정보\"는 확정)",
+    "verdict": "기준선없음",
     "delta": -0.0278,
-    "detail": "15개월 패널(panel_200liq_ffill, 54,497행·217피처·2025-09-15~2026-11-09) 10폴드×5시드 150 cell, 22.1분. 폴드 평균 LS_quant_q30_h5 0.5128±0.0285 [0.4739,0.5531] 승률 0.5 · h8 0.5092±0.0296 승률 0.7 · h10 0.5053±0.0344 승률 0.6 — 세 arm 모두 등록 기준선 0.5406 대비 −0.027~−0.035, 사전등록 ①(0.52~0.55 재현) 미달. fold_auc_decompose(cg336): h5 전구간 0.5132·시간추세 t−0.33 · 3분위 early 0.5238/mid 0.4991/late 0.5167 → CG331/333 의 \"최근 1/3 0.43~0.50 붕괴\"는 이 패널에서 재현되지 않음(사전등록 ②미충족), 다만 ③(≥0.52)에도 못 미쳐 어느 쪽도 확정 아님. → 고정창(--since 2026-08-13) 교차측정으로 해소: 200종목 패널 6런 h5 계열 = 0.4821(ctl) / 0.5045 / 0.4990(cg329) / 0.4958(cg330) / 0.4986(cg332) / 0.5170(cg336, t 0.95) → 최근 45~48세션에서 h5 순위 정보는 어느 패널에서도 0.5 와 구분되지 않는다(n=5/6 런 |t|<1).",
+    "detail": "최고 LS_quant_q30_h5 0.5128 (대조군 같은 미측정 · 기록 기준선 없음)",
     "files": [
      "/app/reports/overnight/cg336_summary.json",
      "/app/reports/overnight/cg336_fold_decomp.json",
@@ -21129,7 +21129,7 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 2,
-   "status": "pending",
+   "status": "done",
    "metric": "wf_sweep_summary",
    "title": "[측정정합성 수리 후 재측정] 강제 포함 arm 을 같은 런 대조군과 짝지어(CG342) 재측정 — CG339·CG340 의 '기준선없음' 판정을 판정가능하게 만든다",
    "hypothesis": "CG339(공매도 2컬럼 강제)·CG340(전구간 커버 4피처 강제) 둘 다 rc=0 완주했으나 `--force-features` 가 전역 인자라 같은 런에 '강제 없음' arm 이 없어 구동기 판정이 '기준선없음'이었다 = 축을 닫을 근거도 신호 근거도 없는 무효 측정. wf_label_sweep 에 `--force-paired`(각 config → <id> + <id>__ff)를 구현해 같은 폴드·같은 시드의 짝 Δ 를 만든 뒤, 정보량이 가장 큰 전구간 커버 arm(CG340 목록, similar_stocks_return_avg 포함)을 재측정한다.",
@@ -21140,9 +21140,70 @@
    "cost": "2arm 10폴드×5시드 ≈ 12분(CG340 1arm 5.6분 실측 ×2)",
    "est_minutes": 15,
    "created_at": "2026-11-18T21:20:00+09:00",
-   "attempts": [],
+   "attempts": [
+    {
+     "ts": "2026-11-18T22:20:38+09:00",
+     "rc": 0,
+     "verdict": "기준선없음",
+     "detail": "최고 LS_quant_q30_h5 0.5128 (대조군 같은 미측정 · 기록 기준선 없음)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG342_20261118-220755.log",
+     "elapsed_min": 12.7
+    }
+   ],
    "note": "2026-11-18 21:2x 신설(자율). 측정 정합성 수리 + 재측정을 한 항목으로 묶었다 — 수리는 scripts/wf_label_sweep.py `--force-paired`(기본 OFF = 기존 비트 동일, py_compile 통과). 판정은 구동기가 item['arm']/counterfactual 로 계산하므로 이 런에서는 arm=LS_quant_q30_h5__ff · 대조=LS_quant_q30_h5 로 자동 짝지어진다.",
-   "arm": "LS_quant_q30_h5__ff"
+   "arm": "LS_quant_q30_h5__ff",
+   "result": {
+    "verdict": "노이즈",
+    "detail": "가설 LS_quant_q30_h5__ff 0.5113 vs 대조군 LS_quant_q30_h5 0.5128 → Δ-0.0015 (같은 런 짝 · 폴드 std 0.0296) · 폴드 짝승률 5/10 (Δ폴드 중앙값 +0.0003 · 범위 -0.0121~+0.0026) (최고: LS_quant_q30_h5 0.5128)",
+    "delta": null,
+    "per_exp": {
+     "LS_quant_q30_h5": {
+      "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.4877,
+       0.5482,
+       0.5491,
+       0.4923,
+       0.4992,
+       0.4739,
+       0.5339,
+       0.5531,
+       0.5029,
+       0.4873
+      ],
+      "mean": 0.5128,
+      "std": 0.0285,
+      "min": 0.4739,
+      "max": 0.5531,
+      "fold_win_rate": 0.5
+     },
+     "LS_quant_q30_h5__ff": {
+      "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30 + 강제 4개",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.4756,
+       0.5485,
+       0.5435,
+       0.4942,
+       0.5018,
+       0.4702,
+       0.5361,
+       0.5528,
+       0.5034,
+       0.4873
+      ],
+      "mean": 0.5113,
+      "std": 0.0296,
+      "min": 0.4702,
+      "max": 0.5528,
+      "fold_win_rate": 0.6
+     }
+    },
+    "rc": 0
+   }
   },
   {
    "id": "CG343",
@@ -21187,19 +21248,64 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 2,
-   "status": "pending",
+   "status": "done",
    "metric": "fillable_topk_expectancy",
    "title": "[돈·유니버스 불변성] top-k − 풀평균 Δ+1.006%p(t 2.01) 는 유니버스 특이인가 — 청정 panel_prod200(50종목)에서 같은 라벨·같은 프로토콜로 재측정하고 짝 중앙값으로 꼬리 의존성까지 판정",
    "hypothesis": "CG343(panel_200liq_ffill, 200종목, 240세션)에서 top-k 가 풀평균을 +1.006%p/세션(t 2.01) 이겼지만 앞/뒤 절반이 +4.71/−1.27 로 뒤집혔고 짝 중앙값 −0.039·양세션 116/124 였다 = 평균이 소수 극단세션에 실린 정황. 스킬 교훈상 이런 신호는 유니버스를 바꾸면 부호가 뒤집힌다(CG11/panel_150u 사례). 유니버스·꼬리 두 관문을 같은 사전문턱으로 통과해야만 '모델 선택 엣지'로 인정한다.",
    "counterfactual": "같은 세션 풀의 세션별 풀평균(무작위 k 기대, baseline_pool) — 체결성 필터 ON · 수수료 왕복 0.21%p · exit close_h h5",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 10 --seeds 5 --only LS_quant_q30_h5 --dump-preds /app/reports/overnight/cg344_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg344_sweep.jsonl --summary-out /app/reports/overnight/cg344_summary.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg344_preds.jsonl --arm-tag LS_quant_q30_h5 --k 3,5,10 --sides top,bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg344_money.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200.npz --folds 10 --seeds 5 --only LS_quant_q30_h5 --dump-preds /app/reports/overnight/cg344_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg344_sweep.jsonl --summary-out /app/reports/overnight/cg344_summary.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg344_preds.jsonl --arm-tag LS_quant_q30_h5 --control-jsonl /app/reports/overnight/cg344_preds.jsonl --control-tag LS_quant_q30_h5 --k 3,5,10 --sides top,bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg344_money.json'",
    "success": "① rc=0 + cg344_money.json 갱신 + 덤프 세션당 종목수 ≥ 40 ② 사전등록: k=3 **과** k=5 둘 다 Δ(top−풀) ≥ +0.1%p & t ≥ 2 & 짝 중앙값 > 0 & 앞/뒤 절반 모두 양수 → '유니버스 불변·꼬리 비의존 엣지'(그때만 소비 정책을 리뷰보드 안건으로) ③ 둘 중 하나라도 미달 → top-k 초과 엣지 축 종결: 남은 레버는 새 데이터 원천(분봉 XR26·대차잔고)과 추론 계약(배치 횡단면)뿐임을 원장에 남긴다 ④ 폴드 AUC 도 함께 기록(판정은 돈 지표).",
    "expected": "Δ 가 0 근처로 축소되거나 부호 반전. 근거: CG343 짝 중앙값 −0.039(양세션 48.3%)로 이미 평균이 꼬리에 의존 · 청정 50종목 패널은 세션당 후보가 적어 top-3 이 풀의 큰 비중을 차지 → 베타 제거 초과가 줄어든다.",
    "cost": "sweep 5.6분(CG340 실측) + money ~1분",
    "est_minutes": 12,
    "created_at": "2026-11-18T22:12:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-18T22:36:34+09:00",
+     "rc": 2,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 2",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG344_20261118-222635.log",
+     "elapsed_min": 10.0
+    },
+    {
+     "ts": "2026-11-18T22:43:29+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "[대조군 태그=arm → arm-vs-arm 비교 무효(짝 ties 720/720) → 널(세션 풀평균) 비교로 대체] arm LS_quant_q30_h5 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 240 · k=3 arm +0.325%p/세션 · 풀평균 +0.013 · Δ(arm−풀) +0.312(t 0.75) · 양세션 51.2% · 분할 unstable [+2.060/-1.410] ✗ · k=5 arm +0.318%p/세션 · 풀평균 +0.013 · Δ(arm−풀) +0.304(t 1.01) · 양세션 55.8% · 분할 unstable [+1.776/-1.141] ✗ · 풀평균 t 0.04 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG344_20261118-222635.log",
+     "elapsed_min": null,
+     "ingested": true
+    }
+   ],
+   "note": "2026-11-18 22:1x 신설(자율). CG343 의 '노이즈' 판정은 비교 자체가 무효(arm=control 동일 태그)였고, 같은 산출물의 널 비교에서 Δ+1.006(t 2.01)이라는 미검출이 아닌 '미확정' 수치가 나왔다 — 축을 닫기 전에 유니버스·꼬리 두 관문을 같은 문턱으로 통과시키는 것이 목적이다. | 2026-11-18 22:4x 커맨드 결함 수리: fillable_topk_expectancy.py 는 --control-jsonl/--control-tag 가 필수(required)인데 CG344 커맨드에 빠져 money 단계가 rc=2 로 죽었다(스윕 산출물 10.0분은 정상 생성). 같은 스윕 덤프로 money 단계만 재실행해 산출 확보. | 2026-11-18 22:4x 판정: 10.0분 스윕은 정상 완주했으나 money 단계가 커맨드 결함(--control-jsonl 누락)으로 rc=2, 같은 덤프로 money 만 재실행해 판정. 결론=노이즈 → 사전등록 ③ 에 따라 축 종결. 부수 관찰(사후·신호 아님): 같은 런의 bottom-k 는 Δ +2.12/+1.54/+0.90(t 2.8) 로 평균은 양(+)이지만 짝 중앙값 +0.27/+0.10/+0.17·양세션 123/240(51%)·폴드 승률 혼재 = 꼬리 의존이며, CG343(200종목)에서는 Δ−0.46(t<1)로 부호가 뒤집힌다 → 방향(양/음) 어느 쪽도 유니버스 불변 신호가 아니다. 점수는 '변동성/반전 프록시'로 읽되 매매 부호로 쓰지 말 것.",
+   "result": {
+    "verdict": "노이즈",
+    "detail": "[대조군 태그=arm → arm-vs-arm 비교 무효(짝 ties 720/720) → 널(세션 풀평균) 비교로 대체] arm LS_quant_q30_h5 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 240 · k=3 arm +0.325%p/세션 · 풀평균 +0.013 · Δ(arm−풀) +0.312(t 0.75) · 양세션 51.2% · 분할 unstable [+2.060/-1.410] ✗ · k=5 arm +0.318%p/세션 · Δ +0.304(t 1.01) · 양세션 55.8% · 분할 unstable [+1.776/-1.141] ✗ · k=10 Δ +0.188(t 0.96) ✗ → 사전등록 미충족",
+    "delta": 0.3121,
+    "note": "청정 50종목 패널(panel_prod200, 240세션, 풀 중앙값 75)에서 top-k 초과 엣지는 재현되지 않았다: 200종목 패널의 Δ+1.006(t 2.01) → 50종목 Δ+0.31(t 0.75) 로 축소·비유의. 즉 CG343 의 유의성은 유니버스 특이(꼬리 의존)였다. 사전등록 ③ 에 따라 top-k 초과 엣지 축 종결."
+   },
+   "axis_closed": "top-k 초과 엣지(모델 순위가 세션 풀평균을 이기는가) — 돈 지표 3회 측정으로 종결: CG341(시장상대 라벨) k10 Δ−0.582(t−2.42) · CG343(200종목) Δ+1.006(t 2.01) 이나 짝 중앙값 −0.039·양세션 48.3% · CG344(청정 50종목) Δ+0.31(t 0.75)·앞뒤 +2.06/−1.41. 남은 레버는 새 데이터 원천(분봉 XR26·대차잔고)과 추론 계약(당일 전종목 배치 횡단면)뿐이다."
+  },
+  {
+   "id": "CG345",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 1,
+   "status": "needs_setup",
+   "metric": null,
+   "title": "[새 레버·승인 대기] 당일 전종목 배치 횡단면 추론 경로 신설 — rank(횡단면 분위) 피처를 배포 경로에 올린다",
+   "hypothesis": "조정 축 실측 상한은 +0.011(rank Δ+0.0107/3시드)이고 top-k 초과 엣지·선별 문턱·라벨 중립화 축은 모두 종결됐다(CG341/CG342/CG344). 남은 미검증 레버는 '횡단면 rank 변환'인데, 스윕에서 유효했던 rank 축은 추론 경로에 없다 — app/inference/predictor.py 가 종목 1개·날짜 1개로 features.get(f,0.0) 벡터를 만들어 날짜별 횡단면 rank 를 계산할 수 없다. 당일 전종목 배치 추론(한 날짜에 유니버스 전체를 한 번에 스코어)을 신설하면 rank 축을 승격 후보에 넣을 수 있다.",
+   "counterfactual": "현행 스트리밍 추론(종목 단위, rank 없음) — 같은 챔피언·같은 피처로 배치 경로와 예측 일치율·순기대를 비교",
+   "success": "① 배치 경로가 현행 스트리밍 경로와 **동일 피처에서 동일 예측**(정렬 상관 ≥0.999)을 재현 ② 배치 경로에서 rank 변환 arm 의 다중폴드 OOS AUC 가 대조군 대비 +0.02 이상 ③ 돈 게이트(체결성 ON·0.21%p·close_h) 순기대 Δ>0 — ①②③ 모두 충족할 때만 승격 후보. 미달이면 축 종결.",
+   "setup_needed": "리뷰보드 승인 필요: 추론 계약 변경(종목 단위 → 당일 전종목 배치). 승인 시 구현 순서: ① predictor 에 batch_predict(date, codes) 신설(기존 predict() 는 유지 — 무중단) ② rank 변환을 배치 경로에서만 적용 ③ 스트리밍·배치 예측 일치 회귀 테스트 ④ 그림자 모드 1주(발행은 스트리밍 유지, 배치 점수만 기록) 후 비교.",
+   "expected": "기대효과는 낮다 — rank 축 단독 실측 상한이 +0.0107(사전문턱 +0.02 미달)이고, 그 값도 스윕 내부(전종목 배치·동일 결측 대체) 값이라 실제 배포 경로에서는 더 줄 수 있다. 그럼에도 이 경로가 없으면 'rank·횡단면 정규화' 계열 레버 전체가 영구 미검증으로 남는다.",
+   "cost": "구현 2~3h + 그림자 1주(CPU 추가 부하 없음 — 장 마감 후 1회 배치)",
+   "est_minutes": 180,
+   "created_at": "2026-11-18T22:50:00+09:00",
    "attempts": [],
-   "note": "2026-11-18 22:1x 신설(자율). CG343 의 '노이즈' 판정은 비교 자체가 무효(arm=control 동일 태그)였고, 같은 산출물의 널 비교에서 Δ+1.006(t 2.01)이라는 미검출이 아닌 '미확정' 수치가 나왔다 — 축을 닫기 전에 유니버스·꼬리 두 관문을 같은 문턱으로 통과시키는 것이 목적이다."
+   "note": "2026-11-18 22:5x 신설(자율 등록, 실행은 승인 대기). 스코어보드 무개선 20사이클 연속 → 스킬 규칙상 '새 레버 승인 요청' 단계. 이미 닫힌 축: 조정(피처변환·HP·유니버스·라벨) 상한 +0.011 · 선별 문턱 병목(CG342 Δ−0.0015) · 라벨 중립화(CG341 k10 Δ−0.582) · top-k 초과 엣지(CG344 Δ+0.31 t 0.75). 남은 것: 이 항목(추론 계약)과 새 데이터 원천(분봉 XR26 리서처 차단·대차잔고 미수집)."
   }
  ],
  "updated": "2026-11-18T18:10:48+09:00"
