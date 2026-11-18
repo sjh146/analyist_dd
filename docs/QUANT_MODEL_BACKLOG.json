@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T20:35:00+09:00",
+ "updated_at": "2026-11-18T21:27:53+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -21085,7 +21085,7 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 1,
-   "status": "pending",
+   "status": "done",
    "metric": "wf_sweep_summary",
    "title": "[과제 정의 축] 시장상대(중립) 라벨 LS_rel_h5 를 청정 200종목 패널 10폴드로 처음 측정 — 등록 라벨(원수익 분위)보다 돈이 나은가",
    "hypothesis": "등록 라벨(원수익 분위 0.3)은 시장 베타를 그대로 담는다. 전방 성적표 실측(2026-11-18): h5 top10 −3.5516% vs 전체풀 −0.8654% = 모델 top10 이 풀평균보다 2.7%p 나쁘다. 즉 지금 모델은 '오를 종목'을 고르는 게 아니라 '그 주에 많이 흔들린 종목'을 고른다. 시장상대 라벨(같은 날 시장 중앙값 초과=1)은 베타를 라벨에서 빼므로 이 실패 모드를 직접 겨냥한다. LS_rel_h5 는 기록상 1회(2026-09-25 L2, panel_420_asofpatch 49종목, 3분할) 0.5245 로만 측정됐고 청정 200종목 10폴드에서는 미측정이다.",
@@ -21096,8 +21096,32 @@
    "cost": "1arm 10폴드×5시드 ≈ 7분 + 덤프→trades 변환·기대값 계산 10분",
    "est_minutes": 20,
    "created_at": "2026-11-18T20:35:00+09:00",
-   "attempts": [],
-   "note": "2026-11-18 20:3x 신설(CG340 후속·자율). ⚠ 이 실험은 배포 라벨을 바꾸지 않는다(측정만). 라벨 규칙을 실제로 교체하는 것은 리뷰보드 승인 대상. 돈 계산은 scripts/fillable_expectancy.py 재사용(CG338 의 cg338_money_vs336.json 과 같은 경로: 덤프 jsonl → 세션·종목별 trades → 체결성 필터 ON·왕복 0.21%p·close_h).\n2026-11-18 21:1x 수리: metric 'wf_sweep_summary+money' 는 summary_path 분기에 없어 시작 로그가 '알 수 없는 metric … 판정불가로 기록' 을 냈다(= 구동기가 요약을 파싱하지 못해 자동 판정 불가). AUC 요약은 wf_sweep_summary 로 파싱하고, 돈 판정은 덤프→fillable_expectancy 경로로 따로 계산한다."
+   "attempts": [
+    {
+     "ts": "2026-11-18T21:27:53+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='wf_sweep_summary+money')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG341_20261118-210907.log",
+     "elapsed_min": 18.8
+    },
+    {
+     "ts": "2026-11-18T21:29:00+09:00",
+     "rc": 0,
+     "verdict": "악화",
+     "detail": "AUC 0.5015±0.0176(10폴드 승률 6/10, min0.4677 max0.5316) · 돈(241세션·체결성 ON·0.21%p) 널=풀평균 +0.712%p/세션 대비 k=3 −0.573(t−1.34)·k=5 −0.551(t−1.66)·k=10 −0.582(t−2.42) 전부 하회 → 라벨 중립화 축 종결",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG341_20261118-210907.log",
+     "elapsed_min": 18.8
+    }
+   ],
+   "note": "2026-11-18 20:3x 신설(CG340 후속·자율). ⚠ 이 실험은 배포 라벨을 바꾸지 않는다(측정만). 라벨 규칙을 실제로 교체하는 것은 리뷰보드 승인 대상. 돈 계산은 scripts/fillable_expectancy.py 재사용(CG338 의 cg338_money_vs336.json 과 같은 경로: 덤프 jsonl → 세션·종목별 trades → 체결성 필터 ON·왕복 0.21%p·close_h).\n2026-11-18 21:1x 수리: metric 'wf_sweep_summary+money' 는 summary_path 분기에 없어 시작 로그가 '알 수 없는 metric … 판정불가로 기록' 을 냈다(= 구동기가 요약을 파싱하지 못해 자동 판정 불가). AUC 요약은 wf_sweep_summary 로 파싱하고, 돈 판정은 덤프→fillable_expectancy 경로로 따로 계산한다.\n2026-11-18 21:3x 판정: 악화(축 종결). AUC 는 동전던지기(0.5015±0.0176)이고 돈은 top-k 가 세션 풀평균을 전 구간에서 유의하게 하회(k=10 t−2.42, 240세션). 라벨 정의를 시장상대로 바꾸는 축은 돈 근거로 닫는다 — 라벨 규칙 교체는 리뷰보드 안건이었으나 이 증거로 상정하지 않는다. 후속(CG343): 같은 덤프 계열에서 bottom-k 부호 검정으로 '점수가 변동성 프록시인가'를 확인.",
+   "result": {
+    "verdict": "판정불가",
+    "detail": "parser 없음 (metric='wf_sweep_summary+money')",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG342",
@@ -21119,6 +21143,27 @@
    "attempts": [],
    "note": "2026-11-18 21:2x 신설(자율). 측정 정합성 수리 + 재측정을 한 항목으로 묶었다 — 수리는 scripts/wf_label_sweep.py `--force-paired`(기본 OFF = 기존 비트 동일, py_compile 통과). 판정은 구동기가 item['arm']/counterfactual 로 계산하므로 이 런에서는 arm=LS_quant_q30_h5__ff · 대조=LS_quant_q30_h5 로 자동 짝지어진다.",
    "arm": "LS_quant_q30_h5__ff"
+  },
+  {
+   "id": "CG343",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 3,
+   "status": "pending",
+   "metric": "fillable_topk_expectancy",
+   "title": "[점수 부호 검정·돈] 등록 라벨 arm(LS_quant_q30_h5)의 bottom-k 가 세션 풀평균을 유의하게 하회하는가 — 점수가 '오를 종목'이 아니라 '변동성 프록시'인지 돈으로 직접 확인(전 유니버스 덤프)",
+   "hypothesis": "CG341 실측(241세션·체결성 ON): 모델 top-k 순기대가 풀평균 +0.712%p/세션보다 k=3 −0.573(t−1.34)·k=5 −0.551(t−1.66)·k=10 −0.582(t−2.42)로 **전부 하회**했다. 그리고 전방 성적표 h5 top10 −3.55% vs 풀 −0.87%. 즉 지금 점수는 양(+)의 선별 정보가 아니라 **음(−)의 방향 정보**(또는 변동성 대리변수)일 수 있다. 이걸 직접 가르는 검정은 같은 덤프에서 bottom-k(= 점수 최하위)를 재는 것이다: ① top-k < 풀평균 < bottom-k 이면 점수는 **부호가 반대인 정렬 정보**(→ 소비 정책을 뒤집거나 리스크 축으로 재정의), ② top-k·bottom-k 둘 다 풀평균 미만이면 점수는 **무정보 + 고변동성 선택**(→ 선별 자체를 폐기). 판정은 돈 지표로만 한다.",
+   "counterfactual": "같은 세션·같은 종목 풀의 세션별 풀평균(무작위 k 기대, fillable_topk_expectancy 의 baseline_pool) — 체결성 필터 ON · 수수료 왕복 0.21%p · exit close_h h5. AUC 교차확인용 기록: CG336 LS_quant_q30_h5 0.5128±0.0285(같은 패널·10폴드).",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_ffill.npz --folds 10 --seeds 5 --only LS_quant_q30_h5 --dump-preds /app/reports/overnight/cg343_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg343_sweep.jsonl --summary-out /app/reports/overnight/cg343_summary.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg343_preds.jsonl --arm-tag LS_quant_q30_h5 --control-jsonl /app/reports/overnight/cg343_preds.jsonl --control-tag LS_quant_q30_h5 --k 3,5,10 --sides top,bottom --exit close_h --horizon 5 --json-out /app/reports/overnight/cg343_money.json'",
+   "success": "① rc=0 + cg343_money.json 갱신 ② 덤프가 전 유니버스(--dump-all-codes)로 세션당 100행 이상인지 확인(아니면 널=풀평균이 오염된 것 → 측정무효) ③ 판정: bottom_k 의 Δ(bottom-k − 풀평균) ≥ +0.1%p/세션 & t ≥ 2 & 앞/뒤 절반 모두 양(+) 이면 '점수는 부호 반대의 정렬 정보'로 기록하고 소비 정책 축(역방향·리스크)을 리뷰보드 안건으로 올린다 ④ top_k·bottom_k 둘 다 풀평균 이하이면 '점수=무정보·고변동성 선택'으로 축 종결(남은 레버는 추론 계약·새 원천뿐) ⑤ rc≠0·요약 미갱신 = 실행실패.",
+   "expected": "bottom-k 도 풀평균 이하일 가능성이 높다(전방 성적표에서 top10 이 풀보다 나쁜 것은 '고변동성 선택'과 정합). 그 경우 이 항목의 값은 '모델 선별 폐기' 결정의 돈 증거가 된다.",
+   "cost": "전 유니버스 덤프 10폴드×5시드 ≈ 19분(CG341 실측 18.8분) + 돈 집계 3분",
+   "est_minutes": 25,
+   "created_at": "2026-11-18T21:40:00+09:00",
+   "attempts": [],
+   "arm": "LS_quant_q30_h5",
+   "note": "2026-11-18 21:4x 신설(자율) — CG341 이 라벨 중립화 축을 돈으로 닫은 직후(bottom/top 부호 검정으로 '모델 선별이 돈이 되는가'를 단일 덤프에서 마무리). ⚠ CG330 덤프는 --dump-all-codes OFF 라 널(풀평균)이 상하위 극단만 담겨 쓸 수 없다(CG278 교훈) → 새 덤프 필수."
   }
  ],
  "updated": "2026-11-18T18:10:48+09:00"
