@@ -25,6 +25,7 @@ services/kis-collector/data/kis/
 # KRX 진행/상태 파일 (실행 중 임시 상태 — 커밋 금지, 수동 백필이 재개용으로만 사용)
 data/krx/progress_*.txt
 data/krx/rate_state.json
+data/naver_backfill_state.json   # 러너 진행 상태(런타임) — DART/KRX 백필 state 와 같은 취급
 
 # trader-agent — 2026-11-13 부터 이 저장소 안에서 함께 관리한다(중첩 저장소 제거, 단일 push).
 #   과거에는 /trader-agent/ 를 무시했고 trader-agent.git 으로 따로 커밋했다. 지금은 이 트리가
