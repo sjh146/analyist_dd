@@ -243,7 +243,10 @@ class Config:
     # data/state/edge_params.json(백테스트 추천) 경로로 들어온다.
     # edge_gate_fail_open=True 는 **유지** — edge_score 가 없거나(구피드·이력부족)
     # None 이면 통과+로그, 차단하지 않는다.
-    min_edge_score: int = 5        # 0 = 비활성. 피드 edge_score 가 이 값 미만이면 진입 차단
+    min_edge_score: int = 4        # 0 = 비활성. 피드 edge_score 가 이 값 미만이면 진입 차단
+    # 2026-11-18 13:1x 사용자 지시("응 해줘")로 5 → 4 하향 — 5는 하루 1건(021320)만 통과해
+    # 표본이 안 쌓였다. 근거는 여전히 음(−)이므로 **문턱을 낮추는 대신 표본을 늘려 재측정**하는
+    # 실험이며, (+)가 확인되지 않으면 5로 되돌린다(롤백: 이 상수만 수정).
     min_rr: float = 0.0            # 0 = 비활성. (tp_pct/stop_pct) < 이 값이면 진입 차단
     edge_gate_fail_open: bool = True  # edge_score None(이력부족·구피드)일 때: True=통과+algo_json 로그, False=차단
     # Volatility-aware stop & sizing.  A fixed 7 % stop is inside the daily

@@ -83,8 +83,8 @@ class ConfigEdgeGateDefaultTest(unittest.TestCase):
 
     def test_min_edge_score_defaults_to_five(self) -> None:
         cfg = Config()
-        self.assertEqual(cfg.min_edge_score, 5)
-        self.assertEqual(cfg.as_dict()["min_edge_score"], 5)
+        self.assertEqual(cfg.min_edge_score, 4)
+        self.assertEqual(cfg.as_dict()["min_edge_score"], 4)
 
 
 if __name__ == "__main__":
