@@ -84,6 +84,10 @@ class ScreenerProfile:
     time_stop_gain: float = 0.01      # ... when the gain is below this
     flat_stop_sessions: int = 0       # dead-money release at session N
     flat_stop_band: float = 0.02      # ... when |gain| <= this band
+    # 최대 보유 시간(분). 0 = 비활성.  2026-11-18 docs/spec_scalp_30min.md(사용자
+    # 지시 "최대 30분만 보유하는 단타매매"): daytrading 만 30분, 나머지 경로는 0.
+    # 모니터(_add_time_exits)가 time_exit_due/time_rules_due **앞**에서 판정한다.
+    max_hold_minutes: int = 0
     kelly_fraction: Optional[float] = None
     max_entries_per_day: Optional[int] = None
     # Fixed stop/take-profit lines (2026-11-17 WP2 스펙,
@@ -283,7 +287,9 @@ DEFAULT_PROFILES: Dict[str, Dict[str, Any]] = {
         #     · 1.5×ATR/3.0×ATR -1%대(측정 최악).
         #   → 그래서 기본은 **고정 1%/3%(R:R 3, 손익분기 승률 30.25%)** 이고,
         #     ATR 모드는 측정이 더 나빠서 기본에서 끈다(atr_* 값은 남겨 언제든 전환 가능).
-        #     엣지 점수 문턱도 기대값을 올리지 못했으므로 min_edge_score 는 0(비활성) 유지.
+        #     엣지 점수 문턱은 백테스트상 기대값을 올리지 못해 0(비활성)이었으나,
+        #     2026-11-18 spec_scalp_30min 사용자 지시로 기본값 5(활성, config.py) —
+        #     백테스트 판단이 아니라 사용자 지시값(측정으로 재조정하지 않는다).
         "entry_window": "09:05-14:30",
         "exit_mode": EXIT_SAME_DAY_CLOSE,
         "close_exit_window": "15:00-15:20",
@@ -296,6 +302,17 @@ DEFAULT_PROFILES: Dict[str, Dict[str, Any]] = {
         "stop_pct": 0.01,
         "tp_pct": 0.03,
         "max_stop_pct": 0.02,
+        # 2026-11-18 docs/spec_scalp_30min.md (사용자 지시 "최대 30분만 보유하는
+        # 단타매매"): 보유를 30분으로 제한 — 진입 30분 경과 시 모니터가 시장가 청산
+        # (time_exit_due/time_rules_due 보다 우선).  기존 값(entry 09:05-14:30,
+        # same_day_close, fixed 1%/3%)은 그대로 둔다.
+        # WHY(실측, 스펙 인용 — 재측정 금지): data/reports/minute_replay.md §1
+        #   분봉 실경로 n=12(승률 16.7%) — 1%/3% -1.21%/건 · 1.5%/4.5% -1.30%/건 ·
+        #   ATR 트레일 -0.37%/건, 기대값 전부 음(−).  보유를 늘려도 손실만 커진다
+        #   (보유분 실측: 1%/3% 6.8분 · 1.5%/4.5% 15.0분 · ATR 트레일 50.3분).
+        #   조회: grep -E "fixed_1_3|fixed_15_45|trail_atr" data/reports/minute_replay.md
+        # 0 으로 되돌리면 기존 same_day_close(15:00-15:20) 청산만 남는다(롤백 한 줄).
+        "max_hold_minutes": 30,
     },
     "rank_momentum": {
         "entry_window": "09:00-15:20",

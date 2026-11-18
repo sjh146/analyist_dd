@@ -266,7 +266,32 @@ class PositionMonitor:
             if row is None:
                 continue
             profile = profile_for(str(row.get("screener") or ""), self.profiles)
-            due, reason = profile.time_exit_due(row.get("ts"), now)
+            # 2026-11-18 docs/spec_scalp_30min.md: 분 단위 보유 상한(daytrading 30분).
+            # 기존 time_exit_due/time_rules_due 판정 **앞**에 두어 보유 한도 초과가
+            # 항상 우선한다(청산 창과 겹쳐도 max_hold 사유가 이긴다).
+            # WHY(실측, 스펙 인용 — 재측정 금지): data/reports/minute_replay.md §1
+            #   분봉 실경로 n=12(승률 16.7%) — 1%/3% -1.21%/건 · 1.5%/4.5% -1.30%/건 ·
+            #   ATR 트레일 -0.37%/건, 기대값 전부 음(−) → 30분 초과 시 시장가 청산.
+            #   조회: grep -E "fixed_1_3|fixed_15_45|trail_atr" data/reports/minute_replay.md
+            # 판정 실패(ts 파싱 불가)는 차단하지 않는다 — 기존 시간 판정으로 진행(notes 한 줄).
+            hold_min = int(getattr(profile, "max_hold_minutes", 0) or 0)
+            due, reason = False, ""
+            if hold_min:
+                entered = _parse_ts(row.get("ts"))
+                if entered is not None:
+                    # 시간대 방어: now 는 aware(KST) — naive now(테스트 등)도 KST 로.
+                    moment = now if now.tzinfo else now.replace(tzinfo=KST)
+                    elapsed = (moment - entered).total_seconds() / 60.0
+                    if elapsed >= hold_min:
+                        due, reason = True, "max_hold_{0}m ({1:.1f}분 경과)".format(
+                            hold_min, elapsed
+                        )
+                else:
+                    notes.append(
+                        "{0}: max_hold_{1}m skipped (unparseable ts)".format(code, hold_min)
+                    )
+            if not due:
+                due, reason = profile.time_exit_due(row.get("ts"), now)
             if not due:
                 due, reason = profile.time_rules_due(
                     row.get("ts"), now, self._gain_pct(row, quotes.get(code))
@@ -315,6 +340,22 @@ class PositionMonitor:
                 if stop is not None and tp is not None:
                     return stop, tp
         return self.config.stop_loss_pct, self.config.take_profit_pct
+
+
+def _parse_ts(value: Any) -> Optional[datetime]:
+    """Parse a journal ``ts`` (ISO string) into an aware datetime, or None.
+
+    ``feed.parse_timestamp`` 관용구(``datetime.fromisoformat`` + naive 면 KST
+    부여 — journal.last_exit_ts 와 동일)를 쓰되 실패 시 예외 대신 ``None``:
+    손상/누락된 진입 시각은 매도 차단 사유가 될 수 없다(기존 시간 판정으로 진행).
+    """
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=KST)
+    return parsed
 
 
 def _code_of(position: Dict[str, Any]) -> Optional[str]:

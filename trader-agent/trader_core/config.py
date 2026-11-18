@@ -231,10 +231,19 @@ class Config:
     #    "SELECT id, ts, screener, code, qty, price, exit_ts, exit_reason, pnl
     #     FROM trades ORDER BY id" → 실계좌 청산 11건 중 승 2건
     #    (id 3 +416, id 6 +1,640 → 평균이익 1,028원) — 스펙 수치와 일치.)
-    # 기본값은 전부 비활성(0/0/True)이라 구피드·구계정에서 동작이 달라지지 않는다.
-    # 스위치 값(5 / 2.0)은 presets/edge_gate.json → data/state/edge_params.json
-    # (백테스트 추천) 경로로 들어온다.
-    min_edge_score: int = 0        # 0 = 비활성. 피드 edge_score 가 이 값 미만이면 진입 차단
+    # min_edge_score 기본값 0 → 5 (docs/spec_scalp_30min.md, 2026-11-18 사용자 지시
+    # "1번으로 해줘 … 최대 30분만 보유하는 단타매매로 완전히 전환해줘").  WHY(실측,
+    # 스펙 선행 실측 인용 — 재측정 금지): data/reports/minute_replay.md §1 분봉
+    # 실경로 n=12(승률 16.7%)에서 기대값이 전부 음(−): 1%/3% -1.21%/건 ·
+    # 1.5%/4.5% -1.30%/건 · ATR 트레일 -0.37%/건 → 진입 문턱을 올려 저품질
+    # 후보를 걷어낸다.  값은 사용자 지시값이며 측정으로 재조정하지 않는다.
+    # 조회:
+    #   grep -E "fixed_1_3|fixed_15_45|trail_atr" data/reports/minute_replay.md
+    # min_rr 은 0(비활성) 유지 — 스위치 값(2.0)은 presets/edge_gate.json →
+    # data/state/edge_params.json(백테스트 추천) 경로로 들어온다.
+    # edge_gate_fail_open=True 는 **유지** — edge_score 가 없거나(구피드·이력부족)
+    # None 이면 통과+로그, 차단하지 않는다.
+    min_edge_score: int = 5        # 0 = 비활성. 피드 edge_score 가 이 값 미만이면 진입 차단
     min_rr: float = 0.0            # 0 = 비활성. (tp_pct/stop_pct) < 이 값이면 진입 차단
     edge_gate_fail_open: bool = True  # edge_score None(이력부족·구피드)일 때: True=통과+algo_json 로그, False=차단
     # Volatility-aware stop & sizing.  A fixed 7 % stop is inside the daily
