@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T20:25:00+09:00",
+ "updated_at": "2026-11-18T20:30:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -21046,7 +21046,7 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 1,
-   "status": "pending",
+   "status": "done",
    "metric": "wf_sweep_summary",
    "title": "[선별 문턱 병목·전구간 커버] 문턱(0.044)에 걸려 버려진 전구간 커버 피처 4개를 강제 포함하면 +0.02 가 나오는가 — IC t 5.25 인 similar_stocks_return_avg 포함",
    "hypothesis": "CG339 는 공매도 피처로 이걸 재려 했으나 원천이 115거래일뿐이라 10폴드 중 2폴드만 학습창에 데이터가 있어 검정력이 없었다(Δ+0.0003 = 노이즈). 같은 질문을 전 구간 커버(fill 1.000) 피처로 다시 잰다: 패널 스크린(panel_200liq_ffill, 2026-11-18 20:2x, /app/reports/overnight/panel_screen_ffill.json)에서 선별 문턱 0.044 바로 아래에 4개가 있다 — value_pbr edge 0.0387(ic t −3.18)·value_psr 0.0369(t −3.80)·similar_stocks_return_avg 0.0248(**ic t +5.25**)·quality_roa 0.0220(t +4.53). 이들은 AUC 문턱 미달이라 top30에서 전부 탈락한다. 특히 similar_stocks_return_avg 는 전 패널에서 IC t 가 가장 높은데도 AUC edge 가 작아 버려진다 = 선별 규칙이 'AUC 문턱'만 보는 것이 손실인지의 직접 검정.",
@@ -21057,8 +21057,27 @@
    "cost": "1arm 10폴드×5시드 ≈ 7분(CG336 3arm 22.1분 실측)",
    "est_minutes": 10,
    "created_at": "2026-11-18T20:25:00+09:00",
-   "attempts": [],
-   "note": "2026-11-18 20:2x 신설(CG339 후속·자율). 도구는 CG339 에서 구현한 --force-features(git 0a7577a) 를 그대로 쓴다. ⚠ 이 실험은 '선별 문턱 자체'를 바꾸지 않는다(문턱 변경은 리뷰보드 승인). 판정 시 노이즈 바닥 ±0.004(CG339 실측)를 명시하고, Δ<0.005 는 신호로 쓰지 말 것."
+   "attempts": [
+    {
+     "ts": "2026-11-18T20:26:29+09:00",
+     "rc": 0,
+     "verdict": "기준선없음",
+     "detail": "최고 LS_quant_q30_h5 0.5113 (강제 4개, n_features 31~33)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG340_20261118-202056.log",
+     "elapsed_min": 5.6
+    }
+   ],
+   "note": "2026-11-18 20:2x 신설(CG339 후속·자율). 도구는 CG339 에서 구현한 --force-features(git 0a7577a) 를 그대로 쓴다. ⚠ 이 실험은 '선별 문턱 자체'를 바꾸지 않는다(문턱 변경은 리뷰보드 승인). 판정 시 노이즈 바닥 ±0.004(CG339 실측)를 명시하고, Δ<0.005 는 신호로 쓰지 말 것. | 2026-11-18 20:2x 판정(엔지니어): '선별 문턱 0.044 가 병목'은 전구간 커버 피처로도 기각 — IC t 5.25 인 similar_stocks_return_avg 를 포함해도 Δ−0.0015. 즉 정보는 있는데 선별이 버리는 게 아니라, 그 정보가 이 모델·이 라벨에서 값을 못 만든다. 남은 레버는 ① 라벨·과제 정의(예: 시장중립 초과수익, 현재는 원수익 분위 꼬리) ② 추론 계약(당일 전종목 배치 추론 → 횡단면 rank 배포, 실측 Δ+0.0107) ③ 새 원천(분봉·대차잔고) — ①②는 리뷰보드/승인 대상.",
+   "result": {
+    "verdict": "노이즈(음수) — 선별 문턱 병목 가설 기각. 전구간 커버 피처를 강제로 넣어도 Δ−0.0015(노이즈 바닥 ±0.004 이내)",
+    "delta": -0.0015,
+    "detail": "panel_200liq_ffill · 강제 4개(similar_stocks_return_avg·quality_roa·value_psr·value_pbr) 10폴드×5시드 = 0.5113±0.0296 [0.4756,0.5528] 승률 0.6 vs 대조군 CG336(같은 패널·폴드·시드) 0.5128±0.0285 [0.4739,0.5531] → Δ−0.0015. 폴드 짝 Δ: −0.0121/+0.0003/−0.0056/+0.0019/+0.0026/−0.0037/+0.0022/−0.0003/+0.0005/0.0000 (양(+) 5/10). 강제 진입 확인: fold1~5 '후보 4/4 · 선별 기진입 1 · append 3 → n_features 33' · fold6 '기진입 3 · append 1 → 31' = 문턱에 걸려 버려지던 피처가 실제로 학습행렬에 들어갔다(측정 유효). 그런데도 평균은 내려갔다.",
+    "files": [
+     "/app/reports/overnight/cg340_summary.json",
+     "data/reports/me_cycle/logs/me_cycle_CG340_20261118-202056.log"
+    ]
+   },
+   "finished_at": "2026-11-18T20:26:29+09:00"
   }
  ],
  "updated": "2026-11-18T18:10:48+09:00"
