@@ -55,8 +55,11 @@ WHY (스펙 §왜 v2 인가 — v1 의 한계, 실측):
   - 프로파일: same_day(단타 — 진입일 종가 강제청산, 15:00~15:20 강제청산의 프록시) /
     swing5(스윙 — 5세션 타임스탑, 세션은 종목이 실제 거래한 봉만 센다). 둘 다 돌린다.
   - 일봉엔 장중 순서가 없다 → v1 과 같은 규율로 worst(저가 먼저=손절 우선)/best(고가 먼저=
-    익절 우선) 두 극단. ambiguous_pct = worst/best 결과(체결집합·손익)가 다른 거래 비율로
-    v1 의 '당일 both-touch'를 다세션·부분익절로 일반화한 정의.
+    익절 우선) 두 극단. ambiguous_pct = worst/best 청산 경로(사유·가격, 수량 제외)가 다른
+    거래 비율 — v1 의 '당일 both-touch'를 다세션·부분익절·트레일로 일반화한 정의.
+    수량·손익 KRW 는 비교하지 않는다(모드 간 자본 경로 차이로 수량이 달라도 경로가 같으면
+    애매가 아니다). 한쪽 모드에만 존재하는 거래(자본 경로 차이)는 분모·분자에서 제외 —
+    체결집합 차이는 skipped_* 항목으로 이미 보고된다.
   - 비용: 왕복 0.21%(v1·실체결과 동일) — 거래당 1회, entry_cost×0.21% 를 최종 청산 시 차감.
     슬리피지 --slip-pct(기본 0): 진입가×(1+s), 청산가×(1−s) 적용, 보고서에 명시.
   - MaxDD: 일별 마감 자본곡선(현금+보유 평가액) 피크 대비 낙폭 %, 크기는 양수로 기록.
@@ -150,8 +153,14 @@ def _finalize(pos):
 
 
 def _session(ctx, pos, h, l, c, atr, rule_def, mode, profile, hold_sessions):
-    """보유 포지션의 한 세션 봉 처리. 완전 청산되면 qty==0 이 된다(호출부에서 정리)."""
+    """보유 포지션의 한 세션 봉 처리. 완전 청산되면 qty==0 이 된다(호출부에서 정리).
+
+    세션 수는 봉 참여 시점(진입봉 포함)에 증가 — 진입봉 장중 청산도 1세션으로
+    집계되어 당일 종가 청산과 같은 보유 길이로 기록된다.
+    """
     kind = rule_def["kind"]
+    pos["sessions"] += 1
+    pos["last_close"] = c
     stop_pct = rule_def["stop_pct"]
     entry = pos["entry_price"]
     if kind == "fixed":
@@ -232,9 +241,7 @@ def _session(ctx, pos, h, l, c, atr, rule_def, mode, profile, hold_sessions):
                 _sell(ctx, pos, st["stop_px"], pos["qty"],
                       "trail" if st["activated"] else "stop")
                 return
-    # 봉 생존 → 세션 증가, 프로파일별 타임스탑/강제청산
-    pos["sessions"] += 1
-    pos["last_close"] = c
+    # 봉 생존 → 프로파일별 타임스탑/강제청산(세션은 봉 참여 시점에 이미 증가)
     if profile == "same_day":
         _sell(ctx, pos, c, pos["qty"], "eod")
         return
@@ -440,29 +447,23 @@ def _summarize(trades, curve, skips, equity0):
 
 
 def ambiguous_pct(worst_trades, best_trades):
-    """worst/best 결과가 다른 거래 비율 % (다세션·부분익절로 일반화한 '애매일' 정의).
+    """worst/best 청산 경로(사유·가격 leg, 수량 제외)가 다른 거래 비율 % — v1 '애매일
+    (둘 다 터치)'의 다세션·부분익절·트레일 일반화.
 
-    한쪽에만 존재하는 거래도 '결과 다름'으로 센다(자본 경로 차이로 체결집합이 갈린 경우).
+    손익 KRW 나 수량은 비교하지 않는다: 모드 간 자본 경로 차이로 수량이 달라져도
+    경로가 같으면 장중 순서는 결과를 바꾸지 않았으므로 애매가 아니다.
+    한쪽 모드에만 존재하는 거래(자본 경로 차이로 체결집합이 갈린 경우)도 애매일이
+    아니므로 분모·분자에서 제외한다(체결집합 차이는 skipped_* 로 보고).
     """
-    by_idx = {}
-    for t in worst_trades:
-        by_idx[t["sig_idx"]] = [t["pnl_krw"], None]
-    for t in best_trades:
-        rec = by_idx.get(t["sig_idx"])
-        if rec is None:
-            by_idx[t["sig_idx"]] = [None, t["pnl_krw"]]
-        else:
-            rec[1] = t["pnl_krw"]
-    if not by_idx:
+    def path(t):
+        return tuple((leg[0], leg[1]) for leg in t["exits"])
+    wb = {t["sig_idx"]: path(t) for t in worst_trades}
+    bb = {t["sig_idx"]: path(t) for t in best_trades}
+    common = [k for k in wb if k in bb]
+    if not common:
         return None
-    amb = 0
-    for w, b in by_idx.values():
-        if w is None or b is None:
-            if (w is None) != (b is None):
-                amb += 1
-        elif abs(w - b) > 1e-6:
-            amb += 1
-    return _r4(amb / len(by_idx) * 100.0)
+    amb = sum(1 for k in common if wb[k] != bb[k])
+    return _r4(amb / len(common) * 100.0)
 
 
 # ---------------------------------------------------------------------- 데이터
@@ -755,8 +756,9 @@ def build_md(rep) -> str:
                  m["skipped_price_band"], m["skipped_slots"], m["skipped_daily_max"],
                  m["skipped_dup"], _f(m["ambiguous_pct"], ".1f")))
     a("")
-    a("- 애매% = worst/best 결과(체결집합·손익)가 다른 거래 비율 — v1 의 '당일 both-touch'를 "
-      "다세션·부분익절·트레일링으로 일반화한 정의.")
+    a("- 애매% = worst/best **청산 경로(사유·가격, 수량 제외)**가 다른 거래 비율 — v1 의 "
+      "'당일 both-touch'를 다세션·부분익절·트레일링으로 일반화한 정의. 수량·손익 KRW 는 "
+      "비교하지 않으며(모드 간 자본 경로 차이 제거), 한쪽 모드에만 있는 거래는 분모에서 제외.")
     a("")
     a("## 4. 워크포워드 (선택 %s~%s → 홀드아웃 %s~%s, 재조정 없음)"
       % (rep["walkforward"]["select_range"]["start"], rep["walkforward"]["select_range"]["end"],

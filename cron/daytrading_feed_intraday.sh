@@ -8,7 +8,9 @@
 #
 # 동작:
 #   1) rank_universe.py  → data/state/rank_universe.json (실패해도 계속: fail-open)
-#   2) daytrading_screener.py --universe-file ... (후보 0건이면 제한 없이 1회 재시도)
+#   2) daytrading_screener.py --rank-band-file ... (후보 0건이면 대역 없이 1회 재시도)
+#      · 카드: 상승률 2~12% 대역은 **정렬 가점**(score 불변), +12~30% 는 **추격 배제**
+#      · 2026-11-18 실측: 교집합 압축은 후보를 '대체'(교집합 0)시켜 폐기 → 배제+가점 채택
 #   3) feed_export.py --daytrading ... 로 발행 (08:35 크론과 동일 경로)
 #   후보가 끝내 0건이면 **발행하지 않는다**(기존 피드 유지 — 빈 피드로 매매를 멈추지 않게).
 #
@@ -57,11 +59,11 @@ EOF
 }
 
 # 2) 유니버스 압축 스크리너 → 후보 0건이면 제한 없이 1회 재시도
-"$PY" scripts/daytrading_screener.py --top-n 20 --universe-file "$UNIV" --json-out "$SRC" >> "$LOG" 2>&1
+"$PY" scripts/daytrading_screener.py --top-n 20 --rank-band-file "$UNIV" --json-out "$SRC" >> "$LOG" 2>&1
 n=$(count_items "$SRC")
-log "screener(restricted) items=$n"
+log "screener(rank-band) items=$n"
 if [ "$n" -eq 0 ]; then
-  log "WARN 압축 유니버스에서 후보 0건 — 전체 유니버스로 재시도"
+  log "WARN 대역 적용 후 후보 0건 — 대역 없이 재시도"
   "$PY" scripts/daytrading_screener.py --top-n 20 --json-out "$SRC" >> "$LOG" 2>&1
   n=$(count_items "$SRC")
   log "screener(fallback) items=$n"

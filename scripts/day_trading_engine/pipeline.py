@@ -18,7 +18,7 @@ import pandas as pd
 
 from .providers import MarketDataProvider, StockInfo
 from .scoring import (compute_kalman_features, filter_candidates,
-                      rank_candidates, score_candidates)
+                      prefilter_liquid, rank_candidates, score_candidates)
 
 logger = logging.getLogger("day_trading_engine.pipeline")
 
@@ -91,6 +91,25 @@ class ChampionPredictor:
         if not self.available or self._feature_names is None:
             return None
         fnames = self._feature_names
+        codes = [str(c) for c in df["stock_code"].tolist()]
+        # 지연 최적화(2026-11-18): 예전에는 종목마다 ``predict(1×F)`` 를 호출해
+        # 1,858회의 모델 호출이 발생했다. 특징행렬을 한 번에 만들어 **1회 배치 호출**한다.
+        # 실패하면 기존 행별 경로로 폴백(동작 보존).
+        try:
+            X = np.zeros((len(df), len(fnames)), dtype=np.float32)
+            for i, (_, row) in enumerate(df.iterrows()):
+                code = str(row["stock_code"])
+                for j, f in enumerate(fnames):
+                    X[i, j] = self._feature_value(row, f, code)
+            X = np.nan_to_num(X, nan=0.0)
+            batch = np.asarray(self._ensemble.predict(X), dtype=float).reshape(-1)
+            if batch.shape[0] == len(codes):
+                return pd.Series(dict(zip(codes, batch)), dtype=float)
+            logger.debug("batch predict shape mismatch (%s vs %s) — 행별 폴백",
+                         batch.shape[0], len(codes))
+        except Exception as e:  # pragma: no cover
+            logger.debug("batch predict failed (%s) — 행별 폴백", e)
+
         probs = {}
         for _, r in df.iterrows():
             stock_code = r["stock_code"]
@@ -150,12 +169,19 @@ def run_screener(provider: MarketDataProvider,
                  min_price: float = 1000,
                  date_str: str | None = None,
                  predictor: Optional[ChampionPredictor] = None,
-                 allow_codes: Optional[set] = None) -> pd.DataFrame:
+                 allow_codes: Optional[set] = None,
+                 exclude_codes: Optional[set] = None,
+                 bonus_codes: Optional[set] = None,
+                 bonus_points: float = 5.0) -> pd.DataFrame:
     """Full pipeline: universe → lookback → kalman → (model) → score → rank.
 
-    ``allow_codes`` (docs/spec_rank_universe.md, 2026-11-18): 후보 유니버스를 이 코드
-    집합으로 **압축**한다(크레온 상승률 랭킹 ∩ KOSDAQ 20거래일). None/빈 집합이면 기존과
-    동일하게 전체 유니버스를 쓴다. 점수·필터·출력 계약은 바뀌지 않는다.
+    크레온 상승률 랭킹 사용 방식(2026-11-18 실측 후 확정 — 사용자 선택 2번):
+
+    * ``exclude_codes``: **추격 배제**. 이미 +12% 이상 오른 종목을 유니버스에서 제거한다.
+    * ``bonus_codes``: 상승률 2~12% 대역 종목에 ``bonus_points`` 를 **정렬 가점**으로 준다.
+      공개 ``score`` 값은 **바꾸지 않는다**(트레이더 R1 문턱의 의미 보존) — 순위만 바뀐다.
+    * ``allow_codes``: (구) 유니버스 압축. 교집합이 0건이 되어 '압축'이 아니라 '대체'가
+      되므로 기본은 쓰지 않는다(실측 data/reports/rank_universe_overlap.json).
 
     Returns a ranked DataFrame in :data:`OUTPUT_COLUMNS` order (may be empty).
     """
@@ -171,15 +197,39 @@ def run_screener(provider: MarketDataProvider,
         logger.info(
             "유니버스 압축(rank_universe): %d → %d 종목 (요청 %d 코드)",
             before, len(universe), len(wanted))
+    if exclude_codes:
+        def _norm(v: Any) -> str:
+            return normalize_code_value(v)
+
+        drop = {_norm(c) for c in exclude_codes}
+        drop.discard("")
+        before = len(universe)
+        universe = [s for s in universe if s.stock_code not in drop]
+        logger.info("추격 배제(상승률 상단): %d → %d 종목 (%d 코드 제외)",
+                    before, len(universe), len(drop))
+
     universe_codes = {s.stock_code for s in universe}
     logger.info(f"유니버스: {len(universe)} 종목")
 
     meta = {s.stock_code: (s.stock_name, s.sector) for s in universe}
 
-    lookback_df = provider.load_lookback(signal_date, lookback=lookback)
+    # 유니버스 코드만 조회(lateral + ANY) — 전체 시장(3,974 코드) 대신 1,858 코드.
+    lookback_df = provider.load_lookback(signal_date, lookback=lookback,
+                                        codes=sorted(universe_codes))
     lookback_df["stock_code"] = lookback_df["stock_code"].astype(str)
     lookback_df = lookback_df[lookback_df["stock_code"].isin(universe_codes)]
     logger.info(f"룩백 로드: {len(lookback_df)} 행 / {lookback_df['stock_code'].nunique()} 종목")
+
+    # 사전 유동성 필터로 칼만 대상 축소(2026-11-18 지연 최적화: 1,858 → 669 종목).
+    last_rows = (lookback_df.sort_values(["stock_code", "trade_date"])
+                 .groupby("stock_code", as_index=False).tail(1))
+    pre = prefilter_liquid(last_rows, min_trading_value=min_trading_value,
+                           min_price=min_price)
+    keep_codes = set(pre["stock_code"].astype(str))
+    if keep_codes and len(keep_codes) < lookback_df["stock_code"].nunique():
+        logger.info("사전 유동성 필터: %d → %d 종목 (칼만 계산 축소)",
+                    lookback_df["stock_code"].nunique(), len(keep_codes))
+        lookback_df = lookback_df[lookback_df["stock_code"].astype(str).isin(keep_codes)]
 
     kf = compute_kalman_features(lookback_df)
     kf["stock_name"] = kf["stock_code"].map(lambda c: meta.get(c, ("", "Unknown"))[0])
@@ -197,7 +247,19 @@ def run_screener(provider: MarketDataProvider,
         return pd.DataFrame(columns=OUTPUT_COLUMNS)
 
     scored = score_candidates(filtered, probs=probs)
+    if bonus_codes:
+        boost = {normalize_code_value(c) for c in bonus_codes}
+        boost.discard("")
+        if boost:
+            scored = scored.copy()
+            hit = scored["stock_code"].astype(str).isin(boost)
+            # 정렬 전용 가점: 공개 score 는 그대로 두고 순위만 올린다.
+            scored["_rank_score"] = scored["score"] + np.where(hit, float(bonus_points), 0.0)
+            logger.info("상승률 대역 가점: %d/%d 종목에 +%.1f점(정렬 전용)",
+                        int(hit.sum()), len(scored), float(bonus_points))
     ranked = rank_candidates(scored, top_n=top_n)
+    if "_rank_score" in ranked.columns:
+        ranked = ranked.drop(columns=["_rank_score"])
     # Reorder to the output contract (missing columns get '' / NaN).
     for col in OUTPUT_COLUMNS:
         if col not in ranked.columns:

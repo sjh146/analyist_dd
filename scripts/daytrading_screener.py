@@ -196,6 +196,31 @@ def _load_universe_codes(path):
     return out
 
 
+def _load_rank_band(path):
+    """상승률 대역 파일 → (exclude_codes, bonus_codes) 또는 (None, None).
+
+    docs/spec_rank_universe.md §2(개정): 교집합 압축이 아니라
+      · excluded_codes(+12~30%) → 유니버스에서 **제외**(추격 방지)
+      · codes(2~12%)            → **정렬 가점**(score 값 불변)
+    파일이 없거나 파손이면 (None, None) → 기존 동작(전체 유니버스).
+    """
+    if not path:
+        return None, None
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except Exception as exc:  # noqa: BLE001 (fail-open)
+        logger.warning("상승률 대역 파일 사용 불가(%s: %s) — 기존 동작", path, exc)
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    excl = payload.get("excluded_codes") or []
+    bonus = payload.get("codes") or []
+    logger.info("상승률 대역 적용: 가점 %d코드 · 추격배제 %d코드 (ok=%s)",
+                len(bonus), len(excl), payload.get("ok"))
+    return (set(map(str, excl)) or None), (set(map(str, bonus)) or None)
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="단타스크리너 — 칼만 노이즈 제거 + 챔피언 모델 기반 당일 매수 후보 선별")
@@ -208,6 +233,11 @@ def main():
     ap.add_argument("--min-trading-value", type=float, default=300_000_000, help="최소 거래대금 (기본 3억)")
     ap.add_argument("--min-price", type=float, default=1000, help="최소 종가 (기본 1000원)")
     ap.add_argument("--lookback", type=int, default=20, help="칼만 평활화 룩백 거래일 (기본 20)")
+    ap.add_argument("--rank-band-file", dest="rank_band_file", default=None,
+                    help="상승률 대역 파일(scripts/rank_universe.py 산출): "
+                         "excluded_codes=추격 배제, codes=정렬 가점")
+    ap.add_argument("--rank-bonus", type=float, default=5.0,
+                    help="상승률 대역 가점(정렬 전용, score 값은 불변). 기본 5.0")
     ap.add_argument("--universe-file", dest="universe_file", default=None,
                     help="유니버스 압축 파일(scripts/rank_universe.py 산출 JSON). "
                          "파일이 없거나 ok:false/codes:[] 면 제한 없이 실행한다(fail-open)")
@@ -230,6 +260,7 @@ def main():
             logger.warning("챔피언 모델 미가용 — 칼만/거래량/변동성 점수만 사용")
 
         allow_codes = _load_universe_codes(args.universe_file)
+        excl, bonus = _load_rank_band(args.rank_band_file)
         ranked = run_screener(
             provider,
             top_n=args.top_n,
@@ -240,6 +271,9 @@ def main():
             date_str=args.date,
             predictor=predictor,
             allow_codes=allow_codes,
+            exclude_codes=excl,
+            bonus_codes=bonus,
+            bonus_points=args.rank_bonus,
         )
 
         rows = build_output_rows(ranked)

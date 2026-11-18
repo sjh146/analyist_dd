@@ -253,13 +253,34 @@ def filter_candidates(candidates: pd.DataFrame,
     return candidates[mask].copy()
 
 
+def prefilter_liquid(last_rows: pd.DataFrame,
+                     min_trading_value: float = 300_000_000,
+                     min_price: float = 1000) -> pd.DataFrame:
+    """칼만 계산 전 **유동성·가격 사전 필터** (2026-11-18 지연 최적화).
+
+    ``filter_candidates`` 는 칼만 피처가 있어야 판정할 수 있어 전체 종목에 칼만을 먼저
+    돌려야 했다(1,858종목, 2.4초). 유동성·가격·거래량 조건은 종목별 **마지막 행**만
+    있으면 판정되므로, 여기서 먼저 걸러 칼만 대상만 줄인다(실측 1,858 → 669).
+    사후 ``filter_candidates`` 는 그대로 유지되어 결과 계약은 변하지 않는다.
+    """
+    if last_rows.empty:
+        return last_rows
+    tv = last_rows["trading_value"]
+    effective_tv = tv.where(tv.notna(), last_rows["close_price"] * last_rows["volume"])
+    mask = (effective_tv >= min_trading_value)
+    mask &= last_rows["close_price"] >= min_price
+    mask &= last_rows["volume"] > 0
+    return last_rows[mask].copy()
+
+
 def rank_candidates(candidates: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:
     """Sort by score desc, assign rank 1..n, truncate to top_n."""
     if candidates.empty:
         out = candidates.copy()
         out["rank"] = []
         return out
-    out = candidates.sort_values("score", ascending=False).reset_index(drop=True)
+    sort_col = "_rank_score" if "_rank_score" in candidates.columns else "score"
+    out = candidates.sort_values(sort_col, ascending=False).reset_index(drop=True)
     out = out.head(top_n).copy()
     out["rank"] = range(1, len(out) + 1)
     return out

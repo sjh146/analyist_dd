@@ -114,6 +114,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pct-to", type=float, default=12.0,
                     help="상승률 상한(%%). 기본 12 — 상한가/급등 추격 회피")
     ap.add_argument("--pages", type=int, default=7, help="연속조회 페이지 수(30건/페이지)")
+    ap.add_argument("--chase-from", type=float, default=12.0,
+                    help="추격 배제 대역 하한(%%). 이 대역 종목은 유니버스에서 제외")
+    ap.add_argument("--chase-to", type=float, default=30.0,
+                    help="추격 배제 대역 상한(%%). 상한가(+30%%) 포함")
+    ap.add_argument("--no-chase", action="store_true", help="추격 배제 대역 조회 생략")
     ap.add_argument("--direction", default="up", choices=("up", "down"))
     ap.add_argument("--market", default="0", help="0=전체, 1=거래소, 2=코스닥")
     ap.add_argument("--out", default=DEFAULT_OUT)
@@ -136,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
     codes: list[str] = []
     ok = False
     reason = ""
+    excl_items: list[dict] = []
+    excluded: list[str] = []
     try:
         payload = fetch_rank(url, timeout=args.timeout)
         items, codes = parse_rank(payload)
@@ -148,6 +155,23 @@ def main(argv: list[str] | None = None) -> int:
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
         reason = "%s: %s" % (type(exc).__name__, str(exc)[:120])
 
+    # 추격 배제 대역(기본 +12~30%): 이미 많이 오른 종목을 유니버스에서 뺀다.
+    # 단타스크리너 상위는 '20일 칼만 추세+모델'로 뽑혀 당일 등락률과 무관하므로
+    # 교집합(압축)이 아니라 **배제 필터**로 쓰는 것이 실측(교집합 0건)에 맞다.
+    if not args.no_chase:
+        chase_url = args.url or (
+            args.bridge_url.rstrip("/") + "/rank?" +
+            build_query(args.chase_from, args.chase_to, args.pages,
+                        args.direction, args.market)
+        )
+        try:
+            chase_payload = fetch_rank(chase_url, timeout=args.timeout)
+            excl_items, excluded = parse_rank(chase_payload)
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+            excluded = []
+            reason = (reason + " | " if reason else "") + "chase 조회 실패: %s" % (
+                str(exc)[:80])
+
     out = {
         "ok": ok,
         "reason": reason,
@@ -156,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
         "n_codes": len(codes),
         "codes": codes,
         "items": items,
+        "n_excluded": len(excluded),
+        "excluded_codes": excluded,
+        "excluded_items": excl_items,
+        "band": {"pct_from": args.pct_from, "pct_to": args.pct_to,
+                 "chase_from": args.chase_from, "chase_to": args.chase_to},
         "claim": {
             "source_rows": len(items),
             "claimed_rows": len(codes),
