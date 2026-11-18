@@ -106,6 +106,10 @@ def main():
     ap.add_argument("--min-pos", type=int, default=3)
     ap.add_argument("--min-neg", type=int, default=3)
     ap.add_argument("--json-out", default=None)
+    ap.add_argument("--since", default=None,
+                    help="YYYY-MM-DD — 이 날짜 이후(포함) 행만 사용(고정 창 재측정용)")
+    ap.add_argument("--until", default=None,
+                    help="YYYY-MM-DD — 이 날짜 이전(포함) 행만 사용")
     args = ap.parse_args()
 
     wanted = set(a.strip() for a in args.arms.split(",")) if args.arms else None
@@ -119,10 +123,16 @@ def main():
                 continue
             for fold, dates in folds.items():
                 for date, rows in dates.items():
+                    ds = str(date)[:10]
+                    if args.since and ds < args.since:
+                        continue
+                    if args.until and ds > args.until:
+                        continue
                     merged[arm][fold][date].extend(rows)
 
     out = {"preds": args.preds, "bad_lines": bad_total, "min_rows": args.min_rows,
-           "min_pos": args.min_pos, "min_neg": args.min_neg, "arms": {}}
+           "min_pos": args.min_pos, "min_neg": args.min_neg,
+           "since": args.since, "until": args.until, "arms": {}}
 
     for arm, folds in sorted(merged.items()):
         date_rows = {}   # date -> (auc, base_rate, n)
@@ -200,6 +210,9 @@ def main():
             "tercile_auc": terciles,
             "date_series": [[dates_sorted[i], round(d_auc[i], 4)] for i in range(len(dates_sorted))],
             "date_auc_mean": round(sum(d_auc) / len(d_auc), 4),
+            "date_auc_t_vs_0.5": (round((sum(d_auc) / len(d_auc) - 0.5) /
+                                        (sd(d_auc) / math.sqrt(len(d_auc))), 2)
+                                  if len(d_auc) > 1 and sd(d_auc) else None),
             "pooled_auc": round(auc([r for f in folds.values() for rows in f.values() for r in rows]), 4),
         }
 

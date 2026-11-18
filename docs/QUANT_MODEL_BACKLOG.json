@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T18:10:48+09:00",
+ "updated_at": "2026-11-18T18:32:56+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -20892,7 +20892,7 @@
   },
   {
    "id": "CG336",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "experiment",
    "owner": "engineer",
@@ -20905,7 +20905,79 @@
    "success": "사전등록: ① 전구간 폴드 평균이 0.52~0.55 로 재현 ② fold_auc_decompose 로 최근 1/3 구간 h5 AUC ≤ 0.50 & t ≤ -2 이면 '국면 붕괴가 패널·기간 특이 아님' 확정 ③ 최근 1/3 0.52 이상이면 cg331/cg333 결론을 기간 특이로 철회 ④ rc≠0 또는 덤프 미생성 = 실행실패(노이즈로 쓰지 않는다).",
    "expected": "CG333 의 국면 붕괴가 15개월 패널에서도 나오면 '모델 엣지 소실'은 구조적 → 데이터 축(신규 PIT 피처) 승인 요청의 근거가 된다. 재현 안 되면 2026-05~11 창 특이.",
    "cost": "3arm×10폴드×5시드=150 cell · 22k행에서 9~13분 → 54k행 약 25~35분",
-   "est_minutes": 35
+   "est_minutes": 35,
+   "attempts": [
+    {
+     "ts": "2026-11-18T18:32:56+09:00",
+     "rc": 0,
+     "verdict": "기준선없음",
+     "detail": "최고 LS_quant_q30_h5 0.5128 (대조군 같은 미측정 · 기록 기준선 없음)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG336_20261118-181051.log",
+     "elapsed_min": 22.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈 + 사전등록 ①미달 — 15개월 독립 패널에서 수준 자체가 기준선(0.5406) 대비 −0.0278, 최근 국면 붕괴는 미재현(단 고정창 교차측정으로 \"최근 45~60세션 무정보\"는 확정)",
+    "delta": -0.0278,
+    "detail": "15개월 패널(panel_200liq_ffill, 54,497행·217피처·2025-09-15~2026-11-09) 10폴드×5시드 150 cell, 22.1분. 폴드 평균 LS_quant_q30_h5 0.5128±0.0285 [0.4739,0.5531] 승률 0.5 · h8 0.5092±0.0296 승률 0.7 · h10 0.5053±0.0344 승률 0.6 — 세 arm 모두 등록 기준선 0.5406 대비 −0.027~−0.035, 사전등록 ①(0.52~0.55 재현) 미달. fold_auc_decompose(cg336): h5 전구간 0.5132·시간추세 t−0.33 · 3분위 early 0.5238/mid 0.4991/late 0.5167 → CG331/333 의 \"최근 1/3 0.43~0.50 붕괴\"는 이 패널에서 재현되지 않음(사전등록 ②미충족), 다만 ③(≥0.52)에도 못 미쳐 어느 쪽도 확정 아님. → 고정창(--since 2026-08-13) 교차측정으로 해소: 200종목 패널 6런 h5 계열 = 0.4821(ctl) / 0.5045 / 0.4990(cg329) / 0.4958(cg330) / 0.4986(cg332) / 0.5170(cg336, t 0.95) → 최근 45~48세션에서 h5 순위 정보는 어느 패널에서도 0.5 와 구분되지 않는다(n=5/6 런 |t|<1).",
+    "files": [
+     "/app/reports/overnight/cg336_summary.json",
+     "/app/reports/overnight/cg336_fold_decomp.json",
+     "/app/reports/overnight/cg336_recent0813.json",
+     "/app/reports/overnight/cg336_recent_money_h8.json",
+     "/app/reports/overnight/cg336_recent_money_h10.json"
+    ]
+   },
+   "note": " | 2026-11-18 19:2x 엔지니어 수동 판정(구동기 파서는 best arm 만 보므로 요약 JSON 에서 직접 계산). 도구 확장: scripts/fold_auc_decompose.py 에 --since/--until(고정 창) + date_auc_t_vs_0.5 추가 — \"최근\" 창 정의가 런마다 달라(45세션/1/3분위/85날짜) 결론이 흔들리던 문제를 없앤다. 돈 기준(같은 고정창·체결성 ON·수수료 0.21%p·43세션·pool −1.064%p/세션): h8−h5 Δ +0.393/−0.304/+0.293 (k3/5/10, t<1) · h10(청산 h10) Δ vs pool −0.930/−1.340/−0.997 (t −0.7~−1.2) → AUC 0.538~0.540 이 남아 있던 h8/h10 도 돈은 마이너스. 최근 국면 축·호라이즌 축 최종 종결.",
+   "finished_at": "2026-11-18T18:32:56+09:00"
+  },
+  {
+   "id": "CG337",
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 2,
+   "status": "done",
+   "metric": "fold_auc_decomposition",
+   "title": "'최근 국면 붕괴'가 창 정의 아티팩트인가 — 기존 덤프 6개를 같은 달력 창(2026-08-13~)으로 잘라 h5·h8·h10 을 재측정(재학습 0)",
+   "hypothesis": "CG331(최근 45세션)·CG333(최근 1/3 분위)·CG336(최근 1/3, 2026-06-22~10-19)이 서로 다른 \"최근\" 정의를 써서 결론이 엇갈렸다(AUC 0.426~0.444 붕괴 vs 0.5167 유지). 같은 달력 창으로 통일하면 (a) 붕괴가 실재하는지 (b) 창 정의 아티팩트인지 무재학습으로 갈린다.",
+   "counterfactual": "각 덤프의 전구간 폴드 평균(기존 판정) — 고정 창 값과 나란히 비교.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && for f in cg323 cg324 cg329 cg330 cg332 cg336; do python -u scripts/fold_auc_decompose.py --preds /app/reports/overnight/${f}_preds.jsonl --min-rows 20 --min-pos 3 --min-neg 3 --since 2026-08-13 --json-out /app/reports/overnight/${f}_recent0813.json; done'",
+   "success": "같은 창에서 6런 중 4런 이상이 h5 AUC 0.50±0.02 면 \"최근 국면 무정보\" 확정, 2런 이상 0.52 이상이면 패널·기간 특이로 재기술.",
+   "est_minutes": 5,
+   "result": {
+    "verdict": "창 정의 아티팩트 아님 — 고정 창(2026-08-13~)에서 h5 는 6런 중 5런이 0.48~0.50(무정보), 15개월 패널만 0.517(t 0.95). \"최근 무정보\" 확정",
+    "detail": "고정 창 2026-08-13~ (덤프별 43~48 날짜, 재학습 0). h5 계열 폴드 평균: cg323 ctl 0.4821(날짜 0.4756, t −1.13) · cg323 ss 0.5045(0.4976, t −0.11) · cg329 0.5060(0.4990, t −0.05) · cg330 0.4958(0.4958, t −0.21) · cg332 0.4986(0.4986, t −0.07) · cg336 0.5210(0.5170, t 0.95). 같은 창에서 h8 0.5254~0.5382 · h10 0.5328~0.5726 으로 h5 보다 높지만(호라이즌 역상관 재현) 시간추세는 h5 −2.5~−3.1 · h8/h10 +1.2~+2.3 로 부호가 갈린다. 돈(같은 창·체결성 ON·0.21%p·43세션·pool −1.064%p/세션): h8−h5 Δ +0.393/−0.304/+0.293(t<1) · h10(청산 h10) vs pool −0.930/−1.340/−0.997(t −0.7~−1.2) → AUC 0.538~0.540 인 h8/h10 도 돈은 마이너스. ⇒ CG331/333 의 \"최근 붕괴(AUC 0.43~0.50)\"는 창을 1/3 분위로 잡은 탓의 크기 차이이고, 결론(최근 창에 순위 정보 없음)은 15개월 패널에서도 유지된다. 최근 국면·호라이즌 축 최종 종결.",
+    "files": [
+     "/app/reports/overnight/cg336_recent0813.json",
+     "/app/reports/overnight/cg336_recent_money_h8.json",
+     "/app/reports/overnight/cg336_recent_money_h10.json"
+    ]
+   },
+   "created_at": "2026-11-18T19:13:55+09:00",
+   "finished_at": "2026-11-18T19:13:55+09:00",
+   "attempts": [],
+   "note": "2026-11-18 19:1x 엔지니어 자율(CG336 후속). 도구 확장: scripts/fold_auc_decompose.py 에 --since/--until + date_auc_t_vs_0.5 추가 — \"최근\"을 달력 창으로 고정하지 않으면 런마다 다른 창을 쓰게 되어 붕괴 크기가 흔들린다(이 실측의 직접 원인)."
+  },
+  {
+   "id": "CG338",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 1,
+   "status": "pending",
+   "metric": "wf_sweep_summary",
+   "title": "[데이터 축·공매도 원천 부활] krx_short_selling 이 이제 살아 있다(115거래일·220종목/일·결측 0) — 패널의 죽은 short_selling_ratio 컬럼을 실제 값으로 채우면 폴드 평균이 +0.02 넘는가",
+   "hypothesis": "패널 217피처에 short_selling_ratio·short_interest_ratio 컬럼이 이미 있으나 supply_market_features 경유라 비영 0.24%(사실상 죽은 컬럼)다. 그런데 krx_short_selling 은 2026-11-18 실측으로 24,472행·306종목·115거래일(2026-05-26~11-17)·일평균 220종목·short_ratio 결측 0%(중앙 6.92%, 최대 65.2%) 로 **살아 있는 원천**이 됐다(balance_quantity 는 전량 0 = 아직 미수집). 패널에 (code,date)로 as-of T-1 조인한 단변량 스크린 결과 short_ratio 날짜별 AUC 0.5333(t 4.59, 104날짜, 커버 80.7%) · short_ratio_ma5 0.5368(t 4.67) — 단변량 문턱(0.044) 근처의 처음 나온 \"신규 정보\"다. 게이트 ON 다중폴드에서도 이 정보가 학습에 반영되면 19사이클 무개선을 깰 후보다.",
+   "counterfactual": "같은 패널·같은 폴드·같은 시드의 LS_quant_q30_h5 (기존 short 컬럼 = 죽은 0값) — 패널 파일만 교체한 in-panel 짝 비교.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_short.npz --folds 10 --seeds 5 --only LS_quant_q30_h5 --out /app/reports/overnight/cg338_sweep.jsonl --summary-out /app/reports/overnight/cg338_summary.json --dump-preds /app/reports/overnight/cg338_preds.jsonl'",
+   "success": "사전등록(10폴드×5시드, 같은 행·같은 폴드·같은 시드의 CG336 결과 0.5128±0.0285 와 짝 비교): ① 폴드 평균 Δ ≥ +0.02 ② 폴드 승률 ≥ 7/10 ③ rc≠0·덤프 미생성 = 실행실패(노이즈로 쓰지 않는다). 충족 시 돈 검정(체결성 ON·수수료 0.21%p·청산 close_h) 항목을 다음으로 등록하고, 미달이면 공매도 축을 닫고 \"단변량 0.533 은 선별 문턱(0.044) 미달\" 근거와 함께 원장에 남긴다.",
+   "expected": "short_ratio 는 공매도 비중이 높을수록 단기 수익 상위 30% 에 들 확률이 높은 방향(AUC>0.5)으로 나왔다 — 숏스퀴즈/과매도 반등 기제와 일치. 다만 단변량 0.033~0.037 이라 top30 선별 문턱(0.044)에는 못 미친다 → 게이트 ON 학습에서 채택되지 않을 가능성이 높고, 그 경우 \"단변량 신호는 있으나 선별 문턱 미달\"로 기록하고 공매도 축을 닫는다(이때도 근거는 돈 지표로 남긴다).",
+   "cost": "패널 patch 약 10분(조인 54,497행) + 3arm×10폴드×5시드=150 cell · CG336 실측 22분/3arm/54k행 → 약 25분",
+   "est_minutes": 15,
+   "created_at": "2026-11-18T19:13:55+09:00",
+   "attempts": [],
+   "note": "2026-11-18 19:2x 신설(엔지니어 자율). 근거 파일: /app/reports/overnight/short_screen.json (scripts/_short_feature_screen.py — 패널 빌드 없이 DB 조인만으로 단변량 AUC·날짜 t 를 내는 5분짜리 스크리너, lag=T-1 as-of). ⚠ ① short_balance_quantity 는 전량 0 이라 잔고비율(days_to_cover)은 아직 못 만든다 — 원천(대차잔고) 확보는 수집기 소관. ② 단변량 t 는 h5 라벨 중첩 때문에 √5 가량 과대 → 실효 t≈2.1 로 읽어라(문턱 판정은 폴드 평균으로 한다). ③ 커버리지 80.7% 는 2026-06-01 이전 구간이 원천에 없기 때문 — 평가창을 2026-06 이후로 제한하면 104날짜가 남는다(10폴드 충분). ④ 배포 경로: 이 피처들은 이미 패널 스키마에 있으므로 추론 계약 변경이 없다(횡단면 rank 와 다른 점). 구현 순서: scripts/short_panel_patch.py(신규, 소유 범위 scripts/*) → 패널 사본 생성 → 스윕. 스크린 스크립트는 scripts/_short_feature_screen.py(검증 1회 실행: 표 4행 출력 확인). | 2026-11-18 19:1x 준비 완료: scripts/short_panel_patch.py 구현·실행 → /app/app/models/wf/panel_200liq_short.npz 생성 (54,497행 유지 · short_selling_ratio 17,520행(32.15%) 실값 채움 · 고유값 2,986개 · short_interest_ratio 17,518행(32.14%)). ⚠ 커버리지 32%는 원천 시작일(2026-05-26) 때문이고 나머지 68% 는 0 으로 남는다 → 모델이 \"공매도 없음\"과 \"원천 없음\"을 구분하지 못한다(마스크 컬럼 미추가 — 알려진 한계로 기록). 대조군은 같은 패널의 패치 전 값(CG336: 0.5128±0.0285) — 행·폴드·시드 동일이라 짝 비교가 성립한다. | 2026-11-18 19:14 est_minutes 60→15: 1arm 단독이라 CG336 실측(3arm/54k행 22.1분 ≈ 7분/arm)에서 15분이 전체 소요 추정치다. 60 으로 두면 ETA 가 20:00 컨테이너 재생성 창을 넘어 가드가 시작을 거부한다(실측 rc=3)."
   }
  ],
  "updated": "2026-11-18T18:10:48+09:00"
