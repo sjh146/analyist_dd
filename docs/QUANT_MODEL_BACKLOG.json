@@ -21086,7 +21086,7 @@
    "affects_model": true,
    "priority": 1,
    "status": "pending",
-   "metric": "wf_sweep_summary+money",
+   "metric": "wf_sweep_summary",
    "title": "[과제 정의 축] 시장상대(중립) 라벨 LS_rel_h5 를 청정 200종목 패널 10폴드로 처음 측정 — 등록 라벨(원수익 분위)보다 돈이 나은가",
    "hypothesis": "등록 라벨(원수익 분위 0.3)은 시장 베타를 그대로 담는다. 전방 성적표 실측(2026-11-18): h5 top10 −3.5516% vs 전체풀 −0.8654% = 모델 top10 이 풀평균보다 2.7%p 나쁘다. 즉 지금 모델은 '오를 종목'을 고르는 게 아니라 '그 주에 많이 흔들린 종목'을 고른다. 시장상대 라벨(같은 날 시장 중앙값 초과=1)은 베타를 라벨에서 빼므로 이 실패 모드를 직접 겨냥한다. LS_rel_h5 는 기록상 1회(2026-09-25 L2, panel_420_asofpatch 49종목, 3분할) 0.5245 로만 측정됐고 청정 200종목 10폴드에서는 미측정이다.",
    "counterfactual": "같은 패널·같은 폴드·같은 시드의 LS_quant_q30_h5 (CG336: 0.5128±0.0285). ⚠ 라벨 정의가 달라 AUC 절대값 비교는 무효 — 판정은 **돈**(체결성 ON·수수료 0.21%p·close_h·풀평균 대비 초과기대)으로만 한다.",
@@ -21097,7 +21097,7 @@
    "est_minutes": 20,
    "created_at": "2026-11-18T20:35:00+09:00",
    "attempts": [],
-   "note": "2026-11-18 20:3x 신설(CG340 후속·자율). ⚠ 이 실험은 배포 라벨을 바꾸지 않는다(측정만). 라벨 규칙을 실제로 교체하는 것은 리뷰보드 승인 대상. 돈 계산은 scripts/fillable_expectancy.py 재사용(CG338 의 cg338_money_vs336.json 과 같은 경로: 덤프 jsonl → 세션·종목별 trades → 체결성 필터 ON·왕복 0.21%p·close_h)."
+   "note": "2026-11-18 20:3x 신설(CG340 후속·자율). ⚠ 이 실험은 배포 라벨을 바꾸지 않는다(측정만). 라벨 규칙을 실제로 교체하는 것은 리뷰보드 승인 대상. 돈 계산은 scripts/fillable_expectancy.py 재사용(CG338 의 cg338_money_vs336.json 과 같은 경로: 덤프 jsonl → 세션·종목별 trades → 체결성 필터 ON·왕복 0.21%p·close_h).\n2026-11-18 21:1x 수리: metric 'wf_sweep_summary+money' 는 summary_path 분기에 없어 시작 로그가 '알 수 없는 metric … 판정불가로 기록' 을 냈다(= 구동기가 요약을 파싱하지 못해 자동 판정 불가). AUC 요약은 wf_sweep_summary 로 파싱하고, 돈 판정은 덤프→fillable_expectancy 경로로 따로 계산한다."
   },
   {
    "id": "CG342",
