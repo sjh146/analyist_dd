@@ -1,0 +1,17 @@
+{
+  "days": 60,
+  "end_date": "2026-11-17",
+  "universe": "prod",
+  "universe_seed": 0,
+  "limit": 8,
+  "rows": 273,
+  "dates": [
+    "2026-09-18",
+    "2026-11-17"
+  ],
+  "n_features": 213,
+  "codes_sha1": "125f8ae70f2d2627c7c0338560cca1b9c71616aa",
+  "panel_path": "/app/app/models/wf/panel_smoke_rebuild.npz",
+  "built_at": "2026-11-18T13:52:12+00:00",
+  "reused": false
+}
