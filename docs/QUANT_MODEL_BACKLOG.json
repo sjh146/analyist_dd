@@ -21098,6 +21098,27 @@
    "created_at": "2026-11-18T20:35:00+09:00",
    "attempts": [],
    "note": "2026-11-18 20:3x 신설(CG340 후속·자율). ⚠ 이 실험은 배포 라벨을 바꾸지 않는다(측정만). 라벨 규칙을 실제로 교체하는 것은 리뷰보드 승인 대상. 돈 계산은 scripts/fillable_expectancy.py 재사용(CG338 의 cg338_money_vs336.json 과 같은 경로: 덤프 jsonl → 세션·종목별 trades → 체결성 필터 ON·왕복 0.21%p·close_h)."
+  },
+  {
+   "id": "CG342",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 2,
+   "status": "pending",
+   "metric": "wf_sweep_summary",
+   "title": "[측정정합성 수리 후 재측정] 강제 포함 arm 을 같은 런 대조군과 짝지어(CG342) 재측정 — CG339·CG340 의 '기준선없음' 판정을 판정가능하게 만든다",
+   "hypothesis": "CG339(공매도 2컬럼 강제)·CG340(전구간 커버 4피처 강제) 둘 다 rc=0 완주했으나 `--force-features` 가 전역 인자라 같은 런에 '강제 없음' arm 이 없어 구동기 판정이 '기준선없음'이었다 = 축을 닫을 근거도 신호 근거도 없는 무효 측정. wf_label_sweep 에 `--force-paired`(각 config → <id> + <id>__ff)를 구현해 같은 폴드·같은 시드의 짝 Δ 를 만든 뒤, 정보량이 가장 큰 전구간 커버 arm(CG340 목록, similar_stocks_return_avg 포함)을 재측정한다.",
+   "counterfactual": "같은 런·같은 패널·같은 폴드·같은 시드의 LS_quant_q30_h5 (arm 의 __ff 없는 쌍둥이 = --force-paired 가 자동 생성)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_ffill.npz --folds 10 --seeds 5 --only LS_quant_q30_h5 --force-features similar_stocks_return_avg,quality_roa,value_psr,value_pbr --force-paired --out /app/reports/overnight/cg342_sweep.jsonl --summary-out /app/reports/overnight/cg342_summary.json'",
+   "success": "사전등록(같은 런 짝 Δ, 10폴드×5시드): ① rc=0 + 요약에 LS_quant_q30_h5 와 LS_quant_q30_h5__ff 두 arm 존재 ② 로그에 두 arm 의 n_features 차이(대조 30 · 강제 34) 확인 — 같으면 구현 오류로 실행실패 ③ 짝 Δ ≥ +0.02 이고 폴드 승률 ≥ 7/10 이면 '선별 문턱 병목' 신호(그때만 돈 검정 등록) ④ Δ < +0.02 면 축 종결: 선별 문턱(AUC edge)은 병목이 아니다 — 남은 레버는 라벨·과제 정의와 추론 계약뿐임을 원장에 남긴다. ⑤ 대조군이 이 런에서 CG336(0.5128±0.0285)를 재현하지 못하면(±0.01 밖) 패널 스냅샷 차이를 먼저 기록하고 델타는 짝으로만 읽는다.",
+   "expected": "Δ 0 안팎. 근거: CG340 강제 arm 0.5113 vs 같은 패널 기록 0.5128 = Δ−0.0015(폴드 std 0.0296) · CG339 0.5111 vs 0.5128. n_features 30→34 는 폴드 AUC 지터 ±0.004 수준이라, '선별이 버린 정보'의 기여는 검출한계 아래일 가능성이 높다.",
+   "cost": "2arm 10폴드×5시드 ≈ 12분(CG340 1arm 5.6분 실측 ×2)",
+   "est_minutes": 15,
+   "created_at": "2026-11-18T21:20:00+09:00",
+   "attempts": [],
+   "note": "2026-11-18 21:2x 신설(자율). 측정 정합성 수리 + 재측정을 한 항목으로 묶었다 — 수리는 scripts/wf_label_sweep.py `--force-paired`(기본 OFF = 기존 비트 동일, py_compile 통과). 판정은 구동기가 item['arm']/counterfactual 로 계산하므로 이 런에서는 arm=LS_quant_q30_h5__ff · 대조=LS_quant_q30_h5 로 자동 짝지어진다.",
+   "arm": "LS_quant_q30_h5__ff"
   }
  ],
  "updated": "2026-11-18T18:10:48+09:00"

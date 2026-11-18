@@ -1958,6 +1958,14 @@ def main():
     # 기본 None = 기존 실행 비트 완전 동일. 개수는 30→32 로 늘어나므로 로그에 대조군 개수를 함께 남긴다.
     ap.add_argument("--force-features", default=None,
                     help="선별 후 강제로 덧붙일 피처 이름 목록(쉼표 구분). 후보 풀에 없으면 측정 전 실패")
+    # ── CG342(2026-11-18): 강제 포함 arm 은 **같은 런 대조군이 없으면 판정 불가**였다 ──────────
+    # 실측: CG339(0.5111±0.031)·CG340(0.5113±0.0296) 둘 다 rc=0 으로 완주했지만 `--force-features`
+    # 가 **전역 인자**라 같은 런에 '강제 없음' arm 을 만들 수 없어 구동기 판정이 '기준선없음'으로
+    # 남았다(축을 닫을 근거도, 신호로 올릴 근거도 없는 무효 측정). --force-paired 는 각 config 를
+    # <id>(대조군) + <id>__ff(강제) 로 펼쳐 **같은 폴드·같은 시드**의 짝 Δ 를 만든다.
+    # 기본 OFF = 기존 실행 비트 동일.
+    ap.add_argument("--force-paired", action="store_true",
+                    help="--force-features 와 함께: 각 config 를 <id>(대조군) + <id>__ff(강제) 로 펼친다")
     args = ap.parse_args()
     _ff_names = [x.strip() for x in (args.force_features or "").split(",") if x.strip()]
     _ff_set = set(_ff_names)
@@ -2121,6 +2129,18 @@ def main():
         if not cfgs:
             print(f"--only 에 해당하는 실험 없음: {sorted(want)}", flush=True)
             return 1
+    # ── CG342: 강제 arm 을 같은 런 대조군과 짝지어 편다(각 config → <id> + <id>__ff) ────────────
+    if args.force_paired:
+        if not _ff_names:
+            print("--force-paired 는 --force-features 와 함께 써야 한다(강제 목록 비어 있음)", flush=True)
+            return 1
+        _pairs = []
+        for c in cfgs:
+            ctl = dict(c, _force=[])
+            arm = dict(c, id=f"{c['id']}__ff", _force=list(_ff_names),
+                       desc=f"{c.get('desc', '')} + 강제 {len(_ff_names)}개")
+            _pairs += [ctl, arm]
+        cfgs = _pairs
     ml.log(f"실행 실험 {len(cfgs)}개: {[c['id'] for c in cfgs]}")
     # CG23: absret 가중을 쓰는 config 가 있으면 선행수익(_fwd)을 항상 계산해야 한다
     # (기본은 --dump-preds 일 때만 계산 — 기존 동작 무변경).
@@ -2128,6 +2148,10 @@ def main():
 
     for cfg in cfgs:
         exp_id = cfg["id"]
+        # CG342: 강제 목록은 **arm 별**이다(--force-paired 의 대조군은 빈 목록).
+        # 전역 _ff_names 를 그대로 쓰면 대조군에도 강제가 걸려 짝 A/B 가 성립하지 않는다.
+        _ffn = list(cfg.get("_force", _ff_names))
+        _ffs = set(_ffn)
         rec = {"exp": exp_id, "desc": cfg["desc"], "kind": cfg["kind"],
                "horizon": cfg["horizon"], "q": cfg["q"], "select": cfg["select"],
                "transform": cfg.get("transform"),
@@ -2466,17 +2490,17 @@ def main():
                 # 성립하지 않는다. 강제 지정한 이름은 후보 풀에 반드시 남기고, 학습창 비영 비율을
                 # 함께 로그로 남겨 Δ0 을 '정보 없음'으로 오독하지 않게 한다(측정 정합).
                 _ff_info = []
-                if _ff_names:
-                    _fmiss = sorted(_ff_set - set(bn))
+                if _ffn:
+                    _fmiss = sorted(_ffs - set(bn))
                     if _fmiss:
                         raise RuntimeError(
                             f"force_features={_fmiss} 가 패널 피처 이름에 없다 — 표기 오류")
                     for j, f in enumerate(bn):
-                        if f in _ff_set and not cols[j]:
+                        if f in _ffs and not cols[j]:
                             cols[j] = True
                     _mat_tr = tr[bn].values
                     for j, f in enumerate(bn):
-                        if f in _ff_set:
+                        if f in _ffs:
                             _nz = float((_mat_tr[:, j] != 0).mean())
                             _ff_info.append(f"{f}(비영 {_nz * 100:.1f}%)")
                     ml.log(f"  {exp_id} fold{i}: 강제 피처 학습창 " + " · ".join(_ff_info))
@@ -2505,16 +2529,16 @@ def main():
                 # 선별 집합은 그대로 두고 후보 풀에만 있던 피처를 **덧붙인다**(개수 30→32).
                 # 후보 풀에 없으면 사전필터(std0·pool·시장레벨)에서 탈락한 것이므로 측정 전에
                 # 실패시킨다(0개 추가된 arm 을 '효과 없음'으로 오독하는 사고 방지).
-                if _ff_names:
+                if _ffn:
                     _have = {fn[j] for j in idx}
-                    _add = [j for j, f in enumerate(fn) if f in _ff_set and f not in _have]
-                    _in_pool = sorted(_ff_set & set(fn))
+                    _add = [j for j, f in enumerate(fn) if f in _ffs and f not in _have]
+                    _in_pool = sorted(_ffs & set(fn))
                     _base_n = len(idx)
                     if _add:
                         idx = list(idx) + _add
                         sel_desc = f"{sel_desc} + 강제 {len(_add)}개"
-                    ml.log(f"  {exp_id} fold{i}: 강제 피처 후보 {len(_in_pool)}/{len(_ff_set)} · "
-                           f"선별 기진입 {len(_have & _ff_set)} · append {len(_add)} "
+                    ml.log(f"  {exp_id} fold{i}: 강제 피처 후보 {len(_in_pool)}/{len(_ffs)} · "
+                           f"선별 기진입 {len(_have & _ffs)} · append {len(_add)} "
                            f"→ n_features {len(idx)} (대조군 {_base_n})")
                 sel = [fn[j] for j in idx]
                 # ── CG234: gate_add 후보가 실제로 선별에 들어갔는지 남긴다 ─────────────────────
