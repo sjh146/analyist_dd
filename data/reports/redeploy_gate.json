@@ -7,16 +7,16 @@
     "pass": false
   },
   "oos": {
-    "session_expectancy_pct": -0.8754,
-    "t_stat": -2.51,
+    "session_expectancy_pct": -0.7684,
+    "t_stat": -2.05,
     "source": "data/reports/champion_oos_sessions.json",
     "pass": false,
-    "reason": "순기대 -0.875% ≤ 0; t -2.51 < 1"
+    "reason": "순기대 -0.768% ≤ 0; t -2.05 < 1"
   },
   "verdict": "BLOCK",
   "reasons": [
     "표본 3 < 20",
-    "OOS 순기대 -0.875% ≤ 0",
-    "OOS t -2.51 < 1"
+    "OOS 순기대 -0.768% ≤ 0",
+    "OOS t -2.05 < 1"
   ]
 }

@@ -1,7 +1,7 @@
 {
  "source": "services/xgboost-ml/reports/overnight/expectancy_is_oos_split.json",
- "created_at": "2026-11-12T13:31:12",
- "normalized_at": "2026-11-19T14:19:51+09:00",
+ "created_at": "2026-11-19T05:26:01",
+ "normalized_at": "2026-11-19T14:26:06+09:00",
  "sample": {
   "n_rows": 2251,
   "n_sessions": 113,
@@ -15,22 +15,22 @@
  "models": {
   "champion": {
    "n_sessions": 25,
-   "session_expectancy_pct": -0.8754,
+   "session_expectancy_pct": -0.7684,
    "median_pct": -0.6437,
-   "pos_sessions_pct": 28.0,
-   "t_stat": -2.51,
+   "pos_sessions_pct": 32.0,
+   "t_stat": -2.05,
    "train_end": "2026-10-01"
   },
   "champion_cand": {
-   "n_sessions": 8,
-   "session_expectancy_pct": -0.4259,
-   "median_pct": -0.652,
-   "pos_sessions_pct": 12.5,
-   "t_stat": -0.66,
-   "train_end": "2026-10-28"
+   "n_sessions": 5,
+   "session_expectancy_pct": -0.5173,
+   "median_pct": 0.0655,
+   "pos_sessions_pct": 60.0,
+   "t_stat": -0.64,
+   "train_end": "2026-11-02"
   }
  },
- "avg_pct": -0.8754,
- "t_stat": -2.51,
+ "avg_pct": -0.7684,
+ "t_stat": -2.05,
  "n_sessions": 25
 }
