@@ -394,6 +394,21 @@ def main() -> int:
     universe_info = {"mode": args.universe, "n": len(universe)}
     if args.universe == "training":
         universe_info["seed"] = args.universe_seed
+        # 모집단 정체를 결과 파일에 박아 둔다 — 적립(날짜 누적) 비교가 성립하려면 '같은 모집단'이어야 한다.
+        # 왜(실측 2026-11-20): 같은 플래그로 8시간 간격 두 실행(CG360/CG366)의 종목 교집합이 70/200 이었고,
+        # 같은 날짜 안에서 전용집단끼리 AUC 가 0.5086 vs 0.5405(Δ−0.0319) 였다 → 모집단 교체만으로
+        # 사전문턱 +0.02 보다 큰 이동이 생긴다. 원인은 UNIVERSE_ASOF_DATE 미설정 시 창이 now()-60일로
+        # 미끄러져 rng.shuffle 입력 순서가 바뀌는 것(app/training/universe._default_date_from).
+        import hashlib
+        import os as _os
+        universe_info["codes_sha1"] = hashlib.sha1(
+            ",".join(sorted(universe)).encode()).hexdigest()[:12]
+        universe_info["frozen_asof"] = _os.environ.get("UNIVERSE_ASOF_DATE")
+        if not universe_info["frozen_asof"]:
+            logger.warning(
+                "⚠ 유니버스 미동결(UNIVERSE_ASOF_DATE 없음) — 날짜 창이 하루만 지나도 모집단이 "
+                "재추첨된다(실측 교집합 70/200). 밤 사이 적립 비교를 하려면 "
+                "`docker exec -e UNIVERSE_ASOF_DATE=YYYY-MM-DD ...` 로 실행하라.")
     try:
         from app.training.universe import is_etf_etn, select_training_universe as _stu
         with conn.cursor() as cur:
