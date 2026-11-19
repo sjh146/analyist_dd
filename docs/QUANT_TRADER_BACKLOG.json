@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-18T13:29:14+09:00",
+ "updated_at": "2026-11-19T09:34:54+09:00",
  "owner": "quant-trader",
  "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
  "rules": [
@@ -144,12 +144,12 @@
    "cost": "저",
    "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
    "result": {
-    "ts": "2026-11-18T09:25:32+09:00",
-    "value": -3069.5456090909092,
-    "check": "-3069.5456090909092 > 0.0",
+    "ts": "2026-11-19T09:25:26+09:00",
+    "value": -2655.300106666667,
+    "check": "-2655.300106666667 > 0.0",
     "verdict": "미달",
     "rc": 0,
-    "stdout_tail": "-3069.5456090909092",
+    "stdout_tail": "-2655.300106666667",
     "stderr_tail": ""
    }
   },
@@ -487,7 +487,7 @@
   {
    "id": "T48",
    "title": "피드 발행(08:20)이 swing 파이프라인(08:30)보다 먼저 돌아 항상 하루 낡은 스크리너를 발행한다",
-   "status": "failed",
+   "status": "pending",
    "priority": 1,
    "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/feed_export.py",
    "metric": "feed_signal_age_days",
@@ -530,7 +530,7 @@
   {
    "id": "T50",
    "title": "단타(daytrading) 체결의 수수료·거래세가 저널 fees 에 0 으로 기록된다",
-   "status": "backlog",
+   "status": "pending",
    "priority": 2,
    "command": "cd /home/jhshi/analyist_dd && python3 - <<'EOF'\nimport sqlite3,shutil\nshutil.copy('/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3','/tmp/j.sqlite3')\nc=sqlite3.connect('/tmp/j.sqlite3')\nprint(list(c.execute(\"select id,code,screener,pnl,fees,exit_reason from trades where id>=14\")))\nEOF",
    "metric": "daytrading_fees_sum",
@@ -539,10 +539,29 @@
     "value": 1
    },
    "hypothesis": "Cp-Td6032 실현손익 조회가 daytrading 종목(당일 왕복)의 비용을 돌려주지 않으면 journal.pnl 이 gross 로 남는다. id14(021320, 14주 @5,567.93→5,570)는 pnl +29.0 · fees 0.0 — 브리지 현금 정합(equity 243,212)으로 역산한 실제 비용은 ≈270원(추정, 수수료 왕복+거래세 0.18%)이라 실현은 ≈−117원(추정)일 수 있다.",
-   "evidence": "2026-11-18 13:05:30 실측: 저널 id14 fees=0.0, pnl=+28.9996(= (5,570−5,567.9286)×14, 비용 미차감). 같은 날 swing 청산 2건은 fees 142.8/140.7 로 기록됨 → 경로별 차이.",
+   "evidence": "2026-11-18 13:05:30 실측: 저널 id14 fees=0.0, pnl=+28.9996(= (5,570−5,567.9286)×14, 비용 미차감). 같은 날 swing 청산 2건은 fees 142.8/140.7 로 기록됨 → 경로별 차이. 2026-11-19 09:2x 재측정: 11-18 21:18 브로커 대조로 id14(021320 KCC건설) pnl +29.0→−308.0·fees 0→28.9996 로 비용 반영(순액). 그러나 id15(143240 사람인)는 pnl −41.0→−261.0(순액)인데 fees 는 0.0 — pnl 만 순액이고 fees 컬럼이 비어 gross 역산이 어긋난다(부분 수리).",
    "success": "단타 청산 행의 fees > 0 이고, 그 값으로 재계산한 pnl 이 브리지 현금 변화와 ±50원 이내로 일치한다.",
    "cost": "저",
    "note": "자율 조사 범위: 저널 정합·환류 도구. 체결가·비용은 브로커 값을 쓰고, 추정값으로 저널을 덮어쓰지 않는다(헌장상 체결가는 브로커 값만)."
+  },
+  {
+   "id": "T51",
+   "title": "감독자(supervise_loop.ps1) 2개 상주 — \\trader-loop-sup 예약작업 중복 등록으로 루프가 2개 떠 브리지 시세 5초 타임아웃 → DECIDE 중단",
+   "status": "needs_approval",
+   "priority": 1,
+   "command": "powershell -NoProfile -Command \"(Get-CimInstance Win32_Process -Filter \\\"Name='powershell.exe'\\\" | Where-Object { $_.CommandLine -match 'supervise_loop' }).ProcessId\"",
+   "metric": "loop_supervisor_count_max",
+   "check": {
+    "op": "<=",
+    "value": 1
+   },
+   "hypothesis": "같은 이름의 예약작업이 2회 등록돼 있어(\\trader-loop-sup, \\trader-bridge-sup 각 2행) 스케줄이 동시에 두 감독자를 띄운다. 감독자는 'run_market_loop 프로세스가 하나라도 있으면 기동하지 않는다'만 보므로, 루프가 죽는 순간 두 감독자가 각각 1개씩 띄워 중복 루프가 된다. 두 루프가 같은 후보 60종목 시세를 동시에 조회하면 크레온 COM 직렬 처리로 5초 클라이언트 타임아웃을 넘겨 DECIDE 가 통째로 중단된다.",
+   "evidence": "2026-11-19 실측: loop_sup.log 08:30:54 pid 4032 / 08:30:55 pid 2228 두 루프 기동 → runner.log 'pre-filter quote fetch failed ... timed out' 당일 46회, 'DECIDE aborted: bridge request failed: timed out [connection_failed]' 2회(09:00~09:28 진입 0). 09:29 중복 pid 2228 종료(taskkill) 직후 같은 1분 사이클에서 decisions=12·주문 2건(170790·362320) 발생 = 타임아웃의 원인이 부하 중복. schtasks /query 결과 \\trader-loop-sup·\\trader-bridge-sup 이 각각 2행('실행 중'), 09:35 스케줄 실행으로 감독자 2개(7824·9044) 재구성 확인. 단일 60종목 /quotes 실측 2.53s(정상 시 한도 내).",
+   "success": "루프 감독자 프로세스가 상시 1개이고, run_market_loop 프로세스도 장중 1개로 유지된다(schtasks 에서 중복 등록 1행 제거).",
+   "cost": "낮음",
+   "note": "예약작업 삭제 = 크론 변경이라 사람 승인 항목. 승인 시 실행: schtasks /delete /tn \"\\\\trader-loop-sup\" /f (중복 1행만) 후 감독자 1개 확인. 주문 경로 코드 변경 없음 — 프로세스 중복 제거만으로 DECIDE 타임아웃이 사라지는지 1거래일 관측.",
+   "created_at": "2026-11-19T09:34:54+09:00",
+   "created_by": "trader"
   }
  ]
 }
