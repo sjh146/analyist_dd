@@ -39,6 +39,7 @@
 
 import argparse
 import json
+import math
 import os
 import re
 import statistics
@@ -1536,6 +1537,15 @@ def parse_oos_accrual(path, mtime_floor) -> dict:
     run_dates = {str(x) for fl in folds for x in (fl.get("dates") or [])}
     n_union = len(real | run_dates) if run_dates else n_ledger
     se = PER_DATE_AUC_SD / (n_union ** 0.5) if n_union else None
+    # 이 런이 **실제로 측정한** 날짜 SD(폴드 auc_std 의 날짜수 가중평균). 상수 대체용.
+    # 왜(실측 2026-11-19 CG360): 종목수 80→200 실험에서 날짜 SD 가 0.0614→0.0522 로 줄었는데도
+    # se_per_date 가 상수 0.0587 이라 SE 0.0125 로 고정 표시돼, '종목수를 늘리는 레버가 먹혔는가'가
+    # 판정문에서 보이지 않았다(개선을 개선으로 읽을 수 없는 측정 표시 버그).
+    _sds = [(float(x["auc_std"]), int(x.get("n_dates") or 0)) for x in folds
+            if isinstance(x.get("auc_std"), (int, float)) and int(x.get("n_dates") or 0) > 0]
+    _tot = sum(n for _, n in _sds)
+    sd_meas = (sum(sd * n for sd, n in _sds) / _tot) if _tot else None
+    se_meas = (sd_meas / (n_union ** 0.5)) if (sd_meas is not None and n_union) else None
     return {
         "measured_at": d.get("measured_at"), "model_dir": d.get("model_dir"),
         "protocol": d.get("protocol"), "window_anchor": d.get("window_anchor"),
@@ -1552,6 +1562,8 @@ def parse_oos_accrual(path, mtime_floor) -> dict:
         "union_dates": n_union,
         "date_level": bool(run_dates),
         "se_per_date": (round(se, 4) if se else None),
+        "sd_measured": (round(sd_meas, 4) if sd_meas is not None else None),
+        "se_measured": (round(se_meas, 4) if se_meas is not None else None),
         "summary_mtime": mt,
     }
 
@@ -2078,29 +2090,38 @@ def parse_date_paired_auc(path, mtime_floor) -> dict:
 def judge_date_paired_auc(item, parsed) -> tuple:
     """날짜 단위 짝 Δ 판정 — 해상 가능성(SE) → 신호/노이즈 순서로 본다."""
     if parsed.get("error"):
-        return "판정불가", parsed["error"]
+        return "판정불가", parsed["error"], None
     p = parsed.get("paired") or {}
     n, delta, se = p.get("n"), p.get("delta_mean"), p.get("se")
     thr = parsed.get("threshold", 0.02)
     if n is None or delta is None:
-        return "판정불가", "짝 Δ 없음"
-    head = (f"{n}날짜 짝 Δ {delta:+.4f} (sd {p.get('delta_sd'):.4f} · SE {se:.4f} · t {p.get('t'):+.2f}"
-            if se is not None else f"{n}날짜 짝 Δ {delta:+.4f}")
+        return "판정불가", "짝 Δ 없음", None
+    head = f"{n}날짜 짝 Δ {delta:+.4f}"
+    # 부분 필드 결측(se 만 있고 sd/t 가 None)이면 서식 예외로 tick 이 죽는다 —
+    # 실측(2026-11-19): `{None:.4f}` TypeError 가 판정기 하나에서 tick 전체를 멈출 수 있었다.
+    sd, tv = p.get("delta_sd"), p.get("t")
+    if se is not None and sd is not None and tv is not None:
+        head += f" (sd {sd:.4f} · SE {se:.4f} · t {tv:+.2f}"
+    elif se is not None:
+        head += f" (SE {se:.4f}"
+    else:
+        head += " ("
     head += (f" · 양/음 {p.get('pos')}/{p.get('neg')} · 부호검정 p {p.get('sign_test_p')}"
-             f" · 부트스트랩95 [{p.get('boot_lo'):+.4f}, {p.get('boot_hi'):+.4f}]"
-             if p.get("boot_lo") is not None else "")
+             if p.get("pos") is not None or p.get("neg") is not None else "")
+    head += (f" · 부트스트랩95 [{p.get('boot_lo'):+.4f}, {p.get('boot_hi'):+.4f}]"
+             if p.get("boot_lo") is not None and p.get("boot_hi") is not None else "")
     head += f" · 창 {p.get('first')}~{p.get('last')})"
     if n < 10:
-        return "판정불가", f"{head} → 날짜 표본 {n} < 10 (판정 최소)"
+        return "판정불가", f"{head} → 날짜 표본 {n} < 10 (판정 최소)", delta
     # 해상 게이트: 짝 SE 가 문턱의 1/3(≈0.0067)을 넘으면 +0.02 를 3σ 로 볼 수 없다.
     if se is None or se > thr / 3:
         return ("미해상 — 짝 SE 과대",
                 f"{head} → 짝 SE {se} > {thr/3:.4f}: 이 프로토콜로 +0.02 를 해상할 수 없다"
-                if se is not None else head)
+                if se is not None else head, delta)
     if abs(delta) >= thr:
         return ("신호" if delta > 0 else "역신호",
-                f"{head} → |Δ| ≥ 사전문턱 {thr} · 짝 SE {se:.4f} (3σ 해상)")
-    return "노이즈", f"{head} → |Δ| < 사전문턱 {thr} · 짝 SE {se:.4f} (해상된 무신호)"
+                f"{head} → |Δ| ≥ 사전문턱 {thr} · 짝 SE {se:.4f} (3σ 해상)", delta)
+    return "노이즈", f"{head} → |Δ| < 사전문턱 {thr} · 짝 SE {se:.4f} (해상된 무신호)", delta
 
 
 def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
@@ -4906,6 +4927,24 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
     return judge_per(item, p)
 
 
+def _judge3(res):
+    """판정기 반환을 (verdict, detail, delta) 3-튜플로 정규화한다.
+
+    실측(2026-11-19 19:11 tick, rc=1): `judge_date_paired_auc` 만 2-튜플을 돌려주는데
+    재판정 경로가 `verdict, detail, delta = judge_by_metric(...)` 로 풀다가 ValueError 로
+    **tick 전체가 죽었다**(그 밤 큐 정지). 판정기 반환은 3-튜플로 통일하되, 새 판정기가
+    형식을 어겨도 tick 이 통째로 멈추지 않도록 여기서 흡수한다.
+    """
+    if isinstance(res, (tuple, list)):
+        if len(res) >= 3:
+            return res[0], res[1], res[2]
+        if len(res) == 2:
+            return res[0], res[1], None
+        if len(res) == 1:
+            return res[0], "", None
+    return str(res), "", None
+
+
 def rejudge_parser_gap() -> list:
     """'parser 없음'으로 기록된 원장 항목을 **사후 재판정**한다(요약 JSON 재파싱).
 
@@ -4956,7 +4995,7 @@ def rejudge_parser_gap() -> list:
                                                   it.get("summary_out")), 0.0)
         if parsed.get("error"):
             continue
-        verdict, detail, delta = judge_by_metric(it, parsed)
+        verdict, detail, delta = _judge3(judge_by_metric(it, parsed))
         r["parsed"] = parsed
         r["verdict"], r["detail"] = verdict, detail
         r["rejudged"] = {"ts": now_kst().isoformat(timespec="seconds"),
@@ -5289,21 +5328,28 @@ def judge_oos_accrual(item, parsed) -> tuple:
     n = parsed.get("union_dates")
     if not isinstance(n, (int, float)) or n <= 0:
         return "판정불가", "누적 날짜수 계산 불가(원장·요약 확인)", None
-    se = parsed.get("se_per_date")
+    se = parsed.get("se_measured") or parsed.get("se_per_date")
+    sd_m = parsed.get("sd_measured")
     base = item.get("baseline_dates") or item.get("baseline_union_dates") or 10
     target = item.get("target_dates") or 15
     means = parsed.get("fold_means") or []
     detail = (f"누적 고유 날짜 {int(n)} (원장 {parsed.get('ledger_runs')}회·직전 {base}, 목표 {target})"
-              f" · SE(1σ) {se} · 이번 앵커 {parsed.get('window_anchor')} · 견고 AUC "
+              f" · SE(1σ) {se}"
+              + (f" (측정 sd {sd_m} · 상수 0.0587 기준 {parsed.get('se_per_date')})" if sd_m is not None else "")
+              + f" · 이번 앵커 {parsed.get('window_anchor')} · 견고 AUC "
               f"{parsed.get('robust_auc')}"
               + (f" (창 {len(means)}개 [{', '.join(f'{m:.4f}' for m in means)}])" if means else "")
               + f" · 행 {parsed.get('rows_scored')}"
               + ("" if parsed.get("date_level")
                  else " · ⚠ 날짜 미기록(창키 union = 상한, SE 과소평가 위험)"))
     if n >= target:
-        need = {"0.010": 34, "0.007": 71}
+        # 해상 목표 날짜수는 **이 런의 측정 sd** 로 계산한다(상수 고정값은 종목수 변경을 못 따라간다).
+        _sd = sd_m if isinstance(sd_m, (int, float)) and sd_m > 0 else PER_DATE_AUC_SD
+        need = {"0.010": int(math.ceil((_sd / 0.010) ** 2)),
+                "0.007": int(math.ceil((_sd / 0.007) ** 2))}
         detail += (f" → 표본 문턱 도달(SE {se} ≤ 사전문턱 0.02 의 3/4). "
-                   f"판정 해상 목표는 SE 0.010 = {need['0.010']}날짜 · SE 0.007 = {need['0.007']}날짜")
+                   f"판정 해상 목표는 SE 0.010 = {need['0.010']}날짜 · SE 0.007 = {need['0.007']}날짜"
+                   f" (sd {_sd:.4f} 기준)")
         return "표본 문턱 도달", detail, None
     detail += (f" → 미해상(표본 미증가): SE {se} 가 사전문턱 +0.02 와 동급/이상이라 "
                f"'무개선'을 모델 무신호로 읽을 수 없다")
@@ -5538,7 +5584,7 @@ def execute(item, force=False):
         # h5 0.5406 = Δ−0.0338 인데 원장에 Δ+0.0000 으로 남았다. 반드시 arm 기준으로 계산하라.
         _pe = parsed.get("per_exp")
         per = _pe if isinstance(_pe, dict) else {}
-        verdict, detail, delta = judge_by_metric(item, parsed, per)
+        verdict, detail, delta = _judge3(judge_by_metric(item, parsed, per))
         if parsed.get("error") and not per:
             detail = parsed["error"]
         # ── 패널 스냅샷 불일치 = 측정무효 (2026-11-12 CG199 실사고) ────────────────────
@@ -5713,7 +5759,7 @@ def ingest(item_id, log_rel=None):
     if parsed.get("error") and not per:
         log(f"ingest 실패: {parsed['error']} (파일 {os.path.relpath(spath, PROJ)})")
         return 3
-    verdict, detail, delta = judge_by_metric(it, parsed, per)
+    verdict, detail, delta = _judge3(judge_by_metric(it, parsed, per))
     parsed["out_of_band"] = True
     parsed["source"] = os.path.relpath(spath, PROJ)
     parsed["note"] = "구동기 밖(setsid)에서 돌린 실행의 결과를 ingest 로 편입(요약 JSON 직접 파싱)"
@@ -6367,7 +6413,7 @@ def recover_unrecorded(backlog, max_age_h=12, dry_run=False):
         if parsed.get("error"):
             continue
         try:
-            verdict, detail, delta = judge_by_metric(it, parsed)
+            verdict, detail, delta = _judge3(judge_by_metric(it, parsed))
         except Exception as e:                      # 판정 불가는 복구 실패로만 남긴다
             log(f"복구 판정 실패 {it.get('id')}: {type(e).__name__}: {e}")
             continue

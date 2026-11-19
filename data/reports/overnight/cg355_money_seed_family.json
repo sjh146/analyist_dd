@@ -1,0 +1,200 @@
+{
+  "metric_name": "money_seed_family",
+  "ks": [
+    "3",
+    "5",
+    "10"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "n_seeds": 3,
+  "arms": {
+    "arm_tags": [
+      "retrain_cg346_s0",
+      "retrain_cg346_s1",
+      "retrain_cg346_s2"
+    ],
+    "control_tags": [
+      "champion_s0",
+      "champion_s1",
+      "champion_s2"
+    ],
+    "exit": "next_open",
+    "horizon": 1,
+    "fee_roundtrip_pct": 0.21,
+    "n_sessions_fillable": 10,
+    "pool_median_fillable": 22
+  },
+  "pair": {
+    "mode": "fold_date",
+    "same_fold_structure": true,
+    "arm_folds": 2,
+    "control_folds": 2,
+    "date_overlap": 10,
+    "note": "폴드→날짜집합 동일 → (fold,date) 짝"
+  },
+  "per_k": {
+    "3": {
+      "n_seeds": 3,
+      "per_seed": [
+        {
+          "seed": 0,
+          "delta": 0.3655,
+          "t": 1.14,
+          "sd": 1.0173,
+          "n_dates": 10,
+          "pos": 7,
+          "neg": 3,
+          "arm_mean": -0.5243,
+          "control_mean": -0.8897,
+          "arm_pos_pct": 30.0
+        },
+        {
+          "seed": 1,
+          "delta": 0.1709,
+          "t": 0.81,
+          "sd": 0.6651,
+          "n_dates": 10,
+          "pos": 6,
+          "neg": 4,
+          "arm_mean": -0.5865,
+          "control_mean": -0.7574,
+          "arm_pos_pct": 40.0
+        },
+        {
+          "seed": 2,
+          "delta": -0.5426,
+          "t": -1.0,
+          "sd": 1.7196,
+          "n_dates": 10,
+          "pos": 4,
+          "neg": 6,
+          "arm_mean": -0.548,
+          "control_mean": -0.0054,
+          "arm_pos_pct": 40.0
+        }
+      ],
+      "mean_delta": -0.0021,
+      "sd_delta_across_seeds": 0.3904,
+      "min_delta": -0.5426,
+      "max_delta": 0.3655,
+      "n_positive_seeds": 2,
+      "all_positive": false,
+      "all_negative": false,
+      "pooled_pos": 17,
+      "pooled_neg": 13,
+      "mean_t": 0.317
+    },
+    "5": {
+      "n_seeds": 3,
+      "per_seed": [
+        {
+          "seed": 0,
+          "delta": 0.3854,
+          "t": 1.1,
+          "sd": 1.1053,
+          "n_dates": 10,
+          "pos": 5,
+          "neg": 5,
+          "arm_mean": -0.5696,
+          "control_mean": -0.955,
+          "arm_pos_pct": 30.0
+        },
+        {
+          "seed": 1,
+          "delta": -0.205,
+          "t": -1.03,
+          "sd": 0.6305,
+          "n_dates": 10,
+          "pos": 4,
+          "neg": 6,
+          "arm_mean": -0.7432,
+          "control_mean": -0.5382,
+          "arm_pos_pct": 40.0
+        },
+        {
+          "seed": 2,
+          "delta": -0.2591,
+          "t": -0.58,
+          "sd": 1.4071,
+          "n_dates": 10,
+          "pos": 5,
+          "neg": 5,
+          "arm_mean": -0.6064,
+          "control_mean": -0.3473,
+          "arm_pos_pct": 40.0
+        }
+      ],
+      "mean_delta": -0.0262,
+      "sd_delta_across_seeds": 0.2919,
+      "min_delta": -0.2591,
+      "max_delta": 0.3854,
+      "n_positive_seeds": 1,
+      "all_positive": false,
+      "all_negative": false,
+      "pooled_pos": 14,
+      "pooled_neg": 16,
+      "mean_t": -0.17
+    },
+    "10": {
+      "n_seeds": 3,
+      "per_seed": [
+        {
+          "seed": 0,
+          "delta": 0.1751,
+          "t": 0.85,
+          "sd": 0.6482,
+          "n_dates": 10,
+          "pos": 6,
+          "neg": 4,
+          "arm_mean": -0.5323,
+          "control_mean": -0.7074,
+          "arm_pos_pct": 40.0
+        },
+        {
+          "seed": 1,
+          "delta": -0.1264,
+          "t": -0.76,
+          "sd": 0.5276,
+          "n_dates": 10,
+          "pos": 4,
+          "neg": 6,
+          "arm_mean": -0.5878,
+          "control_mean": -0.4614,
+          "arm_pos_pct": 40.0
+        },
+        {
+          "seed": 2,
+          "delta": -0.0507,
+          "t": -0.3,
+          "sd": 0.5307,
+          "n_dates": 10,
+          "pos": 4,
+          "neg": 6,
+          "arm_mean": -0.5089,
+          "control_mean": -0.4582,
+          "arm_pos_pct": 30.0
+        }
+      ],
+      "mean_delta": -0.0007,
+      "sd_delta_across_seeds": 0.1281,
+      "min_delta": -0.1264,
+      "max_delta": 0.1751,
+      "n_positive_seeds": 1,
+      "all_positive": false,
+      "all_negative": false,
+      "pooled_pos": 14,
+      "pooled_neg": 16,
+      "mean_t": -0.07
+    }
+  },
+  "files": [
+    "cg352_money_s0.json",
+    "cg352_money_s1.json",
+    "cg352_money_s2.json"
+  ],
+  "measured_at": "2026-11-19T17:23:19+09:00"
+}
