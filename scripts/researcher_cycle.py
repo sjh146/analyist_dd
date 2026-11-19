@@ -143,6 +143,13 @@ def eval_check(item):
     tgt = item.get("check_target") or {}
     if not chk:
         return None, "check 미정의", None
+    # ⚠ check_target 을 스칼라로 적으면 `or {}` 가 그 값을 삼켜 op 기본값 '>=' · value 0 이 되고
+    #   **어떤 수치든 통과**한다(실측 R43 2026-11-20: 목표를 `0` 으로 적어 "0 >= 0 → 충족" —
+    #   momentum 이 전멸해 check 가 1 을 내도 "1 >= 0 → 충족" 이 된다). 실패할 수 없는 check 는
+    #   check 가 아니다 → 조용한 통과 대신 '판정불가'로 시끄럽게 남겨 정의를 고치게 만든다.
+    if "check_target" in item and not isinstance(item["check_target"], dict):
+        return None, (f"{item['id']}: check_target 형식 오류({item['check_target']!r}) — "
+                      f"op/value dict 로 적어라(스칼라 0 은 '0 >= 0' 이 되어 실패할 수 없는 check 가 된다)"), None
     try:
         p = subprocess.run(chk, shell=True, capture_output=True, text=True, timeout=180, cwd=PROJ,
                            env=HOST_DB_ENV)

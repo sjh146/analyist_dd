@@ -32,3 +32,16 @@ def test_numeric_check_target_still_judges(monkeypatch):
     assert (val, passed) == (3.0, False)
     item["check_target"] = {"op": "<=", "value": 3}
     assert rc.eval_check(item)[2] is True
+
+
+def test_scalar_check_target_is_unjudgeable_not_always_pass(monkeypatch):
+    """스칼라 목표 0 은 `or {}` 로 삼켜져 '0 >= 0 → 충족' 이 된다(실측 R43 2026-11-20).
+
+    결함을 세는 check 가 1 을 내도 '1 >= 0' 이라 통과하므로 '실패할 수 없는 check' 가 된다 →
+    조용히 통과시키지 말고 형식 오류로 판정불가 처리해야 한다.
+    """
+    for value, out in ((0, "1"), (0, "0")):
+        item = {"id": "RX", "check": f"echo {out}", "check_target": value}
+        val, detail, passed = rc.eval_check(item)
+        assert passed is None, f"스칼라 목표 {value!r}·출력 {out} 이 판정됐다(실패할 수 없는 check)"
+        assert "형식 오류" in detail
