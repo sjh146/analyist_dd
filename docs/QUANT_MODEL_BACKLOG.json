@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-19T15:41:40+09:00",
+  "updated_at": "2026-11-19T16:07:08+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -21562,7 +21562,7 @@
       "priority": 2,
       "est_minutes": 25,
       "owner": "model_engineer",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2100 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --folds 2 --dates-per-fold 5 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-11 --universe training --universe-seed 0 --out /app/reports/overnight/oos_accrual_$(date +%Y%m%d).json' && python3 scripts/oos_accrual_log.py --append services/xgboost-ml/reports/overnight/oos_accrual_$(date +%Y%m%d).json",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2550 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --folds 2 --dates-per-fold 5 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-11 --universe training --universe-seed 0 --out /app/reports/overnight/oos_accrual_$(date +%Y%m%d).json' && python3 scripts/oos_accrual_log.py --append services/xgboost-ml/reports/overnight/oos_accrual_$(date +%Y%m%d).json",
       "counterfactual": "단일 시점 값만 보고 '기준선 대비 Δ'를 판정하던 현행(SE 0.0186 = 문턱)",
       "success": "① 34날짜 도달 시 SE ≤ 0.010 ② 그 전까지 모든 판정문에 '미해상(SE=0.0587/√n)' 표기 ③ 앵커/프로토콜 고정(창 밀림 금지)",
       "expected": "판정 가능한 표본을 캘린더로 확보 — 지금의 '20사이클 무개선'이 모델 문제인지 측정 문제인지 가른다",
@@ -21576,7 +21576,7 @@
       "priority": 2,
       "est_minutes": 35,
       "owner": "model_engineer",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && for s in 0 1 2; do python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg352_retrain_cg346_s${s}.jsonl --arm-tag retrain_cg346_s${s} --control-jsonl /app/reports/overnight/cg352_champion_s${s}.jsonl --control-tag champion_s${s} --k 3,5,10 --exit next_open --horizon 1 --json-out /app/reports/overnight/cg352_money_s${s}.json || exit 1; done'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3450 bash scripts/cg355_money_seeds.sh'",
       "counterfactual": "CG352 원 명령(--arm-tag retrain_cg346 / --control-tag champion) = 양 arm 0행 rc=2 → 순기대 미측정",
       "success": "3시드 모두 rows/arm=800·rows/control=800 · fillable n_dates≥10 산출 · 시드별 짝 Δ 와 t 를 함께 보고(단일 시드 결론 금지)",
       "expected": "재학습 후보 vs 배포 챔피언의 체결가능 순기대를 3시드로 확정 — 현재 s0 단일값(t 1.14)이라 AUC 짝 Δ(-0.0273, t -0.69)와 부호가 충돌해 판정 불가",

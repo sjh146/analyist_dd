@@ -109,14 +109,32 @@ def load_backlog():
         return json.load(f)
 
 
+def backlog_indent():
+    """커밋된 백로그의 들여쓰기 폭을 파일에서 직접 읽는다(기본 1).
+
+    왜 파일에서 읽는가: 이 파일의 포맷은 세션마다 갈렸다(indent=1 로 커밋된 시기도,
+    indent=2 로 커밋된 시기도 있다). 고정값을 쓰면 **한쪽 관례에서 틱마다 2만 줄 전체가
+    '변경'으로 잡혀** 진짜 변경(수 줄)이 화이트스페이스 노이즈에 묻힌다 — 실측 2026-11-19
+    16:0x 틱: HEAD 는 indent=2 인데 구동기는 indent=1 로 덮어써 diff 21,552줄(실변경 4줄).
+    현재 파일의 폭을 그대로 따르면 어느 관례로 커밋돼 있어도 diff 가 실변경만 남는다.
+    """
+    try:
+        with open(BACKLOG, encoding="utf-8") as f:
+            f.readline()                      # '{'
+            nxt = f.readline()
+        if nxt.startswith(" "):
+            return max(1, len(nxt) - len(nxt.lstrip(" ")))
+    except OSError:
+        pass
+    return 1
+
+
 def save_backlog(b):
     b["updated_at"] = now_kst().isoformat(timespec="seconds")
     tmp = BACKLOG + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        # indent=1 — 백로그 등록 스크립트(_add_cg*.py, _cg154_register.py 등)가 쓰는 관례와 맞춘다.
-        # 종전 indent=2 였는데 커밋된 파일은 indent=1 이라, 틱이 돌 때마다 14,050줄 전체가
-        # '변경'으로 잡혀 진짜 변경(수 줄)이 화이트스페이스 노이즈에 묻혔다(실측 2026-10-11 05:0x).
-        json.dump(b, f, ensure_ascii=False, indent=1)
+        # 들여쓰기는 커밋된 파일의 관례를 따른다(backlog_indent) — 아니면 매 틱 2만 줄 churn.
+        json.dump(b, f, ensure_ascii=False, indent=backlog_indent())
     os.replace(tmp, BACKLOG)   # 원자적 교체 — 중간에 죽어도 백로그가 깨지지 않는다
 
 
