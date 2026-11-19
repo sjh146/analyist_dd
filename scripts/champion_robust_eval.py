@@ -82,11 +82,18 @@ def auc(y: list[int], p: list[float]) -> float:
     return (rank_sum - pos * (pos + 1) / 2.0) / (pos * neg)
 
 
-def trading_dates(conn, n_dates: int, asof_date: str | None = None) -> list[str]:
+def trading_dates(conn, n_dates: int, asof_date: str | None = None,
+                  reserve_days: int = 7) -> list[str]:
     """최근 n_dates 거래일(내림차순).
 
     asof_date=None 이면 **현행과 비트 동일**(앵커 = CURRENT_DATE).
     asof_date='YYYY-MM-DD' 를 주면 그 날짜를 앵커로 창을 **고정**한다.
+
+    reserve_days(기본 7 = 현행 유지): 앵커에서 이만큼 거래일을 뒤로 물린 날짜까지만 쓴다.
+    이 보수 가드는 라벨 h일 확보·원천 적재 지연을 감안한 것이지만, 실측(2026-11-20)
+    market_data 가 11-19 까지 채워져 있는데도 창은 11-05 에서 끝나 **12거래일(7+5 purge)을
+    버리고** 있었다 → 적립 표본이 목표(31날짜)에 3주 늦게 도달한다. 기본값은 그대로 두고
+    옵션으로만 줄인다(기존 측정값 비트 불변).
 
     왜(2026-10-09 실측): 앵커가 CURRENT_DATE 라 하루만 지나도 표본 창이 통째로 밀린다
     → 같은 모델을 같은 프로토콜로 재도 값이 달라져 '기준선 대비 Δ'가 사과(모델)와
@@ -100,20 +107,21 @@ def trading_dates(conn, n_dates: int, asof_date: str | None = None) -> list[str]
                 """
                 SELECT DISTINCT trade_date FROM market_data
                 WHERE close_price > 0
-                  AND trade_date <= %(anchor)s::date - INTERVAL '7 days'
+                  AND trade_date <= %(anchor)s::date - (%(reserve)s || ' days')::interval
                 ORDER BY trade_date DESC LIMIT %(n)s
                 """,
-                {"anchor": asof_date, "n": n_dates},
+                {"anchor": asof_date, "n": n_dates, "reserve": int(reserve_days)},
             )
             return [r[0].strftime("%Y-%m-%d") for r in cur.fetchall()]
     with conn.cursor() as cur:
         cur.execute(
             """
             SELECT DISTINCT trade_date FROM market_data
-            WHERE close_price > 0 AND trade_date <= CURRENT_DATE - INTERVAL '7 days'
-            ORDER BY trade_date DESC LIMIT %s
+            WHERE close_price > 0
+              AND trade_date <= CURRENT_DATE - (%(reserve)s || ' days')::interval
+            ORDER BY trade_date DESC LIMIT %(n)s
             """,
-            (n_dates,),
+            {"n": n_dates, "reserve": int(reserve_days)},
         )
         return [r[0].strftime("%Y-%m-%d") for r in cur.fetchall()]
 
@@ -254,6 +262,11 @@ def main() -> int:
                          "게다가 창 앵커가 CURRENT_DATE 라 train_end 를 10-01 로 고정하면 창 시작이 "
                          "모두 그 이전(마지막 창 09-11~)이라 OOS 창 0개가 된다. 이 옵션으로 "
                          "'양쪽 모두 진짜 OOS'인 공통 구간만 남겨 같은 창에서 짝 비교한다.")
+    ap.add_argument("--window-reserve-days", dest="window_reserve_days", type=int, default=7,
+                    help="창 앵커에서 뒤로 물릴 일수(기본 7 = 현행 유지). 실측(2026-11-20): "
+                         "market_data 가 11-19 까지 있는데도 보수 가드 7일 + purge 5거래일 때문에 "
+                         "창이 11-05 에서 끝나 12거래일을 버렸다 → 적립 31날짜 목표가 3주 늦어진다. "
+                         "기본값은 불변(기존 값 비트 동일), 낮춘 값으로 잰 결과는 protocol 에 기록된다.")
     ap.add_argument("--model-dir", default="app/models/champion")
     ap.add_argument("--asof-date", dest="asof_date", default=None,
                     help="창 앵커(YYYY-MM-DD) — 주면 표본 거래일 창을 그 날짜 기준으로 **고정**한다"
@@ -326,7 +339,8 @@ def main() -> int:
     )
     # 창 크기: 폴드당 h 간격 날짜를 dates-per-fold 개 뽑을 수 있게 창을 넉넉히(≈2배) 잡는다.
     span = args.dates_per_fold * 2 * args.folds
-    dates_desc = trading_dates(conn, max(span + 5 * args.horizon, 200), asof_date=args.asof_date)
+    dates_desc = trading_dates(conn, max(span + 5 * args.horizon, 200), asof_date=args.asof_date,
+                               reserve_days=args.window_reserve_days)
     if not dates_desc:
         logger.error("거래일을 찾지 못했습니다")
         return 2
@@ -605,7 +619,10 @@ def main() -> int:
         "window_anchor": args.asof_date,   # None = CURRENT_DATE(현행). 값이 있으면 창이 고정됐다
         "protocol": (f"{len(fold_stats)}-fold 연속 시간창, h={args.horizon} "
                      f"{_lbl_desc} 라벨, "
-                     f"크로스섹션 AUC, purge={args.horizon}거래일"),
+                     f"크로스섹션 AUC, purge={args.horizon}거래일"
+                     + ("" if args.window_reserve_days == 7
+                        else f", window_reserve={args.window_reserve_days}거래일(비표준)")),
+        "window_reserve_days": args.window_reserve_days,
         "label_kind": args.label_kind,
         "label_q": (float(args.label_q) if args.label_q is not None else None),
         "universe": universe_info,          # 무엇을 채점했는가(모드·ETF 수·학습유니버스 교집합)

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-20T04:55:00+09:00",
+ "updated_at": "2026-11-20T07:35:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -22016,7 +22016,7 @@
    "created": "2026-11-19T23:48:28+09:00",
    "rationale": "CG363 실측(2026-11-19 23:46): 600종목 sd 0.0444(예측 0.0456 적중)로 종목수 레버 소진 · 그러나 train200 교집합 63/600 이라 수준이 +0.0255 이동해 200종목 계열과 섞을 수 없다(CG13 교체 잡음 0.0287 과 동급). 200종목 26분 vs 600종목 80분에 SE 이득은 0.0109→0.0095 뿐 → 계열은 200종목으로 고정하고 날짜를 늘리는 것이 유일하게 남은 해상도 레버다.",
    "note_asof": "--asof-date 를 주지 않는다(앵커=CURRENT_DATE) — 창이 매일 자연히 늘어 적립이 성립한다. 고정 앵커를 쓰면 표본이 영원히 22날짜에 머문다(CG358/360/362 가 그랬다). timeout 5400 = 44날짜 예상 52분 × 여유(실측 22날짜 25.9분).",
-   "updated_at": "2026-11-19T23:48:41+09:00",
+   "updated_at": "2026-11-20T05:00:00+09:00",
    "cadence": "주 1회(금 22:25 일일) 실행 권장 — 날짜는 캘린더로만 늘어 매일 재실행은 55분을 +1날짜에 쓰는 것이다. 매 틱 강행 금지.",
    "note": "priority 3: 다른 pending 을 굶기지 않게 뒤로 둔다(크론 틱은 ETA 가드로만 거른다).",
    "attempts": [
@@ -22035,7 +22035,8 @@
     "delta": null,
     "per_exp": null,
     "rc": 0
-   }
+   },
+   "note_postmortem": "사후(2026-11-20 04:xx): 이 실행의 '견고 AUC 0.5349 (23날짜)' 는 CG360(0.5132·22날짜)과 비교 불가 — 같은 플래그인데 날짜별 종목 교집합이 70/200(35%)이었고, 같은 22날짜 안에서 전용집단 AUC 가 0.5086 vs 0.5405(Δ−0.0319)였다 → Δ+0.0217 은 23번째 날짜가 아니라 모집단 교체 = 노이즈. 원인 UNIVERSE_ASOF_DATE 미설정. 동결 재현 증명과 적립 재개는 CG369/CG370."
   },
   {
    "id": "XR43",
@@ -22112,7 +22113,7 @@
   },
   {
    "id": "CG369",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "측정정합성",
    "owner": "엔지니어",
@@ -22127,13 +22128,29 @@
    "rationale": "21사이클 연속 무개선 판정의 측정 계열(CG358·360·362·363·366)이 모두 '같은 유니버스'를 전제했는데 그 전제가 거짓이었다. 이걸 고치지 않으면 앞으로의 모든 적립 Δ 도 해석 불가.",
    "est_minutes": 14,
    "created_at": "2026-11-20T04:55:00+09:00",
-   "attempts": 0,
+   "attempts": [
+    {
+     "ts": "2026-11-20T05:15:48+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='reproducibility_overlap')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG369_20261120-050736.log",
+     "elapsed_min": 8.2
+    }
+   ],
    "needs_approval": false,
-   "note": "동결 검증(2026-11-20 04:2x): UNIVERSE_ASOF_DATE=2026-10-01 로 select_training_universe 2회 → 200/200 일치. 이후 모든 적립 명령은 UNIVERSE_ASOF_DATE=2026-10-01 를 반드시 붙인다."
+   "note": "동결 검증(2026-11-20 04:2x): UNIVERSE_ASOF_DATE=2026-10-01 로 select_training_universe 2회 → 200/200 일치. 이후 모든 적립 명령은 UNIVERSE_ASOF_DATE=2026-10-01 를 반드시 붙인다.",
+   "result": {
+    "verdict": "재현됨 — 적립 날짜 비교 가능",
+    "detail": "날짜 공통 6개 · 종목 교집합 1.0 · max|Δpred| 0.0 · 공통집단 ΔAUC 0.0 (sd 0.0) · 전용집단 A None / B None. 유니버스 동결(UNIVERSE_ASOF_DATE)이 같은 모집단·같은 예측을 재현했다 → 이후 날짜 적립의 Δ 는 '모델 vs 모집단 교체' 혼합이 아니다.",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG370",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "kind": "측정정합성",
    "owner": "엔지니어",
@@ -22148,10 +22165,84 @@
    "rationale": "CG366 의 '표본 미증가' 는 시간이 지나면 풀리는 것처럼 보이지만, SE 목표(0.0067=86날짜)는 창 천장과 모순이다.",
    "est_minutes": 40,
    "created_at": "2026-11-20T04:55:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-20T06:21:36+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='robust_auc_se')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG370_20261120-060759.log",
+     "elapsed_min": 13.6
+    }
+   ],
+   "needs_approval": false,
+   "note": "다음 밤 날짜가 늘면 같은 명령의 --dates-per-fold 만 올려 재등록(36날짜 = SE 0.0104 예상).",
+   "result": {
+    "verdict": "측정완료 — 날짜 23 · 견고 AUC 0.5389 · SD 0.0371 · SE 0.0077 vs 예측 0.0114(예측 하회 -32.5%)",
+    "detail": "동결 유니버스 날짜 SD 0.0371 (CG366 0.0623 대비 -0.0252) · SE 0.0077 · 판정 3σ(+0.02) 필요 날짜 31개 · SD 가 0.05 이하로 내려감 → 남은 적립 필요 날짜 8개",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG371",
+   "status": "done",
+   "priority": 1,
+   "kind": "측정정합성",
+   "owner": "엔지니어",
+   "affects_model": false,
+   "metric": "robust_auc_se",
+   "title": "[적립 가속] 창 보수 가드(−7일)가 버리는 5날짜를 되찾는다 — 23→28날짜로 SE 0.0070, 3σ 판정 도달을 12/02 에서 11/24 로 앞당길 수 있는가",
+   "hypothesis": "CG370 의 창은 2026-11-05 에서 끝났지만 market_data 는 11-19 까지 채워져 있었다 — 손실은 가드 7일 + purge 5거래일 = 12거래일분이다. purge 가 이미 '라벨 미완성 날짜'를 잘라내므로 가드를 0으로 낮춰도 미래정보 누수는 생기지 않는다(라벨은 h=5 뒤 종가까지만 쓴다). 따라서 reserve=0 창은 같은 프로토콜의 5날짜 추가일 뿐이고, 그 5날짜의 날짜별 AUC 수준이 기존 23날짜와 다르지 않다면 적립 목표(31날짜)를 6거래일 앞당길 수 있다.",
+   "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-10-01 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2700 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --stocks 200 --folds 1 --dates-per-fold 30 --asof-date 2026-11-19 --window-reserve-days 0 --train-end 2026-10-01 --oos-start 2026-10-02 --universe training --universe-seed 0 --dump-preds /app/reports/overnight/cg371_narrow200.jsonl --dump-tag cg371_narrow --out /app/reports/overnight/cg371_narrow200.json'",
+   "counterfactual": "CG370(같은 동결 유니버스·같은 앵커·가드 7일): 23날짜(10-02~11-05) · 견고 AUC 0.5389 · 날짜 SD 0.0371 · SE 0.0077 · 3σ 판정 필요 31날짜(남은 8날짜 = 12/02)",
+   "success": "① rc=0 · 28날짜 채점(11-06~11-12 포함) ② 날짜 SD 가 0.0371 대비 크게 다르지 않다(|ΔSD| ≤ 0.010) ③ 추가 5날짜의 날짜별 AUC 평균이 기존 23날짜와 |Δ| ≤ 0.020(사전문턱) → 가드 손실은 수준 편향이 아니다 ④ SE ≤ 0.0071 · 남은 필요 날짜 3개 → '시리즈 기본값 reserve=2~3 전환' 리뷰보드 안건 상정. Δ가 문턱을 넘으면 원인(최근일 데이터 신선도·원천 지연)을 분해하고 기본값은 유지",
+   "expected": "3σ 판정 도달을 6거래일(12/02 → 11/24) 앞당긴다. 적립은 지금 21사이클 무개선을 '해상'으로 바꿀 유일한 계측기인데, 가드 하나 때문에 표본의 1/5(5/28)을 매일 버리고 있다.",
+   "rationale": "CG370 이 SE 0.0077 까지 내려왔지만 남은 8날짜를 기다리는 동안 판정은 계속 미해상이다. 가드는 원래 '최근일 적재 지연' 방어용인데 원천 신선도 WARN 은 sns·재무·매크로에만 걸려 있고 가격(market_data)은 11-19 까지 정상이다 — 즉 방어 대상이 아닌 날짜까지 잘라내고 있다.",
+   "est_minutes": 25,
+   "created_at": "2026-11-20T07:15:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-20T07:27:21+09:00",
+     "rc": 0,
+     "verdict": "측정완료 — 날짜 28 · 견고 AUC 0.5412 · SD 0.0368 · SE 0.007 vs 예측 0.0114(예측 하회 -38.6%)",
+     "detail": "동결 유니버스 날짜 SD 0.0368 (CG366 0.0623 대비 -0.0255) · SE 0.007 · 판정 3σ(+0.02) 필요 날짜 30개 · SD 가 0.05 이하로 내려감 → 남은 적립 필요 날짜 2개",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG371_20261120-071054.log",
+     "elapsed_min": 16.4
+    }
+   ],
+   "needs_approval": false,
+   "note": "코드 변경 완료(2026-11-20 07:1x): champion_robust_eval 에 --window-reserve-days 추가(기본 7 = 현행 비트 동일, summary 에 window_reserve_days·protocol 접미 기록). 기본값 OFF 회귀 확인: reserve=7 → asc 28개·usable 23개(10-02~11-05) = CG370 과 동일 창. 스모크 실행 rc=0(40종목 1날짜, reserve=0 → window [10-02, 11-12]).",
+   "result": {
+    "verdict": "측정완료 — 날짜 28 · 견고 AUC 0.5412 · SD 0.0368 · SE 0.007 vs 예측 0.0114(예측 하회 -38.6%)",
+    "detail": "동결 유니버스 날짜 SD 0.0368 (CG366 0.0623 대비 -0.0255) · SE 0.007 · 판정 3σ(+0.02) 필요 날짜 30개 · SD 가 0.05 이하로 내려감 → 남은 적립 필요 날짜 2개",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG372",
+   "status": "pending",
+   "priority": 1,
+   "kind": "측정정합성",
+   "owner": "엔지니어",
+   "affects_model": false,
+   "metric": "robust_auc_se",
+   "title": "[적립 계속] 가드 0일 창으로 29날짜 — 3σ 목표(30~31)까지 1~2날짜 남았다",
+   "hypothesis": "CG371 에서 가드를 0으로 낮춰 28날짜(SE 0.0071)를 얻었고 추가 5날짜는 수준 편향이 없었다(Δ+0.0127 < 0.02). 같은 창 규칙으로 하루 뒤 실행하면 11-13 이 더해져 29날짜가 되고, 3σ(+0.02) 판정에 필요한 30~31날짜까지 1~2날짜만 남는다.",
+   "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-10-01 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2700 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --stocks 200 --folds 1 --dates-per-fold 30 --window-reserve-days 0 --train-end 2026-10-01 --oos-start 2026-10-02 --universe training --universe-seed 0 --dump-preds /app/reports/overnight/cg372_accrual.jsonl --dump-tag cg372_accrual --out /app/reports/overnight/cg372_accrual.json'",
+   "counterfactual": "CG371(가드 0·28날짜): 견고 AUC 0.5412 · SD 0.0368 · SE 0.0071 · 3σ 필요 30날짜(남은 2)",
+   "success": "① rc=0 · 29날짜 이상 채점 ② SD 가 0.0368 대비 |Δ| ≤ 0.010 ③ 남은 필요 날짜 ≤ 1 이면 다음 적립 1회로 판정 단계 진입(그때 '기준선 대비 +0.02 3σ 판정'을 최초로 기록)",
+   "expected": "3σ 판정 도달을 11/24~11/25 로 확정 — 12/02 대비 6~7거래일 단축.",
+   "rationale": "적립은 21사이클 무개선을 '해상'으로 바꿀 유일한 계측기다. 하루 1회 이상 재실행은 무의미(날짜는 캘린더로만 는다).",
+   "est_minutes": 25,
+   "created_at": "2026-11-20T07:35:00+09:00",
    "attempts": 0,
    "needs_approval": false,
-   "note": "다음 밤 날짜가 늘면 같은 명령의 --dates-per-fold 만 올려 재등록(36날짜 = SE 0.0104 예상)."
+   "note": "16:07 틱에서 실행되면 당일(11-20) 종가가 아직 미적재일 수 있다 → 그 경우 11-13 라벨 결측으로 28날짜로 끝나므로 다음 날 재등록. 창 가드 0은 비표준(protocol 에 window_reserve=0거래일(비표준) 로 기록됨) — 시리즈 기본값 전환은 리뷰보드 승인 대기."
   }
  ],
- "updated": "2026-11-20T04:55:00+09:00"
+ "updated": "2026-11-20T07:35:00+09:00"
 }
