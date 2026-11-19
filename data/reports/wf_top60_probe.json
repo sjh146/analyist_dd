@@ -1,0 +1,192 @@
+{
+  "finished_at": "2026-11-19T14:46:52+00:00",
+  "config": {
+    "days": 420,
+    "end_date": null,
+    "limit": 50,
+    "universe": "prod",
+    "universe_seed": 0,
+    "universe_report": false,
+    "panel": "/app/app/models/wf/p_v4recent.npz",
+    "folds": 4,
+    "seeds": 1,
+    "smoke": false,
+    "summary_out": "/app/reports/overnight/wf_top60_probe.json"
+  },
+  "best": {
+    "exp": "T60_h5",
+    "desc": "처리: h5 + 분위0.3 + top60 (부활 피처 포함 여부)",
+    "ts": "2026-11-19T14:07:04+00:00",
+    "status": "ok",
+    "folds": {
+      "fold1": {
+        "train_rows": 3775,
+        "test_rows": 4240,
+        "test_from": "2026-03-31",
+        "test_to": "2026-05-22",
+        "mean": 0.5172098611605553,
+        "std": NaN,
+        "ens_pred_auc": 0.5172098611605553,
+        "n_features": 60,
+        "up_rate": 0.5
+      },
+      "fold2": {
+        "train_rows": 7999,
+        "test_rows": 4395,
+        "test_from": "2026-05-26",
+        "test_to": "2026-07-16",
+        "mean": 0.4787962574492556,
+        "std": NaN,
+        "ens_pred_auc": 0.4787962574492556,
+        "n_features": 60,
+        "up_rate": 0.4998862343572241
+      },
+      "fold3": {
+        "train_rows": 12404,
+        "test_rows": 4378,
+        "test_from": "2026-07-20",
+        "test_to": "2026-09-09",
+        "mean": 0.5201706234565827,
+        "std": NaN,
+        "ens_pred_auc": 0.5201706234565827,
+        "n_features": 60,
+        "up_rate": 0.5
+      },
+      "fold4": {
+        "train_rows": 16774,
+        "test_rows": 4407,
+        "test_from": "2026-09-10",
+        "test_to": "2026-11-05",
+        "mean": 0.5900833956006205,
+        "std": NaN,
+        "ens_pred_auc": 0.5900833956006205,
+        "n_features": 60,
+        "up_rate": 0.49988654413433176
+      }
+    },
+    "fold_mean": 0.5265650344167535,
+    "fold_std": 0.04634956317174874,
+    "fold_min": 0.4787962574492556,
+    "fold_max": 0.5900833956006205,
+    "ens_mean": 0.5265650344167535,
+    "n_folds_run": 4
+  },
+  "results": [
+    {
+      "exp": "T30_h5",
+      "desc": "대조: h5 + 분위0.3 + top30",
+      "ts": "2026-11-19T13:32:45+00:00",
+      "status": "ok",
+      "folds": {
+        "fold1": {
+          "train_rows": 3775,
+          "test_rows": 4240,
+          "test_from": "2026-03-31",
+          "test_to": "2026-05-22",
+          "mean": 0.5243462976148096,
+          "std": NaN,
+          "ens_pred_auc": 0.5243462976148096,
+          "n_features": 30,
+          "up_rate": 0.5
+        },
+        "fold2": {
+          "train_rows": 7999,
+          "test_rows": 4395,
+          "test_from": "2026-05-26",
+          "test_to": "2026-07-16",
+          "mean": 0.4507365490951968,
+          "std": NaN,
+          "ens_pred_auc": 0.4507365490951968,
+          "n_features": 30,
+          "up_rate": 0.4998862343572241
+        },
+        "fold3": {
+          "train_rows": 12404,
+          "test_rows": 4378,
+          "test_from": "2026-07-20",
+          "test_to": "2026-09-09",
+          "mean": 0.4963338850488165,
+          "std": NaN,
+          "ens_pred_auc": 0.4963338850488165,
+          "n_features": 30,
+          "up_rate": 0.5
+        },
+        "fold4": {
+          "train_rows": 16774,
+          "test_rows": 4407,
+          "test_from": "2026-09-10",
+          "test_to": "2026-11-05",
+          "mean": 0.5725007476193575,
+          "std": NaN,
+          "ens_pred_auc": 0.5725007476193575,
+          "n_features": 30,
+          "up_rate": 0.49988654413433176
+        }
+      },
+      "fold_mean": 0.5109793698445451,
+      "fold_std": 0.051013862031369095,
+      "fold_min": 0.4507365490951968,
+      "fold_max": 0.5725007476193575,
+      "ens_mean": 0.5109793698445451,
+      "n_folds_run": 4
+    },
+    {
+      "exp": "T60_h5",
+      "desc": "처리: h5 + 분위0.3 + top60 (부활 피처 포함 여부)",
+      "ts": "2026-11-19T14:07:04+00:00",
+      "status": "ok",
+      "folds": {
+        "fold1": {
+          "train_rows": 3775,
+          "test_rows": 4240,
+          "test_from": "2026-03-31",
+          "test_to": "2026-05-22",
+          "mean": 0.5172098611605553,
+          "std": NaN,
+          "ens_pred_auc": 0.5172098611605553,
+          "n_features": 60,
+          "up_rate": 0.5
+        },
+        "fold2": {
+          "train_rows": 7999,
+          "test_rows": 4395,
+          "test_from": "2026-05-26",
+          "test_to": "2026-07-16",
+          "mean": 0.4787962574492556,
+          "std": NaN,
+          "ens_pred_auc": 0.4787962574492556,
+          "n_features": 60,
+          "up_rate": 0.4998862343572241
+        },
+        "fold3": {
+          "train_rows": 12404,
+          "test_rows": 4378,
+          "test_from": "2026-07-20",
+          "test_to": "2026-09-09",
+          "mean": 0.5201706234565827,
+          "std": NaN,
+          "ens_pred_auc": 0.5201706234565827,
+          "n_features": 60,
+          "up_rate": 0.5
+        },
+        "fold4": {
+          "train_rows": 16774,
+          "test_rows": 4407,
+          "test_from": "2026-09-10",
+          "test_to": "2026-11-05",
+          "mean": 0.5900833956006205,
+          "std": NaN,
+          "ens_pred_auc": 0.5900833956006205,
+          "n_features": 60,
+          "up_rate": 0.49988654413433176
+        }
+      },
+      "fold_mean": 0.5265650344167535,
+      "fold_std": 0.04634956317174874,
+      "fold_min": 0.4787962574492556,
+      "fold_max": 0.5900833956006205,
+      "ens_mean": 0.5265650344167535,
+      "n_folds_run": 4
+    }
+  ]
+}
