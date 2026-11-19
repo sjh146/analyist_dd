@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-19T17:21:10+09:00",
+  "updated_at": "2026-11-19T17:23:47+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -21590,16 +21590,38 @@
     {
       "id": "CG355",
       "title": "[재현 수리] CG352 돈 지표 3시드 확장 — fillable 에 시드별 태그를 넘겨 0행 실패 제거(s0 단일값 탈피)",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "est_minutes": 35,
+      "finished_at": "2026-11-19T17:24:00+09:00",
+      "outcome": "노이즈 — 3시드 평균 Δ k=3 −0.0021%p(s0 +0.365/s1 +0.171/s2 −0.543, 시드 양(+) 2/3, mean t +0.32) · k=5 −0.0262 · k=10 −0.0007. CG352 의 s0 이득은 시드 잡음으로 확정 — 재학습 후보 축 종결 근거",
+      "metric": "money_seed_family",
+      "judge_k": "3",
+      "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg355_money_seed_family.json",
       "owner": "model_engineer",
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 3450 bash scripts/cg355_money_seeds.sh'",
       "counterfactual": "CG352 원 명령(--arm-tag retrain_cg346 / --control-tag champion) = 양 arm 0행 rc=2 → 순기대 미측정",
       "success": "3시드 모두 rows/arm=800·rows/control=800 · fillable n_dates≥10 산출 · 시드별 짝 Δ 와 t 를 함께 보고(단일 시드 결론 금지)",
       "expected": "재학습 후보 vs 배포 챔피언의 체결가능 순기대를 3시드로 확정 — 현재 s0 단일값(t 1.14)이라 AUC 짝 Δ(-0.0273, t -0.69)와 부호가 충돌해 판정 불가",
       "created": "2026-11-19T15:41:02+09:00",
-      "rationale": "load_rows 가 exp 태그로 필터하므로 덤프 태그(_s{s})와 --*-tag 가 일치해야 한다(CG352 는 여기서 0행 rc=2). CG344(--control-jsonl 누락)와 같은 계열의 '명령 재현 불가' 결함 — 측정값이 있어도 재현이 안 되면 자산이 아니다."
+      "rationale": "load_rows 가 exp 태그로 필터하므로 덤프 태그(_s{s})와 --*-tag 가 일치해야 한다(CG352 는 여기서 0행 rc=2). CG344(--control-jsonl 누락)와 같은 계열의 '명령 재현 불가' 결함 — 측정값이 있어도 재현이 안 되면 자산이 아니다.",
+      "attempts": [
+        {
+          "ts": "2026-11-19T17:22:06+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "parser 없음 (metric=None)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG355_20261119-172203.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "k=3 시드 평균 Δ-0.0021%p (sd 0.3904) · 시드 양(+) 2/3 · pooled pos/neg 17/13 · mean t +0.32  · 시드별 [s0: +0.365(t +1.14), s1: +0.171(t +0.81), s2: -0.543(t -1.00)] · 다른 k [k=5 -0.0262, k=10 -0.0007] → 시드 부호 불일치 2/3 · 평균 Δ < +0.1%p · t +0.32 < 2 (단일 시드 이득은 시드 잡음)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG356",

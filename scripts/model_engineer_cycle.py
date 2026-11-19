@@ -2005,6 +2005,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind == "oos_accrual":
         # CG354/CG356 — 견고평가 요약 + 누적 원장(날짜 union·SE). 계측기 항목.
         return parse_oos_accrual(spath, mtime_floor)
+    if kind == "money_seed_family":
+        # CG355 — 시드별 돈 지표 집계(시드 부호 유지 검정).
+        return parse_money_seed_family(spath, mtime_floor)
     if kind == "insample_gap":
         # CG275 — 폴드별 train vs OOS 갭 리포트(scripts/_insample_gap_report.py)
         return parse_insample_gap(spath, mtime_floor)
@@ -4729,6 +4732,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_champion_baseline(item, parsed)
     if kind == "oos_accrual":
         return judge_oos_accrual(item, parsed)
+    if kind == "money_seed_family":
+        return judge_money_seed_family(item, parsed)
     if kind == "insample_gap":
         return judge_insample_gap(item, parsed)
     if kind == "horizon_ladder":
@@ -5180,6 +5185,86 @@ def judge_oos_accrual(item, parsed) -> tuple:
     detail += (f" → 미해상(표본 미증가): SE {se} 가 사전문턱 +0.02 와 동급/이상이라 "
                f"'무개선'을 모델 무신호로 읽을 수 없다")
     return "미해상 — 표본 미증가", detail, None
+
+
+def parse_money_seed_family(path, mtime_floor) -> dict:
+    """시드별 돈 지표 집계(scripts/money_seed_family.py)를 읽는다 — CG355.
+
+    왜 전용인가: fillable_topk_expectancy 는 시드마다 파일이 하나다. 항목의 판정은
+    '한 시드가 +0.365'가 아니라 **시드 부호가 유지되는가**이므로, 시드 평균·부호 일치·pooled
+    pos/neg 를 한 번에 봐야 한다. 이 파서가 없으면 3시드 실행이 '판정불가(parser 없음)'로 닫힌다
+    (CG355 실측: rc=0·3파일 정상 생성인데 결과 소실).
+    """
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except json.JSONDecodeError as e:
+        return {"error": f"요약 JSON 파싱 실패: {e}", "summary_mtime": mt}
+    per_k = d.get("per_k") or {}
+    if not per_k:
+        return {"error": "per_k 없음(집계 실패 또는 스키마 불일치)", "summary_mtime": mt}
+    ks = [k for k, v in per_k.items() if isinstance(v, dict) and isinstance(v.get("mean_delta"), (int, float))]
+    if not ks:
+        return {"error": "per_k 에 mean_delta 가 있는 k 없음", "summary_mtime": mt}
+    best_k = max(ks, key=lambda k: per_k[k]["mean_delta"])
+    return {
+        "measured_at": d.get("measured_at"), "n_seeds": d.get("n_seeds"),
+        "seeds": d.get("seeds"), "ks": ks,
+        "per_k": {k: per_k[k] for k in ks},
+        "best_k": best_k, "best_mean_delta": per_k[best_k]["mean_delta"],
+        "arms": d.get("arms"), "pair": d.get("pair"), "files": d.get("files"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_money_seed_family(item, parsed) -> tuple:
+    """시드 가족 돈 판정 — **모든 시드가 같은 부호**여야 신호다(단일 시드 금지 하드룰).
+
+    사전등록 문턱(챔피언 대비): 평균 Δ ≥ +0.1%p · 전 시드 양(+) · 평균 t ≥ 2.
+    하나라도 어긋나면 '노이즈'로 쓴다 — 실측 CG355: k=3 이 s0 +0.365(t 1.14) 였지만
+    3시드로 늘리니 +0.365/+0.171/−0.543, 평균 −0.002 = 시드 잡음이었다.
+    """
+    if parsed.get("error"):
+        return "판정불가", parsed["error"], None
+    ks = parsed.get("ks") or []
+    if not ks:
+        return "판정불가", "k 없음", None
+    k = str(item.get("judge_k") or parsed.get("best_k"))
+    b = parsed["per_k"].get(k) or parsed["per_k"][parsed["best_k"]]
+    mean = b.get("mean_delta")
+    detail = (f"k={k} 시드 평균 Δ{mean:+.4f}%p (sd {b.get('sd_delta_across_seeds')}) "
+              f"· 시드 양(+) {b.get('n_positive_seeds')}/{b.get('n_seeds')} "
+              f"· pooled pos/neg {b.get('pooled_pos')}/{b.get('pooled_neg')} "
+              f"· mean t {b.get('mean_t'):+.2f} "
+              + " · 시드별 ["
+              + ", ".join(f"s{x.get('seed')}: {x.get('delta'):+.3f}(t {x.get('t'):+.2f})"
+                          for x in b.get("per_seed") or []
+                          if isinstance(x.get("delta"), (int, float)))
+              + "]")
+    others = [f"k={kk} {parsed['per_k'][kk]['mean_delta']:+.4f}"
+              for kk in ks if kk != k]
+    if others:
+        detail += " · 다른 k [" + ", ".join(others) + "]"
+    ok = (isinstance(mean, (int, float)) and mean >= 0.1 and b.get("all_positive")
+          and isinstance(b.get("mean_t"), (int, float)) and b["mean_t"] >= 2)
+    if ok:
+        return "신호있음", detail + " → 전 시드 양(+)·문턱 충족(승격은 dry-run 뒤 별도 판단)", mean
+    if isinstance(mean, (int, float)) and mean <= -0.1:
+        return "악화", detail + f" → 후보가 챔피언보다 열세(문턱 −0.1%p 이하)", mean
+    why = []
+    if not b.get("all_positive"):
+        why.append(f"시드 부호 불일치 {b.get('n_positive_seeds')}/{b.get('n_seeds')}")
+    if isinstance(mean, (int, float)) and mean < 0.1:
+        why.append("평균 Δ < +0.1%p")
+    if isinstance(b.get("mean_t"), (int, float)) and b["mean_t"] < 2:
+        why.append(f"t {b['mean_t']:+.2f} < 2")
+    return "노이즈", detail + " → " + " · ".join(why) + " (단일 시드 이득은 시드 잡음)", mean
 
 
 def _attempts_list(it):
