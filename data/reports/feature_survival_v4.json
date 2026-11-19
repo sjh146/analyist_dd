@@ -12,7 +12,7 @@
     ],
     "codes": 200,
     "path": "data/panels/panel_prod200_v4.npz",
-    "mtime": 1795075892.5430555
+    "mtime": 1795078612.3110542
   },
   "params": {
     "h": 5,
@@ -3944,26 +3944,26 @@
       "reasons": [],
       "stats": {
         "rows": 61640,
-        "null_ratio": 0.817635,
-        "nnz_ratio_honest": 0.176655,
-        "std": 0.071054,
-        "nunique": 10890,
+        "null_ratio": 0.678715,
+        "nnz_ratio_honest": 0.283274,
+        "std": 0.063838,
+        "nunique": 17417,
         "coverage_days": 0.375796,
-        "coverage_codes": 0.56,
-        "n_valid": 11241,
-        "n_nonzero": 10889,
+        "coverage_codes": 0.995,
+        "n_valid": 19804,
+        "n_nonzero": 17461,
         "const_value": 0.028676,
-        "xsec_std_median": 0.066263,
+        "xsec_std_median": 0.060037,
         "xsec_constant_ratio": 0.636943,
-        "time_std": 0.018122
+        "time_std": 0.022373
       },
       "leak": {
         "L1": false,
         "L2": false,
-        "corr_L1": 0.024356,
-        "corr_L2": -0.018295,
-        "n": 10681,
-        "note": "임계 미만: L1=0.024356 L2=-0.018295"
+        "corr_L1": 0.029786,
+        "corr_L2": -0.015676,
+        "n": 18809,
+        "note": "임계 미만: L1=0.029786 L2=-0.015676"
       }
     },
     {
@@ -6490,7 +6490,7 @@
     "runner": "feature_survival_report",
     "source": "panel_npz",
     "source_rows": 61640,
-    "source_bytes": 24710214,
+    "source_bytes": 24730819,
     "parsed_features": 213,
     "persisted_features": 213,
     "persisted_files": [

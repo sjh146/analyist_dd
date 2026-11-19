@@ -3,7 +3,7 @@
  "out": "data/panels/panel_prod200_v4.npz",
  "column": "short_selling_ratio",
  "rows": 61640,
- "codes_with_source": 112,
+ "codes_with_source": 199,
  "lag_trading_days": 1,
  "before": {
   "nonzero_rows": 2085,
@@ -13,11 +13,11 @@
   "std": 0.021147260442376137
  },
  "after": {
-  "nonzero_rows": 10889,
-  "nnz_ratio": 0.17665476963011031,
-  "null_ratio": 0.8176346528228423,
-  "mean": 0.06247391179203987,
-  "std": 0.07105422765016556
+  "nonzero_rows": 17461,
+  "nnz_ratio": 0.28327384815055157,
+  "null_ratio": 0.6787151200519144,
+  "mean": 0.043754417449235916,
+  "std": 0.063838429749012
  },
  "verify": {
   "rows": true,

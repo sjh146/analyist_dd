@@ -1,6 +1,6 @@
 # 피처 생존 판정 (3축: 분산 · 커버리지 · 누수)
 
-- 패널: `data/panels/panel_prod200_v4.npz` — shape=(61640, 213), 기간 2025-08-04 ~ 2026-11-17 (314일), 200종목, mtime 2026-11-19 08:11:32 UTC, 스냅샷 최종일 기준 **2일 전**
+- 패널: `data/panels/panel_prod200_v4.npz` — shape=(61640, 213), 기간 2025-08-04 ~ 2026-11-17 (314일), 200종목, mtime 2026-11-19 08:56:52 UTC, 스냅샷 최종일 기준 **2일 전**
 - 실행: `python3 scripts/feature_survival_report.py --h 5 --min-coverage 0.05 --top-pairs 20`
 - 판정: 총 213 → alive 120 · dead 66 · conditional 27
 
