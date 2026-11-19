@@ -1,0 +1,162 @@
+{
+ "kind": "engineer_daily_judgment",
+ "created_at": "2026-11-19T22:29:59+09:00",
+ "champion_before": {
+  "auc_txt": 0.551318,
+  "robust_auc": 0.5513,
+  "robust_oos": 0.4908,
+  "robust_oos_expectancy_pct": -0.182,
+  "sessions": 87,
+  "trades": 1340
+ },
+ "challenger": {
+  "dir": "app/models/champion_cand",
+  "retrained_at": "2026-11-19T11:50:58",
+  "n_rows": 11868,
+  "n_train": 9494,
+  "n_val": 2374,
+  "val_window": [
+   "2026-11-03",
+   "2026-11-19"
+  ],
+  "data_window": [
+   "2026-08-21",
+   "2026-11-19"
+  ],
+  "single_split_ensemble_auc": 0.5939,
+  "ensemble_auc_deployed_substance": 0.5564,
+  "model_aucs": {
+   "xgboost": 0.4799,
+   "lightgbm": 0.5486,
+   "catboost": 0.6181
+  },
+  "robust_oos": {
+   "robust_auc": 0.4624,
+   "fold_aucs": [
+    0.4418,
+    0.4746,
+    0.4708
+   ],
+   "fold_std": 0.0146,
+   "auc_pooled": 0.4707,
+   "expectancy_pct": 0.0277,
+   "expectancy_t": 0.16,
+   "n_sessions": 113,
+   "n_trades": 1771,
+   "halves": {
+    "front_pct": 0.1094,
+    "back_pct": -0.0525,
+    "stable": "unstable"
+   },
+   "protocol": "80종목·h5 rel·3폴드(5요청)·topk3·수수료 0.21%p·익일시가",
+   "created_at": "2026-11-19T12:19:04"
+  }
+ },
+ "gate_default": {
+  "status": "would_promote",
+  "reason": "dry-run: incumbent left untouched",
+  "candidate_auc": 0.5939,
+  "candidate_metric": "ensemble_auc",
+  "champion_baseline": 0.5513
+ },
+ "gate_money": {
+  "status": "kept_incumbent",
+  "reason": "돈 기준 게이트 거부: 분할표본 불안정(앞 0.1094 / 뒤 -0.0525)",
+  "candidate_metric": "robust_auc",
+  "candidate_auc": 0.4624,
+  "champion_baseline": 0.5513,
+  "champion_baseline_source": "robust_auc.json"
+ },
+ "verdict": "승격 금지(kept_incumbent) — 다중폴드 0.4624 < 챔피언 0.4908(같은 프로토콜) 이고 <0.5. 단일분할 0.5939 는 2,374행/16일 val + catboost 0.6181(xgb 0.4799) 단일 시드 값이라 승격 근거가 될 수 없다(하드규칙 1).",
+ "forward_money": {
+  "source": "services/xgboost-ml/reports/overnight/forward_scorecard.json",
+  "generated_at": "2026-11-19T06:36:48",
+  "h1": {
+   "n_dates": 15,
+   "rows": 55604,
+   "kept": 11836,
+   "topk_net_pct": 0.1281,
+   "pool_net_pct": 0.0587,
+   "delta_pct": 0.0694,
+   "delta_t": 0.1122,
+   "split_half": [
+    -0.3143,
+    0.4051
+   ],
+   "topk_pos_dates": "6/15",
+   "pooled_auc": 0.5744,
+   "daily_auc_mean": 0.517
+  },
+  "h5": {
+   "n_dates": 11,
+   "rows": 41046,
+   "kept": 8565,
+   "topk_net_pct": -4.5793,
+   "pool_net_pct": -2.839,
+   "delta_pct": -1.7403,
+   "delta_t": -1.7121,
+   "split_half": [
+    -2.7425,
+    -0.9051
+   ],
+   "topk_pos_dates": "5/11",
+   "pooled_auc": 0.607,
+   "daily_auc_mean": 0.504
+  }
+ },
+ "dq_leak_check": {
+  "dq_feature_stock_constant_ratio": 0.3737,
+  "dq_feature_market_level_count": 24,
+  "dq_feature_coverage_illusion_max": 0.9955,
+  "dq_feature_null_ratio_high_count": 27,
+  "dq_feature_alive_xsec_count": 166,
+  "note": "종목상수 0.3737(기준선 0.38)·시장레벨 24 불변 → 신규 누수 신호 없음. null_ratio_high 27 은 R14 스냅샷 일관화 이후 기준선(26) 근처."
+ },
+ "cycle": {
+  "item": "CG363",
+  "started": "2026-11-19T22:26:13+09:00",
+  "finished": "2026-11-19T23:46:43+09:00",
+  "elapsed_min": 80.5,
+  "rc": 0,
+  "rows": 13200,
+  "dates": 22,
+  "mean_auc": 0.5387,
+  "date_sd": 0.0444,
+  "se": 0.00947,
+  "counterfactual_cg360": {
+   "mean": 0.5132,
+   "sd": 0.051,
+   "se": 0.0109
+  },
+  "criteria": {
+   "rc0_22dates": true,
+   "date_sd_le_0.047": true,
+   "mean_abs_delta_le_0.02": false,
+   "mean_delta": 0.0255,
+   "se_ok": true
+  },
+  "universe": {
+   "n": 600,
+   "overlap_train200": 63,
+   "note": "교체(확대 아님) — 수준 이동은 CG13 교체 잡음 0.0287 과 동급"
+  },
+  "conclusion": "종목수 레버 소진(sd 0.0444 ≈ 예측 하한 0.0456). 남은 레버는 날짜수 — +0.02 를 3σ 로 판정하려면 44날짜 필요(현재 22). 600종목은 비용 3배에 SE 이득 0.0009 → 측정 계열은 200종목·h5 고정.",
+  "driver_verdict": "미해상 — 표본 미증가 (고유날짜 22<target 26) — accrual 일반규칙 산물, 항목 기준 ②는 충족"
+ },
+ "panel": {
+  "panel_420.npz_mtime": "2026-09-24T17:04",
+  "panel_420_asofpatch_mtime": "2026-09-24T19:02",
+  "note": "패널 캐시 불변 + 금요일 아님 → 주간 walk-forward 재측정은 11-20(금) 22:25 로 이월"
+ },
+ "followups": [
+  "CG364 리서처 부활 3피처 단변량 엣지 vs 선별문턱 0.044 (pending, est 12분)",
+  "CG365 전방 h=5 Δ 재판정(n_dates 20 도달 시) — CG137 이후 첫 money 블록 기록",
+  "CG366 200종목·h5 44날짜 적립 (priority 3, 주 1회 권장)"
+ ],
+ "delegation": {
+  "target": "ask_claude.sh investigate 챌린저 단일분할↔다중폴드 격차",
+  "result": "실패",
+  "detail": "Claude Code 600s 출력 0바이트(rc=124) → opencode 폴백 없음(rc=1). 결과 파일 없음 → 채택 0건.",
+  "self_verified": "격차는 프로토콜 차이(단일분할 2,374행/16일 vs 80종목·h5·3폴드). 판정 기준은 다중폴드(하드규칙 1)."
+ }
+}
