@@ -1,0 +1,21 @@
+{
+  "since": "2026-11-19",
+  "live": {
+    "n": 3,
+    "net_pnl": 4688.0,
+    "win_pct": 66.7,
+    "pass": false
+  },
+  "oos": {
+    "session_expectancy_pct": null,
+    "t_stat": null,
+    "source": null,
+    "pass": false,
+    "reason": "측정 불가"
+  },
+  "verdict": "BLOCK",
+  "reasons": [
+    "표본 3 < 20",
+    "OOS 세션 지표 없음"
+  ]
+}
