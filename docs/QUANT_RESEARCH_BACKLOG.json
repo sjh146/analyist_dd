@@ -1053,7 +1053,7 @@
         "detail": "R25: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R25_20261118-204728.log"
+        "log": "data/reports/res_cycle/logs/res_R25_20261120-044736.log"
       },
       "recurring": true,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
@@ -1171,6 +1171,11 @@
         },
         {
           "ts": "2026-11-18T20:47:28+09:00",
+          "rc": 0,
+          "detail": "R25: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-20T04:47:37+09:00",
           "rc": 0,
           "detail": "R25: 0 <= 0 → 충족"
         }
@@ -1707,13 +1712,18 @@
           "ts": "2026-11-18T22:47:36+09:00",
           "rc": 0,
           "detail": "R35: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-20T06:48:01+09:00",
+          "rc": 0,
+          "detail": "R35: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R35: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R35_20261118-224732.log"
+        "log": "data/reports/res_cycle/logs/res_R35_20261120-064758.log"
       }
     },
     {
@@ -1795,7 +1805,8 @@
       "setup_needed": [
         "[결정 요청 · 7일 경과] 착시 지표의 모집단 정의를 정해야 한다(문턱 조정으로는 안 고쳐진다). 택일: (A)[권고] writer 4종(build_supply_market_features.py:452 · build_financial_ratio_features · build_macro_features.py:386 · build_event_features)의 window_days 기록을 **모델 창 120거래일 고정** + 1회 전량 재계산 → 실측값 63→26(문턱 50 통과)이고 코드가 바뀌므로 재발 없음. / (B) exporter 에 창별 메트릭 분리(120일=알림, 전체=정보용) → 문턱 유지·대시보드·알림규칙 수정. / (C) 현행 유지+문턱 65/70 → 가장 싸지만 37개 결함이 상시 가려진다. A·B 는 알림 인구 변경이라 리뷰보드 승인 사항.",
         "[실측 2026-11-18 04:48, read-only SQL] 4번째 재발(예고대로): 착시 **63** ≥ 50 = 창120 131행 중 **26** + 창519 52행 중 **21** + **창42 19행 중 16**(신규 창 — 11-17 11:15 재계산이 수급·모멘텀 19행을 42일 격자로 기록). 비모델창 71행 · 창 가짓수 3. 창120 기준 26 은 11-12·11-13 값과 동일 → **데이터 악화가 아니라 정의 문제**임이 4번 확정. 11-13 21:11 전량 재계산으로 26 이 됐던 것은 코드 변경이 아닌 스냅샷 운값(그 190/26 을 '개선'으로 계상 금지).",
-        "[실측 2026-11-18 22:47, read-only] 63→26 '해소'는 데이터 개선이 아니라 **라벨 재계산**이다 — 21:14 KST feature_coverage_report 재실행(window_days=120 하드코딩)이 202행(창120 131 + 창519 52 + 창42 19)을 전부 window_days=120 으로 덮어써 창 변종 3→1·비모델창 71→0, 착시 26(=창120 기준 11-12·11-13 과 동일값). 빌더 4종은 여전히 창을 날짜범위로 기록하므로 **다음 빌더 실행에서 63 재발**(4번째 재발과 같은 기전) — 재발 차단책은 A안(코드에서 120 고정)뿐이다."
+        "[실측 2026-11-18 22:47, read-only] 63→26 '해소'는 데이터 개선이 아니라 **라벨 재계산**이다 — 21:14 KST feature_coverage_report 재실행(window_days=120 하드코딩)이 202행(창120 131 + 창519 52 + 창42 19)을 전부 window_days=120 으로 덮어써 창 변종 3→1·비모델창 71→0, 착시 26(=창120 기준 11-12·11-13 과 동일값). 빌더 4종은 여전히 창을 날짜범위로 기록하므로 **다음 빌더 실행에서 63 재발**(4번째 재발과 같은 기전) — 재발 차단책은 A안(코드에서 120 고정)뿐이다.",
+        "[실측 2026-11-20 06:48, Prometheus(read-only)] 5번째 재발 진행 중 — dq_feature_coverage_illusion_count=41(문턱 50 미만이라 스냅샷 rc=0 으로 숨음), dq_feature_illusion_at_120d_count=26(불변) + 비모델창 dq_feature_non_model_window_rows=36행, 창 가짓수 dq_feature_window_variants_count=3(42/120/519). 11-18 22:47 라벨 재계산 직후 0 이었던 비모델창이 36 으로 다시 자랐다 = 빌더 4종이 여전히 날짜범위 창을 기록한다는 예고가 그대로 실현. A안(코드 120 고정) 적용 전에는 착시 26 이 하한이고 41→50 도달 시 dq 스냅샷 warn 이 뜬다."
       ],
       "note": "이 위반으로 rc=3 이 뜨는 틱은 '데이터 악화'가 아니다 — 분해표(창별)로 읽어야 한다. dq_snapshot 주석에도 같은 진동이 기록돼 있다(coverage_illusion: 36→41, 10-07 62 → 11-09 41). 재계산 주체는 로그에 남지 않았다(00:14~00:15 KST 실행, 어느 러너인지 미상) — 재계산 경로에 자기신고를 붙이는 것은 별건.",
       "check": null,
@@ -1929,7 +1940,11 @@
       "hypothesis": "빌더가 --since(격자 하한)만 로드하면 252거래일 shift 가 전부 NaN 이 되어 12개월 모멘텀이 0 이 된다. 원천은 멀쩡하고 '창'만 좁은 경우라, 수집 실패 신호(빈 응답·0행)에는 전혀 걸리지 않고 feature_coverage nonzero=0 으로만 드러난다.",
       "evidence": "실측 2026-11-19 21:1x — cron/supply_features.sh(20:15)가 --since 45일 전으로 돌면서 window_days=43 창의 momentum_3_12m nonzero=0.0000(전부 NULL). supply_market_features 11-03~11-18 nz 0 (10-05 이후 재빌드분). 수리 = price_history_start() 로 가격 이력만 since-400일 로드 후 격자 하한 복원. 재실행 실측: momentum_3_12m nz 0.8910(11-18 3,475/3,729), bb_position 0.3822→0.9966, relative_strength 0.9673→0.9998 (첫날 NaN·20일 창 절단도 함께 해소). 회귀 tests/test_supply_features_momentum_lookback.py 5건.",
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END FROM supply_market_features WHERE trade_date=(SELECT MAX(trade_date) FROM supply_market_features) AND momentum_3_12m IS NOT NULL AND momentum_3_12m<>0\"",
-      "check_target": {"op": "<=", "value": 0, "unit": "momentum 미생존 결함수(check=1 이면 최신일 momentum 전멸)"},
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "momentum 미생존 결함수(check=1 이면 최신일 momentum 전멸)"
+      },
       "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/build_supply_market_features.py --since $(date -d '45 days ago' +%F)",
       "notes": "감시는 '최신 거래일의 momentum_3_12m 이 값이 있는가'만 본다(원천=momentum). 같은 함정의 일반형: 어떤 빌더든 --since 를 좁히면 그보다 긴 lookback 피처(BB 20일·모멘텀 252일)가 조용히 죽는다 — 새 피처를 추가할 때 '필요 lookback <= 로드 창'을 회귀 테스트로 고정하라. [실측 2026-11-20 00:50 빌드] momentum 은 살아났으나(11-19 nz 1,532/1,566 = 97.8%, 11-12~18 각 3,475~3,480) 최신일 피처 커버리지는 1,566/3,716 = 42% 다 — 빌드 시각(00:48)의 market_data 에 11-19 봉이 1,566종목뿐이었고 나머지 ~2,150봉은 그 뒤에 적재됐다. 격자가 빌드 시점 스냅샷이라 최신일이 얇게 구워진다(조치 불요: 45일 창이라 다음 20:15 빌드가 재계산).",
       "attempts": [
