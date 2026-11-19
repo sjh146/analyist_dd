@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-19T07:31:19+09:00",
+  "updated_at": "2026-11-19T15:41:40+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -21520,13 +21520,16 @@
           "detail": "측정값 없음 — 종료코드 2",
           "log": "data/reports/me_cycle/logs/me_cycle_CG352_20261119-071326.log",
           "elapsed_min": 17.9
+        },
+        {
+          "ts": "2026-11-19T15:41:02+09:00",
+          "note": "rc=2 원인 규명(태그 불일치) + AUC 짝 Δ 기록"
         }
       ],
       "result": {
-        "verdict": "실행실패",
-        "detail": "측정값 없음 — 종료코드 2",
-        "delta": null,
-        "per_exp": null,
+        "verdict": "실행실패(rc=2) — 원인=fillable 태그 불일치(명령 재현 결함). AUC·순기대(s0) 값은 생성돼 위 verdict 에 기록됨",
+        "detail": "rc=2 실측 원인: fillable_topk_expectancy.load_rows 가 exp != --arm-tag 로 행을 거르는데 덤프 태그는 retrain_cg346_s0 / champion_s0 인데 명령은 --arm-tag retrain_cg346 --control-tag champion → 0행([FAIL] 행 없음 arm=0 control=0). 그럼에도 cg352_paired.json(AUC 3시드)과 cg352_money.json(s0)은 생성돼 있고, 위 verdict 의 돈 지표가 그 값이다 → 측정 자체는 성립, 실패는 '명령 재현'뿐. 미완 = 시드 3개 반복(현재 s0 단일·10세션, t 1.14) → CG355. AUC 짝 Δ 평균 -0.0273(t -0.693, 양성 1/3) = 재학습 후보 열위.",
+        "delta": -0.0273,
         "rc": 2
       },
       "verdict": "재학습 축 = 노이즈(오히려 열세). 같은 창(2026-10-02~11-04·2폴드·10날짜)·같은 유니버스 시드 3개 짝 Δ: deltas -0.0022 / -0.1044 / +0.0248 → 평균 -0.0273 (SD 0.0682 · SE 0.0393 · t -0.69 · 양(+) 1/3) · window_mismatch [] · fold_mismatch [] → 사전문턱 +0.02 미달(마이너스). 절대 AUC: champion 0.5039/0.4650/0.5227 vs retrain_cg346 0.5061/0.5694/0.4979. 돈 지표(체결성 ON·수수료 0.21%p·exit next_open·h1·10세션): k=3 순기대 -0.524%p vs 챔피언 -0.890%p (Δ+0.365 · t 1.14 · 7/3) · k=5 -0.570 vs -0.955 (Δ+0.385 · t 1.10 · 5/5) · k=10 -0.532 vs -0.707 (Δ+0.175 · t 0.85) · 널(풀평균) -0.598%p(t -1.22) — 두 arm 모두 음(-)이고 top-k − 풀평균 Δ는 +0.03~+0.07(t<0.6) = 엣지 없음. → 재학습 반복은 승격 사유가 아니다.",
@@ -21559,12 +21562,26 @@
       "priority": 2,
       "est_minutes": 25,
       "owner": "model_engineer",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 900 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --folds 2 --dates-per-fold 5 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-11 --universe training --universe-seed 0 --out /app/reports/overnight/oos_accrual_$(date +%Y%m%d).json' && python3 scripts/oos_accrual_log.py --append services/xgboost-ml/reports/overnight/oos_accrual_$(date +%Y%m%d).json",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2100 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --folds 2 --dates-per-fold 5 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-11 --universe training --universe-seed 0 --out /app/reports/overnight/oos_accrual_$(date +%Y%m%d).json' && python3 scripts/oos_accrual_log.py --append services/xgboost-ml/reports/overnight/oos_accrual_$(date +%Y%m%d).json",
       "counterfactual": "단일 시점 값만 보고 '기준선 대비 Δ'를 판정하던 현행(SE 0.0186 = 문턱)",
       "success": "① 34날짜 도달 시 SE ≤ 0.010 ② 그 전까지 모든 판정문에 '미해상(SE=0.0587/√n)' 표기 ③ 앵커/프로토콜 고정(창 밀림 금지)",
       "expected": "판정 가능한 표본을 캘린더로 확보 — 지금의 '20사이클 무개선'이 모델 문제인지 측정 문제인지 가른다",
       "created": "2026-11-19T07:41:20+09:00",
       "rationale": "CG353 실측: SE(n=10)=0.0186 ≈ 문턱. 표본을 늘리지 않으면 이후 어떤 실험도 +0.02 를 해상할 수 없고, 20사이클 무개선은 판정 불가 상태의 반복이다."
+    },
+    {
+      "id": "CG355",
+      "title": "[재현 수리] CG352 돈 지표 3시드 확장 — fillable 에 시드별 태그를 넘겨 0행 실패 제거(s0 단일값 탈피)",
+      "status": "pending",
+      "priority": 2,
+      "est_minutes": 35,
+      "owner": "model_engineer",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && for s in 0 1 2; do python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg352_retrain_cg346_s${s}.jsonl --arm-tag retrain_cg346_s${s} --control-jsonl /app/reports/overnight/cg352_champion_s${s}.jsonl --control-tag champion_s${s} --k 3,5,10 --exit next_open --horizon 1 --json-out /app/reports/overnight/cg352_money_s${s}.json || exit 1; done'",
+      "counterfactual": "CG352 원 명령(--arm-tag retrain_cg346 / --control-tag champion) = 양 arm 0행 rc=2 → 순기대 미측정",
+      "success": "3시드 모두 rows/arm=800·rows/control=800 · fillable n_dates≥10 산출 · 시드별 짝 Δ 와 t 를 함께 보고(단일 시드 결론 금지)",
+      "expected": "재학습 후보 vs 배포 챔피언의 체결가능 순기대를 3시드로 확정 — 현재 s0 단일값(t 1.14)이라 AUC 짝 Δ(-0.0273, t -0.69)와 부호가 충돌해 판정 불가",
+      "created": "2026-11-19T15:41:02+09:00",
+      "rationale": "load_rows 가 exp 태그로 필터하므로 덤프 태그(_s{s})와 --*-tag 가 일치해야 한다(CG352 는 여기서 0행 rc=2). CG344(--control-jsonl 누락)와 같은 계열의 '명령 재현 불가' 결함 — 측정값이 있어도 재현이 안 되면 자산이 아니다."
     }
   ],
   "updated": "2026-11-19T04:17:21+09:00"
