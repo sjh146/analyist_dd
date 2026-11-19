@@ -190,6 +190,59 @@ def money_stats(by_date, k, fee_rt):
     }
 
 
+def quintile_stats(by_date_top, fee_rt, nq=5):
+    """점수 분위(quintile)별 실현 순기대 — '선별 강도'가 단조인지 검정한다.
+
+    WHY (CG365 후속, 2026-11-20): top-k 선택이 풀평균을 하회(Δ −2.13%p, t −2.12, h=5)할 때,
+    그것이 ① 상위 점수가 역예측(단조 감소)인지 ② 단지 k 문턱 근처의 잡음인지 구분해야 한다.
+    날짜마다 점수 순위로 등분(같은 날 다른 종목과만 비교 = 횡단면)한 뒤 버킷 평균을 내고,
+    날짜 간 평균으로 합산한다. Δq = (최상위 버킷 − 최하위 버킷) 순기대.
+    수수료는 Δ 에서 상쇄되지만 절대 수준 보고를 위해 버킷 평균에도 차감한다(money 와 동일 규칙).
+    """
+    rows = []
+    monotone = 0
+    for d, lst in by_date_top.items():
+        fil = [(c, r) for c, r, ok in lst if ok]
+        if len(fil) < nq * 2:
+            continue
+        fil.sort(key=lambda x: -x[0])
+        n = len(fil)
+        buckets = [[] for _ in range(nq)]
+        for i, (c, r) in enumerate(fil):
+            buckets[min(nq - 1, i * nq // n)].append(r)
+        if any(not b for b in buckets):
+            continue
+        means = [sum(b) / len(b) - fee_rt for b in buckets]
+        rows.append(means)
+        if all(means[j] >= means[j + 1] for j in range(nq - 1)):
+            monotone += 1
+    if not rows:
+        return None
+    nd = len(rows)
+    avg = [sum(r[j] for r in rows) / nd for j in range(nq)]
+    dq = [r[0] - r[nq - 1] for r in rows]
+    mean = sum(dq) / nd
+    sd = statistics.stdev(dq) if nd > 1 else None
+    t = mean / (sd / math.sqrt(nd)) if (nd > 1 and sd and sd > 1e-9) else None
+    half = nd // 2
+    split = None
+    if half >= 1:
+        a = sum(dq[:half]) / half
+        b = dq[half:]
+        split = [a * 100.0, (sum(b) / len(b)) * 100.0 if b else None]
+    return {
+        "nq": nq,
+        "n_dates": nd,
+        "bucket_net_mean_pct": [round(x * 100.0, 4) for x in avg],
+        "q_top_minus_q_bottom_pct": round(mean * 100.0, 4),
+        "sd_pct": round(sd * 100.0, 4) if sd is not None else None,
+        "t": round(t, 4) if t is not None else None,
+        "split_half_pct": [round(x, 4) if x is not None else None for x in split] if split else None,
+        "monotone_date_frac": round(monotone / nd, 4),
+        "note": "bucket 0 = 점수 최상위. monotone_date_frac = 날짜별로 버킷 평균이 단조 감소한 비율.",
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="/app/reports/overnight/forward_scorecard.json")
@@ -283,6 +336,8 @@ def main() -> int:
             "all_ret_mean": (sum(all_ret) / len(all_ret)) if all_ret else None,
             # ↓ CG137: 체결성 필터 + 수수료 + 널 기준선(최우선 규칙 정합)
             "money": money_stats(by_date_top, args.topk, fee_rt),
+            # ↓ CG368(2026-11-20): 선별 강도 단조성 — top-k 가 풀을 하회할 때 역예측인지 문턱 잡음인지
+            "quintiles": quintile_stats(by_date_top, fee_rt, nq=5),
             "money_filter": {
                 "exclude_limit_up": f"day_chg >= {args.limit_up_pct}%",
                 "max_day_chg_pct": args.max_day_chg,
