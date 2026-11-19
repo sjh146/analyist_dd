@@ -1,0 +1,111 @@
+{
+  "runner": "build_event_rolling",
+  "spec": "docs/spec_event_rolling.md",
+  "table": "event_rolling_features",
+  "dry_run": false,
+  "params": {
+    "from": "2025-08-01",
+    "to": "2026-11-18"
+  },
+  "rows": 780091,
+  "codes": 2710,
+  "date_range": [
+    "2025-08-01",
+    "2026-11-18"
+  ],
+  "nonzero_ratio": {
+    "event_level_20d": {
+      "nnz_ratio": 0.750190682881869,
+      "null_ratio": 0.2424114622524808
+    },
+    "event_trend_5v20": {
+      "nnz_ratio": 0.5611742732578635,
+      "null_ratio": 0.2424114622524808
+    },
+    "event_any_60d": {
+      "nnz_ratio": 0.9928944187280715,
+      "null_ratio": 0.0
+    },
+    "funding_level_20d": {
+      "nnz_ratio": 0.3212714926848278,
+      "null_ratio": 0.2424114622524808
+    },
+    "governance_level_20d": {
+      "nnz_ratio": 0.6059985309406211,
+      "null_ratio": 0.2424114622524808
+    },
+    "business_level_20d": {
+      "nnz_ratio": 0.48962108266856047,
+      "null_ratio": 0.2424114622524808
+    },
+    "risk_level_20d": {
+      "nnz_ratio": 0.059871220152520666,
+      "null_ratio": 0.2424114622524808
+    },
+    "disclosure_level_20d": {
+      "nnz_ratio": 0.7545850420015101,
+      "null_ratio": 0.2424114622524808
+    }
+  },
+  "defs": {
+    "total": {
+      "cols": [
+        "event_capital_increase_5d",
+        "event_cb_bw_5d",
+        "event_contract_5d",
+        "event_delisting_5d",
+        "event_disaster_5d",
+        "event_exec_change_5d",
+        "event_litigation_5d",
+        "event_mna_5d",
+        "event_new_product_5d",
+        "event_partnership_5d",
+        "event_patent_5d",
+        "event_realized_5d",
+        "event_recall_5d",
+        "event_regulation_5d",
+        "event_stake_change_5d",
+        "event_treasury_5d"
+      ],
+      "excludes": "disclosure_count_5d (별도 컬럼)"
+    },
+    "groups": {
+      "funding": [
+        "event_capital_increase_5d",
+        "event_cb_bw_5d",
+        "event_mna_5d",
+        "event_treasury_5d"
+      ],
+      "governance": [
+        "event_stake_change_5d",
+        "event_exec_change_5d"
+      ],
+      "business": [
+        "event_contract_5d",
+        "event_new_product_5d",
+        "event_partnership_5d",
+        "event_realized_5d"
+      ],
+      "risk": [
+        "event_litigation_5d",
+        "event_disaster_5d",
+        "event_regulation_5d",
+        "event_recall_5d"
+      ]
+    },
+    "windows": {
+      "level": "직전 20행 평균(trade_date < D 엄격)",
+      "trend": "직전 5행 평균 / (직전 20행 평균 + 1e-9)",
+      "any_60d": "직전 60행(부족 시 있는 만큼) 중 총합>0 → 1, 직전 0행이면 행 미방출",
+      "short_window": "직전 20행 미만 → null(0 채움 금지)"
+    }
+  },
+  "claim": {
+    "runner": "build_event_rolling",
+    "table_name": "event_rolling_features",
+    "source_rows": 223204,
+    "claimed_rows": 780091,
+    "persisted_rows": 0,
+    "table_rows_after": 780091
+  }
+}
