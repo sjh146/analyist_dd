@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-19T18:28:37+09:00",
+ "updated_at": "2026-11-19T18:56:05+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -21771,7 +21771,7 @@
   {
    "id": "CG360",
    "title": "[측정 해상도 3단계] 날짜당 표본을 80 → 200종목으로 — 날짜별 AUC 잡음(SD 0.0614)이 SE 의 주범인지 직접 측정",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "est_minutes": 30,
    "metric": "oos_accrual",
@@ -21782,7 +21782,57 @@
    "success": "① 날짜별 AUC SD 가 0.0614 → ≤0.045 (√2.5=1.58배 축소 기대) ② 절대 SE ≤ 0.0100 ③ 평균 AUC 가 0.5257 대비 |Δ| ≤ 0.02 (유니버스 확대가 값을 뒤집지 않음) ④ 22날짜 유지(같은 창) · rc=0",
    "expected": "SE 0.0131 → 0.0083 이면 사전문턱 +0.02 가 2.4σ 로 '판정 가능' 영역에 들어온다. 20사이클 무개선 판정이 표본 부족 탓인지 실제 무신호인지 가르는 마지막 측정 레버(날짜는 캘린더로만 늘지만 종목수는 지금 늘릴 수 있다).",
    "created": "2026-11-19T18:28:37+09:00",
-   "rationale": "CG359 실측(2026-11-19 18:27): 22날짜 날짜단위 짝 Δ = −0.0194 · sd(Δ) 0.0879 · SE 0.0187 · 날짜 간 상관 r=0.086 → **짝짓기가 SE 를 줄이지 못했다**(두 모델의 날짜별 오차가 거의 독립). 즉 오차의 출처가 '날짜 공통변동'이 아니라 '날짜당 80종목 횡단면 잡음'이다. --stocks 는 기본 80(champion_robust_eval.py L229)이라 200 으로 늘리면 날짜당 표본이 2.5배가 된다. ⚠ 유니버스 크기가 바뀌므로 80종목 시리즈와 직접 비교 금지(새 계열로 기록)."
+   "rationale": "CG359 실측(2026-11-19 18:27): 22날짜 날짜단위 짝 Δ = −0.0194 · sd(Δ) 0.0879 · SE 0.0187 · 날짜 간 상관 r=0.086 → **짝짓기가 SE 를 줄이지 못했다**(두 모델의 날짜별 오차가 거의 독립). 즉 오차의 출처가 '날짜 공통변동'이 아니라 '날짜당 80종목 횡단면 잡음'이다. --stocks 는 기본 80(champion_robust_eval.py L229)이라 200 으로 늘리면 날짜당 표본이 2.5배가 된다. ⚠ 유니버스 크기가 바뀌므로 80종목 시리즈와 직접 비교 금지(새 계열로 기록).",
+   "attempts": [
+    {
+     "ts": "2026-11-19T18:54:29+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG360_20261119-182838.log",
+     "elapsed_min": 25.9
+    }
+   ],
+   "result": {
+    "verdict": "판정불가",
+    "detail": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG361",
+   "status": "needs_setup",
+   "priority": 1,
+   "owner": "model_engineer",
+   "est_minutes": 20,
+   "metric": null,
+   "title": "[스코어보드 기준선·승인] '20사이클 무개선' 카운터의 기준선 0.5406/0.5513 은 OOS 다중폴드가 아니라 **단일 val split** 값이다 — 같은 프로토콜 OOS 로 재정의",
+   "hypothesis": "스코어보드 헤드라인이 '로버스트 0.5519 vs 기준선 0.5406' 으로 무개선을 세지만, 기준선의 출처 app/models/champion/robust_auc.json 은 protocol='ensemble_auc on candidate val split (n_rows=12629)' · recorded_at 2026-10-02 이다. 같은 챔피언을 22날짜 OOS 로 재면 0.5132(200종목·SE 0.0109) / 0.5257(80종목·SE 0.0131) → 기준선이 -0.027~-0.041 높게 잡혀 있어 어떤 후보도 문턱에 닿을 수 없다. 즉 무개선 20사이클은 모델 무신호가 아니라 기준선 프로토콜 혼용의 산물일 수 있다.",
+   "counterfactual": "현행: OOS 다중날짜 robust AUC 를 단일 val split 0.5406 과 비교(스킬 하드규칙 1 위반 상태)",
+   "success": "① 기준선을 '같은 프로토콜(22날짜·200종목·h=5 rel·앵커 11-18) OOS 0.5132' 로 재등록 ② 무개선 카운터를 재계산해 20 → N 으로 정정 ③ 스코어보드 문서·objective.json 에 프로토콜 명기 ④ 카운터 산식 회귀 테스트 1개",
+   "expected": "카운터가 '기준선 대비 +0.02'가 아니라 '기준선(0.5132) 대비 +0.02'(=0.5332)로 바뀐다 — 현 최고 arm 0.5870(CG89) 은 대조불가 arm 이므로 별도 정리 필요. 승격 판단 자체는 돈 게이트가 하므로 안전.",
+   "setup_needed": "리뷰보드 승인 필요: 스코어보드 기준선/프로토콜 변경(스킬 §자율권한 '스코어보드 기준선·프로토콜 변경' = 리뷰보드). 근거 수치: robust_auc.json protocol 문자열 · 22날짜 OOS 0.5132±0.0109 · 80종목 0.5257±0.0131 · CG131(청정 패널 이관) 과 동일 계열.",
+   "created": "2026-11-19T18:56:05+09:00",
+   "rationale": "CG360 실측(2026-11-19 18:54): 200종목·22날짜 OOS 0.5132 (sd 0.0510 · SE 0.0109 · pooled 0.5143 · 4,400행). 등록 기준선 0.5406 과의 차 -0.0274 = 2.5σ 로, 잡음으로 닿지 않는다."
+  },
+  {
+   "id": "CG362",
+   "status": "pending",
+   "priority": 1,
+   "owner": "model_engineer",
+   "est_minutes": 28,
+   "metric": "oos_accrual",
+   "baseline_dates": 22,
+   "title": "[측정 정합성] 적립 라벨을 챔피언의 학습 과제(h=1)로 정렬 — h=5 rel 로 잰 0.5132 가 '과제 불일치' 값인지 확인",
+   "hypothesis": "챔피언은 h=1 방향으로 학습됐는데(CG36 이 '자기 학습 과제 h=1' 로 측정) 적립 시리즈는 h=5 시장상대 중앙값 라벨로 채점한다. 라벨 지평이 다르면 AUC 는 모델 성능이 아니라 과제 불일치를 잰다 — 20사이클 무개선의 또 다른 교란 후보.",
+   "counterfactual": "CG360 (--horizon 5 기본 · 200종목 · 22날짜 · 앵커 11-18) = 0.5132 · sd 0.0510 · SE 0.0109",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3000 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --stocks 200 --horizon 1 --folds 1 --dates-per-fold 22 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-18 --universe training --universe-seed 0 --dump-preds /app/reports/overnight/cg362_champ200_h1.jsonl --dump-tag cg362_champ200_h1 --out /app/reports/overnight/cg362_champ200_h1.json'",
+   "success": "① rc=0 · 22날짜 · SE ≤ 0.011 ② |AUC(h=1) − 0.5132(h=5)| ≤ 0.02 → '라벨 지평 교란 없음(노이즈)' ③ > 0.02 이면 어느 지평이 챔피언 과제인지 확정하고 **이후 적립은 그 지표로 단일화** ④ 두 지표를 섞어 판정하지 않는다(계열 분리 표기)",
+   "expected": "h=1 이면 라벨 분산이 커 날짜별 AUC 잡음이 늘 수 있다(sd↑). 그 경우 'h=5 가 측정 안정성은 낫지만 과제는 h=1' 이라는 트레이드오프를 수치로 남기고, 적립은 h=1(과제 정합) + h=5(안정) 두 계열로 병기한다.",
+   "created": "2026-11-19T18:56:05+09:00",
+   "rationale": "CG36 실측: 챔피언 자기 과제(h=1) OOS 0.4719±0.0518 (3창) vs 적립 h=5 0.5132 — 두 값의 프로토콜(창·폴드·종목수)이 달라 직접비교가 금지된 상태다. 같은 22날짜·200종목에서 h 만 바꿔 재야 교란을 분리할 수 있다."
   }
  ],
  "updated": "2026-11-19T04:17:21+09:00"
