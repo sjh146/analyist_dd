@@ -232,22 +232,30 @@ def to_db_rows(ts, trade_date, rows):
 
 
 def append_jsonl(path: Path, line: dict) -> bool:
-    """스냅샷 1줄 추가. 멱등: 같은 ts 줄이 이미 마지막 줄이면 스킵. flock 으로 다중 프로세스 안전."""
+    """스냅샷 1줄 추가. 멱등: 같은 ts 줄이 이미 마지막 줄이면 스킵. flock 으로 다중 프로세스 안전.
+
+    ⚠ 2026-11-19 실측 버그: 텍스트 모드(a+)에서 `tell()-4096` **바이트 오프셋**으로 seek 한 뒤
+    read 하면 멀티바이트 문자가 중간에서 잘려 `UnicodeDecodeError: 0xbc` 로 **수집이 10:04 에
+    멈췄다**(그 뒤 매분 크론이 같은 지점에서 죽음). 그래서 꼬리 읽기는 **바이너리 + errors=replace**
+    로 한다 — 잘린 조각은 어차피 파싱 실패로 무시된다.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a+", encoding="utf-8") as f:
+    with open(path, "a+b") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         try:
             f.seek(0, os.SEEK_END)
-            if f.tell() > 0:
-                f.seek(max(0, f.tell() - 4096))
-                lines = f.read().splitlines()
+            end = f.tell()
+            if end > 0:
+                f.seek(max(0, end - 4096))
+                tail = f.read().decode("utf-8", errors="replace")
+                lines = tail.splitlines()
                 if lines:
                     try:
                         if json.loads(lines[-1]).get("ts") == line["ts"]:
                             return False        # 같은 ts 재실행 → 중복 줄 없음(멱등)
                     except ValueError:
                         pass
-            f.write(json.dumps(line, ensure_ascii=False) + "\n")
+            f.write((json.dumps(line, ensure_ascii=False) + "\n").encode("utf-8"))
             return True
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
