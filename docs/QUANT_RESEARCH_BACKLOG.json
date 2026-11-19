@@ -1310,13 +1310,18 @@
           "ts": "2026-11-18T06:48:13+09:00",
           "rc": 0,
           "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-19T15:36:13+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R27: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R27_20261118-064813.log"
+        "log": "data/reports/res_cycle/logs/res_R27_20261119-153611.log"
       },
       "note": " || **[2026-10-09 21:1x 스캔 — 자기신고 미배선 러너 목록]** 크론이 실제로 돌리는데 dq_runner_claim 행을 만들지 않는 수집 경로 3개(배선조차 없음, R23 텍스트 휴리스틱에도 걸린다): ① `kis_backfill_range.py`(kis_backfill.sh) — record_claim 문자열 0 ② `run_close_job.py`(close_job.sh) — 컨테이너 내부라 dq_claim.py 모듈 부재(R28 유형 → phase 로그 브리지 필요) ③ `run_swing_job.py`(swing_pipeline.sh 도 동일, claim 브리지 0). 다음 사이클: ②③은 full_pipeline_dd.sh 의 `scripts/yf_claim_from_phase_log.py` 를 그대로 재사용, ①은 러너 내부 배선(크론 파일 무수정)."
     },
@@ -1759,14 +1764,14 @@
         "[2026-11-18 21:15 리서처 실측] 전제 정정: '두 경로가 같은 날 저녁에 적재'는 더 이상 사실이 아니다. ① 20:00 full_pipeline 의 yfinance 수집기는 당일 봉을 의도적으로 스킵한다 — 컨테이너 로그: 'Skipped 1 unfinished/future rows for 498050 (trade_date >= 오늘 KST — 확정 봉은 다음 날 KRX/KIS 경로가 적재)' ×4,351종목, 'Daily collection complete. Processed 4351 stocks.' ② 18:55 daily_bars 의 KRX 경로는 T-1 까지만 적재한다('구간 2026-11-11 ~ 2026-11-17 / 5영업일', 13,371행 upsert) → KRX 성공일에는 KIS 폴백이 돌지 않아 당일 봉을 넣는 경로가 0개다. ③ 실측 11-18 21:11: market_data 최신 11-17(3,839행) · 11-18 행 0 · market_data_freshness_days=1 · dq_snapshot 은 DUE_TODAY_HOUR=22 전이라 0(정상) 표시. ④ 대조 11-17: KRX 실패('전송 오류 Network is unreachable', exit=3) → KIS 폴백이 18:55:44→22:58:44 돌아 당일 봉 3,836행 적재. → '당일 봉 부재'는 이중 실패가 아니라 KRX 성공일의 정상 경로 결과이고 22:00 이후 신선도 warn 1 이 그 신호다(이력 22:47 틱 6/46 warn). 처방은 재시도 스케줄이 아니라 ⓐ 당일 봉 경로를 하나 명시적으로 두는 것(자율 복구 수단 실측: scripts/naver_daily_backfill.py --start/--end <당일> → 11-18 5종목 테스트 4행 삽입·DB 확인) ⓑ 또는 KRX T-1 을 수용하고 문턱을 D+1 04:15 백필 이후로 이동."
       ],
       "setup_needed": [
-        "당일 일봉 재시도 스케줄(추가형 크론, 예 22:30 '당일 행수 < 정상일 60% 면 naver/KIS 1콜 백필') 승인 필요 — 지금은 이중 실패 시 익일 04:15 까지 아무 것도 시도하지 않는다. 크론 파일 수정은 사람 단계다.",
-        "phase 1-1 상한을 3600→7200s 로 올려 둠(자율, 적용 완료) — 그래도 4,349종목×(1년 이력) 수집이 100분대라 근본 처방은 '야간에는 최근 N일만' 또는 '청크별 증분 적재(timeout 나도 부분 보존)'다. 증분 적재 개조는 다음 사이클(자율)로 잡는다."
+        "당일 일봉 재시도 스케줄(추가형 크론, 예 22:30 '당일 행수 < 정상일 60% 면 naver/KIS 1콜 백필') 승인 필요 — 지금은 이중 실패 시 익일 04:15 까지 아무 것도 시도하지 않는다. 크론 파일 수정은 사람 단계다."
       ],
       "note": "자가신고·감시 3중 사각지대: timeout 으로 죽은 phase 는 claim 줄이 없고(R28 은 7일 창), R27 목록에 yfinance_market_data 가 없으며, 신선도는 당일을 세지 않았다(수리함). 재발 감시는 이제 22:00 이후 dq_snapshot 신선도 warn 1 로 걸린다. + `data_gap.find_gaps()` 는 **당일을 구조적으로 gaps 에서 제외**한다(코드 346~353, 장 개시 전 오적재 방지 — 실측 21:22 `data_gap check` = 0). 즉 당일 실패를 볼 수 있는 경로는 신선도 하나뿐이었고 그 값이 0 이었다 → 이번 수리(DUE_TODAY_HOUR)가 유일한 재발 감시다.",
       "check": null,
       "check_target": null,
       "command": null,
-      "cost": "1콜/종목(naver) 또는 수집기 1회"
+      "cost": "1콜/종목(naver) 또는 수집기 1회",
+      "result": "자율 적용(승인 불요): phase 1-1 상한을 3600→7200s 로 올려 둠(자율, 적용 완료) — 그래도 4,349종목×(1년 이력) 수집이 100분대라 근본 처방은 '야간에는 최근 N일만' 또는 '청크별 증분 적재(timeout 나도 부분 보존)'다. 증분 적재 개조는 다음 사이클(자율)로 잡는다."
     },
     {
       "id": "R38",
@@ -1860,13 +1865,18 @@
           "ts": "2026-11-18T15:36:02+09:00",
           "rc": 0,
           "detail": "R41: 1 <= 0 → 미달"
+        },
+        {
+          "ts": "2026-11-19T16:47:36+09:00",
+          "rc": 0,
+          "detail": "R41: 0 <= 0 → 충족"
         }
       ],
       "result": {
-        "detail": "R41: 1 <= 0 → 미달",
-        "check_value": 1.0,
+        "detail": "R41: 0 <= 0 → 충족",
+        "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R41_20261118-153556.log"
+        "log": "data/reports/res_cycle/logs/res_R41_20261119-164730.log"
       }
     },
     {
