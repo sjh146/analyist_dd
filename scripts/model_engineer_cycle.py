@@ -877,7 +877,22 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
     # '요약 미갱신' → 판정불가로 원장에 남았다(측정이 있는데 판정이 사라짐).
     # 래퍼마다 경로 규칙을 코드에 하드코딩하는 대신 항목 JSON 이 경로를 말하게 한다.
     if summary_out:
-        return _container_path_to_host(str(summary_out).strip("'\""))
+        # ⚠ 실측 갭 수리(2026-11-19 CG359): summary_out 이 **호스트 상대경로**인 항목
+        # (`data/reports/overnight/cg359_paired_dates.json` — 호스트 python3 집계기가 쓴 파일)에
+        # 무조건 _container_path_to_host 를 걸어 `services/xgboost-ml/data/reports/...` 로 바꿔
+        # 버렸다 → 파일이 없으니 재판정이 '요약 파일 없음'으로 skip 되고, 8.8분 측정이
+        # 'parser 없음'인 채 원장에 남았다(측정은 있는데 판정이 사라짐).
+        # 규칙: /app/ → 컨테이너 변환, 절대경로 → 그대로, 상대경로 → PROJ 아래에 **실재하면** 그 파일,
+        # 없으면 종전처럼 컨테이너 경로로 해석(기존 항목 회귀 방지).
+        p = str(summary_out).strip("'\"")
+        if p.startswith("/app/"):
+            return _container_path_to_host(p)
+        if os.path.isabs(p):
+            return p
+        host_p = os.path.join(PROJ, p)
+        if os.path.exists(host_p):
+            return host_p
+        return _container_path_to_host(p)
     if kind == "score_deciles":
         # 점수 분위 순기대(CG190) — 랭킹이 순서 정보를 갖는지. --out 경로를 커맨드에서 읽는다.
         out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
@@ -935,6 +950,15 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         # 그대로 쓰면 파일을 못 찾는다 → 디렉터리에서 mtime 최신 파일을 고른다(없으면 실행 전
         # 상태이므로 None 을 주지 않고 이름 규칙상의 경로를 돌려 '요약 없음'으로 명시 실패시킨다).
         import glob as _glob
+        # ⚠ 실측 갭 수리(2026-11-19 CG360/CG362): 커맨드가 `--out /app/reports/overnight/cg360_champ200.json`
+        # 처럼 **파일명에 앵커가 없는** 자기 산출물을 지정해도 종전엔 `oos_accrual_*.json` 글롭만 봐서
+        # 직전 앵커 파일(mtime 이 실행 시작 이전)을 집어 "요약 미갱신 → 판정불가"로 닫혔다
+        # (25.9분 학습·4400행 측정이 원장에서 사라짐). 명시 --out 이 실재하면 그 파일이 우선이다.
+        _out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
+        if _out:
+            _p = _container_path_to_host(_out.strip("'\""))
+            if os.path.exists(_p):
+                return _p
         cand = _glob.glob(os.path.join(PROJ, "services/xgboost-ml/reports/overnight/oos_accrual_*.json"))
         if cand:
             return max(cand, key=os.path.getmtime)
@@ -4907,6 +4931,11 @@ def rejudge_parser_gap() -> list:
             # cg3xx_robust.json)을 가리켜 돈 지표 파서가 스키마 불일치로 '집계 실패'를 냈다.
             # 실제 돈 지표 json 은 정상 생성돼 있었다(80분 재실행은 낭비) → 경로를 고친 뒤
             # 같은 산출물로 재판정한다. 파일이 진짜 비어 있으면 아래 parse 가 다시 error 라 skip 된다.
+            gap = "summary_path"
+        elif isinstance(pe, dict) and "요약 미갱신" in str(pe.get("error", "")):
+            # 경로 지정 갭(실측 2026-11-19 CG360): 커맨드가 --out 으로 자기 산출물을 지정했는데
+            # 구동기가 다른(직전 앵커) 파일을 봐 "요약 미갱신"으로 닫힌 기록. summary_path 수리를
+            # 배선한 뒤 같은 산출물로 재판정한다(파일이 정말 옛 것이면 parse 가 같은 error 로 skip).
             gap = "summary_path"
         elif (str(r.get("verdict", "")) == "기준선없음"
               and isinstance(pe, dict) and isinstance(pe.get("per_exp"), dict)

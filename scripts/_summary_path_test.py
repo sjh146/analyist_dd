@@ -123,5 +123,24 @@ try:
 except Exception as e:
     check("알 수 없는 metric 은 빈 경로(크래시 금지)", f"raised {type(e).__name__}", "")
 
+# 6) 2026-11-19 실측 갭 2건 — CG359(호스트 상대 summary_out) · CG360/CG362(명시 --out 인데 글롭 우선)
+#    왜: 둘 다 rc=0 완주 후 'parser 없음'/'요약 미갱신'으로 닫혀 측정이 원장에서 사라졌다.
+HOSTREL = os.path.join(m.PROJ, "data/reports/overnight/cg359_paired_dates.json")
+check("summary_out 호스트 상대경로(실재하면 그대로)",
+      m.summary_path("date_paired_auc", "x", "data/reports/overnight/cg359_paired_dates.json"),
+      HOSTREL)
+check("summary_out 없는 상대경로는 종전대로 컨테이너 변환(회귀)",
+      m.summary_path("date_paired_auc", "x", "data/reports/overnight/__nope__.json").endswith(
+          "services/xgboost-ml/data/reports/overnight/__nope__.json"), True)
+check("summary_out 절대경로 유지",
+      m.summary_path("date_paired_auc", "x", "/tmp/p.json"), "/tmp/p.json")
+OOS_CMD = ("docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/champion_robust_eval.py "
+           "--stocks 200 --out /app/reports/overnight/cg360_champ200.json'")
+check("oos_accrual 은 명시 --out 우선(CG360 회귀)",
+      m.summary_path("oos_accrual", OOS_CMD),
+      os.path.join(m.PROJ, "services/xgboost-ml/reports/overnight/cg360_champ200.json"))
+check("oos_accrual --out 이 없으면 글롭/기본경로(회귀)",
+      "oos_accrual" in m.summary_path("oos_accrual", "python scripts/oos_accrual.py"), True)
+
 print(f"\n{PASS} PASS / {FAIL} FAIL")
 sys.exit(1 if FAIL else 0)

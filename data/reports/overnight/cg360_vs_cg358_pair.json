@@ -1,0 +1,89 @@
+{
+  "arms": {
+    "cg358_champ": {
+      "dates": 22,
+      "pooled_auc": 0.523885,
+      "date_auc": {
+        "n": 22,
+        "mean": 0.525668,
+        "median": 0.52125,
+        "sd": 0.061384,
+        "se": 0.013087,
+        "t": 40.1668,
+        "pos": 22,
+        "neg": 0,
+        "pos_frac": 1.0,
+        "min": 0.404375,
+        "max": 0.663125
+      }
+    },
+    "cg360_champ200": {
+      "dates": 22,
+      "pooled_auc": 0.514349,
+      "date_auc": {
+        "n": 22,
+        "mean": 0.513166,
+        "median": 0.5076,
+        "sd": 0.052191,
+        "se": 0.011127,
+        "t": 46.1186,
+        "pos": 22,
+        "neg": 0,
+        "pos_frac": 1.0,
+        "min": 0.3943,
+        "max": 0.6226
+      }
+    }
+  },
+  "pair": {
+    "date": {
+      "n_pairs": 22,
+      "delta": {
+        "n": 22,
+        "mean": -0.012502,
+        "median": -0.01765,
+        "sd": 0.053236,
+        "se": 0.01135,
+        "t": -1.1015,
+        "pos": 10,
+        "neg": 12,
+        "pos_frac": 0.4545,
+        "min": -0.111016,
+        "max": 0.081375,
+        "sign_test_p": 0.83181
+      },
+      "first": "2026-10-02",
+      "last": "2026-11-04",
+      "bootstrap95": [
+        -0.034089,
+        0.007776
+      ]
+    },
+    "fold_legacy": {
+      "n_pairs": 1,
+      "delta": {
+        "n": 1,
+        "mean": -0.012502,
+        "median": -0.012502,
+        "sd": 0.0,
+        "se": null,
+        "t": null,
+        "pos": 0,
+        "neg": 1,
+        "pos_frac": 0.0,
+        "min": -0.012502,
+        "max": -0.012502,
+        "sign_test_p": 1.0
+      }
+    }
+  },
+  "protocol": {
+    "unit_primary": "date",
+    "pair_key": "date 교집합만",
+    "min_rows_per_date": 10,
+    "min_pos_per_date": 0,
+    "min_neg_per_date": 0,
+    "auc": "Mann-Whitney with tie credit"
+  },
+  "bad_lines": 0
+}
