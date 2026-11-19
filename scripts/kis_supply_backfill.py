@@ -153,17 +153,77 @@ def staleness_order(conn, todo):
     return sorted(todo, key=lambda cn: (last.get(cn[0]) or date.min, cn[0]))
 
 
+_PROGRESS_WARNED = False
+
+
+def _progress_fallback(path):
+    return f"{path}.uid{os.getuid()}"
+
+
 def load_done(path):
-    if not os.path.exists(path):
-        return set()
-    with open(path) as f:
-        return {l.strip() for l in f if l.strip()}
+    """진행파일 + (있으면) uid 별 폴백 진행파일을 합쳐 읽는다.
+
+    WHY (실측 2026-11-19 19:10): 진행파일이 root 크론(16:20)과 사용자 크론(19:10)의
+    **공유 자원**인데 root 가 먼저 만들면 644·root 소유가 되어 jhshi 실행이 append 에서
+    PermissionError 로 죽는다. 그 예외가 종목 루프의 generic except 에 걸려 '실패'로 세어지고
+    (데이터는 이미 적재됐는데도) 진행이 기록되지 않아 같은 창을 매 실행 재수집한다.
+    """
+    out = set()
+    for p in (path, _progress_fallback(path)):
+        if not os.path.exists(p):
+            continue
+        try:
+            with open(p) as f:
+                out |= {l.strip() for l in f if l.strip()}
+        except OSError as e:  # 읽기 실패도 수집을 깨면 안 된다
+            print(f"  경고: 진행파일 읽기 실패({p}): {type(e).__name__}: {e}", flush=True)
+    return out
 
 
 def save_done(path, code):
+    """진행 기록. **어떤 경우에도 예외를 올리지 않는다**(수집을 깨면 안 된다)."""
+    global _PROGRESS_WARNED
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "a") as f:
-        f.write(code + "\n")
+    try:
+        with open(path, "a") as f:
+            f.write(code + "\n")
+        if os.getuid() == 0:
+            # root 크론이 먼저 만들면 644·root 소유가 되어 사용자 크론(jhshi)이 못 쓴다
+            # (실측 2026-11-19 19:10: 250종목 PermissionError). 디렉터리 소유자에게 넘긴다.
+            try:
+                st = os.stat(os.path.dirname(path))
+                if st.st_uid != 0:
+                    os.chown(path, st.st_uid, st.st_gid)
+                os.chmod(path, 0o664)
+            except OSError:
+                pass
+        return True
+    except PermissionError:
+        # 다른 사용자 소유(root 크론이 먼저 만든 경우) → 1회 chmod 시도 후 uid 폴백
+        try:
+            os.chmod(path, 0o664)
+            with open(path, "a") as f:
+                f.write(code + "\n")
+            return True
+        except OSError:
+            fb = _progress_fallback(path)
+            try:
+                with open(fb, "a") as f:
+                    f.write(code + "\n")
+                if not _PROGRESS_WARNED:
+                    print(f"  경고: 진행파일 쓰기 불가({path}) — uid 폴백 사용({fb})",
+                          flush=True)
+                    _PROGRESS_WARNED = True
+                return True
+            except OSError as e:
+                if not _PROGRESS_WARNED:
+                    print(f"  경고: 진행파일 기록 불가({type(e).__name__}: {e}) — "
+                          "진행 기록 없이 계속", flush=True)
+                    _PROGRESS_WARNED = True
+                return False
+    except OSError as e:
+        print(f"  경고: 진행파일 기록 실패({type(e).__name__}: {e}) — 계속", flush=True)
+        return False
 
 
 def main():
