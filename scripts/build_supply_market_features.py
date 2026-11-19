@@ -67,7 +67,7 @@ import io
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np  # noqa: E402
@@ -102,6 +102,19 @@ MOM_3M, MOM_12M = 63, 252     # 거래일 기준 3/12개월
 BB_N = 20         # 볼린저 창
 VOL_N = 20        # days_to_cover 평균거래량 창
 IMPACT_MAX = 100.0  # market_impact_score 상한(news_event_features.MAX_IMPACT_SCORE)
+# 가격 피처(12개월 모멘텀) 선행 이력 길이 — 252거래일 ≈ 365일 + 공휴일 여유.
+PRICE_LOOKBACK_DAYS = 400
+
+
+def price_history_start(since, lookback_days=PRICE_LOOKBACK_DAYS):
+    """가격 피처용 선행 이력 시작일(YYYY-MM-DD).
+
+    격자 하한(since)과 **분리**한다 — since 만 로드하면 shift(252) 가 전부 NaN 이 되어
+    momentum_3_12m 이 조용히 죽는다(2026-11-19 실측). 어떤 호출자(45일 크론 포함)든
+    모멘텀이 계산되도록 로드 시작일을 여기서 만든다.
+    """
+    d = since if isinstance(since, date) else datetime.strptime(str(since), "%Y-%m-%d").date()
+    return (d - timedelta(days=int(lookback_days))).isoformat()
 
 
 def log(msg):
@@ -389,17 +402,25 @@ def main():
     conn.commit()
 
     # ── 1) 격자(종목×거래일, market_data 기준) ────────────────────────────
-    md = load_market_data(cur, a.since, a.limit_stocks)
+    # WHY (실측 2026-11-19): 하루 1회 크론(cron/supply_features.sh, 20:15)이 `--since 45일 전`
+    # 으로 돌자 12개월 모멘텀의 선행 이력(252거래일)이 창 밖으로 밀려났다 → shift(252) 가 전부
+    # NaN 이 되어 momentum_3_12m 이 **창 전체에서 0.0000**(죽은 피처)이 됐다. 원천(market_data)은
+    # 멀쩡한데 창이 좁아 없는 경우다. 가격 이력만 앞으로 늘려 로드하고, 격자·분모·적재 범위는
+    # since 이후로 되돌린다(과거 이력 보존 = DELETE 범위도 그대로).
+    since_d = datetime.strptime(str(a.since), "%Y-%m-%d").date()
+    hist_from = price_history_start(since_d)
+    md = load_market_data(cur, hist_from, a.limit_stocks)
     if md.empty:
         log("격자가 비었다 — market_data 확인")
         return 1
+
+    # ── 2) 가격 기반 피처 (종목별) — 선행 이력 포함해 계산한 뒤 격자 하한 복원 ──
+    md = price_features(md)
+    md = md[md["trade_date"] >= since_d].copy()
     grid_rows = len(md)
     log(f"격자 {grid_rows}행 ({md['stock_code'].nunique()}종목 × "
         f"{md['trade_date'].nunique()}거래일, {md['trade_date'].min()} ~ "
-        f"{md['trade_date'].max()})")
-
-    # ── 2) 가격 기반 피처 (종목별) ────────────────────────────────────────
-    md = price_features(md)
+        f"{md['trade_date'].max()}, 선행이력 {hist_from}~)")
     grid = md.set_index(["stock_code", "trade_date"])
 
     # ── 3) 시장레벨 피처 (거래일별, 전 종목 동일 값) ───────────────────────
