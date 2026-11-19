@@ -10,20 +10,20 @@
     "window_end": "2026-11-24 (1주일 관찰 종료)"
   },
   "current": {
-    "trades": 13,
-    "closed": 11,
-    "realized": -33765.0,
-    "wins": 2,
-    "win_rate": 18.2,
-    "expectancy": -3070.0,
-    "last_trade_ts": "2026-11-12T13:31:49.576791+09:00",
-    "checked_at": "2026-11-17T16:35:26"
+    "trades": 18,
+    "closed": 18,
+    "realized": -35142.0,
+    "wins": 4,
+    "win_rate": 22.2,
+    "expectancy": -1952.0,
+    "last_trade_ts": "2026-11-19T10:47:28.973289+09:00",
+    "checked_at": "2026-11-19T22:43:33"
   },
   "delta": {
-    "realized": 0.0,
-    "closed": 0,
-    "expectancy": 0.0,
-    "loss_pct": 0.0
+    "realized": -1377.0,
+    "closed": 7,
+    "expectancy": 1118.0,
+    "loss_pct": -0.2614039117567216
   },
   "alerts": [],
   "window_end": "2026-11-24 (1주일 관찰 종료)"

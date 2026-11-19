@@ -173,7 +173,14 @@ def trader_stanza() -> dict:
         entry, exit_ = float(t["price"] or 0), float(t["exit_price"] or 0)
         qty = abs(float(t["qty"] or 0))
         sign = 1.0 if (t.get("side") or "buy") == "buy" else -1.0
-        pnl = (exit_ - entry) * qty * sign
+        # 2026-11-19 리뷰보드: 저널의 `pnl` 은 **수수료 차감 후(net)** 값이다. 종전에는
+        # (exit-entry)*qty 로 다시 계산해 gross 를 '순손익'으로 표기했다 — 실측 −34,683(17건)
+        # vs 저널 net −35,141.5(18건), 차액 458.5원이 정확히 수수료 합계였다(T53).
+        # 순손익 KPI 는 net 으로만 판정한다: pnl 컬럼이 있으면 그 값을 쓰고, 없을 때만
+        # gross 계산에서 수수료를 뺀다.
+        gross = (exit_ - entry) * qty * sign
+        raw_pnl = t.get("pnl")
+        pnl = float(raw_pnl) if raw_pnl is not None else gross - float(t.get("fees") or 0)
         total += pnl
         if pnl > 0:
             wins += 1
