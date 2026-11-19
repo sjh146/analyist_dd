@@ -1239,6 +1239,16 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "data/reports/source_freshness.json")
+    if kind == "reproducibility_overlap":
+        # CG369 — 두 런의 덤프 교집합·예측 동일성 검사(scripts/_cg369_repro_check.py --json).
+        # 실측(2026-11-20 05:07): 이 metric 이 등록돼 있지 않아 시작 로그에
+        # "알 수 없는 metric 'reproducibility_overlap' — 요약 경로 없음(판정불가로 기록)" 이 찍혔다
+        # → 두 런(2400s×2) 측정이 끝나도 원장에 교집합·재현 판정이 남지 않는다.
+        # 경로는 커맨드의 --json 에서 읽는다(상대경로 reports/... 는 /app = services/xgboost-ml 기준).
+        out = _arg(command or "", "--json")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg369_repro_frozen.json")
     if kind == "sns_money_control":
         # SNS 점수/유동성 대조 top-k 돈 지표(scripts/sns_ic_probe.py --money ...). CG250.
         # 기존 fillable_topk_* 파서는 다른 스키마라 이 산출물(money.result.<feature>.kN)을 못 읽는다
@@ -2124,9 +2134,77 @@ def judge_date_paired_auc(item, parsed) -> tuple:
     return "노이즈", f"{head} → |Δ| < 사전문턱 {thr} · 짝 SE {se:.4f} (해상된 무신호)", delta
 
 
+def parse_repro_overlap(path, mtime_floor) -> dict:
+    """CG369 — 같은 플래그·다른 시각 두 런이 **같은 모집단**을 채점했는지 파싱한다.
+
+    왜(실측 2026-11-20 05:07): metric `reproducibility_overlap` 이 구동기에 등록되지 않아
+    시작 로그에 "알 수 없는 metric — 요약 경로 없음(판정불가로 기록)" 이 찍혔다 → 200종목 런 2회
+    (각 timeout 2400s)가 끝나도 교집합·재현 판정이 원장에서 사라진다. 계측기(모델 팔 아님)이므로
+    per_exp 를 만들지 않는다 — 스코어보드 무개선 카운터에 섞이면 안 된다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    return {
+        "metric": "reproducibility_overlap",
+        "n_dates_common": d.get("n_dates_common"),
+        "n_dates_a": d.get("n_dates_a"),
+        "n_dates_b": d.get("n_dates_b"),
+        "overlap_frac_mean": d.get("overlap_frac_mean"),
+        "pred_max_abs_delta": d.get("pred_max_abs_delta"),
+        "auc_common_delta_mean": d.get("auc_common_delta_mean"),
+        "auc_common_delta_sd": d.get("auc_common_delta_sd"),
+        "auc_only_a_mean": d.get("auc_only_a_mean"),
+        "auc_only_b_mean": d.get("auc_only_b_mean"),
+        "verdict": d.get("verdict"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_repro_overlap(item, parsed) -> tuple:
+    """CG369 사전 등록 성공조건: 교집합 200/200 · max|Δpred| < 1e-9 · |ΔAUC| ≤ 0.005."""
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    ov = parsed.get("overlap_frac_mean")
+    mx = parsed.get("pred_max_abs_delta")
+    da = parsed.get("auc_common_delta_mean")
+    nd = parsed.get("n_dates_common")
+    detail = (f"날짜 공통 {nd}개 · 종목 교집합 {ov} · max|Δpred| {mx} · "
+              f"공통집단 ΔAUC {da} (sd {parsed.get('auc_common_delta_sd')}) · "
+              f"전용집단 A {parsed.get('auc_only_a_mean')} / B {parsed.get('auc_only_b_mean')}")
+    if ov is None:
+        return "판정불가", f"overlap_frac_mean 없음. {detail}", None
+    ok = (float(ov) >= 0.999 and mx is not None and float(mx) < 1e-9
+          and da is not None and abs(float(da)) <= 0.005)
+    if ok:
+        return ("재현됨 — 적립 날짜 비교 가능",
+                f"{detail}. 유니버스 동결(UNIVERSE_ASOF_DATE)이 같은 모집단·같은 예측을 재현했다 "
+                f"→ 이후 날짜 적립의 Δ 는 '모델 vs 모집단 교체' 혼합이 아니다.", None)
+    why = []
+    if float(ov) < 0.999:
+        why.append(f"교집합 {ov}<1.0(모집단 재추첨)")
+    if mx is None or float(mx) >= 1e-9:
+        why.append(f"예측 불일치 max|Δpred| {mx}")
+    if da is None or abs(float(da)) > 0.005:
+        why.append(f"공통집단 ΔAUC {da} > 0.005")
+    return ("재현 안 됨 — 동결로도 모집단 불일치", f"{detail}. 원인 후보: {', '.join(why)}", None)
+
+
 def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     """metric 이름으로 파서를 고른다(모르는 metric 은 예외 없이 오류 dict)."""
     kind = item.get("metric")
+    if kind == "reproducibility_overlap":
+        return parse_repro_overlap(spath, mtime_floor)
     if kind in ("wf_sweep_summary", "wf_wave_summary"):
         # 두 요약의 스키마가 같다(results[].folds{}.mean · exp/desc) → 같은 파서를 쓴다.
         return parse_wf_sweep(spath, mtime_floor)
@@ -4831,6 +4909,8 @@ def judge_source_freshness(item, parsed) -> tuple:
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
+    if kind == "reproducibility_overlap":
+        return judge_repro_overlap(item, parsed)
     if kind == "scale_regime_audit":
         return judge_scale_regime_audit(item, parsed)
     if kind == "scale_bisect_probe":
