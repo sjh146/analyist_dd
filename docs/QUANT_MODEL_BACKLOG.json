@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-19T20:08:25+09:00",
+ "updated_at": "2026-11-19T21:07:26+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -57,7 +57,10 @@
    "expected": "챔피언 vs 후보 비교가 처음으로 같은 창에서 성립 — 배포 챔피언 교체 판단의 측정 근거 확보.",
    "created": "2026-11-19T06:56:00+09:00",
    "setup_needed": "리뷰보드 승인 필요(프로토콜 변경): champion_robust_eval 의 OOS 창 정의를 바꾼다. 기본값은 현행 유지(옵션 OFF)이므로 기존 기준선 수치는 불변. 승인 후 내가 구현할 것: ① _split_oos 에 clip_partial 인자 ② --allow-partial-post-train 플래그 ③ 회귀 테스트(기존 창 결과 비트 동일) ④ CG349 재실행.",
-   "rationale": "측정 해상도 문제(CG347)와 창 불일치(CG348)를 잇는 마지막 블로커다. 이 옵션 없이는 챔피언 대비 어떤 후보도 '같은 창'에서 비교된 적이 없다 — 20사이클 무개선 카운터의 근거 자체가 프로토콜 혼합 위에 서 있다."
+   "rationale": "측정 해상도 문제(CG347)와 창 불일치(CG348)를 잇는 마지막 블로커다. 이 옵션 없이는 챔피언 대비 어떤 후보도 '같은 창'에서 비교된 적이 없다 — 20사이클 무개선 카운터의 근거 자체가 프로토콜 혼합 위에 서 있다.",
+   "ready_patch": "data/reports/cg350_partial_window.patch",
+   "verify_cmd": "python3 scripts/_cg350_clip_test.py",
+   "ready_note_engineer": "2026-11-19 21:1x 엔지니어 자율 — 구현 준비 완료(패치 산출물만, 미적용: 프로토콜 변경=리뷰보드 승인 대상). 패치 = scripts/champion_robust_eval.py _split_oos(L179) 에 clip_partial 인자 + --allow-partial-post-train 플래그(기본 OFF). 오프라인 검증 5케이스 PASS: ①OFF 비트동일(OOS 창 3개·제외 창 동일) ②ON 이면 창 2026-09-11~11-11 → **2026-10-02~11-11** 로 절단돼 CG349 에서 0개였던 OOS 창이 1개 생김 ③두 arm 이 같은 --train-end 를 주면 같은 절단 서명 ④train_end 이후 꼬리가 없으면 절단 안 함(제외 유지) ⑤창 전체가 train_end 이후면 절단 없음. 승인 시 적용·회귀·CG349 재실행(3시드 짝 Δ SE≤0.010 확인)까지 이어서 한다."
   },
   {
    "id": "CG349",
