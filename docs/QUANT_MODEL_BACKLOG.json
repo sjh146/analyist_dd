@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-19T16:07:08+09:00",
+  "updated_at": "2026-11-19T16:15:15+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -21558,7 +21558,7 @@
     {
       "id": "CG354",
       "title": "[측정 해상도] OOS 캘린더 누적 러너 — 같은 창 앵커·같은 프로토콜로 매주 금요일 장외에 챔피언 OOS 를 적립(목표 34→70날짜)",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "est_minutes": 25,
       "owner": "model_engineer",
@@ -21567,7 +21567,24 @@
       "success": "① 34날짜 도달 시 SE ≤ 0.010 ② 그 전까지 모든 판정문에 '미해상(SE=0.0587/√n)' 표기 ③ 앵커/프로토콜 고정(창 밀림 금지)",
       "expected": "판정 가능한 표본을 캘린더로 확보 — 지금의 '20사이클 무개선'이 모델 문제인지 측정 문제인지 가른다",
       "created": "2026-11-19T07:41:20+09:00",
-      "rationale": "CG353 실측: SE(n=10)=0.0186 ≈ 문턱. 표본을 늘리지 않으면 이후 어떤 실험도 +0.02 를 해상할 수 없고, 20사이클 무개선은 판정 불가 상태의 반복이다."
+      "rationale": "CG353 실측: SE(n=10)=0.0186 ≈ 문턱. 표본을 늘리지 않으면 이후 어떤 실험도 +0.02 를 해상할 수 없고, 20사이클 무개선은 판정 불가 상태의 반복이다.",
+      "attempts": [
+        {
+          "ts": "2026-11-19T16:11:33+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "parser 없음 (metric=None)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG354_20261119-160709.log",
+          "elapsed_min": 4.4
+        }
+      ],
+      "result": {
+        "verdict": "판정불가",
+        "detail": "parser 없음 (metric=None)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG355",
@@ -21582,6 +21599,20 @@
       "expected": "재학습 후보 vs 배포 챔피언의 체결가능 순기대를 3시드로 확정 — 현재 s0 단일값(t 1.14)이라 AUC 짝 Δ(-0.0273, t -0.69)와 부호가 충돌해 판정 불가",
       "created": "2026-11-19T15:41:02+09:00",
       "rationale": "load_rows 가 exp 태그로 필터하므로 덤프 태그(_s{s})와 --*-tag 가 일치해야 한다(CG352 는 여기서 0행 rc=2). CG344(--control-jsonl 누락)와 같은 계열의 '명령 재현 불가' 결함 — 측정값이 있어도 재현이 안 되면 자산이 아니다."
+    },
+    {
+      "id": "CG356",
+      "title": "[측정 해상도] OOS 적립을 주 단위 앵커로 전환 — CG354(앵커 2026-11-11 고정)는 2회 적립에도 창 union 10날짜 그대로였다",
+      "status": "pending",
+      "priority": 1,
+      "est_minutes": 25,
+      "owner": "model_engineer",
+      "command": "timeout 2550 bash scripts/oos_accrual_weekly.sh",
+      "counterfactual": "CG354(앵커 2026-11-11 하드코딩) — 2026-11-18·11-19 두 번 적립했지만 두 줄의 폴드창이 동일(2026-10-02~10-13 / 10-21~10-28) → 창 union 10날짜, SE 0.0186 고정",
+      "success": "적립 후 창 union 날짜수가 10 → ≥15 로 증가 · 같은 주 재실행은 [skip] 으로 늘지 않을 것 · --show 가 '현재 N날짜 → SE x.xxxx' 를 출력",
+      "expected": "SE 0.0186 → ≤0.015 (20날짜) — '20사이클 연속 무개선'이 모델 무신호인지 미해상인지 가르는 표본 확보",
+      "note": "앵커 규칙: 직전 금요일(금요일 15:30 이후면 당일). 같은 주 안에서는 앵커 고정 → 프로토콜 불변, 주가 바뀌면 새 날짜가 꼬리에 붙는다. 고정값(train-end 2026-10-01·oos-start 2026-10-02·champion·2폴드×5날짜·seed 0)은 CG354 와 동일.",
+      "created_at": "2026-11-19T16:14:50+09:00"
     }
   ],
   "updated": "2026-11-19T04:17:21+09:00"

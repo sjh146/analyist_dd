@@ -46,6 +46,45 @@ def load_summary(path: str) -> dict:
     }
 
 
+def _record_key(rec: dict) -> tuple:
+    """적립 레코드의 동일성 키 = (앵커, 폴드별 (폴드번호, 창)).
+
+    왜 필요한가(실측 2026-11-19): 같은 날 다시 채점하면 앵커·창·AUC 가 그대로인 레코드가
+    한 줄 더 쌓였고, `--show` 가 dates_scored 를 **단순 합산**해 '누적 20날짜'로 표시했다
+    (실제로는 같은 10날짜). 표본 수를 부풀리면 SE 를 과소평가해 '미해상'을 '해상'으로
+    오독하게 된다 — 중복 적립은 건너뛰고, 누적은 **창 단위 union** 으로 센다.
+    """
+    folds = tuple(sorted((str(f.get("fold")), tuple(f.get("window") or []))
+                         for f in (rec.get("folds") or [])))
+    return (rec.get("window_anchor"), folds)
+
+
+def _read_ledger() -> list:
+    if not os.path.exists(LEDGER):
+        return []
+    out = []
+    with open(LEDGER, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return out
+
+
+def distinct_dates(rows) -> int:
+    """창(폴드·구간) 단위로 중복을 제거한 '실제로 채점된 날짜 수'."""
+    seen = {}
+    for r in rows:
+        for f in (r.get("folds") or []):
+            key = (str(f.get("fold")), tuple(f.get("window") or []))
+            seen[key] = max(seen.get(key, 0), int(f.get("n_dates") or 0))
+    return sum(seen.values())
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="OOS 표본 적립 원장")
     ap.add_argument("--append", default=None, help="champion_robust_eval 요약 JSON")
@@ -55,25 +94,31 @@ def main(argv=None) -> int:
     if a.append:
         rec = load_summary(a.append)
         os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
-        with open(LEDGER, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        n = rec.get("dates_scored") or 0
-        print(f"[append] {rec['source']} robust={rec['robust_auc']} dates={n} "
-              f"SE(1σ)={PER_DATE_SD / math.sqrt(n):.4f}" if n else "[append] dates=0")
+        rows = _read_ledger()
+        if any(_record_key(r) == _record_key(rec) for r in rows):
+            print(f"[skip] 중복 적립 — 앵커 {rec.get('window_anchor')} · 같은 창/같은 날짜"
+                  f"(새 날짜가 없다). 누적은 창 union 으로 센다")
+        else:
+            with open(LEDGER, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            n = rec.get("dates_scored") or 0
+            print(f"[append] {rec['source']} robust={rec['robust_auc']} dates={n} "
+                  f"SE(1σ)={PER_DATE_SD / math.sqrt(n):.4f}" if n else "[append] dates=0")
 
     if a.show or not a.append:
-        if not os.path.exists(LEDGER):
+        rows = _read_ledger()
+        if not rows:
             print("원장 없음 — 아직 적립 0건")
             return 0
-        rows = [json.loads(l) for l in open(LEDGER, encoding="utf-8") if l.strip()]
-        dates = sum(int(r.get("dates_scored") or 0) for r in rows)
-        print(f"적립 {len(rows)}회 · 누적 채점 날짜 {dates} (OOS 창은 서로 겹칠 수 있음)")
+        n_distinct = distinct_dates(rows)
+        print(f"적립 {len(rows)}회 · 누적 채점 날짜 {n_distinct} (창 union 기준 · 중복 창 제외)")
         for r in rows[-8:]:
             n = int(r.get("dates_scored") or 0)
             print(f"  {r.get('measured_at')} auc={r.get('robust_auc')} dates={n} "
                   f"SE={PER_DATE_SD / math.sqrt(n):.4f}" if n else f"  {r}")
         need = {se: math.ceil((PER_DATE_SD / se) ** 2) for se in (0.01, 0.007)}
-        print(f"해상 목표: SE 0.010 → {need[0.01]}날짜 · SE 0.007 → {need[0.007]}날짜")
+        print(f"해상 목표: SE 0.010 → {need[0.01]}날짜 · SE 0.007 → {need[0.007]}날짜"
+              f" (현재 {n_distinct}날짜 → SE {PER_DATE_SD / math.sqrt(max(n_distinct, 1)):.4f})")
     return 0
 
 
