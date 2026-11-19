@@ -945,6 +945,18 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/champion_robust_eval.json")
+    if kind == "robust_auc_se":
+        # CG370 — 선언된 --out 을 **존재 여부와 무관하게** 먼저 쓴다.
+        # 왜(실측 2026-11-20 06:09): oos_accrual 폴백을 그대로 쓰면 --out 파일이 아직 없는 실행 중에
+        # 옛 앵커 파일(oos_accrual_20261118_f1full.json)을 요약으로 돌려준다 → 실행이 끝나
+        # cg370_frozen200.json 에 새 결과를 써도 구동기는 옛 파일을 보고 mtime 가드에 걸려
+        # '판정불가'로 닫힌다(40분 측정 소실).
+        out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        import glob as _glob
+        cand = _glob.glob(os.path.join(PROJ, "services/xgboost-ml/reports/overnight/oos_accrual_*.json"))
+        return max(cand, key=os.path.getmtime) if cand else ""
     if kind == "oos_accrual":
         # OOS 적립 러너(CG354/CG356)의 산출물 이름에는 **앵커 날짜**가 박혀 있다
         # (oos_accrual_<앵커>.json). 커맨드 문자열 경로는 `$(date +%Y%m%d)` 같은 미전개 셸이라
@@ -1576,6 +1588,45 @@ def parse_oos_accrual(path, mtime_floor) -> dict:
         "se_measured": (round(se_meas, 4) if se_meas is not None else None),
         "summary_mtime": mt,
     }
+
+
+SE_PREDICTED_30D = 0.0114   # CG370 사전 예측: 날짜 SD 0.0623(CG366) / sqrt(30) = 0.01137
+
+
+def parse_robust_auc_se(path, mtime_floor) -> dict:
+    """적립 '판정 가능성' 실측(CG370) — 동결 유니버스 런의 날짜 SD·SE 를 그대로 읽는다.
+
+    왜 전용 metric 인가(실측 2026-11-20 06:08): CG370 을 metric=`robust_auc_se` 로 등록했는데
+    구동기에 경로·파서가 없어 시작 로그에 "알 수 없는 metric 'robust_auc_se' — 요약 경로 없음
+    (판정불가로 기록)" 이 찍혔다. 그대로면 40분짜리 실행이 끝나도 원장에 판정이 남지 않는다
+    (CG354·CG261 과 같은 'metric 등록 누락' 함정). 스키마는 champion_robust_eval 과 같으므로
+    parse_oos_accrual 을 재사용하고, 이 항목의 질문('SE 가 사전 예측과 맞는가')만 덧붙인다.
+    ⚠ per_exp 를 만들지 않는다 — 측정 계측기 항목이라 무개선 카운터에 관여하면 안 된다.
+    """
+    p = parse_oos_accrual(path, mtime_floor)
+    if p.get("error"):
+        return p
+    sd, se = p.get("sd_measured"), p.get("se_measured")
+    n = p.get("union_dates")
+    p["metric_name"] = "robust_auc_se"
+    if sd is None or se is None or not n:
+        p["error"] = "날짜 SD/SE 계산 불가(창 auc_std 없음)"
+        return p
+    dev = (se - SE_PREDICTED_30D) / SE_PREDICTED_30D
+    band = "예측범위(±15%)" if abs(dev) <= 0.15 else ("예측 상회" if dev > 0 else "예측 하회")
+    need = int(round((3 * sd / 0.02) ** 2))
+    p["se_predicted"] = SE_PREDICTED_30D
+    p["se_dev_pct"] = round(dev * 100, 1)
+    p["dates_needed_3sigma"] = need
+    p["sd_vs_cg366"] = round(sd - 0.0623, 4)
+    p["verdict"] = (f"측정완료 — 날짜 {n} · 견고 AUC {p.get('robust_auc')} · SD {sd} · "
+                    f"SE {se} vs 예측 {SE_PREDICTED_30D}({band} {p['se_dev_pct']:+.1f}%)")
+    p["detail"] = (f"동결 유니버스 날짜 SD {sd} (CG366 0.0623 대비 {p['sd_vs_cg366']:+.4f}) · "
+                   f"SE {se} · 판정 3σ(+0.02) 필요 날짜 {need}개 · "
+                   + ("SD 가 줄지 않았다 → 날짜 적립만으로는 판정 불가, 종목수 축이 다음 레버"
+                      if sd >= 0.05 else
+                      f"SD 가 0.05 이하로 내려감 → 남은 적립 필요 날짜 {max(0, need - n)}개"))
+    return p
 
 
 def parse_protocol_noise_floor(path, mtime_floor) -> dict:
@@ -2217,6 +2268,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind == "oos_accrual":
         # CG354/CG356 — 견고평가 요약 + 누적 원장(날짜 union·SE). 계측기 항목.
         return parse_oos_accrual(spath, mtime_floor)
+    if kind == "robust_auc_se":
+        # CG370 — 같은 스키마에 'SE vs 사전 예측' 만 덧붙인다(경로 규칙도 oos_accrual 공유).
+        return parse_robust_auc_se(spath, mtime_floor)
     if kind == "date_paired_auc":
         # CG359 — 날짜 단위 짝 Δ(auc_date_pair). 폴드 2개 짝 SE 0.0187 을 날짜 22단위로 재측정.
         return parse_date_paired_auc(spath, mtime_floor)
@@ -4906,6 +4960,13 @@ def judge_source_freshness(item, parsed) -> tuple:
     return (parsed.get("verdict") or "판정불가"), (parsed.get("detail") or ""), None
 
 
+def judge_robust_auc_se(item, parsed) -> tuple:
+    """CG370 — 적립 '판정 가능성' 실측. 모델 팔 실험이 아니므로 delta=None(무개선 카운터 무관)."""
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    return (parsed.get("verdict") or "측정완료"), (parsed.get("detail") or ""), None
+
+
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
     kind = item.get("metric")
@@ -4949,6 +5010,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_champion_baseline(item, parsed)
     if kind == "oos_accrual":
         return judge_oos_accrual(item, parsed)
+    if kind == "robust_auc_se":
+        return judge_robust_auc_se(item, parsed)
     if kind == "date_paired_auc":
         return judge_date_paired_auc(item, parsed)
     if kind == "money_seed_family":
