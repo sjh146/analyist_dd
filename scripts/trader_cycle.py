@@ -117,6 +117,10 @@ def _scalar(conn, sql, default=0):
 
 
 ARCHIVE_JOURNALS = sorted(glob.glob(os.path.join(TRADER_WS_WSL, "journal", "paper_*.sqlite3")))
+# 표본 정의(2026-11-19 수리): `unfilled:...` 마커 행은 **포지션이 아니었던 주문**의 종결 기록이라
+# 청산 표본이 아니다. 넣으면 0원 거래가 패배로 세어져 승률·기대값이 왜곡된다(실측 17건 wr 23.5%
+# ↔ 실제 16건 wr 25.0%, 기대값 -2,011 ↔ -2,136원). 계기판(quant_scoreboard.py)과 같은 정의를 쓴다.
+_REAL_CLOSED = "exit_ts is not null and coalesce(exit_reason,'') not like 'unfilled:%'"
 
 
 def _archive_stats() -> dict | None:
@@ -136,7 +140,7 @@ def _archive_stats() -> dict | None:
                     shutil.copyfile(p, os.path.join(tmp, os.path.basename(src) + suffix))
             conn = sqlite3.connect(f"file:{os.path.join(tmp, os.path.basename(src))}?mode=ro", uri=True, timeout=10)
             try:
-                closed = _scalar(conn, "select count(*) from trades where exit_ts is not null")
+                closed = _scalar(conn, "select count(*) from trades where " + _REAL_CLOSED)
                 fees = _scalar(conn, "select coalesce(sum(fees),0) from trades")
                 row = conn.execute("select ts from trades order by ts desc limit 1").fetchone()
                 last = row[0] if row else None
@@ -184,11 +188,11 @@ def measure() -> dict:
     else:
         try:
             today = now_kst().date().isoformat()
-            st["closed"] = _scalar(conn, "select count(*) from trades where exit_ts is not null")
-            st["realized_krw"] = _scalar(conn, "select coalesce(sum(pnl),0) from trades where exit_ts is not null")
+            st["closed"] = _scalar(conn, "select count(*) from trades where " + _REAL_CLOSED)
+            st["realized_krw"] = _scalar(conn, "select coalesce(sum(pnl),0) from trades where " + _REAL_CLOSED)
             wins = _scalar(
                 conn,
-                "select count(*) from trades where exit_ts is not null and pnl > 0",
+                "select count(*) from trades where " + _REAL_CLOSED + " and pnl > 0",
             )
             if st["closed"]:
                 st["win_rate"] = wins / st["closed"]
@@ -209,11 +213,11 @@ def measure() -> dict:
                     pass
             st["today_closed"] = _scalar(
                 conn,
-                f"select count(*) from trades where exit_ts like '{today}%'",
+                f"select count(*) from trades where exit_ts like '{today}%' and coalesce(exit_reason,'') not like 'unfilled:%'",
             )
             st["today_realized_krw"] = _scalar(
                 conn,
-                f"select coalesce(sum(pnl),0) from trades where exit_ts like '{today}%'",
+                f"select coalesce(sum(pnl),0) from trades where exit_ts like '{today}%' and coalesce(exit_reason,'') not like 'unfilled:%'",
             )
         finally:
             conn.close()
