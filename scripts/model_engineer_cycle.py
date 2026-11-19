@@ -1990,6 +1990,95 @@ def judge_promote_dryrun(item, parsed) -> tuple:
     return verdict, " · ".join(parts), None
 
 
+def parse_date_paired_auc(path, mtime_floor) -> dict:
+    """날짜 단위 짝 Δ(scripts/auc_date_pair.py)를 판정 가능한 스키마로 옮긴다.
+
+    왜(실측 2026-11-19 CG359): 폴드 2개짜리 짝 Δ 는 SE 0.0187 로 사전문턱 +0.02 를 해상하지
+    못한다. 폴드는 날짜 묶음일 뿐이므로 **날짜 하나를 한 단위**로 짝지으면 단위 수가 22 로 늘어
+    SE 가 측정 가능해진다. 이 metric 이 없으면 date-paired 실행이 전부 'parser 없음 → 판정불가'로
+    원장에서 사라진다(CG359 가 실제로 그렇게 닫혔다).
+    """
+    if not path:
+        return {"error": "요약 경로 없음(summary_out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if d.get("error"):
+        return {"error": d["error"]}
+    arms = d.get("arms") or {}
+    pair = ((d.get("pair") or {}).get("date") or {})
+    delta = pair.get("delta") or {}
+    if not arms or not delta:
+        return {"error": "arms/pair.date.delta 없음 — auc_date_pair 요약이 아니다"}
+    boot = pair.get("bootstrap95") or [None, None]
+    arm_stats = {}
+    for lbl, a in arms.items():
+        da = a.get("date_auc") or {}
+        arm_stats[lbl] = {"mean": da.get("mean"), "sd": da.get("sd"), "se": da.get("se"),
+                          "dates": a.get("dates"), "pooled": a.get("pooled_auc"),
+                          "min": da.get("min"), "max": da.get("max")}
+    return {
+        "protocol": d.get("protocol"),
+        "arms": arm_stats,
+        # 팔 값(per_exp)을 만들지 않는다 — 후보 실험이 아니라 계측기이므로 스코어보드 무개선
+        # 카운터에 섞이면 안 된다(절대 기준선 비교는 oos_accrual 이 담당).
+        "robust_auc": None,
+        "paired": {
+            "n": pair.get("n_pairs"),
+            "delta_mean": delta.get("mean"),
+            "delta_sd": delta.get("sd"),
+            "se": delta.get("se"),
+            "t": delta.get("t"),
+            "pos": delta.get("pos"),
+            "neg": delta.get("neg"),
+            "pos_frac": delta.get("pos_frac"),
+            "sign_test_p": delta.get("sign_test_p"),
+            "boot_lo": boot[0],
+            "boot_hi": boot[1],
+            "first": pair.get("first"),
+            "last": pair.get("last"),
+        },
+        "threshold": 0.02,
+        "summary_mtime": mt,
+    }
+
+
+def judge_date_paired_auc(item, parsed) -> tuple:
+    """날짜 단위 짝 Δ 판정 — 해상 가능성(SE) → 신호/노이즈 순서로 본다."""
+    if parsed.get("error"):
+        return "판정불가", parsed["error"]
+    p = parsed.get("paired") or {}
+    n, delta, se = p.get("n"), p.get("delta_mean"), p.get("se")
+    thr = parsed.get("threshold", 0.02)
+    if n is None or delta is None:
+        return "판정불가", "짝 Δ 없음"
+    head = (f"{n}날짜 짝 Δ {delta:+.4f} (sd {p.get('delta_sd'):.4f} · SE {se:.4f} · t {p.get('t'):+.2f}"
+            if se is not None else f"{n}날짜 짝 Δ {delta:+.4f}")
+    head += (f" · 양/음 {p.get('pos')}/{p.get('neg')} · 부호검정 p {p.get('sign_test_p')}"
+             f" · 부트스트랩95 [{p.get('boot_lo'):+.4f}, {p.get('boot_hi'):+.4f}]"
+             if p.get("boot_lo") is not None else "")
+    head += f" · 창 {p.get('first')}~{p.get('last')})"
+    if n < 10:
+        return "판정불가", f"{head} → 날짜 표본 {n} < 10 (판정 최소)"
+    # 해상 게이트: 짝 SE 가 문턱의 1/3(≈0.0067)을 넘으면 +0.02 를 3σ 로 볼 수 없다.
+    if se is None or se > thr / 3:
+        return ("미해상 — 짝 SE 과대",
+                f"{head} → 짝 SE {se} > {thr/3:.4f}: 이 프로토콜로 +0.02 를 해상할 수 없다"
+                if se is not None else head)
+    if abs(delta) >= thr:
+        return ("신호" if delta > 0 else "역신호",
+                f"{head} → |Δ| ≥ 사전문턱 {thr} · 짝 SE {se:.4f} (3σ 해상)")
+    return "노이즈", f"{head} → |Δ| < 사전문턱 {thr} · 짝 SE {se:.4f} (해상된 무신호)"
+
+
 def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     """metric 이름으로 파서를 고른다(모르는 metric 은 예외 없이 오류 dict)."""
     kind = item.get("metric")
@@ -2005,6 +2094,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind == "oos_accrual":
         # CG354/CG356 — 견고평가 요약 + 누적 원장(날짜 union·SE). 계측기 항목.
         return parse_oos_accrual(spath, mtime_floor)
+    if kind == "date_paired_auc":
+        # CG359 — 날짜 단위 짝 Δ(auc_date_pair). 폴드 2개 짝 SE 0.0187 을 날짜 22단위로 재측정.
+        return parse_date_paired_auc(spath, mtime_floor)
     if kind == "money_seed_family":
         # CG355 — 시드별 돈 지표 집계(시드 부호 유지 검정).
         return parse_money_seed_family(spath, mtime_floor)
@@ -4732,6 +4824,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_champion_baseline(item, parsed)
     if kind == "oos_accrual":
         return judge_oos_accrual(item, parsed)
+    if kind == "date_paired_auc":
+        return judge_date_paired_auc(item, parsed)
     if kind == "money_seed_family":
         return judge_money_seed_family(item, parsed)
     if kind == "insample_gap":
