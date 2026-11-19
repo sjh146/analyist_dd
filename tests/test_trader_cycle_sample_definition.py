@@ -67,3 +67,21 @@ def test_unfilled_marker_excluded_from_closed_sample(tmp_path, monkeypatch):
     assert st["open_positions"] == 1
     assert st["today_closed"] == 2
     assert st["today_realized_krw"] == pytest.approx(600.0)
+
+def test_screener_attribution_excludes_unfilled_marker(tmp_path, monkeypatch):
+    """스크리너별 집계도 같은 표본 정의를 쓴다 — 마커 행이 swing 건수를 부풀리지 않는다.
+
+    실측 근거(2026-11-19 13:2x): 청산 17건인데 이 집계는 swing 9건(마커 포함)을 보고했다.
+    """
+    tc = _load_cycle()
+    jp = tmp_path / "trade_journal.sqlite3"
+    _fixture_journal(str(jp))
+    conn = sqlite3.connect(str(jp))
+    conn.execute("update trades set screener='swing' where code in ('111111','222222','333333')")
+    conn.execute("update trades set screener='close' where code='444444'")
+    conn.commit()
+    rows = tc.screener_attribution(conn)
+    conn.close()
+    got = {s: (n, round(p, 1)) for s, n, p in rows}
+    assert got["swing"] == (2, 600.0), got          # 마커 제외 = 2건 +600
+    assert sum(n for _, n, _ in rows) == 2, got     # 미청산(close) 미포함

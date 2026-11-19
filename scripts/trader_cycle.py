@@ -123,6 +123,18 @@ ARCHIVE_JOURNALS = sorted(glob.glob(os.path.join(TRADER_WS_WSL, "journal", "pape
 _REAL_CLOSED = "exit_ts is not null and coalesce(exit_reason,'') not like 'unfilled:%'"
 
 
+def screener_attribution(conn) -> list:
+    """스크리너별 실현(net pnl) — 청산 표본과 **같은 정의**(_REAL_CLOSED)를 쓴다.
+
+    WHY(2026-11-19 13:2x 실측): T52 수리(28cbf2f)는 measure() 만 고쳤고 이 집계는
+    `exit_ts is not null` 로 남아, 11-10 미체결 만료 마커(swing, pnl 0)를 청산 1건으로
+    계속 세었다 → 같은 틱에서 청산 17건인데 스크리너 합계는 18건(swing 9건)이었다.
+    """
+    return list(conn.execute(
+        "select coalesce(screener,'(none)') s, count(*) n, coalesce(sum(pnl),0) p "
+        "from trades where " + _REAL_CLOSED + " group by s order by p desc"))
+
+
 def _archive_stats() -> dict | None:
     """은퇴한 모의 저널에서 청산 수·수수료·마지막 진입을 읽는다(출처 명시용).
 
@@ -966,9 +978,7 @@ def tick(force=False) -> int:
     conn, tmp = _journal_copy()
     if conn is not None:
         try:
-            rows = list(conn.execute(
-                "select coalesce(screener,'(none)') s, count(*) n, coalesce(sum(pnl),0) p "
-                "from trades where exit_ts is not null group by s order by p desc"))
+            rows = screener_attribution(conn)
             if rows:
                 detail = ", ".join(f"{s}: {n}건 {p:+,.0f}원" for s, n, p in rows)
                 log(f"스크리너별 실현: {detail}")
