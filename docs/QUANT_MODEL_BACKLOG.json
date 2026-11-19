@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-19T23:49:49+09:00",
+ "updated_at": "2026-11-20T01:10:16+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -21936,7 +21936,7 @@
   {
    "id": "CG364",
    "title": "[데이터 축·부활 검증] 리서처가 되살린 3피처(momentum_3_12m·bb_position·relative_strength)의 단변량 엣지 — 선별 문턱 0.044 대비",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "est_minutes": 12,
    "metric": "db_feature_screen",
@@ -21946,7 +21946,24 @@
    "success": "① rc=0 ② momentum_3_12m 비영률 ≥0.5 · 단변량 |AUC−0.5| 가 선별 문턱 0.044 의 1/4(0.011) 이상 ③ 누수 게이트 위반(단일 AUC>0.75·종목상수 지배·시장레벨) 0 ④ 셋 중 문턱 미달 피처는 '부활했지만 무효'로 기록하고 피처 제안 금지",
    "expected": "리서처 보고는 '값이 있다'까지만 확인됐다(11-18 nz 0.8910). 선별 문턱의 1/4 도 안 되면 죽은 피처 13→12 는 북극성 진척일 뿐 모델 성과가 아니다 — 이 구분을 수치로 남긴다.",
    "created": "2026-11-19T22:29:24+09:00",
-   "rationale": "리서처 일일(2026-11-19 21:2x): 크론 supply_features.sh 가 --since 45일로 돌아 momentum_3_12m 이 창 밖으로 밀려 전행 0 이었다 → price_history_start() 로 since-400일 로드 후 11-18 nz 0.8910 · bb_position 0.9966 · relative_strength 0.9998 로 복구. 계약 #5(단변량 edge vs 선별 문턱 0.044)는 아직 미측정이며, 이 스크린은 패널 재빌드(1~2h) 없이 5~12분에 그 답을 낸다."
+   "rationale": "리서처 일일(2026-11-19 21:2x): 크론 supply_features.sh 가 --since 45일로 돌아 momentum_3_12m 이 창 밖으로 밀려 전행 0 이었다 → price_history_start() 로 since-400일 로드 후 11-18 nz 0.8910 · bb_position 0.9966 · relative_strength 0.9998 로 복구. 계약 #5(단변량 edge vs 선별 문턱 0.044)는 아직 미측정이며, 이 스크린은 패널 재빌드(1~2h) 없이 5~12분에 그 답을 낸다.",
+   "attempts": [
+    {
+     "ts": "2026-11-20T00:07:53+09:00",
+     "rc": 0,
+     "verdict": "후보 없음 — 데이터 축 종결(86컬럼 중 69채점)",
+     "detail": "패널 panel_420_asofpatch.npz · 피처 86개 중 69채점(무정보/커버리지<0.05 28) · 문턱 |AUC−0.5|≥0.065 · 살아있는 상위: supply_market_features.market_impact_score 0.4854(|Δ|0.0146 cov 0.073) · supply_market_features.momentum_3_12m 0.4893(|Δ|0.0107 cov 0.211) · event_features.disclosure_count_5d 0.4893(|Δ|0.0107 cov 0.189) · 문턱은 넘었으나 커버리지/종목상수 조건에서 탈락: sns_post_features.momentum_score, sns_post_features.kalman_momentum",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG364_20261120-000733.log",
+     "elapsed_min": 0.3
+    }
+   ],
+   "result": {
+    "verdict": "후보 없음 — 데이터 축 종결(86컬럼 중 69채점)",
+    "detail": "패널 panel_420_asofpatch.npz · 피처 86개 중 69채점(무정보/커버리지<0.05 28) · 문턱 |AUC−0.5|≥0.065 · 살아있는 상위: supply_market_features.market_impact_score 0.4854(|Δ|0.0146 cov 0.073) · supply_market_features.momentum_3_12m 0.4893(|Δ|0.0107 cov 0.211) · event_features.disclosure_count_5d 0.4893(|Δ|0.0107 cov 0.189) · 문턱은 넘었으나 커버리지/종목상수 조건에서 탈락: sns_post_features.momentum_score, sns_post_features.kalman_momentum",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG365",
@@ -21985,6 +22002,56 @@
    "updated_at": "2026-11-19T23:48:41+09:00",
    "cadence": "주 1회(금 22:25 일일) 실행 권장 — 날짜는 캘린더로만 늘어 매일 재실행은 55분을 +1날짜에 쓰는 것이다. 매 틱 강행 금지.",
    "note": "priority 3: 다른 pending 을 굶기지 않게 뒤로 둔다(크론 틱은 ETA 가드로만 거른다)."
+  },
+  {
+   "id": "XR43",
+   "title": "[리서처 R43] 피처 빌더의 로드 창이 좁아져 momentum_3_12m 이 조용히 죽는다 — 선행 이력 분리(수리) + 모델창 생존 상시 감시",
+   "status": "needs_setup",
+   "priority": 8,
+   "from_research": "R43",
+   "arm": null,
+   "counterfactual": null,
+   "baseline": null,
+   "command": null,
+   "metric": "wf_sweep_summary",
+   "hypothesis": "빌더가 --since(격자 하한)만 로드하면 252거래일 shift 가 전부 NaN 이 되어 12개월 모멘텀이 0 이 된다. 원천은 멀쩡하고 '창'만 좁은 경우라, 수집 실패 신호(빈 응답·0행)에는 전혀 걸리지 않고 feature_coverage nonzero=0 으로만 드러난다.",
+   "evidence": "리서처 R43 결과: R43: 0 >= 0 → 충족",
+   "success": null,
+   "expected": "미지",
+   "cost": null,
+   "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
+   "promoted_from": "handoff",
+   "promoted_at": "2026-11-20T01:07:52+09:00"
+  },
+  {
+   "id": "CG367",
+   "title": "[CG364 후속·축 종결 확정] momentum_3_12m 커버리지 0.21 은 '측정 불가'인가 '무정보'인가 — 결측 아닌 서브셋 AUC 분해",
+   "status": "done",
+   "priority": 4,
+   "est_minutes": 3,
+   "metric": "db_feature_screen",
+   "owner": "model_engineer",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 600 python -u scripts/_cg367_momentum_subset.py'",
+   "counterfactual": "CG364 전체행 AUC momentum_3_12m 0.4893 (cov 0.2115) · relative_strength 0.4986 (cov 1.0) · bb_position 0.5003 (cov 1.0) · market_impact_score 0.4854 (cov 0.073)",
+   "success": "① rc=0 ② 스크립트가 CG364 값을 그대로 재현(자기검증) ③ 서브셋 |AUC−0.5| 가 여전히 선별 문턱 0.044 미달이면 '결측이 엣지를 가린 것이 아니다'로 데이터 축을 확정 종결 ④ 0.044 이상이면 momentum 만 패널 재빌드 대상으로 되살린다",
+   "expected": "결측 79% 가 AUC 를 0.5 로 끌어내렸다면 서브셋 AUC 가 0.52+ 로 튀어야 한다. 튀지 않으면 '부활 = 값은 생겼지만 엣지 0' 확정.",
+   "created": "2026-11-20T01:10:16+09:00",
+   "updated_at": "2026-11-20T01:10:16+09:00",
+   "rationale": "CG364(2026-11-20 00:07)가 데이터 축을 닫았지만 momentum_3_12m 만 커버리지 0.2115 라 판정이 오염됐을 가능성이 남았다(XR43 의 로드창 결함으로 패널 전반부 nz 0%). 축 종결의 유일한 미측정 칸이라 3분짜리 분해로 먼저 닫는다.",
+   "attempts": [
+    {
+     "ts": "2026-11-20T01:10:16+09:00",
+     "rc": 0,
+     "verdict": "축 종결 확정 — 결측이 엣지를 가린 것이 아니다",
+     "detail": "rows 13,609(2025-07-31~2026-09-23, 49종목) · 자기검증 OK(전체행 AUC 가 CG364 와 동일: 0.4893/0.4986/0.5003) · momentum_3_12m 서브셋(nz 2,869행) AUC 0.4894 (전체 0.4893, |Δ|0.0106) · IC −0.018 t −0.85 (62날짜) · 커버리지 앞절반 0.0%/뒤절반 42.7% = XR43 로드창 구조 그대로 · market_impact_score 서브셋 0.4854(994행, cov 0.073) → 생존 후보 4개 전부 |AUC−0.5| ≤ 0.0146 · IC |t| ≤ 1.26. 값이 있는 구간에도 엣지 없음 → 부활 피처 축(데이터 축) 종결.",
+     "log": "reports/overnight/cg367_momentum_subset.json"
+    }
+   ],
+   "result": {
+    "verdict": "축 종결 확정 — 결측이 엣지를 가린 것이 아니다",
+    "detail": "momentum_3_12m 서브셋 AUC 0.4894 vs 전체 0.4893 → 결측 79% 는 AUC 를 끌어내리지 않았다. 생존 4피처 |AUC−0.5| 최대 0.0146(문턱 0.044), IC |t| 최대 1.26. '부활 = 값 생성'까지는 사실이고 성능 기여는 0.",
+    "rc": 0
+   }
   }
  ],
  "updated": "2026-11-19T04:17:21+09:00"
