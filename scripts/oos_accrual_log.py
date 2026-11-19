@@ -40,7 +40,8 @@ def load_summary(path: str) -> dict:
         "dates_scored": d.get("dates_scored"),
         "rows_scored": d.get("rows_scored"),
         "folds": [{"fold": x.get("fold"), "window": x.get("window"),
-                   "n_dates": x.get("n_dates"), "auc_mean": x.get("auc_mean")}
+                   "n_dates": x.get("n_dates"), "auc_mean": x.get("auc_mean"),
+                   "dates": x.get("dates") or []}
                   for x in d.get("folds", [])],
         "source": os.path.basename(path),
     }
@@ -76,13 +77,28 @@ def _read_ledger() -> list:
 
 
 def distinct_dates(rows) -> int:
-    """창(폴드·구간) 단위로 중복을 제거한 '실제로 채점된 날짜 수'."""
-    seen = {}
+    """실제로 채점된 **고유 날짜 수**(창 겹침·앵커 이동의 중복 제거).
+
+    왜 날짜 단위인가(실측 2026-11-19 CG354→CG356): 종전 구현은 (폴드번호, 창구간) 키의 union 을
+    세었다. 앵커가 2일만 밀려도 창구간이 '새 창'으로 보여 같은 날짜를 두 번 세고, 누적 20날짜로
+    표시되며 SE 를 0.0186→0.0131 로 과소평가한다(실제 표본은 그대로). champion_robust_eval 이
+    이제 폴드별 `dates`(채점된 날짜)를 남기므로 날짜 집합으로 센다. 옛 레코드(dates 없음)는
+    창구간 키로 폴백한다 — 그 값은 **상한**이지 정확값이 아니다.
+    """
+    real = set()
+    legacy = {}
+    legacy_only = False
     for r in rows:
         for f in (r.get("folds") or []):
-            key = (str(f.get("fold")), tuple(f.get("window") or []))
-            seen[key] = max(seen.get(key, 0), int(f.get("n_dates") or 0))
-    return sum(seen.values())
+            ds = f.get("dates") or []
+            if ds:
+                real.update(str(x) for x in ds)
+            else:
+                legacy_only = True
+                key = (str(f.get("fold")), tuple(f.get("window") or []))
+                legacy[key] = max(legacy.get(key, 0), int(f.get("n_dates") or 0))
+    n_legacy = sum(legacy.values())
+    return max(len(real), n_legacy) if legacy_only else len(real)
 
 
 def main(argv=None) -> int:

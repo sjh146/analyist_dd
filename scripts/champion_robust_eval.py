@@ -459,6 +459,10 @@ def main() -> int:
         step = max(1, len(usable) // args.dates_per_fold)
         sample_dates = usable[::step][:args.dates_per_fold]
         w_aucs: list[float] = []
+        # 채점된 **실제 날짜**를 남긴다(CG356, 2026-11-19 실측 교훈): 요약이 창 구간만 적으면
+        # 누적 러너가 (앵커, 창) 키로 union 을 세다 앵커가 2일 밀릴 때 **같은 날짜를 두 번** 센다
+        # → '누적 20날짜'가 실제 10~12날짜인데 SE 를 과소평가해 '미해상'을 '해상'으로 오독한다.
+        w_dates: list[str] = []
 
         for date in sample_dates:
             features_by_code = {}
@@ -545,6 +549,7 @@ def main() -> int:
             a = auc(y, probs)
             if a == a:  # NaN 아님
                 w_aucs.append(a)
+                w_dates.append(date)
                 per_date_aucs.append(a)
                 pooled_y.extend(y)
                 pooled_p.extend(probs)
@@ -555,6 +560,7 @@ def main() -> int:
                 "fold": fi + 1,
                 "window": [usable[0], usable[-1]],
                 "n_dates": len(w_aucs),
+                "dates": w_dates,
                 "auc_mean": round(statistics.mean(w_aucs), 4),
                 "auc_std": round(statistics.pstdev(w_aucs), 4) if len(w_aucs) > 1 else None,
             })

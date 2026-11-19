@@ -929,6 +929,16 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/champion_robust_eval.json")
+    if kind == "oos_accrual":
+        # OOS 적립 러너(CG354/CG356)의 산출물 이름에는 **앵커 날짜**가 박혀 있다
+        # (oos_accrual_<앵커>.json). 커맨드 문자열 경로는 `$(date +%Y%m%d)` 같은 미전개 셸이라
+        # 그대로 쓰면 파일을 못 찾는다 → 디렉터리에서 mtime 최신 파일을 고른다(없으면 실행 전
+        # 상태이므로 None 을 주지 않고 이름 규칙상의 경로를 돌려 '요약 없음'으로 명시 실패시킨다).
+        import glob as _glob
+        cand = _glob.glob(os.path.join(PROJ, "services/xgboost-ml/reports/overnight/oos_accrual_*.json"))
+        if cand:
+            return max(cand, key=os.path.getmtime)
+        return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/oos_accrual_<앵커>.json")
     if kind == "champion_promote_dryrun":
         # 승격 게이트 dry-run(champion_promote --summary-out) 요약. CG43 이 이 metric 으로 돈다.
         # 실측(2026-09-30 22:34): 이 metric 이 등록돼 있지 않아 구동기가 "parser 없음 →
@@ -1448,6 +1458,80 @@ def parse_champion_robust(path, mtime_floor) -> dict:
     }
 
 
+PER_DATE_AUC_SD = 0.0587   # CG353 실측: within-fold per-date AUC SD(14폴드 풀링)
+
+
+def parse_oos_accrual(path, mtime_floor) -> dict:
+    """OOS 캘린더 적립(CG354/CG356) — 견고평가 요약 + 누적 원장을 함께 읽는다.
+
+    왜 전용 파서인가(실측 2026-11-19 CG354): 요약 스키마는 champion_robust_eval 과 같지만,
+    판정 대상은 '이 런의 AUC'가 아니라 **누적 표본이 목표에 도달했는가**다. 파서 미등록으로
+    rc=0 완주가 '판정불가(parser 없음)'로 닫혀 4.4분 측정이 원장에서 사라졌다.
+
+    ⚠ per_exp 를 만들지 않는다(parse_champion_robust 와 같은 이유) — 창별 AUC 를 arm 처럼 넣으면
+    scoreboard 가 최고 창을 '돌파'로 오독한다. 창별 값은 windows 로만 싣는다.
+    """
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except json.JSONDecodeError as e:
+        return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    folds = [x for x in (d.get("folds") or [])
+             if isinstance(x, dict) and isinstance(x.get("auc_mean"), (int, float))]
+    if not folds:
+        return {"error": "folds 비어 있음(유효 창 없음)", "measured_at": d.get("measured_at")}
+
+    # 누적 원장 — 날짜 단위 union(dates 없으면 창키 폴백 = 상한).
+    ledger = os.path.join(PROJ, "data/reports/oos_accrual.jsonl")
+    rows = []
+    if os.path.exists(ledger):
+        with open(ledger, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        rows.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+    real, legacy = set(), {}
+    for r in rows:
+        for fl in (r.get("folds") or []):
+            ds = fl.get("dates") or []
+            if ds:
+                real.update(str(x) for x in ds)
+            else:
+                k = (str(fl.get("fold")), tuple(fl.get("window") or []))
+                legacy[k] = max(legacy.get(k, 0), int(fl.get("n_dates") or 0))
+    n_ledger = len(real) if real else sum(legacy.values())
+    run_dates = {str(x) for fl in folds for x in (fl.get("dates") or [])}
+    n_union = len(real | run_dates) if run_dates else n_ledger
+    se = PER_DATE_AUC_SD / (n_union ** 0.5) if n_union else None
+    return {
+        "measured_at": d.get("measured_at"), "model_dir": d.get("model_dir"),
+        "protocol": d.get("protocol"), "window_anchor": d.get("window_anchor"),
+        "metric_name": d.get("metric"),
+        "robust_auc": d.get("robust_auc"),
+        "auc_std_across_folds": d.get("auc_std_across_folds"),
+        "fold_means": [float(x["auc_mean"]) for x in folds],
+        "windows": [{"fold": x.get("fold"), "window": x.get("window"),
+                     "n_dates": x.get("n_dates"), "auc_mean": x.get("auc_mean"),
+                     "auc_std": x.get("auc_std"), "dates": x.get("dates") or []} for x in folds],
+        "dates_scored": d.get("dates_scored"), "rows_scored": d.get("rows_scored"),
+        "ledger_runs": len(rows),
+        "ledger_dates": n_ledger,
+        "union_dates": n_union,
+        "date_level": bool(run_dates),
+        "se_per_date": (round(se, 4) if se else None),
+        "summary_mtime": mt,
+    }
+
+
 def parse_protocol_noise_floor(path, mtime_floor) -> dict:
     """프로토콜 재현 잡음바닥 요약(scripts/cg143_noise_floor.sh)을 파싱한다 (CG143, 2026-10-09).
 
@@ -1918,6 +2002,9 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_baseline_protocol_gap(spath, mtime_floor, item=item)
     if kind == "champion_robust_eval":
         return parse_champion_robust(spath, mtime_floor)
+    if kind == "oos_accrual":
+        # CG354/CG356 — 견고평가 요약 + 누적 원장(날짜 union·SE). 계측기 항목.
+        return parse_oos_accrual(spath, mtime_floor)
     if kind == "insample_gap":
         # CG275 — 폴드별 train vs OOS 갭 리포트(scripts/_insample_gap_report.py)
         return parse_insample_gap(spath, mtime_floor)
@@ -4640,6 +4727,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_blend_eval(item, parsed)
     if kind == "champion_robust_eval":
         return judge_champion_baseline(item, parsed)
+    if kind == "oos_accrual":
+        return judge_oos_accrual(item, parsed)
     if kind == "insample_gap":
         return judge_insample_gap(item, parsed)
     if kind == "horizon_ladder":
@@ -5058,6 +5147,41 @@ def judge_champion_baseline(item, parsed) -> tuple:
     return "기준선 실측", detail, None
 
 
+def judge_oos_accrual(item, parsed) -> tuple:
+    """OOS 적립 판정 — **모델 팔이 아니라 계측기**다(신호/노이즈 어휘를 쓰지 않는다).
+
+    성공조건은 '누적 표본이 문턱 해상도에 도달했는가'다. 왜 문턱을 날짜수로 두는가:
+    per-date AUC SD 0.0587 → SE(n)=0.0587/√n 이므로 SE 0.0186(n=10)은 사전문턱 +0.02 와
+    같은 크기다. 그 상태에서 '무개선 20사이클'은 모델 무신호가 아니라 **미해상**이다.
+    ⚠ verdict 에 '신호' 어휘를 쓰지 않는다 — scoreboard 의 best_validated 판정이
+    `"신호" in verdict` 라서 계측기 통과가 '돌파'로 오독된다.
+    """
+    if parsed.get("error"):
+        return "판정불가", parsed["error"], None
+    n = parsed.get("union_dates")
+    if not isinstance(n, (int, float)) or n <= 0:
+        return "판정불가", "누적 날짜수 계산 불가(원장·요약 확인)", None
+    se = parsed.get("se_per_date")
+    base = item.get("baseline_dates") or item.get("baseline_union_dates") or 10
+    target = item.get("target_dates") or 15
+    means = parsed.get("fold_means") or []
+    detail = (f"누적 고유 날짜 {int(n)} (원장 {parsed.get('ledger_runs')}회·직전 {base}, 목표 {target})"
+              f" · SE(1σ) {se} · 이번 앵커 {parsed.get('window_anchor')} · 견고 AUC "
+              f"{parsed.get('robust_auc')}"
+              + (f" (창 {len(means)}개 [{', '.join(f'{m:.4f}' for m in means)}])" if means else "")
+              + f" · 행 {parsed.get('rows_scored')}"
+              + ("" if parsed.get("date_level")
+                 else " · ⚠ 날짜 미기록(창키 union = 상한, SE 과소평가 위험)"))
+    if n >= target:
+        need = {"0.010": 34, "0.007": 71}
+        detail += (f" → 표본 문턱 도달(SE {se} ≤ 사전문턱 0.02 의 3/4). "
+                   f"판정 해상 목표는 SE 0.010 = {need['0.010']}날짜 · SE 0.007 = {need['0.007']}날짜")
+        return "표본 문턱 도달", detail, None
+    detail += (f" → 미해상(표본 미증가): SE {se} 가 사전문턱 +0.02 와 동급/이상이라 "
+               f"'무개선'을 모델 무신호로 읽을 수 없다")
+    return "미해상 — 표본 미증가", detail, None
+
+
 def _attempts_list(it):
     """백로그 항목의 `attempts` 를 리스트로 정규화해 돌려준다.
 
@@ -5191,6 +5315,14 @@ def execute(item, force=False):
         verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
         per: dict = {}
     else:
+        # ── 산출물 파일명이 실행마다 달라지는 metric 은 **실행 후 경로를 다시 푼다**(2026-11-19 CG356)
+        # 실측: OOS 적립 러너는 `oos_accrual_<앵커>.json` 처럼 파일명이 매번 달라진다. 경로를
+        # 실행 전에 한 번만 풀면(그때의 최신 파일 = 전날 것) 사후 파싱이 **옛 파일**을 보고
+        # "요약 미갱신(mtime <= 바닥)" → rc=0 완주가 판정불가로 사라진다(CG356: 0.5198·10날짜 소실).
+        if item.get("metric") == "oos_accrual":
+            _sp2 = summary_path("oos_accrual", item.get("command"), item.get("summary_out"))
+            if os.path.exists(_sp2) and os.path.getmtime(_sp2) > mtime_floor:
+                spath = _sp2
         parsed = parse_by_metric(item, spath, mtime_floor)
         # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
         # ⚠ 함정(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면, 가설군이 **진** 경우

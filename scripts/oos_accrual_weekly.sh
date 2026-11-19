@@ -27,9 +27,13 @@ PY
 )
 echo "=== OOS 적립 앵커: ${ANCHOR} ==="
 
-OUT="/app/reports/overnight/oos_accrual_${ANCHOR}.json"
+OUT="/app/reports/overnight/oos_accrual_${ANCHOR}_f1.json"
+# 2026-11-19 실측(CG356→CG357): 앵커를 옮겨도 창이 같은 OOS 구간을 재표집해 표본이 늘지 않았다
+# (10날짜 → 10날짜, SE 0.0186 고정). 표본을 늘리는 것은 **전 OOS 날짜를 한 창으로 채점**하는 것이다:
+# 22거래일 − purge 5 = 17날짜 → SE 0.0142. dates-per-fold 를 크게 두면 step=1 로 usable 전부를 뽑고,
+# 캘린더가 흐르면 span 이 늘어 자동으로 적립된다(dates 는 champion_robust_eval 이 폴드별로 기록).
 docker exec stock_xgboost_ml sh -c "cd /app && OMP_NUM_THREADS=4 timeout 2550 python -u scripts/champion_robust_eval.py \
-  --model-dir app/models/champion --folds 2 --dates-per-fold 5 \
+  --model-dir app/models/champion --folds 1 --dates-per-fold 40 \
   --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date ${ANCHOR} \
   --universe training --universe-seed 0 --out ${OUT}"
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-19T16:15:15+09:00",
+  "updated_at": "2026-11-19T17:21:10+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -21561,6 +21561,7 @@
       "status": "done",
       "priority": 2,
       "est_minutes": 25,
+      "metric": "oos_accrual",
       "owner": "model_engineer",
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2550 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --folds 2 --dates-per-fold 5 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-11 --universe training --universe-seed 0 --out /app/reports/overnight/oos_accrual_$(date +%Y%m%d).json' && python3 scripts/oos_accrual_log.py --append services/xgboost-ml/reports/overnight/oos_accrual_$(date +%Y%m%d).json",
       "counterfactual": "단일 시점 값만 보고 '기준선 대비 Δ'를 판정하던 현행(SE 0.0186 = 문턱)",
@@ -21579,8 +21580,8 @@
         }
       ],
       "result": {
-        "verdict": "판정불가",
-        "detail": "parser 없음 (metric=None)",
+        "verdict": "미해상 — 표본 미증가",
+        "detail": "누적 고유 날짜 10 (원장 2회·직전 10, 목표 15) · SE(1σ) 0.0186 · 이번 앵커 2026-11-11 · 견고 AUC 0.5039 (창 2개 [0.5539, 0.4539]) · 행 800 · ⚠ 날짜 미기록(창키 union = 상한, SE 과소평가 위험) → 미해상(표본 미증가): SE 0.0186 가 사전문턱 +0.02 와 동급/이상이라 '무개선'을 모델 무신호로 읽을 수 없다",
         "delta": null,
         "per_exp": null,
         "rc": 0
@@ -21603,16 +21604,79 @@
     {
       "id": "CG356",
       "title": "[측정 해상도] OOS 적립을 주 단위 앵커로 전환 — CG354(앵커 2026-11-11 고정)는 2회 적립에도 창 union 10날짜 그대로였다",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "est_minutes": 25,
+      "metric": "oos_accrual",
+      "baseline_dates": 10,
+      "target_dates": 15,
       "owner": "model_engineer",
       "command": "timeout 2550 bash scripts/oos_accrual_weekly.sh",
       "counterfactual": "CG354(앵커 2026-11-11 하드코딩) — 2026-11-18·11-19 두 번 적립했지만 두 줄의 폴드창이 동일(2026-10-02~10-13 / 10-21~10-28) → 창 union 10날짜, SE 0.0186 고정",
       "success": "적립 후 창 union 날짜수가 10 → ≥15 로 증가 · 같은 주 재실행은 [skip] 으로 늘지 않을 것 · --show 가 '현재 N날짜 → SE x.xxxx' 를 출력",
       "expected": "SE 0.0186 → ≤0.015 (20날짜) — '20사이클 연속 무개선'이 모델 무신호인지 미해상인지 가르는 표본 확보",
       "note": "앵커 규칙: 직전 금요일(금요일 15:30 이후면 당일). 같은 주 안에서는 앵커 고정 → 프로토콜 불변, 주가 바뀌면 새 날짜가 꼬리에 붙는다. 고정값(train-end 2026-10-01·oos-start 2026-10-02·champion·2폴드×5날짜·seed 0)은 CG354 와 동일.",
-      "created_at": "2026-11-19T16:14:50+09:00"
+      "created_at": "2026-11-19T16:14:50+09:00",
+      "attempts": [
+        {
+          "ts": "2026-11-19T17:13:52+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG356_20261119-171005.log",
+          "elapsed_min": 3.8
+        },
+        {
+          "ts": "2026-11-19T17:15:21+09:00",
+          "rc": 0,
+          "verdict": "미해상 — 표본 미증가",
+          "detail": "누적 고유 날짜 10 (원장 3회·직전 10, 목표 15) · SE(1σ) 0.0186 · 이번 앵커 2026-11-13 · 견고 AUC 0.5198 (창 2개 [0.5539, 0.4858]) · 행 800 → 미해상(표본 미증가): SE 0.0186 가 사전문턱 +0.02 와 동급/이상이라 '무개선'을 모델 무신호로 읽을 수 없다",
+          "log": "",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "미해상 — 표본 미증가",
+        "detail": "누적 고유 날짜 10 (원장 3회·직전 10, 목표 15) · SE(1σ) 0.0186 · 이번 앵커 2026-11-13 · 견고 AUC 0.5198 (창 2개 [0.5539, 0.4858]) · 행 800 → 미해상(표본 미증가): SE 0.0186 가 사전문턱 +0.02 와 동급/이상이라 '무개선'을 모델 무신호로 읽을 수 없다",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG357",
+      "title": "[측정 해상도] 적립 표본을 '앵커 이동'이 아니라 '전 OOS 날짜 채점'으로 — 같은 앵커(11-13)에서 2폴드×5(10날짜·0.5198) vs 1폴드×전체(17날짜·SE 0.0142)",
+      "status": "done",
+      "priority": 2,
+      "est_minutes": 10,
+      "metric": "oos_accrual",
+      "baseline_dates": 10,
+      "target_dates": 15,
+      "owner": "model_engineer",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2550 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --folds 1 --dates-per-fold 17 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-13 --universe training --universe-seed 0 --out /app/reports/overnight/oos_accrual_20261113_f1.json' && python3 scripts/oos_accrual_log.py --append services/xgboost-ml/reports/overnight/oos_accrual_20261113_f1.json",
+      "counterfactual": "CG356(앵커 11-11→11-13 이동) — 채점 날짜가 10-02·10-06~10-12 / 10-22~10-28 로 전일 창과 겹쳐 **날짜 union 10 그대로**(같은 22일 구간 재표집), SE 0.0186 불변",
+      "success": "① n_dates 17 · 누적 날짜 union ≥17 ② SE ≤ 0.0142 ③ 같은 앵커에서 1폴드 전날짜 AUC 가 2폴드 0.5198 와 |Δ| ≤ 0.02(집계 변경이 값을 뒤집지 않음) ④ 런타임 ≤ 2×(4.4분)",
+      "expected": "SE 0.0186 → 0.0142(사전문턱 0.02 의 71%) — 캘린더를 기다리지 않고 지금 확보 가능한 표본 상한. 이후 주가 흐르면 span 자체가 늘어 자동 적립",
+      "created": "2026-11-19T17:18:00+09:00",
+      "rationale": "실측(2026-11-19 CG354·CG356): OOS 22거래일 중 2폴드×5 는 창당 usable 6날짜 중 5개만 뽑아 총 10날짜만 채점한다. 앵커를 옮겨도 창이 같은 구간을 다시 표집해 union 은 10 그대로다(무의미한 반복). 전 OOS 를 한 창으로 채점하면 17날짜(22−purge 5)가 즉시 확보된다. ⚠ 1폴드 모드는 폴드 std 가 정의되지 않으므로 불확실성은 날짜별 SD(0.0587/√n)로만 보고한다 — 2폴드 시리즈와 직접 비교 금지(집계 계열 분리).",
+      "attempts": [
+        {
+          "ts": "2026-11-19T17:21:10+09:00",
+          "rc": 0,
+          "verdict": "표본 문턱 도달",
+          "detail": "누적 고유 날짜 17 (원장 4회·직전 10, 목표 15) · SE(1σ) 0.0142 · 이번 앵커 2026-11-13 · 견고 AUC 0.5088 (창 1개 [0.5088]) · 행 1360 → 표본 문턱 도달(SE 0.0142 ≤ 사전문턱 0.02 의 3/4). 판정 해상 목표는 SE 0.010 = 34날짜 · SE 0.007 = 71날짜",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG357_20261119-171526.log",
+          "elapsed_min": 5.7
+        }
+      ],
+      "result": {
+        "verdict": "표본 문턱 도달",
+        "detail": "누적 고유 날짜 17 (원장 4회·직전 10, 목표 15) · SE(1σ) 0.0142 · 이번 앵커 2026-11-13 · 견고 AUC 0.5088 (창 1개 [0.5088]) · 행 1360 → 표본 문턱 도달(SE 0.0142 ≤ 사전문턱 0.02 의 3/4). 판정 해상 목표는 SE 0.010 = 34날짜 · SE 0.007 = 71날짜",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     }
   ],
   "updated": "2026-11-19T04:17:21+09:00"
