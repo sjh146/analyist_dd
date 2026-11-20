@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-21T03:11:16+09:00",
+ "updated_at": "2026-11-21T04:09:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -22712,7 +22712,7 @@
    "arm": "CG376_noroll_h5__ff",
    "title": "[머니 우선] 오늘 최고 AUC arm(38피처·0.5500)이 체결가능 순기대에서도 챔피언을 이기는가 — 같은 창 덤프 후 날짜 짝 비교(AUC 1등 = 돈 1등인가)",
    "hypothesis": "AUC 축 상한이 22사이클 +0.011 인 상태에서 유일하게 남은 질문은 'AUC 우위가 돈으로 환산되는가'다. CG374 는 AUC +0.0278 → 짝 머니 Δ +0.57%p(t 0.34) 로 환산 실패를 보였다(1쌍). 패널 v6 최고 AUC arm(0.5500, 강제 8집계 포함 38피처)을 같은 필터로 재면 그 실패가 일반적인지 갈린다.",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 5 --only CG376_noroll_h5__ff --dump-preds /app/reports/overnight/cg382_ff.jsonl --dump-all-codes --out /app/reports/overnight/cg382_sweep.jsonl --summary-out /app/reports/overnight/cg382_summary.json && for s in 0 1 2; do OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg382_ff.jsonl --control-jsonl /app/reports/overnight/cg374_champion_s$s.jsonl --k 3,5 --exit close_h --horizon 5 --max-day-chg 25 --min-value 1e9 --json-out /app/reports/overnight/cg382_money_s$s.json; done'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 4200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 5 --only CG376_noroll_h5__ff --dump-preds /app/reports/overnight/cg382_ff.jsonl --dump-all-codes --out /app/reports/overnight/cg382_sweep.jsonl --summary-out /app/reports/overnight/cg382_summary.json && for s in 0 1 2; do OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg382_ff.jsonl --control-jsonl /app/reports/overnight/cg374_champion_s$s.jsonl --k 3,5 --exit close_h --horizon 5 --max-day-chg 25 --min-value 1e9 --json-out /app/reports/overnight/cg382_money_s$s.json; done'",
    "counterfactual": "cg374 챔피언 덤프(같은 체결필터·같은 28세션 · top5 −3.13%p/세션) — 두 arm 의 학습창은 다르므로 '날짜 교집합 짝'으로만 해석하고 절대값 비교는 하지 않는다",
    "success": "① rc=0 · 덤프에 3시드 × 전종목 행 존재 · 날짜 교집합 ≥20세션 ② 짝 Δ(arm−챔피언) top3 ≥ +1.0%p 이고 t ≥ 2 이며 3시드 중 ≥2 양(+) 이면 'AUC 우위가 돈으로 환산된다' 후보로 등록(승격은 별도) ③ |Δ| < +1.0%p 이거나 부호 불일치면 'AUC 1등은 돈 1등이 아니다'로 AUC→돈 환산 축을 닫는다",
    "expected": "약 25~35분. 22사이클 무개선의 원인이 '축 고갈'인지 'AUC↔돈 단절'인지 판정 근거를 만든다.",

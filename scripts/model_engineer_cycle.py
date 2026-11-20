@@ -80,6 +80,12 @@ UNDELIVERED_LOOKBACK_HOURS = 6
 KST = timezone(timedelta(hours=9))
 CONTAINER = "stock_xgboost_ml"
 LOAD_MAX = float(os.environ.get("ME_LOAD_MAX", "3.5"))
+# 장외 문턱(2026-11-21 실측): 장외 상시 부하(hermes gateway + postgres 유휴 연결 + neo4j)가
+# load1 3.2~3.9 로 **계속 깔려** 있어 3.5 단일 문턱은 우리 실험이 아닌 잡음에 틱을 굶겼다
+# (04:07 틱 load1=3.88 차단, 그때 /proc/stat 실측 idle 36~43%, 경쟁 학습 0건). 장외 문턱을 올리되
+# 아래 가드가 **즉시 CPU 유휴율**을 함께 요구해 진짜 경쟁(수집·다른 학습: idle<20%)은 그대로 막는다.
+LOAD_MAX_NIGHT = float(os.environ.get("ME_LOAD_MAX_NIGHT", "4.5"))
+CPU_IDLE_MIN = float(os.environ.get("ME_CPU_IDLE_MIN", "20"))
 MARKET_OPEN, MARKET_CLOSE = (9, 0), (15, 30)
 # KRX 휴장일 파일 — scripts/data_gap.py 가 데이터 공백을 probe 하며 자동 유지한다.
 HOLIDAY_PATH = os.path.join(PROJ, "data/krx_holidays.json")
@@ -522,6 +528,25 @@ def load1():
         return 0.0
 
 
+def cpu_idle_pct(interval=1.0):
+    """즉시 CPU 유휴율(%). load1 은 '대기 중 작업'까지 세어 장외 잡음을 과대평가하므로
+    시작 판단에는 실측 유휴율을 함께 본다. 읽기 실패 시 None(판단은 load 로만)."""
+    def _read():
+        with open("/proc/stat", encoding="utf-8") as f:
+            v = [int(x) for x in f.readline().split()[1:]]
+        return sum(v), v[3] + (v[4] if len(v) > 4 else 0)
+
+    try:
+        t0, i0 = _read()
+        time.sleep(interval)
+        t1, i1 = _read()
+    except (OSError, ValueError):
+        return None
+    if t1 - t0 <= 0:
+        return None
+    return 100.0 * (i1 - i0) / (t1 - t0)
+
+
 def container_up():
     r = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER],
                        capture_output=True, text=True, timeout=30)
@@ -778,7 +803,12 @@ def guards(force=False, item=None) -> tuple:
     if market_hours():
         return False, f"{market_note()} — 시작하지 않음 (--force 로도 차단)"
     l = load1()
-    if l > LOAD_MAX:
+    _idle = cpu_idle_pct()
+    # 문턱 선택: 장중은 위에서 이미 반환되므로 여기는 항상 장외 경로다 → LOAD_MAX_NIGHT.
+    # 단, load1 만으로는 장외 잡음(유휴 연결·게이트웨이)을 경쟁으로 오독한다(2026-11-21 실측:
+    # load1=3.88 인데 idle 43%). 그래서 **load1 > 문턱 이거나 idle < CPU_IDLE_MIN** 이면 막는다.
+    _limit = LOAD_MAX_NIGHT
+    if l > _limit or (_idle is not None and _idle < CPU_IDLE_MIN):
         # 표현 주의: 예전 문구는 "다른 학습이 도는 중"이라고 단정했다. 실측(2026-09-25 17:00)
         # 정작 CPU 를 쓰는 것은 **우리 U1 패널 빌드**였고(진행 중 사이클), 그 문구 때문에
         # "남의 작업이 돌아 대기 중"으로 잘못 보고됐다.
@@ -790,9 +820,13 @@ def guards(force=False, item=None) -> tuple:
         # 진짜 직렬화 대상은 '우리 학습 두 개'이고 그건 위에서 이미 확인했다(사이클·타 역할 없음).
         # 장중(트레이더/피드 우선)은 force 로도 뚫지 않는다 — 위 장중 가드가 먼저 막는다.
         if force and not market_hours():
-            log(f"주의: load1={l:.2f} > {LOAD_MAX} 이지만 --force·장외·경쟁 사이클 없음 → 강행")
+            log(f"주의: load1={l:.2f} > {_limit} 또는 idle={_idle if _idle is None else round(_idle,1)}% "
+                f"< {CPU_IDLE_MIN}% 이지만 --force·장외·경쟁 사이클 없음 → 강행")
         else:
-            return False, f"부하 과다 load1={l:.2f} > {LOAD_MAX} — CPU 사용 중(우리 실험 포함)이라 시작 안 함"
+            _why = (f"load1={l:.2f} > {_limit}" if l > _limit
+                    else f"CPU idle={_idle:.1f}% < {CPU_IDLE_MIN}%")
+            return False, (f"부하 과다 {_why} — CPU 사용 중(우리 실험 포함)이라 시작 안 함 "
+                           f"(다음 틱 재시도 · 장외 문턱 {_limit}/idle {CPU_IDLE_MIN}%)")
     return True, "ok"
 
 
