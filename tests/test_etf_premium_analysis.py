@@ -61,8 +61,10 @@ def test_filter_excludes_zero_volume_snapshot():
          "nav": None, "premium_pct": None, "volume": 500},      # nav null 규칙 ①
     ]
     valid, dropped, _ = epa.filter_snapshots(snaps)
+    # 2026-11-20: stale 규칙(spec_etf_stale_fix) 추가로 dropped_stale 키가 늘었다(값 0).
     assert dropped == {"dropped_no_nav": 1, "dropped_no_volume": 1,
-                       "dropped_open_window": 0}
+                       "dropped_open_window": 0, "dropped_stale": 0,
+                       "dropped_no_amount": 0}
     assert [r["code"] for r in valid] == ["114800"]
 
     rep = epa.build_report("2026-11-20", snaps, min_snapshots=1, threshold=0.5,
@@ -182,3 +184,50 @@ def test_by_regime_panic_normal_split():
     rep4 = epa.build_report("2026-11-20", snaps, min_snapshots=1, threshold=0.5,
                             horizons=[5], regime=None, source_note="테스트")
     assert rep4["by_regime"] == {"regime": None, "reason": epa.NO_INDEX_REASON}
+
+
+def _snap(ts_min, code="0194R0", price=4255.0, nav=3683.0, volume=5.0):
+    from datetime import datetime, timedelta
+    base = datetime(2026, 11, 20, 9, 5)
+    return {"ts": base + timedelta(minutes=ts_min), "code": code, "name": "t",
+            "price": price, "nav": nav,
+            "premium_pct": (price / nav - 1.0) * 100.0, "volume": volume}
+
+
+def test_stale_price_snapshots_are_dropped():
+    """가격은 고정인데 NAV 가 움직이면 stale 로 제외(spec_etf_stale_fix 보정 규칙).
+
+    2026-11-20 실측: 0194R0 이 09:00~09:1x price 3,555 고정·NAV 3,094→3,132→3,119 로
+    움직여 +14% 가짜 괴리를 만들었다. 비유동 종목은 NAV 도 같이 멈추므로 그건 살린다.
+    """
+    from scripts.etf_premium_analysis import filter_snapshots
+    snaps = [_snap(i, nav=3683.0 + i * 20.0) for i in range(6)]   # 가격 고정 + NAV 상승
+    valid, dropped, note = filter_snapshots(snaps, min_volume=1, skip_open_min=0, stale_minutes=3)
+    assert dropped["dropped_stale"] == 3          # 앞 3개는 창이 모자라 유지, 이후 3개 제외
+    assert len(valid) == 3
+    assert "stale=3" in note
+
+
+def test_frozen_price_with_frozen_nav_is_kept():
+    """가격·NAV 가 함께 멈춘 비유동 스냅샷은 제외하지 않는다(과차단 방지)."""
+    from scripts.etf_premium_analysis import filter_snapshots
+    snaps = [_snap(i) for i in range(6)]          # 가격·NAV 모두 고정
+    valid, dropped, _ = filter_snapshots(snaps, min_volume=1, skip_open_min=0, stale_minutes=3)
+    assert dropped["dropped_stale"] == 0
+    assert len(valid) == 6
+
+
+def test_moving_price_is_not_dropped():
+    from scripts.etf_premium_analysis import filter_snapshots
+    snaps = [_snap(i, price=4255.0 + i) for i in range(6)]
+    valid, dropped, _ = filter_snapshots(snaps, min_volume=1, skip_open_min=0, stale_minutes=3)
+    assert dropped["dropped_stale"] == 0
+    assert len(valid) == 6
+
+
+def test_stale_minutes_zero_disables_rule():
+    from scripts.etf_premium_analysis import filter_snapshots
+    snaps = [_snap(i) for i in range(6)]
+    valid, dropped, _ = filter_snapshots(snaps, min_volume=1, skip_open_min=0, stale_minutes=0)
+    assert dropped["dropped_stale"] == 0
+    assert len(valid) == 6

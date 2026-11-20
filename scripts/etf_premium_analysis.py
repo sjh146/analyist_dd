@@ -238,13 +238,19 @@ def _summarize(rets):
             "win_rate": round(sum(1 for r in rets if r > 0) / len(rets), 4)}
 
 
-def filter_snapshots(snaps, min_volume=1, skip_open_min=5):
+def filter_snapshots(snaps, min_volume=1, skip_open_min=5, stale_minutes=3, min_amount=1):
     """유효 스냅샷 필터 — docs/spec_etf_premium_fix.md §2 (오염 제거).
 
     규칙(우선순위 순 — 각 행은 처음 해당하는 규칙에서만 카운트, 합계 = 제외 행수):
       ① nav 가 null → dropped_no_nav
       ② volume 이 null 이거나 < min_volume → dropped_no_volume
+      ②-1 amount 가 있는데 < min_amount → dropped_no_amount
+         (실측 2026-11-20 0194R0: 09:00~09:1x price 3,555 고정·amount 0 — 체결대금 0 인
+          행은 '가격이 살아있지 않다'는 직접 증거다. volume=1 같은 플레이스홀더를 걸러낸다)
       ③ 개장(09:00) 후 skip_open_min 분 미만(09:00 ≤ t < 09:05) → dropped_open_window
+      ④ 직전 stale_minutes 개 스냅샷과 **가격이 완전히 동일**(1분 연속) → dropped_stale
+         (spec_etf_stale_fix.md — 0194R0 +15.76% 처럼 가격이 전일 종가에 멈춘 채
+          volume 만 1 이상으로 찍힌 행을 걷어낸다)
 
     WHY (2026-11-20 실측, 조회: data/etf_premium/2026-11-20.jsonl 09:02 행):
       0193T0 KODEX SK하이닉스단일종목레버리지 price 4,255(전일 종가 유지 — 개장 직후
@@ -254,7 +260,8 @@ def filter_snapshots(snaps, min_volume=1, skip_open_min=5):
       반환: (valid, {dropped_no_nav, dropped_no_volume, dropped_open_window}, 사유문).
     """
     valid, dropped = [], {"dropped_no_nav": 0, "dropped_no_volume": 0,
-                          "dropped_open_window": 0}
+                          "dropped_open_window": 0, "dropped_stale": 0,
+                          "dropped_no_amount": 0}
     for r in snaps:
         if r.get("nav") is None:
             dropped["dropped_no_nav"] += 1
@@ -263,16 +270,53 @@ def filter_snapshots(snaps, min_volume=1, skip_open_min=5):
         if vol is None or vol < min_volume:
             dropped["dropped_no_volume"] += 1
             continue
+        amt = r.get("amount")
+        if amt is not None and amt < min_amount:
+            dropped["dropped_no_amount"] += 1
+            continue
         t = r["ts"]
         m = (t - t.replace(hour=9, minute=0, second=0, microsecond=0)).total_seconds() / 60.0
         if 0.0 <= m < skip_open_min:
             dropped["dropped_open_window"] += 1
             continue
         valid.append(r)
-    note = (f"min_volume={min_volume} skip_open_min={skip_open_min}:"
+
+    # ④ 정지 가격(stale) 제거 — 같은 종목에서 직전 stale_minutes 스냅샷과 가격이 연속 동일.
+    if stale_minutes and stale_minutes > 0:
+        by_code = {}
+        for r in valid:
+            by_code.setdefault(r["code"], []).append(r)
+        keep = []
+        for code, rows in by_code.items():
+            rows.sort(key=lambda r: r["ts"])
+            prices = [r.get("price") for r in rows]
+            for i, r in enumerate(rows):
+                if i < stale_minutes:
+                    keep.append(r)
+                    continue
+                window = prices[i - stale_minutes:i + 1]
+                same = window[0] is not None and all(p == window[0] for p in window)
+                consecutive = (r["ts"] - rows[i - stale_minutes]["ts"]).total_seconds() <= 60 * stale_minutes + 30
+                # WHY nav 이동 조건(2026-11-20 실측 보정): 비유동 ETF 는 체결이 없어 가격이
+                # 정상적으로 몇 분씩 고정된다. 가격 정지만으로 자르면 전체의 43%(17,163행)가
+                # 날아가고 정작 아티팩트(0194R0 +13.8%)는 남았다. 그래서 **NAV 가 같은 창에서
+                # 0.3% 이상 움직였는데 가격만 멈춘** 경우로 한정한다(진짜 미체결 고정 가격).
+                navs = [x.get("nav") for x in rows[i - stale_minutes:i + 1]]
+                nav_moved = (navs[0] not in (None, 0) and all(v not in (None, 0) for v in navs)
+                             and abs(navs[-1] / navs[0] - 1.0) >= 0.003)
+                if same and consecutive and nav_moved:
+                    dropped["dropped_stale"] += 1
+                else:
+                    keep.append(r)
+        keep_ids = {id(r) for r in keep}
+        valid = [r for r in valid if id(r) in keep_ids]
+
+    note = (f"min_volume={min_volume} min_amount={min_amount} skip_open_min={skip_open_min} stale_minutes={stale_minutes}:"
             f" no_nav={dropped['dropped_no_nav']}"
             f" no_volume={dropped['dropped_no_volume']}"
-            f" open={dropped['dropped_open_window']}")
+            f" open={dropped['dropped_open_window']}"
+            f" stale={dropped['dropped_stale']}"
+            f" no_amount={dropped['dropped_no_amount']}")
     return valid, dropped, note
 
 
@@ -295,10 +339,10 @@ def load_snapshots(date_s: str, jsonl_dir: str):
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT ts, code, name, price, nav, premium_pct, volume"
+                    "SELECT ts, code, name, price, nav, premium_pct, volume, amount"
                     " FROM etf_premium_snapshots WHERE trade_date = %s"
                     " ORDER BY ts, code", (date_s,))
-                for ts, code, name, price, nav, prem, vol in cur.fetchall():
+                for ts, code, name, price, nav, prem, vol, amt in cur.fetchall():
                     # numeric 컬럼은 Decimal 로 온다 → float 정규화(실측 2026-11-18:
                     # Decimal 그대로 두면 statistics·round 후 JSON 직렬화 TypeError).
                     # timestamptz 는 UTC 로 온다 → 로컬(KST)로 정규화해 jsonl 경로 출력과
@@ -307,7 +351,8 @@ def load_snapshots(date_s: str, jsonl_dir: str):
                                   "price": float(price) if price is not None else None,
                                   "nav": float(nav) if nav is not None else None,
                                   "premium_pct": float(prem) if prem is not None else None,
-                                  "volume": vol})
+                                  "volume": vol,
+                                  "amount": float(amt) if amt is not None else None})
         finally:
             conn.close()
     except Exception as e:  # noqa: BLE001 — jsonl 폴백
@@ -331,7 +376,8 @@ def load_snapshots(date_s: str, jsonl_dir: str):
                         jsnaps.append({"ts": ts, "code": r["code"], "name": r["name"],
                                        "price": r.get("price"), "nav": r.get("nav"),
                                        "premium_pct": r.get("premium_pct"),
-                                       "volume": r.get("volume")})
+                                       "volume": r.get("volume"),
+                                       "amount": r.get("amount")})
         except (OSError, ValueError):
             pass
     if jsnaps:
@@ -398,23 +444,27 @@ def load_index_change(conn, date_s: str, index_code=None):
 # ── 보고서 조립 ───────────────────────────────────────────────────────────
 def build_report(date_s, snaps, *, min_snapshots, threshold, horizons,
                  regime=None, regime_reason=None, source_note="",
-                 min_volume=1, skip_open_min=5):
+                 min_volume=1, skip_open_min=5, stale_minutes=3, min_amount=1):
     """당일 스냅샷 → 분석 보고 dict. 표본 부족이면 insufficient_sample 만(수치 없음 — 스펙 §2).
 
     필터(spec_etf_premium_fix §2)를 먼저 적용하고, filtered 블록에 제외 사유별 행수와
     필터 전/후 스냅샷·에피소드 수를 남긴다(필터 사유는 리포터 상단에 표기).
     """
-    valid, dropped, filter_note = filter_snapshots(snaps, min_volume, skip_open_min)
+    valid, dropped, filter_note = filter_snapshots(snaps, min_volume, skip_open_min,
+                                                   stale_minutes, min_amount)
     eps_before = len(build_episodes(_points(snaps), threshold))
     ts_set = sorted({r["ts"] for r in valid})
     n_snaps = len(ts_set)
     codes = sorted({r["code"] for r in valid})
     eps = build_episodes(_points(valid), threshold)
     filtered = {"min_volume": min_volume, "skip_open_min": skip_open_min,
+                "stale_minutes": stale_minutes, "min_amount": min_amount,
                 "n_snaps_before": len(snaps), "n_snaps_after": len(valid),
                 "episodes_before": eps_before, "episodes_after": len(eps),
                 "dropped_no_nav": dropped["dropped_no_nav"],
                 "dropped_no_volume": dropped["dropped_no_volume"],
+                "dropped_stale": dropped["dropped_stale"],
+                "dropped_no_amount": dropped["dropped_no_amount"],
                 "dropped_open_window": dropped["dropped_open_window"],
                 "reason": filter_note}
     if n_snaps < min_snapshots:
@@ -548,6 +598,10 @@ def main(argv=None) -> int:
                     help="event study 분(쉼표 구분, 기본 5,15,30,60)")
     ap.add_argument("--min-volume", type=int, default=1,
                     help="volume 미만 스냅샷 제외(기본 1 — spec_etf_premium_fix §2)")
+    ap.add_argument("--min-amount", type=int, default=1,
+                    help="체결대금(amount) 하한 — 0/플레이스홀더 행 제외(기본 1)")
+    ap.add_argument("--stale-minutes", type=int, default=3,
+                    help="직전 N분 가격 무변동 스냅샷 제외(0=해제, 기본 3)")
     ap.add_argument("--skip-open-min", type=int, default=5,
                     help="개장 후 이 시간(분) 이내 스냅샷 제외(기본 5 — spec_etf_premium_fix §2)")
     ap.add_argument("--index-code", default=None,
@@ -570,7 +624,8 @@ def main(argv=None) -> int:
     rep = build_report(args.date, snaps, min_snapshots=args.min_snapshots,
                        threshold=args.premium_threshold, horizons=horizons,
                        regime=regime, regime_reason=regime_reason, source_note=note,
-                       min_volume=args.min_volume, skip_open_min=args.skip_open_min)
+                       min_volume=args.min_volume, skip_open_min=args.skip_open_min,
+                       stale_minutes=args.stale_minutes, min_amount=args.min_amount)
 
     out = Path(args.json_out)
     out.parent.mkdir(parents=True, exist_ok=True)
