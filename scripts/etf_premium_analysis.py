@@ -27,6 +27,18 @@ WHY (2026-11-18 실측): 스냅샷(etf_premium_snapshots / data/etf_premium/*.js
   -- DB 집계(같은 조회): nav null 102행 · volume 0 1,666행 · 09:00~09:05 510행
   --   → filter_snapshots() 규칙 ①②③ 의 제외 대상(개장 직후 오염 제거)
 
+실측 조회 명령(2026-11-20 실행 — spec_index_backfill §2 연결, DB 127.0.0.1:5434):
+  -- SELECT trade_date, close FROM index_daily WHERE index_code='KOSPI'
+  --   ORDER BY trade_date DESC LIMIT 3
+  --   → 2026-11-20 close 4869.96 · 2026-11-19 close 5137.89 · 2026-11-18 5067.44
+  --   → 전일대비 수익률 = (4869.96/5137.89 − 1)×100 = −5.2148% ≤ −1.5% → panic 일
+  -- SELECT trade_date, close FROM index_daily WHERE index_code='KOSDAQ'
+  --   ORDER BY trade_date DESC LIMIT 3 → 645.68 / 684.81 → −5.714% (panic 일)
+  -- SELECT COUNT(*) FROM etf_premium_snapshots WHERE trade_date='2026-11-20' → 39,780행
+  -- → --index-code KOSPI 가 주어지면 index_daily 의 전일대비 수익률로 episode 를
+  --   panic(≤ −1.5%)/normal 로 나눠 by_regime 을 채운다(스펙 §2). 지수 행이 없으면
+  --   지금처럼 null + 사유(0 채움 금지).
+
 계약(스펙 §2 + spec_etf_premium_fix):
   - 입력: DB(없으면 jsonl data/etf_premium/<date>.jsonl). 당일 스냅샷만.
   - by_code: n, 평균·p50·p05·p95, |premium|≥0.5% 체류비율, AR(1) 계수, 반감기(분),
@@ -38,6 +50,10 @@ WHY (2026-11-18 실측): 스냅샷(etf_premium_snapshots / data/etf_premium/*.js
   - 필터(spec_etf_premium_fix §2): ① nav null ② volume < --min-volume ③ 개장 후
     --skip-open-min 분 이내 스냅샷 제외(우선순위 순, 첫 해당 규칙에서만 카운트).
     filtered 블록에 제외 사유별 행수 + 필터 전/후 스냅샷·에피소드 수를 남긴다.
+  - by_regime(spec_index_backfill §2): --index-code KOSPI 가 주어지면 index_daily 의
+    당일 전일대비 수익률 ret 로 episode 를 panic(ret ≤ −1.5%)/normal(그 외)로 나눠
+    event study 를 채운다(is_panic_day·panic_threshold_pct 명시). 지수 행(당일·전일)이
+    없거나 조회 실패면 regime null + 사유 — 0 채움 금지.
   - 하루 표본(필터 후) < --min-snapshots → 수치 대신 insufficient_sample + 사유(0으로 메우지 않음).
   - 출력 JSON 멱등: 실행 시각 미기록, date 만 키.
 """
@@ -60,6 +76,13 @@ NO_INDEX_REASON = (
     "DB 에 당일 지수 등락 데이터 없음 — 실측 2026-11-18: market_data 는 종목 행만"
     "(지수 코드 0행), macro_indicators 는 금리·환율·물가 9종(지수 없음) → by_regime 미산출(추측 금지)"
 )
+PANIC_RET_PCT = -1.5   # panic 판정 임계(스펙 index_backfill §2: ret ≤ −1.5%)
+# index_daily 경로 SQL 은 테스트가 %s → ? 치환으로 in-memory sqlite 에서 실행한다
+# (tests/test_index_backfill.py UPSERT_SQL 과 동일 관례 — DB·네트워크 없이 계약 검증).
+INDEX_TODAY_SQL = ("SELECT close FROM index_daily"
+                   " WHERE index_code = %s AND trade_date = %s")
+INDEX_PREV_SQL = ("SELECT close FROM index_daily WHERE index_code = %s"
+                  " AND trade_date < %s ORDER BY trade_date DESC LIMIT 1")
 
 def connect():
     import psycopg2  # 지연 import — 드라이버 없는 환경에서도 순수 함수 import 가능(테스트)
@@ -317,13 +340,42 @@ def load_snapshots(date_s: str, jsonl_dir: str):
     return [], note
 
 
-def load_index_change(conn, date_s: str):
-    """당일 KOSPI/KOSDAQ 지수 등락(%) (직전 거래일 종가 대비). 없으면 None(실측: 지수 데이터 없음)."""
+def load_index_change(conn, date_s: str, index_code=None):
+    """당일 지수 등락(%) (직전 거래일 종가 대비) → (regime_dict, 사유).
+
+    index_code 가 주어지면(spec_index_backfill §2) index_daily 에서
+    ret = close(date_s)/close(직전 거래일) − 1 을 읽는다. 당일 행·전일 행이 없거나
+    조회 실패면 (None, 사유) — 0 채움 금지.
+    index_code 가 없으면 기존 동작: market_data 종목 코드 프로브
+    (실측 2026-11-18: 지수 행 0개 → None + NO_INDEX_REASON).
+    """
     if conn is None:
-        return None
+        return None, NO_INDEX_REASON
+    if index_code:
+        try:
+            cur = conn.cursor()   # with 문 금지 — sqlite3.Cursor 는 컨텍스트 매니저 미지원
+            try:                  # (실측 TypeError — in-memory 계약 테스트 경로)
+                cur.execute(INDEX_TODAY_SQL, (index_code, date_s))
+                row = cur.fetchone()
+                if row is None or row[0] is None:
+                    return None, (f"index_daily 에 {index_code} {date_s} 행 없음"
+                                  f" → by_regime 미산출(0 채움 금지)")
+                cur.execute(INDEX_PREV_SQL, (index_code, date_s))
+                prev = cur.fetchone()
+                if prev is None or not prev[0]:
+                    return None, (f"index_daily 에 {index_code} {date_s} 직전"
+                                  f" 거래일 행 없음 → by_regime 미산출(0 채움 금지)")
+                return ({index_code: round((float(row[0]) / float(prev[0]) - 1.0)
+                                           * 100.0, 4)}, "")
+            finally:
+                cur.close()
+        except Exception as exc:  # noqa: BLE001 — 지수 없음 취급(null + 사유)
+            return None, (f"index_daily 조회 실패({type(exc).__name__}) →"
+                          f" by_regime 미산출(0 채움 금지)")
     try:
         out = {}
-        with conn.cursor() as cur:
+        cur = conn.cursor()
+        try:
             cur.execute(
                 "SELECT stock_code, close_price FROM market_data"
                 " WHERE trade_date = %s AND stock_code = ANY(%s)",
@@ -336,14 +388,17 @@ def load_index_change(conn, date_s: str):
                 prev = cur.fetchone()
                 if close is not None and prev and prev[0]:
                     out[code] = round((float(close) / float(prev[0]) - 1.0) * 100.0, 4)
+        finally:
+            cur.close()
     except Exception:  # noqa: BLE001 — 지수 없음 취급(null + 사유)
-        return None
-    return out or None
+        return None, NO_INDEX_REASON
+    return (out or None), NO_INDEX_REASON
 
 
 # ── 보고서 조립 ───────────────────────────────────────────────────────────
 def build_report(date_s, snaps, *, min_snapshots, threshold, horizons,
-                 regime=None, source_note="", min_volume=1, skip_open_min=5):
+                 regime=None, regime_reason=None, source_note="",
+                 min_volume=1, skip_open_min=5):
     """당일 스냅샷 → 분석 보고 dict. 표본 부족이면 insufficient_sample 만(수치 없음 — 스펙 §2).
 
     필터(spec_etf_premium_fix §2)를 먼저 적용하고, filtered 블록에 제외 사유별 행수와
@@ -394,13 +449,17 @@ def build_report(date_s, snaps, *, min_snapshots, threshold, horizons,
     ev = event_study(eps, valid, horizons)
 
     if regime is None:
-        by_regime = {"regime": None, "reason": NO_INDEX_REASON}
+        by_regime = {"regime": None, "reason": regime_reason or NO_INDEX_REASON}
     else:
+        # spec_index_backfill §2: panic = 전일대비 수익률 ≤ −1.5%, normal = 그 외
+        rets = [v for v in regime.values() if v is not None]
+        panic_day = any(r <= PANIC_RET_PCT for r in rets)
         panic_eps, normal_eps = [], []
         for ep in eps:
-            big = any(v is not None and abs(v) >= 1.5 for v in regime.values())
-            (panic_eps if big else normal_eps).append(ep)
+            (panic_eps if panic_day else normal_eps).append(ep)
         by_regime = {"regime": "available", "index_pct": regime,
+                     "panic_threshold_pct": PANIC_RET_PCT,
+                     "is_panic_day": panic_day,
                      "panic": event_study(panic_eps, valid, horizons),
                      "normal": event_study(normal_eps, valid, horizons)}
 
@@ -462,7 +521,17 @@ def report_to_md(rep) -> str:
         d = s["by_start_sign"]["discount"]
         lines.append(f"| {h} | {s['n']} | {s['mean_pct']} | {s['median_pct']}"
                      f" | {s['win_rate']} | {d['n']} | {d['mean_pct']} |")
-    if rep["by_regime"].get("reason"):
+    if rep["by_regime"].get("regime"):
+        br = rep["by_regime"]
+        idx = ", ".join(f"{k}={v}" for k, v in br["index_pct"].items())
+        lines += ["", f"## by_regime — panic = 전일대비 ≤ {br['panic_threshold_pct']}%",
+                  "", f"- index_pct: {idx} · is_panic_day: {br['is_panic_day']}", "",
+                  "| regime | horizon | n | 평균% | 중앙값% | 승률 |", "|---|---|---|---|---|---|"]
+        for regime_lbl in ("panic", "normal"):
+            for h, s in br[regime_lbl].items():
+                lines.append(f"| {regime_lbl} | {h} | {s['n']} | {s['mean_pct']}"
+                             f" | {s['median_pct']} | {s['win_rate']} |")
+    elif rep["by_regime"].get("reason"):
         lines += ["", f"by_regime: {rep['by_regime']['reason']}"]
     return "\n".join(lines) + "\n"
 
@@ -481,16 +550,26 @@ def main(argv=None) -> int:
                     help="volume 미만 스냅샷 제외(기본 1 — spec_etf_premium_fix §2)")
     ap.add_argument("--skip-open-min", type=int, default=5,
                     help="개장 후 이 시간(분) 이내 스냅샷 제외(기본 5 — spec_etf_premium_fix §2)")
+    ap.add_argument("--index-code", default=None,
+                    help="index_daily 지수 코드(예: KOSPI) — 전일대비 수익률로 episode 를"
+                         " panic(≤-1.5%%)/normal 로 분류해 by_regime 을 채운다"
+                         " (spec_index_backfill §2. 미지정이면 기존 market_data 프로브)")
     ap.add_argument("--json-out", default=str(REPO / "data/reports/etf_premium.json"))
     ap.add_argument("--md-out", default=str(REPO / "data/reports/etf_premium.md"))
     args = ap.parse_args(argv)
 
     horizons = [int(h) for h in args.horizons.split(",") if h.strip()]
     snaps, note = load_snapshots(args.date, str(JSONL_DIR))
-    regime = load_index_change(connect(), args.date) if snaps else None
+    regime, regime_reason = None, None
+    if snaps:
+        conn = connect()
+        try:
+            regime, regime_reason = load_index_change(conn, args.date, args.index_code)
+        finally:
+            conn.close()
     rep = build_report(args.date, snaps, min_snapshots=args.min_snapshots,
                        threshold=args.premium_threshold, horizons=horizons,
-                       regime=regime, source_note=note,
+                       regime=regime, regime_reason=regime_reason, source_note=note,
                        min_volume=args.min_volume, skip_open_min=args.skip_open_min)
 
     out = Path(args.json_out)
@@ -504,12 +583,25 @@ def main(argv=None) -> int:
     if "insufficient_sample" in rep:
         print(f"[etf_premium] date={args.date} insufficient_sample"
               f" (n_snapshots={rep['insufficient_sample']['n_snapshots']})", flush=True)
+        claimed = 0
     else:
         f = rep["filtered"]
+        claimed = f["n_snaps_after"]
         print(f"[etf_premium] date={args.date} snaps={rep['n_snapshots']}"
               f" codes={rep['n_codes']} episodes={len(rep['episodes'])}"
               f" filtered={f['n_snaps_after']}/{f['n_snaps_before']}"
               f" episodes_before={f['episodes_before']}", flush=True)
+        if rep["by_regime"].get("regime"):
+            br = rep["by_regime"]
+            print(f"  by_regime: {br['index_pct']} is_panic_day={br['is_panic_day']}"
+                  f" panic_n={br['panic']['+' + str(horizons[0]) + 'min']['n']}"
+                  f" normal_n={br['normal']['+' + str(horizons[0]) + 'min']['n']}"
+                  f" (threshold {br['panic_threshold_pct']}%)", flush=True)
+    # 자기신고 3분리(소스 수신/파서 생성/실제 저장) — DB 읽기 전용 분석이라
+    # dq_claim.record_claim 은 쓰지 않는다(money_scoreboard 관례: 출력에 내장).
+    # 재실행 시 같은 날짜 파일을 덮어쓴다(멱등 — 실행 시각 미기록).
+    print(f"[claim] etf_premium_analysis source={len(snaps)} claimed={claimed}"
+          f" persisted=2 (json+md 리포트)", flush=True)
     print(f"  -> {args.json_out} / {args.md_out}", flush=True)
     return 0
 

@@ -1,7 +1,10 @@
-"""tests/test_pairs_arb_research.py — 쌍둥이 하네스 핵심 로직 (5 tests).
+"""tests/test_pairs_arb_research.py — 쌍둥이 하네스 핵심 로직 (6 tests).
 
 합성 시계열로 ① 스프레드 z 진입/청산 ② max_hold 강제청산 ③ 비용 반영
 ④ 레짐 라벨(프록시 20일 방향) ⑤ long-only 모드 진입 방향 을 고정한다.
+⑥ index_daily 실지수 프록시(spec_index_backfill §2 --use-index) — load_index_series 가
+breadth_index 와 같은 {date_str: close} 모양을 내고 regime_map 과 그대로 결합되는지
+in-memory sqlite 로 검증(PostgreSQL %s → ? 치환 — test_index_backfill 관례).
 """
 import os
 import sys
@@ -74,3 +77,26 @@ def test_summarize_stats():
     assert s["expectancy_pct"] == pytest.approx(1.0)
     assert s["total_pct"] == pytest.approx(3.0)
     assert s["avg_hold"] == pytest.approx(10 / 3)
+
+
+# ⑥ index_daily 실지수 프록시 — breadth_index 와 같은 모양, regime_map 과 그대로 결합
+def test_load_index_series_from_index_daily(monkeypatch):
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE index_daily (index_code TEXT, trade_date TEXT, close REAL)")
+    # 실측 2026-11-18~20 KOSPI 종가(DB 조회) + close<=0 행은 제외되는지 확인용
+    conn.executemany("INSERT INTO index_daily VALUES (?,?,?)", [
+        ("KOSPI", "2026-11-18", 5067.44),
+        ("KOSPI", "2026-11-19", 5137.89),
+        ("KOSPI", "2026-11-20", 4869.96),
+        ("KOSDAQ", "2026-11-20", 0.0)])            # close > 0 필터로 제외
+    monkeypatch.setattr(par, "INDEX_SERIES_SQL", par.INDEX_SERIES_SQL.replace("%s", "?"))
+    idx = par.load_index_series(conn, "KOSPI")
+    assert idx == {"2026-11-18": 5067.44, "2026-11-19": 5137.89, "2026-11-20": 4869.96}
+    assert par.load_index_series(conn, "KOSDAQ") == {}   # close<=0 → 빈 지도(0 채움 금지)
+    reg = par.regime_map(idx, lookback=1)                # breadth 경로와 같은 후속 파이프
+    assert "2026-11-18" not in reg                       # lookback 미만은 라벨 없음
+    assert reg["2026-11-19"] == "up"
+    assert reg["2026-11-20"] == "down"                   # 실지수 하락일 → down
+    assert par.load_index_series(None, "KOSPI") == {}    # conn None → 빈 지도
+    conn.close()

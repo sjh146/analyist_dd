@@ -12,9 +12,20 @@ WHY(2026-11-19 사용자 요구 "차익거래·쌍둥이 매매로 하락장에�
 전 종목 일별 수익률 **중앙값**의 누적(breadth)을 쓴다. 추정 지수를 만들지 않는다.
 ETF NAV 괴리 이력은 2026-11-19부터만 축적 중이라 이 하네스 표본에 넣지 않는다.
 
+--use-index (2026-11-20, spec_index_backfill §2 연결): index_daily 백필 이후에는
+시장 프록시를 **실지수**로 대체할 수 있다. 실측 조회(DB 127.0.0.1:5434, 프로세스 환경변수):
+  -- SELECT index_code, COUNT(*), MIN(trade_date), MAX(trade_date) FROM index_daily
+  --   GROUP BY index_code → KOSPI 459행 · KOSDAQ 459행 (2025-01-02 ~ 2026-11-20)
+  -- SELECT trade_date, close FROM index_daily WHERE index_code='KOSPI'
+  --   ORDER BY trade_date DESC LIMIT 2 → 2026-11-20 close 4869.96 (전일 5137.89)
+  --   → 전일대비 −5.2148% (하락 레짐 판정 입력이 되는 실측)
+breadth(2025-08-01~ market_data)와 기간이 다르므로 기본은 기존 breadth 유지 —
+--use-index KOSPI|KOSDAQ 를 줄 때만 index_daily 종가를 프록시로 쓴다.
+
 사용:
   /usr/bin/python3 scripts/pairs_arb_research.py --mode both
   /usr/bin/python3 scripts/pairs_arb_research.py --mode long-only
+  /usr/bin/python3 scripts/pairs_arb_research.py --mode both --use-index KOSPI
 """
 from __future__ import annotations
 
@@ -51,14 +62,45 @@ def load(db):
         FROM market_data m
         WHERE m.close_price > 0 AND m.trade_date >= '2025-08-01'
     """)
-    px, tv = {}, {}
+    px, tv, n_src = {}, {}, 0
     for d, code, close, value in cur.fetchall():
+        n_src += 1
         px.setdefault(code, {})[d] = float(close)
         tv.setdefault(code, {})[d] = float(value or 0)
     cur.execute("SELECT stock_code, stock_name, COALESCE(instrument_type,'STOCK') FROM stocks")
     meta = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
     cur.close()
-    return px, tv, meta
+    return px, tv, meta, n_src
+
+
+INDEX_SERIES_SQL = ("SELECT trade_date, close FROM index_daily"
+                    " WHERE index_code = %s AND close > 0 ORDER BY trade_date")
+
+
+def load_index_series(conn, index_code):
+    """index_daily 종가 시계열 → {date_str: close} — breadth_index 와 같은 모양(프록시 대체).
+
+    spec_index_backfill §2(--use-index): 시장 프록시를 실지수로 대체한다.
+    키는 str(trade_date) 로 텍스트 정규화(breadth_index 의 px 키 = market_data
+    trade_date::text 와 동일 형식이라 regime_map·simulate 결합이 그대로 동작).
+    행이 없거나 조회 실패면 빈 dict(regime 은 전 구간 null — 0 채움 금지).
+    """
+    if conn is None:
+        return {}
+    try:
+        cur = conn.cursor()   # with 문 금지 — sqlite3.Cursor 는 컨텍스트 매니저 미지원
+        try:                  # (실측 TypeError — in-memory 계약 테스트 경로)
+            cur.execute(INDEX_SERIES_SQL, (index_code,))
+            out = {}
+            for d, close in cur.fetchall():
+                if close is None:
+                    continue
+                out[str(d)] = float(close)
+        finally:
+            cur.close()
+    except Exception:  # noqa: BLE001 — 프록시 없음 취급(빈 지도)
+        return {}
+    return out
 
 
 def build_pairs(px, tv, meta, min_days=120, min_adv=1e8):
@@ -218,14 +260,25 @@ def main(argv=None):
     ap.add_argument("--min-days", type=int, default=120)
     ap.add_argument("--fee-round-trip-pct", type=float, default=0.21)
     ap.add_argument("--slippage-bps", type=float, default=10)
+    ap.add_argument("--use-index", default=None,
+                    help="시장 프록시를 index_daily 실지수로 대체(예: KOSPI) —"
+                         " spec_index_backfill §2. 기본은 기존 breadth 유지")
     ap.add_argument("--json-out", default=None)
     ap.add_argument("--md-out", default=None)
     args = ap.parse_args(argv)
 
     db = connect()
-    px, tv, meta = load(db)
+    px, tv, meta, n_market_rows = load(db)
+    if args.use_index:
+        idx = load_index_series(db, args.use_index)
+        proxy_note = ("시장 프록시 = index_daily %s 실지수 종가(--use-index)"
+                      % args.use_index)
+    else:
+        idx = breadth_index(px)
+        proxy_note = ("시장 프록시 = 전 종목 일별 수익률 중앙값 누적(breadth)"
+                      " (기본 — --use-index 로 index_daily 실지수 대체 가능)")
+    n_index_rows = len(idx) if args.use_index else 0
     db.close()
-    idx = breadth_index(px)
     regime = regime_map(idx)
     pairs, adv = build_pairs(px, tv, meta, args.min_days, args.min_adv)
 
@@ -261,8 +314,18 @@ def main(argv=None):
         "regime_counts": {"down": sum(1 for v in regime.values() if v == "down"),
                           "up": sum(1 for v in regime.values() if v == "up")},
         "splits": splits, "by_kind": by_kind, "verdict": verdict,
-        "data_note": ("지수 데이터 없음 → 시장 프록시 = 전 종목 일별 수익률 중앙값 누적(breadth). "
-                      "ETF NAV 괴리 이력은 2026-11-19부터 축적 중이라 미포함."),
+        "data_note": (proxy_note
+                      + ". ETF NAV 괴리 이력은 2026-11-19부터 축적 중이라 미포함."),
+        # 자기신고 3분리(소스 수신/파서 생성/실제 저장) — DB 읽기 전용 분석이라
+        # dq_claim.record_claim 은 미사용(money_scoreboard 관례: 출력에 내장).
+        # 재실행 시 같은 파라미터면 같은 파일을 덮어쓴다(멱등 — 실행 시각 미기록).
+        "claim": {
+            "runner": "pairs_arb_research",
+            "source_rows": {"market_data": n_market_rows,
+                            "index_daily": n_index_rows},
+            "parsed_rows": {"pairs": len(pairs), "trades": len(trades)},
+            "persisted_rows": {"json": 1, "md": 1},
+        },
     }
 
     prefix = os.path.join(REPO, "data", "reports", "pairs_arb_%s" % args.mode.replace("-", "_"))
@@ -295,6 +358,8 @@ def main(argv=None):
         len(pairs), len(trades), splits["all"]["n"], splits["all"]["expectancy_pct"],
         down["n"], down["expectancy_pct"], splits["up"]["n"], splits["up"]["expectancy_pct"]))
     print("판정:", verdict["note"])
+    print("[claim] pairs_arb_research source=%d(market_data)+%d(index_daily) claimed=%d pairs/%d trades persisted=2 (json+md)"
+          % (n_market_rows, n_index_rows, len(pairs), len(trades)))
     print("저장:", json_out, md_out)
     return 0
 

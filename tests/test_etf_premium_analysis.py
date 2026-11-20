@@ -9,6 +9,14 @@
    (전일 종가·미체결) vs nav 3,683 → +15.5308% 가짜 괴리 재현. 필터 후 by_code·episodes
    에 등장하지 않아야 한다(nav null 규칙도 함께 검증).
 ③ 개장 5분 이내(09:00≤t<09:05) 스냅샷 제외 — 09:05:00 경계는 포함되지 않음(제외 안 함).
+
+아래 ④~⑥은 docs/spec_index_backfill.md §2 회귀 테스트(같은 파일에 추가):
+④ load_index_change(index_code) — index_daily 실측 값으로 전일대비 수익률 계산.
+   PostgreSQL %s 플레이스홀더를 ? 로 치환해 in-memory sqlite 로 실행(운영 DB 오염 금지 —
+   test_index_backfill 의 UPSERT_SQL 관례). 실측 2026-11-20 KOSPI 4869.96/5137.89 → −5.2148.
+⑤ 지수 행 없음(당일·전일·conn None) → (None, 사유) — 0 채움 금지.
+⑥ build_report by_regime — panic(≤ −1.5%)/normal 분류: 패닉일이면 전 episode 가
+   panic 쪽, 아니면 normal 쪽. 경계 −1.5 는 panic(≤ 포함). regime None 은 null + 사유.
 """
 import os
 import sys
@@ -88,3 +96,89 @@ def test_filter_excludes_open_window_snapshots():
         [{"ts": t_edge, "code": "C3", "name": "C", "price": 1.0, "nav": 1.0,
           "premium_pct": 0.0, "volume": 1}], skip_open_min=5)
     assert dropped2["dropped_open_window"] == 0 and len(valid2) == 1
+
+
+# ── spec_index_backfill §2 (--index-code) ────────────────────────────────
+def _index_conn():
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE index_daily (index_code TEXT, trade_date TEXT, close REAL)")
+    conn.executemany("INSERT INTO index_daily VALUES (?,?,?)", [
+        ("KOSPI", "2026-11-18", 5067.44),
+        ("KOSPI", "2026-11-19", 5137.89),
+        ("KOSPI", "2026-11-20", 4869.96),
+        ("KOSDAQ", "2026-11-20", 645.68)])          # 전일 행 없음(직전일 결측 케이스)
+    return conn
+
+
+def _sqlite_epa(monkeypatch):
+    monkeypatch.setattr(epa, "INDEX_TODAY_SQL", epa.INDEX_TODAY_SQL.replace("%s", "?"))
+    monkeypatch.setattr(epa, "INDEX_PREV_SQL", epa.INDEX_PREV_SQL.replace("%s", "?"))
+
+
+# ④ index_daily 전일대비 수익률 — 실측 2026-11-20 KOSPI 4869.96 / 5137.89 → −5.2148
+def test_load_index_change_from_index_daily(monkeypatch):
+    conn = _index_conn()
+    _sqlite_epa(monkeypatch)
+    regime, reason = epa.load_index_change(conn, "2026-11-20", "KOSPI")
+    assert regime == {"KOSPI": -5.2148}             # 실측 계산값(round 4자리)
+    assert reason == ""                              # 지수 있음 → 사유 없음
+    conn.close()
+
+
+# ⑤ 지수 행 없음 → (None, 사유) — 0 채움 금지(스펙 §2: '지수 없으면 null + 사유')
+def test_load_index_change_missing_rows_returns_reason(monkeypatch):
+    conn = _index_conn()
+    _sqlite_epa(monkeypatch)
+    # 당일 행 없음(미래 날짜·다른 코드)
+    regime, reason = epa.load_index_change(conn, "2026-11-21", "KOSPI")
+    assert regime is None and "행 없음" in reason
+    # 전일(직전 거래일) 행 없음 — KOSDAQ 은 당일 행만
+    regime, reason = epa.load_index_change(conn, "2026-11-20", "KOSDAQ")
+    assert regime is None and "직전" in reason
+    conn.close()
+    # conn None → 사유 기본값(NO_INDEX_REASON)
+    regime, reason = epa.load_index_change(None, "2026-11-20", "KOSPI")
+    assert regime is None and reason == epa.NO_INDEX_REASON
+
+
+def _regime_snaps():
+    t0 = datetime(2026, 11, 20, 10, 0, tzinfo=KST)
+    return [{"ts": t0 + timedelta(minutes=i), "code": "114800", "name": "KODEX 인버스",
+             "price": 100.0 + i, "nav": 99.0, "premium_pct": 1.0 + i * 0.1, "volume": 1000}
+            for i in range(8)]                        # 1개 episode(시작 t0, +5분 스냅샷 존재)
+
+
+# ⑥ by_regime panic/normal 분류 — panic = 전일대비 ≤ −1.5%(경계 포함), normal = 그 외
+def test_by_regime_panic_normal_split():
+    snaps = _regime_snaps()
+    rep = epa.build_report("2026-11-20", snaps, min_snapshots=1, threshold=0.5,
+                           horizons=[5], regime={"KOSPI": -5.2148},
+                           regime_reason="", source_note="테스트")
+    br = rep["by_regime"]
+    assert br["regime"] == "available"
+    assert br["is_panic_day"] is True                # 실측 −5.2148% → panic 일
+    assert br["panic_threshold_pct"] == -1.5
+    assert br["panic"]["+5min"]["n"] == 1            # 전 episode 가 panic 쪽
+    assert br["normal"]["+5min"]["n"] == 0
+    md = epa.report_to_md(rep)
+    assert "is_panic_day: True" in md                # 리포트에 분류 표기
+
+    rep2 = epa.build_report("2026-11-20", snaps, min_snapshots=1, threshold=0.5,
+                            horizons=[5], regime={"KOSPI": -0.5},
+                            regime_reason="", source_note="테스트")
+    br2 = rep2["by_regime"]
+    assert br2["is_panic_day"] is False              # −0.5% → normal 일
+    assert br2["panic"]["+5min"]["n"] == 0
+    assert br2["normal"]["+5min"]["n"] == 1
+
+    # 경계: ret = −1.5 정확히 → panic(≤ 포함)
+    rep3 = epa.build_report("2026-11-20", snaps, min_snapshots=1, threshold=0.5,
+                            horizons=[5], regime={"KOSPI": -1.5},
+                            regime_reason="", source_note="테스트")
+    assert rep3["by_regime"]["is_panic_day"] is True
+
+    # regime None → null + 사유(기존 동작 유지 — 0 채움 금지)
+    rep4 = epa.build_report("2026-11-20", snaps, min_snapshots=1, threshold=0.5,
+                            horizons=[5], regime=None, source_note="테스트")
+    assert rep4["by_regime"] == {"regime": None, "reason": epa.NO_INDEX_REASON}
