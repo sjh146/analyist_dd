@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-20T11:30:00+09:00",
+  "updated_at": "2026-11-20T13:25:04+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -530,7 +530,7 @@
     {
       "id": "T50",
       "title": "단타(daytrading) 체결의 수수료·거래세가 저널 fees 에 0 으로 기록된다",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "command": "cd /home/jhshi/analyist_dd && python3 - <<'EOF'\nimport sqlite3,shutil\nshutil.copy('/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3','/tmp/j.sqlite3')\nc=sqlite3.connect('/tmp/j.sqlite3')\nprint(list(c.execute(\"select id,code,screener,pnl,fees,exit_reason from trades where id>=14\")))\nEOF",
       "metric": "daytrading_fees_sum",
@@ -544,12 +544,12 @@
       "cost": "저",
       "note": "자율 조사 범위: 저널 정합·환류 도구. 체결가·비용은 브로커 값을 쓰고, 추정값으로 저널을 덮어쓰지 않는다(헌장상 체결가는 브로커 값만).",
       "result": {
-        "ts": "2026-11-19T13:25:24+09:00",
-        "value": 0.0,
-        "check": "0.0 >= 1.0",
-        "verdict": "미달",
+        "ts": "2026-11-20T13:25:04+09:00",
+        "value": 106.6,
+        "check": "106.6 >= 1.0",
+        "verdict": "충족",
         "rc": 0,
-        "stdout_tail": "[(14, '021320', 'daytrading', -308.0, 28.999599999997372, 'broker CpTd6032 avg_sell_price (2026-11-18 21:18)'), (15, '143240', 'daytrading', -261.00000000000364, 0.0, 'broker CpTd6032 avg_sell_price (2026-11-18 21:18)'), (16, '170790', 'daytrading', 2800.0, 0.0, 'tick tp'), (17, '362320', 'daytrading', 2850.0, 0.0, 'tick tp'), (18, '058630', 'daytrading', -962.0003999999944, 0.0, 'tick stop')]",
+        "stdout_tail": "vg_sell_price (2026-11-18 21:18)'), (16, '170790', 'daytrading', 2800.0, 0.0, 'tick tp'), (17, '362320', 'daytrading', 2850.0, 0.0, 'tick tp'), (18, '058630', 'daytrading', -962.0003999999944, 0.0, 'tick stop'), (19, '362320', 'daytrading', -840.0, 0.0, 'tick stop'), (20, '182360', 'daytrading', 2409.0, 0.0, 'monitor tp'), (21, '112040', 'daytrading', 0.0, 0.0, 'monitor max_hold_90m (106.6분 경과)')]",
         "stderr_tail": ""
       }
     },

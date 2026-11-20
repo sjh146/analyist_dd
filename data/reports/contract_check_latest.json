@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-20T08:39:05+09:00",
+ "checked_at": "2026-11-20T13:20:04+09:00",
  "checks": [
   {
    "id": "DATA-1",
@@ -19,14 +19,14 @@
    "id": "NEWS-1",
    "name": "뉴스→종목 귀속",
    "ok": true,
-   "detail": "최근 7일 귀속 종목 244개 (문턱 30)",
+   "detail": "최근 7일 귀속 종목 218개 (문턱 30)",
    "owner": "리서처"
   },
   {
    "id": "NEWS-2",
    "name": "뉴스 원문 가용성",
    "ok": true,
-   "detail": "news_analysis(source<>sns) 1308건",
+   "detail": "news_analysis(source<>sns) 1416건",
    "owner": "리서처"
   },
   {
