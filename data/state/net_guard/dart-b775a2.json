@@ -1,1 +1,1 @@
-{"day": "2026-11-14", "calls": 200, "blocked_until": 0.0, "blocked_reason": "", "total_calls": 1268, "blocked_count": 1, "key": "dart", "delay": 1.5, "jitter": 0.8, "last_call_ts": 1794647772.070219, "updated": "2026-11-14T18:16:12"}
+{"day": "2026-11-19", "calls": 52, "blocked_until": 0.0, "blocked_reason": "", "total_calls": 1510, "blocked_count": 1, "key": "dart", "delay": 1.5, "jitter": 0.8, "last_call_ts": 1795079509.9444797, "updated": "2026-11-19T18:11:49"}

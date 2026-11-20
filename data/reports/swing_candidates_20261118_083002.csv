@@ -1,0 +1,336 @@
+{
+  "request_type": "swing_screener",
+  "date": "2026-11-17",
+  "generated_at": "2026-11-17T23:31:36.883912Z",
+  "total": 20,
+  "up": 20,
+  "down": 0,
+  "high_confidence": 0,
+  "batch_type": "signal",
+  "auc": "0.551318",
+  "top_up": [
+    {
+      "stock_code": "214150",
+      "stock_name": "클래시스",
+      "sector": "Unknown",
+      "confidence": 0.6494,
+      "expected_return": 29.88,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "082920",
+      "stock_name": "비츠로셀",
+      "sector": "Unknown",
+      "confidence": 0.6254,
+      "expected_return": 25.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "388210",
+      "stock_name": "씨엠티엑스",
+      "sector": "Unknown",
+      "confidence": 0.6241,
+      "expected_return": 24.82,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "047920",
+      "stock_name": "HLB제약",
+      "sector": "Unknown",
+      "confidence": 0.6239,
+      "expected_return": 24.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "028300",
+      "stock_name": "HLB",
+      "sector": "Unknown",
+      "confidence": 0.6214,
+      "expected_return": 24.28,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "096530",
+      "stock_name": "씨젠",
+      "sector": "Unknown",
+      "confidence": 0.6207,
+      "expected_return": 24.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "458870",
+      "stock_name": "씨어스",
+      "sector": "Unknown",
+      "confidence": 0.6166,
+      "expected_return": 23.32,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "084370",
+      "stock_name": "유진테크",
+      "sector": "Unknown",
+      "confidence": 0.6089,
+      "expected_return": 21.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "080220",
+      "stock_name": "제주반도체",
+      "sector": "Unknown",
+      "confidence": 0.6035,
+      "expected_return": 20.7,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "290650",
+      "stock_name": "엘앤씨바이오",
+      "sector": "Unknown",
+      "confidence": 0.5978,
+      "expected_return": 19.56,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "466100",
+      "stock_name": "클로봇",
+      "sector": "Unknown",
+      "confidence": 0.5951,
+      "expected_return": 19.02,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "044490",
+      "stock_name": "태웅",
+      "sector": "Unknown",
+      "confidence": 0.5948,
+      "expected_return": 18.96,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "042000",
+      "stock_name": "카페24",
+      "sector": "Unknown",
+      "confidence": 0.5929,
+      "expected_return": 18.58,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "170920",
+      "stock_name": "엘티씨",
+      "sector": "Unknown",
+      "confidence": 0.5887,
+      "expected_return": 17.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "950160",
+      "stock_name": "코오롱티슈진",
+      "sector": "Unknown",
+      "confidence": 0.5854,
+      "expected_return": 17.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "041830",
+      "stock_name": "인바디",
+      "sector": "Unknown",
+      "confidence": 0.5842,
+      "expected_return": 16.84,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "484120",
+      "stock_name": "도우인시스",
+      "sector": "Unknown",
+      "confidence": 0.582,
+      "expected_return": 16.4,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "357780",
+      "stock_name": "솔브레인",
+      "sector": "Unknown",
+      "confidence": 0.58,
+      "expected_return": 16.0,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "196170",
+      "stock_name": "알테오젠",
+      "sector": "Unknown",
+      "confidence": 0.5789,
+      "expected_return": 15.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "348340",
+      "stock_name": "뉴로메카",
+      "sector": "Unknown",
+      "confidence": 0.5726,
+      "expected_return": 14.52,
+      "batch_type": "signal"
+    }
+  ],
+  "top_down": [],
+  "candidates": [
+    {
+      "stock_code": "214150",
+      "stock_name": "클래시스",
+      "sector": "Unknown",
+      "confidence": 0.6494,
+      "expected_return": 29.88,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "082920",
+      "stock_name": "비츠로셀",
+      "sector": "Unknown",
+      "confidence": 0.6254,
+      "expected_return": 25.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "388210",
+      "stock_name": "씨엠티엑스",
+      "sector": "Unknown",
+      "confidence": 0.6241,
+      "expected_return": 24.82,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "047920",
+      "stock_name": "HLB제약",
+      "sector": "Unknown",
+      "confidence": 0.6239,
+      "expected_return": 24.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "028300",
+      "stock_name": "HLB",
+      "sector": "Unknown",
+      "confidence": 0.6214,
+      "expected_return": 24.28,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "096530",
+      "stock_name": "씨젠",
+      "sector": "Unknown",
+      "confidence": 0.6207,
+      "expected_return": 24.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "458870",
+      "stock_name": "씨어스",
+      "sector": "Unknown",
+      "confidence": 0.6166,
+      "expected_return": 23.32,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "084370",
+      "stock_name": "유진테크",
+      "sector": "Unknown",
+      "confidence": 0.6089,
+      "expected_return": 21.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "080220",
+      "stock_name": "제주반도체",
+      "sector": "Unknown",
+      "confidence": 0.6035,
+      "expected_return": 20.7,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "290650",
+      "stock_name": "엘앤씨바이오",
+      "sector": "Unknown",
+      "confidence": 0.5978,
+      "expected_return": 19.56,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "466100",
+      "stock_name": "클로봇",
+      "sector": "Unknown",
+      "confidence": 0.5951,
+      "expected_return": 19.02,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "044490",
+      "stock_name": "태웅",
+      "sector": "Unknown",
+      "confidence": 0.5948,
+      "expected_return": 18.96,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "042000",
+      "stock_name": "카페24",
+      "sector": "Unknown",
+      "confidence": 0.5929,
+      "expected_return": 18.58,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "170920",
+      "stock_name": "엘티씨",
+      "sector": "Unknown",
+      "confidence": 0.5887,
+      "expected_return": 17.74,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "950160",
+      "stock_name": "코오롱티슈진",
+      "sector": "Unknown",
+      "confidence": 0.5854,
+      "expected_return": 17.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "041830",
+      "stock_name": "인바디",
+      "sector": "Unknown",
+      "confidence": 0.5842,
+      "expected_return": 16.84,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "484120",
+      "stock_name": "도우인시스",
+      "sector": "Unknown",
+      "confidence": 0.582,
+      "expected_return": 16.4,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "357780",
+      "stock_name": "솔브레인",
+      "sector": "Unknown",
+      "confidence": 0.58,
+      "expected_return": 16.0,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "196170",
+      "stock_name": "알테오젠",
+      "sector": "Unknown",
+      "confidence": 0.5789,
+      "expected_return": 15.78,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "348340",
+      "stock_name": "뉴로메카",
+      "sector": "Unknown",
+      "confidence": 0.5726,
+      "expected_return": 14.52,
+      "batch_type": "signal"
+    }
+  ]
+}

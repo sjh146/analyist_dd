@@ -1,0 +1,38 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Seoul
+
+# 평일 16:40 — 트레이더 체결·손익 환류 적재(읽기 전용 도구; 실패해도 트레이더 동작 영향 없음)
+40 16 * * 1-5 /home/jhshi/cron/trader_fills_ingest.sh >> /home/jhshi/analyist_dd/reports/cron_trader_fills.log 2>&1
+# 5분 주기 — 로컬 뉴스 게이트(R5) 상주 보장. 없으면 runner 가 fail-closed 로 신규 진입 전면 차단
+*/5 * * * * /home/jhshi/cron/newsgate_keepalive.sh >> /home/jhshi/analyist_dd/reports/cron_newsgate_keepalive.log 2>&1
+30 17 * * 1-5 /home/jhshi/cron/sns_collect.sh >> /home/jhshi/analyist_dd/reports/cron_sns_collect_wrap.log 2>&1
+15 20 * * 1-5 /home/jhshi/cron/supply_features.sh >> /home/jhshi/analyist_dd/reports/cron_supply_features_wrap.log 2>&1
+# feed 서버(8090) 상주 보장 — systemd 없이 (2026-11-16)
+* * * * * /home/jhshi/cron/start-feed.sh >/dev/null 2>&1
+# ── 2026-11-17 리서처: root crontab 소실(11-14 이후)로 정지한 수집 경로 복구 (자율=누락 스케줄 배선) ──
+# 근거: /var/spool/cron/crontabs/ 에 root 파일 부재 · foreign_institutional 11-13 13종목·11-16 0행 · macro/disclosures 최신 11-13
+10 18 * * 1-5 /home/jhshi/cron/dart_disclosures.sh >> /home/jhshi/analyist_dd/reports/cron_dart_disclosures.log 2>&1
+10 19 * * 1-5 /home/jhshi/cron/kis_supply.sh >> /home/jhshi/analyist_dd/reports/cron_kis_supply.log 2>&1
+30 19 * * 1-5 /home/jhshi/cron/kis_short_program.sh >> /home/jhshi/analyist_dd/reports/cron_kis_short_program.log 2>&1
+40 19 * * 1-5 /home/jhshi/cron/krx_offline.sh >> /home/jhshi/analyist_dd/reports/cron_krx_offline.log 2>&1
+50 19 * * 1-5 /home/jhshi/cron/macro_daily.sh >> /home/jhshi/analyist_dd/reports/cron_macro_daily.log 2>&1
+15 4 * * 2-6 /home/jhshi/cron/data_gap_backfill.sh >> /home/jhshi/analyist_dd/reports/cron_data_gap_backfill.log 2>&1
+
+# 임시(2026-11-17): root crontab 소실 복구용 수급 catch-up 완주 가드 — 완료 시 자기 제거
+
+# 평일 16:20 — 청산 후 재투입 계측 원장 1줄(읽기 전용, ceo_priority expectation 11-18). 로그: reports/cron_reentry_after_exit.log
+20 16 * * 1-5 /usr/bin/python3 /home/jhshi/analyist_dd/scripts/reentry_after_exit.py >> /home/jhshi/analyist_dd/reports/cron_reentry_after_exit.log 2>&1
+
+# 평일 08:35 — 단타 후보 생성 + 피드 발행(개장 전). spec_daytrading_shortstop §2.2b
+35 8 * * 1-5 /bin/bash /home/jhshi/cron/daytrading_feed.sh >> /home/jhshi/analyist_dd/reports/cron_daytrading_feed_wrap.log 2>&1
+
+# 평일 16:10 — Naver 분봉 종가 백필(최근 6거래일 유지). 분봉 재생(minute_replay) 입력
+10 16 * * 1-5 cd /home/jhshi/analyist_dd && set -a; . ./.env; set +a; POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/minute_cover_codes.py --date $(date +\%F) >> reports/cron_minute_backfill.log 2>&1 && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/naver_minute_backfill.py --from $(date -d '-7 days' +\%F) --to $(date +\%F) --codes-file reports/minute_codes_$(date +\%F).txt --sleep 0.3 >> reports/cron_minute_backfill.log 2>&1
+# 실매매 → analyist_dd 피드백 루프 (docs/spec_feed_feedback.md, 2026-11-18) — 16:40 체결 적재 뒤
+45 16 * * 1-5 cd /home/jhshi/analyist_dd && set -a; . ./.env; set +a; POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/feed_feedback.py --register >> reports/cron_feed_feedback.log 2>&1
+# 장중 단타 후보 재발행 — 크레온 상승률 대역(가점/추격배제) + 스크리너 (docs/spec_rank_universe.md, 2026-11-18)
+5 9-14 * * 1-5 cd /home/jhshi/analyist_dd && /bin/bash cron/daytrading_feed_intraday.sh >> /home/jhshi/analyist_dd/reports/cron_daytrading_intraday_wrap.log 2>&1
+# 레버리지 ETF 괴리율 계측 (docs/spec_etf_premium_monitor.md, 2026-11-18)
+* 9-15 * * 1-5 cd /home/jhshi/analyist_dd && set -a; . ./.env; set +a; POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/etf_premium_collect.py --once >> reports/cron_etf_premium.log 2>&1
+30 16 * * 1-5 cd /home/jhshi/analyist_dd && set -a; . ./.env; set +a; POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/etf_premium_analysis.py --date $(date +\%F) >> reports/cron_etf_premium.log 2>&1

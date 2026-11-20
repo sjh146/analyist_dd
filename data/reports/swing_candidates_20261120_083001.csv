@@ -1,0 +1,336 @@
+{
+  "request_type": "swing_screener",
+  "date": "2026-11-19",
+  "generated_at": "2026-11-19T23:31:27.107707Z",
+  "total": 20,
+  "up": 20,
+  "down": 0,
+  "high_confidence": 0,
+  "batch_type": "signal",
+  "auc": "0.551318",
+  "top_up": [
+    {
+      "stock_code": "348370",
+      "stock_name": "엔켐",
+      "sector": "Unknown",
+      "confidence": 0.626,
+      "expected_return": 25.2,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "196170",
+      "stock_name": "알테오젠",
+      "sector": "Unknown",
+      "confidence": 0.6067,
+      "expected_return": 21.34,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "096530",
+      "stock_name": "씨젠",
+      "sector": "Unknown",
+      "confidence": 0.6004,
+      "expected_return": 20.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "440110",
+      "stock_name": "파두",
+      "sector": "Unknown",
+      "confidence": 0.5938,
+      "expected_return": 18.76,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "383310",
+      "stock_name": "에코프로에이치엔",
+      "sector": "Unknown",
+      "confidence": 0.5808,
+      "expected_return": 16.16,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "124500",
+      "stock_name": "아이티센글로벌",
+      "sector": "Unknown",
+      "confidence": 0.5754,
+      "expected_return": 15.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "141080",
+      "stock_name": "리가켐바이오",
+      "sector": "Unknown",
+      "confidence": 0.571,
+      "expected_return": 14.2,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "459550",
+      "stock_name": "알트",
+      "sector": "Unknown",
+      "confidence": 0.5701,
+      "expected_return": 14.02,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "090710",
+      "stock_name": "휴림로봇",
+      "sector": "Unknown",
+      "confidence": 0.5692,
+      "expected_return": 13.84,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "084370",
+      "stock_name": "유진테크",
+      "sector": "Unknown",
+      "confidence": 0.5685,
+      "expected_return": 13.7,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "014620",
+      "stock_name": "성광벤드",
+      "sector": "Unknown",
+      "confidence": 0.5676,
+      "expected_return": 13.52,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "085910",
+      "stock_name": "네오티스",
+      "sector": "Unknown",
+      "confidence": 0.5659,
+      "expected_return": 13.18,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "290690",
+      "stock_name": "아리바이오홀딩스",
+      "sector": "Unknown",
+      "confidence": 0.5648,
+      "expected_return": 12.96,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "290650",
+      "stock_name": "엘앤씨바이오",
+      "sector": "Unknown",
+      "confidence": 0.5603,
+      "expected_return": 12.06,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "127120",
+      "stock_name": "제이에스링크",
+      "sector": "Unknown",
+      "confidence": 0.553,
+      "expected_return": 10.6,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "208370",
+      "stock_name": "셀바스헬스케어",
+      "sector": "Unknown",
+      "confidence": 0.5497,
+      "expected_return": 9.94,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "140860",
+      "stock_name": "파크시스템스",
+      "sector": "Unknown",
+      "confidence": 0.5433,
+      "expected_return": 8.66,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "047770",
+      "stock_name": "코데즈컴바인",
+      "sector": "Unknown",
+      "confidence": 0.5424,
+      "expected_return": 8.48,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "033790",
+      "stock_name": "피노",
+      "sector": "Unknown",
+      "confidence": 0.5419,
+      "expected_return": 8.38,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "257720",
+      "stock_name": "실리콘투",
+      "sector": "Unknown",
+      "confidence": 0.5398,
+      "expected_return": 7.96,
+      "batch_type": "signal"
+    }
+  ],
+  "top_down": [],
+  "candidates": [
+    {
+      "stock_code": "348370",
+      "stock_name": "엔켐",
+      "sector": "Unknown",
+      "confidence": 0.626,
+      "expected_return": 25.2,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "196170",
+      "stock_name": "알테오젠",
+      "sector": "Unknown",
+      "confidence": 0.6067,
+      "expected_return": 21.34,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "096530",
+      "stock_name": "씨젠",
+      "sector": "Unknown",
+      "confidence": 0.6004,
+      "expected_return": 20.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "440110",
+      "stock_name": "파두",
+      "sector": "Unknown",
+      "confidence": 0.5938,
+      "expected_return": 18.76,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "383310",
+      "stock_name": "에코프로에이치엔",
+      "sector": "Unknown",
+      "confidence": 0.5808,
+      "expected_return": 16.16,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "124500",
+      "stock_name": "아이티센글로벌",
+      "sector": "Unknown",
+      "confidence": 0.5754,
+      "expected_return": 15.08,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "141080",
+      "stock_name": "리가켐바이오",
+      "sector": "Unknown",
+      "confidence": 0.571,
+      "expected_return": 14.2,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "459550",
+      "stock_name": "알트",
+      "sector": "Unknown",
+      "confidence": 0.5701,
+      "expected_return": 14.02,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "090710",
+      "stock_name": "휴림로봇",
+      "sector": "Unknown",
+      "confidence": 0.5692,
+      "expected_return": 13.84,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "084370",
+      "stock_name": "유진테크",
+      "sector": "Unknown",
+      "confidence": 0.5685,
+      "expected_return": 13.7,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "014620",
+      "stock_name": "성광벤드",
+      "sector": "Unknown",
+      "confidence": 0.5676,
+      "expected_return": 13.52,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "085910",
+      "stock_name": "네오티스",
+      "sector": "Unknown",
+      "confidence": 0.5659,
+      "expected_return": 13.18,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "290690",
+      "stock_name": "아리바이오홀딩스",
+      "sector": "Unknown",
+      "confidence": 0.5648,
+      "expected_return": 12.96,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "290650",
+      "stock_name": "엘앤씨바이오",
+      "sector": "Unknown",
+      "confidence": 0.5603,
+      "expected_return": 12.06,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "127120",
+      "stock_name": "제이에스링크",
+      "sector": "Unknown",
+      "confidence": 0.553,
+      "expected_return": 10.6,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "208370",
+      "stock_name": "셀바스헬스케어",
+      "sector": "Unknown",
+      "confidence": 0.5497,
+      "expected_return": 9.94,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "140860",
+      "stock_name": "파크시스템스",
+      "sector": "Unknown",
+      "confidence": 0.5433,
+      "expected_return": 8.66,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "047770",
+      "stock_name": "코데즈컴바인",
+      "sector": "Unknown",
+      "confidence": 0.5424,
+      "expected_return": 8.48,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "033790",
+      "stock_name": "피노",
+      "sector": "Unknown",
+      "confidence": 0.5419,
+      "expected_return": 8.38,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "257720",
+      "stock_name": "실리콘투",
+      "sector": "Unknown",
+      "confidence": 0.5398,
+      "expected_return": 7.96,
+      "batch_type": "signal"
+    }
+  ]
+}

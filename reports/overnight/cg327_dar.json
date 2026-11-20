@@ -1,0 +1,87 @@
+{
+  "panel_universe": 200,
+  "axes": [
+    {
+      "axis": "intraday",
+      "items": [
+        "CG129",
+        "CG101"
+      ],
+      "ready": false,
+      "blocking": "XR26(수집기 소유) 분봉 페이지네이션 미수리",
+      "measured": {
+        "pairs": 4243,
+        "median_bars_per_day": 30.0,
+        "n_dates": 16,
+        "panel_cover_frac": 0.82
+      },
+      "thresholds": {
+        "median_bars_per_day": 300,
+        "n_dates": 20,
+        "panel_cover_frac": 0.75
+      }
+    },
+    {
+      "axis": "short_selling",
+      "items": [
+        "CG141"
+      ],
+      "ready": false,
+      "closed": "축 종결(CG323, 2026-11-18 · 신선 패널 5폴드×5시드 첫 측정: 짝 Δ+0.0096 · 돈 k3 −0.61%p t−1.68/k5 −0.23 t−0.84 → 모델 레버 아님)",
+      "blocking": "축 종결(CG323, 2026-11-18 · 신선 패널 5폴드×5시드 첫 측정: 짝 Δ+0.0096 · 돈 k3 −0.61%p t−1.68/k5 −0.23 t−0.84 → 모델 레버 아님)",
+      "measured": {
+        "n_rows": 24472,
+        "n_codes": 306,
+        "n_days": 119,
+        "span": "2026-05-26~2026-11-17",
+        "panel_cover_frac": 0.88
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 250
+      }
+    },
+    {
+      "axis": "news::news_events",
+      "items": [
+        "CG73",
+        "CG60"
+      ],
+      "ready": false,
+      "closed": "",
+      "blocking": "커버리지(패널 유니버스)·이력(≥400d) 동시 필요",
+      "measured": {
+        "n_rows": 12463,
+        "n_codes": 451,
+        "n_days": 202,
+        "span": "2026-04-01~2026-11-17",
+        "panel_cover_frac": 0.54
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 400
+      }
+    },
+    {
+      "axis": "news::sns_posts",
+      "items": [
+        "CG73",
+        "CG60"
+      ],
+      "ready": false,
+      "closed": "축 종결(CG327, 2026-11-18 · SNS 관심·모멘텀·게시량 9피처 패널 주입 후 단일피처 스크린: 선별문턱 |AUC−0.5|≥0.044 통과 0/9, 최고 snsa_posts 0.4700(edge 0.030) · 행 채움 30%)",
+      "blocking": "축 종결(CG327, 2026-11-18 · SNS 관심·모멘텀·게시량 9피처 패널 주입 후 단일피처 스크린: 선별문턱 |AUC−0.5|≥0.044 통과 0/9, 최고 snsa_posts 0.4700(edge 0.030) · 행 채움 30%)",
+      "measured": {
+        "n_rows": 458394,
+        "n_codes": 441,
+        "n_days": 534,
+        "span": "2018-10-22~2026-11-17",
+        "panel_cover_frac": 0.9
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 400
+      }
+    }
+  ]
+}

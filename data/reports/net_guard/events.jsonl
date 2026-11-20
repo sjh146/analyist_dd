@@ -11,3 +11,5 @@
 {"ts": "2026-11-09T19:08:45", "key": "ecos", "event": "transport_error", "error": "TimeoutError('The read operation timed out')"}
 {"ts": "2026-11-09T19:09:40", "key": "ecos", "event": "transport_error", "error": "TimeoutError('The read operation timed out')"}
 {"ts": "2026-11-09T19:50:46", "key": "ecos", "event": "transport_error", "error": "TimeoutError('The read operation timed out')"}
+{"ts": "2026-11-18T19:19:38", "key": "kis-cf0148", "event": "transient", "status": 500, "retry_after": 0.0, "backoff": 0.0}
+{"ts": "2026-11-18T19:50:12", "key": "fred", "event": "blocked", "reason": "HTTP 504 WAF/HTML", "cooldown_s": 900.0}

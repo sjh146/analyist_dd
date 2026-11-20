@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-16T23:30:49",
+  "updated": "2026-11-19T23:30:33",
   "goal_metric": "fillable_oos_net_expectancy_pct",
   "acceptance": {
     "primary": "expectancy_pct > 0",
@@ -24,20 +24,20 @@
     "champion_expectancy_pct": -0.182,
     "champion_sessions": 87,
     "champion_robust_auc": 0.4908,
-    "candidate_expectancy_pct": null,
-    "candidate_robust_auc": null,
+    "candidate_expectancy_pct": 0.0277,
+    "candidate_robust_auc": 0.4624,
     "evidence_present": {
       "champion": true,
-      "candidate": false
+      "candidate": true
     },
     "note": "순기대는 체결성 필터·수수료 반영 OOS 값(%p/세션). 증거가 없으면 승격도 없다."
   },
   "money": {
-    "realized_pnl_krw": -26637.0,
-    "closed_trades": 10,
-    "equity_krw": 249455.0,
-    "open_positions": 2,
-    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-11-16.json"
+    "realized_pnl_krw": -35141.5,
+    "closed_trades": 18,
+    "equity_krw": 246645.0,
+    "open_positions": 0,
+    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-11-19.json"
   },
   "envelope": {
     "limits": {
@@ -47,14 +47,16 @@
       "daily_loss_limit_pct": 0.03
     },
     "used": {
-      "equity_krw": 249455.0,
-      "invested_pct_now": 68.72,
+      "equity_krw": 246645.0,
+      "invested_pct_now": 0.0,
       "peak_concurrent": 3,
-      "closed_trades": 10,
-      "realized_pnl_krw": -26637.0
+      "closed_trades": 18,
+      "realized_pnl_krw": -35141.5
     },
-    "breaches": [
-      "누적 실현손익 -26637.0원 < 일 손실한도 3.0%×자본"
+    "breaches": [],
+    "notes": [
+      "당일 실현 4688.0원 = 자본의 1.90% (일 손실한도 -3% 이내)",
+      "누적 실현손익 -35141.5원 = 자본의 -14.25% (참고 — 일 손실한도와 비교 대상 아님)"
     ]
   },
   "top_lever": {
@@ -64,10 +66,10 @@
     "evidence": "중간"
   },
   "data_freshness": {
-    "feed_generated_at": "2026-11-16T08:40:01+09:00",
-    "feed_age_h": 14.8,
-    "screener_stats_mtime": "2026-11-16T08:40:01",
-    "swing_probe_mtime": "2026-11-13T18:22:56",
-    "close_gap_history_mtime": "2026-10-09T09:20:39"
+    "feed_generated_at": "2026-11-19T20:30:02+09:00",
+    "feed_age_h": 3.0,
+    "screener_stats_mtime": "2026-11-19T20:30:01",
+    "swing_probe_mtime": "2026-11-19T18:24:43",
+    "close_gap_history_mtime": "2026-11-19T09:20:28"
   }
 }

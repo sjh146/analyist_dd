@@ -1,0 +1,29 @@
+{
+  "retrained_at": "2026-11-18T18:35:05",
+  "n_rows": 54746,
+  "n_train": 43796,
+  "n_val": 10950,
+  "up_rate": 0.4381,
+  "n_features": 199,
+  "model_aucs": {
+    "xgboost": 0.5117,
+    "lightgbm": 0.5225,
+    "catboost": 0.4771
+  },
+  "ensemble_auc": 0.5198,
+  "ensemble_auc_deployed_substance": 0.517,
+  "ensemble_weight_usage": "equal",
+  "val_frac": 0.2,
+  "seed": 0,
+  "data_start": "2025-09-24",
+  "data_end": "2026-11-18",
+  "fit_end": "2026-08-27",
+  "val_start": "2026-08-27",
+  "label_kind": "h1_direction",
+  "horizon": 5,
+  "label_q": null,
+  "n_middle_dropped": 0,
+  "model_params_override": null,
+  "drop_serving_blind": false,
+  "dropped_serving_blind": []
+}

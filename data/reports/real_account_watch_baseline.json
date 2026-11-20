@@ -5,6 +5,7 @@
   "realized": -33765.0,
   "win_rate": 18.2,
   "expectancy": -3070.0,
-  "equity_ref": 526771,
-  "window_end": "2026-11-24 (1주일 관찰 종료)"
+  "equity_ref": 246645.0,
+  "window_end": "2026-11-24 (1주일 관찰 종료)",
+  "equity_note": "정정(11-20): 앞서 526,771은 broker_total_eval 오독. 루프 일일 start_equity(246,645)와 브리지 equity(247,307)로 확인."
 }

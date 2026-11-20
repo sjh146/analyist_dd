@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-17T15:40:57+09:00",
+ "generated_at": "2026-11-19T16:40:02+09:00",
  "source": "trader-agent/data/fills",
  "files": [
   "fills_2026-09-28.json",
@@ -20,18 +20,20 @@
   "fills_2026-11-13.json",
   "fills_2026-11-15.json",
   "fills_2026-11-16.json",
-  "fills_2026-11-17.json"
+  "fills_2026-11-17.json",
+  "fills_2026-11-18.json",
+  "fills_2026-11-19.json"
  ],
- "rows": 10,
+ "rows": 17,
  "all": {
-  "n": 10,
-  "net_pnl": -32276.0,
-  "fees": 146.0,
-  "win_rate": 20.0,
-  "avg_win": 1028.0,
-  "avg_loss": -4904.6,
-  "avg_ret_pct": -4.302,
-  "expectancy_krw": -3227.6
+  "n": 17,
+  "net_pnl": -33652.5,
+  "fees": 458.5,
+  "win_rate": 23.5,
+  "avg_win": 1926.5,
+  "avg_loss": -3446.5,
+  "avg_ret_pct": -2.665,
+  "expectancy_krw": -1979.6
  },
  "by_screener": {
   "close": {
@@ -44,15 +46,25 @@
    "avg_ret_pct": -1.52,
    "expectancy_krw": -482.0
   },
+  "daytrading": {
+   "n": 5,
+   "net_pnl": 4119.0,
+   "fees": 29.0,
+   "win_rate": 40.0,
+   "avg_win": 2825.0,
+   "avg_loss": -510.3,
+   "avg_ret_pct": 1.037,
+   "expectancy_krw": 823.8
+  },
   "swing": {
-   "n": 6,
-   "net_pnl": -16210.0,
-   "fees": 146.0,
-   "win_rate": 16.7,
+   "n": 8,
+   "net_pnl": -21705.5,
+   "fees": 429.5,
+   "win_rate": 12.5,
    "avg_win": 1640.0,
-   "avg_loss": -4462.5,
-   "avg_ret_pct": -5.546,
-   "expectancy_krw": -2701.7
+   "avg_loss": -3890.9,
+   "avg_ret_pct": -5.094,
+   "expectancy_krw": -2713.2
   },
   "unknown": {
    "n": 1,
@@ -77,14 +89,14 @@
    "expectancy_krw": -14620.0
   },
   "signal": {
-   "n": 9,
-   "net_pnl": -17656.0,
-   "fees": 146.0,
-   "win_rate": 22.2,
-   "avg_win": 1028.0,
-   "avg_loss": -3285.3,
-   "avg_ret_pct": -4.204,
-   "expectancy_krw": -1961.8
+   "n": 16,
+   "net_pnl": -19032.5,
+   "fees": 458.5,
+   "win_rate": 25.0,
+   "avg_win": 1926.5,
+   "avg_loss": -2430.8,
+   "avg_ret_pct": -2.508,
+   "expectancy_krw": -1189.5
   }
  },
  "by_date": {
@@ -157,8 +169,28 @@
    "avg_loss": -7128.0,
    "avg_ret_pct": -7.347,
    "expectancy_krw": -7128.0
+  },
+  "2026-11-18": {
+   "n": 4,
+   "net_pnl": -6064.5,
+   "fees": 312.5,
+   "win_rate": 0.0,
+   "avg_win": null,
+   "avg_loss": -1516.1,
+   "avg_ret_pct": -2.049,
+   "expectancy_krw": -1516.1
+  },
+  "2026-11-19": {
+   "n": 3,
+   "net_pnl": 4688.0,
+   "fees": 0.0,
+   "win_rate": 66.7,
+   "avg_win": 2825.0,
+   "avg_loss": -962.0,
+   "avg_ret_pct": 1.968,
+   "expectancy_krw": 1562.7
   }
  },
  "ml_calibration": null,
- "scored_n": 6
+ "scored_n": 8
 }

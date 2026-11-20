@@ -1,6 +1,6 @@
 {
   "metric_name": "champion_scorecard",
-  "generated_at": "2026-11-20T01:07:47",
+  "generated_at": "2026-11-20T07:07:53",
   "champion_dir": "services/xgboost-ml/app/models/champion",
   "champion_auc_txt": 0.551318,
   "insample": {
@@ -19,16 +19,16 @@
   "fold_stats": {
     "protocol": "1-fold 연속 시간창, h=5 시장상대 중앙값 라벨, 크로스섹션 AUC, purge=5거래일",
     "folds": [
-      0.5387
+      0.5349
     ],
-    "mean": 0.5387,
+    "mean": 0.5349,
     "std": null,
-    "min": 0.5387,
-    "max": 0.5387,
+    "min": 0.5349,
+    "max": 0.5349,
     "fold_win_rate": 1.0,
     "n_folds": 1,
-    "measured_at": "2026-11-19T14:46:41",
-    "source": "ledger:CG363"
+    "measured_at": "2026-11-19T18:21:02",
+    "source": "ledger:CG366"
   },
   "purge": {
     "policy": "라벨 참조일 기준 h거래일 purge(wf_wave.py·wf_label_sweep.py) — 달력 h일이 아니라 그 종목의 h번째 미래 '행'의 날짜 기준",

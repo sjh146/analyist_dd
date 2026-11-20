@@ -69,10 +69,10 @@
   },
   "results": [
     {
-      "ambiguous_pct": 95.9227,
+      "ambiguous_pct": 36.5639,
       "best": {
-        "ambiguous_pct": 95.9227,
-        "avg_hold_sessions": 0.0217,
+        "ambiguous_pct": 36.5639,
+        "avg_hold_sessions": 1.0,
         "avg_loss_pct": 1.2015,
         "avg_win_pct": 2.7259,
         "equity_end_krw": 812234.72,
@@ -99,8 +99,8 @@
       "hold": "same_day",
       "rule": "fixed_1_3",
       "worst": {
-        "ambiguous_pct": 95.9227,
-        "avg_hold_sessions": 0.0261,
+        "ambiguous_pct": 36.5639,
+        "avg_hold_sessions": 1.0,
         "avg_loss_pct": 1.205,
         "avg_win_pct": 2.4835,
         "equity_end_krw": 67035.95,
@@ -126,10 +126,10 @@
       }
     },
     {
-      "ambiguous_pct": 95.8874,
+      "ambiguous_pct": 36.5044,
       "best": {
-        "ambiguous_pct": 95.8874,
-        "avg_hold_sessions": 0.0284,
+        "ambiguous_pct": 36.5044,
+        "avg_hold_sessions": 1.0263,
         "avg_loss_pct": 1.2058,
         "avg_win_pct": 2.79,
         "equity_end_krw": 810520.62,
@@ -156,8 +156,8 @@
       "hold": "swing5",
       "rule": "fixed_1_3",
       "worst": {
-        "ambiguous_pct": 95.8874,
-        "avg_hold_sessions": 0.0328,
+        "ambiguous_pct": 36.5044,
+        "avg_hold_sessions": 1.0306,
         "avg_loss_pct": 1.2075,
         "avg_win_pct": 2.79,
         "equity_end_krw": 66800.8,
@@ -183,10 +183,10 @@
       }
     },
     {
-      "ambiguous_pct": 95.9574,
+      "ambiguous_pct": 24.2222,
       "best": {
-        "ambiguous_pct": 95.9574,
-        "avg_hold_sessions": 0.0761,
+        "ambiguous_pct": 24.2222,
+        "avg_hold_sessions": 1.0,
         "avg_loss_pct": 1.6568,
         "avg_win_pct": 3.956,
         "equity_end_krw": 710010.58,
@@ -213,8 +213,8 @@
       "hold": "same_day",
       "rule": "fixed_15_45",
       "worst": {
-        "ambiguous_pct": 95.9574,
-        "avg_hold_sessions": 0.0783,
+        "ambiguous_pct": 24.2222,
+        "avg_hold_sessions": 1.0,
         "avg_loss_pct": 1.6721,
         "avg_win_pct": 3.4494,
         "equity_end_krw": 60540.33,
@@ -240,10 +240,10 @@
       }
     },
     {
-      "ambiguous_pct": 95.6522,
+      "ambiguous_pct": 24.2353,
       "best": {
-        "ambiguous_pct": 95.6522,
-        "avg_hold_sessions": 0.1485,
+        "ambiguous_pct": 24.2353,
+        "avg_hold_sessions": 1.1415,
         "avg_loss_pct": 1.7043,
         "avg_win_pct": 4.2528,
         "equity_end_krw": 666229.7,
@@ -270,8 +270,8 @@
       "hold": "swing5",
       "rule": "fixed_15_45",
       "worst": {
-        "ambiguous_pct": 95.6522,
-        "avg_hold_sessions": 0.1531,
+        "ambiguous_pct": 24.2353,
+        "avg_hold_sessions": 1.1462,
         "avg_loss_pct": 1.7059,
         "avg_win_pct": 4.1928,
         "equity_end_krw": 66054.45,
@@ -297,10 +297,10 @@
       }
     },
     {
-      "ambiguous_pct": 98.2979,
+      "ambiguous_pct": 61.7778,
       "best": {
-        "ambiguous_pct": 98.2979,
-        "avg_hold_sessions": 0.0217,
+        "ambiguous_pct": 61.7778,
+        "avg_hold_sessions": 1.0,
         "avg_loss_pct": 0.7875,
         "avg_win_pct": 1.8055,
         "equity_end_krw": 542074.46,
@@ -327,8 +327,8 @@
       "hold": "same_day",
       "rule": "partial_1r",
       "worst": {
-        "ambiguous_pct": 98.2979,
-        "avg_hold_sessions": 0.0261,
+        "ambiguous_pct": 61.7778,
+        "avg_hold_sessions": 1.0,
         "avg_loss_pct": 1.205,
         "avg_win_pct": 1.8317,
         "equity_end_krw": 57104.92,
@@ -354,10 +354,10 @@
       }
     },
     {
-      "ambiguous_pct": 98.2869,
+      "ambiguous_pct": 62.6398,
       "best": {
-        "ambiguous_pct": 98.2869,
-        "avg_hold_sessions": 0.0284,
+        "ambiguous_pct": 62.6398,
+        "avg_hold_sessions": 1.0263,
         "avg_loss_pct": 0.7894,
         "avg_win_pct": 1.818,
         "equity_end_krw": 541811.91,
@@ -384,8 +384,8 @@
       "hold": "swing5",
       "rule": "partial_1r",
       "worst": {
-        "ambiguous_pct": 98.2869,
-        "avg_hold_sessions": 0.0328,
+        "ambiguous_pct": 62.6398,
+        "avg_hold_sessions": 1.0306,
         "avg_loss_pct": 1.2001,
         "avg_win_pct": 2.0239,
         "equity_end_krw": 56921.43,
@@ -411,10 +411,10 @@
       }
     },
     {
-      "ambiguous_pct": 95.4644,
+      "ambiguous_pct": 66.5208,
       "best": {
-        "ambiguous_pct": 95.4644,
-        "avg_hold_sessions": 0.1283,
+        "ambiguous_pct": 66.5208,
+        "avg_hold_sessions": 1.0,
         "avg_loss_pct": 1.1623,
         "avg_win_pct": 5.3387,
         "equity_end_krw": 750777.7,
@@ -441,8 +441,8 @@
       "hold": "same_day",
       "rule": "trail_atr",
       "worst": {
-        "ambiguous_pct": 95.4644,
-        "avg_hold_sessions": 0.0522,
+        "ambiguous_pct": 66.5208,
+        "avg_hold_sessions": 1.0,
         "avg_loss_pct": 1.1941,
         "avg_win_pct": 3.8624,
         "equity_end_krw": 81893.28,
@@ -468,10 +468,10 @@
       }
     },
     {
-      "ambiguous_pct": 95.5257,
+      "ambiguous_pct": 68.5851,
       "best": {
-        "ambiguous_pct": 95.5257,
-        "avg_hold_sessions": 0.2422,
+        "ambiguous_pct": 68.5851,
+        "avg_hold_sessions": 1.2206,
         "avg_loss_pct": 1.1486,
         "avg_win_pct": 8.2388,
         "equity_end_krw": 1293930.81,
@@ -498,8 +498,8 @@
       "hold": "swing5",
       "rule": "trail_atr",
       "worst": {
-        "ambiguous_pct": 95.5257,
-        "avg_hold_sessions": 0.0828,
+        "ambiguous_pct": 68.5851,
+        "avg_hold_sessions": 1.0738,
         "avg_loss_pct": 1.1876,
         "avg_win_pct": 7.3843,
         "equity_end_krw": 101482.08,
@@ -561,7 +561,7 @@
         "holdout": {
           "best": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.1871,
+            "avg_hold_sessions": 1.1696,
             "avg_loss_pct": 1.1118,
             "avg_win_pct": 8.3982,
             "equity_end_krw": 415798.85,
@@ -587,7 +587,7 @@
           },
           "worst": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.0556,
+            "avg_hold_sessions": 1.05,
             "avg_loss_pct": 1.1729,
             "avg_win_pct": 5.9942,
             "equity_end_krw": 159730.38,
@@ -617,7 +617,7 @@
         "select": {
           "best": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.2767,
+            "avg_hold_sessions": 1.253,
             "avg_loss_pct": 1.1725,
             "avg_win_pct": 8.0578,
             "equity_end_krw": 753088.98,
@@ -643,7 +643,7 @@
           },
           "worst": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.0993,
+            "avg_hold_sessions": 1.0882,
             "avg_loss_pct": 1.198,
             "avg_win_pct": 7.996,
             "equity_end_krw": 170453.98,
@@ -680,7 +680,7 @@
         "holdout": {
           "best": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.1326,
+            "avg_hold_sessions": 1.0,
             "avg_loss_pct": 1.1437,
             "avg_win_pct": 5.1569,
             "equity_end_krw": 347887.29,
@@ -706,7 +706,7 @@
           },
           "worst": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.0497,
+            "avg_hold_sessions": 1.0,
             "avg_loss_pct": 1.1846,
             "avg_win_pct": 4.1568,
             "equity_end_krw": 169276.86,
@@ -736,7 +736,7 @@
         "select": {
           "best": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.1232,
+            "avg_hold_sessions": 1.0,
             "avg_loss_pct": 1.1752,
             "avg_win_pct": 5.4331,
             "equity_end_krw": 513850.58,
@@ -762,7 +762,7 @@
           },
           "worst": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.0493,
+            "avg_hold_sessions": 1.0,
             "avg_loss_pct": 1.1962,
             "avg_win_pct": 3.8974,
             "equity_end_krw": 131336.04,
@@ -799,7 +799,7 @@
         "holdout": {
           "best": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.0562,
+            "avg_hold_sessions": 1.0506,
             "avg_loss_pct": 1.199,
             "avg_win_pct": 2.79,
             "equity_end_krw": 381624.15,
@@ -825,7 +825,7 @@
           },
           "worst": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.0562,
+            "avg_hold_sessions": 1.0506,
             "avg_loss_pct": 1.2037,
             "avg_win_pct": 2.79,
             "equity_end_krw": 158597.53,
@@ -855,7 +855,7 @@
         "select": {
           "best": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.0106,
+            "avg_hold_sessions": 1.0106,
             "avg_loss_pct": 1.21,
             "avg_win_pct": 2.79,
             "equity_end_krw": 508234.06,
@@ -881,7 +881,7 @@
           },
           "worst": {
             "ambiguous_pct": null,
-            "avg_hold_sessions": 0.0106,
+            "avg_hold_sessions": 1.0106,
             "avg_loss_pct": 1.21,
             "avg_win_pct": 2.79,
             "equity_end_krw": 121190.46,

@@ -1,5 +1,5 @@
 {
- "ts": "2026-11-17T07:07:43+09:00",
+ "ts": "2026-11-18T15:36:56+09:00",
  "panel": "panel_prod200.npz",
  "panel_snapshot": {
   "shape": [
@@ -41,13 +41,25 @@
    "verdict": "BLOCKED"
   },
   {
+   "table": "minute_close_bars",
+   "code_col": "stock_code",
+   "date_col": "trade_date",
+   "rows": 561081,
+   "n_codes": 297,
+   "n_days": 6,
+   "span": "2026-11-10~2026-11-17",
+   "panel_cover_n": 18,
+   "panel_cover_frac": 0.09,
+   "verdict": "BLOCKED"
+  },
+  {
    "table": "foreign_institutional",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 194092,
-   "n_codes": 1166,
-   "n_days": 305,
-   "span": "2025-08-14~2026-11-16",
+   "rows": 195536,
+   "n_codes": 1168,
+   "n_days": 306,
+   "span": "2025-08-14~2026-11-17",
    "panel_cover_n": 91,
    "panel_cover_frac": 0.455,
    "verdict": "CLOSED"
@@ -56,12 +68,24 @@
    "table": "ownership",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 5244,
-   "n_codes": 1073,
-   "n_days": 16,
-   "span": "2026-09-23~2026-11-16",
+   "rows": 5899,
+   "n_codes": 1075,
+   "n_days": 17,
+   "span": "2026-09-23~2026-11-17",
    "panel_cover_n": 82,
    "panel_cover_frac": 0.41,
+   "verdict": "CLOSED"
+  },
+  {
+   "table": "sns_posts",
+   "code_col": "stock_code",
+   "date_col": "posted_at",
+   "rows": 458394,
+   "n_codes": 441,
+   "n_days": 534,
+   "span": "2018-10-22~2026-11-17",
+   "panel_cover_n": 30,
+   "panel_cover_frac": 0.15,
    "verdict": "CLOSED"
   },
   {
@@ -77,49 +101,37 @@
    "verdict": "CLOSED"
   },
   {
-   "table": "sns_posts",
+   "table": "news_events",
    "code_col": "stock_code",
-   "date_col": "posted_at",
-   "rows": 430796,
-   "n_codes": 366,
-   "n_days": 257,
-   "span": "2018-10-22~2026-11-16",
-   "panel_cover_n": 29,
-   "panel_cover_frac": 0.145,
+   "date_col": "event_date",
+   "rows": 12621,
+   "n_codes": 459,
+   "n_days": 203,
+   "span": "2026-04-01~2026-11-18",
+   "panel_cover_n": 27,
+   "panel_cover_frac": 0.135,
    "verdict": "CLOSED"
   },
   {
    "table": "krx_short_selling",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 23833,
-   "n_codes": 305,
-   "n_days": 117,
-   "span": "2026-05-26~2026-11-13",
+   "rows": 24472,
+   "n_codes": 306,
+   "n_days": 119,
+   "span": "2026-05-26~2026-11-17",
    "panel_cover_n": 25,
    "panel_cover_frac": 0.125,
-   "verdict": "CLOSED"
-  },
-  {
-   "table": "news_events",
-   "code_col": "stock_code",
-   "date_col": "event_date",
-   "rows": 12229,
-   "n_codes": 425,
-   "n_days": 201,
-   "span": "2026-04-01~2026-11-16",
-   "panel_cover_n": 24,
-   "panel_cover_frac": 0.12,
    "verdict": "CLOSED"
   },
   {
    "table": "minute_bars",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 118290,
+   "rows": 127290,
    "n_codes": 301,
-   "n_days": 15,
-   "span": "2026-09-23~2026-11-16",
+   "n_days": 16,
+   "span": "2026-09-23~2026-11-17",
    "panel_cover_n": 23,
    "panel_cover_frac": 0.115,
    "verdict": "CLOSED"
@@ -128,34 +140,34 @@
    "table": "stock_sentiment",
    "code_col": "stock_code",
    "date_col": "created_at",
-   "rows": 91,
-   "n_codes": 78,
-   "n_days": 2,
-   "span": "2026-11-15~2026-11-16",
-   "panel_cover_n": 4,
-   "panel_cover_frac": 0.02,
+   "rows": 186,
+   "n_codes": 130,
+   "n_days": 4,
+   "span": "2026-11-15~2026-11-18",
+   "panel_cover_n": 9,
+   "panel_cover_frac": 0.045,
    "verdict": "CLOSED"
   },
   {
    "table": "news_event_extraction",
    "code_col": "stock_code",
    "date_col": "created_at",
-   "rows": 441,
-   "n_codes": 63,
-   "n_days": 2,
-   "span": "2026-11-15~2026-11-16",
-   "panel_cover_n": 1,
-   "panel_cover_frac": 0.005,
+   "rows": 823,
+   "n_codes": 124,
+   "n_days": 4,
+   "span": "2026-11-15~2026-11-18",
+   "panel_cover_n": 5,
+   "panel_cover_frac": 0.025,
    "verdict": "CLOSED"
   },
   {
    "table": "market_data",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 3223794,
+   "rows": 3227630,
    "n_codes": 3980,
-   "n_days": 944,
-   "span": "2023-01-02~2026-11-16",
+   "n_days": 945,
+   "span": "2023-01-02~2026-11-17",
    "panel_cover_n": 200,
    "panel_cover_frac": 1.0,
    "verdict": "WIRED"
@@ -164,10 +176,10 @@
    "table": "ml_predictions",
    "code_col": "stock_code",
    "date_col": "created_at",
-   "rows": 102566,
+   "rows": 105731,
    "n_codes": 4350,
-   "n_days": 24,
-   "span": "2026-09-22~2026-11-16",
+   "n_days": 25,
+   "span": "2026-09-22~2026-11-17",
    "panel_cover_n": 200,
    "panel_cover_frac": 1.0,
    "verdict": "WIRED"
@@ -176,10 +188,10 @@
    "table": "stock_prices",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 3153592,
+   "rows": 3157428,
    "n_codes": 3980,
-   "n_days": 944,
-   "span": "2023-01-02~2026-11-16",
+   "n_days": 945,
+   "span": "2023-01-02~2026-11-17",
    "panel_cover_n": 200,
    "panel_cover_frac": 1.0,
    "verdict": "WIRED"
@@ -188,10 +200,10 @@
    "table": "supply_market_features",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 1198283,
-   "n_codes": 3959,
-   "n_days": 347,
-   "span": "2025-06-16~2026-11-13",
+   "rows": 1203533,
+   "n_codes": 3958,
+   "n_days": 349,
+   "span": "2025-06-16~2026-11-17",
    "panel_cover_n": 200,
    "panel_cover_frac": 1.0,
    "verdict": "WIRED"
@@ -200,10 +212,10 @@
    "table": "disclosures",
    "code_col": "stock_code",
    "date_col": "rcept_dt",
-   "rows": 223453,
+   "rows": 224094,
    "n_codes": 3077,
-   "n_days": 455,
-   "span": "2025-01-02~2026-11-13",
+   "n_days": 457,
+   "span": "2025-01-02~2026-11-17",
    "panel_cover_n": 191,
    "panel_cover_frac": 0.955,
    "verdict": "WIRED"
@@ -212,10 +224,10 @@
    "table": "event_features",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 222007,
-   "n_codes": 2711,
-   "n_days": 324,
-   "span": "2025-06-17~2026-11-13",
+   "rows": 222822,
+   "n_codes": 2710,
+   "n_days": 325,
+   "span": "2025-06-17~2026-11-17",
    "panel_cover_n": 191,
    "panel_cover_frac": 0.955,
    "verdict": "WIRED"
@@ -224,10 +236,10 @@
    "table": "financial_ratio_features",
    "code_col": "stock_code",
    "date_col": "trade_date",
-   "rows": 856301,
-   "n_codes": 2594,
-   "n_days": 347,
-   "span": "2025-06-16~2026-11-13",
+   "rows": 861226,
+   "n_codes": 2603,
+   "n_days": 349,
+   "span": "2025-06-16~2026-11-17",
    "panel_cover_n": 190,
    "panel_cover_frac": 0.95,
    "verdict": "WIRED"
@@ -245,10 +257,34 @@
    "verdict": "WIRED"
   },
   {
+   "table": "position_theses",
+   "code_col": "stock_code",
+   "date_col": "created_at",
+   "rows": 2,
+   "n_codes": 2,
+   "n_days": 1,
+   "span": "2026-11-17~2026-11-17",
+   "panel_cover_n": 0,
+   "panel_cover_frac": 0.0,
+   "verdict": "STATIC"
+  },
+  {
+   "table": "trade_loss_reviews",
+   "code_col": "code",
+   "date_col": "created_at",
+   "rows": 6,
+   "n_codes": 6,
+   "n_days": 1,
+   "span": "2026-11-17~2026-11-17",
+   "panel_cover_n": 0,
+   "panel_cover_frac": 0.0,
+   "verdict": "STATIC"
+  },
+  {
    "table": "trader_fills",
    "code_col": "code",
    "date_col": null,
-   "rows": 8,
+   "rows": 10,
    "panel_cover_n": 0,
    "panel_cover_frac": 0.0,
    "verdict": "STATIC"
@@ -257,7 +293,7 @@
    "table": "dq_runner_claim",
    "code_col": null,
    "date_col": null,
-   "rows": 328,
+   "rows": 389,
    "verdict": "MARKET_LEVEL"
   },
   {
@@ -278,21 +314,21 @@
    "table": "futures_options",
    "code_col": null,
    "date_col": "trade_date",
-   "rows": 113,
+   "rows": 115,
    "verdict": "MARKET_LEVEL"
   },
   {
    "table": "krx_derivatives",
    "code_col": null,
    "date_col": "trade_date",
-   "rows": 3444,
+   "rows": 3503,
    "verdict": "MARKET_LEVEL"
   },
   {
    "table": "krx_program_trading",
    "code_col": null,
    "date_col": "trade_date",
-   "rows": 232,
+   "rows": 236,
    "verdict": "MARKET_LEVEL"
   },
   {
@@ -306,21 +342,21 @@
    "table": "macro_features",
    "code_col": null,
    "date_col": "trade_date",
-   "rows": 944,
+   "rows": 349,
    "verdict": "MARKET_LEVEL"
   },
   {
    "table": "macro_indicators",
    "code_col": null,
    "date_col": "date",
-   "rows": 47037,
+   "rows": 47052,
    "verdict": "MARKET_LEVEL"
   },
   {
    "table": "news_analysis",
    "code_col": null,
    "date_col": "published_at",
-   "rows": 393,
+   "rows": 755,
    "verdict": "MARKET_LEVEL"
   },
   {
@@ -334,14 +370,28 @@
    "table": "strategy_runs",
    "code_col": null,
    "date_col": null,
-   "rows": 59,
+   "rows": 63,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "thesis_evidence",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 2,
+   "verdict": "MARKET_LEVEL"
+  },
+  {
+   "table": "thesis_verdicts",
+   "code_col": null,
+   "date_col": "created_at",
+   "rows": 4,
    "verdict": "MARKET_LEVEL"
   },
   {
    "table": "us_market_data",
    "code_col": null,
    "date_col": "trade_date",
-   "rows": 151,
+   "rows": 157,
    "verdict": "MARKET_LEVEL"
   },
   {
@@ -349,16 +399,6 @@
    "code_col": null,
    "date_col": "trade_date",
    "rows": 0,
-   "verdict": "EMPTY"
-  },
-  {
-   "table": "position_theses",
-   "code_col": "stock_code",
-   "date_col": "created_at",
-   "rows": 0,
-   "n_codes": 0,
-   "n_days": 0,
-   "span": null,
    "verdict": "EMPTY"
   },
   {
@@ -370,13 +410,6 @@
   },
   {
    "table": "risk_management",
-   "code_col": null,
-   "date_col": "created_at",
-   "rows": 0,
-   "verdict": "EMPTY"
-  },
-  {
-   "table": "thesis_verdicts",
    "code_col": null,
    "date_col": "created_at",
    "rows": 0,
