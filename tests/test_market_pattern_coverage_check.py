@@ -163,3 +163,40 @@ def test_three_tuple_sessions_still_supported():
     records = {"2026-11-17": {"session": "2026-11-17", "scored": 3720, "trade_value_sum": 35.3e12}}
     defects, _ = chk.judge(records, [("2026-11-17", 3720, 35.3e12)])
     assert defects == []
+
+
+# --- 원천 담당 시각 유예 (실측 2026-11-20 18:47) --------------------------------
+# 11-19 봉은 KIS 경로(전일 22:5x)만 적재돼 trading_value 3,722/3,722 NULL 이었지만
+# KRX 일봉(평일 18:55)이 8분 뒤 11-19 를 담당할 예정이었다. 담당 시각 전의 NULL 을 결함으로
+# 세면 정상 상태에서 매 틱 위반이 뜨는 '고쳐도 못 통과하는 check' 가 된다.
+
+def test_source_pending_before_due_and_after_due():
+    from datetime import datetime
+    assert chk.source_pending("2026-11-19", datetime(2026, 11, 20, 18, 47)) is True
+    assert chk.source_pending("2026-11-19", datetime(2026, 11, 20, 19, 31)) is False
+
+
+def test_friday_session_grace_runs_to_monday():
+    """금요일 세션은 주말을 건너 월요일 18:55 KRX 가 담당한다 — 토·일 틱이 위반을 만들면 안 된다."""
+    from datetime import datetime
+    assert chk.source_pending("2026-11-20", datetime(2026, 11, 21, 12, 0)) is True
+    assert chk.source_due_at("2026-11-20").strftime("%Y-%m-%d %H:%M") == "2026-11-23 19:30"
+    assert chk.source_pending("2026-11-20", datetime(2026, 11, 23, 19, 31)) is False
+
+
+def test_pending_null_is_grace_line_not_defect():
+    from datetime import datetime
+    records = {"2026-11-19": {"session": "2026-11-19", "scored": 3722, "trade_value_sum": None}}
+    defects, lines = chk.judge(records, [("2026-11-19", 3722, 0.0, 1.0)],
+                               now=datetime(2026, 11, 20, 18, 47))
+    assert defects == [], "원천 담당 전 NULL 은 결함이 아니다"
+    assert any(l.startswith("  · 유예") for l in lines), "유예도 보고에 남긴다(은폐 금지)"
+
+
+def test_pending_grace_expires_into_defect():
+    """담당 시각이 지나도 NULL 이면 결함이다 — 유예가 실명을 가리면 안 된다."""
+    from datetime import datetime
+    records = {"2026-11-19": {"session": "2026-11-19", "scored": 3722, "trade_value_sum": None}}
+    defects, _ = chk.judge(records, [("2026-11-19", 3722, 0.0, 1.0)],
+                           now=datetime(2026, 11, 20, 20, 0))
+    assert [d[1] for d in defects] == ["원천결손"]

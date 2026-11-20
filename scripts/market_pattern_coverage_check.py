@@ -33,12 +33,52 @@ from __future__ import annotations
 import json
 import os
 import sys
+from datetime import datetime, time as dtime, timedelta
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEDGER = os.path.join(REPO, "data", "reports", "market_pattern_ledger.jsonl")
 TOLERANCE = 0.10  # DB 값의 10% 까지는 정상(상장폐지·거래정지·신규상장 차이)
 NULL_TV_DEFECT = 0.50  # 거래대금 NULL 비율이 이 이상이면 '그 세션은 DB 자체가 불완전'(기준선 0.22~0.30)
 WINDOW_SESSIONS = int(os.environ.get("MPC_WINDOW_SESSIONS") or 30)
+# 원천(KRX 일봉) 담당 시각 — daily_bars.sh 가 평일 18:55 에 `krx_daily.py --days 7` 을 돌리는데
+# 그 경로는 **D-1 까지**만 적재한다(당일 봉은 발행 전 = 미완성 봉 가드). 따라서 세션 S 의
+# trading_value 는 S+1 18:55(+소요 ~35분)에야 채워진다.
+SOURCE_DUE_HOUR, SOURCE_DUE_MIN = 19, 30
+
+
+def _session_date(session):
+    for fmt in ("%Y-%m-%d", "%Y%m%d"):
+        try:
+            return datetime.strptime(str(session), fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def source_due_at(session):
+    """그 세션의 trading_value 를 원천(KRX 일봉)이 담당하기 시작하는 시각 = 다음 평일 19:30."""
+    d = _session_date(session)
+    if d is None:
+        return None
+    day = d + timedelta(days=1)
+    while day.weekday() >= 5:  # daily_bars 크론은 평일(1-5)만 돈다
+        day += timedelta(days=1)
+    return datetime.combine(day, dtime(SOURCE_DUE_HOUR, SOURCE_DUE_MIN))
+
+
+def source_pending(session, now=None):
+    """원천이 아직 그 세션을 담당하지 못한 '정상 과도기'인가.
+
+    WHY (실측 2026-11-20 18:47): 11-19 봉은 KIS 경로(전일 22:5x)만 적재돼 trading_value 가
+    3,722/3,722 NULL 이었다. KRX 일봉은 11-20 18:55 에 11-19 를 담당할 예정이므로 이 상태는
+    8분 뒤 사라지는 정상 과도기인데, 검사가 이를 '원천결손'으로 세어 상시 위반을 만들었다.
+    판정은 '마땅히 있어야 하는데 없는' 것만 세야 한다 — 담당 시각 전의 NULL 은 결번이 아니다.
+    """
+    due = source_due_at(session)
+    if due is None:
+        return False
+    return (now or datetime.now()) < due
+
 
 
 def read_records(path=LEDGER):
@@ -96,10 +136,11 @@ def db_sessions(limit=WINDOW_SESSIONS):
     return out
 
 
-def judge(records, sessions, tol=TOLERANCE):
+def judge(records, sessions, tol=TOLERANCE, now=None):
     """세션별 판정 → (결함 목록, 요약 줄 목록). 결함 = 누락 · 부분기록 · 거래대금 결손 · 원천결손.
 
     sessions 원소는 (session, n, tv) 3-튜플도 허용한다(호출부·구 테스트 호환).
+    원천(KRX 일봉)이 아직 담당하지 못한 세션의 NULL 은 결함이 아니라 '유예' 줄로 남긴다(은폐 금지).
     """
     defects = []
     lines = []
@@ -118,6 +159,12 @@ def judge(records, sessions, tol=TOLERANCE):
         if n and ratio < (1 - tol):
             defects.append((session, "부분기록", f"scored={scored} / DB {n}봉 = {ratio:.3f}"))
         source_broken = null_ratio is not None and null_ratio >= NULL_TV_DEFECT
+        if source_broken and source_pending(session, now):
+            # 정상 과도기 — 원천이 아직 그 세션을 담당하기 전이다(담당 시각 이후면 아래에서 결함으로 센다).
+            due = source_due_at(session)
+            lines.append(f"  · 유예(원천 미도달) {session} — DB trading_value NULL {null_ratio:.1%}, "
+                         f"원천 담당 {due:%m-%d %H:%M} 이후 판정")
+            continue
         if source_broken:
             # DB 자신이 불완전하면 원장↔DB 비교는 자기참조다(양쪽 다 0 → 비율 1.0 = 거짓 통과).
             defects.append((session, "원천결손",
@@ -165,9 +212,13 @@ def main(argv=None):
         print("R41: 판정 불가 — DB 에 마감된 봉이 없음", file=sys.stderr)
         return 2
 
-    defects, lines = judge(records, sessions)
+    defects, lines = judge(records, sessions, now=datetime.now())
     # 부분기록 판정 근거(최신 세션)는 항상 한 줄 남긴다 — 통과해도 '무엇을 보고 통과했는지' 남겨야 한다.
-    print(lines[-1] if lines else "R41: 비교 가능한 세션이 없음")
+    base = next((l for l in reversed(lines) if l.startswith("R41: ")), None)
+    print(base or "R41: 비교 가능한 세션이 없음")
+    for l in lines:
+        if l.startswith("  · 유예"):
+            print(l)
     for session, kind, why in defects[:10]:
         print(f"  ✗ [{kind}] {session} — {why}")
     if len(defects) > 10:
