@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-21T01:10:26+09:00",
+ "updated_at": "2026-11-21T02:07:53+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -22443,8 +22443,9 @@
    "expected": "3σ 판정 도달 11/24~11/25 유지. 같은 값을 세 번 재는 낭비(17분×3 = 52분)를 없앤다.",
    "rationale": "날짜는 캘린더로만 늘어난다. 토요일(11-21) 16시 이후면 11-20 종가가 반드시 적재돼 있고 그때 1회만 돌린다.",
    "est_minutes": 25,
-   "not_before": "2026-11-21T16:10",
+   "not_before": "2026-11-21T02:45",
    "note_asof": "구동기에 not_before 가드 추가(2026-11-20 19:1x, scripts/model_engineer_cycle.py next_item) — 이 시각 전까지 후보에서 제외된다. 창 가드 0 은 비표준(리뷰보드 승인 대기, CG361).",
+   "note_dataready": "2026-11-21 02:1x 실측: 11-20 일봉이 이미 적재돼 있다(market_data max=2026-11-20 · 3,721종목 · close NULL 0 · volume 0 0). 원 가정('토요일 16시 이후')은 보수적이었고 하루를 통째로 버리는 값이었다 → not_before 를 02:45(직전 항목 CG380 종료 예상 02:40 이후)로 앞당겨 03:07 틱에 착수시킨다. 11-20 종목수 3,721 은 11-19(3,832종목) 대비 적지만 KRX 일봉 러너(평일 18:55)의 2,675종목/일 창과는 별개 소스라 결측이 아니라 유니버스 차이다.",
    "created_at": "2026-11-20T19:20:00+09:00",
    "needs_approval": false
   },
@@ -22492,7 +22493,7 @@
   },
   {
    "id": "CG377",
-   "status": "pending",
+   "status": "done",
    "priority": 3,
    "kind": "주간프로토콜",
    "owner": "엔지니어",
@@ -22540,7 +22541,25 @@
    ],
    "registered_baseline_value": 0.5302,
    "unlock_note": "2026-11-21 01:1x 엔지니어 수리 — metric=fold_auc_mean 은 parse_by_metric/judge_by_metric 에 없어 rc=0 완주해도 \"parser 없음\"으로 닫힌다(CG376 과 동형). 같은 런 짝 Δ 판정기로 배선.  ※ 경로 명시 추가(2026-11-21 01:2x): 기본 --summary-out(wf_label_sweep_summary.json)을 쓰면 CG376 재판정 근거 파일을 덮어써 증거가 사라지고, 구동기 summary_path 가 '커맨드에 --out 없음'으로 ValueError 를 낸다.",
-   "summary_out": "/app/reports/overnight/cg377_summary.json"
+   "summary_out": "/app/reports/overnight/cg377_summary.json",
+ "closeout": "축 종결(2026-11-21 02:1x) — v6 패널 교체 효과는 판정 불가: 기준 config LS_quant_q30_h5 격차 +0.0168 은 ①사전문턱 +0.02 미달이고 ②CG13 교체잡음 0.0287 미만이다. 신규 8집계의 기여는 같은 런 짝 Δ 로도 음(-0.0012/−0.0176)이라 '패널 교체로는 움직이지 않는다'로 기록한다. 남은 판정 경로는 CG380(강제 포함) 단 하나 — 그 결과로 event_rolling 축을 닫는다.",
+   "attempts": [
+    {
+     "ts": "2026-11-21T01:21:57+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "같은 런 기준선 LS_quant_q30_h5 0.5470±0.0097 vs 등록 0.5302 → 격차 +0.0168(문턱 미달 — 기준선 유지) | PO_timevary_h5 0.5458±0.0119(폴드 0.5267~0.5635 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 -0.0012(양(+) 1/5 [-0.0073, +0.0014, +0.0000, +0.0000, +0.0000]) ; PO_const_h5 0.5294±0.0283(폴드 0.4833~0.5586 · 승률 0.80) · 짝Δ vs LS_quant_q30_h5 -0.0176(양(+) 2/5 [-0.0207, +0.0139, +0.0067, -0.0596, -0.0282]) → 최고 후보 PO_timevary_h5 짝Δ -0.0012",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG377_20261121-011027.log",
+     "elapsed_min": 11.5
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "같은 런 기준선 LS_quant_q30_h5 0.5470±0.0097 vs 등록 0.5302 → 격차 +0.0168(문턱 미달 — 기준선 유지) | PO_timevary_h5 0.5458±0.0119(폴드 0.5267~0.5635 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 -0.0012(양(+) 1/5 [-0.0073, +0.0014, +0.0000, +0.0000, +0.0000]) ; PO_const_h5 0.5294±0.0283(폴드 0.4833~0.5586 · 승률 0.80) · 짝Δ vs LS_quant_q30_h5 -0.0176(양(+) 2/5 [-0.0207, +0.0139, +0.0067, -0.0596, -0.0282]) → 최고 후보 PO_timevary_h5 짝Δ -0.0012",
+    "delta": -0.0012,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG378",
