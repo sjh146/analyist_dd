@@ -694,6 +694,10 @@ def prereg_control_gap(item):
     if cf and cf in have and cf != arm:
         return None
     # `--force-paired` 가 만드는 <arm>/<arm>__ff 쌍은 같은 런 대조군이 있다.
+    if "--force-paired" in (item.get("command") or ""):
+        # arm 이름을 자기 id 로 적은 항목(예: CG380__ff)도 실제 산출물 키는 <--only 태그>__ff 다.
+        # 판정은 per_exp 키로 하므로 경고를 띄우지 말고, 실행 후 판정에서 키를 맞춘다.
+        return None
     if arm and (f"{arm}__ff" in have or (arm.endswith("__ff") and arm[:-4] in have)):
         return None
     if any(t.endswith("__ff") for t in have):
@@ -2277,9 +2281,13 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind in ("wf_sweep_summary", "wf_wave_summary"):
         # 두 요약의 스키마가 같다(results[].folds{}.mean · exp/desc) → 같은 파서를 쓴다.
         return parse_wf_sweep(spath, mtime_floor)
-    if kind in ("baseline_protocol_gap", "wf_fold_auc"):
+    if kind in ("baseline_protocol_gap", "wf_fold_auc", "fold_auc_mean"):
         # 같은 런 기준선 재측정(CG260) · CG261 의 wf_fold_auc 별칭. per_exp 를 싣지 않는 전용 파서
         # — judge 도 전용이다.
+        # fold_auc_mean(CG377): wf_label_sweep 요약을 '여러 config 나란히' 판정하려고 쓴 이름인데
+        # 파서·판정기 어디에도 등록돼 있지 않아 rc=0 완주가 'parser 없음 → 판정불가'로 닫힐 참이었다
+        # (CG376 과 같은 등록 누락 함정, 2026-11-21). 같은 스키마(results[].folds{}.mean)이므로
+        # 같은 런 짝 Δ 판정기로 보낸다 — per_exp 를 만들지 않아 패널 교체 잡음이 스코어보드에 새지 않는다.
         return parse_baseline_protocol_gap(spath, mtime_floor, item=item)
     if kind == "champion_robust_eval":
         return parse_champion_robust(spath, mtime_floor)
@@ -4998,7 +5006,7 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_scale_bisect_probe(item, parsed)
     if kind == "metric_audit_pair":
         return judge_metric_audit_pair(item, parsed)
-    if kind in ("baseline_protocol_gap", "wf_fold_auc"):
+    if kind in ("baseline_protocol_gap", "wf_fold_auc", "fold_auc_mean"):
         return judge_baseline_protocol_gap(item, parsed)
     if kind == "score_deciles":
         return judge_score_deciles(item, parsed)

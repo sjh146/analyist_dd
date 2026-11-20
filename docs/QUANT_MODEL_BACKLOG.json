@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-21T00:16:35+09:00",
+ "updated_at": "2026-11-21T01:10:26+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -12,6 +12,28 @@
   "07. 백로그 `command` 의 플래그는 **스크립트 파서에서 실재를 확인**한 뒤 등록하라 — champion_robust_eval 은 --out 만 받는다(--json-out 없음). 2026-11-17 CG306 이 이 오타로 rc=2 두 번, CG310 에도 같은 오타가 남아 있었다. 등록 시 `--help` 대조 1줄이면 막을 수 있다."
  ],
  "items": [
+  {
+   "id": "CG380",
+   "status": "pending",
+   "priority": 2,
+   "kind": "데이터축",
+   "owner": "엔지니어",
+   "affects_model": true,
+   "metric": "wf_sweep_summary",
+   "arm": "CG376_noroll_h5__ff",
+   "title": "[CG376 후속·강제포함] event_rolling 집계 8종을 선별 우회로 강제 투입 — '정보 없음'과 '선별이 버렸다'를 가른다",
+   "hypothesis": "CG376(2026-11-20 15:19Z) roll 0.5470±0.0098 vs noroll 0.5475±0.0098 = Δ-0.0005 이고 폴드 3/5가 소수점 4자리까지 동일(폴드1 0.5340·폴드4 0.5429·폴드5 0.5635 양쪽 동일) → 학습행렬이 사실상 같다 = 8집계가 top30 선별에서 한 번도 안 뽑혔다(로그 실효피처 30). 따라서 CG376 은 '정보 없음'의 증거가 아니라 '선별 문턱 미달'의 증거다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 5 --only CG376_noroll_h5 --force-features event_level_20d,event_trend_5v20,event_any_60d,funding_level_20d,governance_level_20d,business_level_20d,risk_level_20d,disclosure_level_20d --force-paired --out /app/reports/overnight/cg380_sweep.jsonl --summary-out /app/reports/overnight/cg380_summary.json'",
+   "counterfactual": "같은 런·같은 패널(v6)·같은 폴드·같은 시드의 CG376_noroll_h5(= --force-paired 가 만드는 __ff 없는 쌍둥이, 213피처·top30)",
+   "success": "① rc=0 + 로그에서 강제 8종이 학습행렬에 들어감(피처 30→38) ② 같은 폴드 짝 Δ ≥ +0.02 이고 양(+) 폴드 ≥ 4/5 면 신호 ③ |Δ| < 0.02 면 '강제 포함 후에도 무효과'로 축 종결 ④ 승격 후보일 때만 체결성 필터+왕복 0.21%p 돈 지표 산출",
+   "expected": "CG376 이 남긴 미결 질문(선별 vs 정보)을 25~30분으로 끝낸다. 선별이 버린 것이라면 선별 문턱 변경은 리뷰보드 승인 대상이므로 근거를 만들어 올린다.",
+   "rationale": "선별 문턱 |AUC-0.5| ≥ 0.044 를 8집계 단변량 AUC 0.4984~0.5177 이 못 넘어 탈락(실측: 기존 체크포인트의 실효피처 30). 강제 포함은 라벨·유니버스·프로토콜을 건드리지 않는다.",
+   "est_minutes": 30,
+   "created_at": "2026-11-21T01:25:00+09:00",
+   "needs_approval": false,
+   "not_before": "2026-11-21T01:40",
+   "note": "CG376 후속 · --force-paired 는 CG342 검증 경로(arm 이름 <id>__ff). 별도 --summary-out 으로 공유 요약 덮어쓰기 금지.  ※ arm 이름은 --force-paired 가 실제로 만드는 id 규칙(<--only 태그>__ff)을 따른다 — CG380__ff 로 적으면 per_exp 키와 어긋나 '기준선없음'이 된다(2026-11-21 01:1x 수리)."
+  },
   {
    "id": "CG351",
    "title": "[측정 잡음] 유니버스 시드 잡음 밴드를 5시드로 확장 — CG347(3시드 범위 0.0227)의 σ 추정을 df=4 로 재산출",
@@ -22428,12 +22450,12 @@
   },
   {
    "id": "CG376",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "데이터축",
    "owner": "엔지니어",
    "affects_model": true,
-   "metric": null,
+   "metric": "wf_sweep_summary",
    "title": "[데이터 축·신규] event_rolling_features 그룹 집계 8종을 패널에 배선 — 컬럼은 이미 있으나 집계 레벨·추세가 없다(EV1 과 다른 입력)",
    "hypothesis": "EV1 이 닫은 것은 '유형별 5일 카운트 16종'(대부분 0)이다. 새 테이블의 그룹 집계(event_level_20d·event_any_60d·event_trend_5v20·disclosure/funding/governance/business/risk_level_20d)는 비영 비율 32~99% 로 정보가 실제로 채워져 있고, 20일 레벨·5v20 추세는 '공시 강도 변화'라는 축을 준다 — 패널에 같은 이름의 20d 집계가 없으므로 in-run A/B(집계 ON vs OFF)를 돌릴 가치가 있다.",
    "setup_needed": "완료(2026-11-20 20:1x, 엔지니어 자율) — ① 시점정합 검증 PASS(미래셀 0) ② 패널 배선 완료(panel_prod200_v6 221피처, 213컬럼 바이트 동일) ③ config 2종 등록(CG376_roll_h5/noroll_h5, dry-run rc=0). 남은 것: ④ A/B 실행 ⑤ 돈 지표 병기.",
@@ -22446,7 +22468,27 @@
    "created_at": "2026-11-20T19:25:00+09:00",
    "needs_approval": false,
    "note": "2026-11-20 20:1x 준비 완료(엔지니어 실측). ① 코드 근거: build_event_features.py L269 창 [D-5..D-1] 당일 제외 · build_event_rolling.py L139 `trade_date < D` 엄격. ② SQL 재계산 대조(PIT): 재계산 lag 창과 일치 168,222/195,600(event-day 행) · 창부족 27,378행은 전부 NULL · **미래셀('당일 포함'만 일치) 0** · disclosure 불일치 0. ③ 선행 수리: 롤링 테이블이 원천 재적재(11-20 19:10) 이후 갱신되지 않아 2026-11 734셀 불일치(그중 49셀은 '당일 포함'과 일치=오탐) → build_event_rolling 재실행(18초, 777,374행·2,709종목)으로 해소, 재검증에서 leak 0. ④ 단일피처 AUC(패널 v6·h5 q0.3 라벨): 0.4984~0.5177 → 누수게이트(>0.75) 여유, 다만 신호도 약하다. ⑤ 주의: '20d'는 20거래일이 아니라 **직전 20개 이벤트보유 행**이다(스펙 문구 그대로) — 달력 스팬이 더 길어 보수적·누수 아님, null 27.5%. ⑥ 실측 커버리지(패널 61,640행, nnz): disclosure 99.9% · any_60d 99.7% · level_20d 99.2% · governance 87.5% · trend 81.4% · business 74.6% · funding 57.8% · risk 32.1%.",
-   "not_before": "2026-11-20T21:35"
+   "not_before": "2026-11-20T21:35",
+   "attempts": [
+    {
+     "ts": "2026-11-21T00:19:54+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric=None)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG376_20261121-000836.log",
+     "elapsed_min": 11.3
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "가설 CG376_roll_h5 0.5470 vs 대조군 CG376_noroll_h5 0.5475 → Δ-0.0005 (같은 런 짝 · 폴드 std 0.0097) · 폴드 짝승률 0/5 (Δ폴드 중앙값 +0.0000 · 범위 -0.0015~+0.0000) (최고: CG376_noroll_h5 0.5475)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "arm": "CG376_roll_h5",
+   "summary_out": "/app/reports/overnight/wf_label_sweep_summary.json",
+   "unlock_note": "2026-11-21 01:1x 엔지니어 수리 — metric=null 이라 11.3분 실측이 판정불가로 닫혔다. 요약 JSON 실측: roll 0.5470±0.0098 / noroll 0.5475±0.0098 (5폴드) → Δ-0.0005. 폴드 3/5가 소수점 4자리 동일 = 8집계가 top30 선별에서 빠졌다는 뜻(실효피처 30)."
   },
   {
    "id": "CG377",
@@ -22455,10 +22497,10 @@
    "kind": "주간프로토콜",
    "owner": "엔지니어",
    "affects_model": true,
-   "metric": "fold_auc_mean",
+   "metric": "baseline_protocol_gap",
    "title": "[주간 프로토콜·패널교체] 금요일 다중폴드 재측정을 신규 패널 v6(221피처·event_rolling 집계 8종)에서 — 11-13 prod200 값과 나란히",
    "hypothesis": "11-13 이후 패널 캐시가 바뀌었다(panel_prod200_v6, 11-20 11:10 신규 · event_rolling 집계 8종 배선). 같은 3개 기준 config 를 같은 5폴드×5시드 격자로 v6 에서 재측정하면 ① 주간 프로토콜(금요일)을 이행하고 ② '패널 교체만으로 폴드평균이 움직이는가'를 조정 축 상한(+0.011)과 비교할 수 있다.",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,PO_timevary_h5,PO_const_h5'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 5 --only LS_quant_q30_h5,PO_timevary_h5,PO_const_h5 --out /app/reports/overnight/cg377_sweep.jsonl --summary-out /app/reports/overnight/cg377_summary.json'",
    "counterfactual": "11-13 같은 3 config·같은 5폴드×5시드 격자를 panel_prod200(200피처)에서 측정한 값: LS_quant_q30_h5 0.5302±0.0168 · PO_timevary_h5 0.5305±0.0137 · PO_const_h5 0.4998±0.0262 (reports/overnight/me_20261113_wf_sweep_prod200.log)",
    "success": "① rc=0 + 3 config 전부 5폴드 채점 ② 각 config 폴드평균±std·폴드승률을 11-13 값과 나란히 기재 ③ v6 에서 폴드평균 Δ ≥ +0.02 인 config 가 있으면 신규 8집계 컬럼의 top30 선별 진입 여부로 원인 분해 ④ Δ < +0.02 면 '패널 교체(v6)는 조정 축 상한을 넘지 못했다'로 기록하고 축을 닫는다 ⑤ 패널이 달라 Δ 해석 상한은 CG13 교체잡음 0.0287 — |Δ|<0.0287 이면 '패널 교체 효과 판정 불가(잡음 이하)'로 기록",
    "expected": "조정 축 상한 +0.011 을 넘으면 데이터 축(v6 집계)이 처음으로 문턱을 넘는 신호다. 넘지 못하면 남은 레버는 CG376 A/B 의 짝 Δ 뿐이다.",
@@ -22490,7 +22532,15 @@
      ]
     },
     "note": "기준선은 다른 패널(prod200, 200피처) 값이다 — Δ 는 '패널 교체 효과 + 실행 잡음'이고 실행 잡음 바닥은 CG13 실측 0.0287 이다. 따라서 |Δ| < 0.0287 은 패널 효과로 읽지 않는다."
-   }
+   },
+   "paired_reference": "LS_quant_q30_h5",
+   "arm_list": [
+    "PO_timevary_h5",
+    "PO_const_h5"
+   ],
+   "registered_baseline_value": 0.5302,
+   "unlock_note": "2026-11-21 01:1x 엔지니어 수리 — metric=fold_auc_mean 은 parse_by_metric/judge_by_metric 에 없어 rc=0 완주해도 \"parser 없음\"으로 닫힌다(CG376 과 동형). 같은 런 짝 Δ 판정기로 배선.  ※ 경로 명시 추가(2026-11-21 01:2x): 기본 --summary-out(wf_label_sweep_summary.json)을 쓰면 CG376 재판정 근거 파일을 덮어써 증거가 사라지고, 구동기 summary_path 가 '커맨드에 --out 없음'으로 ValueError 를 낸다.",
+   "summary_out": "/app/reports/overnight/cg377_summary.json"
   },
   {
    "id": "CG378",
@@ -22528,6 +22578,26 @@
    "est_minutes": 0,
    "created_at": "2026-11-21T00:16:35+09:00",
    "updated_at": "2026-11-21T00:16:35+09:00"
+  },
+  {
+   "id": "XR44",
+   "title": "[리서처 R44] sns_post_features 가 5거래일 동결 — writer 는 있는데 스케줄이 없었다 (일일 배선 + 신선도 상시 감시)",
+   "status": "needs_setup",
+   "priority": 8,
+   "from_research": "R44",
+   "arm": null,
+   "counterfactual": null,
+   "baseline": null,
+   "command": null,
+   "metric": "wf_sweep_summary",
+   "hypothesis": "`scripts/sns_features_writer.py`(sns_posts → sns_post_features 집계)는 2026-11-13 만들어졌지만 크론·구동기 어디에도 배선이 없어 **11-13 12:06 이후 한 번도 안 돌았다**. 원천 sns_posts 는 신선(11-20 09:05)하므로 '수집은 도는데 가공이 멈춘' 유형이고, 어떤 수집 신호(0행·파서 실패)에도 안 걸린다. 리더(feature_engine/sns_features.py)가 이 표를 읽으므로 SNS 감성·관심도 피처가 조용히 낡는다.",
+   "evidence": "리서처 R44 결과: R44: 0 <= 1 → 충족",
+   "success": null,
+   "expected": "미지",
+   "cost": null,
+   "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
+   "promoted_from": "handoff",
+   "promoted_at": "2026-11-21T01:07:47+09:00"
   }
  ],
  "updated": "2026-11-20T17:10:47+09:00"
