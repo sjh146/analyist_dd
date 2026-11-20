@@ -106,6 +106,15 @@ class BridgeClient:
         """Return the outstanding (unfilled) ``orders`` list from GET /orders."""
         return list(self._get("/orders").get("orders", []))
 
+    def daily_pnl(self) -> Dict[str, Any]:
+        """Return the ``daily_pnl`` object from GET /daily_pnl (당일 체결·평가).
+
+        WHY: 브리지 타임아웃 응답을 받은 주문이 **브로커에서는 체결**되는 사고
+        (2026-11-20 068050) 가 있었다. 저널 행만 세면 그 진입이 일일 상한에서
+        빠지므로, 당일 체결을 브로커 기준으로도 셀 수 있어야 한다.
+        """
+        return self._get("/daily_pnl").get("daily_pnl", {})
+
     def quotes(self, codes: List[str]) -> Dict[str, Dict[str, Any]]:
         """Return ``{CODE: {quote...}}`` from GET /quotes?codes=...
 

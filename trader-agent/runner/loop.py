@@ -1370,9 +1370,45 @@ class MarketLoop:
         self._persist_state()
 
     def _entries_today(self) -> int:
-        """Return today's entry count for the mode the loop is running in."""
+        """Return today's entry count for the mode the loop is running in.
+
+        브로커 기준 당일 체결(매수 수량>0 종목) + 미체결 주문 코드도 진입으로 센다.
+        WHY(2026-11-20 068050): 브리지가 타임아웃을 돌려줬지만 주문은 브로커에서
+        체결됐고 저널에 행이 남지 않았다. 저널 카운트만 쓰면 그 진입이 일일 상한
+        (3건)에서 빠져 **4번째 주문**이 나갔다. 실주문 경로이므로 fail-open(큰 쪽 채택).
+        """
         key = "dry_run_entries" if self.config.dry_run else "entries"
-        return int(self.state["daily"].get(key, 0))
+        journal_n = int(self.state["daily"].get(key, 0))
+        broker_n = self._broker_entries_today()
+        return max(journal_n, broker_n)
+
+    def _broker_entries_today(self) -> int:
+        """브로커 당일 매수 종목 수 + 미체결 매수 주문 수 (실패 시 0)."""
+        if self.config.dry_run:
+            return 0
+        codes = set()
+        fetch_daily = getattr(self.bridge, "daily_pnl", None)
+        if fetch_daily is None:  # 구형/모의 브리지 → 저널 카운트만 사용
+            return 0
+        try:
+            daily = fetch_daily() or {}
+            for item in daily.get("items") or []:
+                try:
+                    if float(item.get("buy_qty") or 0) > 0:
+                        codes.add(str(item.get("code")))
+                except (TypeError, ValueError):
+                    continue
+        except Exception:  # noqa: BLE001 - 조회 실패는 저널 카운트로 폴백
+            return 0
+        try:
+            for order in self.bridge.open_orders() or []:
+                if str(order.get("bs_code") or "") == "2":
+                    codes.add(str(order.get("code")))
+        except Exception:  # noqa: BLE001
+            pass
+        for code in (self.state.get("pending_entries") or {}):
+            codes.add(str(code))
+        return len(codes)
 
     # ------------------------------------------------------------------ #
     # MONITOR + R4
