@@ -46,14 +46,27 @@ def _conn():
     )
 
 
-def load_prices(conn, d_from, d_to):
-    sql = """
-        SELECT stock_code AS code, trade_date AS dt, close_price AS close,
-               volume, trading_value AS value
-        FROM market_data
-        WHERE trade_date BETWEEN %s AND %s AND close_price > 0
+def load_prices(conn, d_from, d_to, market=None, instrument="STOCK"):
+    """market(KOSPI/KOSDAQ) · instrument_type(STOCK/ETF/ETN) 로 유니버스를 좁힌다.
+
+    WHY(2026-11-20): 기본 유니버스는 코스닥 소형주 편중이다(KOSDAQ -31.7% YTD).
+    같은 룰이 코스피 대형주나 ETF 에서도 통하는지 확인하려면 유니버스 축이 필요하다.
     """
-    df = pd.read_sql(sql, conn, params=(d_from, d_to))
+    where = ["m.trade_date BETWEEN %s AND %s", "m.close_price > 0"]
+    params = [d_from, d_to]
+    if instrument:
+        where.append("s.instrument_type = %s")
+        params.append(instrument)
+    if market:
+        where.append("s.market = %s")
+        params.append(market)
+    sql = """
+        SELECT m.stock_code AS code, m.trade_date AS dt, m.close_price AS close,
+               m.volume, m.trading_value AS value
+        FROM market_data m JOIN stocks s ON s.stock_code = m.stock_code
+        WHERE """ + " AND ".join(where) + """
+    """
+    df = pd.read_sql(sql, conn, params=tuple(params))
     df["dt"] = pd.to_datetime(df["dt"])
     df = df.sort_values(["code", "dt"]).reset_index(drop=True)
     return df
@@ -169,13 +182,15 @@ def main(argv=None) -> int:
     ap.add_argument("--slip-bps", type=float, default=20.0)
     ap.add_argument("--min-value", type=float, default=3e8)
     ap.add_argument("--min-price", type=float, default=1000.0)
+    ap.add_argument("--market", default=None, help="KOSPI|KOSDAQ (기본: 전체)")
+    ap.add_argument("--instrument", default="STOCK", help="STOCK|ETF|ETN (기본 STOCK)")
     ap.add_argument("--index-code", default="KOSDAQ", help="레짐 분류용 지수(기본 KOSDAQ)")
     ap.add_argument("--json-out", default=os.path.join(HERE, "data/reports/rule_expectancy.json"))
     args = ap.parse_args(argv)
 
     cost = (args.cost_bps + 2 * args.slip_bps) / 10000.0
     conn = _conn()
-    df = add_forward(load_prices(conn, args.d_from, args.d_to))
+    df = add_forward(load_prices(conn, args.d_from, args.d_to, args.market, args.instrument))
     short = load_short(conn, args.d_from, args.d_to)
     news = load_news(conn, args.d_from, args.d_to)
     idx = load_index(conn, args.d_from, args.d_to, args.index_code)
@@ -189,6 +204,7 @@ def main(argv=None) -> int:
     base_all = df[(df["value"] >= args.min_value) & (df["close"] >= args.min_price)
                   & df["fwd1"].notna()].merge(idx, on="dt", how="left")
     out = {"window": [args.d_from, args.d_to], "cost_pct": round(cost * 100, 3),
+           "universe": {"market": args.market, "instrument": args.instrument},
            "universe_min_value": args.min_value, "rules": {}}
     base_stats = _stats(base_all, cost)
     if "idx_ret" in base_all.columns:

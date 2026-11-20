@@ -1,0 +1,218 @@
+{
+ "window": [
+  "2026-01-02",
+  "2026-11-19"
+ ],
+ "cost_pct": 0.61,
+ "universe": {
+  "market": "KOSPI",
+  "instrument": "ETF"
+ },
+ "universe_min_value": 300000000.0,
+ "rules": {
+  "R1_short_high": {
+   "n": 0,
+   "mean_net_pct": null,
+   "win_rate": null,
+   "t": null,
+   "panic": {
+    "n": 0,
+    "mean_net_pct": null,
+    "win_rate": null,
+    "t": null
+   },
+   "normal": {
+    "n": 0,
+    "mean_net_pct": null,
+    "win_rate": null,
+    "t": null
+   }
+  },
+  "R2_short_low": {
+   "n": 0,
+   "mean_net_pct": null,
+   "win_rate": null,
+   "t": null,
+   "panic": {
+    "n": 0,
+    "mean_net_pct": null,
+    "win_rate": null,
+    "t": null
+   },
+   "normal": {
+    "n": 0,
+    "mean_net_pct": null,
+    "win_rate": null,
+    "t": null
+   }
+  },
+  "R3_up_3_8": {
+   "n": 405,
+   "mean_net_pct": -1.2602,
+   "win_rate": 38.52,
+   "std_pct": 5.787,
+   "t": -4.382,
+   "median_net_pct": -1.4774,
+   "panic": {
+    "n": 52,
+    "mean_net_pct": -3.75,
+    "win_rate": 21.15,
+    "std_pct": 6.279,
+    "t": -4.307,
+    "median_net_pct": -2.3846
+   },
+   "normal": {
+    "n": 353,
+    "mean_net_pct": -0.8934,
+    "win_rate": 41.08,
+    "std_pct": 5.628,
+    "t": -2.982,
+    "median_net_pct": -1.2854
+   },
+   "excess_pct": -0.01
+  },
+  "R4_up_10plus": {
+   "n": 60,
+   "mean_net_pct": -0.8019,
+   "win_rate": 40.0,
+   "std_pct": 8.669,
+   "t": -0.717,
+   "median_net_pct": -1.1664,
+   "panic": {
+    "n": 9,
+    "mean_net_pct": 0.2853,
+    "win_rate": 22.22,
+    "std_pct": 9.501,
+    "t": 0.09,
+    "median_net_pct": -1.1058
+   },
+   "normal": {
+    "n": 51,
+    "mean_net_pct": -0.9938,
+    "win_rate": 43.14,
+    "std_pct": 8.602,
+    "t": -0.825,
+    "median_net_pct": -1.227
+   },
+   "excess_pct": 0.4483
+  },
+  "R5_value_surge": {
+   "n": 91,
+   "mean_net_pct": -1.481,
+   "win_rate": 16.48,
+   "std_pct": 2.9,
+   "t": -4.871,
+   "median_net_pct": -0.6149,
+   "panic": {
+    "n": 40,
+    "mean_net_pct": -1.1016,
+    "win_rate": 10.0,
+    "std_pct": 2.56,
+    "t": -2.721,
+    "median_net_pct": -0.6012
+   },
+   "normal": {
+    "n": 51,
+    "mean_net_pct": -1.7785,
+    "win_rate": 21.57,
+    "std_pct": 3.134,
+    "t": -4.052,
+    "median_net_pct": -0.933
+   },
+   "excess_pct": -0.2308
+  },
+  "R7_down_3_8": {
+   "n": 880,
+   "mean_net_pct": -0.918,
+   "win_rate": 42.5,
+   "std_pct": 4.316,
+   "t": -6.31,
+   "median_net_pct": -0.4902,
+   "panic": {
+    "n": 756,
+    "mean_net_pct": -0.7533,
+    "win_rate": 45.5,
+    "std_pct": 4.109,
+    "t": -5.041,
+    "median_net_pct": -0.2766
+   },
+   "normal": {
+    "n": 124,
+    "mean_net_pct": -1.9221,
+    "win_rate": 24.19,
+    "std_pct": 5.321,
+    "t": -4.023,
+    "median_net_pct": -1.2743
+   },
+   "excess_pct": 0.3322
+  },
+  "R8_down_8plus": {
+   "n": 270,
+   "mean_net_pct": -1.8152,
+   "win_rate": 47.78,
+   "std_pct": 7.712,
+   "t": -3.868,
+   "median_net_pct": -0.2072,
+   "panic": {
+    "n": 242,
+    "mean_net_pct": -1.8729,
+    "win_rate": 50.0,
+    "std_pct": 7.884,
+    "t": -3.696,
+    "median_net_pct": 0.0003
+   },
+   "normal": {
+    "n": 28,
+    "mean_net_pct": -1.3167,
+    "win_rate": 28.57,
+    "std_pct": 6.124,
+    "t": -1.138,
+    "median_net_pct": -1.0921
+   },
+   "excess_pct": -0.565
+  },
+  "R6_news_top": {
+   "n": 0,
+   "mean_net_pct": null,
+   "win_rate": null,
+   "t": null,
+   "panic": {
+    "n": 0,
+    "mean_net_pct": null,
+    "win_rate": null,
+    "t": null
+   },
+   "normal": {
+    "n": 0,
+    "mean_net_pct": null,
+    "win_rate": null,
+    "t": null
+   }
+  }
+ },
+ "baseline_all": {
+  "n": 5439,
+  "mean_net_pct": -1.2502,
+  "win_rate": 31.79,
+  "std_pct": 4.335,
+  "t": -21.269,
+  "median_net_pct": -0.7795,
+  "panic": {
+   "n": 2675,
+   "mean_net_pct": -1.1788,
+   "win_rate": 33.53,
+   "std_pct": 4.329,
+   "t": -14.083,
+   "median_net_pct": -0.61
+  },
+  "normal": {
+   "n": 2764,
+   "mean_net_pct": -1.3193,
+   "win_rate": 30.1,
+   "std_pct": 4.341,
+   "t": -15.98,
+   "median_net_pct": -0.9942
+  }
+ },
+ "regime_index": "KOSDAQ"
+}
