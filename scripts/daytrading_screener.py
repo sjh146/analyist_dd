@@ -24,6 +24,18 @@ WHY --json-out (2026-10-07, docs/spec_daytrading_feed.md §2):
   점수는 0~100 복합점수이므로 score_kind="composite" 로 명시하고(calibrated_prob 변환
   금지), 모델 확률은 model_prob 필드로 분리 보존한다(모델 미가용 시 null).
   CSV 저장 동작은 그대로 유지한다.
+
+레짐 게이트(2026-11-20 추가, docs/spec_regime_filter.md §2):
+  WHY — docs/EXP_rule_expectancy_verdict.md 실측: 2026년 KOSDAQ −31.7%(945 → 646),
+  유니버스 기준선 −0.691%/일(비용 후), 상승 추격 규칙 R3/R4/R5 초과수익 전부 음.
+  레짐이 나쁠 때 롱 진입을 계속하는 것 자체가 손실의 주원인 → 진입을 멈추는 최소 장치.
+  scripts/market_regime.py 가 쓰는 data/state/market_regime.json 의 state=="risk_off"
+  이고 asof 가 오늘(또는 직전 거래일)이면 후보를 만들지 않고 빈 결과를 쓰되
+  reason("regime_off: KOSDAQ close<ma20" 형태)을 콘솔·JSON·자기신고에 남긴다
+  (조용히 0건을 내면 "후보 없음"과 구분되지 않으므로 — 스펙 §2 ※).
+  파일 없음·state unknown·오래된 파일은 fail-open(경고 1줄 + 기존 동작 유지).
+  --regime-block off 로 해제 가능. --dry-run 은 산출물(CSV/JSON)·자기신고를
+  기록하지 않고 콘솔 출력만 한다(스펙 §4 검증용).
 """
 import argparse
 import json
@@ -54,6 +66,13 @@ PG_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
 PG_DB = os.environ.get("POSTGRES_DB", "stock_trading")
 PG_USER = os.environ.get("POSTGRES_USER", "stock_user")
 PG_PASS = os.environ.get("POSTGRES_PASSWORD", "")
+
+# 레짐 게이트(spec_regime_filter.md §2) — 기본 경로는 리포 루트 기준
+# data/state/market_regime.json (scripts/market_regime.py 의 기본 --json-out 과 동일).
+REGIME_DEFAULT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                   "data", "state", "market_regime.json")
+_HOLIDAYS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "data", "krx_holidays.json")
 
 
 def write_csv(rows, path):
@@ -221,6 +240,77 @@ def _load_rank_band(path):
     return (set(map(str, excl)) or None), (set(map(str, bonus)) or None)
 
 
+def _default_csv_path():
+    """기본 CSV 경로 — data/reports/daytrading_candidates_<타임스탬프>.csv (기존 동작 그대로)."""
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "data", "reports"
+    )
+    return os.path.join(out_dir, f"daytrading_candidates_{ts}.csv")
+
+
+def _load_regime(path):
+    """레짐 파일 → dict | None. 파일 없음·파손이면 경고 1줄 + None(fail-open — 스펙 §2)."""
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except FileNotFoundError:
+        logger.warning("레짐 파일 없음(%s) — 기존 동작 유지(fail-open)", path)
+        return None
+    except Exception as exc:  # noqa: BLE001 (fail-open: 어떤 파손이든 기존 동작)
+        logger.warning("레짐 파일 파손(%s: %s) — 기존 동작 유지(fail-open)", path, exc)
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _prev_trading_day(today):
+    """today 기준 직전 거래일 — 주말 + krx_holidays.json 휴장일 제외(스펙 §2 '직전 거래일').
+
+    휴장일 파일이 없거나 파손이면 주말만 제외하고 돌려준다(경고 1줄).
+    """
+    holidays = None
+    try:
+        with open(_HOLIDAYS_PATH, "r", encoding="utf-8") as fh:
+            holidays = set(json.load(fh))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("휴장일 파일 사용 불가(%s) — 주말만 제외", exc)
+    d = today - timedelta(days=1)
+    while d.weekday() >= 5 or (holidays is not None and d.isoformat() in holidays):
+        d -= timedelta(days=1)
+    return d
+
+
+def _regime_gate(regime, today=None):
+    """스펙 §2 게이트: state=="risk_off" + asof 가 오늘(또는 직전 거래일) → (True, reason).
+
+    risk_on·unknown·asof 없음·오래된 파일 → (False, "") — fail-open(경고 1줄).
+    reason 은 스펙 형식: "regime_off: KOSDAQ close<ma20".
+    """
+    if regime is None:
+        return False, ""
+    state = regime.get("state")
+    if state != "risk_off":
+        if state in (None, "unknown"):
+            logger.warning("레짐 state=%s — 기존 동작 유지(fail-open)", state)
+        return False, ""
+    asof_str = regime.get("asof")
+    try:
+        asof = datetime.strptime(str(asof_str), "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        logger.warning("레짐 asof 없음/형식 오류(%s) — 기존 동작 유지(fail-open)", asof_str)
+        return False, ""
+    today = today or datetime.now(KST).date()
+    if asof != today and asof != _prev_trading_day(today):
+        logger.warning("레짐 파일 오래됨(asof=%s, 오늘=%s) — 기존 동작 유지(fail-open)",
+                       asof, today)
+        return False, ""
+    idx = regime.get("index") or "KOSDAQ"
+    reason = "regime_off: %s %s" % (idx, regime.get("reason") or "")
+    return True, reason.strip()
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="단타스크리너 — 칼만 노이즈 제거 + 챔피언 모델 기반 당일 매수 후보 선별")
@@ -241,6 +331,14 @@ def main():
     ap.add_argument("--universe-file", dest="universe_file", default=None,
                     help="유니버스 압축 파일(scripts/rank_universe.py 산출 JSON). "
                          "파일이 없거나 ok:false/codes:[] 면 제한 없이 실행한다(fail-open)")
+    ap.add_argument("--regime-file", dest="regime_file", default=REGIME_DEFAULT_PATH,
+                    help="시장 레짐 파일(scripts/market_regime.py 산출). "
+                         "state==risk_off + 최신(asof=오늘/직전 거래일)이면 후보를 "
+                         "만들지 않는다(spec_regime_filter.md §2 — 기본 data/state/market_regime.json)")
+    ap.add_argument("--regime-block", choices=("on", "off"), default="on",
+                    help="레짐 게이트 on/off (기본 on — spec_regime_filter.md §2)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="콘솔 출력만 — CSV/JSON 산출물·자기신고를 기록하지 않는다(검증용)")
     args = ap.parse_args()
 
     pg = None
@@ -254,6 +352,27 @@ def main():
         sys.exit(1)
 
     try:
+        if args.regime_block == "on":
+            regime = _load_regime(args.regime_file)
+            blocked, regime_reason = _regime_gate(regime)
+            if blocked:
+                logger.warning("레짐 게이트 차단: %s", regime_reason)
+                out_path = args.output or _default_csv_path()
+                if args.dry_run:
+                    print(f"\n후보 없음 — {regime_reason} (dry-run: 산출물·자기신고 미기록)")
+                    return
+                write_csv([], out_path)  # 빈 후보(헤더만) — 조용한 0건과 구분되도록
+                logger.info("CSV 저장(빈 후보): %s — %s", out_path, regime_reason)
+                if args.json_out:
+                    payload = build_json_payload([])
+                    payload["reason"] = regime_reason  # 빈 items + 차단 사유(스펙 §2 ※)
+                    write_json_out(payload, args.json_out)
+                    logger.info("JSON 저장(빈 items + reason): %s", args.json_out)
+                _record_claim(source_rows=0, claimed_rows=0, persisted_rows=0,
+                              note=regime_reason)
+                print(f"\n후보 없음 — {regime_reason} (빈 결과 저장: {out_path})")
+                return
+
         provider = DbDailyProvider(pg_conn=pg)
         predictor = ChampionPredictor()
         if not predictor.available:
@@ -282,7 +401,7 @@ def main():
             # 후보가 없어도 JSON 산출물은 빈 items 로 갱신한다: 이전 산출물이 남아 있으면
             # feed_export 가 **어제 후보**를 신선한 것처럼 발행한다(신선도 게이트는
             # generated_at 만 본다 — "오늘은 0건"이라는 사실 자체가 발행돼야 경로가 닫힌다).
-            if args.json_out:
+            if args.json_out and not args.dry_run:
                 write_json_out(build_json_payload([]), args.json_out)
                 logger.info(f"JSON 저장(빈 items): {args.json_out}")
             print("\n후보 없음 (필터 조건을 만족하는 종목이 없습니다).")
@@ -291,23 +410,21 @@ def main():
         if args.output:
             out_path = args.output
         else:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            out_dir = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "..", "data", "reports"
-            )
-            out_path = os.path.join(out_dir, f"daytrading_candidates_{ts}.csv")
-        write_csv(rows, out_path)
-        logger.info(f"CSV 저장: {out_path}")
+            out_path = _default_csv_path()
+        if not args.dry_run:
+            write_csv(rows, out_path)
+            logger.info(f"CSV 저장: {out_path}")
 
         json_items = 0
-        if args.json_out:
+        if args.json_out and not args.dry_run:
             write_json_out(build_json_payload(rows), args.json_out)
             json_items = len(rows)
             logger.info(f"JSON 저장: {args.json_out} ({json_items}건)")
-        _record_claim(source_rows=len(ranked), claimed_rows=len(rows),
-                      persisted_rows=json_items or len(rows),
-                      note=f"json_out={args.json_out} csv={out_path} "
-                           f"top_n={args.top_n} signal_date={rows[0]['signal_date']}")
+        if not args.dry_run:
+            _record_claim(source_rows=len(ranked), claimed_rows=len(rows),
+                          persisted_rows=json_items or len(rows),
+                          note=f"json_out={args.json_out} csv={out_path} "
+                               f"top_n={args.top_n} signal_date={rows[0]['signal_date']}")
 
         # 콘솔 테이블
         print(f"\nTop {len(rows)} KOSDAQ Day-Trading Candidates ({rows[0]['signal_date']})")
@@ -320,6 +437,8 @@ def main():
             print(f"  {r['rank']:<4} {r['stock_code']:<8} {r['stock_name']:<20} "
                   f"{r['score']:<7.1f} {r['kalman_slope']:<8} {reason}")
         print(f"\n총 후보: {len(rows)}")
+        if args.dry_run:
+            print("(dry-run: CSV/JSON 산출물·자기신고 미기록 — 검증용 실행)")
     finally:
         if pg is not None:
             try:
