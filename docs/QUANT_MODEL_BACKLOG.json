@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-20T17:10:59+09:00",
+  "updated_at": "2026-11-20T19:25:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -60,7 +60,7 @@
       "rationale": "측정 해상도 문제(CG347)와 창 불일치(CG348)를 잇는 마지막 블로커다. 이 옵션 없이는 챔피언 대비 어떤 후보도 '같은 창'에서 비교된 적이 없다 — 20사이클 무개선 카운터의 근거 자체가 프로토콜 혼합 위에 서 있다.",
       "ready_patch": "data/reports/cg350_partial_window.patch",
       "verify_cmd": "python3 scripts/_cg350_clip_test.py",
-      "ready_note_engineer": "2026-11-19 21:1x 엔지니어 자율 — 구현 준비 완료(패치 산출물만, 미적용: 프로토콜 변경=리뷰보드 승인 대상). 패치 = scripts/champion_robust_eval.py _split_oos(L179) 에 clip_partial 인자 + --allow-partial-post-train 플래그(기본 OFF). 오프라인 검증 5케이스 PASS: ①OFF 비트동일(OOS 창 3개·제외 창 동일) ②ON 이면 창 2026-09-11~11-11 → **2026-10-02~11-11** 로 절단돼 CG349 에서 0개였던 OOS 창이 1개 생김 ③두 arm 이 같은 --train-end 를 주면 같은 절단 서명 ④train_end 이후 꼬리가 없으면 절단 안 함(제외 유지) ⑤창 전체가 train_end 이후면 절단 없음. 승인 시 적용·회귀·CG349 재실행(3시드 짝 Δ SE≤0.010 확인)까지 이어서 한다."
+      "ready_note_engineer": "2026-11-20 19:1x 재검증: python3 scripts/_cg350_clip_test.py → 5/5 PASS(git apply --check rc=0 · OFF 비트동일 · ON 절단 2026-10-02~11-11 · 두 arm 같은 서명). **미적용 유지**(프로토콜 변경 = 리뷰보드). 우회 경로 확인: folds=1 + --oos-start 2026-10-02 + --train-end 2026-10-01 이면 절단 없이도 두 arm 이 같은 창을 갖는다 → CG374 로 같은 비교를 승인 없이 먼저 시작(이 항목은 그리드형 다중창 채점이 필요해질 때 쓴다)."
     },
     {
       "id": "CG349",
@@ -22267,7 +22267,7 @@
     },
     {
       "id": "CG373",
-      "status": "pending",
+      "status": "done",
       "priority": 2,
       "kind": "측정정합성",
       "owner": "엔지니어",
@@ -22282,10 +22282,25 @@
       "rationale": "날짜는 캘린더로만 늘어난다 — 28날짜 재측정(16.7분)은 정보 0. 적재 확인 후 1회만 실행한다.",
       "est_minutes": 25,
       "created_at": "2026-11-20T17:10:47+09:00",
-      "attempts": [],
+      "attempts": [
+        {
+          "ts": "2026-11-20T18:26:40+09:00",
+          "rc": 0,
+          "verdict": "측정완료 — 날짜 28 · 견고 AUC 0.5412 · SD 0.0368 · SE 0.007 vs 예측 0.0114(예측 하회 -38.6%)",
+          "detail": "동결 유니버스 날짜 SD 0.0368 (CG366 0.0623 대비 -0.0255) · SE 0.007 · 판정 3σ(+0.02) 필요 날짜 30개 · SD 가 0.05 이하로 내려감 → 남은 적립 필요 날짜 2개",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG373_20261120-180708.log",
+          "elapsed_min": 19.5
+        }
+      ],
       "needs_approval": false,
       "note": "⏰ 19:07 이후 권장 — 17:08 실행분은 market_data max=2026-11-19 로 28날짜(중복). 선행조건: market_data 에 2026-11-20 일봉이 있어야 11-13 라벨이 산출된다. 창 가드 0(window-reserve-days 0)은 비표준 — 시리즈 기본값 전환은 리뷰보드 승인 대기(CG361).",
-      "result": null,
+      "result": {
+        "verdict": "측정완료 — 날짜 28 · 견고 AUC 0.5412 · SD 0.0368 · SE 0.007 vs 예측 0.0114(예측 하회 -38.6%)",
+        "detail": "동결 유니버스 날짜 SD 0.0368 (CG366 0.0623 대비 -0.0255) · SE 0.007 · 판정 3σ(+0.02) 필요 날짜 30개 · SD 가 0.05 이하로 내려감 → 남은 적립 필요 날짜 2개",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      },
       "updated_at": "2026-11-20T17:10:47+09:00"
     },
     {
@@ -22310,6 +22325,70 @@
       "updated_at": "2026-11-20T17:10:47+09:00",
       "promoted_from": "engineer",
       "promoted_at": "2026-11-20T17:10:47+09:00"
+    },
+    {
+      "id": "CG374",
+      "status": "pending",
+      "priority": 1,
+      "kind": "계측기",
+      "owner": "엔지니어",
+      "affects_model": false,
+      "metric": "robust_paired_seeds",
+      "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg374_paired.json",
+      "title": "[첫 같은 창 짝 비교] 배포 챔피언 vs 재학습 후보(retrain_cg346) — 공통 OOS 2026-10-02~11-19, 3 유니버스 시드",
+      "hypothesis": "CG348/CG349 는 창 불일치·창 격자 한계로 '챔피언 vs 후보'를 같은 날짜에서 비교한 적이 없다(CG348 은 챔피언 2026-01~05 vs 후보 2026-09~11). 두 arm 에 같은 --train-start/--train-end/--oos-start 를 주고 folds=1·dates-per-fold=30 으로 창을 하나로 고정하면 두 모델 모두에게 OOS 인 2026-10-02~11-19(가용 23날짜)에서만 채점되어 시드 표집 잡음이 짝 안에서 상쇄된다.",
+      "command": "timeout 12000 docker exec -e UNIVERSE_ASOF_DATE=2026-10-01 stock_xgboost_ml sh -c 'cd /app && for m in champion retrain_cg346; do for s in 0 1 2; do OMP_NUM_THREADS=4 timeout 2100 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --stocks 200 --folds 1 --dates-per-fold 30 --window-reserve-days 0 --asof-date 2026-11-19 --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --universe training --universe-seed $s --dump-preds /app/reports/overnight/cg374_${m}_s${s}.jsonl --dump-tag cg374_${m}_s${s} --out /app/reports/overnight/cg374_${m}_s${s}.json || exit 1; done; done' && python3 scripts/robust_paired_seeds.py --arm-a services/xgboost-ml/reports/overnight/cg374_champion_s0.json services/xgboost-ml/reports/overnight/cg374_champion_s1.json services/xgboost-ml/reports/overnight/cg374_champion_s2.json --arm-b services/xgboost-ml/reports/overnight/cg374_retrain_cg346_s0.json services/xgboost-ml/reports/overnight/cg374_retrain_cg346_s1.json services/xgboost-ml/reports/overnight/cg374_retrain_cg346_s2.json --label-a champion --label-b retrain_cg346 --out data/reports/overnight/cg374_paired.json",
+      "counterfactual": "CG347(절대 AUC, 같은 모델·다른 유니버스 시드): 0.4887/0.5114/0.5011 = 범위 0.0227 ≥ 사전문턱 0.02 → 절대 비교는 부호조차 불확실. CG348: 창 불일치로 Δ 무의미. CG349: 창 0개로 rc=1.",
+      "success": "① rc=0 + cg374_paired.json ② window_mismatch=[] · fold_mismatch=[] (두 arm 같은 창 서명) ③ 짝 Δ SE ≤0.010 이면 '짝 프로토콜로 +0.02 해상 가능' 기록 ④ 부호 3/3 이면 그 방향을 다음 실험 가설로 등록하되 **승격 판단 금지**(돈 지표 없음)",
+      "expected": "21사이클 무개선 판정의 근거가 '프로토콜 혼합'인지 '실재 무신호'인지 가릴 첫 측정. 후보가 같은 창에서 챔피언을 +0.02 이상 앞서면 재학습 축이 살아 있다는 뜻이고, 아니면 재학습 축도 닫는다.",
+      "rationale": "적립 시리즈(28날짜)는 챔피언 단독 절대 AUC 만 잰다 — '무엇으로 바꾸면 나아지는가'는 두 모델을 같은 날짜에 놓아야 측정된다. CG350 절단 옵션(패치 준비·오프라인 5/5 PASS)은 그리드형 채점에 필요하지만, folds=1 + --oos-start 로 같은 창을 만드는 이 경로는 기본 동작을 바꾸지 않아 승인 없이 실행 가능하다.",
+      "est_minutes": 130,
+      "not_before": "2026-11-20T20:45",
+      "note_asof": "6런 직렬(arm 2 × 시드 3). CG373 실측 19.5분/런 → 약 117분 + 짝 계산. `timeout 2100`(런당) + `timeout 12000`(전체) 이라 driver 의 timeout 자기모순 수리(est 130 → 필요 12000)와 충돌하지 않는다. --asof-date 2026-11-19 로 창을 고정해 재실행이 비트 비교 가능. 평일 20:00 컨테이너 재생성 회피(not_before).",
+      "created_at": "2026-11-20T19:20:00+09:00",
+      "needs_approval": false
+    },
+    {
+      "id": "CG375",
+      "status": "pending",
+      "priority": 1,
+      "kind": "측정정합성",
+      "owner": "엔지니어",
+      "affects_model": false,
+      "metric": "robust_auc_se",
+      "title": "[적립 계속] 11-20 일봉 적재 후 29날짜 — 표본이 늘지 않는 재실행을 not_before 로 차단",
+      "hypothesis": "CG371(07:27)·CG372(16:24)·CG373(18:26) 이 소수점까지 동일(28날짜·0.5412·SD 0.0368)했다 — 11-13 라벨이 11-20 종가를 요구하는데 market_data 최신일이 11-19 였다(실측: 최대 2026-11-19·3,832행, 11-20 행 0). 11-20 일봉이 적재된 뒤 실행하면 11-13 이 채점에 들어와 29날짜가 되고, 3σ(+0.02) 판정에 필요한 30날짜까지 1개만 남는다.",
+      "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-10-01 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2700 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --stocks 200 --folds 1 --dates-per-fold 30 --window-reserve-days 0 --train-end 2026-10-01 --oos-start 2026-10-02 --universe training --universe-seed 0 --dump-preds /app/reports/overnight/cg375_accrual.jsonl --dump-tag cg375_accrual --out /app/reports/overnight/cg375_accrual.json'",
+      "counterfactual": "CG373(28날짜·동결 유니버스·가드 0): 견고 AUC 0.5412 · SD 0.0368 · SE 0.0071 · 3σ 필요 30날짜(남은 2)",
+      "success": "① rc=0 · 29날짜 이상 ② SD 가 0.0368 대비 |Δ| ≤0.010 ③ 남은 필요 날짜 ≤1 이면 그 다음 적립 1회로 3σ 판정 단계 진입",
+      "expected": "3σ 판정 도달 11/24~11/25 유지. 같은 값을 세 번 재는 낭비(17분×3 = 52분)를 없앤다.",
+      "rationale": "날짜는 캘린더로만 늘어난다. 토요일(11-21) 16시 이후면 11-20 종가가 반드시 적재돼 있고 그때 1회만 돌린다.",
+      "est_minutes": 25,
+      "not_before": "2026-11-21T16:10",
+      "note_asof": "구동기에 not_before 가드 추가(2026-11-20 19:1x, scripts/model_engineer_cycle.py next_item) — 이 시각 전까지 후보에서 제외된다. 창 가드 0 은 비표준(리뷰보드 승인 대기, CG361).",
+      "created_at": "2026-11-20T19:20:00+09:00",
+      "needs_approval": false
+    },
+    {
+      "id": "CG376",
+      "status": "needs_setup",
+      "priority": 1,
+      "kind": "데이터축",
+      "owner": "엔지니어",
+      "affects_model": true,
+      "metric": null,
+      "title": "[데이터 축·신규] event_rolling_features 그룹 집계 8종을 패널에 배선 — 컬럼은 이미 있으나 집계 레벨·추세가 없다(EV1 과 다른 입력)",
+      "hypothesis": "EV1 이 닫은 것은 '유형별 5일 카운트 16종'(대부분 0)이다. 새 테이블의 그룹 집계(event_level_20d·event_any_60d·event_trend_5v20·disclosure/funding/governance/business/risk_level_20d)는 비영 비율 32~99% 로 정보가 실제로 채워져 있고, 20일 레벨·5v20 추세는 '공시 강도 변화'라는 축을 준다 — 패널에 같은 이름의 20d 집계가 없으므로 in-run A/B(집계 ON vs OFF)를 돌릴 가치가 있다.",
+      "setup_needed": "① 시점정합 검증(선행): event_rolling_features 의 각 행이 '그 날짜까지 공지된 사건'만 반영하는지 확인 — rcept_dt/공시일 기준 rolling 인지, 사건일 기준인지 spec(docs/spec_event_rolling.md)과 빌더 코드로 확인하고, 사건일 > 패널일 셀이 0 임을 SQL 로 센다(rcept-aware 격자, CG105 방식). 위반이면 보수적 지연(1~2거래일) 적용. ② services/xgboost-ml feature_engine 의 피처 목록에 집계 8종 추가(기본 OFF 플래그, 기존 패널 비트 불변) ③ wf_wave.build_panel 로 패널 재빌드(--end-date 고정·체크포인트, 패널 1개당 1~2h) ④ 같은 런 in-run A/B: 집계 ON vs OFF, 5폴드×5시드, 판정은 폴드평균 Δ ≥ +0.02 ⑤ 돈 지표 병기(체결성 필터 + 왕복 0.21%p) — AUC 만 오르면 승격 금지.",
+      "command": null,
+      "counterfactual": "EV1(유형별 5일 카운트 16종, panel_420_asofpatch): EV_all_h5 0.5414 vs EV_none_h5 0.5414 → Δ+0.0000 · 게이트 ON top30 에 0개 진입. CG105(재무 as-of 격자 교체)도 Δ0.0000 — '선별에 안 들어가는 피처'는 as-of 를 고쳐도 AUC 레버가 아니다. 따라서 이 항목은 '희소 카운트'가 아니라 '비영 32~99% 집계'로 승부한다.",
+      "success": "① 시점정합 검증에서 미래 셀 0(또는 지연 적용 후 0) ② 집계 ON arm 의 폴드평균 Δ ≥ +0.02(5폴드×5시드) ③ 폴드 승률 ≥ 0.8 ④ 짝 Δ 기준(같은 런·같은 시드)과 절대 AUC 기준을 함께 기재 ⑤ Δ < +0.02 면 '노이즈'로 축을 닫고 이유를 돈 지표와 함께 기록",
+      "expected": "조정 축 상한(+0.011)을 넘는 유일한 남은 레버가 데이터 축이다. 집계 20d 는 지금까지 한 번도 모델 입력에 들어간 적이 없다.",
+      "rationale": "구동기의 미배선 원천 스윕이 event_rolling_features 를 게이트 통과로 올렸는데, 원천 테이블은 이미 존재하고 패널에는 그중 '유형별 5d'만 들어가 있다 — 즉 배선 실험이 아니라 **집계 컬럼 증설**이 필요한 상태다. 실측 근거: data/reports/event_rolling.json(780,091행·2,710종목·2025-08-01~2026-11-18) 비영 비율.",
+      "est_minutes": 180,
+      "created_at": "2026-11-20T19:25:00+09:00",
+      "needs_approval": false,
+      "note": "needs_setup 이유: 패널 재빌드(1~2h) + 배선 코드가 선행이다. 준비 순서 ①이 끝나면(시점정합 SQL 검증, 10분) 그 결과를 note 에 적고 시점정합이 통과하면 pending 승격. 시점정합이 깨지면 '지연 적용'을 먼저 구현한다."
     }
   ],
   "updated": "2026-11-20T17:10:47+09:00"

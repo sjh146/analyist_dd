@@ -851,6 +851,23 @@ def next_item(backlog, force=False):
                 # depends_on 이 선언돼 있으면 여기서 조용히 건너뛰고, 선행이 done 이 되는 틱에 시작한다.
                 log(f"{i['id']}: 선행 미완({', '.join(missing)}) → 건너뜀")
                 continue
+        # ── not_before: '아직 정보가 없는' 재실행을 막는다 (2026-11-20 실측) ──────────────
+        # 실측: 적립 시리즈(CG371/372/373)가 07:27·16:24·18:26 에 **소수점까지 동일한** 결과
+        # (28날짜·0.5412·SD 0.0368)를 세 번 냈다 — 11-13 라벨이 11-20 종가를 요구하는데
+        # market_data 최신일이 11-19 라 표본이 늘 수 없었다. 날짜는 캘린더로만 자라므로
+        # 그 사이 재실행은 17분 × 3회를 정보 0으로 태운다. 항목에 `not_before`(KST ISO)를
+        # 적어 두면 그 시각 전까지 후보에서 제외한다.
+        nb = i.get("not_before")
+        if nb and not force:
+            try:
+                _nb = datetime.fromisoformat(str(nb))
+                if _nb.tzinfo is None:
+                    _nb = _nb.replace(tzinfo=KST)
+                if now_kst() < _nb:
+                    log(f"{i['id']}: not_before({nb}) 이전 → 건너뜀")
+                    continue
+            except ValueError:
+                log(f"{i['id']}: not_before 형식 오류({nb!r}) — 무시하고 진행")
         if not i.get("command"):
             log(f"경고: {i['id']} 는 pending 인데 command 가 없다 → 건너뜀"
                 f"{' (setup: ' + str(i.get('setup_needed'))[:80] + ')' if i.get('setup_needed') else ''}")
