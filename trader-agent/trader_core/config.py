@@ -71,7 +71,10 @@ class Config:
     # market session opens ~09:00 (age ~13.5h), so the default must cover a
     # full day; 24h keeps the previous session's signal list usable through
     # the following morning while still rejecting weekend-old payloads.
-    feed_max_age: float = 24.0 * 3600.0  # seconds; default 24h
+    # 8h (2026-11-20): 상한을 24h 로 두면 08:35 피드 크론이 실패했을 때 **전일 14:05 후보**가
+    # 여전히 fresh 로 통과해 개장 직후 진입할 수 있었다. 레짐 필터(risk_off 차단)를 우회하는
+    # 경로이므로 8h 로 좁힌다 — 08:35 발행분은 09:05 시점 30분이라 여유가 충분하다.
+    feed_max_age: float = 8.0 * 3600.0  # seconds
     request_timeout: float = 5.0  # seconds per outbound HTTP request
 
     # --- candidate source --------------------------------------------- #

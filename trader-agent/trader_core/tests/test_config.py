@@ -18,7 +18,7 @@ class ConfigTest(unittest.TestCase):
         self.assertAlmostEqual(cfg.stop_loss_pct, 0.07)
         self.assertAlmostEqual(cfg.take_profit_pct, 0.07)
         self.assertAlmostEqual(cfg.kelly_cap, 0.25)
-        self.assertAlmostEqual(cfg.feed_max_age, 24 * 3600)
+        self.assertAlmostEqual(cfg.feed_max_age, 8 * 3600)  # 2026-11-20: 24h→8h(레짐 우회 차단)
         self.assertAlmostEqual(cfg.market_order_band_pct, 0.10)
         self.assertEqual(cfg.rank_pct_to, 15)  # matched to the chase ceiling
         self.assertEqual(cfg.market_open, "09:00")
@@ -46,7 +46,7 @@ class ConfigTest(unittest.TestCase):
         self.assertAlmostEqual(cfg.kelly_cap, 0.5)
         # unrelated env vars are ignored
         self.assertEqual(Config.from_env({"PATH": "/bin"}).feed_max_age,
-                         24 * 3600)
+                         8 * 3600)  # 2026-11-20 기본값 변경
 
     def test_file_overrides(self) -> None:
         tmp = tempfile.mkdtemp(prefix="trader-core-cfg-")
