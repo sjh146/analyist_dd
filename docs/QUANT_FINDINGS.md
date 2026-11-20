@@ -701,3 +701,11 @@
 - 판정: 충족
 - 근거: 실측 2026-11-19 21:1x — cron/supply_features.sh(20:15)가 --since 45일 전으로 돌면서 window_days=43 창의 momentum_3_12m nonzero=0.0000(전부 NULL). supply_market_features 11-03~11-18 nz 0 (10-05 이후 재빌드분). 수리 = price_history_start() 로 가격 이력만 since-400일 로드 후 격자 하한 복원. 재실행 실측: momentum_3_12m nz 0.8910(11-18 3,475/3,729), bb_position 0.3822→0.9966, relative_strength 0.9673→0.9998 (첫날 NaN·20일 창 절단도 함께 해소). 회귀 tests/test_supply_features_momentum_lookback.py 5건.
 - 엔지니어 백로그: `XR43` (command·대조군 기입 필요)
+
+## [리서처 R41] 18:47 틱이 적재 전 부분 스냅샷으로 '전일 세션'을 덮어썼다 — 시각이 아니라 내용으로 막는 가드 (2026-11-20 21:2x)
+- 증상(실측): 18:47 리서처 틱 실행 후 R41 check = `1 <= 0 → 미달`. 같은 check 를 21:1x 에 다시 돌리면 `0 <= 0 → 충족`.
+- 원인: R41 command `market_pattern_ledger.py --today` 는 **DB 최신 날짜**를 기록한다. 리서처 틱은 18:47, 일봉 적재(`daily_bars.sh`)는 18:55 → 18:47 시점 11-19 는 yfinance 스윕분만 든 상태였고, 그 값이 기존 정상 기록을 덮었다. 11-19: scored **3832→3722** · trade_value_sum **17.988조→null** · breadth **64.7→70.9** · adr **2.24→2.72**. 19:40 원장 크론(Hermes job `10212cee483b`)이 재기록해 53분 만에 복구 — 즉 **결함이 53분 존재**했고 그동안 엔지니어 틱·피드가 그 값을 '그날 시장'으로 읽을 수 있었다.
+- 수리(자율, 자기 소유 코드): `scripts/market_pattern_ledger.py::_looks_partial(new, prev)` — 봉수가 기존×0.98 미만이거나, 거래대금이 있는 기록을 0/null 로 덮으려 하면 **덮지 않고 skip**(`--force` 로만 강제). 시각 하드코딩을 피한 이유: 적재 시각은 경로마다 다르고(18:55 KRX / KIS 폴백 3.5h) 시계 가드는 다른 경로에서 다시 샌다. 상향(부분→완전)·동일 재실행은 통과 → 멱등 계약 유지.
+- 회귀: `tests/test_market_pattern_ledger_partial_guard.py` 8건 + 기존 `test_market_pattern_coverage_check.py` 20건 = **28 passed**.
+- 실경로 검증(수치): ① 정상 데이터 `--today` → `changed sessions: []`(64세션 불변, 오탐 0) ② 실 DB + 18:47 로그값 주입 → `[guard] 부분 스냅샷으로 기존 기록 덮어쓰기 차단: scored 3722 < 기존 3832 x 0.98` 후 11-19 = **3832 · 17.988조 · breadth 64.7 보존**.
+- 남은 것: 19:40 원장 크론이 유일한 정상 기록 경로인데 root crontab 소실(R42) 계열 사고에 노출된다 → R42 승인 항목에 병기. R43 은 20:15 슬롯이 얇은 최신일을 회수함을 재확인(11-19 3,722행 · momentum 3,475).

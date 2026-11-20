@@ -128,6 +128,32 @@ def regime_label(m):
     return "mixed"
 
 
+
+def _looks_partial(new, prev):
+    """부분 적재 스냅샷이 **완전한 기존 기록**을 덮어쓰는 것을 막는다.
+
+    WHY (실측 2026-11-20 18:47): 리서처 틱은 18:47 에, 일봉 적재(daily_bars.sh)는 18:55 에 돈다.
+    `--today` 는 "DB 최신 날짜"를 기록하므로 18:47 에는 **전일 세션**이 아직 yfinance 스윕분만
+    들어온 상태로 잡힌다 → 11-19 기록이 scored 3832→3722 · trade_value_sum 17.99조→null ·
+    breadth 64.7→70.9 · adr 2.24→2.72 로 덮였다(19:40 원장 크론이 재기록해 53분 뒤 복구).
+    그 53분 사이 엔지니어 틱·피드가 그 값을 '그날 시장'으로 읽는다.
+
+    판정은 시각이 아니라 **내용**으로 한다(적재 시각은 경로마다 다르다):
+    봉 수가 기존의 98% 미만이거나, 거래대금이 있는 기록을 0/null 로 덮으려 하면 부분 스냅샷이다.
+    상향(부분→완전)·동일 재실행은 통과하므로 멱등 재실행 계약은 그대로다.
+    """
+    if not prev:
+        return False, ""
+    ps = prev.get("scored") or 0
+    ns = new.get("scored") or 0
+    if ps and ns and ns < ps * 0.98:
+        return True, "scored {0} < 기존 {1} x 0.98".format(ns, ps)
+    pv = prev.get("trade_value_sum") or 0
+    nv = new.get("trade_value_sum") or 0
+    if pv > 0 and nv <= 0:
+        return True, "trade_value_sum 결손(기존 {0:.3e} -> 0/null)".format(pv)
+    return False, ""
+
 def read_ledger():
     out = {}
     if os.path.exists(LEDGER):
@@ -162,6 +188,8 @@ def main(argv=None) -> int:
     ap.add_argument("--backfill", type=int, default=0, help="최근 N세션 기록")
     ap.add_argument("--today", action="store_true", help="최신 세션 1건만")
     ap.add_argument("--show", type=int, default=0, help="최근 N건 출력")
+    ap.add_argument("--force", action="store_true",
+                    help="부분 스냅샷 가드를 무시하고 덮어쓴다(정정 목적)")
     a = ap.parse_args(argv)
 
     records = read_ledger()
@@ -190,11 +218,17 @@ def main(argv=None) -> int:
             d=cols["date"]), (a.backfill or 1,))
         dates = [r[0] for r in cur.fetchall()]
     added = 0
+    skipped = []
     for d in sorted(dates):
         m = session_metrics(conn, cols, d)
         if not m.get("scored"):
             continue
         prev = records.get(m["session"])
+        if prev and not a.force:
+            partial, why = _looks_partial(m, prev)
+            if partial:
+                skipped.append({"session": m["session"], "why": why})
+                continue
         if prev:                     # 보존할 사후 필드 유지
             for k in ("next_session", "next_chg_median_pct"):
                 if k in prev:
@@ -204,9 +238,12 @@ def main(argv=None) -> int:
         added += 1
     fill_next_session(records)
     write_ledger(records)
-    print(json.dumps({"recorded": added, "ledger_sessions": len(records),
-                      "latest": records[sorted(records)[-1]] if records else None},
-                     ensure_ascii=False, indent=2))
+    out = {"recorded": added, "ledger_sessions": len(records),
+           "latest": records[sorted(records)[-1]] if records else None}
+    if skipped:
+        out["skipped_partial"] = skipped
+        print("[guard] 부분 스냅샷으로 기존 기록 덮어쓰기 차단: {0}".format(skipped), file=sys.stderr)
+    print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
 
 
