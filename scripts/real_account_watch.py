@@ -21,16 +21,31 @@ LAST = os.path.join(OUT_DIR, "real_account_watch.json")
 THRESHOLDS = (-3.0, -6.0, -10.0)   # 기준선 자본 대비 누적 손실 %
 
 
-def read_trades() -> list[dict]:
-    try:
-        c = sqlite3.connect(f"file:{JOURNAL}?mode=ro", uri=True)
-        c.row_factory = sqlite3.Row
-        rows = [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY ts")]
-        c.close()
-        return rows
-    except Exception as e:
-        print(f"[watch] 저널 읽기 실패: {e}", file=sys.stderr)
-        return []
+def read_trades() -> list[dict] | None:
+    """저널을 **사본으로** 읽는다. WSL 이 Windows SQLite 를 직접 열면 WAL 잠금 때문에
+    'disk I/O error' 가 난다 → db+wal+shm 을 /tmp 로 복사해 읽는다.
+    읽기 실패 시 None 을 돌려준다(호출부는 상태를 덮어쓰지 말고 경고 후 종료할 것)."""
+    import shutil, tempfile, time
+    last_err = None
+    for attempt in range(3):
+        tmpdir = tempfile.mkdtemp(prefix="journal_copy_")
+        try:
+            for suffix in ("", "-wal", "-shm"):
+                src = JOURNAL + suffix
+                if os.path.exists(src):
+                    shutil.copy2(src, os.path.join(tmpdir, os.path.basename(JOURNAL) + suffix))
+            c = sqlite3.connect(os.path.join(tmpdir, os.path.basename(JOURNAL)))
+            c.row_factory = sqlite3.Row
+            rows = [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY ts")]
+            c.close()
+            return rows
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            time.sleep(2)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    print(f"[watch] 저널 읽기 실패(3회 재시도): {last_err} — 상태를 갱신하지 않습니다", file=sys.stderr)
+    return None
 
 
 def summarize(trades: list[dict]) -> dict:
@@ -56,6 +71,9 @@ def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
 
     trades = read_trades()
+    if trades is None:
+        # 읽기 실패 → 상태 파일을 덮어쓰지 않는다(직전 정상값 보존). 종료코드 2 = 경고.
+        sys.exit(2)
     cur = summarize(trades)
     cur["checked_at"] = datetime.now().isoformat(timespec="seconds")
 
