@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-20T09:11:45+09:00",
+  "updated_at": "2026-11-20T11:30:00+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -144,12 +144,12 @@
       "cost": "저",
       "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
       "result": {
-        "ts": "2026-11-19T09:25:26+09:00",
-        "value": -2655.300106666667,
-        "check": "-2655.300106666667 > 0.0",
+        "ts": "2026-11-20T09:25:20+09:00",
+        "value": -1818.4723333333332,
+        "check": "-1818.4723333333332 > 0.0",
         "verdict": "미달",
         "rc": 0,
-        "stdout_tail": "-2655.300106666667",
+        "stdout_tail": "-1818.4723333333332",
         "stderr_tail": ""
       }
     },
@@ -501,13 +501,13 @@
       "cost": "저",
       "note": "즉시 조치(2026-11-17 08:32): 발행을 한 번 더 돌려 오늘 피드를 신선화했다. 항구 조치(크론 시각 08:20→08:40 이동 또는 발행 래퍼에 '파이프라인 완료 대기')는 크론 파일 수정이라 승인 항목으로 올린다.",
       "result": {
-        "ts": "2026-11-19T11:25:55+09:00",
+        "ts": "2026-11-20T11:25:42+09:00",
         "value": null,
         "check": null,
         "verdict": "수치 없음",
         "rc": 0,
         "stdout_tail": "",
-        "stderr_tail": "5,092 INFO [daytrading] 20건 | score min=55.3 median=63.6 max=65.9 spread=10.6\n2026-11-19 11:25:55,092 INFO [daytrading] edge_scored=20/20\n2026-11-19 11:25:55,098 INFO 발행 완료: /home/jhshi/analyist_dd/data/feed/screener_latest.json (42972 bytes, generated_at=2026-11-19T11:25:55+09:00) edge_scored=60/60"
+        "stderr_tail": "42,065 INFO [daytrading] 20건 | score min=60.3 median=63.3 max=65.7 spread=5.4\n2026-11-20 11:25:42,065 INFO [daytrading] edge_scored=20/20\n2026-11-20 11:25:42,069 INFO 발행 완료: /home/jhshi/analyist_dd/data/feed/screener_latest.json (42938 bytes, generated_at=2026-11-20T11:25:42+09:00) edge_scored=60/60"
       }
     },
     {
@@ -530,7 +530,7 @@
     {
       "id": "T50",
       "title": "단타(daytrading) 체결의 수수료·거래세가 저널 fees 에 0 으로 기록된다",
-      "status": "failed",
+      "status": "pending",
       "priority": 2,
       "command": "cd /home/jhshi/analyist_dd && python3 - <<'EOF'\nimport sqlite3,shutil\nshutil.copy('/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3','/tmp/j.sqlite3')\nc=sqlite3.connect('/tmp/j.sqlite3')\nprint(list(c.execute(\"select id,code,screener,pnl,fees,exit_reason from trades where id>=14\")))\nEOF",
       "metric": "daytrading_fees_sum",
@@ -641,7 +641,7 @@
     {
       "id": "T55",
       "title": "브리지 요청 타임아웃이 실제 체결을 '주문 실패'로 기록 — 저널에 없는 보유(유령 포지션)가 생긴다",
-      "status": "backlog",
+      "status": "in_progress",
       "priority": 1,
       "owner": "trader(runner)",
       "command": "grep -nE \"order failed .*timed out\" /mnt/c/Users/jhshi/analyist_dd/trader-agent/runner.log | tail",
@@ -651,12 +651,13 @@
         "value": 0
       },
       "hypothesis": "진입 주문 POST 가 타임아웃되면 루프는 'order failed' 로 처리하고 저널 행을 쓰지 않는다. 그런데 크레온 COM 쪽에서는 주문이 이미 접수·체결될 수 있어(주문 응답=체결확인 아님) 브로커에만 있는 보유가 남는다. 그 보유는 daily.entries 에도 세지 않고 max_hold(진입시각) 기준도 없어 조기 청산 트리거가 약하다.",
-      "evidence": "2026-11-20 09:0x 실측: runner.log 'order failed 068050: bridge request failed: timed out [connection_failed]' → 브로커 /positions 에 068050 팬엔터테인먼트 74주 @1,111.14(평가 82,407원 = 자본의 33%) 존재, 저널 trades 에 068050 행 0건, loop_state daily.entries=2 인데 브로커 보유 3건. 모니터는 '068050: holding (px 1118.0 vs entry 1111.1351)' 로 추적 중이라 완전 방치는 아니지만 90분 시간청산은 걸리지 않는다.",
+      "evidence": "2026-11-20 09:0x 실측: runner.log 'order failed 068050: bridge request failed: timed out [connection_failed]' → 브로커 /positions 에 068050 팬엔터테인먼트 74주 @1,111.14(평가 82,407원 = 자본의 33%) 존재, 저널 trades 에 068050 행 0건, loop_state daily.entries=2 인데 브로커 보유 3건. 모니터는 '068050: holding (px 1118.0 vs entry 1111.1351)' 로 추적 중이라 완전 방치는 아니지만 90분 시간청산은 걸리지 않는다. 2026-11-20 11:17 실측(영향 확정): daily.entries 가 2 로 계산돼(068050 저널 행 없음) 4번째 실주문 `ALGO buy 112040 qty 5 @14,880` 이 나갔다. 11:28 현재 filled_qty 0·cancelable 5(현재가 15,010)로 미체결 — 체결되면 오늘 진입 4건 > daily_max_trades 3 이 된다. 즉 T55 는 기록 누락을 넘어 자금 규칙(일일 상한) 우회 경로다.",
       "success": "타임아웃 난 진입 주문을 '미확인(unconfirmed)' 으로 두고 다음 사이클에 /orders·/positions 로 대조해 체결이면 저널에 브로커 체결가로 기록한다(주문 응답을 실패로 단정하지 않는다). 그날 유령 포지션 0건.",
       "cost": "중간",
       "note": "장중에는 저널을 손대지 않는다(주문 경로 가동 중 이중청산 위험) — 마감 후 대조·정리 대상. 오늘 068050 은 모니터가 보고 청산하므로 우선순위는 '기록 누락' 자체다.",
       "created_at": "2026-11-20T09:11:45+09:00",
-      "created_by": "trader"
+      "created_by": "trader",
+      "updated_at": "2026-11-20T11:30:00+09:00"
     }
   ]
 }
