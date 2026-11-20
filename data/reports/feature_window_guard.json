@@ -1,0 +1,145 @@
+{
+  "verdict": "FAIL",
+  "table": "supply_market_features",
+  "window_days": 40,
+  "curr_window": [
+    "2026-09-21",
+    "2026-11-19"
+  ],
+  "prev_window": [
+    "2026-07-24",
+    "2026-09-18"
+  ],
+  "n_features": 19,
+  "history_days_before_window": 907,
+  "history_required": 252,
+  "history_ok": true,
+  "dead": [],
+  "collapse": [
+    "krx_total_trading_value"
+  ],
+  "weak_count": 4,
+  "momentum_3_12m": {
+    "feature": "momentum_3_12m",
+    "prev": 0.6688,
+    "curr": 0.7863,
+    "status": "OK"
+  },
+  "rows": [
+    {
+      "feature": "institution_ownership_pct",
+      "prev": 0.0,
+      "curr": 0.0,
+      "status": "WEAK"
+    },
+    {
+      "feature": "short_interest_ratio",
+      "prev": 0.0,
+      "curr": 0.0,
+      "status": "WEAK"
+    },
+    {
+      "feature": "days_to_cover",
+      "prev": 0.0,
+      "curr": 0.0,
+      "status": "WEAK"
+    },
+    {
+      "feature": "market_impact_score",
+      "prev": 0.0023,
+      "curr": 0.0054,
+      "status": "WEAK"
+    },
+    {
+      "feature": "krx_total_trading_value",
+      "prev": 1.0,
+      "curr": 0.0776,
+      "status": "COLLAPSE"
+    },
+    {
+      "feature": "institution_net_buy",
+      "prev": 0.2158,
+      "curr": 0.206,
+      "status": "OK"
+    },
+    {
+      "feature": "institution_net_buy_5d",
+      "prev": 0.2423,
+      "curr": 0.2276,
+      "status": "OK"
+    },
+    {
+      "feature": "foreign_ownership_pct",
+      "prev": 0.0,
+      "curr": 0.2371,
+      "status": "OK"
+    },
+    {
+      "feature": "retail_ownership_pct",
+      "prev": 0.0,
+      "curr": 0.2448,
+      "status": "OK"
+    },
+    {
+      "feature": "foreign_net_buy",
+      "prev": 0.2844,
+      "curr": 0.2564,
+      "status": "OK"
+    },
+    {
+      "feature": "foreign_net_buy_5d",
+      "prev": 0.2878,
+      "curr": 0.2581,
+      "status": "OK"
+    },
+    {
+      "feature": "momentum_ni",
+      "prev": 0.3913,
+      "curr": 0.3932,
+      "status": "OK"
+    },
+    {
+      "feature": "momentum_op",
+      "prev": 0.4293,
+      "curr": 0.4334,
+      "status": "OK"
+    },
+    {
+      "feature": "short_selling_ratio",
+      "prev": 0.057,
+      "curr": 0.4695,
+      "status": "OK"
+    },
+    {
+      "feature": "momentum_3_12m",
+      "prev": 0.6688,
+      "curr": 0.7863,
+      "status": "OK"
+    },
+    {
+      "feature": "bb_position",
+      "prev": 0.995,
+      "curr": 0.905,
+      "status": "OK"
+    },
+    {
+      "feature": "relative_strength",
+      "prev": 0.9998,
+      "curr": 0.9856,
+      "status": "OK"
+    },
+    {
+      "feature": "krx_advance_decline_ratio",
+      "prev": 1.0,
+      "curr": 0.9859,
+      "status": "OK"
+    },
+    {
+      "feature": "market_breadth",
+      "prev": 1.0,
+      "curr": 0.9859,
+      "status": "OK"
+    }
+  ],
+  "computed_at": "2026-11-20T08:09:28.946721+00:00"
+}
