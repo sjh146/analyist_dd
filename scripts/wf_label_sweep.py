@@ -560,6 +560,16 @@ CONFIGS = [
     {"id": "EV_none_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "exclude_names": ["event_*", "disclosure_count_5d"],
      "desc": "같은 패널에서 이벤트 피처 17개만 제외(210컬럼) — 동일 런 대조군"},
+    # ── CG376(2026-11-20): event_rolling 집계 8종 in-run A/B — '희소 카운트'가 아니라 '채워진 집계' 축 ──
+    # 패널: panel_prod200_v6.npz(221피처 = v4 213 + event_rolling 8종, 시점정합 검증 통과).
+    # 대조군은 같은 패널에서 그 8종만 제외 → 행·폴드·시드·HP 동일, 차이는 입력 8컬럼뿐.
+    {"id": "CG376_roll_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "desc": "CG376 arm — event_rolling 집계 8종 포함(221피처)"},
+    {"id": "CG376_noroll_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "exclude_names": ["event_level_20d", "event_trend_5v20", "event_any_60d",
+                       "funding_level_20d", "governance_level_20d", "business_level_20d",
+                       "risk_level_20d", "disclosure_level_20d"],
+     "desc": "CG376 대조군 — 같은 패널에서 event_rolling 집계 8종만 제외(213피처)"},
     # ── 유니버스 축 in-run A/B (2026-09-26 신설) ────────────────────────────────
     # 배경: 기준선 패널은 49종목인데 select=top30 이면 유니버스의 61%를 사는 셈이라
     # '선별'이 거의 없다. U1 은 150종목을 교차패널로 비교해 Δ-0.0266(악화)이었지만

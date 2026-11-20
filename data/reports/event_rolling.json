@@ -7,44 +7,44 @@
     "from": "2025-08-01",
     "to": "2026-11-18"
   },
-  "rows": 780091,
-  "codes": 2710,
+  "rows": 777374,
+  "codes": 2709,
   "date_range": [
     "2025-08-01",
     "2026-11-18"
   ],
   "nonzero_ratio": {
     "event_level_20d": {
-      "nnz_ratio": 0.750190682881869,
-      "null_ratio": 0.2424114622524808
+      "nnz_ratio": 0.7494526444156867,
+      "null_ratio": 0.24318924996205174
     },
     "event_trend_5v20": {
-      "nnz_ratio": 0.5611742732578635,
-      "null_ratio": 0.2424114622524808
+      "nnz_ratio": 0.5604110762644493,
+      "null_ratio": 0.24318924996205174
     },
     "event_any_60d": {
-      "nnz_ratio": 0.9928944187280715,
+      "nnz_ratio": 0.9928721567739595,
       "null_ratio": 0.0
     },
     "funding_level_20d": {
-      "nnz_ratio": 0.3212714926848278,
-      "null_ratio": 0.2424114622524808
+      "nnz_ratio": 0.32105781772994724,
+      "null_ratio": 0.24318924996205174
     },
     "governance_level_20d": {
-      "nnz_ratio": 0.6059985309406211,
-      "null_ratio": 0.2424114622524808
+      "nnz_ratio": 0.6053431166980116,
+      "null_ratio": 0.24318924996205174
     },
     "business_level_20d": {
-      "nnz_ratio": 0.48962108266856047,
-      "null_ratio": 0.2424114622524808
+      "nnz_ratio": 0.4897012248930373,
+      "null_ratio": 0.24318924996205174
     },
     "risk_level_20d": {
-      "nnz_ratio": 0.059871220152520666,
-      "null_ratio": 0.2424114622524808
+      "nnz_ratio": 0.059832204318641995,
+      "null_ratio": 0.24318924996205174
     },
     "disclosure_level_20d": {
-      "nnz_ratio": 0.7545850420015101,
-      "null_ratio": 0.2424114622524808
+      "nnz_ratio": 0.7538109069765647,
+      "null_ratio": 0.24318924996205174
     }
   },
   "defs": {
@@ -103,9 +103,9 @@
   "claim": {
     "runner": "build_event_rolling",
     "table_name": "event_rolling_features",
-    "source_rows": 223204,
-    "claimed_rows": 780091,
-    "persisted_rows": 0,
-    "table_rows_after": 780091
+    "source_rows": 222372,
+    "claimed_rows": 777374,
+    "persisted_rows": -2717,
+    "table_rows_after": 777374
   }
 }

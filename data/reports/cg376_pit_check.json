@@ -1,0 +1,46 @@
+{
+ "label": "h5 cross-sectional q0.3 top30",
+ "pos_rate": 0.29368916288124597,
+ "single_feature_auc": {
+  "event_level_20d": 0.5116254659045799,
+  "event_trend_5v20": 0.49837353081937424,
+  "event_any_60d": 0.5177360509397076,
+  "funding_level_20d": 0.5133590314966328,
+  "governance_level_20d": 0.5078960989566496,
+  "business_level_20d": 0.5044674054317856,
+  "risk_level_20d": 0.5140162552447625,
+  "disclosure_level_20d": 0.4991561994996468
+ },
+ "verified_at": "2026-11-20T20:20+09:00",
+ "status": "PASS",
+ "code_evidence": [
+  "scripts/build_event_features.py L269: lo,hi=max(0,i-WINDOW),i → [D-5..D-1] 당일 제외",
+  "scripts/build_event_rolling.py L139: bisect_left(dates,D) → trade_date < D 엄격"
+ ],
+ "rolling_rebuild": {
+  "rows_after": 777374,
+  "codes": 2709,
+  "range": "2025-08-01~2026-11-18",
+  "seconds": 18,
+  "rows_before": 780091,
+  "note": "원천 event_features 재적재(11-20 19:10 UTC+9) 이후 미갱신 → 2026-11 734셀 불일치(49셀 오탐), 재빌드로 해소"
+ },
+ "sql_check_after_rebuild": {
+  "event_day_rows": 195600,
+  "match_lagged": 168222,
+  "null_short_window": 27378,
+  "leak_cells_future": 0,
+  "disclosure_mismatch": 0,
+  "short_window_but_not_null": 0
+ },
+ "panel": {
+  "file": "data/panels/panel_prod200_v6.npz",
+  "shape": [
+   61640,
+   221
+  ],
+  "added": 8,
+  "note": "213 원본컬럼 바이트 동일·행/날짜/종목/가격 동일(패치 자기검증)"
+ },
+ "single_feature_auc_note": "누수게이트 문턱 |AUC-0.5|>0.25 <-> >0.75; 실측 최대 0.5177 → 통과"
+}
