@@ -182,9 +182,17 @@
   "승격 게이트 구멍: promote_flags 가 --min-robust-auc/--min-expectancy-t 를 내보내지 않고 gates.promote_require_robust=false → 승인 요청(②)"
  ],
  "promote_gate_hole": {
-  "evidence": "오늘 같은 후보에 대해 --require-expectancy 만 주면 status=would_promote(단일분할 0.6175 vs 0.5513), --require-robust --min-robust-auc 0.5 를 더해야 kept_incumbent. config/objective.json gates.promote_require_robust=false 이고 scripts/objective.py::promote_flags(L107-124)는 하한 플래그를 내보내지 않는다.",
-  "severity": "잠재 — 챔피언 자동 승격을 부르는 크론/스케줄러는 없음(crontab·/etc/cron.d 확인). 수동 릴리스 스크립트 경로에만 존재",
-  "needs": "리뷰보드 승인(게이트 정책 변경)",
-  "refine": "정밀화: gates.promote_require_robust=true 로만 켜도 후보 0.4376 < min_auc 기본 0.53 이라 거부된다. 즉 구멍의 핵심은 '플래그가 꺼져 있다'(config/objective.json) + promote_flags 가 하한 인자를 내보내지 않아 '0.5 하한'이 문서상 값으로만 존재한다는 점. 최소 수정: gates.promote_require_robust=true(값 1개) + promote_flags 가 --min-robust-auc 0.5 를 함께 내보내게 배선. t≥2 하한 신설은 objective.json acceptance 변경 = 리뷰보드."
+  "severity": "구조적 경로 열림 — 오늘은 live-score 게이트가 우연히 차단(candidate_signals 0, max 0.4663 < 0.55)",
+  "path": "/etc/cron.d/analyist_dd:9 (평일 20:00 evening_pipeline.sh) → scripts/full_pipeline_dd.sh:427-434 champion_promote (--dry-run 없음, --min-auc 0.53 --min-improvement 0.02 $GATE_FLAGS)",
+  "why_open": "scripts/objective.py:117-124 promote_flags 는 --min-robust-auc 를 내보내지 않고 config/objective.json:59 gates.promote_require_robust=false → 비교 지표가 단일분할 ensemble_auc(champion_promote.py:318) 이고 robust 하한(:379-393)이 평가되지 않는다",
+  "today": "20:00 실행: 돈 게이트 통과(+0.0905%p·113세션·both_positive) · live-score 게이트 blocked(신호 0건) → 승격 생략(log:18006)",
+  "next_run": "2026-11-23T20:00+09:00 (월)",
+  "min_fix": "① config/objective.json gates.promote_require_robust=true (값 1개) ② scripts/objective.py:117-124 에서 --min-robust-auc 0.5 동시 출력 + tests/test_objective.py 허용목록 갱신 ③ (선택) acceptance 에 min_expectancy_t 신설",
+  "approval": "리뷰보드(게이트 문턱·정책 변경) — 코드 주석 champion_promote.py:370-378 이 '플래그 OFF, 정책은 리뷰보드'로 명시",
+  "delegation": "reports/claude_review_promote_gate_hole_20261120.md — 주장 3건 채택(파일:라인 재확인). 미검증 2건: auto_rollback 미스케줄 · 수동 롤백 토큰 차단",
+  "unverified": [
+   "auto_rollback:true 인데 롤백 감시 스케줄 없음(grep 0 — 나도 일치 확인)",
+   "release_champion.sh --apply 롤백 경로가 토큰 basename 불일치로 blocked_live_score(실증 미착수)"
+  ]
  }
 }
