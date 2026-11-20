@@ -1104,7 +1104,20 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         # 짝으로 재는 전용 계측기를 쓴다. ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
         out = _arg(command or "", "--json-out")
         if out:
-            return _container_path_to_host(out.strip("'\""))
+            p = out.strip("'\"").rstrip(";,)")
+            # ⚠ 실측 갭 수리(2026-11-21 CG382): 시드 루프 커맨드
+            # `for s in 0 1 2; do ... --json-out /app/reports/overnight/cg382_money_s$s.json; done`
+            # 은 첫 occurrence 에 **미전개 셸 변수**가 남아(_arg 는 첫 --json-out 만 본다) 호스트
+            # 경로 `..._s$s.json` 이 존재하지 않는다 → 11.8분 측정이 '판정불가(요약 파일 없음)' 으로
+            # 사라졌다(실제로는 시드 파일 3개가 정상 생성). `$var`/`${var}` 를 `*` 로 바꿔 glob 한 뒤
+            # mtime 최신을 쓴다.
+            if "$" in p:
+                import glob as _glob, re as _re
+                pat = _re.sub(r"\$\{?\w+\}?", "*", _container_path_to_host(p))
+                cand = [x for x in _glob.glob(pat) if os.path.isfile(x)]
+                if cand:
+                    return max(cand, key=os.path.getmtime)
+            return _container_path_to_host(p)
         log("경고: fillable_topk_expectancy 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "fillable_topk_spread":
@@ -3183,6 +3196,27 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
                else f"k={k} 통계 결측")
         parts.append(fmt + ("" if good else " ✗"))
     ref = ""
+    # 널(그날 체결가능 풀평균) 대비 상대 엣지 — 절대 순기대는 시장 베타로 뒤집혀도 랭킹 엣지는 여기서
+    # 보인다. 실측(2026-11-21 CG382): arm 절대 앞 +3.08/뒤 −0.50 인데 풀 대비는 앞 +1.95/뒤 +1.48 로
+    # 양 절반 유지(k=3 Δ+1.710 t 4.10 · 255세션). 판정(verdict)은 바꾸지 않고 근거만 덧붙인다.
+    _bp = ((conds.get("fillable") or {}).get("baseline_pool") or {})
+    _pbk = _bp.get("paired_by_k") or {}
+    pool_rel = ""
+    if _pbk and ks:
+        _bb = _pbk.get(str(ks[0])) or next(iter(_pbk.values()))
+        if isinstance(_bb, dict) and isinstance(_bb.get("delta_mean"), (int, float)):
+            _ah = (fill.get(ks[0]) or {}).get("arm_halves") or {}
+            _ph = _bp.get("halves") or {}
+            _hv = []
+            for _h in ("front", "back"):
+                _a = ((_ah.get(_h) or {}).get("mean"))
+                _pv = ((_ph.get(_h) or {}).get("mean"))
+                if isinstance(_a, (int, float)) and isinstance(_pv, (int, float)):
+                    _hv.append(f"{_a - _pv:+.2f}")
+            pool_rel = (f" · 널(풀) 대비 k={ks[0]} Δ{_bb['delta_mean']:+.3f}%p(t {_bb.get('t')}) "
+                        f"pos/neg {_bb.get('pos')}/{_bb.get('neg')}")
+            if len(_hv) == 2:
+                pool_rel += f" · 널 대비 절반 [{_hv[0]}/{_hv[1]}]"
     uk = ks[0] if ks[0] in unf else (next(iter(unf)) if unf else None)
     if uk is not None and isinstance(unf.get(uk), dict):
         ua = (unf[uk].get("arm") or {}).get("mean")
@@ -3193,7 +3227,7 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
               f"exit {parsed.get('exit')} h{parsed.get('horizon')} · 수수료 왕복 "
               f"{parsed.get('fee_roundtrip_pct')}%p · 세션 {parsed.get('n_sessions_fillable')} · "
               f"풀 중앙값 {parsed.get('pool_median_fillable')} · " + " · ".join(parts)
-              + ref + " · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive")
+              + ref + pool_rel + " · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive")
     if ok_all:
         return "신호있음", detail + " → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인)", first
     return "노이즈", detail + " → 사전등록 미충족", first
@@ -3293,6 +3327,22 @@ def judge_fillable_gate_bands(item, parsed) -> tuple:
               f"OFF {offp.get('n')}세션 풀 {off_txt} · "
               + (f"Δ(ON−OFF) {d:+.3f}%p · " if isinstance(d, (int, float)) else "")
               + " · ".join(f"{n} {'✓' if v else '✗'}" for n, v in crit))
+    # 대역별 **모델 top-k** 성적 — 게이트는 '언제 살까', top-k 는 '무엇을 살까'다. 둘을 같이 봐야
+    # 롱온리 경로가 성립한다(판정은 위 풀 기준 그대로, 근거만 덧붙인다).
+    _ab = []
+    for _nm in ("on", "off"):
+        _kk = (bands.get(_nm) or {}).get("k") or {}
+        _key = "3" if "3" in _kk else (next(iter(_kk)) if _kk else None)
+        _pk = _kk.get(_key) if _key else None
+        if isinstance(_pk, dict) and isinstance((_pk.get("arm") or {}).get("mean"), (int, float)):
+            _pv = _pk.get("paired_vs_pool") or {}
+            _ah = _pk.get("arm_halves") or {}
+            _dm = _pv.get("delta_mean")
+            _ab.append(f"{_nm} k={_key} arm {_pk['arm']['mean']:+.2f}%p"
+                       + (f" vs 풀 Δ{_dm:+.2f}(t {_pv.get('t')})" if isinstance(_dm, (int, float)) else "")
+                       + f" n{_pk['arm'].get('n')}" + f" 분할[{_ah.get('stable')}]")
+    if _ab:
+        detail += " · [모델 top-k] " + " / ".join(_ab)
     if all(v for _, v in crit):
         return ("신호있음",
                 detail + " → 진입 시점 정보만으로 하락국면 회피 가능(트레이더 경로 승인 대상)", d)
@@ -5201,6 +5251,12 @@ def rejudge_parser_gap() -> list:
             # 구동기가 다른(직전 앵커) 파일을 봐 "요약 미갱신"으로 닫힌 기록. summary_path 수리를
             # 배선한 뒤 같은 산출물로 재판정한다(파일이 정말 옛 것이면 parse 가 같은 error 로 skip).
             gap = "summary_path"
+        elif isinstance(pe, dict) and "요약 파일 없음" in str(pe.get("error", "")):
+            # 경로 해석 갭(실측 2026-11-21 CG382): 시드 루프 커맨드의 미전개 셸 변수(`$s`) 때문에
+            # 구동기가 없는 경로를 보고 '판정불가'로 닫았는데, 시드별 산출물은 정상 생성돼 있었다.
+            # summary_path 의 glob 해석을 배선한 뒤 같은 산출물로 재판정한다(파일이 정말 없으면
+            # parse 가 같은 error 로 skip 되므로 안전).
+            gap = "summary_path"
         elif (str(r.get("verdict", "")) == "기준선없음"
               and isinstance(pe, dict) and isinstance(pe.get("per_exp"), dict)
               and len(pe["per_exp"]) >= 2):
@@ -5807,9 +5863,15 @@ def execute(item, force=False):
         # 실측: OOS 적립 러너는 `oos_accrual_<앵커>.json` 처럼 파일명이 매번 달라진다. 경로를
         # 실행 전에 한 번만 풀면(그때의 최신 파일 = 전날 것) 사후 파싱이 **옛 파일**을 보고
         # "요약 미갱신(mtime <= 바닥)" → rc=0 완주가 판정불가로 사라진다(CG356: 0.5198·10날짜 소실).
-        if item.get("metric") == "oos_accrual":
-            _sp2 = summary_path("oos_accrual", item.get("command"), item.get("summary_out"))
-            if os.path.exists(_sp2) and os.path.getmtime(_sp2) > mtime_floor:
+        if item.get("metric") == "oos_accrual" or "$" in (spath or "") or not os.path.exists(spath or ""):
+            # 일반화(실측 2026-11-21 CG383): 시드 루프 커맨드의 `--json-out ..._s$s.json` 처럼 **미전개
+            # 셸 변수**가 든 경로는 실행 전엔 glob 이 비어 spath 가 리터럴로 남는다(그대로 사후 파싱하면
+            # 3파일이 정상 생성됐는데도 '판정불가(요약 파일 없음)'). 실행 후 다시 풀어 준다.
+            try:
+                _sp2 = summary_path(item.get("metric") or "", item.get("command"), item.get("summary_out"))
+            except ValueError:
+                _sp2 = ""
+            if _sp2 and os.path.exists(_sp2) and os.path.getmtime(_sp2) > mtime_floor:
                 spath = _sp2
         parsed = parse_by_metric(item, spath, mtime_floor)
         # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
