@@ -15,14 +15,30 @@ WHY (2026-11-18 실측): 스냅샷(etf_premium_snapshots / data/etf_premium/*.js
   --   CNY·JPY·USD/KRW 환율·CPI·PPI·WTI 유가 9종 — 지수 등락 없음
   -- → §2.4 by_regime 은 지수 데이터가 없는 날 **regime: null + 사유**로 기록한다(추측 금지).
 
-계약(스펙 §2):
+실측 조회 명령(2026-11-20 실행 — spec_etf_premium_fix.md 수정 계기, DB 127.0.0.1:5434):
+  -- python3 - <<'EOF'  # jsonl 행 조회: 09:02 0193T0 행
+  --   → price 4,255(전일 종가 유지·체결 0건) vs nav 3,683 → premium +15.5308%,
+  --     volume 0. 09:04 체결 시작 후 정상화 → 개장 직후 미체결 행이 만든 가짜 괴리
+  -- python3 - <<'EOF'  # DB 행 ts 초·마이크로초 분포
+  --   → 09:00:02.450947 / 09:01:02.103983 / 09:02:01.756114 / 09:05:01.716161 …
+  --     (크론 실행 지터 — 같은 분도 초·마이크로초가 다름)
+  --   → event_study target = ep["start"]+5min(초·마이크로초 보존)이 어떤 스냅샷 키와도
+  --     불일치 → 전부 skip → +5min n=0(실측 2026-11-20 리포트) → _minute_ts() 로 정규화
+  -- DB 집계(같은 조회): nav null 102행 · volume 0 1,666행 · 09:00~09:05 510행
+  --   → filter_snapshots() 규칙 ①②③ 의 제외 대상(개장 직후 오염 제거)
+
+계약(스펙 §2 + spec_etf_premium_fix):
   - 입력: DB(없으면 jsonl data/etf_premium/<date>.jsonl). 당일 스냅샷만.
   - by_code: n, 평균·p50·p05·p95, |premium|≥0.5% 체류비율, AR(1) 계수, 반감기(분),
     volume(마지막 스냅샷의 일 누적 quant — 실측: Naver quant 는 당일 누적).
   - episodes: |괴리|≥threshold 연속 구간(시작·끝·최대괴리·지속분). 같은 종목 3분 이내 재발 병합.
   - event_study: 각 episode 시작 가격 대비 +5/+15/+30/+60분 수익률(그 시점 스냅샷 없으면 null)
     → 평균·중앙값·승률·표본수 horizons 별 + 시작 괴리 부호(할인/프리미엄) 분리.
-  - 하루 표본 < --min-snapshots → 수치 대신 insufficient_sample + 사유(0으로 메우지 않음).
+    스냅샷 ts·episode start 는 _minute_ts() 로 분 단위 정규화(spec_etf_premium_fix §1).
+  - 필터(spec_etf_premium_fix §2): ① nav null ② volume < --min-volume ③ 개장 후
+    --skip-open-min 분 이내 스냅샷 제외(우선순위 순, 첫 해당 규칙에서만 카운트).
+    filtered 블록에 제외 사유별 행수 + 필터 전/후 스냅샷·에피소드 수를 남긴다.
+  - 하루 표본(필터 후) < --min-snapshots → 수치 대신 insufficient_sample + 사유(0으로 메우지 않음).
   - 출력 JSON 멱등: 실행 시각 미기록, date 만 키.
 """
 from __future__ import annotations
@@ -129,26 +145,43 @@ def _percentiles(v):
     return round(q[0], 4), round(q[9], 4), round(q[18], 4)
 
 
+def _minute_ts(ts):
+    """스냅샷 ts·episode 시작 키를 분 단위 datetime 으로 정규화 — spec_etf_premium_fix §1.
+
+    WHY (2026-11-20 실측): DB etf_premium_snapshots.ts(timestamptz)는 크론 실행 지터로
+    같은 분도 초·마이크로초가 다르다(실측 조회: 09:00:02.450947 / 09:01:02.103983 /
+    09:05:01.716161 …). event_study 가 target = ep["start"] + timedelta(minutes=h) 로
+    시작 ts 의 초·마이크로초를 그대로 보존하면 어떤 스냅샷 키와도 일치하지 않아 전부
+    skip 됐다(+5min n=0, 실측 2026-11-20 리포트). 분 단위로 절사한 키를 양쪽(키 사전·
+    조회)에 쓰면 ±2분 오프셋 탐색이 실제 행에 닿는다. datetime 이 아니면(예: ISO 문자열)
+    그대로 둔다 — 양쪽이 같은 형식이기만 하면 된다.
+    """
+    if isinstance(ts, datetime):
+        return ts.replace(second=0, microsecond=0)
+    return ts
+
+
 def event_study(episodes, snaps, horizons, tolerance_min=2):
     """각 episode 시작 가격 대비 +h분 가격 수익률(%) → horizons 별 평균·중앙값·승률·표본수.
 
     '그 시점 스냅샷' = 시작+h 분에서 ±2분 이내 가장 가까운 스냅샷(1분 단위 크론이 특정 분을
     놓치면 전부 null 이 되는 것을 막는 허용 — 2026-11-18 설계 결정). 없으면 null(0 채움 금지).
+    키는 _minute_ts() 로 분 단위 정규화(초·마이크로초 지터 제거 — spec_etf_premium_fix §1).
     반환: {f"+{h}min": {"n","mean_pct","median_pct","win_rate",
                         "by_start_sign": {"discount":..., "premium":...}}, ...}
     """
-    price = {(r["code"], r["ts"]): r["price"]
+    price = {(r["code"], _minute_ts(r["ts"])): r["price"]
              for r in snaps if r.get("price") is not None}
     rets = {h: [] for h in horizons}
     rets_sign = {h: {"discount": [], "premium": []} for h in horizons}
     for ep in episodes:
         code = ep["code"]
-        p0 = price.get((code, ep["start"]))
+        p0 = price.get((code, _minute_ts(ep["start"])))
         if p0 is None:
             continue
         sign = "discount" if ep["start_premium"] < 0 else "premium"
         for h in horizons:
-            target = ep["start"] + timedelta(minutes=h)
+            target = _minute_ts(ep["start"]) + timedelta(minutes=h)
             p = None
             for off in (0, -1, 1, -2, 2):            # 가까운 스냅샷 우선
                 if off < 0 and off < -tolerance_min:
@@ -180,6 +213,51 @@ def _summarize(rets):
             "mean_pct": round(statistics.fmean(rets), 4),
             "median_pct": round(statistics.median(rets), 4),
             "win_rate": round(sum(1 for r in rets if r > 0) / len(rets), 4)}
+
+
+def filter_snapshots(snaps, min_volume=1, skip_open_min=5):
+    """유효 스냅샷 필터 — docs/spec_etf_premium_fix.md §2 (오염 제거).
+
+    규칙(우선순위 순 — 각 행은 처음 해당하는 규칙에서만 카운트, 합계 = 제외 행수):
+      ① nav 가 null → dropped_no_nav
+      ② volume 이 null 이거나 < min_volume → dropped_no_volume
+      ③ 개장(09:00) 후 skip_open_min 분 미만(09:00 ≤ t < 09:05) → dropped_open_window
+
+    WHY (2026-11-20 실측, 조회: data/etf_premium/2026-11-20.jsonl 09:02 행):
+      0193T0 KODEX SK하이닉스단일종목레버리지 price 4,255(전일 종가 유지 — 개장 직후
+      미체결이라 nowVal 이 전일 종가) vs nav 3,683 → premium +15.5308%, volume 0.
+      체결이 시작된 09:04 이후 정상화 — 개장 직후 미체결(volume 0) 행이 만든 가짜 괴리.
+      DB 집계(같은 날): nav null 102행 · volume 0 1,666행 · 09:00~09:05 510행.
+      반환: (valid, {dropped_no_nav, dropped_no_volume, dropped_open_window}, 사유문).
+    """
+    valid, dropped = [], {"dropped_no_nav": 0, "dropped_no_volume": 0,
+                          "dropped_open_window": 0}
+    for r in snaps:
+        if r.get("nav") is None:
+            dropped["dropped_no_nav"] += 1
+            continue
+        vol = r.get("volume")
+        if vol is None or vol < min_volume:
+            dropped["dropped_no_volume"] += 1
+            continue
+        t = r["ts"]
+        m = (t - t.replace(hour=9, minute=0, second=0, microsecond=0)).total_seconds() / 60.0
+        if 0.0 <= m < skip_open_min:
+            dropped["dropped_open_window"] += 1
+            continue
+        valid.append(r)
+    note = (f"min_volume={min_volume} skip_open_min={skip_open_min}:"
+            f" no_nav={dropped['dropped_no_nav']}"
+            f" no_volume={dropped['dropped_no_volume']}"
+            f" open={dropped['dropped_open_window']}")
+    return valid, dropped, note
+
+
+def _points(snaps):
+    """build_episodes 입력 포맷 — 코드별 시간순, premium_pct 결측 제외."""
+    return [(r["ts"], r["premium_pct"], r["code"], r["name"])
+            for r in sorted(snaps, key=lambda r: (r["code"], r["ts"]))
+            if r["premium_pct"] is not None]
 
 
 # ── 입력 로드 ─────────────────────────────────────────────────────────────
@@ -265,15 +343,31 @@ def load_index_change(conn, date_s: str):
 
 # ── 보고서 조립 ───────────────────────────────────────────────────────────
 def build_report(date_s, snaps, *, min_snapshots, threshold, horizons,
-                 regime=None, source_note=""):
-    """당일 스냅샷 → 분석 보고 dict. 표본 부족이면 insufficient_sample 만(수치 없음 — 스펙 §2)."""
-    ts_set = sorted({r["ts"] for r in snaps})
+                 regime=None, source_note="", min_volume=1, skip_open_min=5):
+    """당일 스냅샷 → 분석 보고 dict. 표본 부족이면 insufficient_sample 만(수치 없음 — 스펙 §2).
+
+    필터(spec_etf_premium_fix §2)를 먼저 적용하고, filtered 블록에 제외 사유별 행수와
+    필터 전/후 스냅샷·에피소드 수를 남긴다(필터 사유는 리포터 상단에 표기).
+    """
+    valid, dropped, filter_note = filter_snapshots(snaps, min_volume, skip_open_min)
+    eps_before = len(build_episodes(_points(snaps), threshold))
+    ts_set = sorted({r["ts"] for r in valid})
     n_snaps = len(ts_set)
-    codes = sorted({r["code"] for r in snaps})
+    codes = sorted({r["code"] for r in valid})
+    eps = build_episodes(_points(valid), threshold)
+    filtered = {"min_volume": min_volume, "skip_open_min": skip_open_min,
+                "n_snaps_before": len(snaps), "n_snaps_after": len(valid),
+                "episodes_before": eps_before, "episodes_after": len(eps),
+                "dropped_no_nav": dropped["dropped_no_nav"],
+                "dropped_no_volume": dropped["dropped_no_volume"],
+                "dropped_open_window": dropped["dropped_open_window"],
+                "reason": filter_note}
     if n_snaps < min_snapshots:
         reason = (f"당일 데이터 없음({source_note})" if n_snaps == 0 else
                   f"당일 스냅샷 {n_snaps}개 < {min_snapshots}(--min-snapshots) — 수치 산출 보류")
-        return {"date": date_s,
+        if len(valid) < len(snaps):
+            reason += f"(필터 제외 {len(snaps) - len(valid)}행: {filter_note})"
+        return {"date": date_s, "filtered": filtered,
                 "insufficient_sample": {"min_snapshots": min_snapshots,
                                         "n_snapshots": n_snaps,
                                         "n_codes": len(codes),
@@ -281,7 +375,7 @@ def build_report(date_s, snaps, *, min_snapshots, threshold, horizons,
 
     by_code = {}
     for code in codes:
-        rows = sorted((r for r in snaps if r["code"] == code), key=lambda r: r["ts"])
+        rows = sorted((r for r in valid if r["code"] == code), key=lambda r: r["ts"])
         v = [r["premium_pct"] for r in rows if r["premium_pct"] is not None]
         p05, p50, p95 = _percentiles(v)
         phi, half = ar1_estimate(v)
@@ -297,11 +391,7 @@ def build_report(date_s, snaps, *, min_snapshots, threshold, horizons,
             "volume_last_cum": rows[-1]["volume"],   # Naver quant = 당일 누적(실측)
         }
 
-    points = [(r["ts"], r["premium_pct"], r["code"], r["name"])
-              for r in sorted(snaps, key=lambda r: (r["code"], r["ts"]))
-              if r["premium_pct"] is not None]
-    eps = build_episodes(points, threshold)
-    ev = event_study(eps, snaps, horizons)
+    ev = event_study(eps, valid, horizons)
 
     if regime is None:
         by_regime = {"regime": None, "reason": NO_INDEX_REASON}
@@ -311,8 +401,8 @@ def build_report(date_s, snaps, *, min_snapshots, threshold, horizons,
             big = any(v is not None and abs(v) >= 1.5 for v in regime.values())
             (panic_eps if big else normal_eps).append(ep)
         by_regime = {"regime": "available", "index_pct": regime,
-                     "panic": event_study(panic_eps, snaps, horizons),
-                     "normal": event_study(normal_eps, snaps, horizons)}
+                     "panic": event_study(panic_eps, valid, horizons),
+                     "normal": event_study(normal_eps, valid, horizons)}
 
     eps_out = []
     for ep in eps:
@@ -322,8 +412,18 @@ def build_report(date_s, snaps, *, min_snapshots, threshold, horizons,
         eps_out.append(e)
 
     return {"date": date_s, "n_snapshots": n_snaps, "n_codes": len(codes),
-            "by_code": by_code, "episodes": eps_out, "event_study": ev,
-            "by_regime": by_regime}
+            "filtered": filtered, "by_code": by_code, "episodes": eps_out,
+            "event_study": ev, "by_regime": by_regime}
+
+
+def _filter_line(f) -> str:
+    """필터 사유 상단 표기 — spec_etf_premium_fix §2(리포트 상단 + 전/후 에피소드 수)."""
+    return (f"- **필터(spec_etf_premium_fix §2)**: nav null · volume<{f['min_volume']} ·"
+            f" 개장 {f['skip_open_min']}분 이내 스냅샷 제외 —"
+            f" 제외 {f['dropped_no_nav']}+{f['dropped_no_volume']}"
+            f"+{f['dropped_open_window']}행 · 스냅샷 {f['n_snaps_before']}"
+            f"→{f['n_snaps_after']} · 에피소드 {f['episodes_before']}"
+            f"→{f['episodes_after']}건")
 
 
 def report_to_md(rep) -> str:
@@ -334,11 +434,14 @@ def report_to_md(rep) -> str:
         lines.append(f"- **insufficient_sample**: {ins['reason']}"
                      f" (min_snapshots={ins['min_snapshots']},"
                      f" n_snapshots={ins['n_snapshots']}, n_codes={ins['n_codes']})")
+        if rep.get("filtered"):
+            lines.append(_filter_line(rep["filtered"]))
         return "\n".join(lines) + "\n"
     lines.append(f"- 스냅샷 {rep['n_snapshots']}회 · 종목 {rep['n_codes']}개"
                  f" · episode {len(rep['episodes'])}건 · by_regime: "
                  + (str(rep['by_regime'].get('regime'))
                     if rep['by_regime'].get('regime') else 'null(지수 데이터 없음)'))
+    lines.append(_filter_line(rep["filtered"]))
     lines += ["", "## by_code (체류비율 상위 20)", "",
               "| code | name | n | mean | p50 | p05 | p95 | 체류≥0.5% | φ | 반감기(분) |", "|---|---|---|---|---|---|---|---|---|---|---|"]
     top = sorted(rep["by_code"].items(),
@@ -374,6 +477,10 @@ def main(argv=None) -> int:
                     help="episode 판정 |괴리|%% 임계(기본 0.5)")
     ap.add_argument("--horizons", default="5,15,30,60",
                     help="event study 분(쉼표 구분, 기본 5,15,30,60)")
+    ap.add_argument("--min-volume", type=int, default=1,
+                    help="volume 미만 스냅샷 제외(기본 1 — spec_etf_premium_fix §2)")
+    ap.add_argument("--skip-open-min", type=int, default=5,
+                    help="개장 후 이 시간(분) 이내 스냅샷 제외(기본 5 — spec_etf_premium_fix §2)")
     ap.add_argument("--json-out", default=str(REPO / "data/reports/etf_premium.json"))
     ap.add_argument("--md-out", default=str(REPO / "data/reports/etf_premium.md"))
     args = ap.parse_args(argv)
@@ -383,7 +490,8 @@ def main(argv=None) -> int:
     regime = load_index_change(connect(), args.date) if snaps else None
     rep = build_report(args.date, snaps, min_snapshots=args.min_snapshots,
                        threshold=args.premium_threshold, horizons=horizons,
-                       regime=regime, source_note=note)
+                       regime=regime, source_note=note,
+                       min_volume=args.min_volume, skip_open_min=args.skip_open_min)
 
     out = Path(args.json_out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -397,8 +505,11 @@ def main(argv=None) -> int:
         print(f"[etf_premium] date={args.date} insufficient_sample"
               f" (n_snapshots={rep['insufficient_sample']['n_snapshots']})", flush=True)
     else:
+        f = rep["filtered"]
         print(f"[etf_premium] date={args.date} snaps={rep['n_snapshots']}"
-              f" codes={rep['n_codes']} episodes={len(rep['episodes'])}", flush=True)
+              f" codes={rep['n_codes']} episodes={len(rep['episodes'])}"
+              f" filtered={f['n_snaps_after']}/{f['n_snaps_before']}"
+              f" episodes_before={f['episodes_before']}", flush=True)
     print(f"  -> {args.json_out} / {args.md_out}", flush=True)
     return 0
 
