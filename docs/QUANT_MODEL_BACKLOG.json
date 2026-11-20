@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-21T06:13:19+09:00",
+ "updated_at": "2026-11-21T07:40:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -22805,7 +22805,7 @@
   },
   {
    "id": "CG384",
-   "status": "pending",
+   "status": "done",
    "priority": 3,
    "kind": "데이터축",
    "owner": "엔지니어",
@@ -22823,7 +22823,96 @@
    "created_at": "2026-11-21T06:11:28+09:00",
    "needs_approval": false,
    "not_before": "2026-11-21T06:11:28+09:00",
-   "note": "CG376 의 AUC A/B 는 노이즈로 끝났지만 돈 A/B 는 미측정이었다. 덤프 재사용으로 계측기 비용은 3분 수준."
+   "note": "CG376 의 AUC A/B 는 노이즈로 끝났지만 돈 A/B 는 미측정이었다. 덤프 재사용으로 계측기 비용은 3분 수준.",
+   "attempts": [
+    {
+     "ts": "2026-11-21T06:18:28+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm None vs 대조군 None · exit close_h h5 · 수수료 왕복 0.21%p · 세션 255 · 풀 중앙값 150 · k=3 arm +1.281%p/세션 · 대조 +0.863 · Δ+0.418(t 1.57) · 양세션 56.9% · 분할 unstable [+3.080/-0.504] ✗ · k=5 arm +1.042%p/세션 · 대조 +0.832 · Δ+0.210(t 0.95) · 양세션 52.9% · 분할 unstable [+2.948/-0.849] ✗ · 참고(체결성 필터 OFF): k=3 arm +1.207%p · Δ+0.218 · 널(풀) 대비 k=3 Δ+1.710%p(t 4.1) pos/neg 158/97 · 널 대비 절반 [+1.95/+1.48] · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG384_20261121-061341.log",
+     "elapsed_min": 4.8
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm None vs 대조군 None · exit close_h h5 · 수수료 왕복 0.21%p · 세션 255 · 풀 중앙값 150 · k=3 arm +1.281%p/세션 · 대조 +0.863 · Δ+0.418(t 1.57) · 양세션 56.9% · 분할 unstable [+3.080/-0.504] ✗ · k=5 arm +1.042%p/세션 · 대조 +0.832 · Δ+0.210(t 0.95) · 양세션 52.9% · 분할 unstable [+2.948/-0.849] ✗ · 참고(체결성 필터 OFF): k=3 arm +1.207%p · Δ+0.218 · 널(풀) 대비 k=3 Δ+1.710%p(t 4.1) pos/neg 158/97 · 널 대비 절반 [+1.95/+1.48] · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+    "delta": 0.4178,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG385",
+   "status": "done",
+   "priority": 1,
+   "kind": "돈지표",
+   "owner": "엔지니어",
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "arm": "CG376_noroll_h5__ff",
+   "title": "[측정 타당성] 널 대비 상대엣지 +1.71%p(t 4.10)는 중첩창 착시인가 — 같은 덤프·같은 255세션을 비중첩(stride 5)으로 재채점",
+   "hypothesis": "CG382/CG383/CG384 의 돈 수치는 전부 stride 1(h5 라벨을 매 세션 채점 = 세션 창 5겹 중첩)이었다. 겹친 창은 같은 5일 수익을 5번 재사용하므로 t 가 약 sqrt(h) 배 부풀 수 있다. CG218 은 다른 arm(CO_smooth_d1_h5)에서 비중첩 재검정을 했지만 오늘 arm 은 미측정이다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && for st in 1 5; do OMP_NUM_THREADS=2 timeout 1200 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg382_ff.jsonl --control-jsonl /app/reports/overnight/cg384_off.jsonl --k 1,3,5 --sides top,bottom --regime-split pool_sign --stride $st --exit close_h --horizon 5 --max-day-chg 25 --min-value 1e9 --json-out /app/reports/overnight/cg385_stride$st.json; done'",
+   "counterfactual": "stride 1(중첩) 같은 덤프·같은 255세션 — 이번 실행 안에서 함께 측정해 두 표본을 직접 대조",
+   "success": "① rc=0 · 두 stride 파일 생성 ② stride 5(비중첩)에서도 top-k − 풀 Δ ≥ +1.0%p & t ≥ 2 & 분할 양(+) → 엣지가 중첩 착시가 아님 ③ t 가 2 미만으로 붕괴하면 '중첩표본이 만든 유의성'으로 기록하고, 이 창의 돈 결론은 비중첩 수치로만 인용한다",
+   "expected": "약 5~8분(재학습 0 — 기존 덤프 재사용). 향후 모든 h5 돈 A/B 의 해석 규칙을 고정한다.",
+   "result": {
+    "verdict": "노이즈 — 중첩표본이 유의성을 만들었다(같은 덤프·같은 255세션)",
+    "detail": "stride 1: top3 +1.281%p/세션(t 2.88) · vs pool Δ+1.710(t 4.10) pos/neg 158/97 · 폴드 31/34/38/31/24(4/5) · spread(top3−bot3) +1.595%p. stride 5(비중첩 n=55): top3 +0.887(t 0.99) · vs pool Δ+1.036(t 1.35) pos/neg 35/20 · 폴드 6/9/9/5/6(3/5) · spread +0.661%p → t 4.10→1.35, Δ+1.710→+1.036, spread −59%. 국면 분해(stride 5): 상승 29세션 top3 vs pool Δ−0.198(t −0.20) = 상승국면 무정보 · 하락 26세션 Δ+2.412(t 2.13) = 방어력만. bottom3 vs pool Δ+0.114(t 0.19) → 하위 다리가 나빠서 생긴 스프레드가 아니다(선택은 상위 다리에서만). 결론: ① 중첩표본 수치를 유의하다고 쓰지 말라 ② 이 arm 의 엣지는 '하락국면 방어'이며 상승국면엔 없다 ③ 절대 롱온리 순기대는 비중첩에서 +0.887%p(t 0.99)로 미확립.",
+    "files": [
+     "services/xgboost-ml/reports/overnight/cg385_stride1.json",
+     "services/xgboost-ml/reports/overnight/cg385_stride5.json"
+    ]
+   },
+   "created_at": "2026-11-21T07:12:00+09:00",
+   "needs_approval": false
+  },
+  {
+   "id": "CG386",
+   "status": "done",
+   "priority": 2,
+   "kind": "돈지표",
+   "owner": "엔지니어",
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "arm": "CG376_noroll_h5__ff",
+   "title": "[돈·비중첩 짝] 오늘 AUC 1등 arm vs 배포경로 arm(CO_smooth_d1_h5) — 비중첩(stride 5)에서 어느 쪽 상대엣지가 큰가",
+   "hypothesis": "CG385 로 중첩표본이 t 를 3배 부풀린다는 것이 확인됐다. CG218 은 CO_smooth_d1_h5 가 비중첩에서도 vs pool Δ+2.391(t 3.38·폴드 5/5) 였다고 기록했다(다른 창). 같은 255세션·같은 체결필터·stride 5 로 두 arm 을 나란히 재면 'AUC 1등'과 '돈 1등'이 갈리는지 판정된다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg382_ff.jsonl --control-jsonl /app/reports/overnight/cg278_preds_allcodes.jsonl --control-tag CO_smooth_d1_h5 --k 3,5 --sides top,bottom --regime-split pool_sign --stride 5 --exit close_h --horizon 5 --max-day-chg 25 --min-value 1e9 --json-out /app/reports/overnight/cg386_money_s5.json'",
+   "counterfactual": "같은 stride 5 의 CG385 stride5 (arm = CG376_noroll_h5__ff, vs pool Δ+1.036 t 1.35)",
+   "success": "① rc=0 · date_overlap ≥ 100 ② arm−대조 짝 Δ 가 k=3·5 둘 다 |Δ|<1.0%p 이면 '돈 축에서 두 arm 구분 불가' ③ 한쪽이 +1.0%p 이상 & t≥2 면 그 arm 을 머니 후보로 등록(승격 아님)",
+   "expected": "약 5분(재학습 0). 배포경로 arm 이 돈으로 더 나은지 확인.",
+   "result": {
+    "verdict": "판정불가 — 대조 arm 의 비중첩 짝 표본이 29세션뿐",
+    "detail": "pair mode=date(폴드 창 불일치) · date_overlap 219(원천) · stride 5 채점 세션 arm 55 / ctl 29. fillable: arm top3 +0.887(t 0.99) vs ctl top3 +2.311(t 1.59) · 짝 Δ(arm−ctl) −0.612(t −0.44) pos/neg 15/14 → 두 arm 구분 불가. ctl 의 vs pool Δ 는 +2.46%p 로 크지만 n=29·t 1.59 로 미확립. 국면: 상승 top3 vs pool −0.198(t −0.20) / 하락 +2.412(t 2.13) — CG385 와 동일 형태(방어력). 교훈: 두 arm 을 '같은 런'으로 덤프하지 않으면 비중첩 짝 표본이 1/2 로 줄어 판정력이 사라진다.",
+    "files": [
+     "services/xgboost-ml/reports/overnight/cg386_money_s5.json"
+    ]
+   },
+   "created_at": "2026-11-21T07:30:00+09:00",
+   "needs_approval": false
+  },
+  {
+   "id": "CG387",
+   "status": "pending",
+   "priority": 1,
+   "kind": "돈지표",
+   "owner": "엔지니어",
+   "affects_model": true,
+   "metric": "fillable_topk_expectancy",
+   "arm": "CO_smooth_d1_h5",
+   "title": "[같은 런 돈 A/B] 배포경로 arm(CO_smooth_d1_h5)을 오늘 arm 과 같은 255세션·같은 5폴드로 덤프해 비중첩(stride 5) 짝 비교",
+   "hypothesis": "CG386 은 대조 arm 덤프가 다른 폴드 창(2025-10-14~2026-09-18)이라 비중첩 채점 세션이 29개뿐이어서 판정불가로 닫혔다. 같은 패널(panel_prod200_v6)·같은 5폴드·같은 5시드로 CO_smooth_d1_h5 를 다시 덤프하면 (fold,date) 구조가 같아 255세션 전부를 비중첩(stride 5, n≈55)으로 짝지을 수 있다. 그러면 '오늘 AUC 1등 arm'과 '배포경로 arm' 중 어느 쪽이 베타를 넘는지, 그리고 방어력(하락국면 Δ)이 어느 쪽에서 나오는지 직접 비교된다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 4200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 5 --only CO_smooth_d1_h5 --dump-preds /app/reports/overnight/cg387_smooth.jsonl --dump-all-codes --out /app/reports/overnight/cg387_sweep.jsonl --summary-out /app/reports/overnight/cg387_summary.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg387_smooth.jsonl --control-jsonl /app/reports/overnight/cg382_ff.jsonl --k 1,3,5 --sides top,bottom --regime-split pool_sign --stride 5 --exit close_h --horizon 5 --max-day-chg 25 --min-value 1e9 --json-out /app/reports/overnight/cg387_money_s5.json'",
+   "counterfactual": "cg382_ff.jsonl (CG376_noroll_h5__ff, 같은 패널·같은 5폴드·같은 255세션) — CG385 실측: vs pool Δ+1.036(t 1.35) at stride 5 · 상승 Δ−0.198 / 하락 Δ+2.412",
+   "success": "① rc=0 · 덤프 255날짜 · pair mode=fold_date(같은 폴드 구조) ② stride 5 에서 CO_smooth_d1_h5 의 vs pool Δ ≥ +1.0%p & t ≥ 2 & 분할 양(+) 이고 오늘 arm 보다 크면 → 배포경로 arm 을 머니 후보로 등록(승격 아님, champion_promote --require-expectancy 는 별도) ③ 두 arm 모두 t<2 면 '이 창의 돈 엣지는 미확립'으로 축 종결하고 새 레버 승인 요청으로 올린다",
+   "expected": "약 25~35분(5폴드×5시드 학습 + 덤프 + 채점). 22사이클 무개선 상태에서 'AUC 1등 vs 돈 후보' 불일치를 끝내는 판정.",
+   "rationale": "CG218 이 같은 config 로 비중첩 Δ+2.391(t 3.38·폴드 5/5)를 냈지만 그때는 넓은 창·다른 프로토콜이었다. 오늘 창에서 같은 런으로 다시 재야 비교가 성립한다(폴드 구조가 다르면 date 짝으로 표본이 절반으로 줄어 판정력이 사라진다 — CG386 실측 29세션).",
+   "est_minutes": 40,
+   "created_at": "2026-11-21T07:36:00+09:00",
+   "needs_approval": false,
+   "not_before": "2026-11-21T07:36:00+09:00"
   }
  ],
  "updated": "2026-11-21"

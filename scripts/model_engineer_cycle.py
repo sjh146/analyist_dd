@@ -3032,6 +3032,10 @@ def parse_fillable_topk_expectancy(path, mtime_floor) -> dict:
         "exit": d.get("exit"), "horizon": d.get("horizon"), "ks": d.get("ks"),
         "arm_tag": d.get("arm_tag"), "control_tag": d.get("control_tag"),
         "fee_roundtrip_pct": d.get("fee_roundtrip_pct"),
+        # stride 를 반드시 싣는다 — h5 를 stride 1 로 채점하면 세션 창이 겹쳐 t 가 부푼다
+        # (2026-11-21 CG385: 같은 덤프 Δ+1.710 t 4.10 → stride 5 Δ+1.036 t 1.35). 판정 문구에
+        # stride 가 없으면 중첩표본 수치가 유의한 엣지로 오독된다.
+        "stride": d.get("stride", 1),
         "rows": d.get("rows"), "n_sessions_fillable": d.get("n_sessions_fillable"),
         "pool_median_fillable": d.get("pool_median_fillable"),
         "conditions": conds, "summary_mtime": mt,
@@ -3223,11 +3227,23 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
         ud = (unf[uk].get("paired") or {}).get("delta_mean")
         ref = (f" · 참고(체결성 필터 OFF): k={uk} arm {ua:+.3f}%p · Δ{ud:+.3f}"
                if isinstance(ua, (int, float)) and isinstance(ud, (int, float)) else "")
+    # 중첩표본 경고 — h5 라벨을 stride 1 로 채점하면 세션 창이 5겹으로 겹쳐 t 가 부풀려진다.
+    # 실측(2026-11-21 CG385, 같은 덤프·같은 255세션): stride 1 Δ+1.710 t 4.10 → stride 5 Δ+1.036 t 1.35.
+    # 원장 문구에 stride 를 남겨, 뒤에 읽는 사람이 '유의했다'로 오독하지 않게 한다.
+    _stride = parsed.get("stride") or 1
+    _overlap = ""
+    try:
+        if int(_stride) < int(parsed.get("horizon") or 1):
+            _overlap = (f" · ⚠중첩표본(stride {int(_stride)} < h{int(parsed.get('horizon') or 1)}) "
+                        f"— t·Δ 는 겹친 창의 재사용으로 부풀려짐")
+    except (TypeError, ValueError):
+        _overlap = ""
     detail = (f"arm {parsed.get('arm_tag')} vs 대조군 {parsed.get('control_tag')} · "
-              f"exit {parsed.get('exit')} h{parsed.get('horizon')} · 수수료 왕복 "
+              f"exit {parsed.get('exit')} h{parsed.get('horizon')} · stride {_stride} · 수수료 왕복 "
               f"{parsed.get('fee_roundtrip_pct')}%p · 세션 {parsed.get('n_sessions_fillable')} · "
               f"풀 중앙값 {parsed.get('pool_median_fillable')} · " + " · ".join(parts)
-              + ref + pool_rel + " · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive")
+              + ref + pool_rel + _overlap
+              + " · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive")
     if ok_all:
         return "신호있음", detail + " → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인)", first
     return "노이즈", detail + " → 사전등록 미충족", first
