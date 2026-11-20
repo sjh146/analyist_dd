@@ -709,3 +709,12 @@
 - 회귀: `tests/test_market_pattern_ledger_partial_guard.py` 8건 + 기존 `test_market_pattern_coverage_check.py` 20건 = **28 passed**.
 - 실경로 검증(수치): ① 정상 데이터 `--today` → `changed sessions: []`(64세션 불변, 오탐 0) ② 실 DB + 18:47 로그값 주입 → `[guard] 부분 스냅샷으로 기존 기록 덮어쓰기 차단: scored 3722 < 기존 3832 x 0.98` 후 11-19 = **3832 · 17.988조 · breadth 64.7 보존**.
 - 남은 것: 19:40 원장 크론이 유일한 정상 기록 경로인데 root crontab 소실(R42) 계열 사고에 노출된다 → R42 승인 항목에 병기. R43 은 20:15 슬롯이 얇은 최신일을 회수함을 재확인(11-19 3,722행 · momentum 3,475).
+
+## [리서처 R44] sns_post_features 5거래일 동결 — writer 는 있었는데 스케줄이 없었다 (2026-11-20 21:2x)
+- 증상(실측): `sns_post_features` 최신 `trade_date` = **2026-11-13**(created_at 11-13 12:06). 11-16~11-20 **5거래일 결번**. 원천 `sns_posts` 는 최신 11-20 09:05 로 정상 → **원천이 아니라 가공 누락**이다.
+- 원인: `scripts/sns_features_writer.py`(sns_posts → 종목·일 집계, 멱등 upsert)는 11-13 에 만들어졌지만 **크론·구동기·래퍼 어디에도 배선이 0건**(`grep -rn` 실측). 원천 수집은 정상이라 0행·파서 실패·신선도 어떤 신호에도 안 걸린다 — 스킬에 적힌 '스케줄 존재를 결함수로 판정하는 check 가 없으면 수집 정지는 어디에도 안 나온다'(R40 교훈)의 재현이다.
+- 조치 1(자율·백필): `--lookback-days 9` 1회 실행 → **2,532행 upsert**(게시글 92,364건/종목 379) → 11-12~11-20 전부 채워짐. 실측 11-20 = 235종목 · attention 평균 **0.496** · 게시글 **52.6**건/종목(11-14·15 주말 158~169종목으로 자연 감소).
+- 조치 2(자율·누락 스케줄 배선): 사용자 crontab `20 18 * * 1-5 /home/jhshi/cron/sns_features.sh`(sns_collect 17:30 뒤·야간 패널 빌드 전) + 래퍼 `scripts/sns_features_cron.py`(claim_start/finish 내장 → 컨테이너 러너도 3값 자기신고).
+- 자기신고 실측: `[claim] sns_features_writer -> sns_post_features source=92364 claimed=2532 persisted=0` — 재실행 no-op(=이미 적재) 정상 경로.
+- 신선도 check 신설: `sns_post_features` 가 `market_data` 마감일 대비 뒤진 거래일 수 ≤ 1 (현재 **0**).
+- 교훈: **writer/스크립트의 존재 ≠ 스케줄의 존재.** 새 writer 를 만들면 같은 커밋에 스케줄·자기신고·신선도 check 를 함께 넣어라. 이 축은 R17(SNS 원천 커버리지 250종목)과 다른 문제다.

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-20T21:24:00+09:00",
+  "updated_at": "2026-11-20T21:30:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1987,6 +1987,25 @@
         "rc": 0,
         "log": "data/reports/res_cycle/logs/res_R43_20261120-004803.log"
       }
+    },
+    {
+      "id": "R44",
+      "title": "sns_post_features 가 5거래일 동결 — writer 는 있는데 스케줄이 없었다 (일일 배선 + 신선도 상시 감시)",
+      "status": "pending",
+      "priority": 5,
+      "kind": "collect",
+      "recurring": true,
+      "affects_model": true,
+      "hypothesis": "`scripts/sns_features_writer.py`(sns_posts → sns_post_features 집계)는 2026-11-13 만들어졌지만 크론·구동기 어디에도 배선이 없어 **11-13 12:06 이후 한 번도 안 돌았다**. 원천 sns_posts 는 신선(11-20 09:05)하므로 '수집은 도는데 가공이 멈춘' 유형이고, 어떤 수집 신호(0행·파서 실패)에도 안 걸린다. 리더(feature_engine/sns_features.py)가 이 표를 읽으므로 SNS 감성·관심도 피처가 조용히 낡는다.",
+      "evidence": "[실측 2026-11-20 21:1x] ① `SELECT max(trade_date) FROM sns_post_features` = **2026-11-13**(created_at 최대 11-13 12:06) — 11-16~11-20 5거래일 결번. ② `sns_posts` 최신 11-20 09:05(건수 정상) → 원천 문제 아님. ③ `grep -rn build_sns_attention_features /home/jhshi/cron /etc/cron.d` = 0건, writer 참조 크론 0건. ④ 수리 후 실측: writer 를 `--lookback-days 9` 로 1회 실행 → **2,532행 upsert**(게시글 92,364건 · 종목 379) → 11-12~11-20 9일 전부 채워짐(11-20 = 235종목 · attention 평균 0.496 · 게시글 52.6). ⑤ 자기신고 `[claim] sns_features_writer -> sns_post_features source=92364 claimed=2532 persisted=0`(재실행 no-op = 정상). ⑥ 스케줄 배선: 사용자 crontab `20 18 * * 1-5 /home/jhshi/cron/sns_features.sh`(sns_collect 17:30 뒤 · 야간 피처/패널 빌드 전) + 래퍼 `scripts/sns_features_cron.py`(claim_start/finish 내장).",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM (SELECT DISTINCT trade_date FROM market_data WHERE volume>0 AND trade_date > (SELECT max(trade_date) FROM sns_post_features) AND trade_date <= (SELECT max(trade_date) FROM market_data WHERE volume>0)) t\"",
+      "check_target": {
+        "op": "<=",
+        "value": 1,
+        "unit": "sns_post_features 가 뒤진 거래일 수(0~1 정상)"
+      },
+      "command": "/home/jhshi/cron/sns_features.sh",
+      "notes": "판정은 '마감된 거래일 기준 지연'이다(당일 바는 존재하면 세지만 장 마감 전엔 없으므로 0~1 이 정상). 이 항목의 교훈 = **writer/스크립트 존재 ≠ 스케줄 존재**: 새 writer 를 만들면 같은 커밋에서 스케줄·자기신고·신선도 check 를 함께 넣어라(R17 SNS 커버리지와 별개 축이다 — 원천이 아니라 가공 누락)."
     }
   ]
 }
