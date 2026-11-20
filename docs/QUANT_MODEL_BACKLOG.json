@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-20T21:09:12+09:00",
+ "updated_at": "2026-11-21T00:16:35+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -22328,7 +22328,7 @@
   },
   {
    "id": "CG374",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "계측기",
    "owner": "엔지니어",
@@ -22346,7 +22346,64 @@
    "not_before": "2026-11-20T20:45",
    "note_asof": "6런 직렬(arm 2 × 시드 3). CG373 실측 19.5분/런 → 약 117분 + 짝 계산. `timeout 2100`(런당) + `timeout 12000`(전체) 이라 driver 의 timeout 자기모순 수리(est 130 → 필요 12000)와 충돌하지 않는다. --asof-date 2026-11-19 로 창을 고정해 재실행이 비트 비교 가능. 평일 20:00 컨테이너 재생성 회피(not_before).",
    "created_at": "2026-11-20T19:20:00+09:00",
-   "needs_approval": false
+   "needs_approval": false,
+   "attempts": [
+    {
+     "ts": "2026-11-20T23:46:27+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "시드 3개 짝 Δ 평균 +0.0278 (SE 0.005083 · t 5.475 · 양(+) 3) · 대조군 0.49543333333333334 vs 챌린저 0.5232666666666667 · 문턱 +0.02 → 양(+) 시드 전부 · 문턱 초과",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG374_20261120-220803.log",
+     "elapsed_min": 98.4
+    }
+   ],
+   "result": {
+    "verdict": "신호있음",
+    "detail": "시드 3개 짝 Δ 평균 +0.0278 (SE 0.005083 · t 5.475 · 양(+) 3) · 대조군 0.49543333333333334 vs 챌린저 0.5232666666666667 · 문턱 +0.02 → 양(+) 시드 전부 · 문턱 초과",
+    "delta": 0.027833,
+    "per_exp": null,
+    "rc": 0
+   },
+   "engineer_verdict_money": "기각(재학습 후보) — AUC 짝 Δ+0.0278(t 5.48) 는 돈으로 전이되지 않는다: 선택엣지 짝 Δ+0.5925%p(t 0.477, top3)·+0.3806(t 0.339, top5). 배포 챔피언 유지.",
+   "money_conversion": {
+    "tool": "scripts/champion_paired_expectancy.py (신설·읽기전용)",
+    "evidence": "data/reports/cg374_paired_money.json",
+    "protocol": "공통 OOS 2026-10-02~11-12 · 28세션 · 체결필터 당일등락<25% & 거래대금>=10억 · 수수료 왕복 0.21%p · top-k 세션평균",
+    "null_baseline_pool_net_pct": -4.2762,
+    "champion": {
+     "top3_net": -3.25,
+     "top3_edge": 1.0262,
+     "top3_edge_t": 0.972,
+     "top5_net": -3.1272,
+     "top5_edge": 1.149,
+     "top5_edge_t": 1.168
+    },
+    "retrain_cg346": {
+     "top3_net": -3.8426,
+     "top3_edge": 0.4336,
+     "top3_edge_t": 0.399,
+     "top5_net": -3.5078,
+     "top5_edge": 0.7684,
+     "top5_edge_t": 0.796
+    },
+    "paired_edge_delta": {
+     "top3": {
+      "mean": 0.5925,
+      "se": 1.2421,
+      "t": 0.477,
+      "pos_dates_frac": 0.536
+     },
+     "top5": {
+      "mean": 0.3806,
+      "se": 1.1225,
+      "t": 0.339,
+      "pos_dates_frac": 0.571
+     }
+    },
+    "conclusion": "두 arm 모두 절대 음(−3.1~−3.8%p/세션, 풀 −4.28 대비 엣지만 소폭 +). AUC Δ+0.0278 은 돈 Δ+0.59%p(t<0.5) = 노이즈 → 승격 후보 아님·재학습 축 종결 근거.",
+    "limits": "fwd_ret 는 덤프의 h일 전방수익률(진입=종가 가정), 슬리피지 미반영. 표본 28세션·윈도가 급락장(풀 −4.28)이라 절대값 해석 금지 — 판단은 풀 대비 엣지로만."
+   },
+   "updated_at": "2026-11-21T00:16:35+09:00"
   },
   {
    "id": "CG375",
@@ -22434,6 +22491,43 @@
     },
     "note": "기준선은 다른 패널(prod200, 200피처) 값이다 — Δ 는 '패널 교체 효과 + 실행 잡음'이고 실행 잡음 바닥은 CG13 실측 0.0287 이다. 따라서 |Δ| < 0.0287 은 패널 효과로 읽지 않는다."
    }
+  },
+  {
+   "id": "CG378",
+   "status": "done",
+   "priority": 1,
+   "kind": "계측기",
+   "owner": "엔지니어",
+   "affects_model": false,
+   "metric": "forward_scorecard_attribution",
+   "title": "[측정 정합성] 전방 성적표가 v1.0·챔피언을 한 풀로 섞어 \"배포 모델 성과\"로 오독되고 있었다 — 버전 귀속·날짜 기록 추가",
+   "hypothesis": "배너의 h5 top10 −3.50% vs 전체 −0.98% 는 배포 챔피언의 성과가 아니라 은퇴 모델(v1.0) 성과가 지배한 혼합값이다. ml_predictions 에 버전이 둘(v1.0 09-22~10-08 15날짜 · champ-20261002 10-09~11-19 12날짜)인데 forward_scorecard 가 (종목·날짜) 단위 최신행만 남겨 **날짜 축으로는 두 모델을 그대로 합쳐** 채점한다.",
+   "method": "forward_scorecard.py 에 ① --model-version 필터 ② 각 창의 dates·date_versions·by_version(버전별 money) 출력 추가 · 구동기 parse_forward_scorecard 통과 + 배너에 ⚠판본혼합 표기",
+   "evidence": "2026-11-21 00:1x 실측(읽기전용). 혼합 h5 12날짜 = v1.0 9 + champ 3. 분해: champ(top5) net −1.258 vs 풀 −1.182 → Δ −0.076(t −0.04) / v1.0(top5) net −5.857 vs 풀 −3.316 → Δ −2.541(t −2.40). 즉 혼합 배너의 −3.50% 는 **은퇴 v1.0 기록**이 지배하며, 배포 챔피언의 전방 선택엣지는 ≈0 이다.",
+   "command": "docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/forward_scorecard.py --out /app/reports/overnight/forward_scorecard.json && set -a && . ./.env && set +a && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 python3 scripts/forward_scorecard.py --topk 5 --model-version champ-20261002T024420-0.5513 --out data/reports/cg378_fwd_champ.json",
+   "counterfactual": "수리 전 혼합 배너: h1 16날짜 pooled 0.5687 top10 +0.0450% vs 전체 +0.2659% · h5 12날짜 pooled 0.5956 top10 −3.5014% vs 전체 −0.9788%",
+   "success": "① rc=0 · 요약 JSON 에 dates·by_version 존재 ② 배너에 판본혼합 표기 출력(검증: model_engineer_cycle._forward_summary_line) ③ 버전별 n_dates 합 = 혼합 n_dates",
+   "result": "완료 — 배너 출력 실측: \"h5 n_dates 12 · pooled 0.5956 · top10 −3.5014% vs 전체 −0.9788% · ⚠판본혼합 v1.0:9d·champ:3d\". 파서 통과(by_version 2키).",
+   "est_minutes": 5,
+   "not_before": "2026-11-20T23:30",
+   "created_at": "2026-11-21T00:16:35+09:00",
+   "updated_at": "2026-11-21T00:16:35+09:00"
+  },
+  {
+   "id": "CG379",
+   "status": "needs_setup",
+   "priority": 2,
+   "kind": "핸드오프",
+   "owner": "엔지니어",
+   "affects_model": false,
+   "metric": "forward_sample",
+   "title": "[핸드오프→트레이더] 배포 챔피언 전방 h5 표본이 3날짜뿐 — ml_predictions 주말 날짜·누락일 수리(CG75 판정 n_dates≥10 불가)",
+   "hypothesis": "버전 귀속 후 실측: champ-20261002 의 h5 채점 가능 날짜가 3개(11-09·11-10·11-12)뿐이다. 원인은 ① 비거래일 prediction_date(2026-10-10 토·11-14 토·11-15 일 — market_data 에 그 날짜 없음 → 채점 제외) ② 11-11(거래일) 행 0 ③ 10-11~11-08 ML 서비스 공백. 즉 추론 경로가 KST 거래일이 아니라 UTC/실행시각 기준으로 날짜를 찍어 표본이 구조적으로 늘지 않는다.",
+   "setup_needed": "트레이더 소유(app/inference·ml_predictions 적재) 수리 3건: ① predict() 기본 date 를 KST 거래일로 확정(비거래일이면 직전 거래일 또는 skip) ② 주말·휴장 prediction_date 행 생성 금지 ③ 누락일(11-11) 재실행 백필. 완료 후 엔지니어가 재검증: `python3 scripts/forward_scorecard.py --topk 5 --model-version <champ> --out data/reports/cg379_fwd.json` 의 h5 dates 수가 10 이상.",
+   "why_matters": "이 표본이 10날짜를 넘지 못하면 배포 모델의 실거래 성과는 영원히 판정 불가(CG75 프로토콜 n_dates≥10) — AUC 실험 21사이클이 돈으로 검증되지 않는 이유의 절반이 여기 있다.",
+   "est_minutes": 0,
+   "created_at": "2026-11-21T00:16:35+09:00",
+   "updated_at": "2026-11-21T00:16:35+09:00"
   }
  ],
  "updated": "2026-11-20T17:10:47+09:00"

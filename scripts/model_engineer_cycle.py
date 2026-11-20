@@ -2565,7 +2565,9 @@ def parse_forward_scorecard(path, mtime_floor) -> dict:
         windows[str(k)] = {f: v.get(f) for f in
                            ("n_pairs", "n_dates", "skipped", "pooled_auc", "daily_auc_mean",
                             "daily_auc_list", "base_rate_up", "top10_ret_mean", "all_ret_mean",
-                            "money", "money_filter")}
+                            "money", "money_filter",
+                            # CG378: 창 귀속(버전 혼합 여부) — pooled 만 보고하면 배포 모델 성과로 오독된다
+                            "dates", "date_versions", "by_version")}
     out = {"summary_mtime": mt, "generated_at": d.get("generated_at"),
            "predictions_rows": d.get("predictions_rows"),
            "model_versions": d.get("model_versions"), "windows": windows}
@@ -6384,10 +6386,17 @@ def _forward_summary_line(path) -> str:
         w = res.get(h) or {}
         auc = w.get("pooled_auc")
         top, allr = w.get("top10_ret_mean"), w.get("all_ret_mean")
+        bv = w.get("by_version") or {}
+        vnote = ""
+        if len(bv) > 1:
+            seg = "·".join(f"{str(k).split('-')[0]}:{v.get('n_dates')}d"
+                           for k, v in sorted(bv.items(),
+                                              key=lambda kv: -(kv[1].get("n_dates") or 0)))
+            vnote = f" · ⚠판본혼합 {seg}"
         parts.append(
             f"{h} n_dates {w.get('n_dates')} · pooled {auc if auc is None else round(float(auc), 4)} · "
             f"top10 {'n/a' if top is None else format(float(top), '+.4%')}"
-            f" vs 전체 {'n/a' if allr is None else format(float(allr), '+.4%')}")
+            f" vs 전체 {'n/a' if allr is None else format(float(allr), '+.4%')}{vnote}")
     return "전방 성적표: " + " | ".join(parts)
 
 

@@ -255,6 +255,8 @@ def main() -> int:
     ap.add_argument("--fee-buy", type=float, default=FEE_BUY)
     ap.add_argument("--fee-sell", type=float, default=FEE_SELL)
     ap.add_argument("--tax-sell", type=float, default=TAX_SELL)
+    ap.add_argument("--model-version", default=None,
+                    help="ml_predictions.model_version 필터 — 버전이 섞인 pooled 판정을 막는다(CG378)")
     args = ap.parse_args()
 
     fee_rt = args.fee_buy + args.fee_sell + args.tax_sell
@@ -262,7 +264,10 @@ def main() -> int:
     conn = _pg_connect()
     cur = conn.cursor()
     cur.execute("SELECT stock_code, prediction_date, model_version, confidence, created_at "
-                "FROM ml_predictions WHERE confidence IS NOT NULL ORDER BY 1,2,5")
+                "FROM ml_predictions WHERE confidence IS NOT NULL "
+                + ("AND model_version = %s " if args.model_version else "")
+                + "ORDER BY 1,2,5",
+                ((args.model_version,) if args.model_version else ()))
     preds = _dedupe_latest(cur.fetchall())
     # 모델 버전별 표본 수 — 승격/롤백 전후를 나눠 볼 수 있게 함께 낸다(model_version 귀속).
     ver_counts: dict = defaultdict(int)
@@ -283,6 +288,7 @@ def main() -> int:
     conn.close()
 
     maxh = 5
+    date_ver: dict = defaultdict(set)
     res = {}
     for h in (1, maxh):
         pairs = []
@@ -316,6 +322,7 @@ def main() -> int:
                              max_day_chg=args.max_day_chg, limit_up_pct=args.limit_up_pct,
                              min_value=args.min_value)
             by_date_top[pdate].append((conf, r, ok))
+            date_ver[pdate].add(ver)
         daily = [a for a in (_auc(v) for v in per_date.values()) if a is not None]
         top_ret = []
         for d, lst in by_date_top.items():
@@ -336,6 +343,17 @@ def main() -> int:
             "all_ret_mean": (sum(all_ret) / len(all_ret)) if all_ret else None,
             # ↓ CG137: 체결성 필터 + 수수료 + 널 기준선(최우선 규칙 정합)
             "money": money_stats(by_date_top, args.topk, fee_rt),
+            # ↓ CG378(2026-11-21): 창 귀속 — 모델 버전이 섞이면 pooled 지표의 해석이 불가능하다
+            "dates": sorted(by_date_top),
+            "date_versions": {d: ("MIXED:" + ",".join(sorted(date_ver[d])))
+                              if len(date_ver[d]) > 1 else next(iter(date_ver[d] or {"?"}))
+                              for d in sorted(by_date_top)},
+            "by_version": {
+                v: money_stats({d: lst for d, lst in by_date_top.items()
+                                if date_ver[d] == {v}}, args.topk, fee_rt)
+                for v in sorted({next(iter(vs)) for d, vs in date_ver.items()
+                                 if d in by_date_top and len(vs) == 1})
+            },
             # ↓ CG368(2026-11-20): 선별 강도 단조성 — top-k 가 풀을 하회할 때 역예측인지 문턱 잡음인지
             "quintiles": quintile_stats(by_date_top, fee_rt, nq=5),
             "money_filter": {

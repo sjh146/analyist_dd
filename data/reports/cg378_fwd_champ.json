@@ -1,0 +1,232 @@
+{
+  "generated_at": "2026-11-21T00:14:10",
+  "predictions_rows": 48630,
+  "model_versions": {
+    "champ-20261002T024420-0.5513": 48630
+  },
+  "fee_roundtrip_pct": 0.21,
+  "result": {
+    "h1": {
+      "n_pairs": 25218,
+      "n_dates": 7,
+      "skipped": 23412,
+      "pooled_auc": 0.5324951779659787,
+      "daily_auc_mean": 0.5111234329849758,
+      "daily_auc_list": [
+        0.5013,
+        0.5369,
+        0.4688,
+        0.5461,
+        0.5257,
+        0.52,
+        0.4791
+      ],
+      "base_rate_up": 0.49119676421603614,
+      "top5_ret_mean": 0.013642274844387034,
+      "all_ret_mean": 0.0032454313999292655,
+      "money": {
+        "k": 5,
+        "fee_roundtrip_pct": 0.21,
+        "n_dates": 7,
+        "rows": 25218,
+        "kept": 5546,
+        "no_filter_data": 4326,
+        "kept_ratio": 0.2199,
+        "topk_net_mean_pct": 1.505,
+        "pool_net_mean_pct": 0.579,
+        "delta_mean_pct": 0.9259,
+        "delta_sd_pct": 3.649,
+        "delta_t": 0.6714,
+        "split_half_pct": [
+          0.6329,
+          1.1457
+        ],
+        "topk_pos_dates": 4,
+        "date_deltas_pct": [
+          1.0209,
+          4.3806,
+          -3.5027,
+          -1.4861,
+          -1.6471,
+          0.8001,
+          6.916
+        ]
+      },
+      "dates": [
+        "2026-11-09",
+        "2026-11-10",
+        "2026-11-12",
+        "2026-11-13",
+        "2026-11-16",
+        "2026-11-17",
+        "2026-11-18"
+      ],
+      "date_versions": {
+        "2026-11-09": "champ-20261002T024420-0.5513",
+        "2026-11-10": "champ-20261002T024420-0.5513",
+        "2026-11-12": "champ-20261002T024420-0.5513",
+        "2026-11-13": "champ-20261002T024420-0.5513",
+        "2026-11-16": "champ-20261002T024420-0.5513",
+        "2026-11-17": "champ-20261002T024420-0.5513",
+        "2026-11-18": "champ-20261002T024420-0.5513"
+      },
+      "by_version": {
+        "champ-20261002T024420-0.5513": {
+          "k": 5,
+          "fee_roundtrip_pct": 0.21,
+          "n_dates": 7,
+          "rows": 25218,
+          "kept": 5546,
+          "no_filter_data": 4326,
+          "kept_ratio": 0.2199,
+          "topk_net_mean_pct": 1.505,
+          "pool_net_mean_pct": 0.579,
+          "delta_mean_pct": 0.9259,
+          "delta_sd_pct": 3.649,
+          "delta_t": 0.6714,
+          "split_half_pct": [
+            0.6329,
+            1.1457
+          ],
+          "topk_pos_dates": 4,
+          "date_deltas_pct": [
+            1.0209,
+            4.3806,
+            -3.5027,
+            -1.4861,
+            -1.6471,
+            0.8001,
+            6.916
+          ]
+        }
+      },
+      "quintiles": {
+        "nq": 5,
+        "n_dates": 7,
+        "bucket_net_mean_pct": [
+          0.7556,
+          0.6461,
+          0.5491,
+          0.3047,
+          0.6399
+        ],
+        "q_top_minus_q_bottom_pct": 0.1157,
+        "sd_pct": 1.1214,
+        "t": 0.2729,
+        "split_half_pct": [
+          0.7692,
+          -0.3745
+        ],
+        "monotone_date_frac": 0.0,
+        "note": "bucket 0 = 점수 최상위. monotone_date_frac = 날짜별로 버킷 평균이 단조 감소한 비율."
+      },
+      "money_filter": {
+        "exclude_limit_up": "day_chg >= 29.9%",
+        "max_day_chg_pct": 25.0,
+        "min_value_krw": 1000000000.0,
+        "note": "당일등락·거래대금 자료가 없는 행은 통과시키지 않는다(no_filter_data) — 필터 없이 계산한 기대값은 보고 금지(최우선 규칙 3)."
+      }
+    },
+    "h5": {
+      "n_pairs": 11482,
+      "n_dates": 3,
+      "skipped": 37148,
+      "pooled_auc": 0.515553933635387,
+      "daily_auc_mean": 0.4951574328301125,
+      "daily_auc_list": [
+        0.4832,
+        0.4975,
+        0.5048
+      ],
+      "base_rate_up": 0.35725483365267374,
+      "top5_ret_mean": -0.05860524357154206,
+      "all_ret_mean": -0.011544574756061148,
+      "money": {
+        "k": 5,
+        "fee_roundtrip_pct": 0.21,
+        "n_dates": 3,
+        "rows": 11482,
+        "kept": 2183,
+        "no_filter_data": 3156,
+        "kept_ratio": 0.1901,
+        "topk_net_mean_pct": -2.7957,
+        "pool_net_mean_pct": -1.182,
+        "delta_mean_pct": -1.6137,
+        "delta_sd_pct": 4.256,
+        "delta_t": -0.6567,
+        "split_half_pct": [
+          -2.4675,
+          -1.1868
+        ],
+        "topk_pos_dates": 1,
+        "date_deltas_pct": [
+          -2.4675,
+          3.0045,
+          -5.3781
+        ]
+      },
+      "dates": [
+        "2026-11-09",
+        "2026-11-10",
+        "2026-11-12"
+      ],
+      "date_versions": {
+        "2026-11-09": "champ-20261002T024420-0.5513",
+        "2026-11-10": "champ-20261002T024420-0.5513",
+        "2026-11-12": "champ-20261002T024420-0.5513"
+      },
+      "by_version": {
+        "champ-20261002T024420-0.5513": {
+          "k": 5,
+          "fee_roundtrip_pct": 0.21,
+          "n_dates": 3,
+          "rows": 11482,
+          "kept": 2183,
+          "no_filter_data": 3156,
+          "kept_ratio": 0.1901,
+          "topk_net_mean_pct": -2.7957,
+          "pool_net_mean_pct": -1.182,
+          "delta_mean_pct": -1.6137,
+          "delta_sd_pct": 4.256,
+          "delta_t": -0.6567,
+          "split_half_pct": [
+            -2.4675,
+            -1.1868
+          ],
+          "topk_pos_dates": 1,
+          "date_deltas_pct": [
+            -2.4675,
+            3.0045,
+            -5.3781
+          ]
+        }
+      },
+      "quintiles": {
+        "nq": 5,
+        "n_dates": 3,
+        "bucket_net_mean_pct": [
+          -1.583,
+          -0.6516,
+          -0.8815,
+          -1.6901,
+          -1.1049
+        ],
+        "q_top_minus_q_bottom_pct": -0.4781,
+        "sd_pct": 1.4562,
+        "t": -0.5687,
+        "split_half_pct": [
+          -1.77,
+          0.1679
+        ],
+        "monotone_date_frac": 0.0,
+        "note": "bucket 0 = 점수 최상위. monotone_date_frac = 날짜별로 버킷 평균이 단조 감소한 비율."
+      },
+      "money_filter": {
+        "exclude_limit_up": "day_chg >= 29.9%",
+        "max_day_chg_pct": 25.0,
+        "min_value_krw": 1000000000.0,
+        "note": "당일등락·거래대금 자료가 없는 행은 통과시키지 않는다(no_filter_data) — 필터 없이 계산한 기대값은 보고 금지(최우선 규칙 3)."
+      }
+    }
+  }
+}
