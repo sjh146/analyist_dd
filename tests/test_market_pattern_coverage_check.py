@@ -200,3 +200,31 @@ def test_pending_grace_expires_into_defect():
     defects, _ = chk.judge(records, [("2026-11-19", 3722, 0.0, 1.0)],
                            now=datetime(2026, 11, 20, 20, 0))
     assert [d[1] for d in defects] == ["원천결손"]
+
+
+# --- 원장 기록 담당 시각 유예 (실측 2026-11-21 04:5x) ---------------------------
+# `market_pattern_ledger.py --today`(평일 19:40)는 그 시점 DB 의 **최신** 세션을 기록하므로
+# 원장은 구조적으로 한 세션 뒤진다(11-20 세션은 11-23 19:40 에 기록). 종전 검사는 이 지연을
+# '누락'으로 세어 주말·새벽 틱마다 상시 1건 미달을 기록했다(R41 11-20 18:47 '1 <= 0 → 미달').
+
+def test_ledger_pending_window_ends_next_weekday_1950():
+    from datetime import datetime
+    assert chk.ledger_due_at("2026-11-20").strftime("%Y-%m-%d %H:%M") == "2026-11-23 19:50"
+    assert chk.ledger_pending("2026-11-20", datetime(2026, 11, 21, 4, 47)) is True
+    assert chk.ledger_pending("2026-11-20", datetime(2026, 11, 23, 19, 55)) is False
+
+
+def test_missing_latest_session_in_window_is_grace_not_defect():
+    from datetime import datetime
+    defects, lines = chk.judge({}, [("2026-11-20", 3722, 0.0, 1.0)],
+                               now=datetime(2026, 11, 21, 4, 47))
+    assert defects == [], "원장 기록 창 전의 누락은 결번이 아니다"
+    assert any(l.startswith("  · 유예(원장 기록 전)") for l in lines)
+
+
+def test_missing_session_after_window_is_defect():
+    """창이 지나도 원장에 없으면 결함이다 — 유예가 실명을 가리면 안 된다."""
+    from datetime import datetime
+    defects, _ = chk.judge({}, [("2026-11-20", 3722, 0.0, 1.0)],
+                           now=datetime(2026, 11, 23, 20, 0))
+    assert [d[1] for d in defects] == ["누락"]

@@ -44,6 +44,9 @@ WINDOW_SESSIONS = int(os.environ.get("MPC_WINDOW_SESSIONS") or 30)
 # 그 경로는 **D-1 까지**만 적재한다(당일 봉은 발행 전 = 미완성 봉 가드). 따라서 세션 S 의
 # trading_value 는 S+1 18:55(+소요 ~35분)에야 채워진다.
 SOURCE_DUE_HOUR, SOURCE_DUE_MIN = 19, 30
+# 원장 기록 담당 시각 — `market_pattern_tick.sh`(평일 19:40)는 **그 시점 DB 에 있는 최신 세션**을
+# 기록하므로 세션 S 는 S+1 평일 19:40(+소요 ~10분)에야 원장에 들어온다. 그 전의 '누락'은 결번이 아니다.
+LEDGER_DUE_HOUR, LEDGER_DUE_MIN = 19, 50
 
 
 def _session_date(session):
@@ -75,6 +78,31 @@ def source_pending(session, now=None):
     판정은 '마땅히 있어야 하는데 없는' 것만 세야 한다 — 담당 시각 전의 NULL 은 결번이 아니다.
     """
     due = source_due_at(session)
+    if due is None:
+        return False
+    return (now or datetime.now()) < due
+
+
+def ledger_due_at(session):
+    """그 세션이 원장에 기록될 시각 = 다음 평일 19:40(+소요)."""
+    d = _session_date(session)
+    if d is None:
+        return None
+    day = d + timedelta(days=1)
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return datetime.combine(day, dtime(LEDGER_DUE_HOUR, LEDGER_DUE_MIN))
+
+
+def ledger_pending(session, now=None):
+    """원장 기록 창이 아직 오지 않은 '정상 과도기'인가.
+
+    WHY (실측 2026-11-21 04:5x): `--today`(19:40)는 그 시점 DB 의 최신 세션을 기록하므로
+    원장은 구조적으로 **한 세션 뒤진다**(11-20 세션은 11-23 19:40 에 들어온다). 종전 검사는
+    이를 '누락'으로 세어 주말·평일 새벽 틱마다 상시 1건 미달을 만들었다 — 고칠 수 없는 결함을
+    신호로 부르면 문턱이 아니라 잡음이다. 담당 시각 전의 누락만 유예하고, 그 뒤에도 없으면 결함.
+    """
+    due = ledger_due_at(session)
     if due is None:
         return False
     return (now or datetime.now()) < due
@@ -149,6 +177,11 @@ def judge(records, sessions, tol=TOLERANCE, now=None):
         null_ratio = float(row[3]) if len(row) > 3 and row[3] is not None else None
         rec = records.get(session)
         if rec is None:
+            if ledger_pending(session, now):
+                due = ledger_due_at(session)
+                lines.append(f"  · 유예(원장 기록 전) {session} — DB {n}봉, "
+                             f"원장 담당 {due:%m-%d %H:%M} 이후 판정")
+                continue
             defects.append((session, "누락", f"DB {n}봉인데 원장에 세션 없음"))
             continue
         scored = rec.get("scored")
