@@ -79,7 +79,8 @@
   "live_score_gate": {
    "ok": false,
    "why": "후보 신호 0건(문턱 0.55 초과, 챔피언 14건, 최대 0.4663)"
-  }
+  },
+  "note": "min_robust_auc 0.5 는 objective.json acceptance 값 그대로(사전 등록). --min-expectancy-t 2 는 objective.json 에 없는 내가 추가한 하한이며, 거부는 AUC 하한에서 먼저 났다(코드 L379 가 L394 보다 선행) → 판정 귀속은 AUC 하한 단독."
  },
  "verdict": "승격 금지(kept_incumbent) — ① 다중폴드 OOS AUC 0.4376 < 0.5 이고 챔피언 같은 프로토콜 0.4908 보다 낮다(후보가 더 나쁘다) ② 순기대 +0.0905%p 는 t 0.38 로 0 과 구별되지 않는다 ③ 단일분할 0.6175 는 catboost 0.6216 단독(xgb 0.4912) · 2,375행/16일 val 값이라 하드규칙 1 로 근거가 될 수 없다. 직전 후보(11-19, robust 0.4624)보다도 낮다.",
  "pattern": {
@@ -183,6 +184,7 @@
  "promote_gate_hole": {
   "evidence": "오늘 같은 후보에 대해 --require-expectancy 만 주면 status=would_promote(단일분할 0.6175 vs 0.5513), --require-robust --min-robust-auc 0.5 를 더해야 kept_incumbent. config/objective.json gates.promote_require_robust=false 이고 scripts/objective.py::promote_flags(L107-124)는 하한 플래그를 내보내지 않는다.",
   "severity": "잠재 — 챔피언 자동 승격을 부르는 크론/스케줄러는 없음(crontab·/etc/cron.d 확인). 수동 릴리스 스크립트 경로에만 존재",
-  "needs": "리뷰보드 승인(게이트 정책 변경)"
+  "needs": "리뷰보드 승인(게이트 정책 변경)",
+  "refine": "정밀화: gates.promote_require_robust=true 로만 켜도 후보 0.4376 < min_auc 기본 0.53 이라 거부된다. 즉 구멍의 핵심은 '플래그가 꺼져 있다'(config/objective.json) + promote_flags 가 하한 인자를 내보내지 않아 '0.5 하한'이 문서상 값으로만 존재한다는 점. 최소 수정: gates.promote_require_robust=true(값 1개) + promote_flags 가 --min-robust-auc 0.5 를 함께 내보내게 배선. t≥2 하한 신설은 objective.json acceptance 변경 = 리뷰보드."
  }
 }
