@@ -1,0 +1,188 @@
+{
+ "kind": "engineer_daily_judgment",
+ "created_at": "2026-11-20T22:45:00+09:00",
+ "champion_before": {
+  "auc_txt": 0.551318,
+  "robust_auc_singlesplit": 0.5513,
+  "same_protocol_robust_oos": 0.4908,
+  "expectancy_pct": -0.182,
+  "expectancy_t": -0.81,
+  "n_sessions": 87,
+  "n_trades": 1340,
+  "halves": {
+   "front": -0.1066,
+   "back": -0.2557,
+   "stable": "neither"
+  },
+  "champion_dir_mtime": "2026-10-02T14:13 (미변경 — 오늘 승격 0건)"
+ },
+ "challenger": {
+  "dir": "app/models/champion_cand",
+  "retrained_at": "2026-11-20T11:44:52",
+  "n_rows": 11871,
+  "n_train": 9496,
+  "n_val": 2375,
+  "data_window": [
+   "2026-08-22",
+   "2026-11-20"
+  ],
+  "val_window": [
+   "2026-11-04",
+   "2026-11-20"
+  ],
+  "single_split_ensemble_auc": 0.6175,
+  "ensemble_auc_deployed_substance": 0.5854,
+  "model_aucs": {
+   "xgboost": 0.4912,
+   "lightgbm": 0.5353,
+   "catboost": 0.6216
+  },
+  "robust_oos": {
+   "robust_auc": 0.4376,
+   "fold_aucs": [
+    0.4366,
+    0.4264,
+    0.4496
+   ],
+   "folds_evaluated": 3,
+   "fold_std": 0.0095,
+   "auc_pooled": 0.4575,
+   "expectancy_pct": 0.0905,
+   "expectancy_t": 0.38,
+   "n_sessions": 113,
+   "n_trades": 1771,
+   "halves": {
+    "front_pct": 0.0963,
+    "back_pct": 0.0848,
+    "stable": "both_positive"
+   },
+   "protocol": "80종목·h5 rel·3폴드(5요청)·topk3·수수료 0.21%p·익일시가",
+   "created_at": "2026-11-20T12:03:23"
+  }
+ },
+ "gate_default": {
+  "cmd": "champion_promote --dry-run --require-expectancy",
+  "status": "would_promote",
+  "candidate_auc": 0.6175,
+  "candidate_metric": "ensemble_auc",
+  "champion_baseline": 0.5513,
+  "note": "단일분할 지표로 통과 — 하드규칙 1(단일분할은 승격 근거 아님)에 따라 이 판정은 채택하지 않는다"
+ },
+ "gate_acceptance": {
+  "cmd": "champion_promote --dry-run --require-expectancy --require-robust --min-robust-auc 0.5 --min-expectancy-t 2",
+  "status": "kept_incumbent",
+  "reason": "다중 폴드 OOS AUC 하한 미달: 후보 0.4376 < 0.5000 (objective.json goal.acceptance.min_robust_auc)",
+  "candidate_metric": "robust_auc",
+  "candidate_auc": 0.4376,
+  "champion_baseline": 0.5513,
+  "champion_baseline_source": "robust_auc.json",
+  "live_score_gate": {
+   "ok": false,
+   "why": "후보 신호 0건(문턱 0.55 초과, 챔피언 14건, 최대 0.4663)"
+  }
+ },
+ "verdict": "승격 금지(kept_incumbent) — ① 다중폴드 OOS AUC 0.4376 < 0.5 이고 챔피언 같은 프로토콜 0.4908 보다 낮다(후보가 더 나쁘다) ② 순기대 +0.0905%p 는 t 0.38 로 0 과 구별되지 않는다 ③ 단일분할 0.6175 는 catboost 0.6216 단독(xgb 0.4912) · 2,375행/16일 val 값이라 하드규칙 1 로 근거가 될 수 없다. 직전 후보(11-19, robust 0.4624)보다도 낮다.",
+ "pattern": {
+  "note": "같은 패턴 3회 연속: 일일 재학습 후보의 단일분할 ensemble_auc 0.5939(11-19)/0.6175(11-20) vs 같은 후보의 다중폴드 robust_auc 0.4624/0.4376 — 부호가 반대다. 일일 재학습 산출물의 단일분할 AUC 는 승격 신호로 쓰지 않는다(스킬 최우선 규칙과 같은 결론).",
+  "candidate_train_window_days": 90,
+  "why": "후보 학습창이 2026-08-22~11-20(약 3개월)로 챔피언의 장기 이력과 학습 도메인이 다르다 — 다중폴드 3폴드는 그 창 안의 연속 구간이라 표본도 얇다."
+ },
+ "forward_money": {
+  "source": "services/xgboost-ml/reports/overnight/forward_scorecard.json",
+  "generated_at": "2026-11-19T17:08:28",
+  "h1": {
+   "n_dates": 16,
+   "rows": 58520,
+   "kept": 12630,
+   "topk_net_pct": 0.3831,
+   "pool_net_pct": 0.1203,
+   "delta_pct": 0.2628,
+   "delta_t": 0.4283,
+   "topk_pos_dates": "7/16",
+   "pooled_auc": 0.5699,
+   "daily_auc_mean": 0.5145
+  },
+  "h5": {
+   "n_dates": 12,
+   "n_pairs": 44753,
+   "pooled_auc": 0.5961,
+   "daily_auc_mean": 0.5035,
+   "note": "n_dates 12 < 20 → CG365 판정 보류 유지(표본 누적 대기)"
+  }
+ },
+ "dq_leak_check": {
+  "dq_feature_stock_constant_ratio": 0.3947,
+  "dq_feature_market_level_count": 24,
+  "dq_feature_coverage_illusion_max": 0.9951,
+  "dq_feature_null_ratio_high_count": 27,
+  "dq_feature_alive_xsec_count": 166,
+  "dq_feature_feature_count": 202,
+  "note": "시장레벨 24·null_high 27 불변. 종목상수는 0.3737(11-19) → 0.3947 이지만 기준선대(≈0.38~0.40) 안이고, 패널 v6 신규 집계 8종이 종목상수로 잡히는지 CG376 스크린에서 확인 필요. 단일피처 AUC 상한 0.75 위반 신호는 없음(CG376 준비 단계 단변량 최대 0.5177)."
+ },
+ "cycle": {
+  "running": {
+   "id": "CG374",
+   "pid": 3040918,
+   "started": "2026-11-20T22:08:03",
+   "est_minutes": 130,
+   "desc": "배포 챔피언 vs 재학습 후보(retrain_cg346) 같은 창 짝 비교 3유니버스 시드"
+  },
+  "queued": [
+   {
+    "id": "CG376",
+    "status": "pending",
+    "est": 30,
+    "desc": "event_rolling 집계 8종 A/B (panel_prod200_v6·221피처) — 첫 데이터 축 실험"
+   },
+   {
+    "id": "CG377",
+    "status": "pending",
+    "est": 40,
+    "depends_on": [
+     "CG376"
+    ],
+    "desc": "주간 다중폴드 재측정(금요일 프로토콜)을 v6 에서 — 11-13 prod200 값과 대조"
+   },
+   {
+    "id": "CG375",
+    "status": "pending",
+    "est": 25,
+    "not_before": "2026-11-21T16:10",
+    "desc": "적립 29날짜(내일 종가 적재 후)"
+   }
+  ],
+  "today_done": [
+   {
+    "id": "CG369",
+    "verdict": "재현됨 — UNIVERSE_ASOF_DATE 동결로 같은 모집단·같은 예측(교집합 1.0·max|Δpred| 0)"
+   },
+   {
+    "id": "CG370",
+    "verdict": "23날짜 견고 AUC 0.5389·SD 0.0371 (동결 전 0.0623 대비 −0.0252)"
+   },
+   {
+    "id": "CG371",
+    "verdict": "28날짜 0.5412·SD 0.0368·SE 0.0070"
+   },
+   {
+    "id": "CG372",
+    "verdict": "28날짜 — 동일값 재생산(정보 0)"
+   },
+   {
+    "id": "CG373",
+    "verdict": "28날짜 — 동일값 재생산(정보 0). 11-20 종가 미적재 상태였다"
+   }
+  ]
+ },
+ "followups": [
+  "CG376 event_rolling 집계 A/B — 오늘 밤 직렬 실행(첫 데이터 축 레버)",
+  "CG377 주간 폴드 재측정(v6) — CG376 뒤 자동",
+  "CG375 적립 29날짜 — 11-21 16:10 이후(not_before 로 재실행 차단)",
+  "승격 게이트 구멍: promote_flags 가 --min-robust-auc/--min-expectancy-t 를 내보내지 않고 gates.promote_require_robust=false → 승인 요청(②)"
+ ],
+ "promote_gate_hole": {
+  "evidence": "오늘 같은 후보에 대해 --require-expectancy 만 주면 status=would_promote(단일분할 0.6175 vs 0.5513), --require-robust --min-robust-auc 0.5 를 더해야 kept_incumbent. config/objective.json gates.promote_require_robust=false 이고 scripts/objective.py::promote_flags(L107-124)는 하한 플래그를 내보내지 않는다.",
+  "severity": "잠재 — 챔피언 자동 승격을 부르는 크론/스케줄러는 없음(crontab·/etc/cron.d 확인). 수동 릴리스 스크립트 경로에만 존재",
+  "needs": "리뷰보드 승인(게이트 정책 변경)"
+ }
+}
