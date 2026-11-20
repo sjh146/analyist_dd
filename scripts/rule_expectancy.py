@@ -86,6 +86,24 @@ def load_short(conn, d_from, d_to):
     return d
 
 
+def load_index(conn, d_from, d_to, index_code="KOSDAQ"):
+    """지수 일별 수익률 → 레짐 분류용. (index_daily 는 2026-11-20 백필)"""
+    sql = """
+        SELECT trade_date AS dt, close
+        FROM index_daily WHERE index_code = %s AND trade_date BETWEEN %s AND %s
+        ORDER BY trade_date
+    """
+    try:
+        d = pd.read_sql(sql, conn, params=(index_code, d_from, d_to))
+    except Exception:
+        return pd.DataFrame(columns=["dt", "idx_ret"])
+    if d.empty:
+        return pd.DataFrame(columns=["dt", "idx_ret"])
+    d["dt"] = pd.to_datetime(d["dt"])
+    d["idx_ret"] = d["close"].astype(float).pct_change()
+    return d[["dt", "idx_ret"]]
+
+
 def load_news(conn, d_from, d_to):
     sql = """
         SELECT stock_code AS code, trade_date AS dt, mention_7d
@@ -151,6 +169,7 @@ def main(argv=None) -> int:
     ap.add_argument("--slip-bps", type=float, default=20.0)
     ap.add_argument("--min-value", type=float, default=3e8)
     ap.add_argument("--min-price", type=float, default=1000.0)
+    ap.add_argument("--index-code", default="KOSDAQ", help="레짐 분류용 지수(기본 KOSDAQ)")
     ap.add_argument("--json-out", default=os.path.join(HERE, "data/reports/rule_expectancy.json"))
     args = ap.parse_args(argv)
 
@@ -159,23 +178,35 @@ def main(argv=None) -> int:
     df = add_forward(load_prices(conn, args.d_from, args.d_to))
     short = load_short(conn, args.d_from, args.d_to)
     news = load_news(conn, args.d_from, args.d_to)
+    idx = load_index(conn, args.d_from, args.d_to, args.index_code)
     conn.close()
 
     rules = build_rules(df, short, news, args.min_value, args.min_price)
     # 기준선(전 유니버스) — 규칙 값이 시장 전체 드리프트인지 신호인지 가르는 필수 대조군.
     # (실측 2026-11-20: 모든 규칙이 -0.65~-1.0% 로 비슷하게 나와 대조군 없이는 해석 불가)
+    for _k in list(rules):
+        rules[_k] = rules[_k].merge(idx, on="dt", how="left")
     base_all = df[(df["value"] >= args.min_value) & (df["close"] >= args.min_price)
-                  & df["fwd1"].notna()]
+                  & df["fwd1"].notna()].merge(idx, on="dt", how="left")
     out = {"window": [args.d_from, args.d_to], "cost_pct": round(cost * 100, 3),
            "universe_min_value": args.min_value, "rules": {}}
     base_stats = _stats(base_all, cost)
+    if "idx_ret" in base_all.columns:
+        base_stats["panic"] = _stats(base_all[base_all["idx_ret"] <= -0.015], cost)
+        base_stats["normal"] = _stats(base_all[base_all["idx_ret"] > -0.015], cost)
     base_mean = base_stats["mean_net_pct"] or 0.0
     out["baseline_all"] = base_stats
+    out["regime_index"] = args.index_code
     print("기준선(전 유니버스) n=%d mean_net=%+.4f%% (초과수익의 기준)" % (
         base_stats["n"], base_mean))
     print("%-14s %7s %10s %9s %8s %7s" % ("rule", "n", "mean_net%", "excess%", "win%", "t"))
     for name, sub in rules.items():
         s = _stats(sub, cost)
+        if "idx_ret" in sub.columns:
+            panic = sub[sub["idx_ret"] <= -0.015]
+            normal = sub[sub["idx_ret"] > -0.015]
+            s["panic"] = _stats(panic, cost)
+            s["normal"] = _stats(normal, cost)
         out["rules"][name] = s
         if s["n"]:
             s["excess_pct"] = round(s["mean_net_pct"] - base_mean, 4)
@@ -183,6 +214,11 @@ def main(argv=None) -> int:
                 name, s["n"], s["mean_net_pct"], s["excess_pct"], s["win_rate"], s["t"]))
         else:
             print("%-14s %7d  (표본 없음)" % (name, 0))
+        if s.get("panic") and s["panic"]["n"]:
+            print("%-14s   └ 패닉일 n=%d mean=%+.3f%% (초과 %+.3f%%) | 정상일 n=%d mean=%+.3f%%" % (
+                "", s["panic"]["n"], s["panic"]["mean_net_pct"],
+                s["panic"]["mean_net_pct"] - (base_stats.get("panic", {}).get("mean_net_pct") or 0),
+                (s.get("normal") or {}).get("n", 0), (s.get("normal") or {}).get("mean_net_pct") or 0.0))
 
     os.makedirs(os.path.dirname(args.json_out), exist_ok=True)
     with open(args.json_out, "w", encoding="utf-8") as fh:

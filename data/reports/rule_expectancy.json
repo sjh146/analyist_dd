@@ -13,6 +13,22 @@
    "std_pct": 5.369,
    "t": -13.581,
    "median_net_pct": -0.8255,
+   "panic": {
+    "n": 4857,
+    "mean_net_pct": -0.8542,
+    "win_rate": 36.07,
+    "std_pct": 4.59,
+    "t": -12.968,
+    "median_net_pct": -1.1354
+   },
+   "normal": {
+    "n": 7842,
+    "mean_net_pct": -0.5188,
+    "win_rate": 39.12,
+    "std_pct": 5.796,
+    "t": -7.927,
+    "median_net_pct": -0.6645
+   },
    "excess_pct": 0.0439
   },
   "R2_short_low": {
@@ -22,6 +38,22 @@
    "std_pct": 7.275,
    "t": -15.651,
    "median_net_pct": -1.0037,
+   "panic": {
+    "n": 4881,
+    "mean_net_pct": -0.9737,
+    "win_rate": 37.9,
+    "std_pct": 7.525,
+    "t": -9.04,
+    "median_net_pct": -1.0564
+   },
+   "normal": {
+    "n": 7923,
+    "mean_net_pct": -1.0262,
+    "win_rate": 36.16,
+    "std_pct": 7.117,
+    "t": -12.836,
+    "median_net_pct": -0.9781
+   },
    "excess_pct": -0.3152
   },
   "R3_up_3_8": {
@@ -31,6 +63,22 @@
    "std_pct": 5.495,
    "t": -28.505,
    "median_net_pct": -1.1393,
+   "panic": {
+    "n": 4783,
+    "mean_net_pct": -1.0433,
+    "win_rate": 35.92,
+    "std_pct": 6.908,
+    "t": -10.445,
+    "median_net_pct": -1.5856
+   },
+   "normal": {
+    "n": 39367,
+    "mean_net_pct": -0.7092,
+    "win_rate": 37.31,
+    "std_pct": 5.297,
+    "t": -26.569,
+    "median_net_pct": -1.0938
+   },
    "excess_pct": -0.0544
   },
   "R4_up_10plus": {
@@ -40,6 +88,22 @@
    "std_pct": 9.128,
    "t": -9.04,
    "median_net_pct": -1.6066,
+   "panic": {
+    "n": 1963,
+    "mean_net_pct": -1.7607,
+    "win_rate": 35.76,
+    "std_pct": 11.714,
+    "t": -6.659,
+    "median_net_pct": -3.1772
+   },
+   "normal": {
+    "n": 10667,
+    "mean_net_pct": -0.5453,
+    "win_rate": 39.67,
+    "std_pct": 8.555,
+    "t": -6.584,
+    "median_net_pct": -1.3822
+   },
    "excess_pct": -0.0432
   },
   "R5_value_surge": {
@@ -49,6 +113,22 @@
    "std_pct": 7.81,
    "t": -15.009,
    "median_net_pct": -1.457,
+   "panic": {
+    "n": 3723,
+    "mean_net_pct": -1.6735,
+    "win_rate": 33.71,
+    "std_pct": 8.931,
+    "t": -11.433,
+    "median_net_pct": -1.882
+   },
+   "normal": {
+    "n": 11754,
+    "mean_net_pct": -0.7107,
+    "win_rate": 35.53,
+    "std_pct": 7.405,
+    "t": -10.404,
+    "median_net_pct": -1.3555
+   },
    "excess_pct": -0.2513
   },
   "R7_down_3_8": {
@@ -58,6 +138,22 @@
    "std_pct": 5.765,
    "t": -33.355,
    "median_net_pct": -0.9671,
+   "panic": {
+    "n": 37368,
+    "mean_net_pct": -0.7462,
+    "win_rate": 41.82,
+    "std_pct": 5.622,
+    "t": -25.656,
+    "median_net_pct": -0.8426
+   },
+   "normal": {
+    "n": 21138,
+    "mean_net_pct": -0.8813,
+    "win_rate": 37.1,
+    "std_pct": 6.008,
+    "t": -21.325,
+    "median_net_pct": -1.153
+   },
    "excess_pct": -0.104
   },
   "R8_down_8plus": {
@@ -67,6 +163,22 @@
    "std_pct": 8.351,
    "t": 1.383,
    "median_net_pct": -0.2798,
+   "panic": {
+    "n": 10952,
+    "mean_net_pct": 0.5381,
+    "win_rate": 51.93,
+    "std_pct": 8.316,
+    "t": 6.771,
+    "median_net_pct": 0.3269
+   },
+   "normal": {
+    "n": 2942,
+    "mean_net_pct": -1.5403,
+    "win_rate": 34.84,
+    "std_pct": 8.275,
+    "t": -10.096,
+    "median_net_pct": -1.8736
+   },
    "excess_pct": 0.789
   },
   "R6_news_top": {
@@ -76,6 +188,22 @@
    "std_pct": 3.531,
    "t": -5.142,
    "median_net_pct": -1.0349,
+   "panic": {
+    "n": 162,
+    "mean_net_pct": -0.9486,
+    "win_rate": 35.19,
+    "std_pct": 3.908,
+    "t": -3.09,
+    "median_net_pct": -1.2916
+   },
+   "normal": {
+    "n": 182,
+    "mean_net_pct": -1.0059,
+    "win_rate": 32.42,
+    "std_pct": 3.17,
+    "t": -4.282,
+    "median_net_pct": -0.9001
+   },
    "excess_pct": -0.2879
   }
  },
@@ -85,6 +213,23 @@
   "win_rate": 37.7,
   "std_pct": 5.309,
   "t": -73.563,
-  "median_net_pct": -0.9076
- }
+  "median_net_pct": -0.9076,
+  "panic": {
+   "n": 102201,
+   "mean_net_pct": -0.7076,
+   "win_rate": 39.44,
+   "std_pct": 5.883,
+   "t": -38.452,
+   "median_net_pct": -0.9336
+  },
+  "normal": {
+   "n": 215734,
+   "mean_net_pct": -0.6904,
+   "win_rate": 36.83,
+   "std_pct": 5.02,
+   "t": -63.873,
+   "median_net_pct": -0.9041
+  }
+ },
+ "regime_index": "KOSDAQ"
 }
