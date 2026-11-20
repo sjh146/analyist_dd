@@ -38,6 +38,7 @@
 """
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -5105,6 +5106,21 @@ def _judge3(res):
     return str(res), "", None
 
 
+def _rejudge_sig() -> str:
+    """재판정 코드 서명(모듈 파일 해시) — '같은 판정을 매 틱 다시 쓰는' 낭비를 끊는 기준.
+
+    실측(2026-11-20 21:07 tick): '기준선없음'으로 남은 7건(CG10·CG323·CG329·CG330·CG332·CG336 …)이
+    **매 틱 다시 파싱·재판정**되고 있었다. 판정이 똑같으니 원장·백로그는 매시간 재기록되고
+    로그에 같은 줄이 14번씩 찍혔다(틱 보고 신호 대비 잡음). 판정기가 바뀌면(파일 해시 변경)
+    다시 재판정해야 하므로, 마커에 코드 서명을 함께 남기고 서명이 같을 때만 건너뛴다.
+    """
+    try:
+        with open(__file__, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()[:12]
+    except OSError:
+        return ""
+
+
 def rejudge_parser_gap() -> list:
     """'parser 없음'으로 기록된 원장 항목을 **사후 재판정**한다(요약 JSON 재파싱).
 
@@ -5119,8 +5135,13 @@ def rejudge_parser_gap() -> list:
     """
     rows = load_ledger()
     b = load_backlog()
+    sig = _rejudge_sig()
     fixed, changed = [], False
     for r in rows:
+        # 같은 코드 서명으로 이미 '판정 불변'을 확인한 기록은 다시 파싱하지 않는다(잡음·낭비 차단).
+        _st = r.get("rejudge_stable")
+        if isinstance(_st, dict) and sig and _st.get("sig") == sig:
+            continue
         pe = r.get("parsed")
         gap = None
         if isinstance(pe, dict) and "parser 없음" in str(pe.get("error", "")):
@@ -5156,12 +5177,21 @@ def rejudge_parser_gap() -> list:
         if parsed.get("error"):
             continue
         verdict, detail, delta = _judge3(judge_by_metric(it, parsed))
+        unchanged = (verdict == r.get("verdict") and detail == r.get("detail"))
         r["parsed"] = parsed
         r["verdict"], r["detail"] = verdict, detail
         r["rejudged"] = {"ts": now_kst().isoformat(timespec="seconds"),
                          "note": "파서 사후 배선 — 요약 JSON 재파싱으로 판정 교정(재실행 아님)"}
+        if unchanged:
+            # 재판정해도 판정이 그대로다 — 마커만 남기고 '변경'으로 보고하지 않는다
+            # (매 틱 같은 줄을 로그·보고에 찍지 않기 위해. 판정기 코드가 바뀌면 sig 가 달라져 재판정된다).
+            r["rejudge_stable"] = {"ts": now_kst().isoformat(timespec="seconds"), "sig": sig,
+                                   "verdict": verdict,
+                                   "note": "재판정 결과가 기존 판정과 동일 — 같은 코드 서명에서는 재파싱 생략"}
+        else:
+            r.pop("rejudge_stable", None)
+            fixed.append((r.get("id"), verdict, detail))
         changed = True
-        fixed.append((r.get("id"), verdict, detail))
     if changed:
         _rewrite_ledger(rows)
         for it in b["items"]:
