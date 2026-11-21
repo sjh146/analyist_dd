@@ -907,9 +907,17 @@ def next_item(backlog, force=False):
                     continue
             except ValueError:
                 log(f"{i['id']}: not_before 형식 오류({nb!r}) — 무시하고 진행")
-        if not i.get("command"):
-            log(f"경고: {i['id']} 는 pending 인데 command 가 없다 → 건너뜀"
-                f"{' (setup: ' + str(i.get('setup_needed'))[:80] + ')' if i.get('setup_needed') else ''}")
+        # ── '셸 주석' command 도 없는 것과 같다 (2026-11-21 CG197 실측) ────────────────
+        # 실측: CG197 의 command 가 `# 선행: XR26 수리 후. 그 다음 한 줄 — docker exec ...`
+        # 였다. 앞의 '#' 때문에 셸은 **아무것도 실행하지 않고 rc=0** 으로 끝나고, 요약 JSON 은
+        # 갱신되지 않아 구동기가 '요약 미갱신 = 실행실패'로 판정한다 → 틱 1회 + 원장에 가짜
+        # 실행실패가 남는다. 'command 없음'과 동일하게 취급해 건너뛴다(사람이 보고 고칠 수 있게
+        # 경고는 남긴다).
+        _cmd = str(i.get("command") or "").strip()
+        if not _cmd or _cmd.startswith("#"):
+            log(f"경고: {i['id']} 는 pending 인데 command 가 없다" if not _cmd else
+                f"경고: {i['id']} 의 command 가 셸 주석('#')으로 시작한다 → 실행해도 no-op → 건너뜀",
+                )
             continue
         if not force:
             blocked, why = eta_blocks(i)

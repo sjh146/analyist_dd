@@ -15918,14 +15918,14 @@
     {
       "id": "CG197",
       "priority": 1,
-      "status": "pending",
+      "status": "needs_setup",
       "kind": "experiment",
       "owner": "engineer",
       "affects_model": true,
       "title": "[데이터 축·승인 대기] 인트라데이(분봉) 피처 — XR26 페이지네이션 수리 후 첫 측정",
       "hypothesis": "조정 축(변환·HP·유니버스·라벨·선별·마스크·상수제거·정보클래스 변화율)이 19사이클 연속 +0.02 미달로 전부 닫혔다. 남은 축은 데이터뿐이고, DB 실측(2026-11-11 22:2x) 결과 minute_bars 는 종목·일당 정확히 30봉(15:01~15:30)뿐 — 391봉(09:00~15:30)의 7.7%만 있고 오전장·점심장은 0행이다. 즉 지금 DB 로는 어떤 인트라데이 피처도 만들 수 없다(전일 종가 이후 정보 부재). 가설: XR26(1페이지 조기종료)을 수리해 하루 391봉이 들어오면, 당일 고저·VWAP 이탈·거래량 분포 (오전/오후 분할)·장중 모멘텀 같은 시점정합 피처가 생기고, 이는 현재 무정보 137/213 인 패널의 정보량을 늘리는 유일한 경로다.",
       "metric": "wf_sweep_summary",
-      "command": "# 선행: XR26 수리 후. 그 다음 한 줄 — docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5700 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_200liq_intraday.npz --days 420 --end-date 2026-11-09 --limit 200 --market all --since 2025-09-15 --min-days 100 --order value --folds 5 --seeds 5 --only CG197_ctl_h5,CG197_intraday_h5 --summary-out /app/reports/overnight/cg197_intraday_summary.json'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app python /app/scripts/patch_panel_intraday.py --in app/models/wf/panel_prod200_v6.npz --out app/models/wf/panel_prod200_id.npz --report /app/reports/overnight/panel_intraday_patch.json && OMP_NUM_THREADS=4 timeout 5700 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_id.npz --folds 5 --seeds 5 --only CG197_ctl_h5,CG197_intraday_h5 --summary-out /app/reports/overnight/cg197_intraday_summary.json'",
       "counterfactual": "CG197_ctl_h5 (같은 런·같은 패널·같은 5폴드×5시드·게이트 OFF·edge top30·인트라데이 피처 없음)",
       "success": "① 로그에 인트라데이 피처군이 실제 선별 후보에 들어갔고 결측률 <20% (미통과=측정무효) ② 짝 Δ ≥ +0.02 이고 폴드승률 ≥ 4/5 → 신호 ③ +0.02 미달이면 데이터 축도 \"분봉 30봉 추가만으로는 부족\"으로 문서화하고 새 소스(뉴스/공시 시간감쇠) 승인 요청 ④ rc≠0/요약 미갱신 = 실행실패",
       "est_minutes": 60,
@@ -15935,7 +15935,10 @@
       "updated_at": "2026-11-17T06:55:00+09:00",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
       "approved_by": "2026-11-21",
-      "setup_needed": null
+      "setup_needed": "선행 3단: ① 분봉 커버리지 게이트 — n_dates>=20 이고 panel_cover_frac 가 의미 있는 수준(현 0.135)이 될 때까지 대기(CG388 이 2026-11-26 확정 판정을 맡는다). ② 통과 시 patch_panel_intraday.py 로 panel_prod200_v6.npz 에 인트라데이 열만 부착(panel_prod200_id.npz, 커버리지 리포트 필수). ③ 그 패널로 CG197_ctl_h5 vs CG197_intraday_h5 5폴드×5시드 한 런. 통과 판정 문턱은 기존 success 그대로.",
+      "not_before": "2026-11-26T09:00:00+09:00",
+      "gated_by": "CG388",
+      "note_20261121": "2026-11-21: command 가 셸 주석('#' 접두)이라 실행 시 rc=0 no-op 이었다 → 접두 제거 + needs_setup 강등(전제 패널 panel_200liq_intraday.npz 부재). CG129 스크린 n_dates=16 < 20, readiness cover_frac 0.135. 확정 판정은 CG388(11-26)."
     },
     {
       "id": "CG198",
@@ -23001,5 +23004,5 @@
       "note": "not_before 는 표본 조건이다 — 21완전일(11-23~11-26 적립)이 되어야 h1 n_dates 20 이 성립한다. 그 전 실행은 같은 16날짜를 다시 재는 무정보 실행(CG129 가 그 사례). h5 는 25완전일 필요 → 이 항목이 h1 로 판정하고, h5 는 별도 후속. | 2026-11-21 19:1x 엔지니어: 스크린 스크립트의 전량 market_data(3.2M행) 적재가 timeout 900s 의 원인이었다 → 분봉 종목·±45일 창으로 쿼리 범위를 자르고 진행률 stderr flush 추가(실측 9.5s)."
     }
   ],
-  "updated": "2026-11-21"
+  "updated": "2026-11-21T20:09:04+09:00"
 }
