@@ -48,6 +48,7 @@ from fillable_expectancy import FEE_BUY, FEE_SELL, TAX_SELL   # noqa: E402  (수
 
 LIMIT_UP_PCT = 29.9
 EXITS = ("next_open", "next_close", "close_h", "open_h1")
+ENTRIES = ("close", "next_open")
 
 
 def db_connect():
@@ -109,8 +110,15 @@ def _f(x):
         return None
 
 
-def enrich(rows, series, horizon, exit_mode):
-    """행마다 종가·전일종가·거래대금·청산가를 붙인다. 계산 불가 행은 버린다."""
+def enrich(rows, series, horizon, exit_mode, entry_mode="close"):
+    """행마다 종가·전일종가·거래대금·진입가·청산가를 붙인다. 계산 불가 행은 버린다.
+
+    entry_mode (CG420, 기본 "close" = 기존 동작 비트 동일):
+      "close"     — 신호일 종가에 산다(지금까지 모든 머니 지표의 가정).
+      "next_open" — 신호일 **다음 거래일 시가**에 산다. 일봉 피처는 장 마감 후에야
+                    확정되므로 실주문이 가능한 가장 이른 시점이다. exit 인덱스가
+                    진입 인덱스 이하인 행은 계산 불가로 버린다(같은 가격 매수·매도).
+    """
     kept, drop = [], 0
     for r in rows:
         s = series.get(r["code"])
@@ -126,6 +134,18 @@ def enrich(rows, series, horizon, exit_mode):
         if not close:
             drop += 1
             continue
+        if entry_mode == "next_open":
+            e = i + 1
+            if e >= len(s["d"]):
+                drop += 1
+                continue
+            entry_px = _f(s["o"][e])
+            if not entry_px:
+                drop += 1
+                continue
+        else:
+            e = i
+            entry_px = close
         if exit_mode == "next_open":
             j, field = i + 1, "o"
         elif exit_mode == "next_close":
@@ -134,7 +154,7 @@ def enrich(rows, series, horizon, exit_mode):
             j, field = i + horizon, "c"
         else:                      # open_h1: h일 뒤 다음 거래일 시가
             j, field = i + horizon + 1, "o"
-        if j >= len(s["d"]):
+        if j >= len(s["d"]) or j <= e:
             drop += 1
             continue
         exit_px = _f(s[field][j])
@@ -144,8 +164,9 @@ def enrich(rows, series, horizon, exit_mode):
         prev_close = _f(s["c"][i - 1]) if i > 0 else None
         r = dict(r)
         r["close"] = close
+        r["entry_px"] = entry_px
         r["exit_px"] = exit_px
-        r["gross_pct"] = (exit_px / close - 1.0) * 100.0
+        r["gross_pct"] = (exit_px / entry_px - 1.0) * 100.0
         r["day_chg_pct"] = ((close / prev_close - 1.0) * 100.0
                             if prev_close else None)
         r["trading_value"] = _f(s["tv"][i])
@@ -412,6 +433,9 @@ def main(argv=None) -> int:
                     help="k 바스켓을 상위(기본)로 볼지 하위로 볼지 — 하위는 '점수 반전' 가설 검정(CG99)")
     ap.add_argument("--exit", choices=EXITS, default="close_h",
                     help="close_h: 라벨 호라이즌 h 의 종가 매도(기본) · next_open: 익일 시가")
+    ap.add_argument("--entry", choices=ENTRIES, default="close",
+                    help="close: 신호일 종가 매수(기본=기존 동작) · next_open: 익일 시가 매수"
+                         "(일봉 피처 확정 후 실주문 가능한 가장 이른 시점 — CG420)")
     ap.add_argument("--horizon", type=int, default=5)
     ap.add_argument("--exclude-limit-up", action="store_true", default=True)
     ap.add_argument("--no-exclude-limit-up", dest="exclude_limit_up", action="store_false")
@@ -445,13 +469,13 @@ def main(argv=None) -> int:
     conn = db_connect()
     series = price_series(conn, codes, d0, d1)
 
-    arm_e, drop_a = enrich(arm, series, a.horizon, a.exit)
-    ctl_e, drop_c = enrich(ctl, series, a.horizon, a.exit)
+    arm_e, drop_a = enrich(arm, series, a.horizon, a.exit, a.entry)
+    ctl_e, drop_c = enrich(ctl, series, a.horizon, a.exit, a.entry)
     pair_mode, same_folds = pair_plan(arm_e, ctl_e)
 
     out = {
         "metric_name": "fillable_topk_expectancy",
-        "exit": a.exit, "horizon": a.horizon, "ks": ks,
+        "exit": a.exit, "entry": a.entry, "horizon": a.horizon, "ks": ks,
         "arm_tag": a.arm_tag, "control_tag": a.control_tag,
         "fee_roundtrip_pct": round(rt_pct, 4),
         "stride": a.stride,

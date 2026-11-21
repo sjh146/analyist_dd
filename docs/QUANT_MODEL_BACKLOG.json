@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T06:07:23+09:00",
+ "updated_at": "2026-11-22T07:20:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -12,6 +12,27 @@
   "07. 백로그 `command` 의 플래그는 **스크립트 파서에서 실재를 확인**한 뒤 등록하라 — champion_robust_eval 은 --out 만 받는다(--json-out 없음). 2026-11-17 CG306 이 이 오타로 rc=2 두 번, CG310 에도 같은 오타가 남아 있었다. 등록 시 `--help` 대조 1줄이면 막을 수 있다."
  ],
  "items": [
+  {
+   "id": "CG420",
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "pending",
+   "metric": "fillable_topk_vs_pool",
+   "summary_out": "/app/reports/overnight/cg420_entry_nextopen.json",
+   "est_minutes": 6,
+   "title": "[머니·체결시점] 지금까지 모든 머니 지표는 '신호일 종가 매수'를 가정한다 — 실주문 가능한 익일 시가 진입에서 Δ가 유지되는가",
+   "arm": "cg409_nogate top5 (신호일 종가 진입) vs 익일 시가 진입, 같은 125세션 덤프·stride 5",
+   "counterfactual": "같은 덤프·같은 k·stride 5 의 --entry close(기존 가정, 125세션 전체 stride1 Δ +1.978 t 3.71)",
+   "hypothesis": "fillable_topk_expectancy.enrich() 는 진입가를 신호일 종가로 고정한다(r['date'] 의 close). 그러나 일봉 피처는 그날 종가가 확정된 뒤에야 계산되므로 실주문 최단 시점은 **익일 시가**다. 신호일 종가에서 이미 오른 종목을 산다는 가정이 Δ +1.978%p(t 3.71)의 상당 부분을 만들었다면, 익일 시가 진입에서 Δ 가 무너지고 절대 순기대는 더 음수가 된다. 이 경우 CG412~CG418 의 '상대 엣지'는 체결 불가한 상한이다.",
+   "evidence": "scripts/fillable_topk_expectancy.py L112-148 실측: gross_pct = exit_px/close−1 (진입=신호일 종가 고정) · CG414 k5 arm +0.074%p(t 0.14) vs 풀 −1.904, Δ +1.978(t 3.71), 앞/뒤 +1.03/−0.86(unstable) · CG418 게이트 ON 절대 −1.478%p(t −2.76)",
+   "success": "사전등록(stride 5, k=5): Δ(arm−풀) ≥ +0.5%p AND t ≥ 2 AND 앞/뒤 절반 모두 양수 → '종가 진입 가정은 결론을 바꾸지 않는다'. 미달이면 '기존 머니 Δ는 체결 불가 상한'으로 기록하고, 익일 시가 진입의 절대 순기대를 실행 가능 기준선으로 제시(기준선 교체는 승인 대상).",
+   "expected": "Δ 가 +0.5%p 아래로 축소(익일 갭이 알파를 먹는다) 또는 절대 −0.3~+0.1%p. stride 5 로 표본 1/5 이라 t 도 함께 작아진다.",
+   "cost": "덤프 재채점 2회(각 ~1분, 학습 없음)",
+   "created": "2026-11-22T07:20:00+09:00",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg411_dump.jsonl --arm-tag cg409_nogate --control-jsonl /app/reports/overnight/cg411_null.jsonl --control-tag cg409_hashnull --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg420_entry_nextopen.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg411_dump.jsonl --arm-tag cg409_nogate --control-jsonl /app/reports/overnight/cg411_null.jsonl --control-tag cg409_hashnull --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry close --json-out /app/reports/overnight/cg420_entry_close.json'"
+  },
   {
    "id": "CG380",
    "status": "done",
@@ -23869,8 +23890,8 @@
     }
    ],
    "result": {
-    "verdict": "노이즈 — 하위 k 는 풀평균을 유의하게 하회하지 않는다(k5 Δ(풀) −0.179 t −0.24 · k10 −0.572 t −1.35). top-k 는 Δ+1.978(t 3.71)이지만 분할표본 불안정(앞 +1.03/뒤 −0.86).",
-    "detail": "k=5 arm +0.074%p vs 풀 −1.904 (Δ+1.978 t 3.71 · 77/48) · k=10 −0.647 (Δ+1.257 t 2.80) · 하위k k5 −2.083 (Δ(풀) −0.179 t −0.24) · k10 −2.476 (Δ −0.572 t −1.35) · 사전등록(하위k Δ≥+0.5%p & t≥2) 미달 → 모델 정보는 롱쪽 비대칭, 숏/회피 축 종결. 판정기가 ('3','5') 하드코딩으로 이 측정을 '판정불가'로 닫았으나 수리 후 재판정(_fillable_topk_pool_test 20/20 PASS).",
+    "verdict": "노이즈",
+    "detail": "arm cg409_nogate · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 125 · k=5 arm +0.074%p/세션 · 풀평균 -1.904 · Δ(arm−풀) +1.978(t 3.71) · 양세션 46.4% · 분할 unstable [+1.025/-0.863] ✗ · 풀평균 t -2.87 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive · 하위k: k=5 하위 -2.083%p · Δ(풀대비) -0.179(t -0.24 · pos/neg 52/73) · k=10 하위 -2.476%p · Δ(풀대비) -0.572(t -1.35 · pos/neg 52/73) → 사전등록 미충족(베타 초과 미검출)",
     "delta": 1.978,
     "per_exp": null,
     "rc": 0,
