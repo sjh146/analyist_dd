@@ -267,6 +267,14 @@ def main() -> int:
                          "market_data 가 11-19 까지 있는데도 보수 가드 7일 + purge 5거래일 때문에 "
                          "창이 11-05 에서 끝나 12거래일을 버렸다 → 적립 31날짜 목표가 3주 늦어진다. "
                          "기본값은 불변(기존 값 비트 동일), 낮춘 값으로 잰 결과는 protocol 에 기록된다.")
+    ap.add_argument("--window-mode", dest="window_mode", choices=("chunks", "post_train"),
+                    default="chunks",
+                    help="창 구성 방식. chunks=최근 거래일을 folds 개 연속창으로 나눈 뒤 학습구간과 "
+                         "겹치는 창을 버린다(현행·기본값, 비트 동일). post_train=학습 종료일 **이후** "
+                         "거래일만으로 창을 다시 나눈다. 왜(2026-11-22 CG393 실측): 청크 방식은 "
+                         "200거래일을 5창으로 쪼개면서 학습구간(2026-07-03~10-01)과 겹치는 3창을 "
+                         "전부 버려, 남은 2창이 학습 **이전**(2026-01~05)이었다 → '최근 국면 성능'을 "
+                         "0일 측정한 채 0.4587(역방향 외삽)을 기준선 재측정값으로 오독할 뻔했다.")
     ap.add_argument("--model-dir", default="app/models/champion")
     ap.add_argument("--asof-date", dest="asof_date", default=None,
                     help="창 앵커(YYYY-MM-DD) — 주면 표본 거래일 창을 그 날짜 기준으로 **고정**한다"
@@ -365,13 +373,34 @@ def main() -> int:
     # ── 학습구간 오염 차단 (2026-09-29 실측) ──────────────────────────────────────
     # 배포 챔피언 창평균 0.5302 중 2개 창이 학습구간(2026-06-25~09-23)과 겹쳐 부풀려졌다
     # (겹친 창 0.5883 vs 학습구간 밖 0.4914). 겹치는 창만 버리고 나머지를 채점한다.
-    windows_all = list(windows)
     meta_start, meta_end = _meta_range(args.model_dir)
     train_start = args.train_start or meta_start
     train_end = args.train_end or meta_end
     excluded: list[list[str]] = []
-    if train_start:
-        windows, excluded = _split_oos(windows_all, train_start, train_end)
+    if args.window_mode == "post_train":
+        # 왜(2026-11-22 CG393 실측): 청크 방식으로 200거래일을 5창(각 20거래일)으로 쪼개면
+        # 학습구간(2026-07-03~10-01)과 겹치는 3창이 전부 제외되고, 남는 2창은 학습 **이전**
+        # (2026-01~05)이라 '최근 국면'을 한 날짜도 재지 못한다(그 값 0.4587 은 역방향 외삽).
+        # 학습 종료 이후 날짜만 모아 다시 창을 나누면 최근 OOS 만 채점된다.
+        if not train_end:
+            logger.error("--window-mode post_train 은 학습 종료일이 필요하다(--train-end 또는 meta)")
+            return 2
+        post = [d for d in dates_asc if str(d) > str(train_end)]
+        logger.info("post_train 창: 학습 종료 %s 이후 거래일 %d개 (%s ~ %s)",
+                    train_end, len(post), post[0] if post else "-", post[-1] if post else "-")
+        need = args.folds * (args.horizon + 2)
+        if len(post) < need:
+            logger.error("post_train 거래일 부족(%d < %d) — 창 구성 불가: --folds 를 줄여라",
+                         len(post), need)
+            return 2
+        chunk = max(1, len(post) // args.folds)
+        windows = [post[i * chunk:(i + 1) * chunk] for i in range(args.folds)]
+        windows = [w for w in windows if len(w) > args.horizon + 1]
+        logger.info("post_train: OOS 창 %d개 채점 (%s ~ %s), 폴드당 창 %d거래일",
+                    len(windows), windows[0][0] if windows else "-",
+                    windows[-1][-1] if windows else "-", chunk)
+    elif train_start:
+        windows, excluded = _split_oos(windows, train_start, train_end)
         logger.info("학습구간 %s ~ %s — 겹치는 창 %d개 제외, OOS 창 %d개 채점",
                     train_start, train_end or "?", len(excluded), len(windows))
         for w in excluded:
@@ -465,7 +494,13 @@ def main() -> int:
             logger.error("scramble-features 패턴이 어떤 피처와도 매칭되지 않았습니다 — 이름을 확인하세요")
             return 2
 
-    prices = load_prices(conn, universe, dates_asc[0], dates_asc[-1])
+    _pstart, _pend = dates_asc[0], dates_asc[-1]
+    if args.window_mode == "post_train":
+        # 창 끝 이후 가격이 없으면 마지막 h거래일의 라벨이 전부 None 이 되어 그 날짜들이 버려진다.
+        # 최근 OOS 를 최대한 채점하려고 가격 조회만 30일 연장한다(기본 모드에서는 비트 동일 유지).
+        from datetime import timedelta as _td
+        _pend = (datetime.strptime(dates_asc[-1], "%Y-%m-%d") + _td(days=30)).strftime("%Y-%m-%d")
+    prices = load_prices(conn, universe, _pstart, _pend)
 
     scored_dates = 0
     fold_stats = []
@@ -617,9 +652,12 @@ def main() -> int:
     payload = {
         "model_dir": args.model_dir,
         "window_anchor": args.asof_date,   # None = CURRENT_DATE(현행). 값이 있으면 창이 고정됐다
+        "window_mode": args.window_mode,
         "protocol": (f"{len(fold_stats)}-fold 연속 시간창, h={args.horizon} "
                      f"{_lbl_desc} 라벨, "
                      f"크로스섹션 AUC, purge={args.horizon}거래일"
+                     + ("" if args.window_mode == "chunks"
+                        else f", window_mode={args.window_mode}(학습 종료 이후만)")
                      + ("" if args.window_reserve_days == 7
                         else f", window_reserve={args.window_reserve_days}거래일(비표준)")),
         "window_reserve_days": args.window_reserve_days,

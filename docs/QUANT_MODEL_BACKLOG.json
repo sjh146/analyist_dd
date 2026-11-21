@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-21T21:10:09+09:00",
+ "updated_at": "2026-11-22T00:27:03+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -23147,7 +23147,7 @@
    "owner": "engineer",
    "affects_model": false,
    "priority": 1,
-   "status": "pending",
+   "status": "done",
    "metric": "champion_robust_eval",
    "est_minutes": 45,
    "title": "[기준선 재측정] 배포 챔피언의 로버스트 다중창 AUC·폴드 목록을 오늘 데이터로 다시 잰다 — 등록 기준선 0.5406(CG168, 2026-10-11) 이후 41일 경과",
@@ -23159,7 +23159,124 @@
    "evidence": "스코어보드 2026-11-21: 로버스트 0.5519 vs 기준선 0.5406(Δ+0.0113)·무개선 22사이클. 돈 기준 배포 챔피언 로버스트 0.4908·순기대 −0.182%p(t −0.81)·87세션·age 47.4d. CG361(needs_setup)은 기준선을 같은 프로토콜 OOS 로 재정의하라는 승인 항목 — 이 실험은 그 승인 없이 '현재 값'만 측정한다(문턱·기준선 변경 없음).",
    "success": "rc=0 · 폴드 목록 5개 · 평균±std 기록 · 기준선 대비 Δ 부호 명시. 판정: Δ ≥ +0.02 면 '기준선이 낡아 카운터가 미달을 과대계상' / |Δ| < 0.02 면 '기준선 유효' / Δ ≤ −0.02 면 '챔피언 노후화'로 기록(어느 경우도 승격 아님).",
    "expected": "챔피언(10-02 학습)이 최근 국면에서 더 낮을 가능성 — CG377 의 같은 런 기준선 0.5470 과 이 값의 격차가 카운터 해석을 바꾼다.",
-   "created": "2026-11-21T23:20:00+09:00"
+   "created": "2026-11-21T23:20:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-21T23:18:27+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "detail": "워크포워드 견고 AUC 0.4587±0.0083 (시간창 2개 [0.4671, 0.4504]) · 풀링 0.4582 · 날짜별평균 0.4588 · 행 1462",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG393_20261121-231256.log",
+     "elapsed_min": 5.5
+    }
+   ],
+   "result": {
+    "verdict": "기준선 실측",
+    "detail": "워크포워드 견고 AUC 0.4587±0.0083 (시간창 2개 [0.4671, 0.4504]) · 풀링 0.4582 · 날짜별평균 0.4588 · 행 1462",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG394",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "done",
+   "metric": "champion_robust_eval",
+   "est_minutes": 8,
+   "title": "[기준선 재측정 2] 학습 종료(2026-10-01) 이후 구간만으로 챔피언 최근 OOS AUC 를 잰다 — CG393 은 최근 날짜를 0일 채점했다",
+   "arm": "deployed_champion_post_train",
+   "counterfactual": "등록 기준선 0.5406(CG168)·CG393 전학습창 0.4587(역방향 외삽)·같은 런 청정 기준선 LS_quant_q30_h5 0.5470(CG377)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2400 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 3 --dates-per-fold 5 --stocks 80 --horizon 5 --out /app/reports/overnight/cg394_champion_post_train.json'",
+   "summary_out": "/app/reports/overnight/cg394_champion_post_train.json",
+   "hypothesis": "CG393 이 5창 중 학습구간과 겹치는 3창을 버리고 남은 2창이 학습 **이전**(2026-01~05)이라 최근 국면을 한 날짜도 재지 않았다. 학습 종료 이후 날짜만으로 3창을 만들면 10-02~11-13 의 진짜 최근 OOS 가 나온다 — 카운터(0.5406)가 낡았는지 챔피언이 노후화됐는지를 이 값으로 판정한다.",
+   "evidence": "CG393 실측(2026-11-21 23:18): 5창 요청 → OOS 2창 [0.4671, 0.4504] = 0.4587±0.0083 · 채점 날짜 2026-01-20~04-29 · 행 1462 · 학습구간 2026-07-03~10-01 · 제외 창 3개(2026-05-20~11-13). 즉 '오늘 데이터'가 아니라 학습 이전 창이다.",
+   "success": "rc=0 · 폴드 3개 · 채점 날짜 전부 > 학습 종료 · 평균±std·폴드승률 기록. 판정: 학습 이후 OOS 가 0.5406 대비 |Δ|<0.02 면 기준선 유효, Δ≤−0.02 면 챔피언 노후화(승격 아님·보고만).",
+   "expected": "최근 국면(10~11월)에서 0.50 안팎 — 0.4587 은 '옛 국면 외삽'이므로 이 값과의 차이가 곧 국면 효과다.",
+   "cost": "15날짜×80종목 ≈ 5~8분",
+   "created": "2026-11-22T00:09:17+09:00",
+   "note": "창 구성 수리: champion_robust_eval.py 에 --window-mode post_train 추가(기본 chunks = 비트 동일). 청크 방식은 학습구간 경계를 걸치는 창을 통째로 버려 최근 OOS 가 구조적으로 0창이 된다.",
+   "attempts": [
+    {
+     "ts": "2026-11-22T00:14:27+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "detail": "워크포워드 견고 AUC 0.5822±0.0946 (시간창 3개 [0.4520, 0.6742, 0.6203]) · 풀링 0.569 · 날짜별평균 0.5822 · 행 960",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG394_20261122-000921.log",
+     "elapsed_min": 5.1
+    }
+   ],
+   "result": {
+    "verdict": "기준선 실측",
+    "detail": "워크포워드 견고 AUC 0.5822±0.0946 (시간창 3개 [0.4520, 0.6742, 0.6203]) · 풀링 0.569 · 날짜별평균 0.5822 · 행 960",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG395",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 2,
+   "status": "done",
+   "metric": "champion_robust_eval",
+   "est_minutes": 8,
+   "title": "[CG394 표본 보강] 최근 OOS 를 창 2개×9날짜로 다시 잰다 — 3창 구성은 폴드당 4날짜(960행)뿐이라 폴드 std 0.0946 이 표본 잡음인지 국면차인지 구분 불가",
+   "arm": "deployed_champion_post_train_f2",
+   "counterfactual": "CG394 3창 0.5822±0.0946(12날짜/960행)·CG393 전학습창 0.4587±0.0083(2창/1462행)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2400 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --horizon 5 --out /app/reports/overnight/cg395_champion_post_train_f2.json'",
+   "summary_out": "/app/reports/overnight/cg395_champion_post_train_f2.json",
+   "hypothesis": "post_train 창은 학습 종료 이후 29거래일뿐이라 창을 3개로 쪼개면 폴드당 4날짜(h=5 purge)만 남는다. 창을 2개로 줄이면 폴드당 9날짜(전체 18날짜)가 되어 같은 구간을 1.5배 표본으로 잰다 — 두 값이 비슷하면 CG394 의 0.5822 는 표본 잡음이 아니다.",
+   "evidence": "CG394 실측(2026-11-22 00:14): post_train 3창 [0.4520, 0.6742, 0.6203] = 0.5822±0.0946 · 12날짜 · 960행 · 풀링 0.5690. 폴드 std 0.0946 은 사전 가정(±0.03)의 3배로, 폴드당 4날짜로는 평균의 표준오차를 신뢰할 수 없다.",
+   "success": "rc=0 · 폴드 2개 · 채점 날짜 >= 16 · 판정: 평균이 0.5822 와 |Δ|<0.03 이면 '표본 잡음 아님(최근 OOS 0.55~0.61)' 으로 기록, Δ<=-0.05 면 CG394 과대추정으로 정정. 승격 아님.",
+   "expected": "0.53~0.60 — 폴드1(10-02~10-08) 0.4520 이 초기 국면 이상치일 것으로 본다.",
+   "cost": "18날짜×80종목 ≈ 6~8분",
+   "created": "2026-11-22T00:17:08+09:00",
+   "note": "측정 정합성 실험 — 기준선·문턱 변경 없음. 결과는 ② 승인 항목(CG361 기준선 재정의)의 근거 수치로만 쓴다.",
+   "attempts": [
+    {
+     "ts": "2026-11-22T00:23:34+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "detail": "워크포워드 견고 AUC 0.5474±0.0454 (시간창 2개 [0.5021, 0.5928]) · 풀링 0.5418 · 날짜별평균 0.5474 · 행 1440",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG395_20261122-001710.log",
+     "elapsed_min": 6.4
+    }
+   ],
+   "result": {
+    "verdict": "기준선 실측",
+    "detail": "워크포워드 견고 AUC 0.5474±0.0454 (시간창 2개 [0.5021, 0.5928]) · 풀링 0.5418 · 날짜별평균 0.5474 · 행 1440",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG396",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 2,
+   "status": "pending",
+   "metric": "champion_robust_eval",
+   "est_minutes": 8,
+   "title": "rank_* 6피처가 배포 경로에서 실제로 기여하는가 — 최근 OOS 창에서 0.0 고정 A/B (CG395 0.5474 짝)",
+   "arm": "champion_zero_rank_posttrain",
+   "counterfactual": "같은 창·같은 유니버스의 CG395 배포 챔피언 0.5474±0.0454 (2창 [0.5021, 0.5928] · 18날짜 · 1440행)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2400 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --horizon 5 --zero-features rank_ --out /app/reports/overnight/cg396_champion_posttrain_norank.json'",
+   "summary_out": "/app/reports/overnight/cg396_champion_posttrain_norank.json",
+   "hypothesis": "패널 실험에서 rank 변환이 Δ+0.0107 로 그 축의 최고값이었는데도 배포 순기대는 −0.182%p 다. 배포 경로는 횡단면 rank 를 라이브 피처에서 직접 계산하므로, 패널에서 얻은 이득이 서빙에서 재현되는지가 갈린다. 최근 OOS 창에서 rank_* 6개를 0.0 으로 고정해 짝 차이를 잰다.",
+   "evidence": "CG395 실측(2026-11-22 00:23): 0.5474±0.0454, 창 [2026-10-02~10-16 0.5021 / 2026-10-26~11-05 0.5928], 18날짜·1440행. 챔피언 계약 173피처 중 rank_ 접두 6개(rank_ma_position_5·return_20d·return_5d·volatility_20d·volume_ratio_20·volume_ratio_5).",
+   "success": "rc=0 · 채점 날짜 16 이상 · 짝 Δ = zero_rank − 0.5474. |Δ|<0.02 = '배포 경로에서 rank 기여 확인 안 됨(노이즈)' / Δ<=-0.02 = 'rank 가 배포 경로를 해친다' / Δ>=+0.02 = '제거가 개선(승격 후보 아님·보고만)'.",
+   "expected": "Δ −0.02~+0.01 (기여 미미) — 패널 이득이 서빙에서 재현되지 않는다는 기존 관측(CG295/CG297/CG299)과 같은 방향.",
+   "cost": "18날짜×80종목 ≈ 7분",
+   "created": "2026-11-22T00:27:03+09:00",
+   "note": "측정 정합성 A/B. 유니버스는 같은 SQL·같은 날짜창으로 결정적이므로 CG395 와 사실상 짝이다(같은 밤 1시간 내 실행)."
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
