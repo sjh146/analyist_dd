@@ -1,6 +1,6 @@
 {
   "metric_name": "champion_scorecard",
-  "generated_at": "2026-11-21T17:07:21",
+  "generated_at": "2026-11-21T22:07:01",
   "champion_dir": "services/xgboost-ml/app/models/champion",
   "champion_auc_txt": 0.551318,
   "insample": {
@@ -37,8 +37,8 @@
       "n_label_ref_purged": 27,
       "n_folds_counted": 5,
       "exp": "CG376_noroll_h5",
-      "source": "services/xgboost-ml/reports/overnight/cg384_summary.json",
-      "finished_at": "2026-11-20T21:18:23+00:00"
+      "source": "services/xgboost-ml/reports/overnight/cg387_summary.json",
+      "finished_at": "2026-11-21T11:13:41+00:00"
     }
   },
   "promote_dryrun": {
