@@ -3297,7 +3297,21 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
     if not ks or not paired_by_k:
         return "판정불가", "baseline_pool 없음(구 스키마 — 널 기준선 미계산)", None
     parts, ok_all, first = [], True, None
-    for k in ("3", "5"):
+    # k 목록은 **측정이 실제로 낸 키**를 쓴다(2026-11-22 CG414 실측: 명령이 --k 5,10 이었는데
+    # ("3","5") 하드코딩 때문에 측정이 정상(Δ k5 +1.978 t 3.71)인데도 '판정불가(k=3 통계 없음)'로
+    # 닫혔다). 3·5 가 있으면 그 둘(사전문턱), 없으면 가장 작은 k 두 개에 같은 문턱을 적용한다.
+    # 단 **선언 ks(요약의 ks 필드)에 있는 k 가 결측**이면 집계 실패이므로 판정불가로 남긴다.
+    declared = [str(x) for x in (parsed.get("ks") or [])]
+    missing = [k for k in ("3", "5") if (k in declared) and (k not in ks)]
+    if missing:
+        return "판정불가", f"k={missing} 통계 없음(선언 ks={declared} · keys={list(fill)})", None
+    ks_list = [k for k in ("3", "5") if k in ks]
+    if not ks_list:
+        try:
+            ks_list = sorted(ks, key=lambda x: int(x))[:2]
+        except (TypeError, ValueError):
+            ks_list = list(ks)[:2]
+    for k in ks_list:
         b = ks.get(k)
         if not isinstance(b, dict):
             return "판정불가", f"k={k} 통계 없음 (keys={list(ks)})", None
@@ -3320,11 +3334,25 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
                if all(isinstance(x, (int, float)) for x in (net, d, t))
                else f"k={k} 통계 결측")
         parts.append(fmt + ("" if good else " ✗"))
+    # 하위 k(모델이 싫어하는 종목) — 회피/숏 후보 축. 사전등록(CG414): 하위 k 가 풀평균을
+    # +0.5%p 이상·t≥2 로 하회하면 '회피 리스트' 가치가 있다. 판정 자체는 top-k 문턱으로 내되
+    # 근거를 원장에 남겨 숏 축을 열/닫은 이유가 숫자로 남게 한다.
+    _bk = fill.get("bottom_k") or {}
+    _bparts = []
+    for k in sorted(_bk, key=lambda x: int(x) if str(x).isdigit() else 99):
+        _bb = _bk.get(k) or {}
+        _ba = _bb.get("arm") or {}
+        _pv = _bb.get("paired_vs_pool") or {}
+        if isinstance(_ba.get("mean"), (int, float)) and isinstance(_pv.get("delta_mean"), (int, float)):
+            _bparts.append(f"k={k} 하위 {_ba['mean']:+.3f}%p · Δ(풀대비) {_pv['delta_mean']:+.3f}"
+                           f"(t {_pv.get('t')} · pos/neg {_pv.get('pos')}/{_pv.get('neg')})")
+    _bot = (" · 하위k: " + " · ".join(_bparts)) if _bparts else ""
     detail = (f"arm {parsed.get('arm_tag')} · 널=세션 풀 평균(무작위 k 기대) · exit "
               f"{parsed.get('exit')} h{parsed.get('horizon')} · 수수료 왕복 "
               f"{parsed.get('fee_roundtrip_pct')}%p · 세션 {parsed.get('n_sessions_fillable')} · "
               + " · ".join(parts)
-              + f" · 풀평균 t {bp.get('t')} · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive")
+              + f" · 풀평균 t {bp.get('t')} · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive"
+              + _bot)
     if ok_all:
         return "신호있음", detail + " → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)", first
     return "노이즈", detail + " → 사전등록 미충족(베타 초과 미검출)", first

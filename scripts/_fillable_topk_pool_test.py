@@ -116,6 +116,27 @@ def main():
         vv, dd, _ = m.judge_fillable_topk_vs_pool(item, prc)
         check(f"judge: {nm} → {want}", vv == want, vv)
 
+    # 4b) 회귀(2026-11-22 CG414): 명령이 `--k 5,10` 이면 요약에 k=3 키가 없다 — 종전 ("3","5")
+    #     하드코딩이 **정상 측정(Δ k5 +1.978 t 3.71)을 '판정불가(k=3 통계 없음)'로 닫았다**.
+    #     판정기는 측정이 실제로 낸 키로 내려야 하고, 하위 k(회피/숏 축) 근거도 detail 에 남긴다.
+    p510 = make_summary(os.path.join(tmp, "k510.json"), k5_d=1.978, k5_t=3.71, halves5="unstable")
+    with open(p510) as fh:
+        dd = json.load(fh)
+    fl = dd["conditions"]["fillable"]
+    fl["k"]["10"] = fl["k"].pop("3")
+    fl["baseline_pool"]["paired_by_k"]["10"] = fl["baseline_pool"]["paired_by_k"].pop("3")
+    fl["bottom_k"] = {"5": {"arm": {"n": 125, "mean": -2.083},
+                            "paired_vs_pool": {"n_dates": 125, "delta_mean": -0.179,
+                                               "t": -0.24, "pos": 52, "neg": 73}}}
+    dd["ks"] = [5, 10]
+    with open(p510, "w") as fh:
+        json.dump(dd, fh)
+    pr5 = m.parse_by_metric(item, p510, 0.0)
+    v5, det5, _ = m.judge_fillable_topk_vs_pool(item, pr5)
+    check("judge: ks 5·10(k=3 없음) → 판정불가 아님", v5 != "판정불가", v5)
+    check("judge: ks 5·10 → 실제 낸 k 로 판정(분할 unstable → 노이즈)", v5 == "노이즈", v5)
+    check("judge: 하위k 근거가 detail 에 남는다", "하위k" in det5, det5[-90:])
+
     # 5) baseline_pool 결측 → 판정불가(구 스키마 방어)
     nb = make_summary(os.path.join(tmp, "nobase.json"), drop_baseline=True)
     prn = m.parse_by_metric(item, nb, 0.0)
