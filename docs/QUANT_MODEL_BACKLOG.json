@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T00:27:03+09:00",
+ "updated_at": "2026-11-22T00:38:02+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -23172,11 +23172,13 @@
    ],
    "result": {
     "verdict": "기준선 실측",
-    "detail": "워크포워드 견고 AUC 0.4587±0.0083 (시간창 2개 [0.4671, 0.4504]) · 풀링 0.4582 · 날짜별평균 0.4588 · 행 1462",
+    "detail": "워크포워드 견고 AUC 0.4587±0.0083 (시간창 2개 [0.4671, 0.4504]) · 풀링 0.4582 · 날짜별평균 0.4588 · 행 1462 ※ 채점 창이 학습 이전(2026-01~05) — 최근 OOS 아님(2026-11-22 정정, CG395 참조)",
     "delta": null,
     "per_exp": null,
-    "rc": 0
-   }
+    "rc": 0,
+    "corrected_at": "2026-11-22T00:27:18+09:00"
+   },
+   "note": " | 2026-11-22 00:1x 엔지니어 정정: 이 런은 최근 구간을 **한 날짜도** 재지 않았다 — 창 [2026-01-20~05-12] 는 학습구간(2026-07-03~10-01) 이전이라 역방향 외삽값이다. 0.4587 을 '챔피언 노후화/기준선 낡음'으로 읽으면 안 된다 → CG394/CG395(post_train)로 재측정: 최근 OOS 0.5474±0.0454(2창·18날짜) = 등록 기준선 0.5406 대비 +0.0068 (노이즈)."
   },
   {
    "id": "CG394",
@@ -23262,7 +23264,7 @@
    "owner": "engineer",
    "affects_model": false,
    "priority": 2,
-   "status": "pending",
+   "status": "done",
    "metric": "champion_robust_eval",
    "est_minutes": 8,
    "title": "rank_* 6피처가 배포 경로에서 실제로 기여하는가 — 최근 OOS 창에서 0.0 고정 A/B (CG395 0.5474 짝)",
@@ -23276,7 +23278,45 @@
    "expected": "Δ −0.02~+0.01 (기여 미미) — 패널 이득이 서빙에서 재현되지 않는다는 기존 관측(CG295/CG297/CG299)과 같은 방향.",
    "cost": "18날짜×80종목 ≈ 7분",
    "created": "2026-11-22T00:27:03+09:00",
-   "note": "측정 정합성 A/B. 유니버스는 같은 SQL·같은 날짜창으로 결정적이므로 CG395 와 사실상 짝이다(같은 밤 1시간 내 실행)."
+   "note": "측정 정합성 A/B. 유니버스는 같은 SQL·같은 날짜창으로 결정적이므로 CG395 와 사실상 짝이다(같은 밤 1시간 내 실행).",
+   "attempts": [
+    {
+     "ts": "2026-11-22T00:34:49+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "detail": "워크포워드 견고 AUC 0.4893±0.0490 (시간창 2개 [0.4403, 0.5383]) · 풀링 0.4886 · 날짜별평균 0.4893 · 행 1440",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG396_20261122-002704.log",
+     "elapsed_min": 7.7
+    }
+   ],
+   "result": {
+    "verdict": "신호 있음(측정 A/B)",
+    "delta": -0.0581,
+    "rc": 0,
+    "detail": "zero_rank 0.4893±0.0490 (2창 [0.4403, 0.5383] · 18날짜 · 1440행) vs CG395 배포 0.5474±0.0454 → Δ−0.0581 (두 폴드 모두 −0.0618/−0.0545). 사전문턱 ±0.02 초과 = rank_* 6피처가 최근 OOS AUC 의 상당부분을 담당."
+   }
+  },
+  {
+   "id": "CG397",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "pending",
+   "metric": "fillable_expectancy",
+   "est_minutes": 22,
+   "title": "rank_* 가 만든 AUC(+0.058)가 돈으로 환산되는가 — 같은 창에서 체결가능 순기대 A/B (rank 보존 vs rank 0.0)",
+   "arm": "rank_vs_norank_expectancy",
+   "counterfactual": "CG395 배포 챔피언(rank 보존) vs CG396 rank 0.0 — 같은 2창·같은 80종목 유니버스",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --horizon 5 --dump-preds /app/reports/overnight/cg397_rank.jsonl --dump-tag rank_keep --out /app/reports/overnight/cg397_rank_keep.json && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --horizon 5 --zero-features rank_ --dump-preds /app/reports/overnight/cg397_norank.jsonl --dump-tag no_rank --out /app/reports/overnight/cg397_norank.json && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg397_rank.jsonl --arm-tag rank_keep --control-jsonl /app/reports/overnight/cg397_norank.jsonl --control-tag no_rank --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg397_money.json'",
+   "summary_out": "/app/reports/overnight/cg397_money.json",
+   "hypothesis": "AUC 를 +0.058 만드는 rank_* 가 실현 순기대도 올리는지, 아니면 AUC 만 올리고 돈은 안 되는지(과거 8모델 실측에서 AUC↔순기대 상관 ~0)를 같은 창·같은 유니버스에서 직접 잰다.",
+   "evidence": "CG396 실측(2026-11-22 00:34): rank 0.0 → 0.4893±0.0490 · 두 폴드 모두 하락(−0.0618/−0.0545) · 유니버스 동일(80종목·학습유니버스 교집합 5). CG395 배포 0.5474±0.0454.",
+   "success": "rc=0 · 두 arm 모두 세션수 기록 · 판정: 순기대 %p/세션 짝 Δ 가 +0.05%p 이상이면 'AUC 가 돈으로 환산된다' / |Δ|<0.05%p 면 'AUC 만 올리는 피처'로 기록(승격 아님).",
+   "expected": "Δ 소폭 양(+0.0~0.1%p) 또는 0 — AUC 의 40% 를 담당해도 순기대는 음(−0.182%p)이라는 기존 관측과 정합적일 것.",
+   "cost": "2회 평가(≈14분) + 집계(≈1분)",
+   "created": "2026-11-22T00:38:02+09:00",
+   "note": "집계기 CLI 는 --arm-jsonl/--control-jsonl(둘 다 필수) — --preds 아님. --stride 5 = h5 보유창 비중첩(STRIDE_H), 수수료 왕복 0.21%p 는 집계기 기본 상수. 표본 주의: 18날짜·80종목(ETF/ETN 30 포함, 학습유니버스 교집합 5) → 체결가능 필터 후 세션이 적으면 '미해상'으로 기록."
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
