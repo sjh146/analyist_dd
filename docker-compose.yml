@@ -72,6 +72,7 @@ services:
     build:
       context: ./services/news-analyzer
       dockerfile: Dockerfile
+      network: host  # WSL 프록시 회선: buildkit 기본 네트워크에서 pip/curl TLS 정지
     container_name: stock_news_analyzer
     env_file: .env
     extra_hosts:
@@ -95,6 +96,7 @@ services:
     build:
       context: ./services/yfinance-collector
       dockerfile: Dockerfile
+      network: host  # WSL 프록시 회선: buildkit 기본 네트워크에서 pip/curl TLS 정지
     container_name: stock_yfinance_collector
     env_file: .env
     volumes:
@@ -115,6 +117,7 @@ services:
     build:
       context: ./services/krx-collector
       dockerfile: Dockerfile
+      network: host  # WSL 프록시 회선: buildkit 기본 네트워크에서 pip/curl TLS 정지
     container_name: stock_krx_collector
     env_file: .env
     volumes:
@@ -132,6 +135,7 @@ services:
     build:
       context: ./services/stock-vectorizer
       dockerfile: Dockerfile
+      network: host  # WSL 프록시 회선: buildkit 기본 네트워크에서 pip/curl TLS 정지
     container_name: stock_vectorizer
     env_file: .env
     volumes:
@@ -150,6 +154,9 @@ services:
     build:
       context: ./services/xgboost-ml
       dockerfile: Dockerfile
+      # WSL 이 프록시 전용 회선이라 buildkit 기본 네트워크에서 curl/pip 가 TLS 도중 멈춘다(실측 2026-11-21).
+      # 호스트 netns 로 빌드하면 통과한다.
+      network: host
     container_name: stock_xgboost_ml
     env_file: .env
     volumes:
@@ -172,6 +179,7 @@ services:
     build:
       context: ./services/strategy-agents
       dockerfile: Dockerfile
+      network: host  # WSL 프록시 회선: buildkit 기본 네트워크에서 pip/curl TLS 정지
     container_name: stock_strategy_agents
     env_file: .env
     environment:
@@ -196,6 +204,7 @@ services:
     build:
       context: ./services/api-gateway
       dockerfile: Dockerfile
+      network: host  # WSL 프록시 회선: buildkit 기본 네트워크에서 pip/curl TLS 정지
     container_name: stock_api_gateway
     env_file: .env
     environment:
@@ -219,6 +228,7 @@ services:
     build:
       context: ./services/job-runner
       dockerfile: Dockerfile
+      network: host  # WSL 프록시 회선: buildkit 기본 네트워크에서 pip/curl TLS 정지
     container_name: stock_job_runner
     env_file: .env
     environment:
@@ -308,6 +318,7 @@ services:
     build:
       context: ./services/economic-calendar
       dockerfile: Dockerfile
+      network: host  # WSL 프록시 회선: buildkit 기본 네트워크에서 pip/curl TLS 정지
     container_name: stock_economic_calendar
     env_file: .env
     volumes:
