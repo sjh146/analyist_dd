@@ -7267,7 +7267,7 @@
     {
       "id": "FS1",
       "title": "피처 스토어(feature_store.feature_values) 부활 — 생산 재학습 비용을 분 단위로 (지금은 0행·미사용)",
-      "status": "pending",
+      "status": "backlog",
       "priority": 1,
       "hypothesis": "모델 입력 빌드 비용은 캐시가 없어서 매 창마다 전체 재계산이다. 코드에는 FeatureStore(app/feature_engine/feature_store.py, feature_store.feature_values 테이블, ON CONFLICT upsert)가 있고 FeaturePipeline 이 use_feature_store=True 일 때 load_batch/save_features 를 쓰지만 **호출자가 없다**(grep: tests·auto_retrain.py 뿐). 실측 2026-09-29 22:2x: feature_values **0행**(reltuples=-1). → 배포 재학습 12,029페어가 매일 2.65~4.5h 걸려 2h 캡에 매일 잘리고, 창 길이 A/B(CG38)도 수 시간/arm 이 된다.",
       "evidence": "실측: `docker exec stock_postgres sh -c 'psql -U $POSTGRES_USER -d $POSTGRES_DB -Atc \"SELECT count(*) FROM feature_store.feature_values;\"'` = **0** · reltuples=-1(한 번도 analyze 안 됨) · retrain_champion 은 build_training_features(stocks, start, end) 를 checkpoint_path 없이 호출 (2026-09-29 수리로 --checkpoint-path 신설) · feature_pipeline.py L319-325 load_batch 는 stored 가 비어있지 않으면 그대로 반환 = **부분 커버리지를 완전한 패널로 오인**할 수 있다",
@@ -7280,7 +7280,8 @@
       "note": "필수 설계 요구(선구현 후사용): ① `load_batch` 가 요청 (stock,date) 전량을 덮지 않으면 **예외 또는 재계산**(부분 반환 금지 — 지금 코드는 부분도 그대로 반환한다) ② 무효화 키에 feature_engine code_sig + 원천 워터마크(가격·재무·공시 백필 시각) 포함 — 리서처가 과거 구간을 백필하면(R10·R17) 옛 값이 학습에 섞인다 ③ as-of 지연이 적용된 **출력**을 저장(원천이 아니라). 운영 DB 스키마 변경은 금지라 테이블이 없으면 만들지 말고 사용자 승인 항목으로 올릴 것 (feature_store 스키마는 이미 존재하므로 스키마 변경 없이 가능). | 2026-09-29 22:1x 추가: **초기 대량 적재는 승인 대상** — 검증(스키마 존재·행수·부분커버리지 거부 로직)까지는 내가 구현하되, 수백만 행을 운영 DB 에 넣는 배치는 승인 후 실행한다(디스크·백업·pg 성능 영향). 그 전까지는 로컬 npz 캐시(패널 방식)로 검증 가능. | 2026-10-01 08:5x 갱신: AUC 축(라벨·HP·유니버스·창·가중·정규화·k·데이터 부활·수급·공매도)이 전부 닫혀 다음 레버는 '원천 확보' 승인뿐이므로, 승인 대기 동안 처리량을 늘리는 이 항목이 다음 세션의 자율 작업 1순위다(재학습 2.65h → 분 단위가 되면 승인 후 실험 속도가 바뀐다). | 2026-10-01 16:2x **구현·검증 완료(strict 계약)**: feature_store.py 재작성 — ① 컬럼명 버그 수리(`feature_value` → 실제 컬럼 `value`) ② `ensure_feature_definitions` 로 FK(feature_name → feature_definitions) 선행 등록 ③ **완전성 증명 없으면 빈 DataFrame**(expected_keys 전량 커버 + 매니페스트의 code_sig·원천 워터마크 일치일 때만 제공, 부분 반환은 allow_partial=True opt-in) ④ `schema_report`/`schema_mismatch` 로 실제 information_schema 와 가정 컬럼을 대조 ⑤ FeaturePipeline.build_training_features 가 **기대 (stock,date) 키를 만든 뒤** 스토어를 시도(스키마: feature_values 0행·feature_definitions 0행 실측). 검증: `docker exec stock_xgboost_ml python /app/scripts/_feature_store_test.py` → **PASS 33 · FAIL 0**(라이브 스키마 대조 포함). 남은 승인 대상: ① 운영 DB 초기 대량 적재(수백만 행) ② 생산 경로 activation(use_feature_store=True 전환). | 피처 스토어 부활 승인 — 초기 대량 적재(수백만 행) + 생산 경로 activation 진행.",
       "setup_needed": null,
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
-      "approved_by": "2026-11-21"
+      "approved_by": "2026-11-21",
+      "note_20261121": "2026-11-21 큐 위생: feature_store.feature_values 0행 · 미사용 → '실행가능 pending'이 아니라 설계/구현 대상이라 backlog 로 내림. 구현 시 재학습 비용 절감 효과를 먼저 계측할 것."
     },
     {
       "id": "XR12",
@@ -12229,17 +12230,19 @@
     {
       "id": "CG101",
       "title": "신규 정보 클래스 — 인트라데이(분봉) 이력 축적 + 인트라데이 피처 스크린(데이터 축 개척)",
-      "status": "pending",
+      "status": "needs_setup",
       "priority": 1,
       "metric": "wf_sweep_summary",
       "counterfactual": "CO_core30_h5 (청정 패널 panel_prod200·게이트 ON·5폴드×5시드) — 인트라데이 피처 미포함",
       "success": "인트라데이 피처 4종(개장범위·VWAP괴리·후반모멘텀·오전/오후 수익률차) 중 ① 단일피처 |AUC−0.5| ≥ 0.044 인 것이 1종 이상(시간가변 확인) ② 게이트 ON 확장창 다중폴드 평균이 대조군 대비 +0.02 이상. 미달이면 인트라데이 축도 종결.",
       "hypothesis": "2026-10-04 실측으로 **기존 보유 원천의 재조합은 전부 닫혔다**: 모델 축(변환·HP·앙상블·선별 규칙/크기·표본가중·목적함수·보정) · 라벨 축(분위·호라이즌·스무딩) · 창·유니버스 축 · 돈 축(CG96~CG100). 데이터 축도 전수 스크린 결과 후보가 없다 — event_features 18종 AUC 0.497~0.500 · foreign_institutional IC +0.0045~+0.0082(t<0.7) · sns 7일 · minute_bars 6일 · news 교집합 12종목 · 공매도 교집합 1.5%. 남은 제약은 '정보의 양'이 아니라 '없는 정보'다. 가격경로(인트라데이)는 패널에 전혀 없는 유일한 정보 클래스이고, 트레이더 보유기간(5일)의 진입 타이밍 신호(개장 갭 되돌림·종가 부근 모멘텀)를 담을 수 있다 — 아직 한 번도 측정된 적 없다.",
       "command": null,
-      "setup_needed": null,
+      "setup_needed": "인트라데이 축의 현재 차량은 CG197(패널 A/B)과 CG388(2026-11-26 확정 판정, n_dates>=20)이다. 이 항목은 그 둘로 흡수 — 별도 실행 없이 CG388 판정을 기다린다(중복 실행 금지).",
       "note": "등록 2026-10-04. 대안 후보와 비교해 인트라데이를 1순위로 둔 근거: 다른 미사용 원천은 '커버리지 부족'(공매도 89일·교집합 1.5%, SNS 7일) 또는 'edge 0'(event·수급)으로 확정 실측됐다. 인트라데이만 커버리지도 미확보 + edge 도 미측정 = 유일한 미지 영역이다. | 2026-10-05 00:0x 원인 규명: '30분 창'은 설계가 아니라 결함 — collector 종료조건이 `len(page_bars) < fid_cnt(100)` 인데 KIS 당일분봉조회 1회 상한이 30봉이라 매일 1페이지에서 중단된다(오프라인 재현 확인). 즉 XR26 만 고치면 오늘부터 전 구간 수집이 가능하다 — '수개월 누적 대기'가 필수 전제가 아니었다. | 2026-10-06 23:0x 엔지니어 자율: 준비물 ②(피처 빌더) **구현·검증 완료** — `app/feature_engine/intraday_features.py`(18피처: open30/close30 × 8통계 + id_am_pm_ret_diff·id_n_bars · 스크린 l30_* 와 원소 단위 동일) + `FeaturePipeline` 옵트인 배선(env INTRADAY_FEATURES=1 · 기본 OFF = 피처목록 199종 비트 동일) + 패널 패치 도구 `scripts/patch_panel_intraday.py` + 자체점검 `scripts/_intraday_features_test.py` **28/28 PASS**(DB 실측 대조·as-of 날짜격리·결측 0.0·퇴화 입력·배선 OFF/ON). ⚠ 신규 실측 블로커: 준비물 ③(패널 A/B)은 현 패널로 **불가** — panel_prod200(2025-08-04~2026-09-23)과 minute_bars(2026-09-23~10-06)의 겹침이 **0행**(09-23 은 4종목 120봉뿐)이고 분봉 301종목 ∩ 패널 200종목 = **23종목(11.5%)**이다 → 수리(XR26)·백필에 더해 **인트라데이 구간을 덮는 패널 + 수집 유니버스 정합**이 선행이다. 패치 도구 자체는 정상(합성 패널 1,595행 스모크: close30 8종 전부 채워짐, open30 은 현 데이터에 봉이 없어 0). | 분봉 이력 축적 + 인트라데이 피처 스크린 — B안 채택으로 착수.",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
-      "approved_by": "2026-11-21"
+      "approved_by": "2026-11-21",
+      "gated_by": "CG388",
+      "note_20261121": "2026-11-21 큐 위생: command 부재 + CG388/CG197 과 중복 → needs_setup 로 내림."
     },
     {
       "id": "XR26",
@@ -15781,7 +15784,7 @@
     {
       "id": "CG194",
       "priority": 1,
-      "status": "pending",
+      "status": "needs_setup",
       "kind": "measurement",
       "owner": "engineer",
       "affects_model": true,
@@ -15795,11 +15798,12 @@
       "command": null,
       "arm": null,
       "counterfactual": null,
-      "setup_needed": null,
+      "setup_needed": "선행: 실계좌 청산 기록 적재(현재 청산 기록 0건). 순기대를 가정 경로가 아니라 체결·청산 journal 로 계산하려면 트레이더 경로가 청산 행을 남겨야 한다 — 그 적재가 확인된 뒤 같은 세션 집합으로 재계산 런을 등록한다.",
       "note": "2026-11-11 18:2x 엔지니어 자율 신설(CG191 후속). ⚠ 승격 게이트의 표본 정의 변경은 리뷰보드 승인 대상(CG191)이므로 이 항목은 '측정 경로 확보'까지만. ⚠ journal 은 트레이더 소유 — 읽기만 했고 수정하지 않았다. | 순기대를 실계좌 체결·청산 기록으로 계산하도록 전환 승인.",
       "created_at": "2026-11-11T18:35:00+09:00",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
-      "approved_by": "2026-11-21"
+      "approved_by": "2026-11-21",
+      "note_20261121": "2026-11-21 큐 위생: command 부재 → needs_setup(선행=청산 기록 적재)."
     },
     {
       "id": "CG195",
@@ -22972,7 +22976,7 @@
     {
       "id": "STRIDE_H",
       "title": "[머니 프로토콜] h>1 라벨 채점에 비중첩(--stride h) 병기 의무화",
-      "status": "pending",
+      "status": "needs_setup",
       "priority": 1,
       "approved_by": "2026-11-21",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
@@ -22981,7 +22985,9 @@
       "check_target": {
         "op": ">=",
         "value": 1
-      }
+      },
+      "setup_needed": "1단(완료): fillable_topk_expectancy.py 출력 JSON 에 stride_warning 필드 배선 — h>1 & stride<h 면 '보유창 중첩으로 t 낙관적' 문구를 남긴다(기본값 불변: 기존 수치와 조용히 달라지지 않게). 2단(승인): 하드 실패로 의무화하려면 기존 머니 기준선 전부를 stride=h 로 재측정해야 한다 — 기준선/프로토콜 변경이라 리뷰보드 승인 대상.",
+      "note_20261121": "2026-11-21: '--stride' 옵션은 있었지만 기본 stride=1 로 조용히 지나갔다(경고 0). 경고 배선 후 needs_setup 로 내림 — 의무화는 기준선 재측정 동반 필요."
     },
     {
       "id": "CG388",
@@ -23004,5 +23010,5 @@
       "note": "not_before 는 표본 조건이다 — 21완전일(11-23~11-26 적립)이 되어야 h1 n_dates 20 이 성립한다. 그 전 실행은 같은 16날짜를 다시 재는 무정보 실행(CG129 가 그 사례). h5 는 25완전일 필요 → 이 항목이 h1 로 판정하고, h5 는 별도 후속. | 2026-11-21 19:1x 엔지니어: 스크린 스크립트의 전량 market_data(3.2M행) 적재가 timeout 900s 의 원인이었다 → 분봉 종목·±45일 창으로 쿼리 범위를 자르고 진행률 stderr flush 추가(실측 9.5s)."
     }
   ],
-  "updated": "2026-11-21T20:09:04+09:00"
+  "updated": "2026-11-21T20:11:04+09:00"
 }

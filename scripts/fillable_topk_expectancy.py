@@ -413,6 +413,15 @@ def main(argv=None) -> int:
         "arm_tag": a.arm_tag, "control_tag": a.control_tag,
         "fee_roundtrip_pct": round(rt_pct, 4),
         "stride": a.stride,
+        # ── STRIDE_H 경고 배선 (2026-11-21) ────────────────────────────────────────
+        # h>1 라벨은 세션 간 보유창이 겹쳐 t 를 낙관적으로 만든다(stride=h 면 표본 1/h, t 정직).
+        # 여기서 기본값을 강제로 바꾸면 기존 수치와 조용히 달라지므로 **경고만** 남기고,
+        # 강제(하드 실패)는 기준선 재측정과 함께 별도로 올린다.
+        "stride_warning": (
+            None if (a.horizon <= 1 or a.stride >= a.horizon) else
+            f"h={a.horizon} 인데 stride={a.stride} — 보유창 중첩으로 t 가 낙관적이다. "
+            f"--stride {a.horizon} 로 병기하라(STRIDE_H)"
+        ),
         "rows": {"arm": len(arm_e), "control": len(ctl_e),
                  "arm_dropped_price": drop_a, "control_dropped_price": drop_c,
                  "bad_lines": bad_a + bad_c},
