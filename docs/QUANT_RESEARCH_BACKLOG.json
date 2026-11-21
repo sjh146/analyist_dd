@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-21T22:16:53",
+  "updated_at": "2026-11-21T22:27:05",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1838,7 +1838,7 @@
     {
       "id": "R38",
       "title": "커버리지 착시 피처 수 41↔62 진동 — 빌더 재계산 창(120일 vs 511~513일)이 지표 인구를 갈아탄다 (문턱이 아니라 인구 정의 문제)",
-      "status": "needs_approval",
+      "status": "done",
       "priority": 5,
       "kind": "investigate",
       "affects_model": true,
@@ -1859,8 +1859,11 @@
       "cost": "0 (진단은 읽기 전용 완료 · 택일 승인 후 빌더 1회 재계산)",
       "result": {
         "measured_at": "2026-11-21T16:52:00+09:00",
-        "detail": "창 변종 3→4 는 데이터 악화가 아니라 **라벨 드리프트**다(read-only SQL 실측 feature_coverage GROUP BY window_days): 120일 131행/착시26 · 44일 19행/14 · 522일 35행/21 · 521일 17행/0 = 202행 · 착시 61. 11-20 20:12 에 521 로 기록됐던 같은 52행이 11-21 06:36 빌더 재실행에서 522 로 다시 찍혀 두 라벨로 쪼개졌다(window_days = 로드 격자의 달력일 스팬 (max-min).days 이고 --since 가 매일 밀리므로 재실행마다 +1 된다 → variants_count 는 시간에 따라 증가, 판정은 variants 가 아니라 '비모델창 행수 71' 로 볼 것). 착시 61 = 26(고정) + 21(521+522 동일집합) + 14(44일) 로 11-21 02:48 과 동일 → A안(빌더 4종 창 120 하드코딩) 전에는 61~62 가 상시값이고, 라벨 재계산으로 문턱 아래로 떨어뜨리는 것은 개선이 아니다(11-13·11-18 재계산 26 을 개선으로 계상 금지와 같은 이유)."
-      }
+        "detail": "창 변종 3→4 는 데이터 악화가 아니라 **라벨 드리프트**다(read-only SQL 실측 feature_coverage GROUP BY window_days): 120일 131행/착시26 · 44일 19행/14 · 522일 35행/21 · 521일 17행/0 = 202행 · 착시 61. 11-20 20:12 에 521 로 기록됐던 같은 52행이 11-21 06:36 빌더 재실행에서 522 로 다시 찍혀 두 라벨로 쪼개졌다(window_days = 로드 격자의 달력일 스팬 (max-min).days 이고 --since 가 매일 밀리므로 재실행마다 +1 된다 → variants_count 는 시간에 따라 증가, 판정은 variants 가 아니라 '비모델창 행수 71' 로 볼 것). 착시 61 = 26(고정) + 21(521+522 동일집합) + 14(44일) 로 11-21 02:48 과 동일 → A안(빌더 4종 창 120 하드코딩) 전에는 61~62 가 상시값이고, 라벨 재계산으로 문턱 아래로 떨어뜨리는 것은 개선이 아니다(11-13·11-18 재계산 26 을 개선으로 계상 금지와 같은 이유).",
+        "session_20261121": "[2026-11-21 22:2x 승인·적용 — B안 채택] A안(빌더 로드창 120거래일 고정)은 R43 과 충돌해 폐기: scripts/build_supply_market_features.py:109-116 이 '격자 하한만 로드하면 shift(252)가 전부 NaN 이 되어 12개월 모멘텀이 죽는다'며 로드창을 하한과 분리해 둔 코드다. 대신 **관측 인구만** 모델 창으로 좁혔다 — postgres-exporter 에 coverage_illusion_count_model_window(window_days=120 AND 살아있음 AND 착시>0.10) 추가, 알림 규칙 CoverageIllusion 을 이 지표(문턱 30, 기준선 26)로 교체, 전 창 값은 정보용 강등. 실측 2026-11-21 22:1x: 202행 / 모델창 131행 / 착시 전 창 61·모델 창 26 / 창 가짓수 4(42·44·521·522). 반영 검증: exporter 재기동 후 metrics = model_window 26 · all 61, Prometheus SIGHUP 후 규칙 expr 교체 확인, CoverageIllusion state=inactive(26 < 30). 회귀 tests/test_r38_illusion_population.py 4건 + 기존 test_dq_snapshot_window_mix.py 5건 통과(SELECT/metrics 순서 일치까지 고정). 결정·롤백 문서 docs/DECISION_r38_illusion_population.md."
+      },
+      "closed_at": "2026-11-21T22:27:05",
+      "closed_by": "operator-session 2026-11-21 (사용자 승인 + 리뷰보드 대상 표기, B안)"
     },
     {
       "id": "R40",

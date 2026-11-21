@@ -392,7 +392,15 @@ dq_feature:
       COUNT(*) FILTER (WHERE window_days <> 120)::float AS non_model_window_rows,
       COUNT(*) FILTER (WHERE window_days = 120
                          AND nonzero_ratio_naive - nonzero_ratio_honest > 0.10)::float
-        AS illusion_at_120d_count
+        AS illusion_at_120d_count,
+      -- ⚠ 2026-11-21 리뷰보드 승인(R38 B안): 착시 개수의 **알림 인구를 모델 창(120일)으로 분리**한다.
+      --   WHY: 같은 결함이 창 라벨 드리프트 때문에 26 ↔ 63 을 오갔다(위 2026-11-13 주석).
+      --   값이 26 인 날과 63 인 날이 '데이터가 좋아졌다/나빠졌다'가 아니라 '야간 빌더가 창을 다시
+      --   썼다'였으므로, 알림은 모델이 실제로 쓰는 창의 피처만 세고(기준선 26 실측 2026-11-21),
+      --   전체 인구값(coverage_illusion_count)은 **정보용**으로 강등한다.
+      COUNT(*) FILTER (WHERE window_days = 120 AND nonzero_ratio > 0
+                         AND nonzero_ratio_naive - nonzero_ratio_honest > 0.10)::float
+        AS coverage_illusion_count_model_window
     FROM feature_coverage
   metrics:
     - stock_constant_ratio:
@@ -431,3 +439,6 @@ dq_feature:
     - illusion_at_120d_count:
         usage: "GAUGE"
         description: "모델 창(120일) 행만 셀 때의 커버리지 착시 개수 — R38 A안 기준값(정보용)"
+    - coverage_illusion_count_model_window:
+        usage: "GAUGE"
+        description: "모델 창(120일)·살아있는 피처 중 착시>0.10 개수 — 알림 대상(R38 B안, 기준선 26)"

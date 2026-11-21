@@ -121,7 +121,15 @@ SPECS = [
     #     → warn 45 / breach 50
     # ⚠ 이 재보정은 **경보 피로 제거용**이다. SNS·kalman 26개의 결측 0.93~0.94 자체는 결함이며
     #   dead 처리(C안)는 승인하지 않았다(사용자 목표 = 죽은 피처 부활). 수리는 R17 로 추적한다.
-    ("dq_feature_coverage_illusion_count", "max", 45.0, 50.0, "커버리지 착시 피처 수(기준선 41)"),
+    # ⚠ 2026-11-21 리뷰보드 승인(R38 B안) — **알림 인구를 모델 창(120일)으로 분리**했다.
+    #   같은 결함이 창 라벨 드리프트로 26 ↔ 63 을 오갔다(야간 빌더가 window_days 를 격자 스팬으로
+    #   다시 쓰면 63, 전량 재계산이 120 으로 덮으면 26 — 데이터는 그대로인데 판정만 바뀐다).
+    #   → 알림은 모델 창 행만 세는 metric 으로 옮기고(기준선 26 실측 2026-11-21 22:1x),
+    #   전체 인구값은 정보용으로 강등한다. 문턱은 R29 선례(+4/+9)대로 기준선 위에 둔다: 26 → 30/35.
+    #   A안(빌더 로드창을 120거래일로 고정)은 R43 과 충돌해 채택하지 않았다 — 빌더는 12개월 모멘텀을
+    #   살리려고 로드창을 격자 하한과 분리해 두었다(scripts/build_supply_market_features.py:109-116).
+    ("dq_feature_coverage_illusion_count_model_window", "max", 30.0, 35.0, "모델 창(120일) 커버리지 착시 피처 수(기준선 26)"),
+    ("dq_feature_coverage_illusion_count", "max", None, None, "커버리지 착시 피처 수(전 창·정보용 — 라벨 드리프트로 26↔63)"),
     ("dq_feature_null_ratio_high_count", "max", 32.0, 45.0, "결측90%↑ 피처 수(기준선 30)"),
     ("dq_feature_coverage_illusion_max", "max", None, None, "커버리지 착시 최대(정보용)"),
     ("dq_feature_null_ratio_max", "max", None, None, "피처 결측 최대(정보용)"),

@@ -60,12 +60,16 @@ groups:
         #   기준선 이동(2026-09-25 21:17): 15 → 36. 악화가 아니라 인구 180 → 199개(R11 2 + R12 19).
         #   문턱은 기준선 **위**(45)에 둔다 → 기존 부채로는 조용하고, **악화되면** 뜬다.
         #   임계값 없이 "정보"로만 두면 새 착시 피처가 늘어도 아무도 모른다.
-        expr: dq_feature_coverage_illusion_count > 45
+        # 2026-11-21 리뷰보드 승인(R38 B안): 알림 인구를 **모델 창(120일)** 으로 분리했다.
+        #   전체 인구값은 창 라벨 드리프트로 26↔63 을 오가서 '데이터 악화'와 구분이 안 됐다
+        #   (야간 빌더가 window_days 를 격자 스팬으로 다시 쓰면 63, 전량 재계산이 120 으로 덮으면 26).
+        #   모델 창 기준선 실측 26(2026-11-21) → 문턱 30(R29 선례 +4). 전체값은 정보용으로 강등.
+        expr: dq_feature_coverage_illusion_count_model_window > 30
         for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "커버리지 착시 피처 {{ $value }}개 (기준선 36) — naive 는 값으로 세는데 honest 는 비어 있다"
+          summary: "모델 창 커버리지 착시 피처 {{ $value }}개 (기준선 26) — naive 는 값으로 세는데 honest 는 비어 있다"
 
       - alert: FeatureNullRatioHigh
         # 결측 >0.90 이면서 살아있는 피처 **개수**. 기준선 8(전부 R10 배치) → 문턱 12.
