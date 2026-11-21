@@ -6535,7 +6535,10 @@ def _forward_summary_line(path) -> str:
                                               key=lambda kv: -(kv[1].get("n_dates") or 0)))
             vnote = f" · ⚠판본혼합 {seg}"
         parts.append(
-            f"{h} n_dates {w.get('n_dates')} · pooled {auc if auc is None else round(float(auc), 4)} · "
+            f"{h} n_dates {w.get('n_dates')} · pooled {auc if auc is None else round(float(auc), 4)}"
+            # pooled 만 쓰면 '날짜 혼합 착시'가 그대로 보고된다(실측 2026-11-22: h1 pooled 0.5638 vs
+            # daily 평균 0.5158 — 하루 안에서의 순위력은 0.52 수준). daily 평균을 항상 병기한다.
+            f"(daily {w.get('daily_auc_mean') if w.get('daily_auc_mean') is None else round(float(w['daily_auc_mean']), 4)}) · "
             f"top10 {'n/a' if top is None else format(float(top), '+.4%')}"
             f" vs 전체 {'n/a' if allr is None else format(float(allr), '+.4%')}{vnote}")
     return "전방 성적표: " + " | ".join(parts)
