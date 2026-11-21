@@ -118,6 +118,12 @@ reports/money/
 reports/audit/
 reports/safety/
 reports/locks/
+# 피드 발행 원천(런타임 산출물) — 추적하면 다른 역할의 git checkout 한 번에 HEAD 판본으로
+# 되돌아가 close 후보 0건·daytrading 2일 전 고정 사고가 난다(R30/R31, 2026-11-21 승인).
+reports/close_latest.json
+reports/swing_latest.json
+reports/daytrading_latest.json
+reports/lagging_latest.json
 data/state/net_guard/
 # 모델 아티팩트 (재생성 가능) — 운영 챔피언(champion/)은 추적 유지
 services/xgboost-ml/app/models/cand_*/

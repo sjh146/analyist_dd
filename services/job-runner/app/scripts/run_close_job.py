@@ -33,6 +33,22 @@ def _row_to_candidate(row: dict) -> dict:
     return c
 
 
+def attach_screener_meta(result: dict, out_csv: str) -> dict:
+    """R26: 스크리너 sidecar(<csv>.meta.json)를 발행물 메타로 옮긴다.
+
+    close_screener.py 가 남기는 상한가·급등 제외 건수 등은 CSV 로는 전달되지 않으므로
+    sidecar 를 읽어 result["screener_meta"] 로 붙인다(없으면 그대로 반환 — 하위호환).
+    """
+    meta_path = out_csv + ".meta.json"
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                result["screener_meta"] = json.load(f)
+        except (OSError, ValueError):
+            pass
+    return result
+
+
 def main():
     screener = "/opt/scripts/close_screener.py"
     out_csv = "/tmp/close_out.csv"
@@ -61,6 +77,8 @@ def main():
         "total": len(candidates),
         "candidates": candidates[:50],
     }
+    # R26: 스크리너 sidecar(상한가·급등 제외 건수 등)를 발행물 메타로 옮긴다.
+    attach_screener_meta(result, out_csv)
 
     reports_dir = os.getenv("REPORTS_DIR", "/app/reports")
     os.makedirs(reports_dir, exist_ok=True)

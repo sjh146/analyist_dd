@@ -15,6 +15,7 @@
   python3 scripts/close_screener.py --date 2026-08-19 --output out.csv
 """
 import argparse
+import json
 import logging
 import os
 import re
@@ -347,11 +348,19 @@ def close_strength_pct(v):
     return float(v) * 100.0
 
 
-def filter_candidates(df, min_trading_value=300_000_000, min_price=1000):
-    """하드 필터: 거래대금, 최저가, 거래량>0, 지표 결측 제외.
+def filter_candidates(df, min_trading_value=300_000_000, min_price=1000,
+                      max_day_change=0.25, stats=None):
+    """하드 필터: 거래대금, 최저가, 거래량>0, 지표 결측, 상한가·급등 제외.
 
     trading_value가 결측인 최근 데이터(수집 공백)를 대비해
     close_price × volume 근사값으로 폴백한다.
+
+    max_day_change (R26, 2026-11-21 승인): 발굴일 등락률이 이 값 이상인 종목은
+    후보에서 제외한다. close 경로는 '종가 매수 → 다음 시가 매도'인데 상한가로 잠긴
+    종목은 종가에 살 수 없다(3개월 실측: 발행 리스트 상위3의 84%가 +25% 이상,
+    그 집합만 +7.0%/승률81%, 살 수 있는 후보는 평균 −1.2%/승률20%).
+    제외 건수는 stats["excluded_limit_up"] 에 기록해 발행물 메타로 남긴다.
+    0 이하를 주면 필터를 끈다(과거 재현용).
     """
     required = ["volume_surge", "close_strength", "ret_3d", "ret_5d", "day_change"]
     mask = pd.Series(True, index=df.index)
@@ -362,6 +371,15 @@ def filter_candidates(df, min_trading_value=300_000_000, min_price=1000):
     mask &= effective_tv >= min_trading_value
     mask &= df["close_price"] >= min_price
     mask &= df["volume"] > 0
+    if max_day_change and max_day_change > 0:
+        limit_up = df["day_change"] >= float(max_day_change)
+        # 다른 조건은 통과했는데 급등 때문에 떨어지는 건수만 센다(실제 후보 감소분).
+        removable = mask & limit_up
+        if stats is not None:
+            stats["excluded_limit_up"] = int(removable.sum())
+        mask &= ~limit_up
+    elif stats is not None:
+        stats["excluded_limit_up"] = 0
     return df[mask].copy()
 
 
@@ -432,7 +450,19 @@ def main():
     ap.add_argument("--output", type=str, default=None, help="출력 CSV 경로")
     ap.add_argument("--min-trading-value", type=float, default=300_000_000, help="최소 거래대금 (기본 3억)")
     ap.add_argument("--min-price", type=float, default=1000, help="최소 종가 (기본 1000원)")
+    ap.add_argument("--max-day-change", type=float, default=0.25,
+                    help="발굴일 등락 상한 — 이 값 이상은 후보에서 제외 (기본 0.25 = +25%%, 0 이면 비활성)")
     args = ap.parse_args()
+
+    if args.output:
+        out_path = args.output
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "data", "reports"
+        )
+        out_path = os.path.join(out_dir, f"close_candidates_{ts}.csv")
+    meta_path = out_path + ".meta.json"
 
     pg = get_pg_conn()
     try:
@@ -461,10 +491,32 @@ def main():
         ind_df["stock_name"] = ind_df["stock_code"].map(lambda c: stock_meta.get(c, ("", ""))[0])
         ind_df["sector"] = ind_df["stock_code"].map(lambda c: stock_meta.get(c, ("", ""))[1])
 
+        stats = {}
         filtered = filter_candidates(
-            ind_df, min_trading_value=args.min_trading_value, min_price=args.min_price
+            ind_df, min_trading_value=args.min_trading_value, min_price=args.min_price,
+            max_day_change=args.max_day_change, stats=stats,
         )
-        logger.info(f"하드 필터 통과: {len(filtered)} 종목")
+        logger.info(
+            f"하드 필터 통과: {len(filtered)} 종목 "
+            f"(상한가·급등 제외 {stats.get('excluded_limit_up', 0)}건, 문턱 {args.max_day_change:+.0%})"
+        )
+
+        # R26: 제외 건수를 sidecar 로 남긴다 — run_close_job 이 close_latest.json 의
+        # screener_meta 로 옮겨 발행물에서 '상한가 몇 건을 걸렀는지' 확인할 수 있게 한다.
+        meta = {
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "signal_date": str(trade_date),
+            "universe": len(stocks),
+            "indicators": int(len(ind_df)),
+            "passed": int(len(filtered)),
+            "excluded_limit_up": int(stats.get("excluded_limit_up", 0)),
+            "max_day_change": args.max_day_change,
+        }
+        try:
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(meta, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            logger.warning(f"메타 기록 실패({meta_path}): {e}")
 
         if filtered.empty:
             logger.warning("필터 통과 종목 없음 — CSV 생성 생략")
@@ -484,14 +536,6 @@ def main():
             pg.close()
             return
 
-        if args.output:
-            out_path = args.output
-        else:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            out_dir = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "..", "data", "reports"
-            )
-            out_path = os.path.join(out_dir, f"close_candidates_{ts}.csv")
         write_csv(rows, out_path)
         logger.info(f"CSV 저장: {out_path}")
 

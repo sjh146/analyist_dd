@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-21T19:15:00",
+  "updated_at": "2026-11-21T22:16:53",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1199,7 +1199,7 @@
     {
       "id": "R26",
       "title": "close 스크리너가 상한가(+25~30%) 종목을 후보에 넣는다 — 발행 리스트의 84%가 체결 불가 (3개월 실측)",
-      "status": "needs_approval",
+      "status": "done",
       "priority": 3,
       "kind": "pipeline",
       "affects_model": false,
@@ -1208,7 +1208,10 @@
       "method": "상한가(또는 발굴일 등락 ≥ +25~30%) 종목을 후보에서 제외하거나 '체결불가' 태그로 분리해 발행한다. 필터는 close_screener.py 하드 필터 단계(거래대금·가격 필터 옆)에 넣는다.",
       "needs": "발행 리스트 계약 변경(소비자=트레이더 피드)이므로 승인 필요. 승인 시 구현 범위: ①상한가 제외 필터(기본 ON) ②그 사실을 리스트 메타(제외 건수)에 기록 ③회귀 테스트(상한가 종목이 후보에 없음을 검증).",
       "if_blocked": "방치하면 close 경로는 '체결 불가 신호 + HEAT 전면 차단' 상태로 계속 죽어 있고, 리스트를 소비하는 다른 용도(수동 매매 참고)에서도 상한가 추격 신호를 계속 내보낸다.",
-      "registered_by": "operator-session 2026-10-01 (사용자 지시: close 경로 게이트 비용 측정)"
+      "registered_by": "operator-session 2026-10-01 (사용자 지시: close 경로 게이트 비용 측정)",
+      "result": "\n[2026-11-21 22:1x 승인·구현] close_screener.filter_candidates 에 max_day_change(기본 0.25) 추가 — 발굴일 등락 ≥ +25% 는 후보 제외. 제외 건수는 실행 CSV 옆 sidecar(<csv>.meta.json)에 남기고 run_close_job.attach_screener_meta 가 close_latest.json 의 screener_meta 로 옮긴다(--max-day-change 0 으로 비활성). 회귀 tests/test_close_screener_limit_up.py 7건 통과(경계 ≥ · 문턱0 비활성 · 실제 감소분만 카운트 · sidecar 병합). 실측 2026-11-20: 필터 OFF 662 → ON 658(급등 4건 제외, 662→658 감소분과 일치), 상위권 변화 = OFF top1 드림인사이트(3일 +37.7%·종가강도 97%)·top4 삐아(+34.9%) 제외 → ON top1 미스터블루. 다음 실발행 11-23 14:40 close_job.",
+      "closed_at": "2026-11-21T22:16:53",
+      "closed_by": "operator-session 2026-11-21 (사용자 승인: '승인할게')"
     },
     {
       "id": "R27",
@@ -1557,7 +1560,7 @@
     {
       "id": "R31",
       "title": "[트레이더 환류] 피드 원천 산출물 git 추적 되돌림 — reports/close_latest.json payload date 10-02 동결 3일째(close 후보 0건) · daytrading 지정가 10-06 고정",
-      "status": "needs_approval",
+      "status": "done",
       "priority": 2,
       "affects_model": false,
       "kind": "fix",
@@ -1577,7 +1580,9 @@
         "from": "trader",
         "measured_at": "2026-10-08 09:35"
       },
-      "result": "[리서처 실측 2026-11-11 16:0x] 원인을 3경로로 분해 — daytrading 은 git 추적 문제가 아니다. ① git 추적 여부: `git ls-files` = close_latest.json·swing_latest.json 만 추적, **daytrading_latest.json 은 미추적** → (A)를 적용해도 단타 피드는 고쳐지지 않는다. ② 실측 신선도: reports/daytrading_latest.json mtime 10-07 15:06 (generated_at 2026-10-07T15:06:51+09:00), 내부 signal_date 10-06 고정 = 35일 정지. 반면 close(11-11 14:40)·swing(11-10 23:31)은 정상 갱신. ③ 스크리너 자체는 정상: `scripts/daytrading_screener.py --json-out /tmp/dt_probe.json` 수동 1회 = 후보 20건 생성, signal_date **2026-11-10**(최신 거래일), rc=0 → 결함은 **생성 스케줄 부재**이지 계산 로직이 아니다. 그 결과 발행본 `data/feed/screener_latest.json`(generated_at 11-11T14:40)의 daytrading 섹션이 **items: []**(0건)로 나가고 있다 — close 20건·swing 20건은 정상. 처방 갱신: (A)는 close/swing 되돌림 방지용으로만 유효, daytrading 은 **(C)+(D) 스크리너 생성 스케줄 신설(장 마감 후 reports/daytrading_latest.json 를 --json-out 으로 갱신 → 다음 날 feed_export 가 발행)** 이 필요하다. 스케줄·발행은 크론/피드 계약이라 리서처가 임의 실행하지 않았다(실계좌 경로). / 중복 정리(2026-11-12): 10-08 진단 줄을 result 로 이관 — 아래 정정(11-11)이 그 원인 규명을 대체한다. 이관된 내용: [트레이더 환류] 피드 발행의 원천 산출물 reports/{close,swing,daytrading}_latest.json 이 아직 git 추적이라 다른 역할의 git checkout 한 번에 발행 원천이 HEAD 판본으로 되돌아갑니다 — 실측 10-08: close 후보 0건 3일째 · daytrading signal_date 10-06 고정 · feed_price_dev 17.45%(최대 편차 안랩 90,200 vs 10-07 종가 76,800 = −14.9%). 처방 택일 필요: (A) 세 산출물을 런타임 산출물화(.gitignore + git rm --cached, R30 과 동일 처방) [권고] / (B) 발행 신선도 판정을 payload `date` → 스크리너 마지막 성공 run ts 로 전환 / (C) daytrading `signal_date`·`close_price` 를 실제 검출 거래일 종가로 갱신. 발행 리스트(소비자=트레이더 피드)에 닿으므로 승인 필요."
+      "result": "[리서처 실측 2026-11-11 16:0x] 원인을 3경로로 분해 — daytrading 은 git 추적 문제가 아니다. ① git 추적 여부: `git ls-files` = close_latest.json·swing_latest.json 만 추적, **daytrading_latest.json 은 미추적** → (A)를 적용해도 단타 피드는 고쳐지지 않는다. ② 실측 신선도: reports/daytrading_latest.json mtime 10-07 15:06 (generated_at 2026-10-07T15:06:51+09:00), 내부 signal_date 10-06 고정 = 35일 정지. 반면 close(11-11 14:40)·swing(11-10 23:31)은 정상 갱신. ③ 스크리너 자체는 정상: `scripts/daytrading_screener.py --json-out /tmp/dt_probe.json` 수동 1회 = 후보 20건 생성, signal_date **2026-11-10**(최신 거래일), rc=0 → 결함은 **생성 스케줄 부재**이지 계산 로직이 아니다. 그 결과 발행본 `data/feed/screener_latest.json`(generated_at 11-11T14:40)의 daytrading 섹션이 **items: []**(0건)로 나가고 있다 — close 20건·swing 20건은 정상. 처방 갱신: (A)는 close/swing 되돌림 방지용으로만 유효, daytrading 은 **(C)+(D) 스크리너 생성 스케줄 신설(장 마감 후 reports/daytrading_latest.json 를 --json-out 으로 갱신 → 다음 날 feed_export 가 발행)** 이 필요하다. 스케줄·발행은 크론/피드 계약이라 리서처가 임의 실행하지 않았다(실계좌 경로). / 중복 정리(2026-11-12): 10-08 진단 줄을 result 로 이관 — 아래 정정(11-11)이 그 원인 규명을 대체한다. 이관된 내용: [트레이더 환류] 피드 발행의 원천 산출물 reports/{close,swing,daytrading}_latest.json 이 아직 git 추적이라 다른 역할의 git checkout 한 번에 발행 원천이 HEAD 판본으로 되돌아갑니다 — 실측 10-08: close 후보 0건 3일째 · daytrading signal_date 10-06 고정 · feed_price_dev 17.45%(최대 편차 안랩 90,200 vs 10-07 종가 76,800 = −14.9%). 처방 택일 필요: (A) 세 산출물을 런타임 산출물화(.gitignore + git rm --cached, R30 과 동일 처방) [권고] / (B) 발행 신선도 판정을 payload `date` → 스크리너 마지막 성공 run ts 로 전환 / (C) daytrading `signal_date`·`close_price` 를 실제 검출 거래일 종가로 갱신. 발행 리스트(소비자=트레이더 피드)에 닿으므로 승인 필요.\n[2026-11-21 22:1x 승인·적용] (A) reports/{close,swing,daytrading}_latest.json 추적 해제 — .gitignore 등록 + git rm --cached 3건(작업트리 파일 유지, feed_export 는 디스크에서 읽는다). (D) 단타 생성 스케줄 신설 — cron/daytrading_pipeline.sh: 컨테이너 stock_xgboost_ml 안에서 스크리너를 돌려**챔피언 모델 예측이 붙은** 후보를 만들고(호스트 실행은 '모델미가용'), 호스트 사본으로 복사한 뒤 feed_export. /etc/cron.d/analyist_dd-daytrading = 평일 09:10·12:10·14:10(단타 진입창 09:05~14:30 안). 검증: --dry-run 2회(사용자·root) rc=0, screener(rank-band) items=20, 로그 '챔피언 모델 예측: 662 종목', dry-run 이라 피드 미변경(generated_at 11-20T20:30 유지). **실발행 검증은 11-23 09:10 첫 실행** — 그 전까지는 배선 완료·실적 미검증.",
+      "closed_at": "2026-11-21T22:16:53",
+      "closed_by": "operator-session 2026-11-21 (사용자 승인: '승인할게')"
     },
     {
       "id": "T33",
@@ -1809,7 +1814,7 @@
     {
       "id": "R37",
       "title": "당일 일봉 적재의 이중 실패에 밤샘 방치 — 18:55(KRX→KIS) + 20:00(yfinance phase) 모두 실패하면 재시도가 익일 04:15 뿐",
-      "status": "needs_approval",
+      "status": "done",
       "priority": 4,
       "kind": "collect",
       "affects_model": true,
@@ -1826,7 +1831,9 @@
       "check_target": null,
       "command": null,
       "cost": "1콜/종목(naver) 또는 수집기 1회",
-      "result": "자율 적용(승인 불요): phase 1-1 상한을 3600→7200s 로 올려 둠(자율, 적용 완료) — 그래도 4,349종목×(1년 이력) 수집이 100분대라 근본 처방은 '야간에는 최근 N일만' 또는 '청크별 증분 적재(timeout 나도 부분 보존)'다. 증분 적재 개조는 다음 사이클(자율)로 잡는다."
+      "result": "자율 적용(승인 불요): phase 1-1 상한을 3600→7200s 로 올려 둠(자율, 적용 완료) — 그래도 4,349종목×(1년 이력) 수집이 100분대라 근본 처방은 '야간에는 최근 N일만' 또는 '청크별 증분 적재(timeout 나도 부분 보존)'다. 증분 적재 개조는 다음 사이클(자율)로 잡는다.\n[2026-11-21 22:1x 승인·배선] scripts/same_day_bars_retry.py — 평일 22:35 에 당일 market_data 행수를 직전 정상일 중앙값과 비교해 60% 미만이면 naver 경로로 그날만 재수집(net_guard 경유, 콜 상한 4,500). 주말·data/krx_holidays.json 휴장은 조용히 종료. /etc/cron.d/analyist_dd-retry 등록. 검증: 토요일 실행 = '주말 — 재시도 없음', 2026-11-20 판정 3,722/3,838 = 97% '정상', 미달 분기(--min-ratio 1.5 강제)에서 '수집 생략(dry-run)' 확인. 실수집은 18:55·20:00 이중 실패일에만 발화한다.",
+      "closed_at": "2026-11-21T22:16:53",
+      "closed_by": "operator-session 2026-11-21 (사용자 승인: '승인할게')"
     },
     {
       "id": "R38",
@@ -1957,7 +1964,7 @@
     {
       "id": "R42",
       "title": "root crontab 소실 — 그것에만 있던 잡들(18:55 KIS 일봉 폴백·20:00 evening pipeline·04:15 data_gap 백필·08:30 swing pipeline·03:30 news cleanup)의 복구 범위 결정 필요",
-      "status": "needs_approval",
+      "status": "done",
       "priority": 2,
       "kind": "investigate",
       "recurring": true,
@@ -1978,11 +1985,14 @@
       "command": "",
       "result": {
         "r42_mitigation_check": "[2026-11-19 02:4x] 사용자 crontab 실측: 수급 19:10·DART 18:10·공매도 19:30·KRX 19:40·거시 19:50·data_gap 04:15 배선 확인. 11-18 로그 실적재 = cron_kis_supply 19:41(1173종목 196,153행, 신규 239, as-of 11-17) · cron_dart_disclosures 18:13 · cron_krx_offline 19:40 · cron_macro_daily 19:50 · cron_data_gap_backfill 04:15. supply_schedule_guard: supply_line 존재 · cron_defects=0.",
-        "r42_duplicate_cron_20261119": "[2026-11-19 04:50 실측] /etc/cron.d/analyist_dd 생존 확인(21 활성줄·16:20 수급 정상 실행) → 사용자 crontab 중복 5종(dart_disclosures 18:10·kis_short_program 19:30·krx_offline 19:40·macro_daily 19:50·data_gap_backfill 04:15) 제거. 검증: crontab -l 에서 5종 0건, /etc/cron.d 동일 시각 유지. 수급(16:20+19:10)은 승인 항목으로 남김."
+        "r42_duplicate_cron_20261119": "[2026-11-19 04:50 실측] /etc/cron.d/analyist_dd 생존 확인(21 활성줄·16:20 수급 정상 실행) → 사용자 crontab 중복 5종(dart_disclosures 18:10·kis_short_program 19:30·krx_offline 19:40·macro_daily 19:50·data_gap_backfill 04:15) 제거. 검증: crontab -l 에서 5종 0건, /etc/cron.d 동일 시각 유지. 수급(16:20+19:10)은 승인 항목으로 남김.",
+        "session_20261121": "[2026-11-21 22:1x 승인·종결] 스케줄 계층 실측 감사: /etc/cron.d/analyist_dd 활성 21줄 유지(18:55 daily_bars · 20:00 evening_pipeline · 04:15 data_gap · 08:30 swing · 03:30 news_cleanup), /home/dduckbeagy/analyist_dd → /home/jhshi/analyist_dd 심볼릭 링크 정상, scripts/supply_schedule_guard.py = cron_defects=0(공급 라인 19:10 배선). 11-19 정정대로 'root crontab 소실'은 오진이었고 중복 5종은 이미 제거돼 있었다 → 복구 범위 결정 항목은 소멸. 당시 남아 있던 두 공백은 R31(단타 생성 스케줄) · R37(당일 일봉 재시도)이었고 같은 승인 배치에서 배선 완료."
       },
       "created_at": "2026-11-17T00:52+09:00",
       "source": "researcher_monitor",
-      "notes": " [실측 2026-11-20 22:5x — 결정의 전제 정정] 오늘은 이중 스케줄이 **중복 수집이 아니라 순차 진행**이었다: 16:20 실행 ok=250 fail=0 호출≈500 → 19:10 실행이 같은 진행키에서 '완료 250, 남음 550' 을 이어받아 ok=250 fail=0 호출≈500. 즉 하루 **500종목(1,000콜)** 으로 유니버스 800 의 62.5%를 덮는다(OPSQ0008 수리 후 fail=0 유지, 진행파일 권한 충돌 재발 없음). 따라서 택일의 의미가 바뀐다: (A) 16:20 제거 = 500콜/일·250종목/일 → 회전 주기 3.2일(꼬리 지연 악화) / (C) 현행 유지 = 1,000콜/일·500종목/일 (R20 'KIS 일일 한도 미확인' 이 유일한 리스크). 커버리지를 지키려면 (C)+한도 확인이 (A)보다 낫다 — 한도가 확인되면 그 수치로 재판정하라. 참고: 두 실행 모두 as-of 11-19 였다(11-20 수급은 당일 제공되지 않음)."
+      "notes": " [실측 2026-11-20 22:5x — 결정의 전제 정정] 오늘은 이중 스케줄이 **중복 수집이 아니라 순차 진행**이었다: 16:20 실행 ok=250 fail=0 호출≈500 → 19:10 실행이 같은 진행키에서 '완료 250, 남음 550' 을 이어받아 ok=250 fail=0 호출≈500. 즉 하루 **500종목(1,000콜)** 으로 유니버스 800 의 62.5%를 덮는다(OPSQ0008 수리 후 fail=0 유지, 진행파일 권한 충돌 재발 없음). 따라서 택일의 의미가 바뀐다: (A) 16:20 제거 = 500콜/일·250종목/일 → 회전 주기 3.2일(꼬리 지연 악화) / (C) 현행 유지 = 1,000콜/일·500종목/일 (R20 'KIS 일일 한도 미확인' 이 유일한 리스크). 커버리지를 지키려면 (C)+한도 확인이 (A)보다 낫다 — 한도가 확인되면 그 수치로 재판정하라. 참고: 두 실행 모두 as-of 11-19 였다(11-20 수급은 당일 제공되지 않음).",
+      "closed_at": "2026-11-21T22:16:53",
+      "closed_by": "operator-session 2026-11-21 (사용자 승인: '승인할게')"
     },
     {
       "id": "R43",
