@@ -1,20 +1,20 @@
 {
-  "ts": "2026-11-19T22:45:04+09:00",
+  "ts": "2026-11-20T22:40:57+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
     "north": "실현 순손익(₩)",
     "source": "/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3",
-    "realized_krw": -35142,
-    "trades": 17,
-    "wins": 4,
-    "win_rate": 23.5,
-    "expectancy_krw": -2067,
-    "avg_return_pct": -3.04,
+    "realized_krw": -36244,
+    "trades": 21,
+    "wins": 5,
+    "win_rate": 23.8,
+    "expectancy_krw": -1726,
+    "avg_return_pct": -2.53,
     "open_positions": 0,
     "days_since_entry": 0.5,
     "alerts": [
-      "순손익 마이너스 -35,142원 — 기대값 -2,067원/건"
+      "순손익 마이너스 -36,244원 — 기대값 -1,726원/건"
     ],
     "error": null
   },
@@ -32,7 +32,7 @@
     "baseline": 0.5406,
     "baseline_name": "LS_quant_q30_h5 (h5·분위0.3·top30)",
     "delta": 0.0113,
-    "last_verdict": "표본 문턱 도달",
+    "last_verdict": "측정완료 — 날짜 28 · 견고 AUC 0.5412 · SD 0.0368 · SE 0.007 vs 예측 0.0114(예측 하회 -38.6%)",
     "no_improve_cycles": 21,
     "no_improve_streak": 21,
     "last_improve": null,
@@ -73,26 +73,31 @@
       "로버스트 AUC 가 21사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
     ],
     "measured_cycles": 21,
-    "invalid_cycles": 312
+    "invalid_cycles": 321
   },
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20261119-215017.json",
-    "status": "ok",
+    "sample": "dq_20261120-211123.json",
+    "status": "breach",
     "warns": [],
-    "breaches": [],
+    "breaches": [
+      "커버리지 착시 피처 수(기준선 41)(dq_feature_coverage_illusion_count)=62 ≥ 50"
+    ],
     "alive_features": 190.0,
     "alive_xsec_features": 166.0,
     "dead_features": 12.0,
-    "stock_constant_ratio": 0.3736842105263158,
-    "news_freshness_hours": 0.3786272405555556,
-    "rows_delivered": 2647025.0,
+    "stock_constant_ratio": 0.39473684210526316,
+    "news_freshness_hours": 0.47207088166666666,
+    "rows_delivered": 2887777.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
-    "alerts": []
+    "alerts": [
+      "DQ 위반: 커버리지 착시 피처 수(기준선 41)(dq_feature_coverage_illusion_count)=62 ≥ 50"
+    ]
   },
   "needs_human": [
-    "[trader] 순손익 마이너스 -35,142원 — 기대값 -2,067원/건",
-    "[engineer] 로버스트 AUC 가 21사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
+    "[trader] 순손익 마이너스 -36,244원 — 기대값 -1,726원/건",
+    "[engineer] 로버스트 AUC 가 21사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)",
+    "[researcher] DQ 위반: 커버리지 착시 피처 수(기준선 41)(dq_feature_coverage_illusion_count)=62 ≥ 50"
   ]
 }

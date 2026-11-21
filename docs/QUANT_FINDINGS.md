@@ -718,3 +718,9 @@
 - 자기신고 실측: `[claim] sns_features_writer -> sns_post_features source=92364 claimed=2532 persisted=0` — 재실행 no-op(=이미 적재) 정상 경로.
 - 신선도 check 신설: `sns_post_features` 가 `market_data` 마감일 대비 뒤진 거래일 수 ≤ 1 (현재 **0**).
 - 교훈: **writer/스크립트의 존재 ≠ 스케줄의 존재.** 새 writer 를 만들면 같은 커밋에 스케줄·자기신고·신선도 check 를 함께 넣어라. 이 축은 R17(SNS 원천 커버리지 250종목)과 다른 문제다.
+
+## [리서처 R44] sns_post_features 가 5거래일 동결 — writer 는 있는데 스케줄이 없었다 (일일 배선 + 신선도 상시 감시)  (2026-11-21 00:48)
+- 결과: R44: 0 <= 1 → 충족
+- 판정: 충족
+- 근거: [실측 2026-11-20 21:1x] ① `SELECT max(trade_date) FROM sns_post_features` = **2026-11-13**(created_at 최대 11-13 12:06) — 11-16~11-20 5거래일 결번. ② `sns_posts` 최신 11-20 09:05(건수 정상) → 원천 문제 아님. ③ `grep -rn build_sns_attention_features /home/jhshi/cron /etc/cron.d` = 0건, writer 참조 크론 0건. ④ 수리 후 실측: writer 를 `--lookback-days 9` 로 1회 실행 → **2,532행 upsert**(게시글 92,364건 · 종목 379) → 11-12~11-20 9일 전부 채워짐(11-20 = 235종목 · attention 평균 0.496 · 게시글 52.6). ⑤ 자기신고 `[claim] sns_features_writer -> sns_post_features source=92364 claimed=2532 persisted=0`(재실행 no-op = 정상). ⑥ 스케줄 배선: 사용자 crontab `20 18 * * 1-5 /home/jhshi/cron/sns_features.sh`(sns_collect 17:30 뒤 · 야간 피처/패널 빌드 전) + 래퍼 `scripts/sns_features_cron.py`(claim_start/finish 내장).
+- 엔지니어 백로그: `XR44` (command·대조군 기입 필요)

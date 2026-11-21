@@ -1,0 +1,173 @@
+{
+ "fee_round_trip_pct": 0.21,
+ "filter": {
+  "enabled": true,
+  "max_day_chg_pct": 25.0,
+  "min_value_krw": 1000000000.0
+ },
+ "window": {
+  "start": "2026-10-02",
+  "end": "2026-11-12"
+ },
+ "note": "fwd_ret 는 덤프에 저장된 h일 전방수익률(진입=발굴일 종가 가정). 체결가·슬리피지 근사이며 실주문 성과가 아니다.",
+ "arms": {
+  "champion": {
+   "rows_total": 16800,
+   "rows_kept": 4841,
+   "dropped_day_chg": 66,
+   "dropped_min_value": 11917,
+   "market_join_missing": 0,
+   "topk": {
+    "3": {
+     "n_sessions": 28,
+     "n_trades": 84,
+     "net_pct_per_session": -3.25,
+     "median": -4.4125,
+     "sd": 7.6056,
+     "se": 1.4373,
+     "t": -2.261,
+     "pos_sessions_frac": 0.25,
+     "first_half": -6.9195,
+     "second_half": 0.4195,
+     "worst_session": -22.6718,
+     "best_session": 21.8334,
+     "n_dates": 28
+    },
+    "5": {
+     "n_sessions": 28,
+     "n_trades": 140,
+     "net_pct_per_session": -3.1272,
+     "median": -4.0367,
+     "sd": 7.2303,
+     "se": 1.3664,
+     "t": -2.289,
+     "pos_sessions_frac": 0.214,
+     "first_half": -5.9702,
+     "second_half": -0.2843,
+     "worst_session": -15.9143,
+     "best_session": 21.957,
+     "n_dates": 28
+    }
+   }
+  },
+  "retrain": {
+   "rows_total": 16800,
+   "rows_kept": 4841,
+   "dropped_day_chg": 66,
+   "dropped_min_value": 11917,
+   "market_join_missing": 0,
+   "topk": {
+    "3": {
+     "n_sessions": 28,
+     "n_trades": 84,
+     "net_pct_per_session": -3.8426,
+     "median": -4.0338,
+     "sd": 7.4692,
+     "se": 1.4115,
+     "t": -2.722,
+     "pos_sessions_frac": 0.214,
+     "first_half": -7.0624,
+     "second_half": -0.6228,
+     "worst_session": -18.0442,
+     "best_session": 20.0393,
+     "n_dates": 28
+    },
+    "5": {
+     "n_sessions": 28,
+     "n_trades": 140,
+     "net_pct_per_session": -3.5078,
+     "median": -4.219,
+     "sd": 7.2227,
+     "se": 1.365,
+     "t": -2.57,
+     "pos_sessions_frac": 0.286,
+     "first_half": -6.903,
+     "second_half": -0.1127,
+     "worst_session": -15.8812,
+     "best_session": 17.904,
+     "n_dates": 28
+    }
+   }
+  }
+ },
+ "paired": {
+  "3": {
+   "challenger": "champion",
+   "base": "retrain",
+   "per_seed": {
+    "0": {
+     "n_dates": 28,
+     "challenger_net": -3.2059,
+     "base_net": -2.8553,
+     "delta": -0.3507,
+     "se": 1.5491,
+     "t": -0.226,
+     "pos_dates_frac": 0.571
+    },
+    "1": {
+     "n_dates": 28,
+     "challenger_net": -2.3147,
+     "base_net": -4.4936,
+     "delta": 2.1789,
+     "se": 1.14,
+     "t": 1.911,
+     "pos_dates_frac": 0.607
+    },
+    "2": {
+     "n_dates": 28,
+     "challenger_net": -3.3495,
+     "base_net": -3.5135,
+     "delta": 0.164,
+     "se": 1.671,
+     "t": 0.098,
+     "pos_dates_frac": 0.464
+    }
+   },
+   "summary": {
+    "n_seeds": 3,
+    "delta_mean": 0.6641,
+    "delta_std": 1.3369,
+    "pos_seeds_frac": 0.667
+   }
+  },
+  "5": {
+   "challenger": "champion",
+   "base": "retrain",
+   "per_seed": {
+    "0": {
+     "n_dates": 28,
+     "challenger_net": -4.1942,
+     "base_net": -2.7683,
+     "delta": -1.4259,
+     "se": 1.0676,
+     "t": -1.336,
+     "pos_dates_frac": 0.393
+    },
+    "1": {
+     "n_dates": 28,
+     "challenger_net": -2.1644,
+     "base_net": -4.4585,
+     "delta": 2.2941,
+     "se": 0.8024,
+     "t": 2.859,
+     "pos_dates_frac": 0.714
+    },
+    "2": {
+     "n_dates": 28,
+     "challenger_net": -2.6296,
+     "base_net": -3.4808,
+     "delta": 0.8512,
+     "se": 1.1479,
+     "t": 0.742,
+     "pos_dates_frac": 0.607
+    }
+   },
+   "summary": {
+    "n_seeds": 3,
+    "delta_mean": 0.5731,
+    "delta_std": 1.8755,
+    "pos_seeds_frac": 0.667
+   }
+  }
+ }
+}

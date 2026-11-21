@@ -2,8 +2,8 @@
   "auc": 0.5939,
   "candidate_metric": "ensemble_auc",
   "promoted": false,
-  "status": "kept_incumbent",
-  "reason": "돈 기준 게이트 거부: 분할표본 불안정(앞 0.1094 / 뒤 -0.0525)",
+  "status": "would_promote",
+  "reason": "dry-run: incumbent left untouched",
   "champion_auc_before": 0.5513,
   "champion_baseline": 0.5513,
   "champion_baseline_source": "robust_auc.json",
@@ -17,22 +17,11 @@
   "n_features": 199,
   "up_rate": 0.4186,
   "retrained_at": "2026-11-19T11:50:58",
-  "expectancy_gate": {
-    "present": true,
-    "pct": 0.0277,
-    "sessions": 113,
-    "trades": 1771,
-    "halves": {
-      "front_pct": 0.1094,
-      "back_pct": -0.0525,
-      "stable": "unstable",
-      "split_date": "2026-08-14"
-    },
-    "champion_pct": -0.182,
-    "t": 0.16,
-    "source": "robust_oos.json"
+  "expectancy_gate": null,
+  "live_score_gate": {
+    "ok": true,
+    "why": "게이트 통과(-7.9h 전, 후보 신호 1건(문턱 0.55 초과, 챔피언 45건, 최대 0.5640466789508684))"
   },
-  "live_score_gate": null,
   "candidate_robust_oos": {
     "value": 0.4624,
     "metric": "robust_auc",
@@ -56,5 +45,5 @@
     "min_robust_auc": null,
     "min_expectancy_t": null
   },
-  "decided_at": "2026-11-19T12:20:48"
+  "decided_at": "2026-11-19T13:26:00"
 }

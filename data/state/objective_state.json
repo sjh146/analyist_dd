@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-19T23:30:33",
+  "updated": "2026-11-20T23:30:55",
   "goal_metric": "fillable_oos_net_expectancy_pct",
   "acceptance": {
     "primary": "expectancy_pct > 0",
@@ -24,8 +24,8 @@
     "champion_expectancy_pct": -0.182,
     "champion_sessions": 87,
     "champion_robust_auc": 0.4908,
-    "candidate_expectancy_pct": 0.0277,
-    "candidate_robust_auc": 0.4624,
+    "candidate_expectancy_pct": 0.0905,
+    "candidate_robust_auc": 0.4376,
     "evidence_present": {
       "champion": true,
       "candidate": true
@@ -33,11 +33,11 @@
     "note": "순기대는 체결성 필터·수수료 반영 OOS 값(%p/세션). 증거가 없으면 승격도 없다."
   },
   "money": {
-    "realized_pnl_krw": -35141.5,
-    "closed_trades": 18,
-    "equity_krw": 246645.0,
+    "realized_pnl_krw": -36244.5,
+    "closed_trades": 22,
+    "equity_krw": 245576.0,
     "open_positions": 0,
-    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-11-19.json"
+    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-11-20.json"
   },
   "envelope": {
     "limits": {
@@ -47,16 +47,16 @@
       "daily_loss_limit_pct": 0.03
     },
     "used": {
-      "equity_krw": 246645.0,
+      "equity_krw": 245576.0,
       "invested_pct_now": 0.0,
       "peak_concurrent": 3,
-      "closed_trades": 18,
-      "realized_pnl_krw": -35141.5
+      "closed_trades": 22,
+      "realized_pnl_krw": -36244.5
     },
     "breaches": [],
     "notes": [
-      "당일 실현 4688.0원 = 자본의 1.90% (일 손실한도 -3% 이내)",
-      "누적 실현손익 -35141.5원 = 자본의 -14.25% (참고 — 일 손실한도와 비교 대상 아님)"
+      "당일 실현 -1103.0원 = 자본의 -0.45% (일 손실한도 -3% 이내)",
+      "누적 실현손익 -36244.5원 = 자본의 -14.76% (참고 — 일 손실한도와 비교 대상 아님)"
     ]
   },
   "top_lever": {
@@ -66,10 +66,10 @@
     "evidence": "중간"
   },
   "data_freshness": {
-    "feed_generated_at": "2026-11-19T20:30:02+09:00",
+    "feed_generated_at": "2026-11-20T20:30:02+09:00",
     "feed_age_h": 3.0,
-    "screener_stats_mtime": "2026-11-19T20:30:01",
-    "swing_probe_mtime": "2026-11-19T18:24:43",
+    "screener_stats_mtime": "2026-11-20T20:30:01",
+    "swing_probe_mtime": "2026-11-20T18:23:11",
     "close_gap_history_mtime": "2026-11-19T09:20:28"
   }
 }

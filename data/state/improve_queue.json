@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-20T03:30:14",
+  "updated": "2026-11-21T03:30:59",
   "tasks": [
     {
       "id": "Q20261004-01",
@@ -399,6 +399,26 @@
       "source": "objective_state.top_lever",
       "claimed_at": "2026-11-20T03:30:12",
       "finished_at": "2026-11-20T03:30:14"
+    },
+    {
+      "id": "Q20261121-01",
+      "title": "1순위 손실원 제거: 익일 시가 청산창(09:00-09:10) 이탈 — 체결가가 당일 시가를 하회",
+      "why": "objective_state 1순위 · 금액 -1814.0원 · 근거 중간",
+      "acceptance": [
+        "변경한 경로의 테스트 통과",
+        "루트 pytest 통과"
+      ],
+      "protected": false,
+      "priority": 1,
+      "state": "rejected",
+      "attempts": 1,
+      "max_attempts": 2,
+      "commit": "",
+      "note": "변경 없음(에이전트가 아무 것도 하지 않음)",
+      "created": "2026-11-21T03:30:55",
+      "source": "objective_state.top_lever",
+      "claimed_at": "2026-11-21T03:30:56",
+      "finished_at": "2026-11-21T03:30:59"
     }
   ]
 }

@@ -1,0 +1,36 @@
+{
+  "metric": "robust_paired_seeds",
+  "label_a": "champion",
+  "label_b": "retrain_cg346",
+  "n_seeds": 3,
+  "seeds": [
+    "0",
+    "1",
+    "2"
+  ],
+  "auc_a": {
+    "0": 0.5254,
+    "1": 0.5282,
+    "2": 0.5162
+  },
+  "auc_b": {
+    "0": 0.5026,
+    "1": 0.4902,
+    "2": 0.4935
+  },
+  "deltas": {
+    "0": 0.0228,
+    "1": 0.038,
+    "2": 0.0227
+  },
+  "delta_mean": 0.027833,
+  "delta_std": 0.008805,
+  "delta_se": 0.005083,
+  "t": 5.475,
+  "pos_seeds": 3,
+  "pos_frac": 1.0,
+  "threshold": 0.02,
+  "window_mismatch": [],
+  "fold_mismatch": [],
+  "meets_threshold": true
+}

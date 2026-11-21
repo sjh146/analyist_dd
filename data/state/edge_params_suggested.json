@@ -1,6 +1,6 @@
 {
   "suggested": null,
-  "reason": "표본 부족: n>=10 버킷 없음 (버킷별 n: 4:1, 5:2, 6-7:2, None:6)",
+  "reason": "표본 부족: n>=10 버킷 없음 (버킷별 n: 4:1, 5:3, 6-7:4, None:7)",
   "current": 4,
   "suggestions": [],
   "source": "data/reports/feed_feedback.json"

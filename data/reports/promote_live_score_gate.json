@@ -1,12 +1,12 @@
 {
- "ts": "2026-11-19T21:19:05",
+ "ts": "2026-11-20T21:03:24",
  "candidate": "app/models/champion_cand",
  "conf": 0.55,
  "min_signals": 1,
- "candidate_signals": 1,
- "champion_signals": 45,
- "candidate_max": 0.5640466789508684,
- "champion_max": 0.6568360027623329,
+ "candidate_signals": 0,
+ "champion_signals": 14,
+ "candidate_max": 0.46633658591335986,
+ "champion_max": 0.6343710124792908,
  "n_universe": 300,
- "verdict": "허용"
+ "verdict": "차단"
 }

@@ -1,0 +1,185 @@
+{
+  "generated_at": "2026-11-21T00:12:32",
+  "predictions_rows": 112066,
+  "model_versions": {
+    "v1.0": 63436,
+    "champ-20261002T024420-0.5513": 48630
+  },
+  "fee_roundtrip_pct": 0.21,
+  "result": {
+    "h1": {
+      "n_pairs": 58630,
+      "n_dates": 16,
+      "skipped": 53436,
+      "pooled_auc": 0.568659242212205,
+      "daily_auc_mean": 0.5140700095248235,
+      "daily_auc_list": [
+        0.5,
+        0.6235,
+        0.5234,
+        0.4635,
+        0.5297,
+        0.4807,
+        0.515,
+        0.4956,
+        0.5158,
+        0.5013,
+        0.5369,
+        0.4688,
+        0.5461,
+        0.5257,
+        0.52,
+        0.4791
+      ],
+      "base_rate_up": 0.4576155551765308,
+      "top5_ret_mean": 0.0015371677219198376,
+      "all_ret_mean": 0.0026585149927572894,
+      "money": {
+        "k": 5,
+        "fee_roundtrip_pct": 0.21,
+        "n_dates": 16,
+        "rows": 58630,
+        "kept": 12632,
+        "no_filter_data": 13620,
+        "kept_ratio": 0.2155,
+        "topk_net_mean_pct": 0.002,
+        "pool_net_mean_pct": 0.1117,
+        "delta_mean_pct": -0.1097,
+        "delta_sd_pct": 2.952,
+        "delta_t": -0.1486,
+        "split_half_pct": [
+          -0.8624,
+          0.643
+        ],
+        "topk_pos_dates": 7,
+        "date_deltas_pct": [
+          -0.6632,
+          1.9808,
+          1.0326,
+          -3.6355,
+          -3.0081,
+          -1.579,
+          1.9877,
+          -3.0144,
+          -1.3372,
+          1.0209,
+          4.3806,
+          -3.5027,
+          -1.4861,
+          -1.6471,
+          0.8001,
+          6.916
+        ]
+      },
+      "quintiles": {
+        "nq": 5,
+        "n_dates": 16,
+        "bucket_net_mean_pct": [
+          -0.014,
+          0.0201,
+          0.3145,
+          -0.01,
+          0.25
+        ],
+        "q_top_minus_q_bottom_pct": -0.264,
+        "sd_pct": 1.137,
+        "t": -0.9289,
+        "split_half_pct": [
+          -0.5599,
+          0.0319
+        ],
+        "monotone_date_frac": 0.0,
+        "note": "bucket 0 = 점수 최상위. monotone_date_frac = 날짜별로 버킷 평균이 단조 감소한 비율."
+      },
+      "money_filter": {
+        "exclude_limit_up": "day_chg >= 29.9%",
+        "max_day_chg_pct": 25.0,
+        "min_value_krw": 1000000000.0,
+        "note": "당일등락·거래대금 자료가 없는 행은 통과시키지 않는다(no_filter_data) — 필터 없이 계산한 기대값은 보고 금지(최우선 규칙 3)."
+      }
+    },
+    "h5": {
+      "n_pairs": 44869,
+      "n_dates": 12,
+      "skipped": 67197,
+      "pooled_auc": 0.595574194584127,
+      "daily_auc_mean": 0.5040837925293308,
+      "daily_auc_list": [
+        0.5,
+        0.5903,
+        0.4966,
+        0.5012,
+        0.5432,
+        0.4397,
+        0.4953,
+        0.4777,
+        0.5195,
+        0.4832,
+        0.4975,
+        0.5048
+      ],
+      "base_rate_up": 0.34995208272972433,
+      "top5_ret_mean": -0.033420292548321136,
+      "all_ret_mean": -0.009787681142123339,
+      "money": {
+        "k": 5,
+        "fee_roundtrip_pct": 0.21,
+        "n_dates": 12,
+        "rows": 44869,
+        "kept": 9269,
+        "no_filter_data": 12450,
+        "kept_ratio": 0.2066,
+        "topk_net_mean_pct": -5.0442,
+        "pool_net_mean_pct": -2.7827,
+        "delta_mean_pct": -2.2615,
+        "delta_sd_pct": 4.7123,
+        "delta_t": -1.6625,
+        "split_half_pct": [
+          -2.563,
+          -1.96
+        ],
+        "topk_pos_dates": 4,
+        "date_deltas_pct": [
+          -7.1942,
+          4.5129,
+          -2.5725,
+          -9.1317,
+          3.435,
+          -4.4273,
+          -0.7966,
+          -7.9952,
+          1.873,
+          -2.4675,
+          3.0045,
+          -5.3781
+        ]
+      },
+      "quintiles": {
+        "nq": 5,
+        "n_dates": 12,
+        "bucket_net_mean_pct": [
+          -3.3145,
+          -3.0268,
+          -2.2663,
+          -2.9095,
+          -2.3915
+        ],
+        "q_top_minus_q_bottom_pct": -0.923,
+        "sd_pct": 2.0293,
+        "t": -1.5755,
+        "split_half_pct": [
+          -2.1106,
+          0.2646
+        ],
+        "monotone_date_frac": 0.0,
+        "note": "bucket 0 = 점수 최상위. monotone_date_frac = 날짜별로 버킷 평균이 단조 감소한 비율."
+      },
+      "money_filter": {
+        "exclude_limit_up": "day_chg >= 29.9%",
+        "max_day_chg_pct": 25.0,
+        "min_value_krw": 1000000000.0,
+        "note": "당일등락·거래대금 자료가 없는 행은 통과시키지 않는다(no_filter_data) — 필터 없이 계산한 기대값은 보고 금지(최우선 규칙 3)."
+      }
+    }
+  }
+}
