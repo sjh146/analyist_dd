@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Seoul
+# 당일 일봉 이중 실패 재시도 — R37 승인(2026-11-21). 18:55·20:00 둘 다 실패한 날만 수집한다.
+35 22 * * 1-5 root bash -lc 'cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/same_day_bars_retry.py' >> /home/jhshi/analyist_dd/reports/cron_same_day_bars_retry.log 2>&1

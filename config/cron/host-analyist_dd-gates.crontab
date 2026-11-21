@@ -1,0 +1,6 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Seoul
+# 일일 파이프라인 관문 점검 — 2026-11-21 배선분(G1 단타·G2 상한가 제외·G3 피드·G4 일봉 재시도)의
+# 실발행 검증. 정상이면 침묵(빈 stdout), FAIL 이면 그 상세만 로그에 남는다.
+5 23 * * 1-5 root /home/jhshi/analyist_dd/cron/pipeline_gates_tick.sh >> /home/jhshi/analyist_dd/reports/cron_pipeline_gates.log 2>&1

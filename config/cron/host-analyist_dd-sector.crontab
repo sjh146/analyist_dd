@@ -1,0 +1,6 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Seoul
+# stocks.sector 주간 갱신 — R17 종결(2026-11-21). Naver 업종분류 ~103콜(키 불필요, KIS 0콜).
+# 빈 sector 만 채운다(--overwrite 없음) → 신규상장·업종변경만 반영되고 기존 값은 보존된다.
+10 9 * * 6 root bash -lc 'cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/fill_sector_naver.py' >> /home/jhshi/analyist_dd/reports/cron_fill_sector.log 2>&1

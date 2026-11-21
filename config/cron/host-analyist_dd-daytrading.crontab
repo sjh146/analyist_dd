@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Seoul
+# 단타(daytrading) 후보 생성+발행 — R31 승인(2026-11-21). 진입창 09:05~14:30 안에서 3회 갱신.
+10 9,12,14 * * 1-5 root /home/jhshi/analyist_dd/cron/daytrading_pipeline.sh >> /home/jhshi/analyist_dd/reports/cron_daytrading_pipeline.log 2>&1

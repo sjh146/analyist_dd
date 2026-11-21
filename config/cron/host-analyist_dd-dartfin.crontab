@@ -1,0 +1,6 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Seoul
+# DART 정기보고서 재무 백필 — 분기 제출 창(3·4/5·6/8·9/11·12월)에만 동작, 그 외 달은 침묵.
+# 2026-11-21 승인: financial_statements 가 반기(06-30)에서 멈춰 있던 원인(스케줄 부재) 제거.
+30 21 15,28 * * root /home/jhshi/analyist_dd/cron/quarterly_financial_backfill.sh >> /home/jhshi/analyist_dd/reports/cron_dart_financial_runner.log 2>&1
