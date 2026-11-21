@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-22T02:07:47+09:00",
+  "updated_at": "2026-11-22T03:07:55+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -23459,21 +23459,60 @@
       "owner": "engineer",
       "affects_model": false,
       "priority": 2,
-      "status": "pending",
+      "status": "done",
       "metric": "fillable_topk_expectancy",
       "est_minutes": 24,
       "title": "[돈 기준선 신선도] 배포 챔피언의 돈 기준선을 18날짜가 아니라 50날짜·정합 유니버스로 다시 잰다 — robust_oos.json 은 47.5일 낡았다(순기대 -0.182%p·87세션)",
       "arm": "champ_money_50d_training_univ",
       "counterfactual": "로컬 robust_oos.json(2026-10-05 생성, -0.182%p/세션·t -0.81·87세션) · CG400(최근 18세션, 풀평균 -2.685%p/세션)",
-      "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-11-20 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3300 python -u scripts/champion_robust_eval.py --folds 5 --dates-per-fold 10 --stocks 80 --universe training --horizon 5 --dump-preds /app/reports/overnight/cg401_champ.jsonl --dump-all --dump-tag champion --out /app/reports/overnight/cg401_champ_50d.json && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg401_champ.jsonl --arm-tag champion --k 3,5,10 --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg401_money_50d.json'",
+      "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-11-20 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3300 python -u scripts/champion_robust_eval.py --folds 5 --dates-per-fold 10 --stocks 80 --universe training --horizon 5 --dump-preds /app/reports/overnight/cg401_champ.jsonl --dump-all --dump-tag champion --out /app/reports/overnight/cg401_champ_50d.json && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg401_champ.jsonl --arm-tag champion --control-jsonl /app/reports/overnight/cg401_champ.jsonl --control-tag champion --k 3,5,10 --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg401_money_50d.json'",
       "summary_out": "/app/reports/overnight/cg401_money_50d.json",
       "hypothesis": "승격 게이트가 비교하는 챔피언 돈 기준선(-0.182%p·87세션)은 47.5일 전 값이고, 그 뒤 CG399 로 채점 유니버스가 바뀐 사실(도메인 성분 -0.037)이 드러났다. 같은 정합 유니버스에서 50날짜로 다시 재면 게이트 기준선의 신선도와 '배포 모델이 애초에 + 기대를 낸 적이 있는가'가 함께 판정된다.",
       "evidence": "scorecard money 블록: created_at 2026-10-05 · robust_auc 0.4908 · 순기대 -0.182%p(t -0.81) · 87세션/1340거래 · age 47.5d. CG399: 정합 유니버스 최근 18날짜 AUC 0.4776(서빙 대표). CG400: top-k − 풀평균 k3 -1.20·k5 +0.49·k10 +0.92(|t|<1.3) — 18세션은 여전히 표본 부족.",
       "success": "rc=0 · 세션수(중첩 포함) 기록 · 판정: ① top-k − 풀평균 Δ 가 +0.1%p 이상·t≥2 면 '엣지 있음' ② |Δ|<0.1 이면 '60일 창에서도 엣지 없음' 으로 돈 기준선을 갱신 ③ 기준선 파일은 champion/ 이 아니라 reports/overnight 에만 쓴다(승격 게이트 기준선 교체는 승인 대상).",
       "expected": "Δ 0 근처(엣지 없음). 그래도 '게이트 기준선이 낡았다'는 사실과 최근 순기대 수준이 숫자로 남는다.",
       "cost": "50날짜×80종목 평가 ≈ 20분 + 집계 1분",
-      "note": "--stride 1 은 중첩표본(집계기가 경고 표기). champion/robust_oos.json 은 건드리지 않는다 — 기준선 교체는 승인 항목(CG176/CG361 계열).",
-      "created": "2026-11-22T01:50:00+09:00"
+      "note": "2026-11-22 03:1x 엔지니어: 1차 실행 rc=2 는 명령 버그였다 — fillable_topk_expectancy 는 --control-jsonl 이 필수인데 CG401 명령에 없었다(arm 만 덤프). 풀 기준선(baseline_pool)은 arm 행에서 내부 계산되므로 control 을 arm 과 동일 파일·동일 태그로 주면 'top-k vs 당일 체결가능 풀평균'이 그대로 나온다(델타 0행은 무의미). 명령을 수리해 재실행 rc=0. 또한 --folds 5 --dates-per-fold 10 은 train 겹침 창 3개가 제외돼 실제 20날짜만 채점됐다(50날짜 아님) — '50날짜 신선도' 목표는 미달이고, 최근 창은 CG400 덤프(18세션)로 별도 측정했다.",
+      "created": "2026-11-22T01:50:00+09:00",
+      "attempts": [
+        {
+          "ts": "2026-11-22T02:12:14+09:00",
+          "rc": 2,
+          "verdict": "실행실패",
+          "detail": "측정값 없음 — 종료코드 2",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG401_20261122-020804.log",
+          "elapsed_min": 4.2
+        }
+      ],
+      "result": {
+        "verdict": "완료(대조군=자기자신 → 델타는 내부 baseline_pool 대비)",
+        "detail": "체결성 필터 ON·수수료 0.210%p, h5 close, 20날짜(2026-01-20~04-29)·1,580행. top-k − 풀평균: k3 -3.100%p/세션(t -3.84, 2/20 세션 양) · k5 -2.629(t -3.51, 4/20) · k10 -1.819(t -2.92, 3/20). 풀평균 자체는 +2.507%p/세션(t 2.08).",
+        "delta": {
+          "k3": -3.0998,
+          "k5": -2.6289,
+          "k10": -1.8195
+        },
+        "per_exp": {
+          "old20_fillable": {
+            "k3": -3.1,
+            "k5": -2.63,
+            "k10": -1.82
+          },
+          "recent18_fillable": {
+            "k3": -1.2,
+            "k5": 0.49,
+            "k10": 0.92
+          }
+        },
+        "rc": 0,
+        "artifacts": [
+          "reports/overnight/cg401_champ_50d.json",
+          "reports/overnight/cg401_money_50d.json",
+          "reports/overnight/cg401_money_recent18.json",
+          "reports/overnight/cg401_money_bottom_old20.json",
+          "reports/overnight/cg401_money_bottom_recent18.json"
+        ]
+      }
     },
     {
       "id": "CG402",
@@ -23487,12 +23526,50 @@
       "title": "[측정정합성] champ 단독 전방 표본으로 pooled AUC 를 다시 잰다 — 혼합값 0.5638 은 v1.0 9일이 섞인 값이고 daily 평균은 0.5158",
       "arm": "forward_champ_only",
       "counterfactual": "혼합 표본 pooled 0.5638(17일) · daily_auc_mean 0.5158 · 백테스트 CG399 0.5107±0.0209 / CG396 서빙 0.4893±0.0490",
-      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app python -u scripts/forward_scorecard.py --model-version champ-20261002T024420-0.5513 --out /app/reports/overnight/cg402_forward_champ.json'",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app timeout 1500 python -u scripts/forward_scorecard.py --model-version champ-20261002T024420-0.5513 --out /app/reports/overnight/cg402_forward_champ.json'",
       "hypothesis": "혼합값 0.5638 은 서로 다른 모델(v1.0 9일 + champ 8일)을 한 풀에 넣은 pooled 값이라 어느 모델의 성능도 아니다. 같은 파일의 by_version 돈 블록은 이미 champ 와 v1.0 을 갈라 놨는데(h1: champ top10 Δ+0.8692 t 0.90 · v1.0 Δ-0.6316 t -0.81), AUC 는 버전별로 안 나뉘어 있다. --model-version 필터로 champ 날짜만 남겨 pooled·daily 평균을 재면 '배포 모델이 전방에서 0.49 인가 0.55 인가'가 확정되고 학습-서빙 격차 논의의 기준값이 생긴다.",
       "evidence": "2026-11-22 02:1x 실측(forward_scorecard.json, generated 2026-11-21T12:08, rows 118,402): h1 n_dates 17 · pooled 0.5638 · daily_auc_mean 0.5158 · top10 Δ+0.0746(t 0.12) | by_version h1 champ(8일) top10 net +0.5969 vs 풀 -0.2723 → Δ+0.8692(t 0.90) 분할 both_positive[+0.9838/+0.7545] 4/8일 양(+) · v1.0(9일) Δ-0.6316(t -0.81) | h5 n_dates 13 · pooled 0.5875 · daily 0.5091 · champ(4일) Δ-0.7701(t -0.49) · v1.0(9일) Δ-2.5410(t -2.40). 즉 혼합 headline 은 v1.0 구간이 끌어내리고 champ 구간이 끌어올린 상쇄값이다.",
       "success": "rc=0 · champ 단독 n_dates 명시. 판정: champ h1 pooled AUC ≥0.53 이면 서빙 실경로(CG396 0.4893)와의 격차가 실재 → 3일 추가 적립 후 재확인, 0.51 미만이면 혼합 0.5638 은 v1.0 기여로 기록하고 전방 AUC 축을 노이즈로 닫는다(n_dates<10 이면 판정불가로 적고 11-26 이후 재실행). 돈은 by_version h1 champ Δ+0.8692(t 0.90, n=8) 를 기준선으로 쓰되 t<2 이므로 '신호'가 아니라 '관찰'로만 보고한다.",
       "expected": "champ 단독 pooled 는 daily 평균(≈0.51~0.52) 근처로 내려앉을 가능성 — 그 경우 '전방 0.56' 은 날짜 혼합 착시이며 서빙 결손 논의도 무효.",
       "cost": "집계만(재학습 없음) ≈ 5분"
+    },
+    {
+      "id": "CG403",
+      "kind": "experiment",
+      "owner": "engineer",
+      "affects_model": false,
+      "priority": 3,
+      "status": "done",
+      "metric": "fillable_topk_expectancy",
+      "est_minutes": 6,
+      "title": "[돈 지표] 배포 챔피언 순위의 엣지를 h1(익일시가 청산·라이브 피드 수평선)과 분위 역방향까지 4창 교차로 확인",
+      "arm": "champion",
+      "counterfactual": "해당 날짜 체결가능 풀평균(동일가중 무작위 k 기대) · 역방향 bottom-k",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg401_champ.jsonl --arm-tag champion --control-jsonl /app/reports/overnight/cg401_champ.jsonl --control-tag champion --k 3,5,10 --exit next_open --horizon 1 --stride 1 --json-out /app/reports/overnight/cg403_money_h1_old20.json'",
+      "summary_out": "/app/reports/overnight/cg403_money_h1_old20.json",
+      "hypothesis": "CG401 로 챔피언이 h5·오래된 OOS 에서 풀 대비 -3.1%p(t -3.84)임이 드러났다. 라이브 피드가 실제로 쓰는 청산 수평선(h1 익일시가)에서도 같은 부호인지, 아니면 순위를 뒤집으면 돈이 되는지(역방향) 확인해 '순위 축'을 돈 근거로 닫는다.",
+      "evidence": "2026-11-22 03:2x 실측: h5 old20 k3 -3.100(t -3.84)·k5 -2.629(t -3.51)·k10 -1.819(t -2.92) / h5 recent18 k3 -1.200(t -1.08)·k5 +0.486(t 0.48)·k10 +0.917(t 1.28) / 비체결 무시 rank IC 최근18 +0.0547(t 1.92, 13/18 양) vs old20 -0.0258(t -0.79).",
+      "success": "rc=0 · 판정: h1 Δ 가 |Δ|<0.1 또는 |t|<2 → 순위 축 엣지 없음(닫음) · 역방향 bottom-k 가 Δ>+0.1%p 이고 t≥2 이면 '순위 역정보' 가설 등록.",
+      "expected": "h1 은 전부 |Δ|<0.35%p·|t|≤1.8, 역방향도 |t|<2 — 순위 축은 돈 기준 무정보.",
+      "cost": "집계만 ≈ 1분/창",
+      "result": {
+        "verdict": "노이즈(엣지 없음)",
+        "detail": "h1 next_open, 체결성 ON·수수료 0.210%p — old20: k3 -0.236(t -0.81)·k5 -0.349(t -1.55)·k10 -0.127(t -0.69) / recent18: k3 +0.112(t 0.44)·k5 +0.333(t 1.77)·k10 +0.103(t 0.52). 역방향 bottom-k(h5): old20 +1.112(t 0.66)/+1.429(t 1.02)/+1.139(t 1.86), recent18 -1.391(t -0.85)/-1.087(t -0.86)/-1.213(t -1.93) — 부호 불안정, 어느 쪽도 |t|≥2 미달.",
+        "delta": {
+          "h1_old20_k5": -0.349,
+          "h1_recent18_k5": 0.333,
+          "bottom_h5_old20_k10": 1.139,
+          "bottom_h5_recent18_k10": -1.213
+        },
+        "per_exp": null,
+        "rc": 0,
+        "artifacts": [
+          "reports/overnight/cg403_money_h1_old20.json",
+          "reports/overnight/cg403_money_h1_recent18.json"
+        ]
+      },
+      "note": "순위(랭킹) 축은 돈 기준으로 닫는다: h5·h1 × 20날짜·18세션 × 정/역방향 전부 |t|<2, 유일한 유의값은 '챔피언 top-k 가 풀보다 -3.1%p/세션(t -3.84) 하회'라는 음의 결과. 비체결 포함 rank IC 는 최근 창 +0.055(t 1.92)로 약한 양이나 체결·수수료 후 사라진다 → 신호가 체결 불가 종목에 집중된다는 뜻이며, 다음 레버는 순위 조정이 아니라 피처/라벨 축(승인 필요).",
+      "created": "2026-11-22T03:20:00+09:00"
     }
   ],
   "updated": "2026-11-21T20:11:04+09:00"
