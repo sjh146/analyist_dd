@@ -1377,7 +1377,7 @@
         "value": 1,
         "unit": "최근 7일 yfinance 경로 자기신고 행(source>0) 수"
       },
-      "check_note": "배선(문자열)이 아니라 실제 행+source_rows>0 으로 판정한다(R23/R27 교훈). 2026-10-03 배선 완료: 컨테이너 phase 가 '[claim] yfinance_market_data market_data source=.. claimed=.. persisted=..' 를 찍고 호스트 래퍼(run_docker_phase)가 scripts/yf_claim_from_phase_log.py 로 기록. DB 왕복 검증 완료(합성 로그→행 삽입→check=1→정리). 종단 확인은 20:00 파이프라인 실행 후 실제 source>0 행으로. | [2026-10-03 22:0x 수리 — check 를 주말-인지 스크립트로 교체] 저녁 파이프라인은 **평일 20:00 전용**(`/etc/cron.d/analyist_dd`: `0 20 * * 1-5`)인데, 종전 SQL check 는 최근 7일 창으로 행을 세어 배선 직후 첫 주말(10-03 토)에 매 틱 0 → '미달'을 기록했다 — 마땅히 판정 대상이 없는 날을 결함으로 세는 **'주말에 구조적으로 실패하는 check'**(스킬 함정). 새 check = `scripts/r28_yf_claim_check.py`(회귀 13건 `tests/test_r28_yf_claim_check.py`): ① 배선일(커밋 2e96da1, 10-03) 이후 완료된 파이프라인 로그가 없으면 통과(판정 대상 없음) ② 로그에 `source>0` 인 `[claim] yfinance_market_data` 줄이 있어야 자기신고를 요구(휴장·신규데이터 없음 = phase 가 [claim] 미출력 = 정상 no-op 이므로 통과) ③ 요구되는데 행 0건이면 미달(진짜 호스트 기록 결함) ④ DB 조회 불가면 fail-closed(0). 실측 확인: 10-03 토요일 실행 → 통과값 1·사유 stderr. | [2026-10-03 22:1x] `recurring: true` 로 전환(종전 status=partial·비recurring) — `next_item()` 은 **pending 만** 후보로 보므로 partial 항목은 이후 틱에서 다시 집히지 않아, **월요일 파이프라인 뒤의 종단 재확인 자체가 불가**했다(배선 검증이 영영 안 끝남). 상시 감시로 돌려 배선 회귀를 계속 지켜본다(R27 과 동일 패턴). ⚠ 읽는 법: '판정 대상 없음'의 값 `1` 은 **'검증 완료'가 아니라 '아직 기회(평일 파이프라인) 없음'**이다 — 실제 종단 확인은 배선일 이후 파이프라인 로그가 생긴 뒤의 행 수로만 판정한다.",
+      "check_note": "배선(문자열)이 아니라 실제 행+source_rows>0 으로 판정한다(R23/R27 교훈). 2026-10-03 배선 완료: 컨테이너 phase 가 '[claim] yfinance_market_data market_data source=.. claimed=.. persisted=..' 를 찍고 호스트 래퍼(run_docker_phase)가 scripts/yf_claim_from_phase_log.py 로 기록. DB 왕복 검증 완료(합성 로그→행 삽입→check=1→정리). 종단 확인은 20:00 파이프라인 실행 후 실제 source>0 행으로. | [2026-10-03 22:0x 수리 — check 를 주말-인지 스크립트로 교체] 저녁 파이프라인은 **평일 20:00 전용**(`/etc/cron.d/analyist_dd`: `0 20 * * 1-5`)인데, 종전 SQL check 는 최근 7일 창으로 행을 세어 배선 직후 첫 주말(10-03 토)에 매 틱 0 → '미달'을 기록했다 — 마땅히 판정 대상이 없는 날을 결함으로 세는 **'주말에 구조적으로 실패하는 check'**(스킬 함정). 새 check = `scripts/r28_yf_claim_check.py`(회귀 13건 `tests/test_r28_yf_claim_check.py`): ① 배선일(커밋 2e96da1, 10-03) 이후 완료된 파이프라인 로그가 없으면 통과(판정 대상 없음) ② 로그에 `source>0` 인 `[claim] yfinance_market_data` 줄이 있어야 자기신고를 요구(휴장·신규데이터 없음 = phase 가 [claim] 미출력 = 정상 no-op 이므로 통과) ③ 요구되는데 행 0건이면 미달(진짜 호스트 기록 결함) ④ DB 조회 불가면 fail-closed(0). 실측 확인: 10-03 토요일 실행 → 통과값 1·사유 stderr. | [2026-10-03 22:1x] `recurring: true` 로 전환(종전 status=partial·비recurring) — `next_item()` 은 **pending 만** 후보로 보므로 partial 항목은 이후 틱에서 다시 집히지 않아, **월요일 파이프라인 뒤의 종단 재확인 자체가 불가**했다(배선 검증이 영영 안 끝남). 상시 감시로 돌려 배선 회귀를 계속 지켜본다(R27 과 동일 패턴). ⚠ 읽는 법: '판정 대상 없음'의 값 `1` 은 **'검증 완료'가 아니라 '아직 기회(평일 파이프라인) 없음'**이다 — 실제 종단 확인은 배선일 이후 파이프라인 로그가 생긴 뒤의 행 수로만 판정한다. | [2026-11-21 20:5x 수리 — 7일 고정 창 ↔ 로그 전량 스캔 불일치] 실측: 마지막 yfinance 자기신고 행은 11-13 20:40 KST(8일 전), 그 뒤 파이프라인은 '1-1 yfinance 건너뜀(KRX 경로가 적재)'으로 정상 no-op 이라 [claim] 을 찍지 않는다. 그런데 check 는 **과거 로그의 [claim]** 을 근거로 **최근 7일** 행을 요구해 19:00 틱에 0 미달을 기록했다(고쳐도 통과 못 하는 check — 2026-10-03 주말 오탐과 같은 뿌리). 수리 = `claim_log_dates()` 로 [claim](source>0) 실행일을 뽑아 **가장 최근 실행일 이후** 행을 센다(로그 창 = 행 창). 실경로 검증: `/usr/bin/python3 scripts/r28_yf_claim_check.py` → 'yfinance 자기신고 행 1건 ≥ 1 → 통과(기준일 2026-11-13)' = 1. 회귀 3건 추가(총 26 passed). 감시는 유지: 새 [claim] 실행이 생기면 그 날짜 이후 행이 없을 때 미달.",
       "cost": "약 20분(파서 배선 + 1회 실행 검증)",
       "success": "",
       "attempts": [
@@ -2076,7 +2076,7 @@
     {
       "id": "R46",
       "title": "스택 컨테이너 상주 감시 — 앱 컨테이너 14개가 사라져도 DQ 는 다른 사유로만 말한다(2026-11-21 실측)",
-      "status": "pending",
+      "status": "done",
       "priority": 7,
       "kind": "investigate",
       "recurring": true,
@@ -2090,7 +2090,20 @@
         "unit": "미가동 핵심 컨테이너 수(13개 중, docker 불가=999)"
       },
       "command": "cd /home/jhshi/analyist_dd && /usr/bin/python3 scripts/stack_liveness_check.py --heal",
-      "notes": "판정 스크립트 scripts/stack_liveness_check.py(회귀 tests/test_stack_liveness_check.py 7건). 핵심 목록에서 jenkins 는 제외 — 컨테이너 내부 좀비가 상시 조건이라 넣으면 잡음이 된다. --heal 은 `docker compose up -d --no-build` 만 시도하고 **빌드는 시작하지 않는다**(이미지가 없으면 그 사실을 보고하고 사람/엔지니어 판단으로 넘긴다 — 몇십 분짜리 빌드가 틱을 점유하면 안 된다). docker CLI 를 못 쓰면 0(정상)이 아니라 999(판정 불가=실패)로 내보낸다."
+      "notes": "판정 스크립트 scripts/stack_liveness_check.py(회귀 tests/test_stack_liveness_check.py 7건). 핵심 목록에서 jenkins 는 제외 — 컨테이너 내부 좀비가 상시 조건이라 넣으면 잡음이 된다. --heal 은 `docker compose up -d --no-build` 만 시도하고 **빌드는 시작하지 않는다**(이미지가 없으면 그 사실을 보고하고 사람/엔지니어 판단으로 넘긴다 — 몇십 분짜리 빌드가 틱을 점유하면 안 된다). docker CLI 를 못 쓰면 0(정상)이 아니라 999(판정 불가=실패)로 내보낸다.",
+      "attempts": [
+        {
+          "ts": "2026-11-21T20:47:48+09:00",
+          "rc": 0,
+          "detail": "[조사]R46: 0 <= 0 → 충족 | 증거: 핵심 컨테이너 실행 13/13 | 결함 수(미가동 핵심 컨테이너) = 0"
+        }
+      ],
+      "result": {
+        "detail": "[조사]R46: 0 <= 0 → 충족 | 증거: 핵심 컨테이너 실행 13/13 | 결함 수(미가동 핵심 컨테이너) = 0",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R46_20261121-204748.log"
+      }
     }
   ]
 }

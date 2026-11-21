@@ -99,7 +99,7 @@ def test_main_prints_single_number_on_stdout(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(r28, "DEPLOY_DATE", r28.date(2026, 10, 3))
     _mk(tmp_path, "full_pipeline_dd_20261005_2000.log",
         "[claim] yfinance_market_data market_data source=7 claimed=7 persisted=7\n")
-    monkeypatch.setattr(r28, "count_claim_rows", lambda: 2)
+    monkeypatch.setattr(r28, "count_claim_rows", lambda since=None: 2)
     rc = r28.main()
     out = capsys.readouterr()
     assert rc == 0
@@ -114,3 +114,53 @@ def test_main_weekend_no_logs_prints_one(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr()
     assert rc == 0
     assert out.out.strip() == "1"
+
+
+# ── 창 정합 (2026-11-21 수리) ───────────────────────────────────────────────
+# 실측 사고: 마지막 자기신고 행은 11-13(8일 전), 그 뒤 실행은 'yfinance 건너뜀'(정상 no-op)이라
+# [claim] 을 찍지 않는다. 그런데 종전 check 는 **과거 로그의 [claim]** 을 근거로 **최근 7일** 행을
+# 요구해 영구 미달이 됐다('고쳐도 통과 못 하는 check'). 판정 창을 로그 실행일 기준으로 맞춘다.
+def test_claim_log_dates_only_claim_bearing_logs(tmp_path):
+    a = _mk(tmp_path, "full_pipeline_dd_20261113_2000.log",
+            "[claim] yfinance_market_data market_data source=5 claimed=5 persisted=1\n")
+    b = _mk(tmp_path, "full_pipeline_dd_20261120_2000.log",
+            "--- 1-1. yfinance 건너뜀 (market_data 최신 2026-11-19 >= 2026-11-16)\n")
+    logs = [(r28.date(2026, 11, 13), a), (r28.date(2026, 11, 20), b)]
+    assert r28.claim_log_dates(logs) == [(r28.date(2026, 11, 13), a)]
+
+
+def test_main_uses_latest_claim_log_date_as_window(tmp_path, monkeypatch, capsys):
+    """행 조회 기준일 = 가장 최근 [claim](source>0) 실행일 (7일 고정 창이 아니다)."""
+    monkeypatch.setattr(r28, "REPORTS", str(tmp_path))
+    monkeypatch.setattr(r28, "DEPLOY_DATE", r28.date(2026, 10, 3))
+    _mk(tmp_path, "full_pipeline_dd_20261113_2000.log",
+        "[claim] yfinance_market_data market_data source=5 claimed=5 persisted=1\n")
+    _mk(tmp_path, "full_pipeline_dd_20261120_2000.log",
+        "--- 1-1. yfinance 건너뜀 (market_data 최신 2026-11-19 >= 2026-11-16)\n")
+    seen = {}
+
+    def fake_count(since=None):
+        seen["since"] = since
+        return 1
+
+    monkeypatch.setattr(r28, "count_claim_rows", fake_count)
+    rc = r28.main()
+    out = capsys.readouterr()
+    assert rc == 0
+    assert seen["since"] == r28.date(2026, 11, 13)      # 로그 실행일 기준
+    assert out.out.strip() == "1"                       # 8일 전 행이라도 창 안이면 통과
+    assert "통과" in out.err
+
+
+def test_main_claim_log_without_row_still_fails(tmp_path, monkeypatch, capsys):
+    """같은 창에서 행이 0 이면 여전히 미달 — 감시를 느슨하게 만든 게 아니다."""
+    monkeypatch.setattr(r28, "REPORTS", str(tmp_path))
+    monkeypatch.setattr(r28, "DEPLOY_DATE", r28.date(2026, 10, 3))
+    _mk(tmp_path, "full_pipeline_dd_20261113_2000.log",
+        "[claim] yfinance_market_data market_data source=5 claimed=5 persisted=1\n")
+    monkeypatch.setattr(r28, "count_claim_rows", lambda since=None: 0)
+    rc = r28.main()
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == "0"
+    assert "결함" in out.err
