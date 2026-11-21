@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-22T04:12:53+09:00",
+  "updated_at": "2026-11-22T05:11:43+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -23552,8 +23552,8 @@
         }
       ],
       "result": {
-        "verdict": "판정보류(표본부족) — 혼합 착시는 확정",
-        "detail": "champ 단독(모델 champ-20261002T024420-0.5513, 54,966행): h1 n_dates 8(11-09~11-19) · pooled 0.5409 · daily 평균 0.5151±0.0273 (날짜 min 0.4688 / max 0.5461, 0.5 초과 6/8일) | h5 n_dates 4 · pooled 0.5325 · daily 0.5138±0.0328 (0.5 초과 2/4일). 혼합 17일 값(pooled 0.5638 / daily 0.5158)과 비교하면 pooled 는 -0.0229 내려앉는데 daily 평균은 -0.0007 로 그대로 → '전방 0.56' 은 pooled 집계가 v1.0 9일을 섞은 착시이고 모델의 날짜별 실력은 0.515 수준. 돈(체결성 ON·수수료 0.21%p 왕복, h1 top10 vs 당일 풀평균): +0.5969 vs -0.2723 = Δ+0.8692%p(t 0.90, 분할 +0.9838/+0.7545, 양(+) 4/8일) → t<2 이므로 '관찰'이지 신호 아님. h5 Δ-0.7701(t -0.49, 분할 +1.8629/-3.4031) = 부호 불안정.",
+        "verdict": "표본부족",
+        "detail": "h5 전방 pooled AUC 0.5325(날짜별 0.5138) · n_dates 4 · n_pairs 15199 · top10 실현수익 -5.0529% vs 전체평균 -2.2768% — n_dates 4 < 10 → 판정 보류(표본 누적 대기)",
         "delta": {
           "h1_pooled_vs_mixed": -0.0229,
           "h1_daily_vs_mixed": -0.0007
@@ -23667,7 +23667,7 @@
       "owner": "engineer",
       "affects_model": false,
       "priority": 2,
-      "status": "pending",
+      "status": "done",
       "metric": "panel_feature_screen",
       "summary_out": "/app/reports/overnight/cg407_panel_screen.json",
       "est_minutes": 25,
@@ -23680,7 +23680,70 @@
       "success": "rc=0 · 피처별 |AUC−0.5|·IC t 를 기록. 판정: 누수 의심(|AUC−0.5|>0.25) 0건 유지 + 시간가변 피처 중 |AUC−0.5|≥0.03·IC t≥2 가 존재하면 그 피처군을 승격 후보 실험(같은 런 5폴드)으로 등록. 전부 무정보면 데이터 축 가용성 부족을 수치로 확정하고 리서처 원천 요청 목록을 갱신.",
       "expected": "무정보 비율이 9/23 스크린(126/210)과 큰 차이 없고, 시간가변 최고는 여전히 |AUC−0.5|<0.06.",
       "cost": "스크린만 ≈20분(학습 없음)",
-      "created": "2026-11-22T04:12:53+09:00"
+      "created": "2026-11-22T04:12:53+09:00",
+      "attempts": [
+        {
+          "ts": "2026-11-22T04:13:36+09:00",
+          "rc": 0,
+          "verdict": "스크린 완료 — 데이터 축 후보 있음",
+          "detail": "패널 panel_prod200_v6.npz 221피처 · 누수 의심 0[] · 종목상수 31 · 시장레벨 55 · 무정보 151/221 · IC |t|≥2 시간가변 후보 51개: event_litigation_5d IC -0.040(t -5.98, fill 1.0) · value_psr IC -0.029(t -5.82, fill 1.0) · similar_stocks_return_avg IC +0.043(t 5.57, fill 1.0) · value_pcr IC -0.026(t -5.28, fill 1.0)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG407_20261122-041257.log",
+          "elapsed_min": 0.6
+        }
+      ],
+      "result": {
+        "verdict": "스크린 완료 — 데이터 축 후보 있음",
+        "detail": "패널 panel_prod200_v6.npz 221피처 · 누수 의심 0[] · 종목상수 31 · 시장레벨 55 · 무정보 151/221 · IC |t|≥2 시간가변 후보 51개: event_litigation_5d IC -0.040(t -5.98, fill 1.0) · value_psr IC -0.029(t -5.82, fill 1.0) · similar_stocks_return_avg IC +0.043(t 5.57, fill 1.0) · value_pcr IC -0.026(t -5.28, fill 1.0)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG408",
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "priority": 2,
+      "status": "done",
+      "metric": "fillable_topk_vs_pool",
+      "summary_out": "/app/reports/overnight/cg408_value_money.json",
+      "est_minutes": 8,
+      "title": "[데이터 축·돈 직검] CG407 이 지목한 유일한 생존 축(밸류에이션 5종)이 돈이 되는가 — 룰 top-k vs 같은 날 풀평균",
+      "arm": "value_cheap(rule)",
+      "counterfactual": "같은 날 체결가능 풀평균(무작위 k 기대) + 해시 난수 널",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/cg408_value_money.py --panel /app/app/models/wf/panel_prod200_v6.npz --out-arm /app/reports/overnight/cg408_value_arm.jsonl --out-control /app/reports/overnight/cg408_value_null.jsonl && OMP_NUM_THREADS=2 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg408_value_arm.jsonl --arm-tag cash408_value_cheap --control-jsonl /app/reports/overnight/cg408_value_null.jsonl --control-tag cash408_null_hash --k 5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg408_value_money.json'",
+      "hypothesis": "CG407: v6 패널 시간가변 생존 피처 중 밸류에이션 군만 IC 가 일관(value_psr -0.0293 t -5.82, value_pcr -0.0263 t -5.28, value_pbr -0.0221 t -3.70, value_pfcr -0.0173 t -4.28, value_ev_ebit -0.0159 t -2.78, 309일). 저평가 상위가 체결가능 순기대를 플러스로 만든다면 모델 이전에 룰만으로 돈이 난다.",
+      "evidence": "실측 2026-11-22 05:0x (패널 panel_prod200_v6 61,640행·200종목·2025-08-04~2026-11-17, k=5/10, h5, stride 5 = 63 비중첩 세션, 필터: 상한가 근접 제외·당일등락≥25% 제외·거래대금≥10억): value_cheap top-5 순기대 -0.971%p/세션 vs 풀평균 -0.302%p → Δ-0.669(t -1.27, pos/neg 23/40) · k=10 Δ-0.276(t -0.73). 같은 런 규약으로 잰 다른 3축도 전부 음(-): momentum Δ-0.830(t -1.03) · supply(외국인/기관 순매수) Δ-0.347(t -0.71) · 저변동만 Δ+0.696(t 1.51). 즉 IC 부호(비쌀수록 미래수익 낮다)는 가격배수 자체의 단기 반전 성분이지 '저평가 프리미엄'이 아니다 — 횡단면 순위 극단(top-k)으로 옮기면 돈이 되지 않는다.",
+      "success": "사전등록: Δ(top-k − 풀평균) ≥ +0.1%p AND t ≥ 2 AND 분할표본 both_positive AND n_sessions ≥ 20",
+      "expected": "value 축이 돈 엣지의 원천이면 모델 이전에 룰로 잡힌다",
+      "cost": "8분",
+      "created": "2026-11-22T05:05+09:00",
+      "verdict": "노이즈 — 데이터 축 룰 선택 4축 중 3축이 풀평균을 유의하게 하회, 저변동 1축도 t 1.51·분할 불안정",
+      "detail": "value Δ-0.669(t -1.27) · momentum Δ-0.830(t -1.03) · supply Δ-0.347(t -0.71) · 저변동 Δ+0.696(t 1.51, 앞/뒤 반쪽 +0.838/-0.037 = unstable) → 사전문턱 미달. 저변동 절대 순기대만 +0.394%p/세션으로 플러스."
+    },
+    {
+      "id": "CG409",
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "priority": 2,
+      "status": "done",
+      "metric": "fillable_topk_expectancy",
+      "summary_out": "/app/reports/overnight/cg409_money.json",
+      "est_minutes": 12,
+      "title": "[돈·게이트] CG408 이 남긴 유일한 플러스 축(저변동)을 모델 top-k 위에 얹으면 체결가능 순기대가 개선되는가",
+      "arm": "volgate(q=0.5)+CO_rank_smooth_d1_h5",
+      "counterfactual": "같은 dump 게이트 OFF(전체 종목) — 같은 런 짝 비교",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 3 --only CO_rank_smooth_d1_h5 --dump-preds /app/reports/overnight/cg409_preds.jsonl --out /app/reports/overnight/cg409_wf.jsonl --summary-out /app/reports/overnight/cg409_wf_summary.json && python -u scripts/cg409_vol_gate.py --preds /app/reports/overnight/cg409_preds.jsonl --tag CO_rank_smooth_d1_h5 --panel /app/app/models/wf/panel_prod200_v6.npz --out-arm /app/reports/overnight/cg409_gate_arm.jsonl --out-control /app/reports/overnight/cg409_gate_ctl.jsonl && OMP_NUM_THREADS=2 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg409_gate_arm.jsonl --arm-tag cg409_volgate --control-jsonl /app/reports/overnight/cg409_gate_ctl.jsonl --control-tag cg409_nogate --k 5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg409_money.json'",
+      "hypothesis": "CG408: 룰 단독으로는 저변동 top-5 만 절대 순기대 +0.394%p/세션(풀 Δ+0.696, t 1.51). 저변동은 모델 점수와 직교라면 '모델 점수 상위 ∩ 저변동 하위 50%' 가 게이트 OFF 보다 나아야 한다.",
+      "evidence": "실측 2026-11-22 05:1x: 먼저 같은 패널에서 모델 성능 — CO_rank_smooth_d1_h5 5폴드×3시드 AUC 0.5491±0.0081 (등록 기준선 0.5406 대비 +0.0085 = 사전문턱 +0.02 미달, 22사이클 연속 미달 재확인). 게이트 arm 은 dump 행의 41.5%(12,478/30,053)만 통과. 체결가능 순기대(255세션, k=5, h5, stride 5): 게이트 arm +0.143%p vs 게이트 OFF +1.110%p → Δ-0.967(t -1.76, pos/neg 20/34) · k=10 +0.265 vs +0.661 → Δ-0.396(t -0.68). 게이트 통과 후 세션당 체결가능 후보 중앙값이 9로 줄어 선택지 자체가 소멸한다(풀평균 +0.731%p, n=55).",
+      "success": "사전등록: Δ(게이트 − 게이트OFF) ≥ +0.1%p AND t ≥ 2 AND 분할표본 both_positive",
+      "expected": "저변동이 직교 팩터면 게이트가 소폭이라도 개선",
+      "cost": "12분",
+      "created": "2026-11-22T05:12+09:00",
+      "verdict": "노이즈 — 저변동 게이트는 모델 선택을 악화시킨다(Δ-0.967, t -1.76). 저변동 축 종결.",
+      "detail": "k=5 Δ-0.967(t -1.76) · k=10 Δ-0.396(t -0.68) · 게이트 후 체결가능 후보 중앙값 9 → 선택지 소멸. 같은 런 모델 AUC 0.5491±0.0081(기준선 +0.0085)."
     }
   ],
   "updated": "2026-11-21T20:11:04+09:00"
