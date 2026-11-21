@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 
@@ -69,6 +70,11 @@ def main(argv=None):
     ap.add_argument("--tag-control", default="cg409_nogate")
     ap.add_argument("--out-arm", required=True)
     ap.add_argument("--out-control", required=True)
+    ap.add_argument("--out-null", default=None,
+                    help="같은 행 집합의 결정적 해시 난수 점수(널)를 여기에도 쓴다 — 풀평균 대신 '무작위 k' 와 짝 비교할 때")
+    ap.add_argument("--tag-null", default="cg409_hashnull")
+    ap.add_argument("--since", default=None, help="이 날짜(YYYY-MM-DD) 이후 행만 남긴다")
+    ap.add_argument("--until", default=None, help="이 날짜(YYYY-MM-DD) 이전 행만 남긴다")
     a = ap.parse_args(argv)
 
     vs = vol_score_by_date(a.panel, [f.strip() for f in a.vol_features.split(",") if f.strip()])
@@ -83,6 +89,7 @@ def main(argv=None):
         cut_by_date[dt] = vals[max(int(len(vals) * (1.0 - a.vol_q)) - 1, 0)]
 
     kept = total = 0
+    fn = open(a.out_null, "w", encoding="utf-8") if a.out_null else None
     with open(a.preds, encoding="utf-8") as f, \
             open(a.out_arm, "w", encoding="utf-8") as fa, \
             open(a.out_control, "w", encoding="utf-8") as fc:
@@ -94,11 +101,20 @@ def main(argv=None):
             if r.get("exp") != a.tag:
                 continue
             dt, code = str(r["date"]), str(r["code"]).zfill(6)
+            if a.since and dt < a.since:
+                continue
+            if a.until and dt > a.until:
+                continue
             total += 1
             base = {"fold": int(r.get("fold") or 0), "date": dt, "code": code,
                     "y_true": r.get("y_true"), "y_pred": float(r["y_pred"]),
                     "fwd_ret": r.get("fwd_ret")}
             fc.write(json.dumps({**base, "exp": a.tag_control}, ensure_ascii=False) + "\n")
+            if fn is not None:
+                h = hashlib.sha256(f"{dt}|{code}|cg409".encode()).hexdigest()
+                fn.write(json.dumps({**base, "exp": a.tag_null,
+                                     "y_pred": int(h[:12], 16) / float(16 ** 12)},
+                                    ensure_ascii=False) + "\n")
             # 날짜 내 저변동 하위 q 만 통과
             cut = cut_by_date.get(dt)
             if cut is None:
@@ -109,6 +125,8 @@ def main(argv=None):
             fa.write(json.dumps({**base, "exp": a.tag_arm}, ensure_ascii=False) + "\n")
             kept += 1
 
+    if fn is not None:
+        fn.close()
     print(f"preds 행 {total} · 게이트 통과 {kept} ({kept / max(total, 1) * 100:.1f}%) · vol_q {a.vol_q}")
     if total == 0:
         print(f"[FAIL] tag={a.tag} 행 없음", file=sys.stderr)
