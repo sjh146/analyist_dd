@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-20T23:30:55",
+  "updated": "2026-11-21T23:30:20",
   "goal_metric": "fillable_oos_net_expectancy_pct",
   "acceptance": {
     "primary": "expectancy_pct > 0",
@@ -37,7 +37,7 @@
     "closed_trades": 22,
     "equity_krw": 245576.0,
     "open_positions": 0,
-    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-11-20.json"
+    "scoreboard": "/home/jhshi/analyist_dd/reports/money/scoreboard_2026-11-21.json"
   },
   "envelope": {
     "limits": {
@@ -55,7 +55,7 @@
     },
     "breaches": [],
     "notes": [
-      "당일 실현 -1103.0원 = 자본의 -0.45% (일 손실한도 -3% 이내)",
+      "당일 실현 0원 = 자본의 0.00% (일 손실한도 -3% 이내)",
       "누적 실현손익 -36244.5원 = 자본의 -14.76% (참고 — 일 손실한도와 비교 대상 아님)"
     ]
   },
@@ -67,7 +67,7 @@
   },
   "data_freshness": {
     "feed_generated_at": "2026-11-20T20:30:02+09:00",
-    "feed_age_h": 3.0,
+    "feed_age_h": 27.0,
     "screener_stats_mtime": "2026-11-20T20:30:01",
     "swing_probe_mtime": "2026-11-20T18:23:11",
     "close_gap_history_mtime": "2026-11-19T09:20:28"
