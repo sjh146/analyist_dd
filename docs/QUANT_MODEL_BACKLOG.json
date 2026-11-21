@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T00:38:02+09:00",
+ "updated_at": "2026-11-22T01:32:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -21979,7 +21979,9 @@
    "rationale": "CG360 실측(2026-11-19 18:54): 200종목·22날짜 OOS 0.5132 (sd 0.0510 · SE 0.0109 · pooled 0.5143 · 4,400행). 등록 기준선 0.5406 과의 차 -0.0274 = 2.5σ 로, 잡음으로 닿지 않는다.",
    "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
    "approved_by": "2026-11-21",
-   "note": "기준선을 OOS 다중폴드로 재정의 — 단일 val split(0.5513/0.5406) 폐기, 22날짜 OOS 0.5132±0.0109 로 교체. 후보 arm 도 동일 프로토콜로 병기해야 비교 성립(구현은 엔지니어). 2026-11-21 19:1x 엔지니어: command 미정 상태로 pending 에 두면 (a) 구동기 등록 자기모순 경고가 매 틱 뜨고 (b) 실행 큐를 차지한다 → needs_setup 으로 내리고, 승인/프로토콜 확정 후 command 한 줄과 함께 pending 으로 올린다."
+   "note": "기준선을 OOS 다중폴드로 재정의 — 단일 val split(0.5513/0.5406) 폐기, 22날짜 OOS 0.5132±0.0109 로 교체. 후보 arm 도 동일 프로토콜로 병기해야 비교 성립(구현은 엔지니어). 2026-11-21 19:1x 엔지니어: command 미정 상태로 pending 에 두면 (a) 구동기 등록 자기모순 경고가 매 틱 뜨고 (b) 실행 큐를 차지한다 → needs_setup 으로 내리고, 승인/프로토콜 확정 후 command 한 줄과 함께 pending 으로 올린다.",
+   "evidence": " [2026-11-22 01:1x 근거 추가] 같은 모델을 같은 창에서 재는 방식만 바꾼 값 — rank_ 보존(백테스트) CG395 0.5474±0.0454(2창 [0.5021,0.5928]·18날짜·1440행) vs rank_ 0.0(서빙 실경로) CG396 0.4893±0.0490([0.4403,0.5383]) → Δ−0.0581(두 폴드 모두 음). 배포 스코어카드 money.json robust 0.4908 과 0.4893 이 사실상 일치 = 카운터 기준선 0.5406 은 서빙이 도달할 수 없는 값이다. 즉 22사이클 \"무개선\"은 모델 무신호가 아니라 기준선-서빙 불일치로도 설명된다.",
+   "updated_engineer": "2026-11-22T01:12:00+09:00"
   },
   {
    "id": "CG362",
@@ -23302,13 +23304,13 @@
    "owner": "engineer",
    "affects_model": false,
    "priority": 1,
-   "status": "pending",
-   "metric": "fillable_expectancy",
+   "status": "done",
+   "metric": "fillable_topk_expectancy",
    "est_minutes": 22,
    "title": "rank_* 가 만든 AUC(+0.058)가 돈으로 환산되는가 — 같은 창에서 체결가능 순기대 A/B (rank 보존 vs rank 0.0)",
    "arm": "rank_vs_norank_expectancy",
    "counterfactual": "CG395 배포 챔피언(rank 보존) vs CG396 rank 0.0 — 같은 2창·같은 80종목 유니버스",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --horizon 5 --dump-preds /app/reports/overnight/cg397_rank.jsonl --dump-tag rank_keep --out /app/reports/overnight/cg397_rank_keep.json && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --horizon 5 --zero-features rank_ --dump-preds /app/reports/overnight/cg397_norank.jsonl --dump-tag no_rank --out /app/reports/overnight/cg397_norank.json && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg397_rank.jsonl --arm-tag rank_keep --control-jsonl /app/reports/overnight/cg397_norank.jsonl --control-tag no_rank --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg397_money.json'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2400 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --horizon 5 --dump-preds /app/reports/overnight/cg397_rank.jsonl --dump-tag rank_keep --out /app/reports/overnight/cg397_rank_keep.json && OMP_NUM_THREADS=4 timeout 2400 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --horizon 5 --zero-features rank_ --dump-preds /app/reports/overnight/cg397_norank.jsonl --dump-tag no_rank --out /app/reports/overnight/cg397_norank.json && python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg397_rank.jsonl --arm-tag rank_keep --control-jsonl /app/reports/overnight/cg397_norank.jsonl --control-tag no_rank --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg397_money.json'",
    "summary_out": "/app/reports/overnight/cg397_money.json",
    "hypothesis": "AUC 를 +0.058 만드는 rank_* 가 실현 순기대도 올리는지, 아니면 AUC 만 올리고 돈은 안 되는지(과거 8모델 실측에서 AUC↔순기대 상관 ~0)를 같은 창·같은 유니버스에서 직접 잰다.",
    "evidence": "CG396 실측(2026-11-22 00:34): rank 0.0 → 0.4893±0.0490 · 두 폴드 모두 하락(−0.0618/−0.0545) · 유니버스 동일(80종목·학습유니버스 교집합 5). CG395 배포 0.5474±0.0454.",
@@ -23316,7 +23318,77 @@
    "expected": "Δ 소폭 양(+0.0~0.1%p) 또는 0 — AUC 의 40% 를 담당해도 순기대는 음(−0.182%p)이라는 기존 관측과 정합적일 것.",
    "cost": "2회 평가(≈14분) + 집계(≈1분)",
    "created": "2026-11-22T00:38:02+09:00",
-   "note": "집계기 CLI 는 --arm-jsonl/--control-jsonl(둘 다 필수) — --preds 아님. --stride 5 = h5 보유창 비중첩(STRIDE_H), 수수료 왕복 0.21%p 는 집계기 기본 상수. 표본 주의: 18날짜·80종목(ETF/ETN 30 포함, 학습유니버스 교집합 5) → 체결가능 필터 후 세션이 적으면 '미해상'으로 기록."
+   "note": "집계기 CLI 는 --arm-jsonl/--control-jsonl(둘 다 필수) — --preds 아님. --stride 5 = h5 보유창 비중첩(STRIDE_H), 수수료 왕복 0.21%p 는 집계기 기본 상수. 표본 주의: 18날짜·80종목(ETF/ETN 30 포함, 학습유니버스 교집합 5) → 체결가능 필터 후 세션이 적으면 '미해상'으로 기록. | 2026-11-22 01:1x 엔지니어: 등록 명령 timeout 1800s < est 22분 필요 2280s 자기모순 → 2400s×2 로 정정(구동기 자동 상향 의존 제거).",
+   "attempts": [
+    {
+     "ts": "2026-11-22T01:19:23+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='fillable_expectancy')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG397_20261122-010944.log",
+     "elapsed_min": 9.7
+    }
+   ],
+   "result": {
+    "verdict": "노이즈 — AUC +0.058 은 돈으로 환산되지 않음",
+    "detail": "stride1(18세션·중첩·체결성필터·수수료 0.21%p): k=3 arm -7.502 vs ctl -6.588 → Δ-0.914(t -0.51) · k=5 -7.571 vs -7.501 → Δ-0.070(t -0.06) · k=10 -6.938 vs -7.263 → Δ+0.324(t 0.31) · 분할 neither 3/3 · 널(풀평균) 대비 k=3 Δ-0.069(t -0.06). stride5(4세션): k=3 Δ-5.822(t -0.99)·k=5 Δ-4.462(t -1.24). 같은 창 pooled AUC 0.5474(rank 보존) vs 0.4893(rank 0.0) = Δ0.0581 인데 순기대 Δ 는 0 과 구분 불가 → 사전문턱(+0.05%p·t≥2) 미충족. 창 전체가 하락장(풀평균 -7.43%p/세션)이라 절대값은 음수이고 판정은 짝 Δ 로만 한다.",
+    "delta": -0.914,
+    "per_exp": null,
+    "rc": 0,
+    "artifacts": [
+     "services/xgboost-ml/reports/overnight/cg397_rank_keep.json",
+     "services/xgboost-ml/reports/overnight/cg397_norank.json",
+     "services/xgboost-ml/reports/overnight/cg397_money.json",
+     "services/xgboost-ml/reports/overnight/cg397_money_stride1.json"
+    ],
+    "note": "구동기가 rc=0 인데 '판정불가 parser 없음' 으로 기록했다 — 등록 metric 이름(fillable_expectancy)에 파서가 없었기 때문. 측정은 성립했고, 위 판정은 원장 대신 요약 JSON 에서 직접 계산했다. 재발 방지로 구동기에 METRIC_ALIASES 별칭을 추가(_metric_alias)하고 이 항목 metric 을 표준명으로 고쳤다."
+   },
+   "conclusion": "rank 축 돈 종결: 서빙에서 blind 인 rank_* 6개가 만드는 AUC +0.058 은 실재하지만(두 폴드 -0.0618/-0.0545) 같은 창 18세션에서 순기대 Δ 는 0(|t|<0.6) → 'AUC 만 올리는 피처'. 배치 횡단면 추론(서빙 계약 변경)은 돈 근거가 없어 승인 요청을 보류한다(CG398 을 backlog 로 내림)."
+  },
+  {
+   "id": "CG398",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 5,
+   "status": "backlog",
+   "metric": "serving_rank_supply",
+   "est_minutes": 90,
+   "title": "[서빙 계약·승인대기] 당일 횡단면 배치 추론 경로 — 배포 모델이 받는 rank_* 6개를 실제로 공급(기본 OFF, 회귀 비트동일)",
+   "arm": "serving_batch_rank",
+   "counterfactual": "현행 predict_all→predict 종목 단위 경로(rank_* 6개가 항상 0.0) · CG396 0.4893±0.0490",
+   "command": null,
+   "hypothesis": "CG395(rank 보존 백테스트) 0.5474 와 CG396(rank 0.0, 서빙 실경로) 0.4893 의 격차 Δ0.0581 은 '모델이 쓸 수 있는 정보가 서빙에서 빠져 있기 때문'이다. 동일 날짜·전 종목을 두 패스로 처리(1패스 rank 원천 6컬럼 수집 → 2패스 백터 생성)하면 서빙이 학습 시 rank 를 그대로 공급할 수 있고, 백테스트 성능이 실거래로 넘어온다.",
+   "evidence": "CG396(2026-11-22 00:34) rank 0.0 → 0.4893±0.0490(2창 [0.4403,0.5383]·18날짜·1440행) vs CG395 0.5474±0.0454(같은 창) · 두 폴드 모두 −0.0618/−0.0545 · 배포 money.json robust 0.4908. 원인은 코드로 확정: app/inference/predictor.py:213 `features.get(f,0.0)` · app/training/retrain_champion.py:151-156 SERVING_BLIND_FEATURES(CG164 기록) · app/main.py:126 종목 루프.",
+   "success": "① 기본 OFF 에서 현행과 예측 점수·Redis 메시지 비트 동일(회귀 테스트) ② ON 에서 당일 전 종목 rank 가 학습 시 rank 와 동일(단위 테스트: 같은 날짜 패널 재계산과 최대오차 1e-9) ③ CG397 돈 Δ ≥ +0.05%p/세션일 때만 승인 요청.",
+   "expected": "서빙 rank 공급 시 백테스트 0.547 수준이 실거래로 이전 — 다만 돈 번역은 CG397 이 답한다(AUC↔순기대 상관 ~0 실측 있음).",
+   "cost": "구현·테스트 60~90분(1회) + 평가 8분",
+   "setup_needed": "리뷰보드 승인 필요(발행 계약 변경: 예측 입력 정의). 승인 후 내가 구현할 것 — ① Predictor.predict_all 에 2패스 배치 경로(같은 date 의 전 종목 수집 후 date 별 pct rank 계산) ② 환경변수 SERVING_CROSS_SECTIONAL_RANK(기본 0=현행) ③ 회귀 테스트 tests/test_serving_rank.py(OFF 비트동일·ON rank 일치) ④ ON/OFF 짝 채점은 champion_robust_eval --zero-features rank_ 로 재현. 스키마·소비자 계약 변경 없음(ml_predictions 컬럼 불변).",
+   "rationale": "22사이클 무개선의 원인 후보 중 유일하게 '측정으로 확인됐고 코드 위치까지 특정된' 레버다. 승인 없이는 착수 불가.",
+   "created": "2026-11-22T01:12:00+09:00",
+   "note": "2026-11-22 01:3x — CG397 돈 실측(18세션 Δ k3 -0.91/k5 -0.07/k10 +0.32, |t|<0.6)으로 '서빙 rank 공급 → 돈 개선' 근거가 없어졌다. 구현 계획은 남겨 두되 승인 요청은 하지 않는다. AUC 축만 원할 때의 후보로 유지."
+  },
+  {
+   "id": "CG399",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "pending",
+   "metric": "champion_robust_eval",
+   "est_minutes": 18,
+   "title": "[측정정합성] 최근 OOS 기준선을 '학습 도메인 정합' 유니버스로 다시 잰다 — CG394~397 은 유동성 상위 80종목 중 ETF/ETN 30개·학습유니버스 교집합 5종목에서 쟀다",
+   "arm": "champ_posttrain_training_universe",
+   "counterfactual": "CG395 0.5474±0.0454 / CG396 0.4893±0.0490 (둘 다 liquidity 80 · ETF/ETN 30 · 교집합 5)",
+   "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-11-20 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2100 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --universe training --horizon 5 --out /app/reports/overnight/cg399_champ_training_univ.json && OMP_NUM_THREADS=4 timeout 2100 python -u scripts/champion_robust_eval.py --window-mode post_train --folds 2 --dates-per-fold 9 --stocks 80 --universe training --horizon 5 --zero-features rank_ --out /app/reports/overnight/cg399_champ_training_univ_norank.json'",
+   "summary_out": "/app/reports/overnight/cg399_champ_training_univ.json",
+   "hypothesis": "배포 챔피언은 학습 유니버스(200종목·ETF/ETN 제외)에서 학습됐는데 최근 OOS 기준선은 유동성 상위 80종목(ETF/ETN 30개·학습 교집합 5)에서 쟀다 → 0.4893 이 '모델 노후'인지 '다른 도메인 채점'인지 갈리지 않는다. 같은 창·같은 폴드에서 학습 도메인 정합 유니버스로 재면 도메인 성분이 빠진 값이 나온다.",
+   "evidence": "CG394/395/396 json 의 universe 블록: mode=liquidity · n=80 · n_etf_etn=30 · overlap_train200=5. 도구 자체가 경고를 남긴다(champion_robust_eval.py:435-466): 2026-09-30 실측에서도 유동성 80 중 26개가 ETF/ETN·학습 교집합 5 → '0.4410 을 자기 과제 성적'으로 읽으면 안 된다고 기록돼 있다. 그런데 이번 기준선 3건이 전부 그 모드로 측정돼 scorecard fold_stats(CG396)에 실렸다.",
+   "success": "rc=0 · 두 arm 모두 폴드 2개·18날짜 · universe.n_etf_etn=0(ETF/ETN 배제 확인) · UNIVERSE_ASOF_DATE 동결 확인. 판정: ① 도메인 정합 값이 0.4893 과 |Δ|≥0.02 면 기존 기준선 폐기·scorecard 갱신 ② rank Δ(정합−0.0)가 0.0581 과 |Δ|≥0.02 면 rank 결론 유지",
+   "expected": "ETF/ETN 30개가 라벨 성질이 달라 값이 움직일 것으로 본다(방향 미지). rank Δ 는 유지될 가능성이 높다.",
+   "cost": "2회 평가 ≈ 14분(순차)",
+   "note": "측정 정합성 실험이므로 기준선·문턱 변경 아님. 결과가 채택되면 scorecard 의 fold_stats 는 다음 champion_robust_eval 기록으로 자동 교체된다. timeout 2100s ≥ est 18분 필요 1920s(자기모순 가드 통과).",
+   "created": "2026-11-22T01:32:00+09:00"
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"

@@ -2328,9 +2328,22 @@ def judge_repro_overlap(item, parsed) -> tuple:
     return ("재현 안 됨 — 동결로도 모집단 불일치", f"{detail}. 원인 후보: {', '.join(why)}", None)
 
 
+METRIC_ALIASES = {
+    # 2026-11-22 CG397 실측: 등록 metric 을 'fillable_expectancy' 로 적었더니 파서가 없어
+    # rc=0 · 측정 성립인데도 원장에 '판정불가 parser 없음' 으로 남았다(같은 json-out 스키마인데
+    # 이름만 달랐다). 이름 한 글자 때문에 사이클 판정이 통째로 무효가 되지 않도록 별칭을 둔다.
+    "fillable_expectancy": "fillable_topk_expectancy",
+}
+
+
+def _metric_alias(kind):
+    """등록 metric 이름의 별칭을 표준 이름으로 정규화한다(없으면 그대로)."""
+    return METRIC_ALIASES.get(kind, kind)
+
+
 def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     """metric 이름으로 파서를 고른다(모르는 metric 은 예외 없이 오류 dict)."""
-    kind = item.get("metric")
+    kind = _metric_alias(item.get("metric"))
     if kind == "reproducibility_overlap":
         return parse_repro_overlap(spath, mtime_floor)
     if kind in ("wf_sweep_summary", "wf_wave_summary"):
@@ -5105,7 +5118,7 @@ def judge_robust_auc_se(item, parsed) -> tuple:
 
 def judge_by_metric(item, parsed, per=None) -> tuple:
     """metric 이름으로 판정기를 고른다(arm 실험은 judge_per, 기준선·게이트는 전용 판정)."""
-    kind = item.get("metric")
+    kind = _metric_alias(item.get("metric"))
     if kind == "reproducibility_overlap":
         return judge_repro_overlap(item, parsed)
     if kind == "scale_regime_audit":
