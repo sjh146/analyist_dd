@@ -261,6 +261,40 @@ def trailing_pool_gate(rows, series, days, min_pct=0.0):
     return out
 
 
+def dispersion_gate(rows, days=20, quantile=0.5, min_pool=10):
+    """진입 시점에 알 수 있는 **점수 분산** 게이트 (CG390).
+
+    WHY(2026-11-21 CG389 실측): h1·stride1 255세션에서 top-k 절대 순기대는 −0.042%p(대조
+    −0.137)로 0 근처인데, 세션 국면을 갈라 보면 하락국면(135세션, 풀 −2.158%p)에서만
+    top-k 가 풀을 +0.587(t 3.56) 이기고 상승국면에서는 +0.030(t 0.15) = 0 이다. 즉 모델의
+    측정 가능한 능력은 '하락 세션에서 덜 잃기'다. 트레일링 풀수익 게이트(CG381/CG383)는
+    그 국면을 **예측하지 못했다**(ON 150세션 풀 −0.741 — 부호까지 반대). 다른 후보는
+    **모델 자신의 당일 점수 분산**이다: 종목 간 점수가 넓게 퍼진 날은 모델이 무언가를
+    구분하고 있다는 뜻이고, 그날만 롱이면 절대 기대가 양(+)으로 돌아서는가.
+
+    lookahead 없음: 세션 t 의 ON/OFF 는 t 세션 점수 분산과 **t 이전** 세션들의 분산 분포만
+    쓴다(기준 = hist[-days:] 의 quantile). 반환값 = (당일 분산 − 과거 분포 quantile) → >0 이면 ON.
+    단위는 확률 표준편차(%), trailing_pool 게이트의 %p 와 다르다.
+    """
+    sess = defaultdict(lambda: defaultdict(list))
+    for r in rows:
+        sess[r["fold"]][r["date"]].append(r["score"])
+    out = {}
+    for fold, by_date in sess.items():
+        ds = sorted(by_date)
+        hist = []
+        for d in ds:
+            vals = by_date[d]
+            if len(vals) < min_pool:
+                continue
+            disp = float(np.std(vals))
+            if len(hist) >= max(5, days // 2):
+                ref = float(np.quantile(hist[-days:], quantile))
+                out[(fold, d)] = (disp - ref) * 100.0
+            hist.append(disp)
+    return out
+
+
 def stat(vals):
     vals = [v for v in vals if v is not None and v == v]
     n = len(vals)
@@ -358,14 +392,20 @@ def main(argv=None) -> int:
                     help="top(기본) · bottom 추가 시 반대쪽 k 바스켓도 계산해 `bottom_k` 로 싣는다")
     ap.add_argument("--regime-split", choices=("none", "pool_sign"), default="none",
                     help="pool_sign: 세션별 풀평균 부호로 상승/하락 국면을 갈라 같은 paired 델타를 각각 계산(CG302)")
-    ap.add_argument("--gate-rule", choices=("none", "trailing_pool"), default="none",
+    ap.add_argument("--gate-rule", choices=("none", "trailing_pool", "dispersion"), default="none",
                     help="trailing_pool: 진입 시점에 알 수 있는 과거 N세션 풀수익(종목 동일비중)이 "
                          "양(+)인 세션에서만 채점 — 사후(pool_sign) 분할을 예측 가능한 규칙으로 바꾼다(CG304). "
+                         "dispersion: 당일 종목 간 점수 표준편차가 과거 N세션 분포의 "
+                         "--gate-quantile 분위보다 큰 세션에서만 채점(CG390). "
                          "기본 none = 기존 경로 비트 동일")
     ap.add_argument("--gate-days", type=int, default=5,
                     help="trailing_pool 게이트의 룩백 세션 수(기본 5 = h5 보유기간과 동일)")
     ap.add_argument("--gate-min-pct", type=float, default=0.0,
-                    help="trailing_pool 게이트 문턱(%%). 이 값 초과일 때만 ON (기본 0.0 = 부호)")
+                    help="trailing_pool 게이트 문턱(%%) · dispersion 게이트에서는 확률 std 여유(%% 단위, 기본 0.0)")
+    ap.add_argument("--gate-quantile", type=float, default=0.5,
+                    help="dispersion 게이트 기준 분위(기본 0.5 = 과거 중앙값) — 과거 분산보다 넓을 때 ON")
+    ap.add_argument("--gate-min-pool", type=int, default=10,
+                    help="dispersion 게이트: 세션 분산을 계산할 최소 종목 수(기본 10)")
     ap.add_argument("--primary-side", choices=("top", "bottom"), default="top",
                     help="k 바스켓을 상위(기본)로 볼지 하위로 볼지 — 하위는 '점수 반전' 가설 검정(CG99)")
     ap.add_argument("--exit", choices=EXITS, default="close_h",
@@ -475,9 +515,12 @@ def main(argv=None) -> int:
                                           "paired_vs_pool": paired_stats(sa, gp)}
                 reg[name] = entry
             block["regime"] = reg
-        if (a.gate_rule == "trailing_pool") and bpool:
-            # 진입 시점에 알 수 있는 게이트로 세션을 ON/OFF 로 갈라 절대 기대를 본다(CG304).
-            tg = trailing_pool_gate(fa, series, a.gate_days, a.gate_min_pct)
+        if (a.gate_rule in ("trailing_pool", "dispersion")) and bpool:
+            # 진입 시점에 알 수 있는 게이트로 세션을 ON/OFF 로 갈라 절대 기대를 본다(CG304/CG390).
+            if a.gate_rule == "dispersion":
+                tg = dispersion_gate(fa, a.gate_days, a.gate_quantile, a.gate_min_pool)
+            else:
+                tg = trailing_pool_gate(fa, series, a.gate_days, a.gate_min_pct)
             on_keys = {kk for kk, v in tg.items() if v > a.gate_min_pct}
             scored_keys = set(tg) & set(bpool)
             bands = {}
@@ -492,11 +535,15 @@ def main(argv=None) -> int:
                                           "paired_vs_pool": paired_stats(sa, gp)}
                 bands[name] = entry
             block["gate"] = {"rule": a.gate_rule, "days": a.gate_days,
-                             "min_pct": a.gate_min_pct, "n_scored": len(scored_keys),
+                             "min_pct": a.gate_min_pct,
+                             "quantile": (a.gate_quantile if a.gate_rule == "dispersion" else None),
+                             "n_scored": len(scored_keys),
                              "n_on": len(on_keys & scored_keys),
                              "n_off_sessions": len(scored_keys - on_keys),
                              "n_unscored": len(set(bpool) - scored_keys),
-                             "trailing_pool": stat(list(tg.values())),
+                             "gate_value": stat(list(tg.values())),
+                             **(dict(trailing_pool=stat(list(tg.values())))
+                                if a.gate_rule == "trailing_pool" else {}),
                              "bands": bands}
         for k in ks:
             sa = ba[k]
