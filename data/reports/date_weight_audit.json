@@ -1,0 +1,176 @@
+{
+ "audited_at": "2026-11-22T04:13:18",
+ "results": [
+  {
+   "file": "services/xgboost-ml/reports/overnight/cg391_rank_both.jsonl",
+   "all": {
+    "label": "ALL",
+    "rows": 60106,
+    "pooled_auc": 0.549,
+    "eqdate_auc": 0.5488,
+    "n_dates": 255,
+    "n_dates_dropped": 0,
+    "rows_per_date_minmax": [
+     224,
+     240
+    ],
+    "diff": 0.0002
+   },
+   "folds": [
+    {
+     "label": "fold1",
+     "rows": 12036,
+     "pooled_auc": 0.5434,
+     "eqdate_auc": 0.5428,
+     "n_dates": 51,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      236,
+      236
+     ],
+     "diff": 0.0006
+    },
+    {
+     "label": "fold2",
+     "rows": 12044,
+     "pooled_auc": 0.5403,
+     "eqdate_auc": 0.5412,
+     "n_dates": 51,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      236,
+      240
+     ],
+     "diff": -0.0009
+    },
+    {
+     "label": "fold3",
+     "rows": 11800,
+     "pooled_auc": 0.5625,
+     "eqdate_auc": 0.5606,
+     "n_dates": 51,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      224,
+      240
+     ],
+     "diff": 0.0019
+    },
+    {
+     "label": "fold4",
+     "rows": 12080,
+     "pooled_auc": 0.5409,
+     "eqdate_auc": 0.5402,
+     "n_dates": 51,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      236,
+      240
+     ],
+     "diff": 0.0007
+    },
+    {
+     "label": "fold5",
+     "rows": 12146,
+     "pooled_auc": 0.5593,
+     "eqdate_auc": 0.5591,
+     "n_dates": 51,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      236,
+      240
+     ],
+     "diff": 0.0002
+    }
+   ]
+  },
+  {
+   "file": "services/xgboost-ml/reports/overnight/cg401_champ.jsonl",
+   "all": {
+    "label": "ALL",
+    "rows": 1580,
+    "pooled_auc": 0.4917,
+    "eqdate_auc": 0.4882,
+    "n_dates": 20,
+    "n_dates_dropped": 0,
+    "rows_per_date_minmax": [
+     79,
+     79
+    ],
+    "diff": 0.0035
+   },
+   "folds": [
+    {
+     "label": "fold1",
+     "rows": 790,
+     "pooled_auc": 0.4777,
+     "eqdate_auc": 0.4732,
+     "n_dates": 10,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      79,
+      79
+     ],
+     "diff": 0.0045
+    },
+    {
+     "label": "fold2",
+     "rows": 790,
+     "pooled_auc": 0.5063,
+     "eqdate_auc": 0.5032,
+     "n_dates": 10,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      79,
+      79
+     ],
+     "diff": 0.0031
+    }
+   ]
+  },
+  {
+   "file": "services/xgboost-ml/reports/overnight/cg400_rank.jsonl",
+   "all": {
+    "label": "ALL",
+    "rows": 1440,
+    "pooled_auc": 0.5104,
+    "eqdate_auc": 0.5106,
+    "n_dates": 18,
+    "n_dates_dropped": 0,
+    "rows_per_date_minmax": [
+     80,
+     80
+    ],
+    "diff": -0.0002
+   },
+   "folds": [
+    {
+     "label": "fold1",
+     "rows": 720,
+     "pooled_auc": 0.4918,
+     "eqdate_auc": 0.4897,
+     "n_dates": 9,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      80,
+      80
+     ],
+     "diff": 0.0021
+    },
+    {
+     "label": "fold2",
+     "rows": 720,
+     "pooled_auc": 0.5297,
+     "eqdate_auc": 0.5316,
+     "n_dates": 9,
+     "n_dates_dropped": 0,
+     "rows_per_date_minmax": [
+      80,
+      80
+     ],
+     "diff": -0.0019
+    }
+   ]
+  }
+ ]
+}

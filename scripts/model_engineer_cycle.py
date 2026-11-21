@@ -2333,6 +2333,10 @@ METRIC_ALIASES = {
     # rc=0 · 측정 성립인데도 원장에 '판정불가 parser 없음' 으로 남았다(같은 json-out 스키마인데
     # 이름만 달랐다). 이름 한 글자 때문에 사이클 판정이 통째로 무효가 되지 않도록 별칭을 둔다.
     "fillable_expectancy": "fillable_topk_expectancy",
+    # 2026-11-22 CG402 실측: metric='forward_scorecard_version_mix' 로 등록했더니 rc=0·25초 완주에
+    # 요약 JSON(8날짜 pooled 0.5409)까지 남았는데 원장에는 'parser 없음 → 판정불가'만 적혔다.
+    # 스키마는 forward_scorecard 그대로(model_versions 필터만 추가)이므로 별칭으로 흡수한다.
+    "forward_scorecard_version_mix": "forward_scorecard",
 }
 
 

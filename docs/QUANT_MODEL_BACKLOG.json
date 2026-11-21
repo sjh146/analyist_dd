@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-22T03:07:55+09:00",
+  "updated_at": "2026-11-22T04:12:53+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -23520,8 +23520,9 @@
       "owner": "engineer",
       "affects_model": false,
       "priority": 3,
-      "status": "pending",
-      "metric": "forward_scorecard_version_mix",
+      "status": "done",
+      "metric": "forward_scorecard",
+      "summary_out": "/app/reports/overnight/cg402_forward_champ.json",
       "est_minutes": 6,
       "title": "[측정정합성] champ 단독 전방 표본으로 pooled AUC 를 다시 잰다 — 혼합값 0.5638 은 v1.0 9일이 섞인 값이고 daily 평균은 0.5158",
       "arm": "forward_champ_only",
@@ -23531,7 +23532,39 @@
       "evidence": "2026-11-22 02:1x 실측(forward_scorecard.json, generated 2026-11-21T12:08, rows 118,402): h1 n_dates 17 · pooled 0.5638 · daily_auc_mean 0.5158 · top10 Δ+0.0746(t 0.12) | by_version h1 champ(8일) top10 net +0.5969 vs 풀 -0.2723 → Δ+0.8692(t 0.90) 분할 both_positive[+0.9838/+0.7545] 4/8일 양(+) · v1.0(9일) Δ-0.6316(t -0.81) | h5 n_dates 13 · pooled 0.5875 · daily 0.5091 · champ(4일) Δ-0.7701(t -0.49) · v1.0(9일) Δ-2.5410(t -2.40). 즉 혼합 headline 은 v1.0 구간이 끌어내리고 champ 구간이 끌어올린 상쇄값이다.",
       "success": "rc=0 · champ 단독 n_dates 명시. 판정: champ h1 pooled AUC ≥0.53 이면 서빙 실경로(CG396 0.4893)와의 격차가 실재 → 3일 추가 적립 후 재확인, 0.51 미만이면 혼합 0.5638 은 v1.0 기여로 기록하고 전방 AUC 축을 노이즈로 닫는다(n_dates<10 이면 판정불가로 적고 11-26 이후 재실행). 돈은 by_version h1 champ Δ+0.8692(t 0.90, n=8) 를 기준선으로 쓰되 t<2 이므로 '신호'가 아니라 '관찰'로만 보고한다.",
       "expected": "champ 단독 pooled 는 daily 평균(≈0.51~0.52) 근처로 내려앉을 가능성 — 그 경우 '전방 0.56' 은 날짜 혼합 착시이며 서빙 결손 논의도 무효.",
-      "cost": "집계만(재학습 없음) ≈ 5분"
+      "cost": "집계만(재학습 없음) ≈ 5분",
+      "attempts": [
+        {
+          "ts": "2026-11-22T04:08:31+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "parser 없음 (metric='forward_scorecard_version_mix')",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG402_20261122-040805.log",
+          "elapsed_min": 0.4
+        },
+        {
+          "ts": "2026-11-22T04:09:40+09:00",
+          "rc": 0,
+          "verdict": "표본부족",
+          "detail": "h5 전방 pooled AUC 0.5325(날짜별 0.5138) · n_dates 4 · n_pairs 15199 · top10 실현수익 -5.0529% vs 전체평균 -2.2768% — n_dates 4 < 10 → 판정 보류(표본 누적 대기)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG402_20261122-040915.log",
+          "elapsed_min": 0.4
+        }
+      ],
+      "result": {
+        "verdict": "판정보류(표본부족) — 혼합 착시는 확정",
+        "detail": "champ 단독(모델 champ-20261002T024420-0.5513, 54,966행): h1 n_dates 8(11-09~11-19) · pooled 0.5409 · daily 평균 0.5151±0.0273 (날짜 min 0.4688 / max 0.5461, 0.5 초과 6/8일) | h5 n_dates 4 · pooled 0.5325 · daily 0.5138±0.0328 (0.5 초과 2/4일). 혼합 17일 값(pooled 0.5638 / daily 0.5158)과 비교하면 pooled 는 -0.0229 내려앉는데 daily 평균은 -0.0007 로 그대로 → '전방 0.56' 은 pooled 집계가 v1.0 9일을 섞은 착시이고 모델의 날짜별 실력은 0.515 수준. 돈(체결성 ON·수수료 0.21%p 왕복, h1 top10 vs 당일 풀평균): +0.5969 vs -0.2723 = Δ+0.8692%p(t 0.90, 분할 +0.9838/+0.7545, 양(+) 4/8일) → t<2 이므로 '관찰'이지 신호 아님. h5 Δ-0.7701(t -0.49, 분할 +1.8629/-3.4031) = 부호 불안정.",
+        "delta": {
+          "h1_pooled_vs_mixed": -0.0229,
+          "h1_daily_vs_mixed": -0.0007
+        },
+        "per_exp": null,
+        "rc": 0,
+        "artifacts": [
+          "reports/overnight/cg402_forward_champ.json"
+        ]
+      },
+      "note": "2026-11-22 04:0x 엔지니어: 1차 실행은 rc=0·25초 완주였는데 metric 을 'forward_scorecard_version_mix' 로 등록해 구동기 파서가 없어 원장에 '판정불가'로 남았다(측정값은 요약 JSON 에 있었는데 판정이 통째로 무효). METRIC_ALIASES 에 별칭을 추가하고 summary_out 을 명시한 뒤 --run 으로 25초 재실행해 정상 판정했다. 판정: n_dates 8 < 사전등록 10 → 판정보류. 단 'pooled 0.5409 ≥ 0.53 이면 서빙 실경로(CG396 0.4893)와의 격차 실재' 분기도 함께 성립해, 두 분기 모두 '3거래일 추가 적립 후 재확인'으로 수렴한다 → CG404(not_before 11-26)."
     },
     {
       "id": "CG403",
@@ -23570,6 +23603,84 @@
       },
       "note": "순위(랭킹) 축은 돈 기준으로 닫는다: h5·h1 × 20날짜·18세션 × 정/역방향 전부 |t|<2, 유일한 유의값은 '챔피언 top-k 가 풀보다 -3.1%p/세션(t -3.84) 하회'라는 음의 결과. 비체결 포함 rank IC 는 최근 창 +0.055(t 1.92)로 약한 양이나 체결·수수료 후 사라진다 → 신호가 체결 불가 종목에 집중된다는 뜻이며, 다음 레버는 순위 조정이 아니라 피처/라벨 축(승인 필요).",
       "created": "2026-11-22T03:20:00+09:00"
+    },
+    {
+      "id": "CG404",
+      "kind": "experiment",
+      "owner": "engineer",
+      "affects_model": false,
+      "priority": 3,
+      "status": "pending",
+      "metric": "forward_scorecard",
+      "summary_out": "/app/reports/overnight/cg404_forward_champ.json",
+      "est_minutes": 6,
+      "not_before": "2026-11-26T20:00:00+09:00",
+      "title": "[측정정합성·후속] champ 단독 전방 AUC 재측정 — 8날짜(h1)·4날짜(h5)는 표본부족이라 3거래일 더 쌓인 11-26 이후 같은 명령으로 재판정 (CG402 후속)",
+      "arm": "forward_champ_only",
+      "counterfactual": "CG402 champ 단독: h1 pooled 0.5409·daily 0.5151(8일) / h5 pooled 0.5325·daily 0.5138(4일) · 혼합 17일 0.5638/0.5158(착시)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app timeout 1500 python -u scripts/forward_scorecard.py --model-version champ-20261002T024420-0.5513 --out /app/reports/overnight/cg404_forward_champ.json'",
+      "hypothesis": "CG402 로 '전방 pooled 0.5638' 은 버전 혼합 착시이고 champ 의 날짜별 실력은 0.5151(8일)임이 확정됐다. 날짜가 11~12개로 늘면 daily 평균의 표준오차가 약 0.020→0.015 로 줄어 '서빙 실경로(CG396 0.4893) 대비 +0.02 격차'가 실재인지 판정 가능해진다.",
+      "evidence": "CG402 실측(2026-11-22 04:08): champ 단독 54,966행 · h1 n_dates 8 · pooled 0.5409 · daily 0.5151±0.0273 · h5 n_dates 4 · pooled 0.5325 · daily 0.5138. 사전등록 판정 규칙의 'n_dates<10 → 판정불가, 11-26 이후 재실행' 분기 발동.",
+      "success": "rc=0 · n_dates 명시. 판정: h1 n_dates ≥10 에서 daily 평균 ≥0.53 이면 서빙경로 격차 실재(학습-서빙 결손 축 재개, 승인 대상) · 0.50~0.53 이면 백테스트 CG399 0.5107±0.0209 와 정합(격차 없음) · <0.50 이면 전방 AUC 열화로 기록. 돈은 h1 top10 Δ 의 t≥2 여야 신호.",
+      "expected": "daily 0.51~0.53 유지(격차 아님). 표본이 늘어도 0.56 이 재현되지 않을 것.",
+      "cost": "집계만 ≈1분(champ 날짜 3일 추가 적립 후)",
+      "created": "2026-11-22T04:12:31+09:00"
+    },
+    {
+      "id": "CG406",
+      "kind": "experiment",
+      "owner": "engineer",
+      "affects_model": false,
+      "priority": 3,
+      "status": "done",
+      "metric": null,
+      "est_minutes": 10,
+      "title": "[측정정합성] 판정 프로토콜의 폴드 AUC 가 '날짜 가중'에 오염됐는가 — pooled vs 날짜균등 AUC 실측",
+      "arm": "date_weight_audit",
+      "counterfactual": "pooled AUC(현 프로토콜) vs 날짜별 AUC 단순평균(eqdate)",
+      "command": "python3 scripts/date_weight_audit.py services/xgboost-ml/reports/overnight/cg391_rank_both.jsonl services/xgboost-ml/reports/overnight/cg401_champ.jsonl services/xgboost-ml/reports/overnight/cg400_rank.jsonl --json-out data/reports/date_weight_audit.json",
+      "hypothesis": "CG402 에서 pooled AUC 가 버전 혼합 때문에 -0.0229 흔들리는데 날짜평균은 -0.0007 로 고정이었다. 그러면 우리가 쓰는 폴드 AUC(+0.02 문턱)도 행수 많은 날짜에 휘둘려 '개선'이 집계 산물일 수 있다.",
+      "evidence": "CG402: 혼합 17일 pooled 0.5638/daily 0.5158 → champ 8일 pooled 0.5409/daily 0.5151.",
+      "success": "폴드별 |pooled−eqdate| 를 실측. 0.02 문턱 대비 무시 가능(<0.005)이면 프로토콜 유지, 0.01 이상이면 두 값을 병기하도록 보고 규칙 개정(승인 대상).",
+      "expected": "밸런스 패널(행/날짜 224~240)에서는 |diff|<0.005.",
+      "cost": "집계만 ≈10초/파일",
+      "created": "2026-11-22T04:12:31+09:00",
+      "result": {
+        "verdict": "프로토콜 무해 — 날짜 가중 오염 최대 0.0035(문턱 +0.02의 1/6)",
+        "detail": "cg391_rank_both(60,106행·255날짜·행/날짜 224~240): pooled 0.5490 / eqdate 0.5488 (diff +0.0002) · 폴드 diff +0.0006/−0.0009/+0.0019/+0.0007/+0.0002 | cg401_champ(1,580행·20날짜·79행/날짜): pooled 0.4917 / eqdate 0.4882 (diff +0.0035), 폴드 diff +0.0045/+0.0031 | cg400_rank(1,440행·18날짜·80행/날짜): pooled 0.5104 / eqdate 0.5106 (diff −0.0002). 즉 행수 균형이 잡힌 패널에서는 pooled 와 날짜균등이 0.004 이내로 일치 → 폴드 AUC +0.02 문턱은 날짜 가중으로 만들어진 값이 아니다. CG402 의 −0.0229 는 모델 날짜 구성(버전 혼합)에서 온 것이고, 전방 지표는 반드시 daily 평균 + by_version 으로 보고해야 한다(규칙 확인).",
+        "delta": {
+          "cg391_all": 0.0002,
+          "cg401_all": 0.0035,
+          "cg400_all": -0.0002
+        },
+        "per_exp": null,
+        "rc": 0,
+        "artifacts": [
+          "data/reports/date_weight_audit.json",
+          "scripts/date_weight_audit.py"
+        ]
+      }
+    },
+    {
+      "id": "CG407",
+      "kind": "experiment",
+      "owner": "engineer",
+      "affects_model": false,
+      "priority": 2,
+      "status": "pending",
+      "metric": "panel_feature_screen",
+      "summary_out": "/app/reports/overnight/cg407_panel_screen.json",
+      "est_minutes": 25,
+      "title": "[데이터 축·진단] 최신 v6 패널(200종목·221피처·2026-11-17까지)의 피처를 현행 국면에서 다시 채점 — 살아 있는 시간가변 피처가 남아 있는가",
+      "arm": "panel_v6_screen",
+      "counterfactual": "직전 스크린 CG255(pannel_prod200, 9/23 까지) · CG65(panel_420_asofpatch, 9/23 까지)",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 1800 python -u scripts/panel_feature_screen.py --panel /app/app/models/wf/panel_prod200_v6.npz --horizon 5 --q 0.30 --top 30 --out /app/reports/overnight/cg407_panel_screen.json'",
+      "hypothesis": "모든 AUC 판정이 '9/23 에서 끝나는' 패널에서 이뤄져 10~11월(모멘텀 부호 반전) 국면이 빠져 있었다. 최신 v6(200종목·221피처)에서 다시 채점하면 ①살아 있는 시간가변 피처가 달라졌는지 ②무정보 비율이 줄었는지(신규 event_rolling 8집계 포함) ③현재 regime 의 최고 단일 피처 AUC 가 무엇인지가 나온다. 신규 피처 배선 없이 25분으로 데이터 축의 후보를 찾는 진단이다(긴 빌드 전 필수 절차).",
+      "evidence": "패널 끝단: panel_420 시리즈 2026-09-23 / panel_prod200.npz 2026-09-23 / panel_prod200_v6.npz 2026-11-17(200종목·221피처·61,640행). 직전 스크린 실측(panel_420_asofpatch): 무정보 126/210 · 최고는 종목상수 재무(quality_roa 0.5534) · 시간가변 최고는 변동성군(|AUC−0.5|≈0.05, IC t<1.3).",
+      "success": "rc=0 · 피처별 |AUC−0.5|·IC t 를 기록. 판정: 누수 의심(|AUC−0.5|>0.25) 0건 유지 + 시간가변 피처 중 |AUC−0.5|≥0.03·IC t≥2 가 존재하면 그 피처군을 승격 후보 실험(같은 런 5폴드)으로 등록. 전부 무정보면 데이터 축 가용성 부족을 수치로 확정하고 리서처 원천 요청 목록을 갱신.",
+      "expected": "무정보 비율이 9/23 스크린(126/210)과 큰 차이 없고, 시간가변 최고는 여전히 |AUC−0.5|<0.06.",
+      "cost": "스크린만 ≈20분(학습 없음)",
+      "created": "2026-11-22T04:12:53+09:00"
     }
   ],
   "updated": "2026-11-21T20:11:04+09:00"
