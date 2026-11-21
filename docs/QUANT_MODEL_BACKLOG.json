@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T07:20:00+09:00",
+ "updated_at": "2026-11-22T07:18:39+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -12,6 +12,65 @@
   "07. 백로그 `command` 의 플래그는 **스크립트 파서에서 실재를 확인**한 뒤 등록하라 — champion_robust_eval 은 --out 만 받는다(--json-out 없음). 2026-11-17 CG306 이 이 오타로 rc=2 두 번, CG310 에도 같은 오타가 남아 있었다. 등록 시 `--help` 대조 1줄이면 막을 수 있다."
  ],
  "items": [
+  {
+   "id": "CG421",
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "done",
+   "metric": "fillable_topk_vs_pool",
+   "summary_out": "/app/reports/overnight/cg421_money_post.json",
+   "est_minutes": 12,
+   "title": "[머니 기준선·재측정] CG419 표본부족(4세션) 수리 — 학습구간 이후(post_train) 창만으로 챔피언 top-k vs 풀평균",
+   "arm": "배포 챔피언(단일) top-k, stride 1(중첩 경고 명시)",
+   "counterfactual": "세션 풀평균(=무작위 k 기대) · 직전 기준선 robust_oos.json 순기대 -0.182%p/87세션(age 48d) · CG419 4세션(판정불가)",
+   "hypothesis": "CG419 는 명령에서 --window-mode post_train 을 빼서 기본 chunks 로 돌았고, 학습구간(2026-07-03~10-01)과 겹치는 창 3개가 제외돼 **학습 이전** 20날짜만 채점됐다(그 위에 stride 5·유동성 필터로 짝 4세션). 학습 종료 이후 날짜만으로 창을 다시 나누면 32~35날짜 최근 OOS 가 남아 표본 하한(20)을 넘는다.",
+   "evidence": "cg419_champ_50d.json: windows_excluded 3창 · dates_scored 20(2026-01~05) · fillable 짝 4세션 · 챔피언 AUC 0.4876(0.4719/0.5033, pooled 0.4916) · 풀 중앙값 29종목 · 판정기 표본 하한 배선(scripts/_fillable_topk_pool_test.py 4c PASS)",
+   "success": "rc=0 · 짝 세션 ≥20 · 판정: ① Δ(top-k − 풀평균) ≥ +0.5%p & t ≥ 2 & 앞/뒤 절반 모두 양수 → '최근 OOS 에서도 베타 초과' ② |Δ| < 0.5%p 또는 부호 불안정 → '챔피언 돈 엣지 없음'을 최근 창 기준선으로 갱신(경로 reports/overnight 만, 게이트 기준선 교체는 승인 대상). stride 1 중첩으로 t 는 낙관적임을 보고에 명시.",
+   "expected": "최근 OOS(2026-10~11)는 풀평균 부호가 국면에 따라 갈려 Δ 가 ±1%p 대에서 t<2 로 나올 가능성이 높다.",
+   "cost": "평가 35날짜×80종목 ≈ 8분 + 집계 1분",
+   "created": "2026-11-22T07:15:36+09:00",
+   "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-11-20 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 2400 python -u scripts/champion_robust_eval.py --folds 4 --dates-per-fold 8 --stocks 80 --universe training --horizon 5 --window-mode post_train --dump-preds /app/reports/overnight/cg421_champ_post.jsonl --dump-all --dump-tag champion --out /app/reports/overnight/cg421_champ_post.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg421_champ_post.jsonl --arm-tag champion --control-jsonl /app/reports/overnight/cg421_champ_post.jsonl --control-tag champion --k 3,5,10 --sides top,bottom --primary-side top --stride 1 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg421_money_post.json'",
+   "attempts": [
+    {
+     "ts": "2026-11-22T07:17:09+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "표본부족 — 짝 세션 8 < 20 (stride 1 · 필터 후 풀 중앙값 21종목 · 채점 날짜 8) → 노이즈로 닫지 말고 창(--window-mode post_train)·stride 를 키워 재측정하라",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG421_20261122-071522.log",
+     "elapsed_min": 1.8
+    }
+   ],
+   "result": {
+    "verdict": "판정불가",
+    "detail": "표본부족 — 짝 세션 8 < 20 (stride 1 · 필터 후 풀 중앙값 21종목 · 채점 날짜 8) → 노이즈로 닫지 말고 창(--window-mode post_train)·stride 를 키워 재측정하라",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG422",
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 2,
+   "status": "pending",
+   "metric": "fillable_topk_vs_pool",
+   "summary_out": "/app/reports/overnight/cg422_money_post2.json",
+   "est_minutes": 18,
+   "title": "[머니 기준선·3차] post_train 창을 2폴드로 넓혀 짝 세션 ≥20 확보 — 챔피언 top-k vs 풀평균",
+   "arm": "배포 챔피언 top-k (post_train 2폴드×15날짜, stride 1)",
+   "counterfactual": "세션 풀평균(무작위 k 기대) · CG421 4폴드=8날짜(판정불가) · CG419 4세션(판정불가)",
+   "hypothesis": "post_train 모드에서 폴드를 늘리면 창이 잘게 쪼개져 purge 5거래일에 먹힌다 — CG421 실측: 4폴드×2날짜=8날짜만 채점. 학습 종료(2026-10-01) 이후 가용 창(약 30날짜)을 2폴드로 나누면 폴드당 ~15날짜·purge 후 ~10날짜 → 짝 세션 20 근처로 표본 하한을 넘긴다.",
+   "evidence": "cg421_champ_post.json: dates_scored 8(폴드 2+2+2+2) · 챔피언 AUC 0.4929(0.5278/0.4656/0.5200/0.4581, pooled 0.4905) · unfiltered k=5 Δ(풀) −2.171(t −2.27)·k=10 −1.846(t −4.86) → 방향은 음수지만 n=8 로 판정불가",
+   "success": "rc=0 · 짝 세션 ≥20 이면 CG421 과 같은 판정식 적용(Δ≥+0.5%p & t≥2 & 양분할 = 베타 초과 · |Δ|<0.5%p/부호불안정 = 챔피언 돈 엣지 없음). 20 미만이면 '최근 OOS 가용 날짜 부족'을 데이터 축 블로커로 원장에 남긴다.",
+   "expected": "짝 세션 18~24. Δ 는 −2~0%p 대(최근 10~11월 창)로 나올 가능성이 높다.",
+   "cost": "평가 30날짜×80종목 ≈ 12분 + 집계 2분",
+   "created": "2026-11-22T07:18:39+09:00",
+   "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-11-20 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3000 python -u scripts/champion_robust_eval.py --folds 2 --dates-per-fold 15 --stocks 80 --universe training --horizon 5 --window-mode post_train --dump-preds /app/reports/overnight/cg422_champ_post2.jsonl --dump-all --dump-tag champion --out /app/reports/overnight/cg422_champ_post2.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg422_champ_post2.jsonl --arm-tag champion --control-jsonl /app/reports/overnight/cg422_champ_post2.jsonl --control-tag champion --k 3,5,10 --sides top,bottom --primary-side top --stride 1 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg422_money_post2.json'"
+  },
   {
    "id": "CG420",
    "kind": "measurement",
@@ -23998,7 +24057,7 @@
    "owner": "engineer",
    "affects_model": false,
    "priority": 1,
-   "status": "pending",
+   "status": "done",
    "metric": "fillable_topk_vs_pool",
    "summary_out": "/app/reports/overnight/cg419_money_50d.json",
    "est_minutes": 45,
@@ -24011,7 +24070,24 @@
    "success": "rc=0 · 세션수 기록 · 판정: ① 세션 ≥ 40 & 순기대 > 0 & t ≥ 2 면 '배포 모델도 플러스' ② |순기대| < 0.2%p 면 '60일 창에서도 엣지 없음'으로 기준선을 갱신 ③ 표본 < 40 이면 판정불가로 남기고 원인(덤프 행수)을 적는다. 기준선 파일은 reports/overnight 에만 쓴다(게이트 기준선 교체는 승인 대상).",
    "expected": "순기대 0 근처(-0.2~0.0%p). 그래도 '게이트 기준선이 47일 낡았다'가 숫자로 갱신된다.",
    "cost": "50날짜×80종목 평가 ≈ 35분 + 집계 2분",
-   "created": "2026-11-22T06:35:00+09:00"
+   "created": "2026-11-22T06:35:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-22T07:12:41+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm champion · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 20 · k=3 arm +2.996%p/세션 · 풀평균 +5.108 · Δ(arm−풀) -2.112(t -2.24) · 양세션 75.0% · 분할 both_positive [+5.272/+0.719] ✗ · k=5 arm +2.938%p/세션 · 풀평균 +5.108 · Δ(arm−풀) -2.170(t -1.5) · 양세션 75.0% · 분할 both_positive [+5.175/+0.702] ✗ · 풀평균 t 2.82 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG419_20261122-070823.log",
+     "elapsed_min": 4.3
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm champion · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 20 · k=3 arm +2.996%p/세션 · 풀평균 +5.108 · Δ(arm−풀) -2.112(t -2.24) · 양세션 75.0% · 분할 both_positive [+5.272/+0.719] ✗ · k=5 arm +2.938%p/세션 · 풀평균 +5.108 · Δ(arm−풀) -2.170(t -1.5) · 양세션 75.0% · 분할 both_positive [+5.175/+0.702] ✗ · 풀평균 t 2.82 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+    "delta": -2.112,
+    "per_exp": null,
+    "rc": 0
+   }
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"

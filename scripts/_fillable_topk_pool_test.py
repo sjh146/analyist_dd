@@ -137,6 +137,23 @@ def main():
     check("judge: ks 5·10 → 실제 낸 k 로 판정(분할 unstable → 노이즈)", v5 == "노이즈", v5)
     check("judge: 하위k 근거가 detail 에 남는다", "하위k" in det5, det5[-90:])
 
+    # 4c) 표본 하한(2026-11-22 CG419 실측): 짝 세션 4개는 '노이즈'가 아니라 '판정불가'.
+    #     챔피언 재측정이 window_mode 기본(chunks) + stride 5 + 유동성 필터로 4세션만 남았는데
+    #     n=4 의 Δ −2.17(t −1.5)를 '노이즈(엣지 미검출)'로 닫으면 표본부족과 구분되지 않는다.
+    psm = make_summary(os.path.join(tmp, "small.json"), k5_d=-2.17, k5_t=-1.5, pool_mean=5.108)
+    with open(psm) as fh:
+        ds = json.load(fh)
+    for kk in ds["conditions"]["fillable"]["k"]:
+        ds["conditions"]["fillable"]["k"][kk]["paired"]["n_dates"] = 4
+    for kk in ds["conditions"]["fillable"]["baseline_pool"]["paired_by_k"]:
+        ds["conditions"]["fillable"]["baseline_pool"]["paired_by_k"][kk]["n_dates"] = 4
+    with open(psm, "w") as fh:
+        json.dump(ds, fh)
+    prs = m.parse_by_metric(item, psm, 0.0)
+    vs, dets, _ = m.judge_fillable_topk_vs_pool(item, prs)
+    check("judge: 짝 세션 4 < 하한 → 판정불가(노이즈 아님)", vs == "판정불가", vs)
+    check("judge: 표본부족 사유가 detail 에 남는다", "표본부족" in dets, dets[:70])
+
     # 5) baseline_pool 결측 → 판정불가(구 스키마 방어)
     nb = make_summary(os.path.join(tmp, "nobase.json"), drop_baseline=True)
     prn = m.parse_by_metric(item, nb, 0.0)

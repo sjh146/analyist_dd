@@ -87,6 +87,9 @@ LOAD_MAX = float(os.environ.get("ME_LOAD_MAX", "3.5"))
 LOAD_MAX_NIGHT = float(os.environ.get("ME_LOAD_MAX_NIGHT", "4.5"))
 CPU_IDLE_MIN = float(os.environ.get("ME_CPU_IDLE_MIN", "20"))
 MARKET_OPEN, MARKET_CLOSE = (9, 0), (15, 30)
+# 돈 지표 널 판정의 최소 짝 세션 (2026-11-22 CG419): 표본이 20세션 미만이면 t·분할 검정이
+# 표본부족을 '미검출'로 오독한다 → 판정불가로 남긴다(사전등록: 표본 < 40 = 판정불가).
+MIN_PAIRED_SESSIONS = 20
 # KRX 휴장일 파일 — scripts/data_gap.py 가 데이터 공백을 probe 하며 자동 유지한다.
 HOLIDAY_PATH = os.path.join(PROJ, "data/krx_holidays.json")
 # 평일 20:00 컨테이너 재생성 창(위 설계원칙 7). 실측 2026-09-25: U1 패널 빌드가
@@ -3311,6 +3314,21 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
             ks_list = sorted(ks, key=lambda x: int(x))[:2]
         except (TypeError, ValueError):
             ks_list = list(ks)[:2]
+    # ── 표본 하한 (2026-11-22 CG419 실측) ─────────────────────────────────────
+    # 챔피언 50날짜 재측정이 window_mode 기본(chunks)에서 학습구간과 겹치는 창 3개가 제외돼
+    # 20날짜만 채점됐고, stride 5 + 유동성 필터(풀 중앙값 29종목)로 **짝 세션 4개**만 남았다.
+    # n=4 의 Δ −2.17(t −1.5) 를 '노이즈'로 닫으면 '표본부족'과 '엣지 미검출'이 구분되지 않는다
+    # (사전등록 CG419 ③: 표본 < 40 이면 판정불가). 그래서 하한을 판정기에서 강제한다.
+    try:
+        n_paired_max = max(int((paired_by_k.get(k) or {}).get("n_dates") or 0) for k in ks_list)
+    except (TypeError, ValueError):
+        n_paired_max = 0
+    if n_paired_max < MIN_PAIRED_SESSIONS:
+        return ("판정불가",
+                f"표본부족 — 짝 세션 {n_paired_max} < {MIN_PAIRED_SESSIONS} "
+                f"(stride {parsed.get('stride')} · 필터 후 풀 중앙값 "
+                f"{parsed.get('pool_median_fillable')}종목 · 채점 날짜 {parsed.get('n_sessions_fillable')}) "
+                f"→ 노이즈로 닫지 말고 창(--window-mode post_train)·stride 를 키워 재측정하라", None)
     for k in ks_list:
         b = ks.get(k)
         if not isinstance(b, dict):
