@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T07:18:39+09:00",
+ "updated_at": "2026-11-22T07:20:08+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -72,12 +72,50 @@
    "command": "docker exec -e UNIVERSE_ASOF_DATE=2026-11-20 stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3000 python -u scripts/champion_robust_eval.py --folds 2 --dates-per-fold 15 --stocks 80 --universe training --horizon 5 --window-mode post_train --dump-preds /app/reports/overnight/cg422_champ_post2.jsonl --dump-all --dump-tag champion --out /app/reports/overnight/cg422_champ_post2.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg422_champ_post2.jsonl --arm-tag champion --control-jsonl /app/reports/overnight/cg422_champ_post2.jsonl --control-tag champion --k 3,5,10 --sides top,bottom --primary-side top --stride 1 --exit close_h --horizon 5 --json-out /app/reports/overnight/cg422_money_post2.json'"
   },
   {
+   "id": "CG423",
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 2,
+   "status": "done",
+   "metric": "fillable_topk_vs_pool",
+   "summary_out": "/app/reports/overnight/cg423_entry_close.json",
+   "est_minutes": 6,
+   "title": "[재현·청정패널] CG420 이 '익일 시가 진입에서도 Δ 유지'라고 했지만 그 덤프는 49종목 패널 — 청정 패널(cg391)에서 같은 진입 비교를 반복",
+   "arm": "CO_rank_smooth_d1_h5 (청정 패널 panel_prod200 · 255세션 · 풀 중앙값 75)",
+   "counterfactual": "CG420(cg411 덤프): close Δ +2.706(t 2.71) / next_open Δ +2.622(t 2.61) · CG391 청정패널 arm-vs-control h5s5 Δ +0.294(t 0.54)",
+   "hypothesis": "CG420 의 결론('체결시점 가정은 Δ를 바꾸지 않는다')은 방법론 주장이라 패널과 무관해야 한다. 같은 진입 비교를 청정 패널에서 반복해 (a) entry 무영향이 재현되는지 (b) 청정 패널의 Δ 가 여전히 0 근처인지(=패널 특이성 재확인)를 동시에 본다.",
+   "evidence": "cg420 실측: close +2.706(t 2.71)·next_open +2.622(t 2.61)·양분할 both_positive(27세션) — 단 cg411 덤프는 49종목 패널 · CG391 은 같은 arm 을 청정 패널에서 재측정해 Δ+0.0010(AUC)·+0.294(t 0.54)(돈)로 소멸",
+   "success": "(a) 두 진입의 Δ 차이 < 0.5%p 이고 t 부호가 같으면 '체결시점 무영향' 재현 · (b) 청정 패널 Δ ≥ +0.5%p & t ≥ 2 면 CG391 결론 철회(패널 특이성 아님). 둘 다 아니면 '청정 패널에서 Δ 는 0' 유지.",
+   "expected": "(a) 재현(차이 <0.5%p) · (b) Δ +0.2~0.4%p(t<1) → 후보 arm 의 돈 엣지는 여전히 49종목 패널 특이.",
+   "cost": "덤프 재채점 2회(각 1~2분, 학습 없음)",
+   "created": "2026-11-22T07:20:01+09:00",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg391_rank_both.jsonl --arm-tag CO_rank_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg391_rank_both.jsonl --control-tag CO_smooth_d1_h5 --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg423_entry_next_open.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg391_rank_both.jsonl --arm-tag CO_rank_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg391_rank_both.jsonl --control-tag CO_smooth_d1_h5 --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry close --json-out /app/reports/overnight/cg423_entry_close.json'",
+   "attempts": [
+    {
+     "ts": "2026-11-22T07:20:08+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "arm CO_rank_smooth_d1_h5 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 255 · k=5 arm +1.239%p/세션 · 풀평균 -0.149 · Δ(arm−풀) +1.388(t 2.38) · 양세션 56.4% · 분할 both_positive [+0.848/+1.616] · 풀평균 t -0.18 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG423_20261122-072002.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "신호있음",
+    "detail": "arm CO_rank_smooth_d1_h5 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 255 · k=5 arm +1.239%p/세션 · 풀평균 -0.149 · Δ(arm−풀) +1.388(t 2.38) · 양세션 56.4% · 분할 both_positive [+0.848/+1.616] · 풀평균 t -0.18 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)",
+    "delta": 1.3876,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
    "id": "CG420",
    "kind": "measurement",
    "owner": "engineer",
    "affects_model": false,
    "priority": 1,
-   "status": "pending",
+   "status": "done",
    "metric": "fillable_topk_vs_pool",
    "summary_out": "/app/reports/overnight/cg420_entry_nextopen.json",
    "est_minutes": 6,
@@ -90,7 +128,24 @@
    "expected": "Δ 가 +0.5%p 아래로 축소(익일 갭이 알파를 먹는다) 또는 절대 −0.3~+0.1%p. stride 5 로 표본 1/5 이라 t 도 함께 작아진다.",
    "cost": "덤프 재채점 2회(각 ~1분, 학습 없음)",
    "created": "2026-11-22T07:20:00+09:00",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg411_dump.jsonl --arm-tag cg409_nogate --control-jsonl /app/reports/overnight/cg411_null.jsonl --control-tag cg409_hashnull --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg420_entry_nextopen.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg411_dump.jsonl --arm-tag cg409_nogate --control-jsonl /app/reports/overnight/cg411_null.jsonl --control-tag cg409_hashnull --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry close --json-out /app/reports/overnight/cg420_entry_close.json'"
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg411_dump.jsonl --arm-tag cg409_nogate --control-jsonl /app/reports/overnight/cg411_null.jsonl --control-tag cg409_hashnull --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg420_entry_nextopen.json' && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg411_dump.jsonl --arm-tag cg409_nogate --control-jsonl /app/reports/overnight/cg411_null.jsonl --control-tag cg409_hashnull --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry close --json-out /app/reports/overnight/cg420_entry_close.json'",
+   "attempts": [
+    {
+     "ts": "2026-11-22T07:18:51+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "arm cg409_nogate · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 125 · k=5 arm +1.683%p/세션 · 풀평균 -0.939 · Δ(arm−풀) +2.622(t 2.61) · 양세션 51.9% · 분할 both_positive [+1.861/+1.519] · 풀평균 t -0.55 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG420_20261122-071849.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "신호있음",
+    "detail": "arm cg409_nogate · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 125 · k=5 arm +1.683%p/세션 · 풀평균 -0.939 · Δ(arm−풀) +2.622(t 2.61) · 양세션 51.9% · 분할 both_positive [+1.861/+1.519] · 풀평균 t -0.55 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)",
+    "delta": 2.6221,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG380",
