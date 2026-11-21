@@ -45,7 +45,37 @@ TH = {
     "restart_warn": 5,
     "snapshots_warn": 60,
     "stale_loop_warn": 1,
+    # 메모리 (2026-11-21 실측): 게이트웨이 liveness watchdog 이 exit 75 로 죽은 시점의 MemAvailable=162MB,
+    # 스왑 2GB 전량 사용. 그 뒤 스택 점검(최대 5분)까지 역할 크론이 끊겼다 → 여유 메모리를 감시 항목으로 올린다.
+    "mem_avail_warn_mb": 800.0, "mem_avail_breach_mb": 300.0,
+    "swap_used_warn_pct": 85.0,
 }
+
+
+def check_mem():
+    """/proc/meminfo 기반 메모리·스왑 현황(읽기 전용).
+
+    WHY: 이 박스는 WSL 상한(≈8GB)+스왑 2GB 에 17컨테이너가 올라가 있어, ML 주기 실행이 겹치면
+    MemAvailable 이 수백 MB 로 떨어지고 이벤트 루프가 굶어 게이트웨이가 스스로 exit 75 한다.
+    디스크만 보던 점검으로는 이 죽음이 '조용한 크론 중단'으로만 보였다.
+    """
+    m = {}
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as f:
+            for line in f:
+                k, _, v = line.partition(":")
+                if k in ("MemTotal", "MemAvailable", "SwapTotal", "SwapFree"):
+                    m[k] = int(v.split()[0])  # kB
+    except OSError:
+        return {"error": "meminfo 읽기 실패"}
+    total = m.get("MemTotal", 0) / 1024.0
+    avail = m.get("MemAvailable", 0) / 1024.0
+    st = m.get("SwapTotal", 0) / 1024.0
+    su = (m.get("SwapTotal", 0) - m.get("SwapFree", 0)) / 1024.0
+    return {"total_mb": round(total), "avail_mb": round(avail),
+            "swap_total_mb": round(st), "swap_used_mb": round(su),
+            "swap_used_pct": round(100.0 * su / st, 1) if st > 0 else 0.0}
+
 
 
 def sh(cmd, timeout=60):
@@ -377,6 +407,7 @@ def main():
     stale, longrun = check_stale_loops()
     dinfo = check_docker()
     disk = check_disk()
+    mem = check_mem()
     orphans = check_orphan_pidfiles()
 
     warns, breaches = [], []
@@ -427,6 +458,15 @@ def main():
         warns.append(f"/tmp {disk['tmp_mb']:.0f}MB")
     if disk["snapshots"] > TH["snapshots_warn"]:
         warns.append(f"DQ 스냅샷 {disk['snapshots']}개(보존 정책 초과)")
+    # 메모리 — 게이트웨이가 스스로 죽는(exit 75) 조건을 사전에 잡는다. 판정 불가(키 없음)는 조용히 넘긴다.
+    if "avail_mb" in mem:
+        if mem["avail_mb"] < TH["mem_avail_breach_mb"]:
+            breaches.append(f"메모리 여유 {mem['avail_mb']}MB (스왑 {mem['swap_used_mb']}/{mem['swap_total_mb']}MB)"
+                            " — 게이트웨이 liveness watchdog(exit 75) 위험")
+        elif mem["avail_mb"] < TH["mem_avail_warn_mb"]:
+            warns.append(f"메모리 여유 {mem['avail_mb']}MB (스왑 {mem['swap_used_pct']}%)")
+        if mem["swap_used_pct"] >= TH["swap_used_warn_pct"]:
+            warns.append(f"스왑 사용 {mem['swap_used_pct']}% (여유 메모리 {mem['avail_mb']}MB)")
 
     cleaned = clean(dinfo, disk) if a.clean else []
     status = "breach" if breaches else ("warn" if warns else "ok")
@@ -460,7 +500,7 @@ def main():
     snapshot = {"ts": ts.isoformat(timespec="seconds"), "status": status,
                 "alert_ts": alert_ts, "silent_repeat": silent_repeat,
                 "zombies": zs, "stale_loops": stale, "long_running": longrun,
-                "docker": dinfo, "disk": disk, "warns": warns, "breaches": breaches,
+                "docker": dinfo, "disk": disk, "mem": mem, "warns": warns, "breaches": breaches,
                 "cleaned": cleaned}
     os.makedirs(OUTDIR, exist_ok=True)
     with open(os.path.join(OUTDIR, "latest.json"), "w", encoding="utf-8") as f:
@@ -493,6 +533,9 @@ def main():
               f"내부좀비 {len(dinfo['inner_zombies'])}")
         print(f"  디스크 {dp}% (여유 {disk.get('avail')}) / 빌드캐시 {dinfo['build_cache_gb']}GB / "
               f"/tmp {disk['tmp_mb']:.0f}MB / 스냅샷 {disk['snapshots']}개")
+        if "avail_mb" in mem:
+            print(f"  메모리 여유 {mem['avail_mb']}MB / {mem['total_mb']}MB · "
+                  f"스왑 {mem['swap_used_mb']}/{mem['swap_total_mb']}MB")
         if warns:
             print("  경고: " + " | ".join(warns))
         if breaches:
