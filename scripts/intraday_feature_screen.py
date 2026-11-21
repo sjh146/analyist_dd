@@ -32,9 +32,11 @@ WHY (2026-10-06, CG128)
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import json
 import os
 import statistics
+import sys
 from collections import defaultdict
 
 import psycopg2
@@ -99,6 +101,11 @@ def _null_feature(code, date):
     return int(h[:8], 16) / float(0xFFFFFFFF)
 
 
+def _log(msg: str) -> None:
+    """진행률은 stderr 로 즉시 flush — timeout 으로 잘려도 어디까지 갔는지 로그에 남긴다."""
+    print(f"[screen] {msg}", file=sys.stderr, flush=True)
+
+
 def _slope(vals):
     """OLS 기울기(정규화 전)."""
     n = len(vals)
@@ -141,9 +148,19 @@ def main() -> int:
             (str(tm), float(o or 0), float(h or 0), float(l or 0), float(c or 0),
              float(v or 0), float(tv or 0)))
 
+    # 시장데이터는 '분봉이 있는 종목 + 필요 구간'만 읽는다.
+    # 실측(2026-11-21 CG129): 전량(3.2M행)을 파이썬 dict 로 적재하는 경로가 timeout 900s 를 넘겼다
+    # (rc=124, 로그는 '완전일' 출력 뒤 정지). 라벨 h=5 는 미래 5거래일, return_1d 는 전일이 필요하므로
+    # 달력 ±45일 창으로 자르면 3.2M → 수만행이 되어 수 초에 끝난다.
+    codes = sorted({c for (c, _d) in bars})
+    min_d = _dt.date.fromisoformat(min(full_days)) - _dt.timedelta(days=45)
+    max_d = _dt.date.fromisoformat(max(full_days)) + _dt.timedelta(days=45)
+    _log(f"분봉 {sum(len(v) for v in bars.values())}행 / 종목 {len(codes)} · 시장데이터 조회 {min_d}~{max_d}")
     cur.execute("SELECT stock_code, trade_date, open_price, high_price, low_price, close_price, "
-                "volume, trading_value FROM market_data WHERE close_price IS NOT NULL "
-                "ORDER BY stock_code, trade_date")
+                "volume, trading_value FROM market_data "
+                "WHERE close_price IS NOT NULL AND stock_code = ANY(%s) "
+                "AND trade_date BETWEEN %s AND %s "
+                "ORDER BY stock_code, trade_date", (codes, min_d, max_d))
     daily = defaultdict(dict)
     seq = defaultdict(list)
     for code, dt, o, h, l, c, v, tv in cur.fetchall():
@@ -153,6 +170,7 @@ def main() -> int:
                           float(tv or 0))
         seq[code].append(d)
     conn.close()
+    _log(f"일봉 {sum(len(v) for v in daily.values())}행 적재 완료 · 피처행 생성 시작")
 
     # 피처 행 생성
     rows = []  # (date, code, feat_dict)
@@ -188,8 +206,11 @@ def main() -> int:
         if d in days:
             i = days.index(d)
             prev = daily[code].get(days[i - 1]) if i >= 1 else None
-            f["return_1d"] = (closes[-1] / prev[3] - 1.0) if prev and prev[3] > 0 else None   # 전일 종가
-            f["return_1d"] = (dd[0] / prev[3] - 1.0) if (dd and prev and prev[3] > 0) else f["return_1d"]
+            # 대조군은 세 개가 서로 달라야 한다(중복 대조군 = 검정력 손실).
+            # 실측(2026-11-21 CG129): 종전 코드가 return_1d 를 dd[0](시가) 기준으로 **덮어써서**
+            # gap 과 값이 완전히 동일했다(IC -0.0772 · t -1.14 가 두 피처에서 소수점까지 일치)
+            # → '일봉 대조군 2종'이 실제로는 1종이었다. return_1d 는 종가/전일종가로 고친다.
+            f["return_1d"] = (dd[3] / prev[3] - 1.0) if (dd and prev and prev[3] > 0) else None
             f["gap"] = (dd[0] / prev[3] - 1.0) if (dd and prev and prev[3] > 0) else None
             f["day_range"] = ((dd[1] - dd[2]) / dd[3]) if (dd and dd[3] > 0) else None
         else:
@@ -198,6 +219,7 @@ def main() -> int:
         f["null"] = _null_feature(code, d)
         rows.append((d, code, f))
 
+    _log(f"피처행 {len(rows)}개 (일자 {len(set(d for d,_,_ in rows))})")
     feats = ["l30_ret", "l30_range", "l30_vwap_dev", "l30_slope", "l30_up_ratio", "l30_realvol",
              "l30_vol_share", "l30_tv_share", "return_1d", "gap", "day_range", "null"]
 
@@ -243,6 +265,7 @@ def main() -> int:
             }
             hres["features"][fn] = rec
         out["horizons"][f"h{h}"] = hres
+        _log(f"h={h} 완료 n_dates={hres['n_dates']}")
 
     print(json.dumps(out, ensure_ascii=False, indent=2))
     if args.json_out:
