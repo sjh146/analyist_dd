@@ -404,8 +404,10 @@ def main(argv=None) -> int:
                     help="trailing_pool 게이트 문턱(%%) · dispersion 게이트에서는 확률 std 여유(%% 단위, 기본 0.0)")
     ap.add_argument("--gate-quantile", type=float, default=0.5,
                     help="dispersion 게이트 기준 분위(기본 0.5 = 과거 중앙값) — 과거 분산보다 넓을 때 ON")
-    ap.add_argument("--gate-min-pool", type=int, default=10,
-                    help="dispersion 게이트: 세션 분산을 계산할 최소 종목 수(기본 10)")
+    ap.add_argument("--gate-min-pool", type=int, default=10)
+    ap.add_argument("--gate-side", choices=("high", "low"), default="high",
+                    help="dispersion 게이트 방향: high=과거 분위보다 분산 클 때 ON(기본·CG390 = 현행), "
+                         "low=분산 작을 때 ON(역방향 1회 검정, CG392)")
     ap.add_argument("--primary-side", choices=("top", "bottom"), default="top",
                     help="k 바스켓을 상위(기본)로 볼지 하위로 볼지 — 하위는 '점수 반전' 가설 검정(CG99)")
     ap.add_argument("--exit", choices=EXITS, default="close_h",
@@ -521,7 +523,11 @@ def main(argv=None) -> int:
                 tg = dispersion_gate(fa, a.gate_days, a.gate_quantile, a.gate_min_pool)
             else:
                 tg = trailing_pool_gate(fa, series, a.gate_days, a.gate_min_pct)
-            on_keys = {kk for kk, v in tg.items() if v > a.gate_min_pct}
+            if a.gate_rule == "dispersion" and a.gate_side == "low":
+                # 역방향(CG392): 과거 분위보다 분산이 **작은** 세션만 ON. 기본값(high)은 현행과 비트 동일.
+                on_keys = {kk for kk, v in tg.items() if v < -a.gate_min_pct}
+            else:
+                on_keys = {kk for kk, v in tg.items() if v > a.gate_min_pct}
             scored_keys = set(tg) & set(bpool)
             bands = {}
             for name, sel in (("on", on_keys & scored_keys),
@@ -535,6 +541,7 @@ def main(argv=None) -> int:
                                           "paired_vs_pool": paired_stats(sa, gp)}
                 bands[name] = entry
             block["gate"] = {"rule": a.gate_rule, "days": a.gate_days,
+                             "side": (a.gate_side if a.gate_rule == "dispersion" else None),
                              "min_pct": a.gate_min_pct,
                              "quantile": (a.gate_quantile if a.gate_rule == "dispersion" else None),
                              "n_scored": len(scored_keys),

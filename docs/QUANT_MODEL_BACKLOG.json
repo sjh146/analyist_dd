@@ -21546,7 +21546,7 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 1,
-   "status": "backlog",
+   "status": "closed_rejected",
    "metric": null,
    "title": "[보류·근거부족] 당일 전종목 배치 횡단면 추론 경로 신설 — rank(횡단면 분위) 피처를 배포 경로에 올린다",
    "hypothesis": "조정 축 실측 상한은 +0.011(rank Δ+0.0107/3시드)이고 top-k 초과 엣지·선별 문턱·라벨 중립화 축은 모두 종결됐다(CG341/CG342/CG344). 남은 미검증 레버는 '횡단면 rank 변환'인데, 스윕에서 유효했던 rank 축은 추론 경로에 없다 — app/inference/predictor.py 가 종목 1개·날짜 1개로 features.get(f,0.0) 벡터를 만들어 날짜별 횡단면 rank 를 계산할 수 없다. 당일 전종목 배치 추론(한 날짜에 유니버스 전체를 한 번에 스코어)을 신설하면 rank 축을 승격 후보에 넣을 수 있다.",
@@ -21558,7 +21558,7 @@
    "est_minutes": 180,
    "created_at": "2026-11-18T22:50:00+09:00",
    "attempts": [],
-   "note": "2026-11-18 22:5x 신설(자율 등록, 실행은 승인 대기). 스코어보드 무개선 20사이클 연속 → 스킬 규칙상 '새 레버 승인 요청' 단계. 이미 닫힌 축: 조정(피처변환·HP·유니버스·라벨) 상한 +0.011 · 선별 문턱 병목(CG342 Δ−0.0015) · 라벨 중립화(CG341 k10 Δ−0.582) · top-k 초과 엣지(CG344 Δ+0.31 t 0.75). 남은 것: 이 항목(추론 계약)과 새 데이터 원천(분봉 XR26 리서처 차단·대차잔고 미수집). | 당일 전종목 배치 횡단면 추론 경로 신설 승인(추론 계약 변경) — shadow 1주 후 전환. 2026-11-21 19:1x 엔지니어: command 미정 상태로 pending 에 두면 (a) 구동기 등록 자기모순 경고가 매 틱 뜨고 (b) 실행 큐를 차지한다 → needs_setup 으로 내리고, 승인/프로토콜 확정 후 command 한 줄과 함께 pending 으로 올린다. | 2026-11-21 22:2x 엔지니어: **착수 보류** — 이 항목의 유일한 목적이 'rank 축을 배포 경로에 올린다'였는데, CG391 실측(청정 패널 prod200_v6, 같은 런 2-arm)에서 rank 성분이 AUC Δ+0.0010 · 돈 Δ(rank−대조) +0.070%p(t 0.60, k=3) / −0.002(t −0.02, k=5) · 분할 unstable 로 둘 다 사라졌다. 3시간 구현 + shadow 1주를 쓸 근거가 없다. 다른 횡단면 피처(당일 업종 상대강도 등)를 배포 경로에 올릴 때 재개한다.",
+   "note": "2026-11-18 22:5x 신설(자율 등록, 실행은 승인 대기). 스코어보드 무개선 20사이클 연속 → 스킬 규칙상 '새 레버 승인 요청' 단계. 이미 닫힌 축: 조정(피처변환·HP·유니버스·라벨) 상한 +0.011 · 선별 문턱 병목(CG342 Δ−0.0015) · 라벨 중립화(CG341 k10 Δ−0.582) · top-k 초과 엣지(CG344 Δ+0.31 t 0.75). 남은 것: 이 항목(추론 계약)과 새 데이터 원천(분봉 XR26 리서처 차단·대차잔고 미수집). | 당일 전종목 배치 횡단면 추론 경로 신설 승인(추론 계약 변경) — shadow 1주 후 전환. 2026-11-21 19:1x 엔지니어: command 미정 상태로 pending 에 두면 (a) 구동기 등록 자기모순 경고가 매 틱 뜨고 (b) 실행 큐를 차지한다 → needs_setup 으로 내리고, 승인/프로토콜 확정 후 command 한 줄과 함께 pending 으로 올린다. | 2026-11-21 22:2x 엔지니어: **착수 보류** — 이 항목의 유일한 목적이 'rank 축을 배포 경로에 올린다'였는데, CG391 실측(청정 패널 prod200_v6, 같은 런 2-arm)에서 rank 성분이 AUC Δ+0.0010 · 돈 Δ(rank−대조) +0.070%p(t 0.60, k=3) / −0.002(t −0.02, k=5) · 분할 unstable 로 둘 다 사라졌다. 3시간 구현 + shadow 1주를 쓸 근거가 없다. 다른 횡단면 피처(당일 업종 상대강도 등)를 배포 경로에 올릴 때 재개한다. | 2026-11-21 23:2x 종결(CG391): rank 성분의 돈 기여를 같은 런·같은 폴드로 측정 — h1/stride1 255세션 Δ(rank−대조) k=3 +0.070%p(t 0.60)·k=5 −0.002(t −0.02), h5/stride5 n=55 Δ+0.294(t 0.54) → 사전문턱(Δ≥+0.1%p & t≥2 & 분할 both_positive) 미달. 청정 패널 prod200_v6 에서 AUC 도 Δ+0.0010(0.5497±0.0093 vs 0.5487±0.0129, 폴드승률 3/5) = 기록상 +0.0227 은 누수 패널(panel_420_asofpatch) 특이. 3시간짜리 배치 추론 경로 신설의 근거가 사라졌으므로 착수하지 않는다.",
    "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
    "approved_by": "2026-11-21"
   },
@@ -22453,7 +22453,7 @@
    "metric": "feature_coverage",
    "arm": null,
    "baseline": null,
-   "note": "수집기(krx-collector)·원천 API 는 이 역할 소유가 아니다 → 조사·백필은 리서처. 엔지니어가 한 것: 감시기 구현 + 실측 증거. 같은 계열 선례: 18:55 KRX OpenAPI 이름해석 실패 → KIS 폴백(XR41). ⚠ 이 피처는 날짜별 유니크값 1개인 시장레벨이라 횡단면 모델에 직접 넣으면 누수/무정보 규칙 위반 — 복구 후에도 모델 투입 금지, 하류 기준선용으로만 쓴다.",
+   "note": "수집기(krx-collector)·원천 API 는 이 역할 소유가 아니다 → 조사·백필은 리서처. 엔지니어가 한 것: 감시기 구현 + 실측 증거. 같은 계열 선례: 18:55 KRX OpenAPI 이름해석 실패 → KIS 폴백(XR41). ⚠ 이 피처는 날짜별 유니크값 1개인 시장레벨이라 횡단면 모델에 직접 넣으면 누수/무정보 규칙 위반 — 복구 후에도 모델 투입 금지, 하류 기준선용으로만 쓴다. | 2026-11-21 23:1x 엔지니어 실측: krx_trading max(trade_date)=2026-09-23·504행(09-21~09-23 6행) 그대로 정지. 크론 /etc/cron.d/analyist_dd 19:40 의 krx_offline.sh 는 **지수·파생(krx_derivatives)만** 적재한다(로그 11-20 rc=0) — 주식 일별매매(krx_trading) 수집기는 크론에 없다. 또 이 값(krx_total_trading_value)은 **시장레벨** 피처라 횡단면 모델에 그대로 투입 금지(하드규칙 ③) → 모델 AUC 기대 효과 낮음. 우선순위 p6 유지 권고.",
    "created_at": "2026-11-20T17:10:47+09:00",
    "updated_at": "2026-11-20T17:10:47+09:00",
    "promoted_from": "engineer",
@@ -22729,7 +22729,7 @@
   {
    "id": "XR44",
    "title": "[리서처 R44] sns_post_features 가 5거래일 동결 — writer 는 있는데 스케줄이 없었다 (일일 배선 + 신선도 상시 감시)",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 8,
    "from_research": "R44",
    "arm": null,
@@ -22742,7 +22742,7 @@
    "success": null,
    "expected": "미지",
    "cost": null,
-   "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
+   "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라. | 2026-11-21 23:1x 엔지니어 검증 완료: sns_post_features max(trade_date)=2026-11-20 · 10-20 이후 32거래일 연속 적재(11-20 235행·235종목, 전 구간 20,660행·475종목) · 사용자 crontab 에 수집 17:30 / 피처 18:10 등록 확인 → '5거래일 동결' 해소. 남은 것은 신선도 상시 감시뿐이며 이는 DQ 지표 영역.",
    "promoted_from": "handoff",
    "promoted_at": "2026-11-21T01:07:47+09:00"
   },
@@ -23112,6 +23112,54 @@
     "detail": "청정 패널 panel_prod200_v6 · 5폴드×5시드 · 같은 런 2-arm(CO_rank_smooth_d1_h5 vs CO_smooth_d1_h5). AUC: 0.5497±0.0083 vs 0.5487±0.0115 → Δ+0.0010 (rank 우위가 청정 패널에서 사라짐 — 기록상 +0.0227 은 49종목 누수 패널 panel_420_asofpatch 값이었다). 돈(h1/stride1/close_h·수수료 0.21%p·255세션·풀중앙값 75): rank arm k=3 +0.028%p/session(t 0.15) · k=5 +0.025(t 0.14) · 대조 k=3 −0.042/k=5 +0.026 · Δ(rank−대조) k=3 +0.070(t 0.60, 108/103/44) · k=5 −0.002(t −0.02, 122/117/16) · 분할 unstable [+0.165/−0.109](k=3) · 널(풀) 대비 k=3 +0.326(t 2.26) k=5 +0.323(t 2.68). h5/stride5(비중첩 n=55): Δ k=3 +0.294(t 0.54) k=5 +0.054(t 0.12) — 검정력 없음. 사전등록 ①Δ≥+0.1%p ✗(k=3 +0.070) ②t≥2 ✗(0.60/−0.02) ③both_positive ✗ → 미충족",
     "money_note": "AUC 로는 +0.0227 이던 rank 축이 청정 패널에서는 AUC +0.0010·돈 Δ+0.070%p(t 0.60) 로 둘 다 사라진다 → 'AUC 만 오른 후보'도 아니고 '돈도 안 오른 후보'다. 유일하게 남는 것은 널 대비 상대엣지(+0.32%p, t 2.3~2.7)로 rank 유무와 무관하게 모델 자체가 갖는 값이다."
    }
+  },
+  {
+   "id": "CG392",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "done",
+   "metric": "fillable_topk_expectancy",
+   "title": "[돈·타이밍 게이트 종결] 분산 게이트의 역방향(분산 낮은 세션만 롱) 1회 검정 — CG390 역선택의 반대편",
+   "arm": "CO_smooth_d1_h5",
+   "counterfactual": "CG390 과 같은 덤프에서 분산이 과거 중앙값보다 **높은** 세션(CG390 의 ON 밴드 = 이 항목의 OFF)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg387_both.jsonl --arm-tag CO_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg387_both.jsonl --control-tag CG376_noroll_h5 --k 3,5 --sides top --gate-rule dispersion --gate-days 20 --gate-quantile 0.5 --gate-side low --stride 1 --exit close_h --horizon 1 --max-day-chg 25 --min-value 1e9 --json-out /app/reports/overnight/cg392_gate_low_h1.json'",
+   "hypothesis": "CG390 은 분산 큰 세션만 롱했을 때 ON +0.137(t 0.56)·Δ(ON−OFF) +0.220%p 로 문턱 미달이었고, ON 밴드의 풀수익은 −0.432 로 OFF(−0.123)보다 나빴다 = 게이트가 국면을 역선택. 그렇다면 반대편(분산이 작은 세션만 롱)이 양(+)일 수 있다 — 사후 방향 전환이므로 정확히 1회만 측정하고 3차 변형은 금지한다.",
+   "evidence": "CG390(cg390_disp_gate_h1.json): ON 118세션 k=5 +0.137(t 0.56)/k=3 +0.052(t 0.21), OFF −0.083/−0.131, Δ(ON−OFF) +0.220%p(문턱 +0.5 미달)·ON 풀 −0.432 vs OFF 풀 −0.123. CG383(트레일링 풀 게이트)도 역선택(방향 미측정).",
+   "success": "사전등록(변경 금지, CG390 과 동일 문턱): ① ON 세션 ≥ 40 ② ON 밴드 arm top-k(k=3,5) 절대 순기대 > 0 ③ t ≥ 2 ④ Δ(ON−OFF) ≥ +0.5%p ⑤ 앞/뒤 절반 both_positive — 모두 충족해야 '신호'. 미달이면 타이밍 게이트 축을 **양방향 종결**로 기록하고 재시도 금지.",
+   "result": {
+    "verdict": "노이즈 — 타이밍 축 양방향 종결",
+    "detail": "역방향 ON(분산 낮은 87세션): k=3 −0.131%p(t −0.36)·k=5 −0.083(t −0.23), 분할 neither/unstable · OFF(분산 높은 118세션): k=3 +0.052(t 0.21)·k=5 +0.137(t 0.56) both_positive · Δ(ON−OFF) k=3 −0.183%p · k=5 −0.220%p (문턱 +0.5 미달, 부호도 반대) → 5조건 중 ①②③④ 미충족. 즉 분산 큰 세션이 (약하게) 더 낫고 역방향은 더 나쁘다 — 어느 방향도 절대 순기대를 양(+)으로 만들지 못했다.",
+    "artifacts": [
+     "services/xgboost-ml/reports/overnight/cg392_gate_low_h1.json",
+     "services/xgboost-ml/reports/overnight/cg392_regress_high.json"
+    ]
+   },
+   "regression": "--gate-side 기본값(high) 재실행 결과가 CG390 과 동일: n_on 118 · k=3 +0.052(t 0.21) · k=5 +0.137(t 0.56) → 기존 경로 비트 동일 확인",
+   "created": "2026-11-21T23:20:00+09:00",
+   "finished_at": "2026-11-21T23:20:00+09:00",
+   "note": "스크립트 변경: scripts/fillable_topk_expectancy.py 에 --gate-side {high,low}(기본 high) 추가. low 는 dispersion 규칙에서만 유효(ON = 당일 분산 < 과거 N세션 분위)."
+  },
+  {
+   "id": "CG393",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "pending",
+   "metric": "champion_robust_eval",
+   "est_minutes": 45,
+   "title": "[기준선 재측정] 배포 챔피언의 로버스트 다중창 AUC·폴드 목록을 오늘 데이터로 다시 잰다 — 등록 기준선 0.5406(CG168, 2026-10-11) 이후 41일 경과",
+   "arm": "deployed_champion",
+   "counterfactual": "등록 기준선 0.5406(CG168·2026-10-11 단일분할) + 같은 런 청정 기준선 LS_quant_q30_h5 0.5470(CG377)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/champion_robust_eval.py --folds 5 --dates-per-fold 10 --horizon 5 --out /app/reports/overnight/cg393_champion_robust.json'",
+   "summary_out": "/app/reports/overnight/cg393_champion_robust.json",
+   "hypothesis": "북극성 카운터는 0.5406(2026-10-11 등록, 후보 대비 단일분할) 대비 22사이클 연속 미달을 세고 있는데, 챔피언 자체의 로버스트 값은 41일 전 창에서 측정된 것이다. 같은 도구로 오늘 다시 재면 (a) 카운터 기준선이 여전히 유효한지 (b) 새 후보가 넘어야 할 실제 표적이 얼마인지가 정해진다 — '개선 없음' 판정의 전제를 실측으로 고정한다.",
+   "evidence": "스코어보드 2026-11-21: 로버스트 0.5519 vs 기준선 0.5406(Δ+0.0113)·무개선 22사이클. 돈 기준 배포 챔피언 로버스트 0.4908·순기대 −0.182%p(t −0.81)·87세션·age 47.4d. CG361(needs_setup)은 기준선을 같은 프로토콜 OOS 로 재정의하라는 승인 항목 — 이 실험은 그 승인 없이 '현재 값'만 측정한다(문턱·기준선 변경 없음).",
+   "success": "rc=0 · 폴드 목록 5개 · 평균±std 기록 · 기준선 대비 Δ 부호 명시. 판정: Δ ≥ +0.02 면 '기준선이 낡아 카운터가 미달을 과대계상' / |Δ| < 0.02 면 '기준선 유효' / Δ ≤ −0.02 면 '챔피언 노후화'로 기록(어느 경우도 승격 아님).",
+   "expected": "챔피언(10-02 학습)이 최근 국면에서 더 낮을 가능성 — CG377 의 같은 런 기준선 0.5470 과 이 값의 격차가 카운터 해석을 바꾼다.",
+   "created": "2026-11-21T23:20:00+09:00"
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
