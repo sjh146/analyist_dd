@@ -40,6 +40,22 @@ from matplotlib import font_manager  # noqa: E402
 from _paths import proj, proj_dir
 
 PROM = os.environ.get("PROM_URL", "http://127.0.0.1:9090")
+
+# 모니터링 사각지대의 '조용한 시한폭탄': Prometheus 가 연결을 받지 않으면(SYN drop · 컨테이너 소실)
+# 요청마다 20초를 기다리고, 이 스크립트는 메트릭을 200여 회 조회하므로 총 소요가 틱의 600초 상한을
+# 넘겨 **판정 없이** rc=99 로 죽는다 — 실측 2026-11-21 18:47(스택 컨테이너 14개 소실 상태):
+# 틱 보고에 `dq_snapshot rc=99` 만 남고 '모니터링 사각지대' 판정 줄이 사라졌다(같은 날 18:57 에는
+# 연결이 즉시 거부되어 사각지대 breach 로 정상 판정 — 차이는 '느린 실패 vs 빠른 실패'뿐이다).
+# → 연속 실패가 BLIND_STREAK 에 닿으면 남은 조회를 건너뛰고 전 메트릭 nodata 로 **판정**한다.
+# 사각지대를 판정하려고 만든 코드가 사각지대에서 판정을 못 하면 안 된다.
+BLIND_STREAK = 5
+_API_STATE = {"fail_streak": 0, "blind": False}
+
+
+def reset_api_state():
+    _API_STATE["fail_streak"] = 0
+    _API_STATE["blind"] = False
+
 PROJ = os.environ.get("RES_PROJ", proj_dir())
 OUTDIR = os.path.join(PROJ, "data/reports/dq_snapshots")
 HISTORY = os.path.join(OUTDIR, "history.jsonl")
@@ -366,11 +382,20 @@ def _api(path, params):
     사각지대를 판정하려고 만든 코드가 정작 사각지대에서 판정 줄 대신 스택을 출력한 것이다.
     조회 실패를 '값 없음'으로 넘기면 전 메트릭이 nodata 가 되어 위반/기동과도기로 **판정**된다.
     """
+    if _API_STATE["blind"]:
+        return {}
     url = f"{PROM}{path}?" + urllib.parse.urlencode(params)
     try:
         with opener(url).open(url, timeout=20) as r:  # 프록시 우회(net_local)
-            return json.load(r)
+            data = json.load(r)
+        _API_STATE["fail_streak"] = 0
+        return data
     except (OSError, json.JSONDecodeError):
+        _API_STATE["fail_streak"] += 1
+        if _API_STATE["fail_streak"] >= BLIND_STREAK and not _API_STATE["blind"]:
+            _API_STATE["blind"] = True
+            print(f"[사각지대] Prometheus 연속 {BLIND_STREAK}회 조회 실패 — 남은 조회를 건너뛴다"
+                  f"(전 메트릭 nodata 로 판정)", flush=True)
         return {}
 
 
