@@ -1779,13 +1779,18 @@
           "ts": "2026-11-21T16:47:31+09:00",
           "rc": 0,
           "detail": "R35: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-22T20:47:37+09:00",
+          "rc": 0,
+          "detail": "R35: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R35: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R35_20261121-164729.log"
+        "log": "data/reports/res_cycle/logs/res_R35_20261122-204735.log"
       }
     },
     {
