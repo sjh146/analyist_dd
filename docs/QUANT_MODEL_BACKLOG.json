@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T21:18:22+09:00",
+ "updated_at": "2026-11-22T22:28:59+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -291,16 +291,17 @@
   {
    "id": "CG349",
    "title": "[측정 프로토콜] 채점 창을 train_end=2026-10-01 로 고정한 3시드 짝 Δ — 배포 챔피언 vs 재학습 후보(cg346) (CG348 창 불일치 수리 후 재측정)",
-   "status": "diagnosed",
+   "status": "done",
    "priority": 1,
-   "est_minutes": 25,
+   "est_minutes": 15,
    "owner": "model_engineer",
    "metric": "robust_paired_seeds",
    "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg349_paired.json",
-   "command": "timeout 2600 docker exec stock_xgboost_ml sh -c 'cd /app && for m in champion retrain_cg346; do for s in 0 1 2; do OMP_NUM_THREADS=4 timeout 600 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --folds 5 --dates-per-fold 10 --train-start 2025-09-24 --train-end 2026-10-01 --universe training --universe-seed $s --out /app/reports/overnight/cg349_${m}_s${s}.json || exit 1; done; done' && python3 scripts/robust_paired_seeds.py --arm-a services/xgboost-ml/reports/overnight/cg349_champion_s0.json services/xgboost-ml/reports/overnight/cg349_champion_s1.json services/xgboost-ml/reports/overnight/cg349_champion_s2.json --arm-b services/xgboost-ml/reports/overnight/cg349_retrain_cg346_s0.json services/xgboost-ml/reports/overnight/cg349_retrain_cg346_s1.json services/xgboost-ml/reports/overnight/cg349_retrain_cg346_s2.json --label-a champion --label-b retrain_cg346 --out data/reports/overnight/cg349_paired.json",
+   "command": "timeout 3600 docker exec stock_xgboost_ml sh -c 'cd /app && for m in champion retrain_cg346; do for s in 0 1 2; do OMP_NUM_THREADS=4 timeout 750 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-20 --folds 3 --dates-per-fold 7 --universe training --universe-seed $s --out /app/reports/overnight/cg349b_${m}_s${s}.json || exit 1; done; done' && python3 scripts/robust_paired_seeds.py --arm-a services/xgboost-ml/reports/overnight/cg349b_champion_s0.json services/xgboost-ml/reports/overnight/cg349b_champion_s1.json services/xgboost-ml/reports/overnight/cg349b_champion_s2.json --arm-b services/xgboost-ml/reports/overnight/cg349b_retrain_cg346_s0.json services/xgboost-ml/reports/overnight/cg349b_retrain_cg346_s1.json services/xgboost-ml/reports/overnight/cg349b_retrain_cg346_s2.json --label-a champion --label-b retrain_cg346 --out data/reports/overnight/cg349_paired.json",
    "counterfactual": "CG348: 창을 고정하지 않아 챔피언(2026-01~05·2폴드)과 후보(2026-09~11·1폴드)를 다른 구간에서 채점 → Δ +0.0102·SE 0.0230 은 무의미. 창을 맞추면 두 arm 이 같은 10날짜에서 채점되어 시드 표집 잡음이 짝 안에서 상쇄된다.",
    "success": "① rc=0 + cg349_paired.json ② window_mismatch·fold_mismatch 가 빈 리스트(창 일치 확인) ③ 짝 Δ SE ≤ 0.010 이면 '짝 프로토콜로 +0.02 해상 가능' 기록·리뷰보드 안건 상정. SE > 0.010 이면 시드 5개로 확장(CG350). 어느 경우든 Δ 부호로 승격 판단 금지.",
    "expected": "해상 가능한 측정 프로토콜 확보 — 20사이클 무개선이 잡음인지 실재인지 가른다.",
+   "note": "2026-11-22 22:2x 엔지니어 자율(장외 틱 · 실행가능 pending 0건 · 규칙 4) — 11-19 실행실패 원인이던 '창 격자에 train_end 이후 창이 없음'은 champion_robust_eval 에 --window-mode post_train + --oos-start 가 추가되면서 이미 해소됐다(도움말 주석이 이 실패를 근거로 명시). 그래서 새 항목을 만들지 않고 이 항목을 수리해 pending 으로 되살렸다: 창을 10-02~11-06(post_train, 34거래일 중 purge·reserve 후)으로 고정하고 --asof-date 2026-11-20 으로 앵커 고정, 3폴드×7날짜×3시드 짝. 실측 스모크(1폴드×2날짜): rc=0 · n_dates 2 · auc_per_date_mean 0.4553 — 창 구성·모델 로드 정상 확인. | 2026-11-22 22:2x 실측 결과(rc=0 · 18.5분 · 창 일치 window_mismatch=[] fold_mismatch=[]): 챔피언 3시드 로버스트 0.5522/0.5001/0.5209(평균 0.5244, 폴드 9개 0.5244±0.0635, min 0.4111 max 0.6045) vs 재학습 후보 0.5231/0.5172/0.4749(평균 0.5050, 0.5050±0.0326, min 0.4328 max 0.5452) · 짝 Δ +0.0291/−0.0169/+0.0460 평균 +0.0194 · SE 0.0188 · t 1.03 · 폴드승률 5/9. 사전문턱(+0.02·SE≤0.010) 미달 → 노이즈. 방향은 CG374(같은 창 10-02~11-19·Δ+0.0278·SE 0.0051·챔피언 우위)와 일치 = **모델 신선도(재학습) 축은 두 창설계 모두에서 이득 없음 → 축 종결**(재학습은 승격 후보가 아니다). 돈 지표는 이 런에서 덤프를 만들지 않아 미측정 — AUC 비교만으로 승격 판단 금지(최우선 규칙 4)이므로 이 결과는 승격 근거가 아니다.",
    "created": "2026-11-19T06:55:00+09:00",
    "rationale": "CG347 이 절대 AUC 시드 범위 0.0227(문턱 1.14배)을, CG348 이 '창이 다르면 짝도 무의미하다'를 실측했다. 두 교훈을 합치면 창을 고정한 같은 시드 짝만이 문턱을 해상할 후보 프로토콜이다.",
    "attempts": [
@@ -311,13 +312,22 @@
      "detail": "측정값 없음 — 종료코드 1(로그 꼬리에서 예외 줄 미발견)",
      "log": "data/reports/me_cycle/logs/me_cycle_CG349_20261119-063813.log",
      "elapsed_min": 0.1
+    },
+    {
+     "ts": "2026-11-22T22:28:59+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "시드 3개 짝 Δ 평균 +0.0194 (SE 0.018794 · t 1.032 · 양(+) 2) · 대조군 0.5050333333333333 vs 챌린저 0.5244333333333334 · 문턱 +0.02 → 문턱 미달",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG349_20261122-221031.log",
+     "elapsed_min": 18.5
     }
    ],
    "result": {
-    "verdict": "실행실패 — 창 격자에 train_end 이후 창이 없음(프로토콜 한계, 측정값 없음)",
-    "detail": "train_end=2026-10-01 로 고정하니 5창 전부 학습구간과 겹쳐 OOS 창 0개 → rc=1 ('학습구간 이전 창이 없습니다'). 원인: 창 격자는 2026-01-16~2026-11-11 의 고정 5창이고 마지막 창이 2026-09-11 에 **시작**한다 → 10-01 이후 구간(2026-10-02~11-11)을 채점하는 창이 격자에 없다. 챔피언(train 2026-07-03~10-01)과 후보(train 2025-09-24~08-27)는 학습구간이 달라 **두 모델 모두에게 OOS 인 겹침 창이 존재하지 않는다** — 현 프로토콜로는 챔피언 vs 후보 짝 비교 자체가 불가능하다(계측기 실패가 아니라 격자 한계).",
-    "rc": 1,
-    "delta": null
+    "verdict": "노이즈",
+    "detail": "시드 3개 짝 Δ 평균 +0.0194 (SE 0.018794 · t 1.032 · 양(+) 2) · 대조군 0.5050333333333333 vs 챌린저 0.5244333333333334 · 문턱 +0.02 → 문턱 미달",
+    "delta": 0.0194,
+    "per_exp": null,
+    "rc": 0
    },
    "followup": "CG350 — 창 절단 옵션(프로토콜 변경, 리뷰보드 승인 대상)",
    "notes": [
