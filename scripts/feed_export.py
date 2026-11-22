@@ -474,6 +474,27 @@ def is_krx_holiday(day) -> bool:
     return False
 
 
+def source_age_days(payload, now=None):
+    """산출물의 나이(일) — ``generated_at`` 을 우선하고 ``date`` 는 폴백.
+
+    왜: ``date`` 는 '거래 기준일'이라 00:00 KST 로 해석된다 → 실제 생성 시각보다
+    최대 하루 앞서 계산돼 **주말 경계에서 전략이 통째로 비었다**. 실측 2026-11-23 08:20:
+    close 산출물(generated_at 11-20T14:40 KST)이 date(11-20T00:00) 기준 **3.34일**로
+    잡혀 문턱 3.0 에 걸려 close 20건이 빈 리스트로 발행됐다(실제 나이 2.74일).
+    생성 시각을 알 수 있으면 그 값을 쓰고, 없을 때만 date 로 폴백한다(보수적 유지).
+    """
+    stamp = payload.get("generated_at") or payload.get("date")
+    if not stamp:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=KST)
+    return ((now or datetime.now(KST)) - dt).total_seconds() / 86400.0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="trader-agent 피드 스냅샷 발행")
     ap.add_argument("--close", default=DEFAULT_SOURCES["close"])
@@ -531,16 +552,8 @@ def main(argv=None):
             continue
         # 신선도 가드: 계약은 generated_at(발행 시각)만 보므로, 산출물 자체가 오래되면
         # 낡은 종목이 신선한 것처럼 나간다 → 오래된 전략은 비워서 보낸다.
-        stamp = payload.get("date") or payload.get("generated_at")
-        age_days = None
-        if stamp:
-            try:
-                dt = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=KST)
-                age_days = (datetime.now(KST) - dt).total_seconds() / 86400.0
-            except ValueError:
-                age_days = None
+        stamp = payload.get("generated_at") or payload.get("date")
+        age_days = source_age_days(payload)
         if age_days is not None and age_days > args.max_source_age_days:
             logger.warning("[%s] 산출물이 %.1f일 지났다(> %.1f일) — 이 전략은 빈 리스트로 발행: %s",
                            key, age_days, args.max_source_age_days, path)
