@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-23T00:55:00+09:00",
+ "updated_at": "2026-11-23T00:41:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -24514,7 +24514,7 @@
    "owner": "engineer",
    "affects_model": false,
    "priority": 1,
-   "status": "pending",
+   "status": "done",
    "metric": "fillable_topk_vs_pool",
    "summary_out": "/app/reports/overnight/cg434_money.json",
    "est_minutes": 15,
@@ -24527,7 +24527,53 @@
    "success": "사전등록: rc=0 · cg434_money.json · k=3/5/10 중 하나라도 Δ(arm−control) ≥ +0.1%p & t ≥ 2 & 분할 both_positive → 'AUC 우위가 돈으로 환산됨'(그래도 승격 아님, 별도 판단) · 아니면 '환산 안 됨' → AUC-돈 괴리 재확인으로 축 종결. 표본 12세션이라 노이즈 결론이면 표본 부족을 함께 명시한다.",
    "expected": "환산 안 됨(12세션 표본으로 t≥2 는 어려움) — AUC 이득이 한 창에 몰린 것이 돈으로도 재현되지 않을 것",
    "cost": "채점 2회(각 ≈2.5분) + 기대값 계산 수초",
-   "created": "2026-11-23T00:55:00+09:00"
+   "created": "2026-11-23T00:55:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-23T00:23:03+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "표본부족 — 짝 세션 12 < 20 (stride 1 · 필터 후 풀 중앙값 18종목 · 채점 날짜 12) → 노이즈로 닫지 말고 창(--window-mode post_train)·stride 를 키워 재측정하라",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG434_20261123-001548.log",
+     "elapsed_min": 7.2
+    }
+   ],
+   "result": "판정불가(표본부족) — 짝 12세션 < 하한 20. 방향은 역(逆): k=3 champ −9.354%p/세션 vs retrain −6.543 → Δ −2.812(t −2.14·양 5/12) · k=5 Δ −0.827(t −0.78) · k=10 Δ −0.916(t −1.24) · 같은 12날짜 풀평균 −6.583(t −4.59). 즉 같은 창에서 AUC 가 +0.097 이던 모델이 돈으로는 더 나빴다(표본 부족으로 확정 불가) → CG435 로 창 확대 재측정.",
+   "completed": "2026-11-23T00:26:00+09:00"
+  },
+  {
+   "id": "CG435",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "done",
+   "metric": "fillable_topk_vs_pool",
+   "summary_out": "/app/reports/overnight/cg435_money.json",
+   "est_minutes": 18,
+   "title": "[돈 지표·CG434 재측정] 표본 20세션 확보 — 창을 2폴드×15날짜로 넓혀 fold3 AUC 우위의 돈 환산을 다시 본다",
+   "arm": "champ",
+   "counterfactual": "retrain_cg346 (같은 창·같은 시드)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-20 --folds 2 --dates-per-fold 15 --universe training --universe-seed 0 --dump-preds /app/reports/overnight/cg435_champ.jsonl --dump-all --dump-tag champ --out /app/reports/overnight/cg435_champ_eval.json && OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/retrain_cg346 --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-20 --folds 2 --dates-per-fold 15 --universe training --universe-seed 0 --dump-preds /app/reports/overnight/cg435_retrain.jsonl --dump-all --dump-tag retrain --out /app/reports/overnight/cg435_retrain_eval.json && PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg435_champ.jsonl --arm-tag champ --control-jsonl /app/reports/overnight/cg435_retrain.jsonl --control-tag retrain --k 3,5,10 --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg435_money.json'",
+   "hypothesis": "CG434 는 짝 세션 12 < 사전 하한 20 이라 판정불가였다(측정된 방향은 k=3 Δ −2.81%p t −2.14 로 역방향). 창을 2폴드×15날짜로 넓혀 20세션 이상을 확보하면 같은 질문(AUC 우위 → 체결가능 순기대)을 판정할 수 있다.",
+   "evidence": "CG434 실측(2026-11-23 00:23): 짝 12세션 · k=3 champ −9.354%p/세션 vs retrain −6.543 (Δ −2.812·t −2.14·양 5/12) · k=5 Δ −0.827(t −0.78) · k=10 Δ −0.916(t −1.24) · 풀평균 −6.583(t −4.59). 판정기는 표본 하한 20 미만을 '판정불가'로 막았다.",
+   "success": "사전등록: 짝 세션 ≥20 · k=3/5/10 중 하나라도 Δ(arm−control) ≥ +0.1%p & t ≥ 2 & 분할 both_positive → 'AUC 우위가 돈으로 환산됨' · Δ ≤ −0.1%p & t ≤ −2 → '역방향(승격 금지)' · 그 밖은 노이즈. 어느 경우든 승격 판단 없음.",
+   "expected": "k=3 역방향이 유지되거나 노이즈 — 12세션에서 본 −2.8%p 가 표본 확대로 줄어들 것으로 예상",
+   "cost": "채점 2회(2폴드·15날짜) ≈ 8분 + 집계 수초",
+   "created": "2026-11-23T00:26:00+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-23T00:39:06+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "표본부족 — 짝 세션 18 < 20 (stride 1 · 필터 후 풀 중앙값 19종목 · 채점 날짜 18) → 노이즈로 닫지 말고 창(--window-mode post_train)·stride 를 키워 재측정하라",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG435_20261123-002538.log",
+     "elapsed_min": 13.5
+    }
+   ],
+   "result": "판정불가(표본 18 < 20) — 2창×14일 레이아웃에서 짝 18세션(필터 후 풀 중앙값 19종목). Δ는 사실상 0: k=3 −0.004(t −0.00·양 12/18) · k=5 +0.308(t +0.35) · k=10 +0.258(t +0.57) · 같은 창 풀평균 −5.398(t −5.01). 12세션에서 보였던 k=3 Δ −2.812(t −2.14)는 표본 잡음이었다 → fold3 AUC 우위(+0.097)는 돈으로 환산되지 않는다(AUC-돈 괴리 재확인). 절대 순기대는 양 arm 모두 −4.8~−5.4%p/세션(하락장 베타, 판정 아님).",
+   "note": "동일 결과를 3번째 창 기하에서 재현해 표본을 12→18 로 늘렸으나 사전 하한 20 미달 — 29거래일 OOS 로는 20세션 확보가 최대 2창×15일(18~20) 경계다.",
+   "completed": "2026-11-23T00:41:00+09:00"
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
