@@ -42,6 +42,9 @@ def _load_arm(paths, label):
                      # 창 서명 — 두 arm 이 같은 날짜창에서 채점됐는지 검사하는 근거
                      "n_folds": len(folds),
                      "windows": [list(f.get("window") or []) for f in folds],
+                     # 창(=fold)별 AUC — 시드 간 SE 는 같은 날짜창을 공유해 과소추정되므로
+                     # 창 클러스터 분산을 따로 계산한다(2026-11-23 CG432 실측).
+                     "fold_aucs": [f.get("auc_mean") for f in folds],
                      "train_end": d.get("train_end")}
     return out
 
@@ -87,6 +90,45 @@ def main(argv=None):
                        for s in seeds if a[s]["windows"] != b[s]["windows"]]
     fold_mismatch = [f"seed {s}: {a[s]['n_folds']} vs {b[s]['n_folds']} 폴드"
                      for s in seeds if a[s]["n_folds"] != b[s]["n_folds"]]
+    # ── 창 클러스터 SE ────────────────────────────────────────────────────────
+    # 왜(실측 2026-11-23 CG432): 시드 11개 짝 Δ 평균 +0.0237 · 시드 SE 0.0071 · t 3.35 로
+    # '문턱 초과'처럼 보였지만, 창(fold)별로 쪼개면 Δ 가 fold1 −0.0190(3/11) · fold2 −0.0071(5/11)
+    # · fold3 +0.0970(11/11) 로 **한 창에 전부 몰려** 있었다. 시드들은 같은 날짜창을 공유하므로
+    # 시드 간 독립을 가정한 SE 는 유사반복(pseudo-replication)으로 과소추정된다 → 창을 클러스터로
+    # 본 SE 를 함께 기록한다. (판정 문턱/규칙은 이 스크립트에서 바꾸지 않는다 — 리뷰보드 안건.)
+    fold_block = []
+    cluster = None
+    nf = {a[s]["n_folds"] for s in seeds} | {b[s]["n_folds"] for s in seeds}
+    if len(nf) == 1 and not fold_mismatch:
+        k = nf.pop()
+        per_fold = []
+        for i in range(k):
+            pairs = []
+            for s in seeds:
+                fa = (a[s]["fold_aucs"] or [None] * k)[i]
+                fb = (b[s]["fold_aucs"] or [None] * k)[i]
+                if fa is None or fb is None:
+                    continue
+                pairs.append(float(fa) - float(fb))
+            if pairs:
+                fm = statistics.fmean(pairs)
+                fsd = statistics.stdev(pairs) if len(pairs) > 1 else 0.0
+                per_fold.append({"fold": i + 1, "n": len(pairs), "delta_mean": round(fm, 6),
+                                 "delta_sd": round(fsd, 6),
+                                 "pos": sum(1 for v in pairs if v > 0),
+                                 "auc_a": round(statistics.fmean([float(a[s]['fold_aucs'][i]) for s in seeds]), 6),
+                                 "auc_b": round(statistics.fmean([float(b[s]['fold_aucs'][i]) for s in seeds]), 6)})
+        fold_block = per_fold
+        if len(per_fold) >= 2:
+            fms = [f["delta_mean"] for f in per_fold]
+            cmean = statistics.fmean(fms)
+            csd = statistics.stdev(fms)
+            cse = csd / (len(fms) ** 0.5)
+            cluster = {"n_clusters": len(fms), "fold_mean_deltas": fms,
+                       "mean": round(cmean, 6), "sd": round(csd, 6), "se": round(cse, 6),
+                       "t": round(cmean / cse, 3) if cse else None,
+                       "pos_folds": sum(1 for v in fms if v > 0),
+                       "note": "시드 SE 는 같은 날짜창 공유로 과소추정 — 창 클러스터 SE 를 함께 본다"}
     res = {
         "metric": "robust_paired_seeds",
         "label_a": args.label_a,
@@ -102,6 +144,8 @@ def main(argv=None):
         "t": round(t, 3) if t is not None else None,
         "pos_seeds": pos,
         "pos_frac": round(pos / n, 3),
+        "folds": fold_block,
+        "window_cluster": cluster,
         "threshold": args.threshold,
         "window_mismatch": window_mismatch,
         "fold_mismatch": fold_mismatch,

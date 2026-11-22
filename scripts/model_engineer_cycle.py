@@ -1861,6 +1861,9 @@ def parse_robust_paired_seeds(path, mtime_floor) -> dict:
         # 창/폴드 불일치를 그대로 넘긴다 → judge_seed_family 가 '판정불가'로 막는다
         "window_mismatch": d.get("window_mismatch") or None,
         "fold_mismatch": d.get("fold_mismatch") or None,
+        # 창 클러스터 분산 — 시드 SE 과소추정(유사반복) 방지용 기록. 판정 규칙은 건드리지 않는다.
+        "window_cluster": d.get("window_cluster"),
+        "folds": d.get("folds"),
     }
     return {
         "measured_at": d.get("measured_at"),

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T22:28:59+09:00",
+ "updated_at": "2026-11-23T00:55:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -24444,6 +24444,90 @@
     "artifact": "/app/reports/overnight/cg431_summary.json · cg431_money_s5.json · cg431_both.jsonl"
    },
    "finished": "2026-11-22T21:18:00+09:00"
+  },
+  {
+   "id": "CG432",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "done",
+   "metric": "robust_paired_seeds",
+   "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg432_paired.json",
+   "est_minutes": 60,
+   "title": "[측정 프로토콜] 짝 Δ 해상도를 실제로 획득 — 유니버스 시드 11개 (CG349 SE 0.0188 ≫ 목표 0.010 수리)",
+   "arm": "champion",
+   "counterfactual": "retrain_cg346 (같은 채점 창·같은 유니버스 시드)",
+   "hypothesis": "CG349 는 시드 3개로 SE 0.0188 을 얻어 문턱 +0.02 를 해상하지 못했다. 시드 잡음 추정 σ≈0.033 이므로 n=11 이면 SE≈0.010 이 되어 처음으로 '+0.02 초과 여부'를 통계적으로 말할 수 있다. 시드를 늘려도 SE 가 0.010 아래로 안 내려가면, 남은 분산원은 19날짜짜리 백테스트 창 자체이므로 '백테스트로는 어떤 arm 도 판정 불가'가 확정된다.",
+   "evidence": "CG349 실측(2026-11-22 22:28): 짝 Δ 3시드 +0.0291/−0.0169/+0.0460 → 평균 +0.0194 · σ 0.0326 · SE 0.0188 · t 1.03. 같은 모델 안에서 유니버스 시드만 바꾼 Δ 가 champion +0.0521/−0.0208, retrain +0.0482/−0.0423 → **동일 모델 잡음 반폭 ≈0.026 이 사전문턱 +0.02 보다 크다**. 즉 3시드 설계로는 Δ 0.0194(문턱 미달)와 0.00 을 구분할 수 없다. CG346(신선도 축)은 Δ<+0.02 로 사전등록 종결 조건 충족 — 재학습 후보는 fit_end=2026-08-27 로 채점창(10-02~)은 OOS 이나 val 구간과 겹쳐 후보에 유리한 쪽이며, 그럼에도 −0.0194 로 뒤졌다.",
+   "success": "① rc=0 + cg432_paired.json (n_seeds=11) ② SE ≤ 0.010 이면 '짝 프로토콜 해상 확정' → 이후 모든 arm 비교 표준으로 기록(스코어보드 프로토콜 변경은 리뷰보드 승인 안건). ③ SE > 0.010 이면 시드 확장 무효 → '19날짜 백테스트 창 소진' 결론을 원장에 남기고 판정을 전방 성적표(CG404)로 이관. 어느 경우든 Δ 부호로 승격 판단 금지.",
+   "expected": "SE 0.009~0.011. Δ 평균은 +0.01~+0.02 근처에서 유지되나 유의하지 않을 것(= 재학습 무이득 재확인).",
+   "cost": "16 run × ≈3분 = 50분 (시드 0·1·2 는 CG349 산출물 재사용) + 집계 수초",
+   "command": "timeout 5700 docker exec stock_xgboost_ml sh -c 'cd /app && for m in champion retrain_cg346; do for s in 0 1 2; do [ -f reports/overnight/cg349b_${m}_s${s}.json ] && cp reports/overnight/cg349b_${m}_s${s}.json reports/overnight/cg432_${m}_s${s}.json; done; for s in 3 4 5 6 7 8 9 10; do OMP_NUM_THREADS=4 timeout 900 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-20 --folds 3 --dates-per-fold 7 --universe training --universe-seed $s --out /app/reports/overnight/cg432_${m}_s${s}.json || exit 1; done; done' && python3 scripts/robust_paired_seeds.py --arm-a services/xgboost-ml/reports/overnight/cg432_champion_s0.json services/xgboost-ml/reports/overnight/cg432_champion_s1.json services/xgboost-ml/reports/overnight/cg432_champion_s2.json services/xgboost-ml/reports/overnight/cg432_champion_s3.json services/xgboost-ml/reports/overnight/cg432_champion_s4.json services/xgboost-ml/reports/overnight/cg432_champion_s5.json services/xgboost-ml/reports/overnight/cg432_champion_s6.json services/xgboost-ml/reports/overnight/cg432_champion_s7.json services/xgboost-ml/reports/overnight/cg432_champion_s8.json services/xgboost-ml/reports/overnight/cg432_champion_s9.json services/xgboost-ml/reports/overnight/cg432_champion_s10.json --arm-b services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s0.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s1.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s2.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s3.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s4.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s5.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s6.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s7.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s8.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s9.json services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s10.json --label-a champion --label-b retrain_cg346 --out data/reports/overnight/cg432_paired.json",
+   "created": "2026-11-22T23:15:00+09:00",
+   "note": "2026-11-22 23:1x 엔지니어 자율 신설(CG349 사전등록 'SE>0.010 → 시드 확장' 이행). 22사이클 무개선 판정의 신뢰도 자체를 먼저 고정하는 것이 목적 — 잡음 바닥이 문턱보다 크면 지금까지의 '노이즈' 판정도 판정 불가였을 수 있다.",
+   "attempts": [
+    {
+     "ts": "2026-11-22T23:55:29+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "시드 11개 짝 Δ 평균 +0.0237 (SE 0.007067 · t 3.347 · 양(+) 9) · 대조군 0.5032272727272727 vs 챌린저 0.5268818181818182 · 문턱 +0.02 → 문턱 명목 초과이나 부호 불일치",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG432_20261122-230926.log",
+     "elapsed_min": 46.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "시드 11개 짝 Δ 평균 +0.0237 (SE 0.007067 · t 3.347 · 양(+) 9) · 대조군 0.5032272727272727 vs 챌린저 0.5268818181818182 · 문턱 +0.02 → 문턱 명목 초과이나 부호 불일치",
+    "delta": 0.023655,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG433",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "done",
+   "metric": "robust_paired_seeds",
+   "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg432_paired.json",
+   "est_minutes": 1,
+   "title": "[측정 프로토콜] 짝 Δ 해상 한계 확정 — CG432 '문턱 명목 초과'는 fold3 단일창 · 창 클러스터 SE 0.0369(t 0.64) · OOS 29거래일이 상한(5창 구성 불가)",
+   "arm": "champion",
+   "counterfactual": "retrain_cg346 (같은 3창·12날짜·같은 유니버스 시드)",
+   "command": "python3 scripts/robust_paired_seeds.py --arm-a services/xgboost-ml/reports/overnight/cg432_champion_s{0..10}.json --arm-b services/xgboost-ml/reports/overnight/cg432_retrain_cg346_s{0..10}.json --label-a champion --label-b retrain_cg346 --out data/reports/overnight/cg432_paired.json",
+   "hypothesis": "CG432 의 시드 11개 짝 Δ(+0.0237·SE 0.0071·t 3.35)가 실제 신호인지, 같은 날짜창을 공유하는 시드 간 유사반복으로 SE 가 과소추정된 것인지 창(fold)별로 분해해 판정한다. 5창 확장이 가능한지도 실측한다.",
+   "evidence": "CG432 실측(2026-11-22 23:55): 시드 짝 Δ +0.0237·SE 0.0071·t 3.35·양(+) 9/11. 창 분해(엔지니어 재집계): fold1(10-02~10-08) −0.0190(3/11·챔피언 0.5218 vs 재학습 0.5408) · fold2(10-19~10-22) −0.0071(5/11·0.4837 vs 0.4908) · fold3(10-30~11-04) +0.0970(11/11·0.5751 vs 0.4781). 33개 시드×창 짝 중 양(+) 19/33. 창 클러스터 SE 0.0369(t 0.64). 5창 시도 실측: 'post_train 거래일 부족(29 < 35)' 즉시 거부, 4창은 날짜가 12→8 로 줄어 해상 악화(fold 별 2날짜).",
+   "success": "rc=0 + cg432_paired.json 에 folds·window_cluster 기록. 판정: 창 클러스터 SE(0.0369) > 시드 SE(0.0071) 이고 양(+) 창 1/3 → '시드 확대는 해상개선이 아니다'로 축 종결. 절대 AUC 0.5269 는 기준선 0.5406 미달이므로 승격 판단 없음.",
+   "expected": "시드 SE 과소추정 확인 · 5창 불가로 해상 상한 확정",
+   "cost": "집계 수초 + 5창 프로브 2초(거부) + 4창 프로브 2.5분",
+   "result": "확정 — 창 클러스터 SE 0.0369(t 0.64) vs 시드 SE 0.0071(t 3.35). 이득은 fold3 한 창에 몰려 있고 fold1·2 는 음수 → '문턱 명목 초과'는 단일창 효과다. OOS 29거래일(2026-10-02~11-13)이 상한이라 5창(35슬롯) 구성 불가, 4창은 창당 2날짜(총 8날짜)로 오히려 해상이 나빠진다 → 시드·창 재분할로는 +0.02 를 해상할 수 없다(필요 창 수 ≈ (0.064/0.01)^2 ≈ 41창 ≈ 287거래일).",
+   "note": "측정 수리: scripts/robust_paired_seeds.py 가 fold_aucs·folds·window_cluster 를 기록(판정 규칙은 불변, 리뷰보드 안건). 검증 scripts/_robust_paired_cluster_test.py 3/3 PASS.",
+   "created": "2026-11-23T00:55:00+09:00",
+   "completed": "2026-11-23T00:55:00+09:00"
+  },
+  {
+   "id": "CG434",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "pending",
+   "metric": "fillable_topk_vs_pool",
+   "summary_out": "/app/reports/overnight/cg434_money.json",
+   "est_minutes": 15,
+   "title": "[돈 지표·CG432 후속] fold3 AUC 우위(+0.097)가 체결가능 순기대(%p/세션)로 환산되는가 — 같은 12날짜·같은 시드에서 champion vs retrain",
+   "arm": "champ",
+   "counterfactual": "retrain_cg346 (같은 3창·12날짜·유니버스 시드 0)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 1200 python -u scripts/champion_robust_eval.py --model-dir app/models/champion --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-20 --folds 3 --dates-per-fold 7 --universe training --universe-seed 0 --dump-preds /app/reports/overnight/cg434_champ.jsonl --dump-all --dump-tag champ --out /app/reports/overnight/cg434_champ_eval.json && OMP_NUM_THREADS=4 timeout 1200 python -u scripts/champion_robust_eval.py --model-dir app/models/retrain_cg346 --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-20 --folds 3 --dates-per-fold 7 --universe training --universe-seed 0 --dump-preds /app/reports/overnight/cg434_retrain.jsonl --dump-all --dump-tag retrain --out /app/reports/overnight/cg434_retrain_eval.json && PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg434_champ.jsonl --arm-tag champ --control-jsonl /app/reports/overnight/cg434_retrain.jsonl --control-tag retrain --k 3,5,10 --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg434_money.json'",
+   "hypothesis": "CG432 의 시드 짝 Δ +0.0237 은 fold3 한 창에 몰려 있고 fold1·2 는 음수였다. 최우선 규칙에 따라 AUC 우위가 돈으로 환산되는지는 별개 문제다 — 두 모델의 전 유니버스 채점 덤프를 같은 세션에서 top-k 동일비중 매수·h5 종가 청산으로 시뮬레이션해 체결성 필터·수수료 후 순기대를 짝 비교한다.",
+   "evidence": "CG432 창 분해: fold3 ΔAUC +0.0970(11/11) vs fold1 −0.0190(3/11)·fold2 −0.0071(5/11). 챔피언 절대 AUC 0.5269 는 기준선 0.5406 미달. 배포 챔피언의 라이브 순기대는 −0.182%p(t −0.81·87세션).",
+   "success": "사전등록: rc=0 · cg434_money.json · k=3/5/10 중 하나라도 Δ(arm−control) ≥ +0.1%p & t ≥ 2 & 분할 both_positive → 'AUC 우위가 돈으로 환산됨'(그래도 승격 아님, 별도 판단) · 아니면 '환산 안 됨' → AUC-돈 괴리 재확인으로 축 종결. 표본 12세션이라 노이즈 결론이면 표본 부족을 함께 명시한다.",
+   "expected": "환산 안 됨(12세션 표본으로 t≥2 는 어려움) — AUC 이득이 한 창에 몰린 것이 돈으로도 재현되지 않을 것",
+   "cost": "채점 2회(각 ≈2.5분) + 기대값 계산 수초",
+   "created": "2026-11-23T00:55:00+09:00"
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
