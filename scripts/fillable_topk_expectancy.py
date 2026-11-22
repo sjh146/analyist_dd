@@ -37,6 +37,7 @@ import argparse
 import json
 import math
 import os
+import random
 import sys
 from collections import defaultdict
 
@@ -49,6 +50,9 @@ from fillable_expectancy import FEE_BUY, FEE_SELL, TAX_SELL   # noqa: E402  (수
 LIMIT_UP_PCT = 29.9
 EXITS = ("next_open", "next_close", "close_h", "open_h1")
 ENTRIES = ("close", "next_open")
+
+# 겹침 보정 블록 길이(0 = 끔). main() 이 horizon 으로 채운다 — h>1 이면 기본 ON.
+OVERLAP_BLOCK = 0
 
 
 def db_connect():
@@ -365,6 +369,37 @@ def halves(series_by_key):
             "split_session": str(keys[h])}
 
 
+def overlap_robust(diffs, block, n_boot=4000, seed=20261123):
+    """h>1 라벨의 '보유창 중첩'을 반영한 이동블록 부트스트랩 (2026-11-23 CG439 후속).
+
+    WHY: stride=1 로 h=5 를 채점하면 세션 델타가 5개씩 겹쳐 iid 가정 t 가 낙관적이다(실측: CG439 k=5 Δ +1.318,
+    t 4.16 이 seed3 한 개에서 나옴). stride=5 로 겹침을 없애면 세션이 18→4 로 붕괴해 검정력이 사라진다.
+    그래서 '겹침을 버리지 않고' 블록 길이 h 의 이동블록 부트스트랩으로 SE 를 다시 잡는다(점추정 불변, 검정만 교체).
+    """
+    n = len(diffs)
+    if n < 4 or block < 2:
+        return None
+    L = max(1, min(block, n))
+    rnd = random.Random(seed)
+    means = []
+    for _ in range(n_boot):
+        acc, got = 0.0, 0
+        while got < n:
+            start = rnd.randrange(n)
+            for j in range(L):
+                acc += diffs[(start + j) % n]
+                got += 1
+        means.append(acc / got)
+    mu = sum(diffs) / n
+    means.sort()
+    bm = sum(means) / len(means)
+    se = math.sqrt(sum((x - bm) ** 2 for x in means) / (len(means) - 1))
+    p_le0 = sum(1 for x in means if x <= 0) / len(means)
+    return {"block": L, "n_boot": n_boot, "se": round(se, 4),
+            "t": round(mu / se, 2) if se > 0 else 0.0,
+            "p_one_sided": round(p_le0, 4)}
+
+
 def paired_stats(arm_by_key, ctl_by_key, rt_pct=None):
     keys = sorted(set(arm_by_key) & set(ctl_by_key))
     diffs, pos, neg, ties = [], 0, 0, 0
@@ -388,6 +423,10 @@ def paired_stats(arm_by_key, ctl_by_key, rt_pct=None):
     s["delta_mean"] = s.pop("mean")
     s["pos"], s["neg"], s["ties"] = pos, neg, ties
     s["folds"] = {str(f): f"{a}/{b}" for f, (a, b) in sorted(per_fold.items())}
+    if OVERLAP_BLOCK:
+        ov = overlap_robust(diffs, OVERLAP_BLOCK)
+        if ov:
+            s["overlap_boot"] = ov
     return s
 
 
@@ -466,6 +505,9 @@ def main(argv=None) -> int:
     ap.add_argument("--stride", type=int, default=1,
                     help="세션 채점 간격 — h5 처럼 보유창이 겹치는 라벨은 --stride 5 로 "
                          "비중첩 표본을 만든다(기본 1 = 현행 비트 동일)")
+    ap.add_argument("--overlap-block", type=int, default=None,
+                    help="겹침 보정 이동블록 부트스트랩의 블록 길이(세션). 기본 None = horizon(>1 이면 자동 ON), "
+                         "0 = 끔. 점추정은 그대로 두고 'overlap_boot' 필드만 추가한다")
     ap.add_argument("--fee-buy", type=float, default=FEE_BUY)
     ap.add_argument("--fee-sell", type=float, default=FEE_SELL)
     ap.add_argument("--tax-sell", type=float, default=TAX_SELL)
@@ -479,6 +521,9 @@ def main(argv=None) -> int:
     sides = [s.strip() for s in str(a.sides).split(",") if s.strip()]
     flip = (a.primary_side == "bottom")
     rt_pct = (a.fee_buy + a.fee_sell + a.tax_sell) * 100.0
+    global OVERLAP_BLOCK
+    OVERLAP_BLOCK = (a.overlap_block if a.overlap_block is not None
+                     else (a.horizon if a.horizon > 1 else 0))
 
     arm, bad_a = load_rows(a.arm_jsonl, a.arm_tag)
     ctl, bad_c = load_rows(a.control_jsonl, a.control_tag)

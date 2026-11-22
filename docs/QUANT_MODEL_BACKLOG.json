@@ -24670,7 +24670,7 @@
       "counterfactual": "풀 평균(그날 체결가능 전 종목 평균) + 같은 세션의 retrain_cg346",
       "command": "timeout 6600 docker exec stock_xgboost_ml sh -c 'cd /app && for s in 0 1 2 3 4; do for m in champion retrain_cg346; do OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date 2026-11-20 --folds 2 --dates-per-fold 15 --universe training --universe-seed $s --dump-preds /app/reports/overnight/cg439_${m}_s${s}.jsonl --dump-all --dump-tag ${m}_s${s} --out /app/reports/overnight/cg439_${m}_s${s}_eval.json || exit 1; done; done; for s in 0 1 2 3 4; do PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg439_champion_s${s}.jsonl --arm-tag champ_s${s} --control-jsonl /app/reports/overnight/cg439_retrain_cg346_s${s}.jsonl --control-tag retrain_s${s} --k 3,5,10 --sides top,bottom --regime-split pool_sign --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg439_money_s${s}.json; done'",
       "hypothesis": "CG438: 18세션에서 top-k − 풀평균 = +0.62%p(t 0.91) 로 방향은 맞지만 유의하지 않다. 유니버스 시드 5개로 표본을 넓혀(같은 날짜창, 종목 추출만 달라짐) Δ 부호가 반복되면 '약한 상대 엣지'가 실재, 반복되지 않으면 '모델 랭킹 무정보'로 축을 닫는다. 날짜가 공유되므로 시드 SE 는 과소추정임을 감안해 날짜 t 를 함께 본다.",
-      "evidence": "CG438 실측(2026-11-23): k=5 top −4.778 / pool −5.398 → Δ +0.620(t 0.91 · pos/neg 10/8) · k=3 Δ +0.503(t 0.47) · k=10 Δ +0.629(t 1.47) · bottom-k Δ(pool) −1.25(t −1.67). 18세션 중 하락 15 · 상승 3(상승 국면 top Δ −1.49). CG435: 같은 창 retrain 대비 Δ −0.004(t 0.00). | 2026-11-23 05:1x 엔지니어 재채점(학습 산출물 재사용, 태그 수리): k=5 Δ(top-k − 풀평균) 시드별 +0.620(t 0.91)/−0.212(−0.18)/+0.928(0.73)/+4.246(4.16)/+1.010(1.35) → 평균 +1.318 · 4/5 양수 · 절대 순기대 top −4.78 vs pool −5.40(하락 15/18세션). champion−retrain_cg346 = +0.31/+0.34/+1.43/+3.11/+1.30 (5/5 양수, t 최대 2.66). 비중첩 stride=5: Δ −0.458/−2.260/+0.276/+2.790/+3.118 (평균 +0.693, n=4세션). 패널 AUC 0.5169~0.5611(5시드 평균 0.5403 ≈ 기준선 0.5406). seed 제외 검정: seed3 제외 시 Δ평균 +0.587 · 전 시드 t<1.4.",
+      "evidence": "CG438 실측(2026-11-23): k=5 top −4.778 / pool −5.398 → Δ +0.620(t 0.91 · pos/neg 10/8) · k=3 Δ +0.503(t 0.47) · k=10 Δ +0.629(t 1.47) · bottom-k Δ(pool) −1.25(t −1.67). 18세션 중 하락 15 · 상승 3(상승 국면 top Δ −1.49). CG435: 같은 창 retrain 대비 Δ −0.004(t 0.00). | 2026-11-23 05:1x 엔지니어 재채점(학습 산출물 재사용, 태그 수리): k=5 Δ(top-k − 풀평균) 시드별 +0.620(t 0.91)/−0.212(−0.18)/+0.928(0.73)/+4.246(4.16)/+1.010(1.35) → 평균 +1.318 · 4/5 양수 · 절대 순기대 top −4.78 vs pool −5.40(하락 15/18세션). champion−retrain_cg346 = +0.31/+0.34/+1.43/+3.11/+1.30 (5/5 양수, t 최대 2.66). 비중첩 stride=5: Δ −0.458/−2.260/+0.276/+2.790/+3.118 (평균 +0.693, n=4세션). 패널 AUC 0.5169~0.5611(5시드 평균 0.5403 ≈ 기준선 0.5406). seed 제외 검정: seed3 제외 시 Δ평균 +0.587 · 전 시드 t<1.4. | 겹침 보정(이동블록 부트스트랩, 블록=h=5, 4,000회): vs 풀평균 t 1.01/−0.20/0.56/3.54/1.31(seed3 만 p<0.001, 나머지 p 0.11~0.56) · vs retrain Δ평균 +1.297 이나 블록 t≥2 시드 0/5 → iid t 를 써도 결론(단일 시드 지배)은 바뀌지 않는다. 단 stride=5 대안은 세션 18→4 로 검정력이 붕괴하므로 앞으로 h>1 돈 지표는 블록 부트스트랩 t 를 기본 병기한다(fillable_topk_expectancy 'overlap_boot').",
       "success": "사전 등록(변경 금지): 5시드 각각에서 k=5 Δ(top-k − 풀평균) 를 계산해 ① 평균 Δ ≥ +0.50%p/세션 ② 5시드 중 ≥4 부호 일치 ③ 최소 1시드에서 날짜 t ≥ 2 — 셋 다 충족이면 '약한 상대 엣지 실재'로 기록하고 그 방향(하락 국면 방어형)을 다음 실험의 가설로 승격. ①만 충족하고 ②③ 미달이면 '노이즈'로 표기하고 AUC 축 전체(조정·재학습·HP)를 닫고 데이터 축 단독으로 넘어간다.",
       "result": {
         "verdict": "조건부 신호",
@@ -24730,7 +24730,28 @@
           ],
           "n_sessions_fillable": 18,
           "n_dates_scored": 18,
-          "rows_per_seed": 1440
+          "rows_per_seed": 1440,
+          "block_boot_t_by_seed": [
+            1.01,
+            -0.2,
+            0.56,
+            3.54,
+            1.31
+          ],
+          "block_boot_p_one_sided": [
+            0.1653,
+            0.5603,
+            0.3045,
+            0.0,
+            0.1125
+          ],
+          "block_boot_delta_vs_control_t": [
+            0.5,
+            0.8,
+            1.23,
+            1.96,
+            1.28
+          ]
         }
       },
       "note": "실행은 rc=2 로 실패했었다 — 원인은 학습이 아니라 태그 불일치(--dump-tag champion_s0 vs --arm-tag champ_s0). 38.6분 학습 산출물(cg439_*_s{0..4}.jsonl, 각 1,440행)은 정상이어서 재학습 없이 채점만 다시 돌려 결과를 얻었다. 재발 방지로 scripts/fillable_topk_expectancy.py 가 실패 시 파일 내 실제 exp 태그를 출력하도록 수리(음성/양성 검증 완료). 구조적 한계: 챔피언·retrain_cg346 모두 2026-10-01 까지 학습 → OOS 는 2026-10-02 이후로 고정(29거래일·18세션). 날짜 표본은 시간 경과 외엔 늘릴 수 없고 시드 교차는 날짜를 공유해 SE 를 줄이지 못한다."
@@ -24749,10 +24770,10 @@
       "title": "[돈 지표·확정] 챔피언 상대 엣지 재측정 — 세션 18→26 으로 늘려 '단일 시드 지배'를 사전 배제한 판정 (CG439 후속)",
       "arm": "champion",
       "counterfactual": "풀 평균(그날 체결가능 전 종목 평균) = 무작위 k 기대 + retrain_cg346",
-      "command": "timeout 9000 docker exec stock_xgboost_ml sh -c 'cd /app && for s in 0 1 2 3 4; do for m in champion retrain_cg346; do OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date $(date -d tomorrow +%Y-%m-%d) --folds 2 --dates-per-fold 15 --universe training --universe-seed $s --dump-preds /app/reports/overnight/cg440_${m}_s${s}.jsonl --dump-all --dump-tag ${m}_s${s} --out /app/reports/overnight/cg440_${m}_s${s}_eval.json || exit 1; done; done; for s in 0 1 2 3 4; do PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s} --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --sides top,bottom --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg440_money_s${s}.json; PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s} --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --sides top,bottom --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg440_money_s${s}_stride5.json; done'",
+      "command": "timeout 9000 docker exec stock_xgboost_ml sh -c 'cd /app && for s in 0 1 2 3 4; do for m in champion retrain_cg346; do OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date $(date -d tomorrow +%Y-%m-%d) --folds 2 --dates-per-fold 15 --universe training --universe-seed $s --dump-preds /app/reports/overnight/cg440_${m}_s${s}.jsonl --dump-all --dump-tag ${m}_s${s} --out /app/reports/overnight/cg440_${m}_s${s}_eval.json || exit 1; done; done; for s in 0 1 2 3 4; do PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s} --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --sides top,bottom --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg440_money_s${s}.json; PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s} --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --sides top,bottom --exit close_h --horizon 5 --stride 1 --overlap-block 5 --json-out /app/reports/overnight/cg440_money_s${s}_bb.json; done'",
       "hypothesis": "CG439 는 사전등록 3조건을 문면상 통과했으나 Δ 기여가 seed3 한 개(+4.25, t 4.16)에 몰려 있어 ‘5시드 반복’이 실제로는 ‘한 유니버스 발견’일 가능성이 남았다. 세션이 18→26 으로 늘면 날짜 t 의 표본오차가 줄어 seed3 없이도 신호가 서는지 판정할 수 있다.",
       "evidence": "CG439 실측(2026-11-23): k=5 Δ +0.620/−0.212/+0.928/+4.246/+1.010 · 평균 +1.318 · 4/5 양수 · seed3 제외 시 평균 +0.587·t<1.4 · stride5 Δ평균 +0.693(n=4). champion−retrain 5/5 양수(평균 +1.30, t 최대 2.66). OOS 상한은 모델 학습 종료(2026-10-01)로 고정 — 2026-12-02 시점 예상 세션 26.",
-      "success": "사전 등록(변경 금지): k=5, stride=1 기준 ① Δ평균 ≥ +0.50%p/세션 ② 5시드 중 ≥4 양수 ③ 최소 1시드 날짜 t ≥ 2 ④ **leave-one-seed-out: 어느 한 시드를 빼도 Δ평균 ≥ +0.50**(신설 — CG439 의 단일시드 지배 차단) ⑤ 비중첩 stride=5 에서도 Δ평균 > 0(부호 유지, 유의성 요구 안 함: 세션 5개). ①~⑤ 전부 → '상대 엣지 실재'로 축 확정, 실매매 반영은 별도 승인. ④ 또는 ⑤ 실패 → '모델 랭킹 상대 엣지 없음'으로 축을 닫고 데이터 축 단독으로 간다.",
+      "success": "사전 등록(변경 금지): k=5, stride=1 기준 ① Δ평균 ≥ +0.50%p/세션 ② 5시드 중 ≥4 양수 ③ 최소 1시드 날짜 t ≥ 2 ④ **leave-one-seed-out: 어느 한 시드를 빼도 Δ평균 ≥ +0.50**(신설 — CG439 의 단일시드 지배 차단) ⑤ **블록 부트스트랩 t(블록=h) ≥ 2 인 시드 ≥ 3** — stride=5 는 세션 18→4 로 검정력이 붕괴하므로(CG439 실측) 쓰지 않는다. ①~⑤ 전부 → '상대 엣지 실재'로 축 확정, 실매매 반영은 별도 승인. ④ 또는 ⑤ 실패 → '모델 랭킹 상대 엣지 없음'으로 축을 닫고 데이터 축 단독으로 간다.",
       "expected": "Δ평균 +0.4~+0.9, seed3 제외 시 +0.2~+0.6 → ④ 미달로 축 종결될 가능성이 높다고 본다.",
       "cost": "학습·채점 5시드×2모델 ≈ 70분 + 채점 5분",
       "created": "2026-11-23T05:45:00+09:00"
