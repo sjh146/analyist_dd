@@ -4,13 +4,13 @@
  "pre_registered_threshold": 0.02,
  "noise_floor": 0.003,
  "floor_basis": "CG201 짝 Δ std 0.0013 · CG203 앵커간격 1~60거래일 짝 Δ std 0.0014(level std 0.0026)",
- "measured_cycles": 19,
+ "measured_cycles": 22,
  "counts": {
   "noise_band": 11,
-  "below_threshold": 7,
-  "worse_than_noise": 1
+  "below_threshold": 8,
+  "worse_than_noise": 3
  },
- "no_improve_streak": 19,
+ "no_improve_streak": 22,
  "max_delta": 0.0113,
  "cycles": [
   {
@@ -177,13 +177,40 @@
   },
   {
    "id": "CG10",
+   "ts": "2026-10-03T03:43:30+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5302,
+   "delta": -0.0104,
+   "class": "worse_than_noise",
+   "verdict": "기준선없음"
+  },
+  {
+   "id": "CG10",
    "ts": "2026-10-03T04:02:42+09:00",
    "metric": "wf_wave_summary",
    "best_mean": 0.5302,
    "delta": -0.0104,
    "class": "worse_than_noise",
    "verdict": "기준선없음"
+  },
+  {
+   "id": "CG342",
+   "ts": "2026-11-18T22:20:38+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.5113,
+   "delta": -0.0293,
+   "class": "worse_than_noise",
+   "verdict": "노이즈"
+  },
+  {
+   "id": "CG380",
+   "ts": "2026-11-21T02:13:54+09:00",
+   "metric": "wf_sweep_summary",
+   "best_mean": 0.55,
+   "delta": 0.0094,
+   "class": "below_threshold",
+   "verdict": "노이즈"
   }
  ],
- "verdict": "카운터는 잡음 위에서 세어졌다 — 최고 Δ +0.0113(TR1)가 잡음바닥 ±0.003 밖이지만 사전문턱 +0.02 미달 = '실재하지만 미미한 효과'. 무개선 19사이클은 측정 불가가 아니라 문턱 미달의 누적이다(잔차를 잡음으로 오독하지 말 것)."
+ "verdict": "카운터는 잡음 위에서 세어졌다 — 최고 Δ +0.0113(TR1)가 잡음바닥 ±0.003 밖이지만 사전문턱 +0.02 미달 = '실재하지만 미미한 효과'. 무개선 22사이클은 측정 불가가 아니라 문턱 미달의 누적이다(잔차를 잡음으로 오독하지 말 것)."
 }
