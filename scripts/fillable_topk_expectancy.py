@@ -449,6 +449,10 @@ def main(argv=None) -> int:
     ap.add_argument("--fee-buy", type=float, default=FEE_BUY)
     ap.add_argument("--fee-sell", type=float, default=FEE_SELL)
     ap.add_argument("--tax-sell", type=float, default=TAX_SELL)
+    ap.add_argument("--date-from", default=None,
+                    help="YYYY-MM-DD — 이 날짜 이후 세션만 채점(창 분해용). 기본 None=전체")
+    ap.add_argument("--date-to", default=None,
+                    help="YYYY-MM-DD — 이 날짜 이전(포함) 세션만 채점. 기본 None=전체")
     ap.add_argument("--json-out", default=None)
     a = ap.parse_args(argv)
     ks = [int(x) for x in str(a.k).split(",") if x.strip()]
@@ -471,6 +475,18 @@ def main(argv=None) -> int:
 
     arm_e, drop_a = enrich(arm, series, a.horizon, a.exit, a.entry)
     ctl_e, drop_c = enrich(ctl, series, a.horizon, a.exit, a.entry)
+    # ── 창 분해 필터 (2026-11-22 CG424 후속) ─────────────────────────────────────
+    # WHY: '베타 초과'(top-k − 풀평균)가 전체 구간 평균으로만 보고되면 그 신호가 과거에
+    # 몰려 있는지 최근에도 유지되는지 알 수 없다. 분기 창으로 잘라 같은 런을 재채점한다.
+    if a.date_from or a.date_to:
+        lo = a.date_from or "0000-00-00"
+        hi = a.date_to or "9999-12-31"
+        arm_e = [r for r in arm_e if lo <= r["date"] <= hi]
+        ctl_e = [r for r in ctl_e if lo <= r["date"] <= hi]
+        if not arm_e or not ctl_e:
+            print(f"[FAIL] 날짜창 필터 후 행 없음 arm={len(arm_e)} control={len(ctl_e)} ({lo}~{hi})",
+                  file=sys.stderr)
+            return 2
     pair_mode, same_folds = pair_plan(arm_e, ctl_e)
 
     out = {
