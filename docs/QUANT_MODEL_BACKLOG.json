@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T19:19:15+09:00",
+ "updated_at": "2026-11-22T21:20:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -24368,6 +24368,27 @@
     "artifact": "/app/reports/overnight/cg430_summary.json · cg430_money_s5.json · cg430_both.jsonl"
    },
    "finished": "2026-11-22T19:19:15+09:00"
+  },
+  {
+   "id": "CG431",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 2,
+   "status": "pending",
+   "metric": "fillable_topk_vs_pool",
+   "summary_out": "/app/reports/overnight/cg431_summary.json",
+   "est_minutes": 40,
+   "title": "[데이터 축·정리] 패널 죽은 열 17개 등록부 + 선별 후보에서 제거하는 같은 런 A/B",
+   "arm": "CG431_rmdead_h5 — quantile q0.30 h5 top30 · 죽은 17열 제외(v6 패널)",
+   "counterfactual": "CG431_ctl_h5 (같은 패널·같은 폴드·같은 시드, 제외 없음 = 현행 221피처)",
+   "hypothesis": "v6 패널 221열 중 17열은 최근 20거래일 값이 전부 0 이다(NEVER 12 · STALE 5). XGBoost 는 상수 0 열에 중요도를 주지 않으므로 Δ≈0 이 예상되지만, 만약 선별(top30)이 죽은 열에 슬롯을 쓰고 있었다면 제거로 AUC 가 움직인다. 어느 쪽이든 산출물은 ①죽은 열이 비용인가의 유무 판정 ②다음 데이터 축 우선순위용 등록부다.",
+   "evidence": "2026-11-22 21:1x 엔지니어 실측(numpy 감사, scripts 무수정): v6 패널(61,640행·221열·2025-08-04~2026-11-17) 피처별 마지막 비영일 계산 → 최근 20거래일 전멸 17열. NEVER(전 기간 비영 0): authenticity_avg·credit_balance_change·days_to_cover·etf_flow_5d·event_patent_5d·event_recall_5d·institution_ownership_pct·margin_balance_change·sector_count·sector_momentum·short_interest_ratio·value_ncav. STALE: cycle_up 2026-06-22 · event_market_liquidity_5d 2026-08-07 · cycle_down/interest_rate_change_1m/krx_total_trading_value 2026-09-23. 살아 있는 열은 204/221(≥2026-11-10). krx_total_trading_value 정지일이 백로그 KRX-01(원천 40거래일 정지)과 일치 = 같은 사건. 17개 이름 전부 v6 feature_names 에 존재 확인(누락 0) — exclude_names 가 실제로 문다.",
+   "success": "같은 런 짝 Δ(rmdead−ctl) 폴드평균 AUC ≥ +0.02 (사전문턱, 폴드 std ±0.03) AND 폴드승률 ≥ 4/5. 미달이면 '죽은 열은 비용이 아니다'로 축 종결(부활은 원천 확보 과제로만 남긴다). 돈 지표(필터 ON·수수료 0.21%p·stride 5)는 병기하되 표본 <40세션이면 판정에 쓰지 않는다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 5 --only CG431_ctl_h5,CG431_rmdead_h5 --dump-preds /app/reports/overnight/cg431_both.jsonl --dump-all-codes --out /app/reports/overnight/cg431_sweep.jsonl --summary-out /app/reports/overnight/cg431_summary.json && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg431_both.jsonl --arm-tag CG431_rmdead_h5 --control-jsonl /app/reports/overnight/cg431_both.jsonl --control-tag CG431_ctl_h5 --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg431_money_s5.json'",
+   "cost": "2 arm × 5폴드×5시드 = 50 cell (유휴 7s/cell 실측 → ~10분, 경쟁 시 여유 포함 40분) + 돈 집계 2분",
+   "created": "2026-11-22T21:20:00+09:00",
+   "note": "2026-11-22 21:1x 엔지니어 자율 신설(장외 틱 · pending 0건 · 규칙 4). 계기: 구동기의 미배선 원천 스윕이 event_rolling_features 를 '신규 후보'로 재보고했으나 이미 CG376(AUC)·CG380(강제투입)·CG384(돈 A/B 255세션)·CG387(배포경로) 로 무정보 종결된 축이었다 → 스윕 WIRED 목록에 추가해 오탐을 고쳤다(재실행 검증: new_candidates=[] · event_rolling_features=WIRED). 그래서 '새 실험'은 중복 등록하지 않고, 같은 감사에서 드러난 실제 결함(죽은 열 17개)으로 등록했다. ⚠ 이 실험은 승격 근거가 아니다 — AUC 만 오르면 승격 금지(최우선 규칙 4)."
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"

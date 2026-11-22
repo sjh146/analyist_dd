@@ -1446,6 +1446,30 @@ CONFIGS = [
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "entry": "next_open",
      "desc": "CG430 arm — 익일 시가 진입 라벨(close(t+k)/open(t+1)−1, 스무딩) · 대조군 CO_smooth_d1_h5"},
+    # ── CG431(2026-11-22 21:1x): 패널 죽은 열 등록부 + 제거 A/B ───────────────────────────────
+    # 계기: v6 패널(221피처)을 피처별 '마지막 비영일'로 감사(2026-11-22, numpy 1분) —
+    #   최근 20거래일 값이 전부 0 인 열 17개(전 기간 비영 0인 12 + 마지막 비영 < 2026-10-15 인 5).
+    #   NEVER(12): authenticity_avg · credit_balance_change · days_to_cover · etf_flow_5d ·
+    #     event_patent_5d · event_recall_5d · institution_ownership_pct · margin_balance_change ·
+    #     sector_count · sector_momentum · short_interest_ratio · value_ncav
+    #   STALE(5): cycle_up(2026-06-22) · event_market_liquidity_5d(2026-08-07) ·
+    #     cycle_down/interest_rate_change_1m/krx_total_trading_value(2026-09-23)
+    #   ※ krx_total_trading_value 2026-09-23 정지는 백로그 KRX-01 과 같은 사건이다(원천 40거래일 정지).
+    # 설계: 같은 패널·같은 폴드·같은 시드 2-arm. 대조군=현행, arm=죽은 17열을 선별 후보에서 제외.
+    #   기대: XGBoost 는 상수 0 열을 무시하므로 Δ≈0 이 예상된다 — 이 실험의 1차 산출물은
+    #   '죽은 열이 선별 슬롯을 낭비하는가'의 유무 판정과, 다음 데이터 축 우선순위용 등록부다.
+    # ⚠ 판정: 같은 런 짝 Δ폴드평균 ≥ +0.02 만 신호. 미달이면 '죽은 열은 비용이 아니다'로 축 종결하고
+    #   부활은 원천 확보(KRX-01·XR2·margin/credit/ETF 수집) 과제로만 남긴다.
+    {"id": "CG431_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "desc": "CG431 대조군 — v6 패널 221피처 현행(죽은 열 포함)"},
+    {"id": "CG431_rmdead_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "exclude_names": ["authenticity_avg", "credit_balance_change", "days_to_cover", "etf_flow_5d",
+                       "event_patent_5d", "event_recall_5d", "institution_ownership_pct",
+                       "margin_balance_change", "sector_count", "sector_momentum",
+                       "short_interest_ratio", "value_ncav", "cycle_up", "cycle_down",
+                       "event_market_liquidity_5d", "interest_rate_change_1m",
+                       "krx_total_trading_value"],
+     "desc": "CG431 arm — 죽은 열 17개를 선별 후보에서 제외(같은 런·같은 폴드)"},
 ]
 
 

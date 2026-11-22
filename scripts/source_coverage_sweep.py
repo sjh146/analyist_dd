@@ -43,6 +43,12 @@ MIN_DAYS = 250          # 420일 패널의 확장창 폴드를 덮을 이력
 WIRED = {
     "market_data", "stock_prices", "supply_market_features", "financial_ratio_features",
     "event_features", "financial_statements", "ml_predictions", "disclosures",
+    # event_rolling_features(집계 8종: event_level_20d·event_trend_5v20·event_any_60d·
+    # funding/governance/business/risk/disclosure_level_20d)는 v6 패널 221피처에 이미 배선됐고,
+    # 같은 패널·같은 런 A/B 로 무정보가 실측됐다 — AUC(CG376 노이즈) · 강제투입(CG380 0.5500) ·
+    # 돈 A/B 255세션(CG384 노이즈) · 배포경로 대조(CG387 노이즈). 커버리지가 게이트를 넘었다고
+    # 매 틱 "신규 후보"로 재등장하면 이미 끝난 축을 다시 등록하게 된다(2026-11-22 오탐 실측).
+    "event_rolling_features",
 }
 # 실측으로 '부분 커버'가 확정된 원천 — 스윕이 매번 새 후보로 오보하지 않도록 사유를 고정한다.
 # (사유는 백로그 항목 note 에 원문이 있다. 여기엔 숫자만.)
