@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-23T00:41:00+09:00",
+ "updated_at": "2026-11-23T00:42:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -24574,6 +24574,29 @@
    "result": "판정불가(표본 18 < 20) — 2창×14일 레이아웃에서 짝 18세션(필터 후 풀 중앙값 19종목). Δ는 사실상 0: k=3 −0.004(t −0.00·양 12/18) · k=5 +0.308(t +0.35) · k=10 +0.258(t +0.57) · 같은 창 풀평균 −5.398(t −5.01). 12세션에서 보였던 k=3 Δ −2.812(t −2.14)는 표본 잡음이었다 → fold3 AUC 우위(+0.097)는 돈으로 환산되지 않는다(AUC-돈 괴리 재확인). 절대 순기대는 양 arm 모두 −4.8~−5.4%p/세션(하락장 베타, 판정 아님).",
    "note": "동일 결과를 3번째 창 기하에서 재현해 표본을 12→18 로 늘렸으나 사전 하한 20 미달 — 29거래일 OOS 로는 20세션 확보가 최대 2창×15일(18~20) 경계다.",
    "completed": "2026-11-23T00:41:00+09:00"
+  },
+  {
+   "id": "CG436",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 1,
+   "status": "needs_setup",
+   "metric": "robust_paired_seeds",
+   "summary_out": "data/reports/overnight/cg436_paired.json",
+   "est_minutes": 90,
+   "title": "[arm 비교 정합] fit_end 를 챔피언과 맞춘 재학습 후보 — 같은 학습창(2026-07-03~10-01)·같은 라벨로 후보를 만들어 11시드 짝 Δ 재측정",
+   "arm": "champion",
+   "counterfactual": "retrain_cg346 (fit_end 2026-08-27·학습창 2025-09-24~) 및 신규 후보(fit_end 2026-10-01)",
+   "hypothesis": "CG432/CG349 의 Δ(+0.0237/+0.0194)는 두 arm 의 실제 fit 시점(10-01 vs 08-27)과 학습창 길이(3개월 vs 11개월)가 달라 '모델 품질 차이'로 읽을 수 없다. fit_end·학습창을 챔피언과 동일하게 맞춘 후보를 만들면 같은 11시드 프로토콜로 처음으로 공정한 비교가 된다.",
+   "evidence": "champion training-result: data 2026-07-03~10-01 · 12,053행. retrain_cg346: data 2025-09-24~11-18 이나 fit_end=2026-08-27(val_start 08-27) · 54,746행. 평가 JSON 의 train_end(둘 다 10-01)는 라벨 컷오프일 뿐 fit 시점이 아니다.",
+   "success": "rc=0 · 후보 모델 디렉터리 생성 · 11시드 짝 Δ + 창 클러스터 SE 기록. 판정은 창 클러스터 SE 기준(|t|≥2 & Δ≥+0.02)으로만. 승격 판단 없음.",
+   "setup_needed": "① train_curated.py 의 val 분할 옵션 확인(시간분할 vs 마지막 N일 holdout) ② 챔피언 학습 커맨드·피처셋 복원 ③ val 을 학습창 밖에 두면 OOS 창과 겹치므로 'fit_end=10-01, val=10-02~10-15' 같은 설계가 성립하는지 코드로 확인",
+   "command": "(미정 — setup 후 확정) docker exec stock_xgboost_ml sh -c 'cd /app && python -u scripts/train_curated.py ... --data-end 2026-10-01 ...'",
+   "expected": "fit_end 정합 후보는 챔피언과 Δ≈0(같은 데이터·다른 HP) — 차이가 나면 그때가 HP 축의 진짜 신호",
+   "cost": "학습 12k행 ≈ 5분 + 11시드×2arm 채점 ≈ 46분",
+   "created": "2026-11-23T00:42:00+09:00",
+   "note": "CG432 교훈의 직접 후속. val 겹침 때문에 즉시 실행 불가 → setup 선행."
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
