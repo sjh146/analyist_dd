@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T19:40:00+09:00",
+ "updated_at": "2026-11-22T19:19:15+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -24310,8 +24310,8 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 1,
-   "status": "pending",
-   "metric": "money_topk_vs_pool",
+   "status": "closed_rejected",
+   "metric": "fillable_topk_vs_pool",
    "summary_out": "/app/reports/overnight/cg430_summary.json",
    "est_minutes": 35,
    "title": "[라벨·실행정합] 학습 라벨을 실주문 진입가로 — 익일 시가 진입 라벨(close(t+k)/open(t+1)) vs 현행 종가→종가",
@@ -24323,7 +24323,51 @@
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 4200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 5 --only CO_smooth_d1_h5,CG430_open_h5 --dump-preds /app/reports/overnight/cg430_both.jsonl --dump-all-codes --out /app/reports/overnight/cg430_sweep.jsonl --summary-out /app/reports/overnight/cg430_summary.json && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg430_both.jsonl --arm-tag CG430_open_h5 --control-jsonl /app/reports/overnight/cg430_both.jsonl --control-tag CO_smooth_d1_h5 --k 3,5,10 --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg430_money_s5.json'",
    "cost": "2 arm 5폴드x5시드 ≈ 30분(CPU 4스레드) + 돈 집계 2분",
    "created": "2026-11-22T19:40:00+09:00",
-   "note": "설계: 대조군을 새로 만들지 않고 기존 CO_smooth_d1_h5 를 같은 런에 세워 차이를 '진입가 정의' 하나로 고정했다. ⚠ AUC 절대값 비교 금지(라벨이 다르다) — 판정축은 돈이다. 패널 v6o 의 X·feature_names·dates·codes·price 는 v6 와 동일(open 열만 추가)이라 대조군 수치도 v6 런과 정합해야 한다 — 불일치하면 패널 문제로 보고 중단하라."
+   "note": "설계: 대조군을 새로 만들지 않고 기존 CO_smooth_d1_h5 를 같은 런에 세워 차이를 '진입가 정의' 하나로 고정했다. ⚠ AUC 절대값 비교 금지(라벨이 다르다) — 판정축은 돈이다. 패널 v6o 의 X·feature_names·dates·codes·price 는 v6 와 동일(open 열만 추가)이라 대조군 수치도 v6 런과 정합해야 한다 — 불일치하면 패널 문제로 보고 중단하라. | 2026-11-22 19:2x 판정: 사전등록(arm Δ(arm−풀) ≥ +0.5%p & t ≥ 2 & 분할 both_positive + arm−대조군 ≥ +0.5%p) 전부 미충족 · 대조군 대비 짝Δ 가 -1.71~-2.45 로 **악화** → '실행정합 라벨(익일 시가 진입)' 축 종결. 해석: 오버나이트 갭을 목표에서 빼면 h5 체결가능 수익의 예측 가능 성분이 오히려 줄어든다 — 종가→종가 라벨의 AUC 이득 상당분이 **살 수 없는 갭**에 실려 있었다는 뜻이며, 이는 CG426(베타 초과는 2026Q2 특이)과 정합한다. 부수 수리: 등록 metric 이름을 'money_topk_vs_pool' 로 써서 구동기가 판정불가(parser 없음)로 기록했다 → 표준 'fillable_topk_vs_pool' 로 고쳤고 원장 기록도 보정했다(교훈: metric 은 기존 파서가 아는 이름만 쓸 것).",
+   "attempts": [
+    {
+     "ts": "2026-11-22T19:14:59+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='money_topk_vs_pool')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG430_20261122-191307.log",
+     "elapsed_min": 1.9
+    }
+   ],
+   "result": {
+    "verdict": "노이즈(악화) — 사전등록 미충족, '실행정합 라벨' 축 종결",
+    "detail": "패널 panel_prod200_v6o.npz · 5폴드×5시드 · 같은 런 2-arm(대조군 CO_smooth_d1_h5). AUC 참고: arm 0.5557(폴드 0.5455/0.5395/0.5786/0.5553/0.5597 · std 0.0144 · 폴드승률 5/5) vs 대조군 0.5487(0.5401/0.5349/0.5608/0.5440/0.5639 · std 0.0115) = Δ+0.0070 — 단 라벨이 달라 절대 비교 불가(참고값). 돈(필터 ON · entry next_open · exit close_h h5 · stride 5 · 55세션 · 수수료 0.21%p): arm k=3 -0.144%p(t-0.18)·k=5 -0.570(t-0.80)·k=10 -0.144(t-0.20) vs 대조군 k=3 +0.714·k=5 +0.603·k=10 +0.678 → 짝Δ t -1.71/-2.40/-2.45 (arm 열위). 널(세션 풀평균) -0.393(t-0.45) 대비 arm Δ -0.18%(k5) = 베타 초과 없음. 비필터: arm k=3 +0.855 vs ctl +0.392(t+0.70) · k=5 +0.429 vs +0.799(t-0.71) — 부호 불일치.",
+    "money": {
+     "pool_mean_pct": -0.3934,
+     "pool_t": -0.45,
+     "n_sessions": 55,
+     "arm_k5_pct": -0.57,
+     "ctl_k5_pct": 0.603,
+     "paired_t_k5": -2.4
+    },
+    "auc": {
+     "arm": 0.5557,
+     "arm_folds": [
+      0.5455,
+      0.5395,
+      0.5786,
+      0.5553,
+      0.5597
+     ],
+     "ctl": 0.5487,
+     "ctl_folds": [
+      0.5401,
+      0.5349,
+      0.5608,
+      0.544,
+      0.5639
+     ],
+     "note": "라벨이 달라 ΔAUC 는 판정 근거가 아니다"
+    },
+    "integrity": "대조군이 CG391 과 비트 동일(0.5487±0.0115, 폴드 [0.5401,0.5349,0.5608,0.5440,0.5639]) → 패널 v6o(open 열 추가)가 v6 를 오염시키지 않았다는 교차검증 성공",
+    "artifact": "/app/reports/overnight/cg430_summary.json · cg430_money_s5.json · cg430_both.jsonl"
+   },
+   "finished": "2026-11-22T19:19:15+09:00"
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
