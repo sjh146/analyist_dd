@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T07:20:08+09:00",
+ "updated_at": "2026-11-22T16:09:31+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -24143,6 +24143,27 @@
     "per_exp": null,
     "rc": 0
    }
+  },
+  {
+   "id": "CG424",
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 2,
+   "status": "pending",
+   "metric": "fillable_topk_vs_pool",
+   "summary_out": "/app/reports/overnight/cg424_k.json",
+   "est_minutes": 8,
+   "title": "[머니·강건성] CG423 '베타 초과'(arm−풀 +1.216, t 2.06)가 평균 꼬리/비용/k 특이성인지 — k 3·5·10 + 비용 2배 + stride1 부호 일관성",
+   "arm": "CO_rank_smooth_d1_h5 top-k (청정 패널 panel_prod200 · cg391 덤프 재채점 · 진입 next_open)",
+   "counterfactual": "CG423: next_open arm−풀 Δ+1.216(t 2.06, 55세션, 중간값 +0.60) · close Δ+1.388(t 2.38) · arm−대조군 Δ+0.220(t 0.49) · CG420(49종목 패널) Δ+2.622(t 2.61, 27세션, 중간값 +1.99·arm 중간값 +0.09 = 꼬리 주도 의심)",
+   "hypothesis": "CG423 의 (a) 체결시점 무영향은 재현됐지만(pre/post 차 0.17%p, t 2.38→2.06) 같은 런의 arm−대조군은 +0.220(t 0.49)로 CG391 의 '증분 엣지 없음'이 유지된다. 즉 남은 것은 '모델 랭킹이 풀 평균을 이긴다'는 베타 초과 주장 하나인데, CG420 은 arm 평균 +1.68 vs 중간값 +0.09 로 소수 세션 꼬리가 평균을 만들었다. 같은 주장을 k·비용·stride 3축으로 흔들어 분포 전체의 신호인지 확인한다.",
+   "evidence": "cg423_entry_next_open.json: arm mean +0.823/median +0.426 · pool −0.393 · paired_by_k(5) Δ+1.216 t 2.06 pos 56.4%(55세션) · arm 몫 front −0.277/back +1.883(unstable) · arm−control +0.220 t 0.49 · cg423_entry_close Δ+1.388 t 2.38 / cg420_entry_nextopen Δ+2.622 t 2.61, arm mean 1.683 median 0.092",
+   "success": "①k=5 stride5 next_open: Δ(arm−풀) ≥ +0.5%p & t ≥ 2 AND 세션 Δ 중간값 > 0 AND paired 양(+) 세션 비율 ≥ 55% ②비용 2배(왕복 0.42%p): Δ ≥ +0.5%p & t ≥ 2 ③k=3·10 도 Δ ≥ +0.5%p. 셋 다 → '베타 초과 신호 강건(승격 후보 자격, 승격은 별도 절차)'. ①만 → '비용·k 취약'으로 기록하고 승격 경로 제외. ① 미달 → '평균 꼬리 주도'로 축 기록하고 이 arm 의 돈 주장 철회. arm−대조군(증분)은 판정과 별도로 병기.",
+   "expected": "비용 2배에서 Δ 가 +0.5 아래로 내려오고(k=5 중간값은 유지), k=3 에서 커지고 k=10 에서 줄어드는 형태가 유력 — 즉 '신호는 있으나 비용 여유 없음'.",
+   "cost": "덤프 재채점 3회(각 ~10~20초, 학습 없음) · CPU 2스레드",
+   "created": "2026-11-22T07:24:00+09:00",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 600 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg391_rank_both.jsonl --arm-tag CO_rank_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg391_rank_both.jsonl --control-tag CO_smooth_d1_h5 --k 3,5,10 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg424_k.json && OMP_NUM_THREADS=2 timeout 600 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg391_rank_both.jsonl --arm-tag CO_rank_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg391_rank_both.jsonl --control-tag CO_smooth_d1_h5 --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --fee-buy 0.0003 --fee-sell 0.0003 --tax-sell 0.0036 --json-out /app/reports/overnight/cg424_cost2x.json && OMP_NUM_THREADS=2 timeout 600 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg391_rank_both.jsonl --arm-tag CO_rank_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg391_rank_both.jsonl --control-tag CO_smooth_d1_h5 --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 1 --entry next_open --json-out /app/reports/overnight/cg424_stride1.json'"
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
