@@ -1432,6 +1432,20 @@ CONFIGS = [
      "seed_offset": 100, "desc": "CG325 시드잡음 A — LS_quant_q30_h5 와 동일, 시드 100~104"},
     {"id": "CG325_seedB_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "seed_offset": 200, "desc": "CG325 시드잡음 B — LS_quant_q30_h5 와 동일, 시드 200~204"},
+    # ── CG430(2026-11-22): 학습 라벨을 **실행 진입가**로 맞춘다 — 익일 시가 진입 라벨 ─────────
+    # 왜: 학습 라벨은 close(t)→close(t+h) 인데 돈 지표는 익일 시가 진입으로 채점한다(실주문 가능
+    #   시점). h5 라벨 수익의 약 1/5 은 진입 전 오버나이트 갭 = 살 수 없는 성분이다. 모델은 그 성분을
+    #   예측하는 데 용량을 쓰고, 그 예측은 체결 경로에서 재현되지 않는다(CG420 실측: 진입 시점만
+    #   바꿔도 top-k Δ 가 1.388%p(t 2.38) → 1.216%p(t 2.06) 로 움직였다).
+    # 설계: 대조군은 기존 CO_smooth_d1_h5 를 **그대로** 쓰고(같은 런), arm 만 분모를 open(t+1) 로
+    #   바꾼다 → 같은 패널·같은 폴드·같은 시드·같은 레시피, 차이는 '진입가 정의' 하나.
+    # ⚠ 판정은 돈이 1차(같은 덤프·같은 세션·entry next_open·k 3/5/10): arm Δ(arm−풀) ≥ +0.5%p &
+    #   t ≥ 2 & 분할 both_positive AND arm−대조군 짝 Δ ≥ +0.5%p. AUC 는 라벨이 달라 절대 비교가
+    #   아니라 **참고**로만 보고한다(Δ>AUC 로 판정하지 말 것 — 스킬 최우선 규칙).
+    {"id": "CG430_open_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "entry": "next_open",
+     "desc": "CG430 arm — 익일 시가 진입 라벨(close(t+k)/open(t+1)−1, 스무딩) · 대조군 CO_smooth_d1_h5"},
 ]
 
 
@@ -2181,7 +2195,8 @@ def main():
                 ml.log(f"  {exp_id}: 라벨 기준모집단 마스크 {_lmd} → 유지 "
                        f"{_lmd['keep']}/{_lmd['rows']} ({_lmd['keep_frac']:.1%}), 행은 버리지 않음")
             y = W.make_labels(df, cfg["kind"], cfg["horizon"], cfg["q"],
-                              thresh=cfg.get("thresh"), label_mask=_lm)
+                              thresh=cfg.get("thresh"), label_mask=_lm,
+                              entry=cfg.get("entry"))
             d = df.copy()
             # ── CG25 파생 피처(Δk): 라벨 결측 제거 **전에** 계산한다 ────────────────────
             # 왜 전에: 분위 라벨은 중간 분위도 NaN 이라, 결측 제거 후 shift 하면 Δ1 이 실제로는

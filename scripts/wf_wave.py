@@ -307,6 +307,10 @@ def _build_panel_locked(cache, limit, days, log=print, end_date=None, universe="
         df["date"] = [str(d) for d in z["dates"]]
         df["stock_code"] = [str(c) for c in z["codes"]]
         df["price"] = z["price"].astype(float)
+        # CG430(2026-11-22): 익일 시가 진입 라벨용 open 열 — 패널에 있을 때만 붙인다
+        # (없는 패널은 기존과 완전히 동일한 df → 회귀 없음).
+        if "open" in z.files:
+            df["open"] = z["open"].astype(float)
         # ── as-of 앵커 슬라이스 (2026-11-12 CG199 실사고) ──────────────────────────
         # `--end-date` 는 **빌드** 구간만 고정했고, 완성 패널을 재사용할 때는 요청 구간을
         # 무시했다(경고 한 줄뿐). 그래서 '앵커를 2거래일 앞으로 옮긴 재현성 검정'(CG199)이
@@ -434,9 +438,15 @@ def _build_panel_locked(cache, limit, days, log=print, end_date=None, universe="
     return df, available
 
 
-def make_labels(df, kind, horizon, q, thresh=None, label_mask=None):
+def make_labels(df, kind, horizon, q, thresh=None, label_mask=None, entry=None):
     """라벨 생성. kind: quantile(기본) / relative(시장상대) / smooth / voladj / voladj_smooth / abs_thresh
     / excess / excess_smooth.
+
+    entry(CG430, 2026-11-22) = 'close'(기본, 현행 비트 동일) | 'next_open'.
+                 next_open = **익일 시가 진입** 수익: close(t+k)/open(t+1) − 1.
+                 왜: 돈 지표는 익일 시가 진입으로 채점하는데(실주문 가능 시점) 학습 라벨은
+                 종가→종가라, 진입 전 오버나이트 갭(살 수 없는 성분)이 목표에 섞여 있다.
+                 'open' 열이 패널에 없으면 조용히 폴백하지 않고 실패한다(panel_add_open.py).
 
     ⚠ 시점정합: 모든 변형은 **앞만** 본다(선행수익 shift(-k), 후행변동성 rolling).
     smooth     = 선행 1~h일 수익률의 평균 — 5일 보유와 정합, 라벨 잡음 축소.
@@ -452,7 +462,27 @@ def make_labels(df, kind, horizon, q, thresh=None, label_mask=None):
                  None 이면 기존 경로와 비트 동일(회귀 없음).
     """
     price = df.groupby("stock_code", sort=False)["price"]
-    if kind in ("smooth", "voladj_smooth", "excess_smooth", "excess_smooth_thresh"):
+    # CG430: 진입가(분모) — 기본은 종가(현행 비트 동일). next_open 이면 익일 시가.
+    _entry = (entry or "close").lower()
+    den = None
+    if _entry in ("next_open", "open"):
+        if "open" not in df.columns:
+            raise RuntimeError(
+                "entry=next_open 라벨에는 패널 'open' 열이 필요하다 "
+                "(scripts/panel_add_open.py 로 만든 패널을 쓰라 — 조용한 폴백 금지)")
+        den = df.groupby("stock_code", sort=False)["open"].shift(-1).astype(float)
+        den = den.where(den > 0)          # 0/음수 → NaN(라벨 결측, 대체 금지)
+    if den is not None:
+        den_ = den
+        if kind in ("smooth", "voladj_smooth", "excess_smooth", "excess_smooth_thresh"):
+            acc = None
+            for k in range(1, horizon + 1):
+                r = price.shift(-k) / den_ - 1.0
+                acc = r if acc is None else acc + r
+            ret = acc / float(horizon)
+        else:
+            ret = price.shift(-horizon) / den_ - 1.0
+    elif kind in ("smooth", "voladj_smooth", "excess_smooth", "excess_smooth_thresh"):
         acc = None
         for k in range(1, horizon + 1):
             r = price.transform(lambda s, _k=k: s.shift(-_k) / s - 1.0)
