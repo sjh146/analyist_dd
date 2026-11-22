@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-22T21:20:00+09:00",
+ "updated_at": "2026-11-22T21:18:22+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -24375,9 +24375,9 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 2,
-   "status": "pending",
+   "status": "closed_rejected",
    "metric": "fillable_topk_vs_pool",
-   "summary_out": "/app/reports/overnight/cg431_summary.json",
+   "summary_out": "/app/reports/overnight/cg431_money_s5.json",
    "est_minutes": 40,
    "title": "[데이터 축·정리] 패널 죽은 열 17개 등록부 + 선별 후보에서 제거하는 같은 런 A/B",
    "arm": "CG431_rmdead_h5 — quantile q0.30 h5 top30 · 죽은 17열 제외(v6 패널)",
@@ -24388,7 +24388,52 @@
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6.npz --folds 5 --seeds 5 --only CG431_ctl_h5,CG431_rmdead_h5 --dump-preds /app/reports/overnight/cg431_both.jsonl --dump-all-codes --out /app/reports/overnight/cg431_sweep.jsonl --summary-out /app/reports/overnight/cg431_summary.json && OMP_NUM_THREADS=2 timeout 1200 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg431_both.jsonl --arm-tag CG431_rmdead_h5 --control-jsonl /app/reports/overnight/cg431_both.jsonl --control-tag CG431_ctl_h5 --k 3,5,10 --exit close_h --horizon 5 --stride 5 --json-out /app/reports/overnight/cg431_money_s5.json'",
    "cost": "2 arm × 5폴드×5시드 = 50 cell (유휴 7s/cell 실측 → ~10분, 경쟁 시 여유 포함 40분) + 돈 집계 2분",
    "created": "2026-11-22T21:20:00+09:00",
-   "note": "2026-11-22 21:1x 엔지니어 자율 신설(장외 틱 · pending 0건 · 규칙 4). 계기: 구동기의 미배선 원천 스윕이 event_rolling_features 를 '신규 후보'로 재보고했으나 이미 CG376(AUC)·CG380(강제투입)·CG384(돈 A/B 255세션)·CG387(배포경로) 로 무정보 종결된 축이었다 → 스윕 WIRED 목록에 추가해 오탐을 고쳤다(재실행 검증: new_candidates=[] · event_rolling_features=WIRED). 그래서 '새 실험'은 중복 등록하지 않고, 같은 감사에서 드러난 실제 결함(죽은 열 17개)으로 등록했다. ⚠ 이 실험은 승격 근거가 아니다 — AUC 만 오르면 승격 금지(최우선 규칙 4)."
+   "note": "2026-11-22 21:1x 엔지니어 자율 신설(장외 틱 · pending 0건 · 규칙 4). 계기: 구동기의 미배선 원천 스윕이 event_rolling_features 를 '신규 후보'로 재보고했으나 이미 CG376(AUC)·CG380(강제투입)·CG384(돈 A/B 255세션)·CG387(배포경로) 로 무정보 종결된 축이었다 → 스윕 WIRED 목록에 추가해 오탐을 고쳤다(재실행 검증: new_candidates=[] · event_rolling_features=WIRED). 그래서 '새 실험'은 중복 등록하지 않고, 같은 감사에서 드러난 실제 결함(죽은 열 17개)으로 등록했다. ⚠ 이 실험은 승격 근거가 아니다 — AUC 만 오르면 승격 금지(최우선 규칙 4). | 2026-11-22 21:1x 판정(엔지니어 자율): Δ+0.0000 — 죽은 열 17개는 선별 슬롯을 쓰지 않았다(5폴드 합집합 top30 ∩ 죽은열 = 0). 즉 **죽은 피처는 모델 비용이 0** 이며, 부활의 값은 오직 '원천이 데이터를 주는가'에만 달려 있다: krx_total_trading_value(KRX-01 원천 40거래일 정지) · institution_ownership_pct/short_interest_ratio/days_to_cover(XR2·CG73 소스 없음) · margin/credit/ETF(sector·etf_flow) 는 수집원 미배선. 부수 수리: 이 항목의 summary_out 을 AUC 스윕 파일로 등록해 구동기가 '판정불가(집계 실패)'로 1회 오기록 → 돈 지표 파일(cg431_money_s5.json)로 교정(교훈: metric 이 fillable_topk_vs_pool 이면 summary_out 은 반드시 --json-out 돈 파일).",
+   "attempts": [
+    {
+     "ts": "2026-11-22T21:16:36+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "conditions.fillable.k 없음(집계 실패)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG431_20261122-211035.log",
+     "elapsed_min": 6.0
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm CG431_rmdead_h5 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 255 · k=3 arm +0.802%p/세션 · 풀평균 -0.149 · Δ(arm−풀) +0.950(t 1.24) · 양세션 49.1% · 분할 unstable [+2.384/-0.725] ✗ · k=5 arm +0.475%p/세션 · 풀평균 -0.149 · Δ(arm−풀) +0.623(t 0.92) · 양세션 49.1% · 분할 unstable [+2.064/-1.058] ✗ · 풀평균 t -0.18 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+    "auc": {
+     "ctl": 0.547,
+     "ctl_folds": [
+      0.534,
+      0.5447,
+      0.5497,
+      0.5429,
+      0.5635
+     ],
+     "arm": 0.547,
+     "arm_folds": [
+      0.534,
+      0.5447,
+      0.5497,
+      0.5429,
+      0.5635
+     ],
+     "delta": 0.0,
+     "fold_win_rate": null
+    },
+    "money": {
+     "pool_mean_pct": -0.107,
+     "pool_t": -0.16,
+     "n_sessions": 55,
+     "arm_k5_pct": 0.142,
+     "ctl_k5_pct": 0.0,
+     "paired_t_k5": 0.0
+    },
+    "integrity": "두 arm 의 폴드 AUC·선별 목록이 비트 동일 → 제외가 실제로 걸렸고(17열 전부 이름 일치 확인, 누락 0) 선별이 애초에 그 열을 고르지 않았다는 증명.",
+    "artifact": "/app/reports/overnight/cg431_summary.json · cg431_money_s5.json · cg431_both.jsonl"
+   },
+   "finished": "2026-11-22T21:18:00+09:00"
   }
  ],
  "updated": "2026-11-21T20:11:04+09:00"
