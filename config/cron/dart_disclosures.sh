@@ -22,14 +22,18 @@ cd /home/dduckbeagy/analyist_dd || exit 1
 
 if [ "${1:-}" = "--regular" ]; then
     MODE="regular"; TYPES="A,B,D,E,I"; SINCE="$(date -d '-3 month' +%F)"
-    DESC="3개월 창(누락 안전망)"
+    DESC="3개월 창(누락 안전망)"; BUDGET=300
 else
     MODE="daily"; TYPES="B,D,E,I"; SINCE="$(date +%Y-%m-01)"
-    DESC="이번 달 창"
+    DESC="이번 달 창"; BUDGET=200
 fi
 
 echo "[$(date '+%F %T')] DART 공시 백필 시작 (mode=$MODE, $DESC, 유형 $TYPES)"
+# --newest-first (2026-11-22): 창을 최신월부터 돈다. 예산이 앞쪽 달에 소모되면 최근 달(분기·반기
+# 시즌)이 영구 미수집이 된다 — 실측: 11-14 주간 백필이 2026-09 에서 예산 소진 → 3분기 보고서가
+# disclosures 에 1,196종목만 있었고, 수동 catch-up(35콜)으로 2,742 까지 복구했다.
 exec /usr/bin/python3 scripts/dart_disclosure_backfill.py \
     --since "$SINCE" \
     --types "$TYPES" \
-    --max-calls 200
+    --newest-first \
+    --max-calls "$BUDGET"

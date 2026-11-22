@@ -174,6 +174,8 @@ def main():
     ap.add_argument("--types", default=DEFAULT_TYPES,
                     help="쉼표 구분 공시 유형(기본 A). 이벤트 피처는 B,D,E,I 필요")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--newest-first", action="store_true",
+                    help="월 창을 최신월부터 순회(크론용) — 예산이 앞쪽 달에 소모돼 최근 달이 비는 것을 막는다")
     a = ap.parse_args()
 
     key = os.environ.get("DART_API_KEY", "").strip()
@@ -193,7 +195,14 @@ def main():
     until = datetime.strptime(a.until, "%Y-%m-%d").date() if a.until else date.today()
     windows = months_between(since, until)
     types = [t.strip().upper() for t in a.types.split(",") if t.strip()]
-    log(f"기간 {since} ~ {until} → {len(windows)}개 월 창 × 유형 {types}, 예산 {a.max_calls}콜")
+    # 2026-11-22: 창 순회를 최신월부터 할 수 있게 한다. months_between 은 오래된 달부터 주므로
+    # 예산(예: 200콜)이 앞쪽 달에 다 소모되면 **정작 최근 달(분기·반기 시즌)이 영원히 안 채워진다**
+    # (실측: 11-14 주간 백필이 2026-09 p14~p20 에서 예산 소진 → 10~11월 A유형 미수집,
+    #  3분기 분기보고서가 disclosures 에 1,196종목만 있었고 수동 catch-up 으로 2,742 까지 복구).
+    if getattr(a, "newest_first", False):
+        windows = list(reversed(windows))
+    log(f"기간 {since} ~ {until} → {len(windows)}개 월 창 × 유형 {types}, 예산 {a.max_calls}콜"
+        f"{' (최신월 우선)' if getattr(a, 'newest_first', False) else ''}")
 
     conn = psycopg2.connect(**PG)
     cur = conn.cursor()
