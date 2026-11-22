@@ -86,6 +86,26 @@ def load_rows(path, tag):
     return rows, bad
 
 
+def seen_tags(path, limit_lines=200000):
+    """dump jsonl 에 실제로 들어 있는 exp 태그 집합 (실패 진단용, 읽기 전용)."""
+    tags = set()
+    try:
+        with open(path, encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                if i > limit_lines:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    tags.add(str(json.loads(line).get("exp")))
+                except json.JSONDecodeError:
+                    continue
+    except OSError as exc:
+        tags.add(f"(열기 실패: {exc})")
+    return tags
+
+
 def price_series(conn, codes, dmin, dmax):
     q = ("SELECT stock_code, trade_date, open_price, close_price, trading_value "
          "FROM market_data WHERE stock_code = ANY(%s::text[]) "
@@ -463,7 +483,17 @@ def main(argv=None) -> int:
     arm, bad_a = load_rows(a.arm_jsonl, a.arm_tag)
     ctl, bad_c = load_rows(a.control_jsonl, a.control_tag)
     if not arm or not ctl:
-        print(f"[FAIL] 행 없음 arm={len(arm)} control={len(ctl)}", file=sys.stderr)
+        # WHY(2026-11-23 CG439 실측): --arm-tag 가 덤프의 exp 태그와 한 글자만 달라도
+        # (champ_s0 vs champion_s0) 38.6분짜리 학습 산출물이 '행 없음'으로 통째로 버려졌고
+        # 로그에는 단서가 없었다. 태그 오타는 가장 흔한 실패다 → 실제 태그를 찍어 즉시 고칠 수 있게 한다.
+        print(f"[FAIL] 행 없음 arm={len(arm)} control={len(ctl)}"
+              f" (arm_tag={a.arm_tag!r} control_tag={a.control_tag!r})", file=sys.stderr)
+        for lbl, path, tag in (("arm", a.arm_jsonl, a.arm_tag),
+                               ("control", a.control_jsonl, a.control_tag)):
+            got = sorted(t for t in seen_tags(path) if t != "None")
+            verdict = "match" if (tag and tag in got) else "태그 불일치 의심"
+            print(f"  {lbl}: {path} 실제 태그={got or '(없음)'} · 요청={tag!r} → {verdict}",
+                  file=sys.stderr)
         return 2
     codes = sorted({r["code"] for r in arm} | {r["code"] for r in ctl})
     dmin = min(r["date"] for r in arm + ctl)
