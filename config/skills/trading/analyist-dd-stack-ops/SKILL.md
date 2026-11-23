@@ -24,33 +24,7 @@ analyist_dd = 한국 주식 수집(일봉/분봉) → ML(챔피언 앙상블 xgb
 5. 유니버스 시딩(키 불필요): `docker exec stock_news_analyzer python /app/scripts/init_stocks.py --all`.
 6. 크론: `.env`를 source하고 `POSTGRES_HOST=127.0.0.1`을 export하는 래퍼를 만들고 `/etc/cron.d/<name>`에 등록(사용자 root).
 
-## 함정 (전부 실측)
-
-- **Docker 29는 ro 부모 바인드 안에 하위 마운트포인트를 만들 수 없다.** job-runner의 `./services/strategy-agents:/opt/strategy-agents:ro` + `./config/strategies:/opt/strategy-agents/config/strategies:ro` 조합은 `runc: mkdirat ... read-only file system`으로 컨테이너 생성 실패 → 부모를 rw로 바꾼다.
-- 스크립트가 `docker-compose`(v1)를 호출하면 `printf '#!/bin/sh\nexec docker compose "$@"\n' > /usr/local/bin/docker-compose && chmod 755` 심을 만든다.
-- **`usermod -aG docker`는 이미 열린 셸에 적용되지 않는다** → 그 세션의 docker 명령은 `sg docker -c 'docker ...'`로 실행한다.
-- 네이버 금융이 2026-09 SPA로 전환(302) → `finance.naver.com/sise/sise_market_sum` 파서는 **0종목**을 조용히 반환한다.
-  대체: `https://m.stock.naver.com/api/stocks/marketValue/{KOSPI|KOSDAQ}?page=N&pageSize=100` JSON, 100건/페이지 · `totalCount`로 종료 판단 · ETF/ETN 제외는 `stockEndType != 'stock'`(KOSPI는 이 필터로 2,484행→945종목).
-- `scripts/data_gap.py`는 `LOOKBACK_DAYS=10`만 보므로 **빈 DB나 10일보다 오래된 공백을 '공실 없음(정상)'으로 오보**한다. `SELECT count(*), max(trade_date) FROM market_data` 선점검이 필요.
-- WSL 호스트 python3는 PEP 668 → `apt-get install -y python3-psycopg2 python3-pandas python3-pytest python3-requests`로 해결(venv 없이 스크립트·테스트 실행).
-- KIS 백필은 **종목당 1콜로 최대 100일** 범위 조회(기간별시세). 일자별 반복은 낭비다.
-  호스트에서 `cd services/kis-collector && python3 ../../scripts/kis_backfill_range.py` (진행파일 재개, `KIS_MAX_CALLS` 기본 2500, 5초 딜레이).
-  2,678종목 × 1년(3콜/종목 = 8,034콜) ≈ 12시간 → 밤 3~4회로 분할.
-- KIS 수집기 유니버스는 `market_data`에서 나온다 → **빈 DB에서는 아무것도 수집하지 않는다**. 먼저 `stocks`를 시딩하고 구간 백필 러너(=`stocks` 기준)를 써야 한다.
-- **market_data의 1년 일봉은 yfinance-collector 컨테이너가 채운 것**이다(부팅 시 전 종목 수집, 종목당 약 244행). 이름과 달리 이 컨테이너는 **pykrx(KRX 레거시 엔드포인트)**를 쓰므로 Yahoo가 아니다 — 그래서 KRX OpenAPI와 값이 미세하게 다르고 일부 종목 OHLC가 여러 날 동결되기도 한다(실측: SK하이닉스 17일). KRX OpenAPI는 날짜당 2콜이므로 **1년 전체 재수집이 494콜 ≈ 55분**에 끝난다 — `krx_daily.py --from <시작> --to <끝>`(진행파일 이름이 달라야 재수집이 된다).
-- **시세 적재 위생 3중 방어 (2026-09-23 적용)**: ① 보조 수집기(pykrx)는 장 마감(15:40 KST) 전이면 end_date를 D-1로 클램프하고, `trade_date >= 오늘(KST)` 행은 저장을 거부하며, `ON CONFLICT DO NOTHING`으로 **기본값이 덮어쓰기 금지**(`YF_MARKET_DATA_OVERWRITE=1`로만 복귀)다. ② 공식 경로(KRX OpenAPI 2콜/일)가 우선. ③ 피처 조회는 `app/feature_engine/market_data_filter.MARKET_DATA_VALID`로 거래정지 행(시가·고가·저가가 모두 0)을 제외한다.
-  - 이 방어가 없으면 부팅 직후 수집이 장중 부분봉을 넣어 **20:00 파이프라인이 부분 봉을 학습에 쓰고**, DB 최신일이 당일로 올라가 증분 조건(`start = DB max + 1`)이 막힌다(실측 2,562행).
-  - KRX 원본은 거래정지/무거래 종목에도 행을 준다 — 시가·고가·저가 0, 거래량 0, 기준가만 종가로 들어온다(28,282행 / 579종목). 소비 측에서 제외해야 ATR·수익률이 망가지지 않는다.
-- **KIS 키가 .env에 있으면 `daily_bars.sh`가 KIS 경로(종목당 1콜 = 2,770콜 ≈ 2.5h)를 택한다** → 20:00 파이프라인이 부분 적재를 읽는다. 2026-09-23부터 KRX 우선(2콜) + KRX 차단 시 KIS 폴백으로 바꿔 두었다(config/cron/host-daily_bars.sh).
-- **네이버 종목토론방도 SPA 전환으로 깨졌다**(2026-09). `finance.naver.com/item/board.nhn?code=` 는 302 → `stock.naver.com/domestic/stock/<code>/discussion`, body 0바이트다.
-  현행 수집 경로(실측 확정): `GET https://stock.naver.com/api/community/discussion/posts/by-item?discussionType=domesticStock&itemCode=<code>&isHolderOnly=false&excludesItemNews=false&isItemNewsOnly=false&isCleanbotPassedOnly=false&pageSize=100[&offset=<cursor>]`.
-  응답은 `{offset,pageSize,posts[],lastOffset}` 이고 `offset` 은 전역 게시글 id 의 음수값(최신=`-9223372036854775807`)이라 임의 과거로 점프할 수 있다(≈5만 id/일). 글별 필드: `id,writer.profileId,writer.nickname,writtenAt,title,contentSwReplacedButImg`.
-  `recommendCount/commentCount/viewCount` 는 **목록 응답에서 항상 0** → `GET .../posts/reactions?postIds=1,2,3`(보조), `GET .../posts/comment-counts?postIds=...` 로 따로 채워야 attention/author_quality 가 비영이 된다.
-  **함정**: 응답 본문에 사용자 입력발 잘못된 이스케이프(`\d`)와 원시 제어문자가 섞여 `json.loads`(기본)이 실패한다 → `re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', t)` 후 `json.loads(t, strict=False)`. `isItemNewsOnly=true` 면 뉴스만 오고 토론글이 0건이다.
-- **`market_data.trading_value` 는 최신 거래일에 대부분 NULL** 이다(실측: 2,568행 중 4행만 값). 거래대금 상위 유니버스를 최신일로 뽑으면 임의 종목이 나온다 → `count(trading_value) >= 1000` 인 최신 날짜를 기준일로 쓴다(보조 수집기분은 기입 전).
-- `scripts/*.py` 를 컨테이너에서 `python scripts/x.py` 로 실행하면 `sys.path[0]` 이 `scripts/` 라 `import app...` 이 **ModuleNotFoundError** 다 → `sys.path.insert(0, "/app")`.
-- `data_gap.py`의 휴장/공실 프로브는 **KIS 전용**이다 — KIS 키가 없으면 공실을 휴장으로도 공실로도 판정하지 못하고 '공실 없음'으로 흘린다.
-- 분봉 크론(`kis_minute.sh`)은 KIS 당일분봉만 쓴다 → **당일 데이터만 존재**(과거 백필 불가) + 페이지당 30행이라 종목당 14콜. 그래서 우선순위 유니버스(`data/minute_universe.json`, 거래대금 상위 300)로 좁혀 돌린다.
+- 상세: `references/pitfalls.md` — 함정 (전부 실측)
 
 ## 크론 표준 (프로덕션 재현)
 
@@ -298,37 +272,7 @@ WSL 재부팅 뒤 `docker ps -a` 에 컨테이너가 남아 있는데 **이름�
   KRX OpenAPI는 **T+1 발행**이라 월요일 저녁에 최신일이 금요일인 것은 정상이다 — '오늘자 데이터 없음'을 장애로 오보하지 마라.
 - **수동 실행은 root가 아니라 jhshi로 돌면 승격 토큰 쓰기가 막힌다**: `services/xgboost-ml/app/models/promote_live_score_gate.json`이 root 소유(644)면 `gate-live-score`가 `PermissionError(13)`을 남기고 초크포인트가 승격을 거부한다. `chown jhshi`로 해결.
 
-## 뉴스 귀속·매크로 커버리지 (2026-11-16 실측)
-
-감성 7피처 전멸 · 이벤트 12/18 죽음의 실체는 "모델이 약해서"가 아니라 **귀속 파이프라인이 잘려 있어서**다.
-
-- **`news_event_backfill.py` 의 `WHERE source='google_news'` 가 대상 0건**: 수집기는 `news_analysis.source` 에
-  언론사명(매일경제/이데일리/서울경제/한국경제신문)을 저장한다 → 백필 대상이 **항상 0건**이었고 그래서
-  news_events 가 최근 기사로 자라지 못했다. `source <> 'sns'` 로 바꾸면 347건이 보인다.
-- **종목 귀속 유니버스가 curated 50 + turnover 200 = 최대 250종목**: 같은 기사에서도 귀속이 잘린다.
-  전 종목명 사전(4,350)으로 넓히면 기사 347건 기준 **46 → 62종목(+35%)**, news_events 종목 410 → 424.
-  (`--[no-]universe-all` 스위치, 기본 전 종목)
-- **뉴스 보존 2일**(`cleanup_news_data.sh`)은 원천을 이틀만에 지워 재처리·백필을 불가능하게 만든다 → 90일로 늘렸다.
-  단 `news_analysis.embedding` 이 NULL 인 것은 정상이다(임베딩은 `news_events.embedding` 에 7,655/12,140 저장).
-- **매크로 피처는 `macro_indicators` 가 아니라 `macro_features`(날짜별 wide)** 를 읽는다. 후자는 347행(944거래일 중 37%)뿐이었다
-  → `python3 scripts/build_macro_features.py --since 2023-01-01` 한 번으로 **944행(전 구간)** 이 된다(50초).
-  `macro_backfill.py` 는 FX·WTI 가 소스(FRED) 발행 지연으로 며칠 뒤처지는 것이 정상이다.
-- **`us_market_data` 가 영원히 0행인 이유**: `yfinance-collector` 의 `run_830am_batch()` 가 `import yfinance` 하는데
-  `requirements.txt` 에 yfinance 가 없었다. yfinance 를 추가해도 pypi ReadTimeout/BuildKit lease 로 **이미지 빌드가 실패**하므로,
-  컨테이너에 이미 있는 `requests` 로 Yahoo chart API 를 치는 `scripts/collect_us_market.py` 를 쓴다
-  (크로 `40 7 * * 2-6`, 호스트 python3 + psycopg2 로 실행, POSTGRES_HOST=127.0.0.1:5434).
-  실측 0행 → 151행(6심볼, NASDAQ/SOX/SP500/VIX/USDKRW 30일 + KOSPI200 1일). `^KS200` 은 1일치만 준다.
-  소비 피처는 `feature_engine/us_market_features.py`(7피처, **env `US_MARKET_FEATURES=1` 일 때만** 이름/값 추가 —
-  OFF 면 199피처로 종전과 동일, ON 이면 206). 켜면 챔피언 재학습+패널 재빌드 선행.
-- **`foreign_investor_futures` 는 writer 자체가 없다**: KIS 수집기는 domestic-stock quotation 만 구현
-  (investor-trade-by-stock-daily 등) 이고 선물 투자자별 매매동향 TR 이 없다. `krx_derivatives` 는
-  가격·거래량·OI 만 있어 대체 불가 → **KIS 선물옵션 투자자별 TR 또는 KRX 정보데이터시스템을 새로 붙여야 한다**
-  (스키마: trade_date, product_type, net_buy_contracts, cumulative_position).
-- **패널 재빌드는 감성이 쌓인 뒤에**: `panel_200liq_ffill_2605`(22,382×217) 실측 — event 20열 평균비영 0.081,
-  sentiment 7열 **0.0007**, news 2열 0.001, sns 22열 0.827, theme 3열 0.474. 즉 감성 원천이 33~49종목/일이라
-  지금 재빌드해도 새 피처는 0 이다. `stock_sentiment` 커버리지가 늘어난 뒤(예: 패널 유니버스의 60%×30일) 재빌드하라.
-- **기준선 함정**: 같은 라벨(h5·분위0.30·top30)의 walk-forward AUC 가 **49종목 패널 0.5405 vs 200종목 유동성 패널 0.5107±0.1059**다.
-  좁은 유니버스 수치를 기준선으로 쓰면 넓은 유니버스에서 뒤집힌다 — 판정은 200종목 패널에서.
+- 상세: `references/news-macro-coverage.md` — 뉴스 귀속·매크로 커버리지 (2026-11-16 실측)
 
 ## 역할 협력 도구 (2026-11-16 신규)
 
