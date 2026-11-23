@@ -3,6 +3,18 @@
 작성 2026-09-25. 목적: **사용자가 프롬프트를 넣지 않아도** 리서처·모델엔지니어·트레이더가
 서로의 산출물을 받아 이어서 일하게 한다.
 
+## 코드 규칙 (2026-11-23 사용자 지시 — 모든 역할 필수)
+
+**주석 금지 · 린트 강제.** 상세: `docs/CODE_POLICY.md`, 집행: `scripts/lint_agent_rules.py`.
+
+- 코드에 `#` 주석을 쓰지 않는다. 기계 지시자(`# type:`, `# noqa`, `# pragma:`, `# fmt:`, `# SPDX-`, `# nosec`)만 허용.
+- `TODO/FIXME/XXX/HACK` 는 티켓 ID 필수(`TODO CG123: ...`).
+- `except` 삼킴 금지(`pass`/`continue` 만 있는 블록), `except Exception` 후 로그 없이 기본값 반환 금지.
+- 설명은 docstring(모듈·공개 함수)과 테스트 이름으로 남긴다. "왜"는 커밋 메시지에 쓴다.
+- **커밋 시 pre-commit 훅이 검사하며 위반하면 커밋이 막힌다.** 기존 부채는 `docs/lint_baseline.json` 로 래칫 허용.
+- 야간 크론 `lint-agent-rules-nightly`(03:40)가 래칫과 ruff 추세를 기록한다.
+
+
 ## 역할 (스킬이 단일 정의 — 여기서는 권한과 핸드오프만 정한다)
 
 | 역할 | 스킬 | 소유 파일 |

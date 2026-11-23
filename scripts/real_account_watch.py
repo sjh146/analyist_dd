@@ -39,8 +39,9 @@ def read_trades() -> list[dict] | None:
             rows = [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY ts")]
             c.close()
             return rows
-        except Exception as e:  # noqa: BLE001
+        except (OSError, sqlite3.DatabaseError) as e:
             last_err = e
+            print(f"[watch] 저널 복사/읽기 실패(시도 {attempt+1}/3): {e}", file=sys.stderr)
             time.sleep(2)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)

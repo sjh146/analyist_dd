@@ -19,25 +19,31 @@ CONTRACT = os.path.join(PROJ, "docs/HANDOFF_CONTRACT.json")
 
 
 def load_json(path: str):
+    import logging
     try:
-        return json.load(open(path, encoding="utf-8"))
-    except Exception as e:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        logging.getLogger("handoff_contract").error("계약/백로그 로드 실패 %s: %s", path, e)
         return {"__error__": str(e)}
 
 
 def load_jsonl(path: str) -> list[dict]:
+    import logging
+    log = logging.getLogger("handoff_contract")
     out = []
     try:
         with open(path, encoding="utf-8") as f:
-            for line in f:
+            for lineno, line in enumerate(f, 1):
                 line = line.strip()
-                if line:
-                    try:
-                        out.append(json.loads(line))
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+                if not line:
+                    continue
+                try:
+                    out.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    log.warning("원장 %s:%d JSON 파싱 실패: %s", path, lineno, e)
+    except OSError as e:
+        log.warning("원장 열기 실패 %s: %s", path, e)
     return out
 
 
@@ -105,12 +111,17 @@ def _cypher(query: str) -> str | None:
             return None
     if not pw:
         return None
+    import logging
     try:
         r = subprocess.run(
             ["docker", "exec", "stock_neo4j", "cypher-shell", "-u", "neo4j", "-p", pw, query],
             capture_output=True, text=True, timeout=40)
-        return r.stdout if r.returncode == 0 else None
-    except Exception:
+        if r.returncode != 0:
+            logging.getLogger("handoff_contract").warning("Neo4j 질의 실패 rc=%s: %s", r.returncode, r.stderr[:200])
+            return None
+        return r.stdout
+    except (subprocess.SubprocessError, OSError) as e:
+        logging.getLogger("handoff_contract").warning("Neo4j 실행 예외: %s", e)
         return None
 
 
