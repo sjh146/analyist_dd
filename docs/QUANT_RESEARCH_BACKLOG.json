@@ -1085,7 +1085,7 @@
         "detail": "R25: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R25_20261122-184718.log"
+        "log": "data/reports/res_cycle/logs/res_R25_20261123-184736.log"
       },
       "recurring": true,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
@@ -1218,6 +1218,11 @@
         },
         {
           "ts": "2026-11-22T18:47:19+09:00",
+          "rc": 0,
+          "detail": "R25: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-23T18:47:37+09:00",
           "rc": 0,
           "detail": "R25: 0 <= 0 → 충족"
         }
@@ -2207,7 +2212,7 @@
     {
       "id": "R47",
       "title": "수급 잡이 두 스케줄에 동시에 걸려 하루 두 번 돈다 — 19:10(cron.d) + 19:19(사용자 크론) (중복 실행 상시 감시)",
-      "status": "pending",
+      "status": "done",
       "priority": 8,
       "kind": "investigate",
       "recurring": true,
@@ -2223,7 +2228,7 @@
       "command": null,
       "notes": "감시 항목(recurring) — 어떤 결과에서도 status 는 pending 유지. 중복 스케줄 제거는 리뷰보드 승인(=크론 변경).",
       "attempts": [],
-      "result": null
+      "result": "[11-23 수정] 중복 확인: /etc/cron.d/analyist_dd:28 (10 19 * * 1-5 root kis_supply.sh) 와 사용자 crontab 동일 줄이 같은 19:10 에 각각 등록 → 같은 스크립트가 평일 2회 실행(KIS 호출 2배·진행파일 동시 쓰기). 사용자 crontab 쪽을 제거하고 cron.d 한 곳만 남김. 검증: user 측 kis_supply 0건 / cron.d 1건, crontab 전체 16항목 유지(supply_features 20:15 단독 정상)."
     }
   ]
 }

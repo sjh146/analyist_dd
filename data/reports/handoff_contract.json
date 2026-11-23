@@ -1,7 +1,7 @@
 {
-  "checked_at": "2026-11-23T18:43:19",
+  "checked_at": "2026-11-23T18:55:42",
   "fail": 0,
-  "warn": 54,
+  "warn": 50,
   "details": [
     {
       "kind": "backlog",
@@ -22,11 +22,6 @@
           "R29",
           "done",
           "결과(result) 없음"
-        ],
-        [
-          "R47",
-          "pending",
-          "재현 명령 없음"
         ]
       ],
       "fail": []
@@ -83,8 +78,8 @@
         ],
         [
           "CG145",
-          "needs_setup",
-          "차단 사유(setup_needed) 없음"
+          "pending",
+          "재현 명령 없음"
         ],
         [
           "CG165",
@@ -100,11 +95,6 @@
           "XR35",
           "done",
           "결과(result) 없음"
-        ],
-        [
-          "CG191",
-          "needs_setup",
-          "차단 사유(setup_needed) 없음"
         ],
         [
           "CG196",
@@ -125,11 +115,6 @@
           "CG244",
           "done",
           "결과(result) 없음"
-        ],
-        [
-          "XR41",
-          "needs_setup",
-          "차단 사유(setup_needed) 없음"
         ],
         [
           "CG258",
@@ -178,13 +163,8 @@
         ],
         [
           "CG361",
-          "needs_setup",
-          "차단 사유(setup_needed) 없음"
-        ],
-        [
-          "KRX-01",
-          "needs_setup",
-          "차단 사유(setup_needed) 없음"
+          "pending",
+          "재현 명령 없음"
         ],
         [
           "XR44",
@@ -233,6 +213,21 @@
         ],
         [
           "CG417",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG418",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG438",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG444",
           "done",
           "결과(result) 없음"
         ]
@@ -292,7 +287,7 @@
     {
       "kind": "ledger",
       "path": "/home/jhshi/analyist_dd/data/reports/researcher_ledger.jsonl",
-      "n": 168,
+      "n": 169,
       "warn": [],
       "fail": []
     },
