@@ -28,6 +28,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import date, timedelta
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKLOG = os.path.join(PROJ, "docs", "QUANT_MODEL_BACKLOG.json")
@@ -131,6 +132,14 @@ def _f(x, default=0.0) -> float:
         return default
 
 
+# 인트라데이 원천은 **두 개**다 — 한 테이블만 채점하면 '이력 부족'과 '봉 부족'을 혼동한다.
+#   minute_bars        : KIS 당일분봉 (실측 30봉/일 = 15:01~15:30 꼬리만, XR26 수리 전 적재분)
+#   minute_close_bars  : Naver 분봉 종가 (실측 300~350봉/일 = 전 구간, 2026-11-10~ 적립 중)
+# 실측(2026-11-23 19:2x): minute_bars 19일/30.0봉/300종목 vs minute_close_bars 9일/348봉/47~426종목.
+# 즉 두 경로의 **막는 숫자가 다르다**(봉 vs 이력) — 하나로 채점하면 "레버 없음"을 잘못 보고한다.
+INTRADAY_TABLES = ("minute_bars", "minute_close_bars")
+
+
 def check_intraday() -> dict:
     """분봉 = '전 구간'이 적재됐는가(종목당 하루 봉수). 30봉 꼬리면 XR26 미수리."""
     rows = _psql(
@@ -145,6 +154,38 @@ def check_intraday() -> dict:
     codes = {r[0] for r in _psql("SELECT DISTINCT stock_code FROM minute_bars;")} if pairs else set()
     return {"pairs": pairs, "median_bars_per_day": med_bars, "n_dates": n_dates,
             "n_codes": len(codes), "codes": codes}
+
+
+def check_intraday_table(table: str) -> dict:
+    """한 분봉 테이블의 적재 상태 — check_intraday() 의 일반화(+구간)."""
+    rows = _psql(
+        f"WITH d AS (SELECT stock_code, trade_date, count(*) c FROM {table} GROUP BY 1,2) "
+        "SELECT count(*), "
+        "coalesce(percentile_cont(0.5) WITHIN GROUP (ORDER BY c),0), "
+        "count(DISTINCT trade_date), min(trade_date), max(trade_date) FROM d;"
+    )
+    r = rows[0] if rows else ["0", "0", "0", "", ""]
+    pairs = int(_f(r[0]))
+    codes = {x[0] for x in _psql(f"SELECT DISTINCT stock_code FROM {table};")} if pairs else set()
+    return {"pairs": pairs, "median_bars_per_day": _f(r[1]), "n_dates": int(_f(r[2])),
+            "min_date": r[3] if len(r) > 3 else "", "max_date": r[4] if len(r) > 4 else "",
+            "n_codes": len(codes), "codes": codes}
+
+
+def project_reach_date(max_date: str, have: int, need: int) -> str:
+    """(need-have) 거래일을 **평일 기준**으로 더한 예상 도달일. 공휴일 미반영 = 추정치."""
+    if have >= need:
+        return ""
+    try:
+        d = date.fromisoformat(str(max_date)[:10])
+    except ValueError:
+        return ""
+    left = need - have
+    while left > 0:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            left -= 1
+    return d.isoformat()
 
 
 def check_short() -> dict:
@@ -186,17 +227,41 @@ def evaluate(pc: set[str]) -> list[dict]:
     denom = max(1, len(pc))
     out = []
 
-    # 1) 인트라데이 (CG129/CG101) — XR26 수리 + 전 구간 백필
+    # 1) 인트라데이 (CG129/CG101/CG197) — 두 원천 테이블을 각각 채점(막는 숫자가 다르다)
+    tracks = {}
+    for tbl in INTRADAY_TABLES:
+        tr = check_intraday_table(tbl)
+        cov = len(tr["codes"] & pc) / denom
+        t_ready = (tr["median_bars_per_day"] >= TH["intraday_bars_per_day"]
+                   and tr["n_dates"] >= TH["intraday_min_dates"]
+                   and cov >= TH["panel_cover_frac"])
+        why = []
+        if tr["median_bars_per_day"] < TH["intraday_bars_per_day"]:
+            why.append(f"봉 {tr['median_bars_per_day']:.0f}<{TH['intraday_bars_per_day']}")
+        if tr["n_dates"] < TH["intraday_min_dates"]:
+            why.append(f"이력 {tr['n_dates']}<{TH['intraday_min_dates']}일")
+        if cov < TH["panel_cover_frac"]:
+            why.append(f"커버 {cov:.2f}<{TH['panel_cover_frac']}")
+        tracks[tbl] = {
+            "ready": t_ready, "pairs": tr["pairs"],
+            "median_bars_per_day": round(tr["median_bars_per_day"], 1),
+            "n_dates": tr["n_dates"], "n_codes": tr["n_codes"],
+            "span": f"{tr['min_date']}~{tr['max_date']}",
+            "panel_cover_frac": round(cov, 3),
+            "blocking": " · ".join(why),
+            "eta_n_dates": project_reach_date(tr["max_date"], tr["n_dates"],
+                                              TH["intraday_min_dates"]),
+        }
     it = check_intraday()
-    cover = len(it["codes"] & pc) / denom
-    ready = (it["median_bars_per_day"] >= TH["intraday_bars_per_day"]
-             and it["n_dates"] >= TH["intraday_min_dates"]
-             and cover >= TH["panel_cover_frac"])
+    cover = tracks[INTRADAY_TABLES[0]]["panel_cover_frac"]
+    ready = any(t["ready"] for t in tracks.values())
     out.append({
-        "axis": "intraday", "items": ["CG129", "CG101"], "ready": ready,
-        "blocking": "XR26(수집기 소유) 분봉 페이지네이션 미수리" if not ready else "",
+        "axis": "intraday", "items": ["CG129", "CG101", "CG197"], "ready": ready,
+        "blocking": "" if ready else " · ".join(f"{t}: {r['blocking']}"
+                                               for t, r in tracks.items() if r["blocking"]),
         "measured": {"pairs": it["pairs"], "median_bars_per_day": it["median_bars_per_day"],
                      "n_dates": it["n_dates"], "panel_cover_frac": round(cover, 3)},
+        "tracks": tracks,
         "thresholds": {"median_bars_per_day": TH["intraday_bars_per_day"],
                        "n_dates": TH["intraday_min_dates"],
                        "panel_cover_frac": TH["panel_cover_frac"]},
@@ -292,6 +357,11 @@ def main() -> int:
         m = ax["measured"]
         detail = " · ".join(f"{k}={v}" for k, v in m.items() if k != "codes")
         print(f"  [{flag:7}] {ax['axis']:18} {detail}")
+        for tbl, tr in (ax.get("tracks") or {}).items():
+            eta = f" · 20일 도달 추정 {tr['eta_n_dates']}" if tr.get("eta_n_dates") else ""
+            print(f"            · {tbl:18} 봉={tr['median_bars_per_day']} 이력={tr['n_dates']}일 "
+                  f"커버={tr['panel_cover_frac']} ({tr['span']})"
+                  f"{'  READY' if tr['ready'] else '  — ' + tr['blocking']}{eta}")
         if not ax["ready"] and ax["blocking"]:
             print(f"            ↳ {ax['blocking']}")
 

@@ -6690,6 +6690,11 @@ def data_axis_readiness_note(promote=True):
         flag = "CLOSED" if ax.get("closed") else ("READY" if ax["ready"] else "BLOCKED")
         detail = " · ".join(f"{k}={v}" for k, v in ax["measured"].items())
         out.append(f"  · {ax['axis']} [{flag}] {detail}")
+        for tbl, tr in (ax.get("tracks") or {}).items():
+            eta = f" · 20일 도달 추정 {tr['eta_n_dates']}" if tr.get("eta_n_dates") else ""
+            out.append(f"      ↳ {tbl}: 봉={tr['median_bars_per_day']} 이력={tr['n_dates']}일 "
+                       f"커버={tr['panel_cover_frac']} ({tr['span']})"
+                       f"{' READY' if tr['ready'] else ' — ' + tr['blocking']}{eta}")
         if ax["ready"]:
             out.append(f"    → {', '.join(ax['items'])} 착수 가능(대조군·문턱은 항목에 기재됨)")
     if promote and any(a["ready"] for a in axes):
