@@ -25266,6 +25266,24 @@
       "note": "2026-11-23 22:3x 엔지니어 자율(일일 크론·장외). 저녁 파이프라인이 11:53 KST 에 champion_cand 를 갱신했는데 22:25 까지 게이트 판정 기록이 없어 등록·판정했다. 챔피언 디렉터리는 건드리지 않았다(dry-run 만). 판정은 요약 JSON 에서 직접 읽었다. 산출물: /app/reports/overnight/cg453_promote_dryrun.json (명령이 이 이름으로 기록 — 위 command 와 동일 인자).",
       "created_at": "2026-11-23T22:36:00+09:00",
       "finished_at": "2026-11-23T22:38:00+09:00"
+    },
+    {
+      "id": "XR48",
+      "title": "[리서처 R48] KRX OpenAPI 는 당일봉을 안 준다 — 직전 거래일 봉이 '아침 몇 시'부터 발행되는지 시각별 실측 (07:30 로더 가능성 판정)",
+      "status": "backlog",
+      "priority": 8,
+      "from_research": "R48",
+      "arm": null,
+      "counterfactual": null,
+      "baseline": null,
+      "command": null,
+      "metric": "wf_sweep_summary",
+      "hypothesis": "market_data 가 항상 하루 뒤지는 이유는 로더 버그가 아니라 소스 발행 시각이다. 18:55 `krx_daily.sh` 는 `end = today-1` 로 자르므로 11-23 저녁의 최신 봉은 11-20 이다(실측). 같은 시각 API 에 당일(11-23)을 물으면 0행이므로 당일봉은 소스에 없다. 남은 질문: **직전 거래일 봉이 07:30 이전에 발행되는가**. 그렇다면 08:40 피드 발행 전에 T-1 봉을 적재하는 로더 1회를 추가해 신호를 하루 신선하게 만들 수 있다(현재 아침 피드는 T-2 종가로 스크리닝).",
+      "evidence": "리서처 R48 결과: [조사]R48: 500 >= 2 → 충족 | 증거: {\"probed_at\": \"2026-11-23\", \"target_session\": \"2026-11-20\", \"min_rows\": 500, \"markets\": {\"KOSPI\": 935, \"KOSDAQ\": 1836}} | R48 직전거래일(2026-11-20) 봉 가용 마켓수 2 (문턱 마켓당 500행)",
+      "success": null,
+      "expected": "미지",
+      "cost": null,
+      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라."
     }
   ],
   "updated": "2026-11-23T18:55:00+09:00"

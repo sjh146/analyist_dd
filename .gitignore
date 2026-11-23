@@ -145,3 +145,8 @@ data/feed_relay/ack/
 # Jenkins (로컬 홈·시크릿)
 deploy/jenkins/home/
 deploy/jenkins/.env
+
+# 실행 로그·에이전트 출력 아티팩트(자격증명 노출 위험)
+*.oc
+*.stderr
+*.stderr.*
