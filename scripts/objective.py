@@ -119,8 +119,11 @@ def promote_flags(obj: dict) -> list[str]:
         flags.append(f"--min-expectancy-pct {acc.get('min_expectancy_pct', 0.0)}")
         flags.append(f"--min-expectancy-sessions {acc.get('min_sample_sessions', 40)}")
         flags.append(f"--min-expectancy-trades {acc.get('min_sample_trades', 30)}")
+        if g.get("promote_require_expectancy_t"):
+            flags.append(f"--min-expectancy-t {acc.get('min_expectancy_t', 2.0)}")
     if g.get("promote_require_robust"):
         flags.append("--require-robust")
+        flags.append(f"--min-robust-auc {acc.get('min_robust_auc', 0.5)}")
     return flags
 
 

@@ -69,7 +69,8 @@ def test_promote_flags_only_emits_supported_args():
     """champion_promote 가 실제로 받는 인자만 내보낸다(모르는 플래그 = 파이프라인 실패)."""
     flags = obj_mod.promote_flags(_valid_obj())
     allowed = {"--require-expectancy", "--min-expectancy-pct", "--min-expectancy-sessions",
-               "--min-expectancy-trades", "--require-robust"}
+               "--min-expectancy-trades", "--require-robust",
+               "--min-robust-auc", "--min-expectancy-t"}
     for f in flags:
         head = f.split()[0]
         assert head.startswith("--") and head in allowed, flags
