@@ -126,6 +126,40 @@ def gate_retry_log(day):
     }
 
 
+def gate_signal_dates_trading_day(day):
+    """G5 — 발행된 모든 전략의 signal_date 가 **거래일**인가.
+
+    WHY(2026-11-23 실측): job-runner 컨테이너 TZ 가 UTC 라 swing 잡의 `date.today()` 가
+    월요일 08:30 실행에서 일요일(11-22)을 찍었다 → 비거래일 signal_date 가 피드로 나갔다.
+    거래일 판정은 주말 + data/krx_holidays.json 으로 하고, 값이 하나라도 비거래일이면 FAIL.
+    """
+    feed = load_json(FEED) or {}
+    cand = feed.get("candidates") or {}
+    bad, seen = [], {}
+    for strat, blob in cand.items():
+        items = (blob or {}).get("items") or []
+        for it in items:
+            sd = str(it.get("signal_date") or "")
+            if not sd:
+                continue
+            seen.setdefault(strat, sd)
+            try:
+                y, m, d = (int(x) for x in sd.split("-")[:3])
+                dt = date(y, m, d)
+            except (ValueError, TypeError):
+                bad.append(f"{strat}:{sd}(형식불가)")
+                continue
+            if dt.weekday() >= 5 or sd in holidays():
+                bad.append(f"{strat}:{sd}(비거래일)")
+    ok = not bad
+    return {
+        "gate": "G5 signal_date 거래일",
+        "ok": ok,
+        "detail": (f"전략별 {seen}" if ok else f"비거래일 {sorted(set(bad))[:5]} / 전략별 {seen}"),
+        "how": "job-runner 잡의 signal_date 계산(최근 거래일) · 20:30/08:40 발행 후 확인",
+    }
+
+
 def main():
     ap = argparse.ArgumentParser(description="일일 파이프라인 관문 점검")
     ap.add_argument("--date", default=None, help="기준 거래일 YYYY-MM-DD (기본: 최근 거래일)")
@@ -142,7 +176,8 @@ def main():
     day_s = day.isoformat()
 
     # 오늘 밤 22:35 관문이 아직 안 돈 시각이면 그 관문은 '미도래'로 라벨한다(거짓 FAIL 방지).
-    gates = [gate_daytrading(day_s), gate_close_limit_up(day_s), gate_feed_freshness(day_s)]
+    gates = [gate_daytrading(day_s), gate_close_limit_up(day_s), gate_feed_freshness(day_s),
+             gate_signal_dates_trading_day(day_s)]
     now = datetime.now()
     retry_due = day == today and now.hour >= 23  # 22:35 실행 + 수집 시간 여유
     g4 = gate_retry_log(day_s)
