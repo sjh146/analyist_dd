@@ -1,705 +1,726 @@
 {
-  "schema": 1,
-  "updated_at": "2026-11-23T11:26:00+09:00",
-  "owner": "quant-trader",
-  "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
-  "rules": [
-    "판정은 산출물에서 직접 읽는다 — 저널(SQLite), 브리지 /health·/positions, 피드 파일, loop_state.json. 자기신고 금지.",
-    "저널은 /mnt/c drvfs+WAL 이라 직접 못 읽는다 → /tmp 로 .sqlite3+(-wal)+(-shm) 복사 후 read-only 로 연다(trader_cycle.measure 가 강제).",
-    "**실주문·주문취소·전략 파라미터 변경은 이 사이클의 권한 밖**이다(보드 §권한). 여기서는 측정·검증·환류만 한다.",
-    "트레이더에이전트 워크스페이스(/mnt/c/.../trader-agent)는 **읽기 전용**으로만 만진다. 프로세스 시작·종료 금지.",
-    "실현 손익은 %가 아니라 **원(₩)** 으로 본다(포지션 크기가 달라 %가 기만적: 실측 +0.32% / -7,839원).",
-    "실패도 자산이다: status=failed 도 result(수치·stdout 꼬리)를 남긴다."
-  ],
-  "items": [
+ "schema": 1,
+ "updated_at": "2026-11-23T15:20:00+09:00",
+ "owner": "quant-trader",
+ "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
+ "rules": [
+  "판정은 산출물에서 직접 읽는다 — 저널(SQLite), 브리지 /health·/positions, 피드 파일, loop_state.json. 자기신고 금지.",
+  "저널은 /mnt/c drvfs+WAL 이라 직접 못 읽는다 → /tmp 로 .sqlite3+(-wal)+(-shm) 복사 후 read-only 로 연다(trader_cycle.measure 가 강제).",
+  "**실주문·주문취소·전략 파라미터 변경은 이 사이클의 권한 밖**이다(보드 §권한). 여기서는 측정·검증·환류만 한다.",
+  "트레이더에이전트 워크스페이스(/mnt/c/.../trader-agent)는 **읽기 전용**으로만 만진다. 프로세스 시작·종료 금지.",
+  "실현 손익은 %가 아니라 **원(₩)** 으로 본다(포지션 크기가 달라 %가 기만적: 실측 +0.32% / -7,839원).",
+  "실패도 자산이다: status=failed 도 result(수치·stdout 꼬리)를 남긴다."
+ ],
+ "items": [
+  {
+   "id": "T1",
+   "title": "청산 수수료·세금이 저널에 반영되는가 (fees 컬럼 실측)",
+   "status": "done",
+   "priority": 1,
+   "command": "python3 scripts/trader_cycle.py --probe fees",
+   "metric": "fees_sum",
+   "check": {
+    "op": ">=",
+    "value": 1
+   },
+   "hypothesis": "fees=0 이면 실현 손익이 수수료·거래세를 빼지 않은 값이라 실제 순손익보다 낙관적이다(모의투자라도 회계 규칙은 같아야 한다).",
+   "evidence": "2026-09-25 리뷰보드 실측: 청산 31건 전부 fees=0 → 수수료·세금 미반영.",
+   "success": "fees_sum >= 1 (건당 수수료가 기록됨)",
+   "cost": "저",
+   "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
+   "result": {
+    "ts": "2026-11-17T13:26:02+09:00",
+    "value": 146.0,
+    "check": "146.0 >= 1.0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "146.0",
+    "stderr_tail": ""
+   },
+   "impl": {
+    "ts": "2026-09-28T16:41:04+09:00",
+    "artifacts": [
+     "trader-agent:trader_core/fees.py",
+     "trader-agent:tools/backfill_fees.py",
+     "trader-agent:trader_core/tests/test_fees.py",
+     "trader-agent:OPERATIONS.md §12.5"
+    ],
+    "tests": "pytest trader_core/tests -q -> 293 passed",
+    "verify_after": "첫 실계좌 청산 → tools/backfill_fees.py --apply → trader_cycle --probe fees"
+   }
+  },
+  {
+   "id": "T2",
+   "title": "회전 정지 감지 — 마지막 진입 경과일",
+   "status": "done",
+   "priority": 2,
+   "command": "python3 scripts/trader_cycle.py --probe rotation",
+   "metric": "last_entry_age_days",
+   "check": {
+    "op": "<=",
+    "value": 3
+   },
+   "hypothesis": "신규 진입이 3일 이상 없으면 전략이 사실상 멈춘 것이다(보유만 청산 규칙으로 굴러가는 상태).",
+   "evidence": "실측: 마지막 진입 2026-09-21 14:52 → 2026-09-28 기준 6.7일. 같은 기간 청산 0건.",
+   "success": "마지막 진입 경과일 <= 3",
+   "cost": "저",
+   "note": "원인이 피드 신선도인지 실행 경로인지 구분해서 리서처/엔지니어로 환류한다.",
+   "result": {
+    "ts": "2026-09-30T11:25:40+09:00",
+    "value": 0.85,
+    "check": "0.85 <= 3.0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "0.85",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T3",
+   "title": "피드 계약 위반 0건 유지 (필수 필드·신선도)",
+   "status": "done",
+   "priority": 3,
+   "command": "python3 scripts/trader_cycle.py --probe feed",
+   "metric": "feed_contract_violations",
+   "check": {
+    "op": "<=",
+    "value": 0
+   },
+   "hypothesis": "발행물이 계약(필수 필드·신선도)을 어기면 소비 측이 조용히 후보를 버린다 — 2026-09-28 실측: 연휴로 후보 0건 발행(가드 정상).",
+   "evidence": "FEED_CONTRACT.md 9절 계약 검증 + data/feed/*.json 실측.",
+   "success": "위반 0건",
+   "cost": "저",
+   "note": "위반이 잡히면 리서처 백로그로 환류(어떤 데이터가 신선도/필드를 못 맞추는지).",
+   "result": {
+    "ts": "2026-09-28T14:06:34+09:00",
+    "value": 0.0,
+    "check": "0.0 <= 0.0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "0.0",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T4",
+   "title": "실행 감시 단절 감지 — loop_state 갱신 지연",
+   "status": "done",
+   "priority": 4,
+   "command": "python3 scripts/trader_cycle.py --probe stale",
+   "metric": "loop_stale_min",
+   "check": {
+    "op": "<=",
+    "value": 12
+   },
+   "hypothesis": "루프가 돌지 않거나 죽으면 loop_state.json 갱신이 멈춘다 — 보유 포지션이 무감시가 된다.",
+   "evidence": "2026-09-28 실측: 브리지가 08:50경 사라져 루프가 09:0x halt → 13:29 프로세스 소멸, 보유 10건이 장중 내내 무관리(감독 작업 도입 계기).",
+   "success": "갱신 지연 <= 12분 (장중 300초 사이클 기준)",
+   "cost": "저",
+   "note": "장외·휴장 시간에는 지연이 정상이므로 판정 시 장중 여부를 함께 본다.",
+   "result": {
+    "ts": "2026-09-28T14:36:21+09:00",
+    "value": 0.4,
+    "check": "0.4 <= 12.0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "0.4",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T5",
+   "title": "건당 기대값 흑자 전환",
+   "status": "failed",
+   "priority": 5,
+   "command": "python3 scripts/trader_cycle.py --probe expectancy",
+   "metric": "expectancy_krw",
+   "check": {
+    "op": ">",
+    "value": 0
+   },
+   "hypothesis": "건당 기대값이 음수면 매매 횟수를 늘릴수록 손실이 커진다 — 전략/피처/사이징 중 어디를 고쳐야 하는지가 핵심 질문이다.",
+   "evidence": "실측: 청산 31건 실현 -7,839원 → 기대값 -253원/건. 승률 38.7%.",
+   "success": "expectancy_krw > 0",
+   "cost": "저",
+   "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
+   "result": {
+    "ts": "2026-11-23T09:25:41+09:00",
+    "value": -1647.9772727272723,
+    "check": "-1647.9772727272723 > 0.0",
+    "verdict": "미달",
+    "rc": 0,
+    "stdout_tail": "-1647.9772727272723",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T6",
+   "title": "브리지 감독 재기동 churn — 무백오프 90초 재기동",
+   "status": "done",
+   "priority": 6,
+   "command": "python3 scripts/trader_cycle.py --probe bridge_churn",
+   "metric": "bridge_restarts_peak_per_hour_24h",
+   "check": {
+    "op": "<=",
+    "value": 4
+   },
+   "hypothesis": "Creon 미로그인 상태에서 감독이 90초마다 브리지를 죽였다 살린다(15:00~15:28 실측 12회). 로그인 진행 중 재기동이 겹치면 Creon COM 세션(DibServer)이 꼬여 '로그인해도 not_connected' 가 재발할 수 있다.",
+   "evidence": "2026-09-28 실측(로그 재계산): 19:45:19~20:52:27 에 'started bridge' 41회(간격 ~99초) = 시간당 최대 37회. 15:00~15:28 에도 5회 이상. 2026-09-29 03:00 이후 재기동은 1회(03:00:17 half-dead)뿐이고, 09:27:10 'Creon not running' 때는 감독이 브리지를 건드리지 않고 대기(restarted after the next login)했다.",
+   "success": "최근 24시간 안 시간당 재기동 최대치 <= 4회 (지수 백오프 또는 '사람 로그인 대기' 상태로 정지)",
+   "cost": "저",
+   "note": "**측정 결함 수리(2026-09-29 09:4x, 트레이더)**: 원래 command 는 `grep -c 'started bridge' <로그 전체>` = **누적 카운트**라 시간이 갈수록 커지기만 해 **영원히 통과할 수 없는 check** 였다(지표 이름은 bridge_restarts_per_hour 인데 측정은 누적 — 이름과 측정 불일치). 임계값(시간당 4회)과 지표 정의는 그대로 두고 측정만 '최근 24시간 롤링 60분 최대치'로 맞췄다(`--probe bridge_churn` 신설). 감독 스크립트 백오프 도입은 코드 변경이라 여전히 승인 항목이다.",
+   "provenance": {
+    "source": "trader_cycle 2026-09-29 09:4x",
+    "measured_at": "2026-09-29 09:40"
+   },
+   "result": {
+    "ts": "2026-10-02T13:25:23+09:00",
+    "value": 1.0,
+    "check": "1.0 <= 4.0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "1.0",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T7",
+   "title": "피드 후보 signal_date 신선도 — 낡은 종가가 지정가로 쓰이는가",
+   "status": "done",
+   "priority": 7,
+   "command": "python3 scripts/trader_cycle.py --probe feed_signal_lag",
+   "metric": "feed_signal_lag_days",
+   "check": {
+    "op": "<=",
+    "value": 4
+   },
+   "hypothesis": "계약 검사(feed_contract_check)는 발행 파일의 mtime/generated_at 만 본다 → 발행이 방금이어도 후보의 근거 데이터가 낡으면 그대로 통과한다. `close_price` 는 **주문 지정가로 그대로** 쓰이므로 낡은 종가 = 낡은 지정가가 된다.",
+   "evidence": "2026-09-29 08:40 발행 실측: close 20건 signal_date=2026-09-23(경과 6일) vs swing 20건 2026-09-28(경과 1일). `close_price` 누락 0 · 코드 형식 위반 0 이라 기존 계약 검사로는 검출되지 않았다. 리서처 자체 발견('격자가 9/23 에서 멈춰 있다, 시장 최신일 9/28')과 같은 뿌리.",
+   "success": "피드 후보 signal_date 경과 <= 4일 (또는 계약 검사가 signal_date 를 직접 검증)",
+   "cost": "저",
+   "note": "트레이더 소유(피드 계약·게이트). 프로브 `--probe feed_signal_lag` 신설(2026-09-29). 근본 원인(close 스크리너 데이터 격자가 9/23 고정)은 리서처 소유 → 리서처 백로그 **R22** 로 환류.",
+   "provenance": {
+    "source": "trader_cycle 2026-09-29 09:4x",
+    "measured_at": "2026-09-29 09:41"
+   },
+   "result": {
+    "ts": "2026-09-30T15:36:10+09:00",
+    "value": 1.0,
+    "check": "1.0 <= 4.0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "1.0",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T8",
+   "title": "피드 지정가가 최신 종가와 벌어졌는가 (close_price 편차)",
+   "status": "done",
+   "priority": 8,
+   "command": "python3 scripts/trader_cycle.py --probe feed_price_dev",
+   "metric": "feed_price_dev_pct",
+   "check": {
+    "op": "<=",
+    "value": 1.0
+   },
+   "hypothesis": "T7 은 `signal_date`(날짜)만 본다 → 날짜가 신선해도 **가격 자체가 낡은** 발행물을 통과시킨다. `close_price` 는 주문 지정가로 그대로 쓰이므로 편차가 곧 지정가 오차다.",
+   "evidence": "2026-10-01 08:22 발행분(휴장일) 실측: close 20건 중 **16건이 최신(09-30) 종가와 1% 초과** · 최대 **+10.55%**(462510 지정가 4,035 vs 09-30 종가 3,650) · 평균 +0.68%. 같은 발행물 swing 20건은 **전부 0.00%** — swing 산출물에 close_price 가 없어 발행측이 market_data 최신 종가로 채우기 때문. 즉 결측 보정 경로만 최신가를 쓰고 값이 있으면 낡은 값을 그대로 통과시키는 **비대칭**이다.",
+   "success": "피드 후보 close_price 의 최신 종가 대비 최대 절대편차 <= 1%",
+   "cost": "저(docker exec psql 1회, 약 13초)",
+   "note": "트레이더 소유(피드 계약·게이트). 프로브 `--probe feed_price_dev` 신설(2026-10-01). 수리 방향(발행측): close 후보도 결측 보정과 같은 경로로 최신 종가를 채우거나, 최소한 편차가 큰 후보를 차단/표시한다. 근본 원인(close 스크리너가 신호일 종가를 지정가로 고정)은 리서처 소유 → R22 후속.",
+   "provenance": {
+    "source": "trader_cycle(preopen 크론) 2026-10-01 08:2x",
+    "measured_at": "2026-10-01 08:2x"
+   },
+   "result": {
+    "ts": "2026-11-10T15:25:16+09:00",
+    "value": 0.0,
+    "check": "0.0 <= 1.0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "0.0",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T9",
+   "title": "휴장일 가드 — trader-agent 이 KRX 휴장 달력을 모른다 (실주문 경로)",
+   "status": "backlog",
+   "priority": 9,
+   "command": null,
+   "metric": null,
+   "check": null,
+   "hypothesis": "감독(`tools/supervise_loop.ps1`)은 **벽시계 요일**(Sat/Sun 제외)만 보고, 엔진의 `trader_core/engine.py:market_is_open()` 도 `now.weekday() >= 5` 만 본다 → **KRX 휴장일이면 루프가 '장중'으로 판단**하고 후보를 주문 경로에 태운다.",
+   "evidence": "2026-10-01 은 **휴장일이 아니었다(정정 — 거래일)**. KIS 국내휴장일조회 `CTCA0903R` 09:30 실호출: `BASS_DT=20261001` → `bzdy_yn=Y`·`tr_day_yn=Y`·`opnd_yn=Y`(20261003=N) · 실시간 005930 `acml_vol` 1,727,775(09:29)→1,854,805(09:30:45) = 약 2분간 +127,030주 · `data/krx_holidays.json`(26항목)에 10-01 없음. 종전 근거 ①(캘린더에 10-01 포함)은 07:50~08:53 사이에만 존재했고 08:53:23 워킹트리에서 삭제됐다(커밋 없음). 근거 ②(`cron_data_gap_report.log` 07:50 '휴장 기록')는 **data_gap 의 당일 오탐**이다 — 장 개시 전에는 어떤 거래일도 KIS 일봉이 없어 no_data 다 → R24 로 환류. 결함 자체는 유효하다: 감독(`tools/supervise_loop.ps1`)은 벽시계 요일만, 엔진 `trader_core/engine.py:market_is_open()` 도 `now.weekday() >= 5` 만 본다 → **평일 휴장일 2026-10-05(월)·10-09(금) (개천절 대체·한글날)** 에는 루프가 '장중'으로 판단한다(trader-agent 워크스페이스에 휴장 달력 파일 0건, `profiles.py` 주석도 'exchange holidays are not modelled'). 실주문 위험은 오늘도 0이었다 — 브리지가 내려가 있어(`cmd.exe curl /health` rc=7) 감독이 루프를 못 띄웠다. 즉 **운이지 설계가 아니다**.",
+   "success": "휴장일에는 `market_is_open()` 이 False 를 돌려주고 감독도 루프를 시작하지 않는다 (krx_holidays.json 연동 + 단위 테스트)",
+   "cost": "중(실주문 경로 — 페이퍼 검증 필요)",
+   "note": "**승인 필요**(실주문 경로 변경 · 게이트 6: 페이퍼 검증 없는 변경 금지 · live-order-path-safety 스킬 선행). 사용자 승인 시 절차: ① 휴장 목록을 읽는 `is_trading_day()` 추가(하드코딩 대신 analyist_dd `data/krx_holidays.json` 을 동기화해 읽기) ② `market_is_open()`·감독 스크립트가 이를 함께 보게 수정 ③ 페이퍼 모드에서 휴장일 1회 실행해 `market_open=false`·주문 0건 확인 ④ 그 뒤 live 반영 + main 푸시.\n[2026-10-05 실측·수리] 개천절 대체공휴일에 결함이 그대로 재현됐다: 08:30:16 감독기가 라이브 루프 기동(pid 14064) → 같은 시각 swing 파이프라인이 산출물 date=10-04 로 갱신 → 발행측 신선도 가드(>3일) 통과 → 상위10 평균확률 0.5978 > R1 0.58 로 휴장일 실매수 시도가 가능했다. **발행측 완화 적용(커밋 e2f7584)**: scripts/feed_export.py 가 data/krx_holidays.json 을 읽어 휴장일엔 모든 전략을 빈 리스트로 발행(`--ignore-holiday` 우회) · 회귀 tests/test_feed_export_holiday_guard.py 5건. 검증: 08:40 피드 발행 크론이 가드로 160 bytes(0건) 발행 — 루프가 신선한 피드를 받아도 후보가 없다. **남은 소비자측 결함(미수정, trader-agent 소유)**: 감독기·엔진의 휴장 인식 부재는 그대로다. 완전 차단은 감독기(supervise_loop.ps1)·market_is_open 에 KRX 달력 주입이 필요하다.",
+   "provenance": {
+    "source": "trader_cycle(preopen 크론) 2026-10-01 08:2x",
+    "measured_at": "2026-10-01 08:2x"
+   },
+   "result": null
+  },
+  {
+   "id": "T10",
+   "title": "휴장 캘린더 오탐 — 오늘이 거래일인데 캘린더에 휴장으로 기록됐는가",
+   "status": "backlog",
+   "priority": 10,
+   "command": null,
+   "metric": null,
+   "check": null,
+   "hypothesis": "`scripts/data_gap.py` 는 **당일 장 개시 전** KIS 일봉 부재를 '휴장'으로 판정해 `data/krx_holidays.json` 에 기록한다. 그 파일은 리서처·엔지니어 구동기의 휴장 판단 소스다(`krx_derivatives_collect`·`dq_snapshot`·`model_engineer_cycle.market_hours/_is_holiday`) → 오탐이 남으면 **실제 거래일의 수집·감시·실험 창을 건너뛴다**.",
+   "evidence": "2026-10-01 07:50 `cron_data_gap_report.log` = `휴장 기록: 2026-10-01 (KIS no_data)` → 파일에 기록 → T9 등록 커밋(08:28)이 그 값을 '휴장일' 근거로 인용 → 08:53:23 워킹트리에서 삭제(커밋 없음·작성자 미상). KIS `CTCA0903R` 실측 `opnd_yn=Y` · 실시간 체결 +127,030주(2분) = **거래일**.",
+   "success": "당일 휴장 판정은 **장 마감(15:40 KST) 이후**에만 확정하고, 캘린더 기록 전 KIS `CTCA0903R`(개장일 조회)로 교차확인한다. 감시: 매 틱 `오늘 ∈ 캘린더 휴장` 인데 KIS `opnd_yn=Y` 면 미달로 보고한다.",
+   "cost": "저(KIS 1콜)",
+   "note": "원인 소유 = **리서처**(`scripts/data_gap.py`). 트레이더는 감시 프로브만 제안한다. 리서처 백로그 **R24** 등록.",
+   "provenance": {
+    "source": "trader_cycle 오프사이클 실측 2026-10-01 09:3x",
+    "measured_at": "2026-10-01 09:3x"
+   }
+  },
+  {
+   "id": "T34",
+   "title": "저널 pnl 필드와 체결가 계산이 1,489원 벌어진다 (475830)",
+   "status": "backlog",
+   "priority": 9,
+   "command": "python3 scripts/quant_scoreboard.py --stanza trader  # -2,936원(가격계산) vs 저널 sum(pnl) -1,447원",
+   "metric": "475830: (19660-21150)*1 = -1,490 (gross) vs trades.pnl = -1.0, fees = 0.0",
+   "check": "브로커 /orders·/positions 의 475830 청산 체결가·수량이 저널 exit_price 19,660 과 일치하는가. 불일치면 체결가는 브로커 값으로만 교체한다.",
+   "hypothesis": "2026-10-08 09:02 'tick stop' 청산에서 trades.pnl 이 -1.0 으로 기록됐다(fees 0). 같은 행의 entry 21,150 / exit 19,660 / qty 1 로 계산하면 -1,490원이다. pnl 기록 경로(부분청산·tick_stop)가 체결가가 아니라 다른 값을 넣었거나, exit_price 가 체결가가 아닌 mark 값이다. 스코어보드는 가격계산(-2,936)을, fills 적재는 pnl 합(-1,447)을 써서 두 조회가 1,489원 어긋난다.",
+   "evidence": "2026-11-09 18:0x 실측: /tmp 복사본 저널 trades id=4 — code 475830, qty 1, price 21150.0, exit_price 19660.0, pnl -1.0, fees 0.0, exit_reason 'tick stop', exit_ts 2026-10-08T09:02:31. 같은 저널 sum(pnl) = -1,447.0017 (10-09 ledger north_krw 와 일치). quant_scoreboard.trader_stanza 는 (exit-entry)*qty 로 -2,936 을 낸다. 2026-10-08 커밋 702f1e6 은 fees 를 -1,489 로 백필했다가 0 으로 되돌리며 '브로커 net -1 보존'이라 적었다 — 즉 당시에도 이 1,489원은 설명되지 않은 채 넘어갔다.",
+   "success": "pnl(장부) 과 gross_pnl(가격계산) 이 같은 체결가에서 일치하고, 스코어보드가 어느 쪽을 인용하는지 필드명으로 구분된다(순손익=net, gross_pnl=가격차).",
+   "cost": "저(읽기 조회 + 브로커 1회)",
+   "note": "브로커 체결 조회가 필요하므로 브리지(8100) 가동이 선행 조건 — 현재 closed. 체결가는 브로커 값만 쓴다(헌장 §3).",
+   "provenance": {
+    "source": "trader tick 2026-11-09 18:0x",
+    "measured_at": "2026-11-09 18:0x"
+   },
+   "result": null
+  },
+  {
+   "id": "T11",
+   "title": "후보 0건 발행이 기존 발행물을 조용히 덮어쓴다 (게이트 2 미집행)",
+   "status": "backlog",
+   "priority": 8,
+   "command": "python3 scripts/feed_export.py --dry-run  # 소스 산출물이 모두 없을 때: 후보 0건인데 exit 0",
+   "metric": "data/feed/screener_latest.json 크기(bytes) · candidates 별 items 수",
+   "check": "소스가 전부 비었을 때 (a) 발행물이 교체되지 않고 직전 파일 mtime·크기가 유지되는가 (b) exit≠0 으로 실패를 알리는가 (c) strategy_runs/dq_claim 에 1건이 남는가.",
+   "hypothesis": "feed_export.py 는 후보 0건이어도 os.replace 로 발행물을 교체하고 `ok=True` 로 exit 0 을 돌려준다(스크립트 554-579행). 하드 게이트 2('후보 0개는 발행 실패로 취급')가 로그 문구로만 있고 코드로 집행되지 않는다. 게다가 소스 0건 실행은 `_record_feed_claim` 도 생략해 흔적이 남지 않는다.",
+   "evidence": "2026-11-09 실측: data/feed/screener_latest.json 이 2026-10-09 20:30 발행물(23,176 bytes · close 20 / swing 16 / daytrading 20건)에서 2026-11-09 17:55:38 발행물(198 bytes · candidates 전부 {\"items\": []})로 대체됐다. cron_feed_publish.log 에 17:55 기록 없음, dq_claim 기록 없음 — 발행이 '성공'으로 끝나 아무도 실패를 보지 못했다.",
+   "success": "후보 0건 실행은 발행 실패로 보고되고(exit≠0·ERROR 로그) 직전 발행물을 보존한다. 휴장일처럼 빈 발행이 정상인 경우만 명시 플래그로 허용한다.",
+   "cost": "저(코드 1곳 + 회귀 1건)",
+   "note": "소유=트레이더(scripts/feed_export.py). 소비자가 보는 동작(빈 발행물 미교체)이 바뀌므로 **리뷰보드 승인** 대상으로 올린다.",
+   "provenance": {
+    "source": "quant-trader-postclose 2026-11-09",
+    "measured_at": "2026-11-09T18:13:19+09:00"
+   },
+   "result": null
+  },
+  {
+   "id": "T12",
+   "title": "발행 형상 드리프트 — 발행측 {\"items\":[...]}, 소비자는 bare list 를 조용히 0건으로 읽는다",
+   "status": "backlog",
+   "priority": 7,
+   "command": "sed -n 199,203p /mnt/c/Users/jhshi/analyist_dd/trader-agent/trader_core/feed.py",
+   "metric": "같은 후보 20건을 list 형상 vs {\"items\":[...]} 형상으로 넣었을 때 소비자가 파싱하는 후보 수",
+   "check": "FEED_CONTRACT.md 의 후보 형상 서술과 (a) 실제 발행물 (b) 소비자 파서가 같은 형상을 말하는가. bare list 페이로드에서 소비자 후보 수가 0이 되는지 단위 테스트로 고정.",
+   "hypothesis": "발행측은 scripts/feed_export.py:524 에서 candidates[key] = {\"items\": items} 로 감싸 보내고, 소비자는 trader_core/feed.py:199 에서 dict 일 때만 container['items'] 를 꺼낸다 — list 를 보내면 예외 없이 parsed_candidates[name] = [] 로 버려진다. 계약 문서(FEED_CONTRACT·스킬)는 'candidates 의 값은 리스트'라고 적혀 있어 문서와 코드가 어긋난다. 어느 한쪽이 bare list 를 내는 순간 전략 경로가 조용히 닫힌다(0.50~0.62 확률 피드가 75점 문턱에 걸린 2026-09-29 사고와 같은 무증상 실패).",
+   "evidence": "2026-11-09 실측: 오늘 17:55 발행물은 {\"items\": []} 형상. trader_core/feed.py:197-203 은 isinstance(container, dict) 일 때만 items 를 읽고 아니면 빈 목록으로 확정한다. trader_core/rankfeed.py:470 도 같은 dict 형상을 쓰므로 소비자 쪽 규약은 dict 로 굳어 있다. trader_cycle 의 계약 검증은 두 형상을 모두 허용해(393-394행) 이 드리프트를 '위반 0건'으로 통과시킨다.",
+   "success": "계약 문서·발행측·소비자 파서가 한 형상으로 일치하고, 다른 형상이 오면 경고를 남긴다(조용한 0건 금지).",
+   "cost": "저(문서+검증기)",
+   "note": "문서/계약 변경이므로 **리뷰보드 승인**. 검증기(trader_cycle)가 두 형상을 모두 통과시키는 것도 함께 고칠 항목.",
+   "provenance": {
+    "source": "quant-trader-postclose 2026-11-09",
+    "measured_at": "2026-11-09T18:13:19+09:00"
+   },
+   "result": null
+  },
+  {
+   "id": "T14",
+   "title": "체결 미확인 진입 주문이 전략 슬롯을 점유 — 그날 매수 가능 후보가 전량 거부된다 (2026-11-10 실측)",
+   "status": "backlog",
+   "priority": 9,
+   "provenance": "트레이더 장마감 점검(2026-11-10) — 실측 증거 첨부, 주문경로 수정은 보호 대상(자동 반영 금지)",
+   "command": "C:\\Users\\jhshi\\Python312-64\\python.exe -c \"import sqlite3;c=sqlite3.connect(r'C:\\Users\\jhshi\\analyist_dd\\trader-agent\\journal\\trade_journal.sqlite3');print(c.execute('select id,code,qty,price,exit_ts,screener from trades where id=8').fetchall())\"",
+   "metric": "미체결 진입 주문이 쓰는 swing 슬롯 수 → 그 사이 거부된 후보 수(decision rows)",
+   "check": "① 주문이 체결 확인 전 저널 행으로 기록되면 그 행이 경로 슬롯을 소모하는가 ② 브로커 positions 에 없는 행을 슬롯 계산에서 제외(또는 'pending' 상태로 분리)하면 2026-11-10 319400 이 통과하는가 ③ 회귀: 체결된 주문은 여전히 슬롯을 소모해야 한다",
+   "hypothesis": "진입 주문은 체결 확인 전에 저널 행으로 기록되고(trades.id=8), 경로 상한(swing 2)은 저널의 미청산 행 수로 슬롯을 센다 → 미체결 주문 1건이 그날 내내 한 슬롯을 잡아, 드리프트 밴드를 통과한 유일한 후보를 매 사이클 거부한다. 슬롯은 '브로커가 보유한 것'으로 세야 하고, 미체결 주문은 별도 예약 카운터로 세야 한다(그러지 않으면 주문이 만료된 뒤에도 하루 종일 자리를 막는다).",
+   "evidence": "2026-11-10 실측: 13:52:39 buy 240810 1주 @66,100 지정가 접수(order_no 43174) → 15:14 조회 filled_qty=0·cancelable_qty=1(미체결), 당일 저가 66,700 이라 66,100 은 체결 불가 가격. 저널 trades.id=8 은 동시에 미청산 행(qty 1, exit_ts NULL, screener=swing)으로 존재. 경로 상한 swing 2 는 003380(보유) + 240810(미체결) = 2 로 포화. 결과: 14:43:33~15:11:29 매 사이클 decisions 8421~8448 이 319400(score 67.71, rank_pct 98.83, 15:12 현재가 15,010)을 'swing 슬롯 포화 또는 산정 불가(경로 상한 2)'로 거부 — 그날 유일하게 드리프트 밴드를 통과한 후보(pre-filter swing 20→1). 당일 피드 유래 체결 0건. 부수효과: tools/export_fills.py 의 opened 목록과 quant_scoreboard '보유 2' 도 이 미체결 주문을 보유로 센다.",
+   "success": "미체결 진입 주문이 있는 상태에서도, 그 주문과 무관한 경로 슬롯이 남아 있으면 다음 후보가 통과한다(단위 테스트 + 실측 1회). 체결된 주문·보유 포지션은 종전대로 슬롯을 소모한다.",
+   "cost": "회귀 테스트 1개 + 슬롯 계산 1곳 수정. 실주문 경로 변경이므로 사람 리뷰 후 배포.",
+   "note": "보호 항목: 주문 경로(게이트) 변경이므로 자율 반영 금지 — 제안+사람 리뷰. 회피책(오늘 즉시 가능): 장 마감 후 order 43174 종결 확인 → 미체결이면 trades.id=8 을 취소 상태로 정리(브로커 값 기준)해 명일 슬롯을 비운다.",
+   "created_at": "2026-11-10T15:15:31+09:00",
+   "evidence_runs": [
     {
-      "id": "T1",
-      "title": "청산 수수료·세금이 저널에 반영되는가 (fees 컬럼 실측)",
-      "status": "done",
-      "priority": 1,
-      "command": "python3 scripts/trader_cycle.py --probe fees",
-      "metric": "fees_sum",
-      "check": {
-        "op": ">=",
-        "value": 1
-      },
-      "hypothesis": "fees=0 이면 실현 손익이 수수료·거래세를 빼지 않은 값이라 실제 순손익보다 낙관적이다(모의투자라도 회계 규칙은 같아야 한다).",
-      "evidence": "2026-09-25 리뷰보드 실측: 청산 31건 전부 fees=0 → 수수료·세금 미반영.",
-      "success": "fees_sum >= 1 (건당 수수료가 기록됨)",
-      "cost": "저",
-      "note": "수수료 반영은 트레이더에이전트 쪽 체결 기록 경로 변경이라 **사람 승인 항목**으로 올린다. 이 항목은 '반영됐는지'를 수치로 감시만 한다. | 구현 완료(2026-09-28): trader_core/fees.py + tools/backfill_fees.py + Journal.set_fees (저널 gross - 브로커 매도실현손익 = 비용, 요율 가정 없음). 아직 status=failed 로 두는 이유: 실제 fees_sum 이 0 이다 — 첫 실계좌 청산 후 `Python311-32 tools/backfill_fees.py --apply` 를 돌려 fees_sum>=1 이 되는지가 진짜 판정이다.",
-      "result": {
-        "ts": "2026-11-17T13:26:02+09:00",
-        "value": 146.0,
-        "check": "146.0 >= 1.0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "146.0",
-        "stderr_tail": ""
-      },
-      "impl": {
-        "ts": "2026-09-28T16:41:04+09:00",
-        "artifacts": [
-          "trader-agent:trader_core/fees.py",
-          "trader-agent:tools/backfill_fees.py",
-          "trader-agent:trader_core/tests/test_fees.py",
-          "trader-agent:OPERATIONS.md §12.5"
-        ],
-        "tests": "pytest trader_core/tests -q -> 293 passed",
-        "verify_after": "첫 실계좌 청산 → tools/backfill_fees.py --apply → trader_cycle --probe fees"
-      }
-    },
-    {
-      "id": "T2",
-      "title": "회전 정지 감지 — 마지막 진입 경과일",
-      "status": "done",
-      "priority": 2,
-      "command": "python3 scripts/trader_cycle.py --probe rotation",
-      "metric": "last_entry_age_days",
-      "check": {
-        "op": "<=",
-        "value": 3
-      },
-      "hypothesis": "신규 진입이 3일 이상 없으면 전략이 사실상 멈춘 것이다(보유만 청산 규칙으로 굴러가는 상태).",
-      "evidence": "실측: 마지막 진입 2026-09-21 14:52 → 2026-09-28 기준 6.7일. 같은 기간 청산 0건.",
-      "success": "마지막 진입 경과일 <= 3",
-      "cost": "저",
-      "note": "원인이 피드 신선도인지 실행 경로인지 구분해서 리서처/엔지니어로 환류한다.",
-      "result": {
-        "ts": "2026-09-30T11:25:40+09:00",
-        "value": 0.85,
-        "check": "0.85 <= 3.0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "0.85",
-        "stderr_tail": ""
-      }
-    },
-    {
-      "id": "T3",
-      "title": "피드 계약 위반 0건 유지 (필수 필드·신선도)",
-      "status": "done",
-      "priority": 3,
-      "command": "python3 scripts/trader_cycle.py --probe feed",
-      "metric": "feed_contract_violations",
-      "check": {
-        "op": "<=",
-        "value": 0
-      },
-      "hypothesis": "발행물이 계약(필수 필드·신선도)을 어기면 소비 측이 조용히 후보를 버린다 — 2026-09-28 실측: 연휴로 후보 0건 발행(가드 정상).",
-      "evidence": "FEED_CONTRACT.md 9절 계약 검증 + data/feed/*.json 실측.",
-      "success": "위반 0건",
-      "cost": "저",
-      "note": "위반이 잡히면 리서처 백로그로 환류(어떤 데이터가 신선도/필드를 못 맞추는지).",
-      "result": {
-        "ts": "2026-09-28T14:06:34+09:00",
-        "value": 0.0,
-        "check": "0.0 <= 0.0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "0.0",
-        "stderr_tail": ""
-      }
-    },
-    {
-      "id": "T4",
-      "title": "실행 감시 단절 감지 — loop_state 갱신 지연",
-      "status": "done",
-      "priority": 4,
-      "command": "python3 scripts/trader_cycle.py --probe stale",
-      "metric": "loop_stale_min",
-      "check": {
-        "op": "<=",
-        "value": 12
-      },
-      "hypothesis": "루프가 돌지 않거나 죽으면 loop_state.json 갱신이 멈춘다 — 보유 포지션이 무감시가 된다.",
-      "evidence": "2026-09-28 실측: 브리지가 08:50경 사라져 루프가 09:0x halt → 13:29 프로세스 소멸, 보유 10건이 장중 내내 무관리(감독 작업 도입 계기).",
-      "success": "갱신 지연 <= 12분 (장중 300초 사이클 기준)",
-      "cost": "저",
-      "note": "장외·휴장 시간에는 지연이 정상이므로 판정 시 장중 여부를 함께 본다.",
-      "result": {
-        "ts": "2026-09-28T14:36:21+09:00",
-        "value": 0.4,
-        "check": "0.4 <= 12.0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "0.4",
-        "stderr_tail": ""
-      }
-    },
-    {
-      "id": "T5",
-      "title": "건당 기대값 흑자 전환",
-      "status": "failed",
-      "priority": 5,
-      "command": "python3 scripts/trader_cycle.py --probe expectancy",
-      "metric": "expectancy_krw",
-      "check": {
-        "op": ">",
-        "value": 0
-      },
-      "hypothesis": "건당 기대값이 음수면 매매 횟수를 늘릴수록 손실이 커진다 — 전략/피처/사이징 중 어디를 고쳐야 하는지가 핵심 질문이다.",
-      "evidence": "실측: 청산 31건 실현 -7,839원 → 기대값 -253원/건. 승률 38.7%.",
-      "success": "expectancy_krw > 0",
-      "cost": "저",
-      "note": "이 항목이 충족되지 않는 한 '전략 확대'는 금지(보드 §권한: 승격·전략 변경은 근거 필요). | 2026-09-28 15:2x 재판정: 통과값 +110.97원/건(3,662/33)은 `reconcile: broker flat` 보정 1건(+17,901원)이 만든 값이다. 보정 제외 실측 **-14,239원/32건 = -445원/건** → 통과로 볼 수 없어 failed 로 되돌린다(보정 전 14:40 이전 틱 값과 일치). 실계좌 새 저널이 비어 재측정은 첫 거래 발생 후에만 가능하다.",
-      "result": {
-        "ts": "2026-11-23T09:25:41+09:00",
-        "value": -1647.9772727272723,
-        "check": "-1647.9772727272723 > 0.0",
-        "verdict": "미달",
-        "rc": 0,
-        "stdout_tail": "-1647.9772727272723",
-        "stderr_tail": ""
-      }
-    },
-    {
-      "id": "T6",
-      "title": "브리지 감독 재기동 churn — 무백오프 90초 재기동",
-      "status": "done",
-      "priority": 6,
-      "command": "python3 scripts/trader_cycle.py --probe bridge_churn",
-      "metric": "bridge_restarts_peak_per_hour_24h",
-      "check": {
-        "op": "<=",
-        "value": 4
-      },
-      "hypothesis": "Creon 미로그인 상태에서 감독이 90초마다 브리지를 죽였다 살린다(15:00~15:28 실측 12회). 로그인 진행 중 재기동이 겹치면 Creon COM 세션(DibServer)이 꼬여 '로그인해도 not_connected' 가 재발할 수 있다.",
-      "evidence": "2026-09-28 실측(로그 재계산): 19:45:19~20:52:27 에 'started bridge' 41회(간격 ~99초) = 시간당 최대 37회. 15:00~15:28 에도 5회 이상. 2026-09-29 03:00 이후 재기동은 1회(03:00:17 half-dead)뿐이고, 09:27:10 'Creon not running' 때는 감독이 브리지를 건드리지 않고 대기(restarted after the next login)했다.",
-      "success": "최근 24시간 안 시간당 재기동 최대치 <= 4회 (지수 백오프 또는 '사람 로그인 대기' 상태로 정지)",
-      "cost": "저",
-      "note": "**측정 결함 수리(2026-09-29 09:4x, 트레이더)**: 원래 command 는 `grep -c 'started bridge' <로그 전체>` = **누적 카운트**라 시간이 갈수록 커지기만 해 **영원히 통과할 수 없는 check** 였다(지표 이름은 bridge_restarts_per_hour 인데 측정은 누적 — 이름과 측정 불일치). 임계값(시간당 4회)과 지표 정의는 그대로 두고 측정만 '최근 24시간 롤링 60분 최대치'로 맞췄다(`--probe bridge_churn` 신설). 감독 스크립트 백오프 도입은 코드 변경이라 여전히 승인 항목이다.",
-      "provenance": {
-        "source": "trader_cycle 2026-09-29 09:4x",
-        "measured_at": "2026-09-29 09:40"
-      },
-      "result": {
-        "ts": "2026-10-02T13:25:23+09:00",
-        "value": 1.0,
-        "check": "1.0 <= 4.0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "1.0",
-        "stderr_tail": ""
-      }
-    },
-    {
-      "id": "T7",
-      "title": "피드 후보 signal_date 신선도 — 낡은 종가가 지정가로 쓰이는가",
-      "status": "done",
-      "priority": 7,
-      "command": "python3 scripts/trader_cycle.py --probe feed_signal_lag",
-      "metric": "feed_signal_lag_days",
-      "check": {
-        "op": "<=",
-        "value": 4
-      },
-      "hypothesis": "계약 검사(feed_contract_check)는 발행 파일의 mtime/generated_at 만 본다 → 발행이 방금이어도 후보의 근거 데이터가 낡으면 그대로 통과한다. `close_price` 는 **주문 지정가로 그대로** 쓰이므로 낡은 종가 = 낡은 지정가가 된다.",
-      "evidence": "2026-09-29 08:40 발행 실측: close 20건 signal_date=2026-09-23(경과 6일) vs swing 20건 2026-09-28(경과 1일). `close_price` 누락 0 · 코드 형식 위반 0 이라 기존 계약 검사로는 검출되지 않았다. 리서처 자체 발견('격자가 9/23 에서 멈춰 있다, 시장 최신일 9/28')과 같은 뿌리.",
-      "success": "피드 후보 signal_date 경과 <= 4일 (또는 계약 검사가 signal_date 를 직접 검증)",
-      "cost": "저",
-      "note": "트레이더 소유(피드 계약·게이트). 프로브 `--probe feed_signal_lag` 신설(2026-09-29). 근본 원인(close 스크리너 데이터 격자가 9/23 고정)은 리서처 소유 → 리서처 백로그 **R22** 로 환류.",
-      "provenance": {
-        "source": "trader_cycle 2026-09-29 09:4x",
-        "measured_at": "2026-09-29 09:41"
-      },
-      "result": {
-        "ts": "2026-09-30T15:36:10+09:00",
-        "value": 1.0,
-        "check": "1.0 <= 4.0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "1.0",
-        "stderr_tail": ""
-      }
-    },
-    {
-      "id": "T8",
-      "title": "피드 지정가가 최신 종가와 벌어졌는가 (close_price 편차)",
-      "status": "done",
-      "priority": 8,
-      "command": "python3 scripts/trader_cycle.py --probe feed_price_dev",
-      "metric": "feed_price_dev_pct",
-      "check": {
-        "op": "<=",
-        "value": 1.0
-      },
-      "hypothesis": "T7 은 `signal_date`(날짜)만 본다 → 날짜가 신선해도 **가격 자체가 낡은** 발행물을 통과시킨다. `close_price` 는 주문 지정가로 그대로 쓰이므로 편차가 곧 지정가 오차다.",
-      "evidence": "2026-10-01 08:22 발행분(휴장일) 실측: close 20건 중 **16건이 최신(09-30) 종가와 1% 초과** · 최대 **+10.55%**(462510 지정가 4,035 vs 09-30 종가 3,650) · 평균 +0.68%. 같은 발행물 swing 20건은 **전부 0.00%** — swing 산출물에 close_price 가 없어 발행측이 market_data 최신 종가로 채우기 때문. 즉 결측 보정 경로만 최신가를 쓰고 값이 있으면 낡은 값을 그대로 통과시키는 **비대칭**이다.",
-      "success": "피드 후보 close_price 의 최신 종가 대비 최대 절대편차 <= 1%",
-      "cost": "저(docker exec psql 1회, 약 13초)",
-      "note": "트레이더 소유(피드 계약·게이트). 프로브 `--probe feed_price_dev` 신설(2026-10-01). 수리 방향(발행측): close 후보도 결측 보정과 같은 경로로 최신 종가를 채우거나, 최소한 편차가 큰 후보를 차단/표시한다. 근본 원인(close 스크리너가 신호일 종가를 지정가로 고정)은 리서처 소유 → R22 후속.",
-      "provenance": {
-        "source": "trader_cycle(preopen 크론) 2026-10-01 08:2x",
-        "measured_at": "2026-10-01 08:2x"
-      },
-      "result": {
-        "ts": "2026-11-10T15:25:16+09:00",
-        "value": 0.0,
-        "check": "0.0 <= 1.0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "0.0",
-        "stderr_tail": ""
-      }
-    },
-    {
-      "id": "T9",
-      "title": "휴장일 가드 — trader-agent 이 KRX 휴장 달력을 모른다 (실주문 경로)",
-      "status": "backlog",
-      "priority": 9,
-      "command": null,
-      "metric": null,
-      "check": null,
-      "hypothesis": "감독(`tools/supervise_loop.ps1`)은 **벽시계 요일**(Sat/Sun 제외)만 보고, 엔진의 `trader_core/engine.py:market_is_open()` 도 `now.weekday() >= 5` 만 본다 → **KRX 휴장일이면 루프가 '장중'으로 판단**하고 후보를 주문 경로에 태운다.",
-      "evidence": "2026-10-01 은 **휴장일이 아니었다(정정 — 거래일)**. KIS 국내휴장일조회 `CTCA0903R` 09:30 실호출: `BASS_DT=20261001` → `bzdy_yn=Y`·`tr_day_yn=Y`·`opnd_yn=Y`(20261003=N) · 실시간 005930 `acml_vol` 1,727,775(09:29)→1,854,805(09:30:45) = 약 2분간 +127,030주 · `data/krx_holidays.json`(26항목)에 10-01 없음. 종전 근거 ①(캘린더에 10-01 포함)은 07:50~08:53 사이에만 존재했고 08:53:23 워킹트리에서 삭제됐다(커밋 없음). 근거 ②(`cron_data_gap_report.log` 07:50 '휴장 기록')는 **data_gap 의 당일 오탐**이다 — 장 개시 전에는 어떤 거래일도 KIS 일봉이 없어 no_data 다 → R24 로 환류. 결함 자체는 유효하다: 감독(`tools/supervise_loop.ps1`)은 벽시계 요일만, 엔진 `trader_core/engine.py:market_is_open()` 도 `now.weekday() >= 5` 만 본다 → **평일 휴장일 2026-10-05(월)·10-09(금) (개천절 대체·한글날)** 에는 루프가 '장중'으로 판단한다(trader-agent 워크스페이스에 휴장 달력 파일 0건, `profiles.py` 주석도 'exchange holidays are not modelled'). 실주문 위험은 오늘도 0이었다 — 브리지가 내려가 있어(`cmd.exe curl /health` rc=7) 감독이 루프를 못 띄웠다. 즉 **운이지 설계가 아니다**.",
-      "success": "휴장일에는 `market_is_open()` 이 False 를 돌려주고 감독도 루프를 시작하지 않는다 (krx_holidays.json 연동 + 단위 테스트)",
-      "cost": "중(실주문 경로 — 페이퍼 검증 필요)",
-      "note": "**승인 필요**(실주문 경로 변경 · 게이트 6: 페이퍼 검증 없는 변경 금지 · live-order-path-safety 스킬 선행). 사용자 승인 시 절차: ① 휴장 목록을 읽는 `is_trading_day()` 추가(하드코딩 대신 analyist_dd `data/krx_holidays.json` 을 동기화해 읽기) ② `market_is_open()`·감독 스크립트가 이를 함께 보게 수정 ③ 페이퍼 모드에서 휴장일 1회 실행해 `market_open=false`·주문 0건 확인 ④ 그 뒤 live 반영 + main 푸시.\n[2026-10-05 실측·수리] 개천절 대체공휴일에 결함이 그대로 재현됐다: 08:30:16 감독기가 라이브 루프 기동(pid 14064) → 같은 시각 swing 파이프라인이 산출물 date=10-04 로 갱신 → 발행측 신선도 가드(>3일) 통과 → 상위10 평균확률 0.5978 > R1 0.58 로 휴장일 실매수 시도가 가능했다. **발행측 완화 적용(커밋 e2f7584)**: scripts/feed_export.py 가 data/krx_holidays.json 을 읽어 휴장일엔 모든 전략을 빈 리스트로 발행(`--ignore-holiday` 우회) · 회귀 tests/test_feed_export_holiday_guard.py 5건. 검증: 08:40 피드 발행 크론이 가드로 160 bytes(0건) 발행 — 루프가 신선한 피드를 받아도 후보가 없다. **남은 소비자측 결함(미수정, trader-agent 소유)**: 감독기·엔진의 휴장 인식 부재는 그대로다. 완전 차단은 감독기(supervise_loop.ps1)·market_is_open 에 KRX 달력 주입이 필요하다.",
-      "provenance": {
-        "source": "trader_cycle(preopen 크론) 2026-10-01 08:2x",
-        "measured_at": "2026-10-01 08:2x"
-      },
-      "result": null
-    },
-    {
-      "id": "T10",
-      "title": "휴장 캘린더 오탐 — 오늘이 거래일인데 캘린더에 휴장으로 기록됐는가",
-      "status": "backlog",
-      "priority": 10,
-      "command": null,
-      "metric": null,
-      "check": null,
-      "hypothesis": "`scripts/data_gap.py` 는 **당일 장 개시 전** KIS 일봉 부재를 '휴장'으로 판정해 `data/krx_holidays.json` 에 기록한다. 그 파일은 리서처·엔지니어 구동기의 휴장 판단 소스다(`krx_derivatives_collect`·`dq_snapshot`·`model_engineer_cycle.market_hours/_is_holiday`) → 오탐이 남으면 **실제 거래일의 수집·감시·실험 창을 건너뛴다**.",
-      "evidence": "2026-10-01 07:50 `cron_data_gap_report.log` = `휴장 기록: 2026-10-01 (KIS no_data)` → 파일에 기록 → T9 등록 커밋(08:28)이 그 값을 '휴장일' 근거로 인용 → 08:53:23 워킹트리에서 삭제(커밋 없음·작성자 미상). KIS `CTCA0903R` 실측 `opnd_yn=Y` · 실시간 체결 +127,030주(2분) = **거래일**.",
-      "success": "당일 휴장 판정은 **장 마감(15:40 KST) 이후**에만 확정하고, 캘린더 기록 전 KIS `CTCA0903R`(개장일 조회)로 교차확인한다. 감시: 매 틱 `오늘 ∈ 캘린더 휴장` 인데 KIS `opnd_yn=Y` 면 미달로 보고한다.",
-      "cost": "저(KIS 1콜)",
-      "note": "원인 소유 = **리서처**(`scripts/data_gap.py`). 트레이더는 감시 프로브만 제안한다. 리서처 백로그 **R24** 등록.",
-      "provenance": {
-        "source": "trader_cycle 오프사이클 실측 2026-10-01 09:3x",
-        "measured_at": "2026-10-01 09:3x"
-      }
-    },
-    {
-      "id": "T34",
-      "title": "저널 pnl 필드와 체결가 계산이 1,489원 벌어진다 (475830)",
-      "status": "backlog",
-      "priority": 9,
-      "command": "python3 scripts/quant_scoreboard.py --stanza trader  # -2,936원(가격계산) vs 저널 sum(pnl) -1,447원",
-      "metric": "475830: (19660-21150)*1 = -1,490 (gross) vs trades.pnl = -1.0, fees = 0.0",
-      "check": "브로커 /orders·/positions 의 475830 청산 체결가·수량이 저널 exit_price 19,660 과 일치하는가. 불일치면 체결가는 브로커 값으로만 교체한다.",
-      "hypothesis": "2026-10-08 09:02 'tick stop' 청산에서 trades.pnl 이 -1.0 으로 기록됐다(fees 0). 같은 행의 entry 21,150 / exit 19,660 / qty 1 로 계산하면 -1,490원이다. pnl 기록 경로(부분청산·tick_stop)가 체결가가 아니라 다른 값을 넣었거나, exit_price 가 체결가가 아닌 mark 값이다. 스코어보드는 가격계산(-2,936)을, fills 적재는 pnl 합(-1,447)을 써서 두 조회가 1,489원 어긋난다.",
-      "evidence": "2026-11-09 18:0x 실측: /tmp 복사본 저널 trades id=4 — code 475830, qty 1, price 21150.0, exit_price 19660.0, pnl -1.0, fees 0.0, exit_reason 'tick stop', exit_ts 2026-10-08T09:02:31. 같은 저널 sum(pnl) = -1,447.0017 (10-09 ledger north_krw 와 일치). quant_scoreboard.trader_stanza 는 (exit-entry)*qty 로 -2,936 을 낸다. 2026-10-08 커밋 702f1e6 은 fees 를 -1,489 로 백필했다가 0 으로 되돌리며 '브로커 net -1 보존'이라 적었다 — 즉 당시에도 이 1,489원은 설명되지 않은 채 넘어갔다.",
-      "success": "pnl(장부) 과 gross_pnl(가격계산) 이 같은 체결가에서 일치하고, 스코어보드가 어느 쪽을 인용하는지 필드명으로 구분된다(순손익=net, gross_pnl=가격차).",
-      "cost": "저(읽기 조회 + 브로커 1회)",
-      "note": "브로커 체결 조회가 필요하므로 브리지(8100) 가동이 선행 조건 — 현재 closed. 체결가는 브로커 값만 쓴다(헌장 §3).",
-      "provenance": {
-        "source": "trader tick 2026-11-09 18:0x",
-        "measured_at": "2026-11-09 18:0x"
-      },
-      "result": null
-    },
-    {
-      "id": "T11",
-      "title": "후보 0건 발행이 기존 발행물을 조용히 덮어쓴다 (게이트 2 미집행)",
-      "status": "backlog",
-      "priority": 8,
-      "command": "python3 scripts/feed_export.py --dry-run  # 소스 산출물이 모두 없을 때: 후보 0건인데 exit 0",
-      "metric": "data/feed/screener_latest.json 크기(bytes) · candidates 별 items 수",
-      "check": "소스가 전부 비었을 때 (a) 발행물이 교체되지 않고 직전 파일 mtime·크기가 유지되는가 (b) exit≠0 으로 실패를 알리는가 (c) strategy_runs/dq_claim 에 1건이 남는가.",
-      "hypothesis": "feed_export.py 는 후보 0건이어도 os.replace 로 발행물을 교체하고 `ok=True` 로 exit 0 을 돌려준다(스크립트 554-579행). 하드 게이트 2('후보 0개는 발행 실패로 취급')가 로그 문구로만 있고 코드로 집행되지 않는다. 게다가 소스 0건 실행은 `_record_feed_claim` 도 생략해 흔적이 남지 않는다.",
-      "evidence": "2026-11-09 실측: data/feed/screener_latest.json 이 2026-10-09 20:30 발행물(23,176 bytes · close 20 / swing 16 / daytrading 20건)에서 2026-11-09 17:55:38 발행물(198 bytes · candidates 전부 {\"items\": []})로 대체됐다. cron_feed_publish.log 에 17:55 기록 없음, dq_claim 기록 없음 — 발행이 '성공'으로 끝나 아무도 실패를 보지 못했다.",
-      "success": "후보 0건 실행은 발행 실패로 보고되고(exit≠0·ERROR 로그) 직전 발행물을 보존한다. 휴장일처럼 빈 발행이 정상인 경우만 명시 플래그로 허용한다.",
-      "cost": "저(코드 1곳 + 회귀 1건)",
-      "note": "소유=트레이더(scripts/feed_export.py). 소비자가 보는 동작(빈 발행물 미교체)이 바뀌므로 **리뷰보드 승인** 대상으로 올린다.",
-      "provenance": {
-        "source": "quant-trader-postclose 2026-11-09",
-        "measured_at": "2026-11-09T18:13:19+09:00"
-      },
-      "result": null
-    },
-    {
-      "id": "T12",
-      "title": "발행 형상 드리프트 — 발행측 {\"items\":[...]}, 소비자는 bare list 를 조용히 0건으로 읽는다",
-      "status": "backlog",
-      "priority": 7,
-      "command": "sed -n 199,203p /mnt/c/Users/jhshi/analyist_dd/trader-agent/trader_core/feed.py",
-      "metric": "같은 후보 20건을 list 형상 vs {\"items\":[...]} 형상으로 넣었을 때 소비자가 파싱하는 후보 수",
-      "check": "FEED_CONTRACT.md 의 후보 형상 서술과 (a) 실제 발행물 (b) 소비자 파서가 같은 형상을 말하는가. bare list 페이로드에서 소비자 후보 수가 0이 되는지 단위 테스트로 고정.",
-      "hypothesis": "발행측은 scripts/feed_export.py:524 에서 candidates[key] = {\"items\": items} 로 감싸 보내고, 소비자는 trader_core/feed.py:199 에서 dict 일 때만 container['items'] 를 꺼낸다 — list 를 보내면 예외 없이 parsed_candidates[name] = [] 로 버려진다. 계약 문서(FEED_CONTRACT·스킬)는 'candidates 의 값은 리스트'라고 적혀 있어 문서와 코드가 어긋난다. 어느 한쪽이 bare list 를 내는 순간 전략 경로가 조용히 닫힌다(0.50~0.62 확률 피드가 75점 문턱에 걸린 2026-09-29 사고와 같은 무증상 실패).",
-      "evidence": "2026-11-09 실측: 오늘 17:55 발행물은 {\"items\": []} 형상. trader_core/feed.py:197-203 은 isinstance(container, dict) 일 때만 items 를 읽고 아니면 빈 목록으로 확정한다. trader_core/rankfeed.py:470 도 같은 dict 형상을 쓰므로 소비자 쪽 규약은 dict 로 굳어 있다. trader_cycle 의 계약 검증은 두 형상을 모두 허용해(393-394행) 이 드리프트를 '위반 0건'으로 통과시킨다.",
-      "success": "계약 문서·발행측·소비자 파서가 한 형상으로 일치하고, 다른 형상이 오면 경고를 남긴다(조용한 0건 금지).",
-      "cost": "저(문서+검증기)",
-      "note": "문서/계약 변경이므로 **리뷰보드 승인**. 검증기(trader_cycle)가 두 형상을 모두 통과시키는 것도 함께 고칠 항목.",
-      "provenance": {
-        "source": "quant-trader-postclose 2026-11-09",
-        "measured_at": "2026-11-09T18:13:19+09:00"
-      },
-      "result": null
-    },
-    {
-      "id": "T14",
-      "title": "체결 미확인 진입 주문이 전략 슬롯을 점유 — 그날 매수 가능 후보가 전량 거부된다 (2026-11-10 실측)",
-      "status": "backlog",
-      "priority": 9,
-      "provenance": "트레이더 장마감 점검(2026-11-10) — 실측 증거 첨부, 주문경로 수정은 보호 대상(자동 반영 금지)",
-      "command": "C:\\Users\\jhshi\\Python312-64\\python.exe -c \"import sqlite3;c=sqlite3.connect(r'C:\\Users\\jhshi\\analyist_dd\\trader-agent\\journal\\trade_journal.sqlite3');print(c.execute('select id,code,qty,price,exit_ts,screener from trades where id=8').fetchall())\"",
-      "metric": "미체결 진입 주문이 쓰는 swing 슬롯 수 → 그 사이 거부된 후보 수(decision rows)",
-      "check": "① 주문이 체결 확인 전 저널 행으로 기록되면 그 행이 경로 슬롯을 소모하는가 ② 브로커 positions 에 없는 행을 슬롯 계산에서 제외(또는 'pending' 상태로 분리)하면 2026-11-10 319400 이 통과하는가 ③ 회귀: 체결된 주문은 여전히 슬롯을 소모해야 한다",
-      "hypothesis": "진입 주문은 체결 확인 전에 저널 행으로 기록되고(trades.id=8), 경로 상한(swing 2)은 저널의 미청산 행 수로 슬롯을 센다 → 미체결 주문 1건이 그날 내내 한 슬롯을 잡아, 드리프트 밴드를 통과한 유일한 후보를 매 사이클 거부한다. 슬롯은 '브로커가 보유한 것'으로 세야 하고, 미체결 주문은 별도 예약 카운터로 세야 한다(그러지 않으면 주문이 만료된 뒤에도 하루 종일 자리를 막는다).",
-      "evidence": "2026-11-10 실측: 13:52:39 buy 240810 1주 @66,100 지정가 접수(order_no 43174) → 15:14 조회 filled_qty=0·cancelable_qty=1(미체결), 당일 저가 66,700 이라 66,100 은 체결 불가 가격. 저널 trades.id=8 은 동시에 미청산 행(qty 1, exit_ts NULL, screener=swing)으로 존재. 경로 상한 swing 2 는 003380(보유) + 240810(미체결) = 2 로 포화. 결과: 14:43:33~15:11:29 매 사이클 decisions 8421~8448 이 319400(score 67.71, rank_pct 98.83, 15:12 현재가 15,010)을 'swing 슬롯 포화 또는 산정 불가(경로 상한 2)'로 거부 — 그날 유일하게 드리프트 밴드를 통과한 후보(pre-filter swing 20→1). 당일 피드 유래 체결 0건. 부수효과: tools/export_fills.py 의 opened 목록과 quant_scoreboard '보유 2' 도 이 미체결 주문을 보유로 센다.",
-      "success": "미체결 진입 주문이 있는 상태에서도, 그 주문과 무관한 경로 슬롯이 남아 있으면 다음 후보가 통과한다(단위 테스트 + 실측 1회). 체결된 주문·보유 포지션은 종전대로 슬롯을 소모한다.",
-      "cost": "회귀 테스트 1개 + 슬롯 계산 1곳 수정. 실주문 경로 변경이므로 사람 리뷰 후 배포.",
-      "note": "보호 항목: 주문 경로(게이트) 변경이므로 자율 반영 금지 — 제안+사람 리뷰. 회피책(오늘 즉시 가능): 장 마감 후 order 43174 종결 확인 → 미체결이면 trades.id=8 을 취소 상태로 정리(브로커 값 기준)해 명일 슬롯을 비운다.",
-      "created_at": "2026-11-10T15:15:31+09:00",
-      "evidence_runs": [
-        {
-          "ts": "2026-11-11T09:30:01+09:00",
-          "note": "2026-11-11 재발·확대: 미체결 진입 2건(240810 1주 @67,700 · 290720 99주 @980)이 swing 슬롯 2개를 점유 → 루프 reasons 'G skip: swing 슬롯 포화 또는 산정 불가(경로 상한 2)' 가 매 사이클 반복, daily.entries=2/3. 게다가 240810 은 브로커에 같은 가격 주문이 **2건(6022·6084)** — 원인은 T41(예외 경로 NameError 로 인한 중복 발주)."
-        }
-      ]
-    },
-    {
-      "id": "T41",
-      "title": "주문 예외 경로가 NameError 로 루프 프로세스를 죽이고, 감독자 재기동이 같은 주문을 중복 발주한다 (2026-11-11 실측)",
-      "status": "done",
-      "priority": 1,
-      "provenance": "트레이더 장중 틱(2026-11-11 09:25) — 로그 실측 + 회귀 테스트",
-      "command": "cd /mnt/c/Users/jhshi/analyist_dd/trader-agent && /mnt/c/Users/jhshi/Python312-64/python.exe -m unittest runner.tests.test_loop.OrderExceptionPathTest -v 2>&1 | grep -c \"\\.\\.\\. ok\"",
-      "metric": "주문 예외 2종(차단·전송실패)을 삼키는 회귀 테스트 통과 수",
-      "check": {
-        "op": ">=",
-        "value": 2
-      },
-      "hypothesis": "`runner/loop.py:_act` 의 `except OrderBlockedError` 가 이름을 임포트하지 않아, engine.execute 가 **어떤 예외든** 던지면 그 except 절 평가에서 NameError 가 나고 프로세스가 통째로 종료된다. 브로커에는 이미 주문이 들어갔는데 루프는 '실패'로 보고 죽고, 감독자가 재기동하며 같은 계획을 다시 실행해 **동일 종목 중복 주문**이 남는다.",
-      "evidence": "2026-11-11 실측: 09:00:05 ALGO buy 240810 qty1 @67,700 → bridge /order 응답 타임아웃(BridgeTransportError) → `except OrderBlockedError` 평가에서 `NameError: name 'OrderBlockedError' is not defined`(runner/loop.py:1132) → 프로세스 종료. 09:00:17 감독자 재기동 후 같은 계획 재실행. 브로커 `/orders` 실측 = **6022·6084 두 건 모두 240810 1주 @67,700 미체결**. 저널은 1건(trades.id=9)만 기록 → 저널·브로커 불일치 + 최대 2주(135,400원, 자산의 46%) 노출.",
-      "success": "차단(OrderBlockedError)·전송실패(기타 예외) 둘 다 '그 주문만 건너뛰기'로 끝나고 프로세스가 살아 있다 (회귀 테스트 2건이 수정 전 코드에서 NameError 로 실패, 수정 후 통과)",
-      "cost": "저",
-      "note": "수정 커밋 trader-agent `ccd2a4b`(main push): `runner/loop.py` 에 OrderBlockedError 임포트 추가 + `runner/tests/test_loop.py::OrderExceptionPathTest` 2건. runner 스위트 154건 전부 OK. **남은 구멍(별건)**: 재기동 후 재발주를 막는 멱등성(pending_entries 의 order_no 가 null 이라 재시도 시 중복 위험) — T14 확장 대상.",
-      "result": {
-        "ts": "2026-11-11T09:30:01+09:00",
-        "value": 2,
-        "check": "2 >= 2",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "2",
-        "stderr_tail": ""
-      },
-      "impl": {
-        "ts": "2026-11-11T09:30:01+09:00",
-        "artifacts": [
-          "trader-agent:runner/loop.py",
-          "trader-agent:runner/tests/test_loop.py"
-        ],
-        "tests": "runner/tests 154 passed (Python312-64)",
-        "verify_after": "재기동된 루프에서 주문 예외 발생 시 'order failed <code>' 만 남고 프로세스 생존"
-      }
-    },
-    {
-      "id": "T42",
-      "title": "close 경로가 43일간 신규 진입 0 — 게이트 open 0/113 신호일(7개월 실측), 문턱 변경은 리뷰보드 사안",
-      "status": "needs_approval",
-      "priority": 2,
-      "provenance": "트레이더 장중 틱(2026-11-11 15:25) — close_gate_probe 재측정(06:05) + 저널·러너 로그 실측",
-      "command": "cd /home/jhshi/analyist_dd && python3 -c \"import json;s=json.load(open('data/reports/close_gate_probe/summary.json'));print(s['days']['total'],s['days']['gate_open'],s['days']['r1_ok'],s['days']['heat_ok'],round(s['avg_score_top10_mean'],2))\"",
-      "metric": "close 게이트가 열린(gate_open) 신호일 수",
-      "check": {
-        "op": ">=",
-        "value": 1
-      },
-      "hypothesis": "close 경로는 R1(상위10 평균 ≥88.0)과 HEAT(상위10 평균 당일등락 ≤15.0%)의 **교집합**으로 판정되는데, 실측 113 신호일에서 교집합이 0일이다(R1 통과 48일 · HEAT 통과 8일 · 두 집합이 서로소). 즉 문턱이 조금 높은 게 아니라 두 조건이 구조적으로 만나지 않아 close 전략은 2026-09-29 이후 43일간 신규 진입이 0이다.",
-      "evidence": "실측 2026-11-11: ① `data/reports/close_gate_probe/summary.json`(06:05 재측정, 신호일 146일 2026-04-06~11-09, 2,251행) → days total 113 / gate_open **0** / r1_ok 48 / heat_ok 8 / avg_score_top10_mean 87.03. ② 오늘 피드 close 20건 top10 평균 **85.35**(전체 82.61) < 88.0 → 러너 로그 `R1 block close` 87회(11-11) · 11회(11-10, 86.1) · 14회(10-08·10-09, 87.1) 전부 차단, 통과 0. ③ 저널 마지막 close 진입 `2026-09-29T15:03` (43일 전), close 실현 3건 −1,446원.",
-      "success": "게이트가 열린 날이 1일 이상 생기고 그 날 close 진입이 실제로 발생한다(문턱·교집합 로직 중 무엇을 고칠지는 리뷰보드 결정).",
-      "cost": "중",
-      "note": "**변경 자체는 이 역할 권한 밖**(게이트 문턱 변경 = 리뷰보드 승인, 2주 실측+shadow 선행). 함정: `r1_ok_heat_fail` 버킷(n=956, avg +1.783%)을 'HEAT 를 풀면 돈 번다'로 읽으면 안 된다 — median 0.0·max +30.0 은 상한가 갭(체결 불가, R26)이 섞인 흔적이라 **체결가능 필터를 건 재측정**이 선행돼야 한다. R1 만 낮추는 안(88→86)은 R1 통과 48일 중 HEAT 도 통과하는 날이 0이라 효과가 없을 것으로 추정."
-    },
-    {
-      "id": "T43",
-      "title": "bridge /balance total_eval_pnl 스케일 불일치 — 실측 -3 vs (총평가−총매입) -3,923원",
-      "status": "backlog",
-      "priority": 2,
-      "provenance": "트레이더 장외 틱(2026-11-13 19:0x) — 127.0.0.1:8100 /balance vs /positions 실측 대조(프로브 scripts/probe_balance_pnl.py)",
-      "command": "python3 /home/jhshi/analyist_dd/scripts/probe_balance_pnl.py",
-      "metric": "|total_eval_pnl - (total_eval_amount - total_buy_amount)| 원",
-      "check": {
-        "op": "<=",
-        "value": 1
-      },
-      "hypothesis": "bridge/orders.py:351 이 CpTd6033 상세필드 _d(obj,11,i) 를 합산하는데 이 값이 원화 평가손익이 아니다(실측 -3 vs 계산 -3,923). equity 는 cash+total_eval 사용이라 R4·켈리 사이징 영향 없음 — 보고 지표(total_eval_pnl)와 /positions eval_pnl(퍼센트로 보임)만 오염. 필드 인덱스/단위 재확인 후 합산식을 total_eval-total_buy 로 대체 검토."
-    },
-    {
-      "id": "T45",
-      "title": "발행 신선도 나이를 date(자정)로 계산 → 월요일 아침 close 가 3.36일로 오판돼 0건 발행 (게이트2 미집행·T11 동시 발동)",
-      "status": "needs_approval",
-      "priority": 2,
-      "provenance": "트레이더 개장 직후 틱(2026-11-16 09:25) — data/feed/screener_latest.json + reports/close_latest.json 실측",
-      "command": "cd /home/jhshi/analyist_dd && python3 -c \"import json;d=json.load(open('data/feed/screener_latest.json'));print(len(d['candidates']['close']['items']))\"",
-      "metric": "최신 발행물의 close 후보 수",
-      "check": {
-        "op": ">=",
-        "value": 1
-      },
-      "hypothesis": "feed_export.py:438 이 산출물 나이를 payload['date'](달력일 자정)로 계산한다. 금요일 14:40 산출물(date=2026-11-13)을 월요일 08:40 에 발행하면 나이가 3.36일로 계산돼 `--max-source-age-days 3.0` 에 걸려 close 가 빈 리스트로 나간다. 실제 산출물 나이는 generated_at 기준 2.75일이라 문턱 안이다 — 즉 신호가 낡아서가 아니라 기준 시각 해석 때문에 닫혔다. 같은 이유로 0건 발행이 직전 20건을 덮어써 게이트 2(후보 0=발행 실패)가 T11 과 함께 발동한다.",
-      "evidence": "실측 2026-11-16 08:40 발행: close 0건 / swing 20건 / daytrading 0건. reports/close_latest.json `date=2026-11-13`, `generated_at=2026-11-13T05:40:12Z` → date 해석 3.36일(>3.0, 차단) vs generated_at 해석 2.75일(<3.0, 통과). 10-13~11-13 close 는 20건 발행되던 상태였고 오늘 파일에서 사라졌다(items []).",
-      "success": "월요일 발행에서 close 후보가 1건 이상이고, 나이 계산이 산출물의 실제 생성 시각(generated_at) 기준으로 로그에 남는다",
-      "cost": "코드 3줄(스탬프 선택) + 회귀 1개. 계약 필드·소비자 동작 변경 없음",
-      "note": "게이트 입력 해석 변경이라 리뷰보드 승인 대상으로 올린다(권고=승인, 위험 낮음). 승인 시: stamp = payload.get('generated_at') or payload.get('date') 로 바꾸고 date 만 있을 때는 23:59 KST 로 해석. T11(0건 덮어쓰기)과 함께 처리하면 발행 실패 시 직전 발행물 보존도 같이 고칠 수 있다."
-    },
-    {
-      "id": "T46",
-      "title": "보유 포지션이 있는데 루프가 죽어도 경보가 없다 — 11-16 10:57~15:30 감시 공백 4h33m, 틱 3회 실패와 겹쳐 무보고",
-      "status": "backlog",
-      "priority": 1,
-      "provenance": "트레이더 장외 틱(2026-11-16 22:30) — loop_state.json updated_at 10:57:08 · runner.log mtime 10:57 · bridge_sup.log 13:17~15:01 'Creon not running' · Windows python 프로세스 부재 실측",
-      "command": "cd /home/jhshi/analyist_dd && python3 scripts/trader_cycle.py --probe stale",
-      "metric": "보유 포지션>0 일 때 loop_state 갱신 지연(분)",
-      "check": {
-        "op": "<=",
-        "value": 60
-      },
-      "hypothesis": "loop_sup 은 브리지가 없으면 루프를 기동하지 않고, 루프 프로세스가 장중에 죽어도 아무도 재기동·경보하지 않는다. 오늘은 10:57 루프 사망 + 13:17부터 Creon 부재 + 틱 크론 4회 중 3회 공급자 실패(11:25 timeout, 13:25·15:25 provider)로 4h33m 공백이 장 마감까지 보고되지 않았다. 감시 주체(루프)와 보고 주체(틱 크론)가 같은 실패 축에 있으면 공백이 조용해진다 → 독립 경보(loop_stale>60분 && 보유>0 → 즉시 알림/킬스위치 검토) 필요."
-    },
-    {
-      "id": "T47",
-      "title": "수수료 백필 단위 버그 — 브로커 CpTd6032 실현손익이 천원 단위로 와서 저널 pnl 이 1/1000 로 기록됨",
-      "status": "done",
-      "priority": 1,
-      "command": "C:\\Users\\jhshi\\Python311-32\\python.exe tools\\backfill_fees.py",
-      "metric": "journal_rows_with_negative_fees",
-      "check": {
-        "op": "<=",
-        "value": 0
-      },
-      "hypothesis": "CpTd6032 의 종목별 realized_pnl 이 반올림된 **천원** 단위로 오는 경우가 있다(파두 -5,331 → -5). derive_fees 는 cost=gross-net 이므로 음수 비용이 되고, apply 경로가 flag(check(음수비용))를 무시하고 써서 gross -5,185 짜리 청산이 net -5원으로 저널에 남는다 — 기대값이 1,000배 낙관적이 된다.",
-      "evidence": "2026-11-16 22:33 자동 틱 실측: 440110 저널gross -5,185 · 브로커net -5 · 비용 -5,180 flag=check(음수비용) → 그대로 반영(pnl -5.0, fees -5,180). 같은 버그의 과거 사례: 2026-10-08 475830 저널gross -1,490 · 브로커net -1 → pnl 이 -1.0 으로 남아 있었다(fees 는 이후 0 으로 되돌려짐, pnl 오염은 잔존).",
-      "success": "음수/과대 비용 행은 저널에 쓰이지 않고 [미반영] 으로 보고된다(exit 3). 오염 행은 브로커 값으로 복구된다.",
-      "cost": "저",
-      "note": "수리(2026-11-16): trader_core/fees.py 에 appliable() 추가 — flag != ok 는 fail-closed 로 기록 거부. tools/backfill_fees.py apply 경로가 이를 사용하고 [미반영] 사유를 출력하며 return 3. 회귀 3건 추가(trader_core/tests/test_fees.py: 천원단위/과대/정상). 저널 복구: id 11 → fees 146, pnl -5,331 (브로커 평균매도단가 33,977(net)×2=67,954 와 저널 매도대금 68,100 의 차이), id 4 → pnl -1,490(gross)로 복원, net 은 CpTd6032 당일조회 전용이라 미해결. 실행 전 저널 백업: journal/trade_journal.sqlite3.bak_feesunit_20261116_224545 · .bak_row4_*",
-      "result": {
-        "ts": "2026-11-16T22:50:02+09:00",
-        "value": 0,
-        "check": "0 <= 0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "음수 fees 행 0건 · id11 pnl -5331/fees 146 · id4 pnl -1490/fees 0"
-      }
-    },
-    {
-      "id": "T48",
-      "title": "피드 발행(08:20)이 swing 파이프라인(08:30)보다 먼저 돌아 항상 하루 낡은 스크리너를 발행한다",
-      "status": "failed",
-      "priority": 1,
-      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/feed_export.py",
-      "metric": "feed_signal_age_days",
-      "check": {
-        "op": "<=",
-        "value": 1
-      },
-      "hypothesis": "quant-trader-preopen 크론이 08:20 에 발행하는데 scripts/swing-pipeline.sh 는 08:30:01 에 시작해 08:31:13 에 reports/swing_latest.json 을 갱신한다. 따라서 매일 피드는 **직전 거래일 파이프라인이 만든 하루 낡은** 후보·종가를 싣고, 그 종가가 소비자의 R3 3% 밴드(runner/config.py r3_max_deviation_pct)에 걸려 후보의 60~75%가 진입 단계에서 탈락한다.",
-      "evidence": "2026-11-17 실측: 08:20:40 발행본 signal_date=2026-11-15(직전 11-16 파이프라인 산출물), 08:31:13 파이프라인이 signal_date=2026-11-16 유니버스(swing_universe_2026-11-16.json)를 새로 씀 → 08:32:28 재발행하니 signal_date=11-16·valid_until=11-21 로 신선화되고 후보 리스트도 교체(096530 씨젠 1위 등). 전일(11-16) 루프 로그: 'PRE filter swing: 20 -> 7 (stale/blocked 0, window 0, price 13)' — 13건이 R3 가격편차로 탈락.",
-      "success": "매 거래일 발행본의 signal_date 가 직전 거래일이고, 장 시작 전 PRE filter 의 price 탈락이 5건 이하로 줄어든다.",
-      "cost": "저",
-      "note": "즉시 조치(2026-11-17 08:32): 발행을 한 번 더 돌려 오늘 피드를 신선화했다. 항구 조치(크론 시각 08:20→08:40 이동 또는 발행 래퍼에 '파이프라인 완료 대기')는 크론 파일 수정이라 승인 항목으로 올린다.",
-      "result": {
-        "ts": "2026-11-23T11:26:00+09:00",
-        "value": null,
-        "check": null,
-        "verdict": "수치 없음",
-        "rc": 0,
-        "stdout_tail": "",
-        "stderr_tail": "4 median=59.1 max=66.5 spread=10.1\n2026-11-23 11:26:00,843 INFO [swing] edge_scored=20/20\n2026-11-23 11:26:00,843 INFO [daytrading] 후보 0건\n2026-11-23 11:26:00,845 INFO 발행 완료: /home/jhshi/analyist_dd/data/feed/screener_latest.json (29734 bytes, generated_at=2026-11-23T11:26:00+09:00) edge_scored=40/40"
-      }
-    },
-    {
-      "id": "T49",
-      "title": "루프 감독이 프로세스 존재만 보고 '살아있으나 사이클 정지'를 못 잡는다 — 11-16 10:57 이후 4h33m 무감시",
-      "status": "needs_approval",
-      "priority": 1,
-      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:\\Users\\jhshi\\analyist_dd\\trader-agent\\tools\\supervise_loop.ps1",
-      "metric": "loop_state_age_minutes_max",
-      "check": {
-        "op": "<=",
-        "value": 10
-      },
-      "hypothesis": "supervise_loop.ps1 은 Win32_Process 로 run_market_loop 프로세스 **존재**만 확인한다(30초 폴링). 프로세스가 살아 있는데 사이클이 멈추면(hang) 감독자는 'loop running' 상태로 계속 통과시키고, 보유 포지션은 청산 규칙 없이 방치된다.",
-      "evidence": "2026-11-16 실측: runner.log 마지막 사이클 10:57:04('cycle done (monitor); sleeping 300s') 이후 로그 0줄 · loop.err.log 0바이트(트레이스백 없음) · loop_state.json last_cycle=10:57 그대로. 같은 시각 loop_sup.log 에는 13:17 까지 'loop running' 만 남아 있어 감독자는 정지를 인지하지 못했다. 13:17 이후 브리지 끊김으로 재기동도 실패('bridge not connected'), 보유 2종목(033100·290720)이 15:30 까지 무감시. 2026-11-17 08:30:28 감독자가 pid 14772 로 재기동(정상 동작 확인).",
-      "success": "loop_state.json 이 10분 이상 갱신되지 않으면 감독자가 해당 pid 를 종료하고 재기동하며 loop_sup.log 에 'stale loop pid N killed' 를 남긴다.",
-      "cost": "중",
-      "note": "주문 경로(감독자) 동작 변경이므로 사람 승인 항목. 승인 시 이 저장소의 supervise_loop.ps1 에 신선도 검사(파일 mtime 10분) + Stop-Process + 재기동을 추가하고, 페이퍼 1일 검증 후 반영한다."
-    },
-    {
-      "id": "T50",
-      "title": "단타(daytrading) 체결의 수수료·거래세가 저널 fees 에 0 으로 기록된다",
-      "status": "done",
-      "priority": 2,
-      "command": "cd /home/jhshi/analyist_dd && python3 - <<'EOF'\nimport sqlite3,shutil\nshutil.copy('/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3','/tmp/j.sqlite3')\nc=sqlite3.connect('/tmp/j.sqlite3')\nprint(list(c.execute(\"select id,code,screener,pnl,fees,exit_reason from trades where id>=14\")))\nEOF",
-      "metric": "daytrading_fees_sum",
-      "check": {
-        "op": ">=",
-        "value": 1
-      },
-      "hypothesis": "Cp-Td6032 실현손익 조회가 daytrading 종목(당일 왕복)의 비용을 돌려주지 않으면 journal.pnl 이 gross 로 남는다. id14(021320, 14주 @5,567.93→5,570)는 pnl +29.0 · fees 0.0 — 브리지 현금 정합(equity 243,212)으로 역산한 실제 비용은 ≈270원(추정, 수수료 왕복+거래세 0.18%)이라 실현은 ≈−117원(추정)일 수 있다.",
-      "evidence": "2026-11-18 13:05:30 실측: 저널 id14 fees=0.0, pnl=+28.9996(= (5,570−5,567.9286)×14, 비용 미차감). 같은 날 swing 청산 2건은 fees 142.8/140.7 로 기록됨 → 경로별 차이. 2026-11-19 09:2x 재측정: 11-18 21:18 브로커 대조로 id14(021320 KCC건설) pnl +29.0→−308.0·fees 0→28.9996 로 비용 반영(순액). 그러나 id15(143240 사람인)는 pnl −41.0→−261.0(순액)인데 fees 는 0.0 — pnl 만 순액이고 fees 컬럼이 비어 gross 역산이 어긋난다(부분 수리).",
-      "success": "단타 청산 행의 fees > 0 이고, 그 값으로 재계산한 pnl 이 브리지 현금 변화와 ±50원 이내로 일치한다.",
-      "cost": "저",
-      "note": "자율 조사 범위: 저널 정합·환류 도구. 체결가·비용은 브로커 값을 쓰고, 추정값으로 저널을 덮어쓰지 않는다(헌장상 체결가는 브로커 값만).",
-      "result": {
-        "ts": "2026-11-20T13:25:04+09:00",
-        "value": 106.6,
-        "check": "106.6 >= 1.0",
-        "verdict": "충족",
-        "rc": 0,
-        "stdout_tail": "vg_sell_price (2026-11-18 21:18)'), (16, '170790', 'daytrading', 2800.0, 0.0, 'tick tp'), (17, '362320', 'daytrading', 2850.0, 0.0, 'tick tp'), (18, '058630', 'daytrading', -962.0003999999944, 0.0, 'tick stop'), (19, '362320', 'daytrading', -840.0, 0.0, 'tick stop'), (20, '182360', 'daytrading', 2409.0, 0.0, 'monitor tp'), (21, '112040', 'daytrading', 0.0, 0.0, 'monitor max_hold_90m (106.6분 경과)')]",
-        "stderr_tail": ""
-      }
-    },
-    {
-      "id": "T51",
-      "title": "감독자(supervise_loop.ps1) 2개 상주 — \\trader-loop-sup 예약작업 중복 등록으로 루프가 2개 떠 브리지 시세 5초 타임아웃 → DECIDE 중단",
-      "status": "needs_approval",
-      "priority": 1,
-      "command": "powershell -NoProfile -Command \"(Get-CimInstance Win32_Process -Filter \\\"Name='powershell.exe'\\\" | Where-Object { $_.CommandLine -match 'supervise_loop' }).ProcessId\"",
-      "metric": "loop_supervisor_count_max",
-      "check": {
-        "op": "<=",
-        "value": 1
-      },
-      "hypothesis": "같은 이름의 예약작업이 2회 등록돼 있어(\\trader-loop-sup, \\trader-bridge-sup 각 2행) 스케줄이 동시에 두 감독자를 띄운다. 감독자는 'run_market_loop 프로세스가 하나라도 있으면 기동하지 않는다'만 보므로, 루프가 죽는 순간 두 감독자가 각각 1개씩 띄워 중복 루프가 된다. 두 루프가 같은 후보 60종목 시세를 동시에 조회하면 크레온 COM 직렬 처리로 5초 클라이언트 타임아웃을 넘겨 DECIDE 가 통째로 중단된다.",
-      "evidence": "2026-11-19 실측: loop_sup.log 08:30:54 pid 4032 / 08:30:55 pid 2228 두 루프 기동 → runner.log 'pre-filter quote fetch failed ... timed out' 당일 46회, 'DECIDE aborted: bridge request failed: timed out [connection_failed]' 2회(09:00~09:28 진입 0). 09:29 중복 pid 2228 종료(taskkill) 직후 같은 1분 사이클에서 decisions=12·주문 2건(170790·362320) 발생 = 타임아웃의 원인이 부하 중복. schtasks /query 결과 \\trader-loop-sup·\\trader-bridge-sup 이 각각 2행('실행 중'), 09:35 스케줄 실행으로 감독자 2개(7824·9044) 재구성 확인. 단일 60종목 /quotes 실측 2.53s(정상 시 한도 내). 2026-11-20 08:3x 재발 + 부분 완화: 08:30:47 pid 11996 / 08:30:48 pid 8512 루프 2개 기동(예약작업 2행이 각각 감독자 기동). 잔여 감독자 누적 3개(7824=11-18, 9128=11-19, 15368=11-20). 트레이더가 8512 를 종료하고 감독자를 1개로 정리한 뒤 tools/supervise_loop.ps1 에 단일 인스턴스 가드를 넣었다(커밋 dafec71): 시작 시 다른 supervise_loop.ps1 프로세스가 있으면 로그 남기고 exit 0. 검증 — 08:37:31 예약작업이 띄운 인스턴스가 'single-instance: another supervisor already running (pid 6672) - exiting' 로 자진 종료, 08:36 이후 run_market_loop 1개 유지, 당일 /quotes 타임아웃 5회(전일 중복 상태 46회). 예약작업 행 삭제는 여전히 승인 필요(브리지 감독자도 2행).",
-      "success": "루프 감독자 프로세스가 상시 1개이고, run_market_loop 프로세스도 장중 1개로 유지된다(schtasks 에서 중복 등록 1행 제거).",
-      "cost": "낮음",
-      "note": "예약작업 삭제 = 크론 변경이라 사람 승인 항목. 승인 시 실행: schtasks /delete /tn \"\\\\trader-loop-sup\" /f (중복 1행만) 후 감독자 1개 확인. 주문 경로 코드 변경 없음 — 프로세스 중복 제거만으로 DECIDE 타임아웃이 사라지는지 1거래일 관측. 2026-11-20: 코드 가드는 넣었으나 근본 원인(예약작업 2행)은 남아 있다 — 가드는 재발을 무해화할 뿐 감독자 churn 자체(매 실행마다 프로세스 1개 생성→즉시 종료)는 계속된다.",
-      "created_at": "2026-11-19T09:34:54+09:00",
-      "created_by": "trader"
-    },
-    {
-      "id": "T52",
-      "title": "trader_cycle 표본 정의 — unfilled 마커 행을 청산으로 세어 승률·기대값이 매 틱 왜곡",
-      "status": "done",
-      "priority": 3,
-      "command": "python3 -m pytest tests/test_trader_cycle_sample_definition.py -q",
-      "metric": "closed_sample_includes_unfilled_marker_rows",
-      "check": {
-        "op": "<=",
-        "value": 0
-      },
-      "hypothesis": "11-10 미체결 만료 주문(id 8)이 exit_ts 를 갖고 pnl=0 으로 종결 기록돼 있어, trader_cycle.measure() 의 'exit_ts is not null' 조건이 이 행을 패배 거래로 포함한다. 0원 거래가 분모에 들어가 승률이 낮아지고 기대값이 0 쪽으로 끌려 올라간다(계기판 quant_scoreboard.py 는 이미 unfilled: 를 제외해 두 정의가 어긋나 있었다).",
-      "evidence": "2026-11-19 11:25 실측: 사이클 보고 17건·승률 23.5%·기대값 -2,011원 ↔ 같은 저널에서 unfilled 제외 시 16건·25.0%·-2,136원(순액 -34,180 불변, gross -33,721 = 계기판 값과 일치). 차이는 unfilled 마커 1행뿐.",
-      "success": "분모에서 unfilled 행이 빠져 사이클 수치가 계기판과 같아지고, 회귀 테스트가 구코드에서 실패·신코드에서 통과한다.",
-      "cost": "낮음",
-      "note": "자율 수리(2026-11-19): _REAL_CLOSED 상수로 정의를 한 곳에 모으고 archive/measure/today 쿼리에 적용, tests/test_trader_cycle_sample_definition.py 추가(구코드 closed=3 실패 → 신코드 2 통과). 주문·전략 파라미터 변경 없음.",
-      "result": {
-        "ts": "2026-11-19T11:35:00+09:00",
-        "value": 0,
-        "check": true,
-        "verdict": "충족",
-        "measured": {
-          "closed": 16,
-          "win_rate": 0.25,
-          "expectancy_krw": -2136.2
-        }
-      },
-      "created_at": "2026-11-19T11:35:00+09:00",
-      "created_by": "trader"
-    },
-    {
-      "id": "T53",
-      "title": "계기판 순손익이 gross(수수료 미차감) — 저널 net 과 458.5원 어긋나는데 '순손익'으로 표기",
-      "status": "needs_approval",
-      "priority": 4,
-      "owner": "reviewboard(scripts/quant_scoreboard.py 소유)",
-      "command": "python3 -c \"import json;print(json.load(open('data/reports/quant_scoreboard.json'))['trader']['realized_krw'])\" && python3 scripts/trader_cycle.py --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['realized_krw'])\"",
-      "metric": "abs(scoreboard_realized_krw - journal_net_realized_krw)",
-      "check": {
-        "op": "<=",
-        "value": 1.0
-      },
-      "hypothesis": "quant_scoreboard.trader_stanza() 는 (exit-entry)*qty 로 pnl 을 계산해 fees 를 빼지 않는다. 그런데 필드는 realized_krw 이고 화면에는 '순손익'으로 나간다 → 계기판 -34,683원 ↔ 저널 net -35,141.5원(수수료 458.5원) 만큼 항상 낙관.",
-      "evidence": "2026-11-19 13:25 실측: 계기판 -34,683원/17건(gross, 수수료 0 반영) ↔ trader_cycle net -35,141.5원/17건. 차액 458.4996 = 저널 fees 합계와 정확히 일치. daytrading 5건은 fees=0 이라 net=gross(T50 잔존) 이므로 실제 격차는 더 벌어진다.",
-      "success": "계기판이 저널 pnl(net)을 우선 쓰고, 없을 때만 가격 기반 gross 로 폴백하며 필드명에 basis 를 남긴다.",
-      "note": "소유가 리뷰보드(공용 계기판)라 이 틱에서 고치지 않았다 — 승인 시 3줄 패치(fees 차감 또는 basis 표기).",
-      "why_blocked": "파일 소유가 리뷰보드(scripts/quant_scoreboard.py) — 트레이더 소유 밖. 승인 시 패치 3줄."
-    },
-    {
-      "id": "T54",
-      "title": "close·daytrading 피드의 valid_until 이 '발행일 15:30' 고정 — 20:30 발행본은 발행 즉시 만료돼 개장 전 창의 close 후보가 구조적으로 0건",
-      "status": "needs_approval",
-      "priority": 2,
-      "owner": "trader(scripts/feed_export.py)",
-      "command": "python3 -c \"import json,datetime;d=json.load(open('data/feed/screener_latest.json'));g=datetime.datetime.fromisoformat(d['generated_at']);its=d['candidates']['close']['items'];print('generated',g.isoformat(),'valid_until',its[0]['valid_until'],'expired_at_publish',datetime.datetime.fromisoformat(its[0]['valid_until'])<g)\"",
-      "metric": "expired_at_publish",
-      "check": {
-        "op": ">=",
-        "value": 0
-      },
-      "hypothesis": "valid_until_for() 가 close/daytrading 을 publish_dt.date() 15:30 으로 잡는다. 발행 크론이 20:30 이므로 발행본은 나오는 순간 만료다. 소비자(runner)는 valid_until 초과 후보를 전량 STALE 로 버리므로 08:30~09:05 창에서 close 20건이 0건이 된다. 장중 09:05~14:05 재발행본만 살아 있고 그 다음 HEAT 가 막는다.",
-      "evidence": "2026-11-19 20:30 발행본: close 20건 signal_date 2026-11-18 / valid_until 2026-11-19T15:30 (발행 20:30 보다 5시간 이전). 소비자 로그 실측 'PRE filter close: 20 -> 0 (stale/blocked 20, window 0, price 0)' · 'STALE skip 389500: stale: valid_until 2026-11-19 15:30 passed' ×20. runner.log 전체 'PRE filter close' 1,759회. 트레이더 낙찰 0건 44일째의 원인을 'HEAT 단독'으로 기록해 온 것은 오진.",
-      "success": "15:30 이후 발행이면 만료를 다음 거래일 15:30 으로 앵커한다(휴장 캘린더 반영). 검증: 20:30 발행본 close items 의 valid_until > generated_at 이고, 다음 개장 전 사이클에서 STALE 사유가 0건. HEAT·자금규칙은 변경하지 않는다(주문 수 불변).",
-      "note": "리뷰보드 2026-11-19 22:45 승인(발행 계약 변경 · 헌장 §3-B). 집행은 트레이더: 수리+회귀+20:30 발행 검증. 사용자 승인이 필요한 것은 HEAT 게이지(T42)이며 본 항목과 분리한다.",
-      "why_blocked": "리뷰보드 승인 대기 → 승인 완료. 다음 트레이더 틱에서 착수."
-    },
-    {
-      "id": "T55",
-      "title": "브리지 요청 타임아웃이 실제 체결을 '주문 실패'로 기록 — 저널에 없는 보유(유령 포지션)가 생긴다",
-      "status": "in_progress",
-      "priority": 1,
-      "owner": "trader(runner)",
-      "command": "grep -nE \"order failed .*timed out\" /mnt/c/Users/jhshi/analyist_dd/trader-agent/runner.log | tail",
-      "metric": "orphan_positions",
-      "check": {
-        "op": "<=",
-        "value": 0
-      },
-      "hypothesis": "진입 주문 POST 가 타임아웃되면 루프는 'order failed' 로 처리하고 저널 행을 쓰지 않는다. 그런데 크레온 COM 쪽에서는 주문이 이미 접수·체결될 수 있어(주문 응답=체결확인 아님) 브로커에만 있는 보유가 남는다. 그 보유는 daily.entries 에도 세지 않고 max_hold(진입시각) 기준도 없어 조기 청산 트리거가 약하다.",
-      "evidence": "2026-11-20 09:0x 실측: runner.log 'order failed 068050: bridge request failed: timed out [connection_failed]' → 브로커 /positions 에 068050 팬엔터테인먼트 74주 @1,111.14(평가 82,407원 = 자본의 33%) 존재, 저널 trades 에 068050 행 0건, loop_state daily.entries=2 인데 브로커 보유 3건. 모니터는 '068050: holding (px 1118.0 vs entry 1111.1351)' 로 추적 중이라 완전 방치는 아니지만 90분 시간청산은 걸리지 않는다. 2026-11-20 11:17 실측(영향 확정): daily.entries 가 2 로 계산돼(068050 저널 행 없음) 4번째 실주문 `ALGO buy 112040 qty 5 @14,880` 이 나갔다. 11:28 현재 filled_qty 0·cancelable 5(현재가 15,010)로 미체결 — 체결되면 오늘 진입 4건 > daily_max_trades 3 이 된다. 즉 T55 는 기록 누락을 넘어 자금 규칙(일일 상한) 우회 경로다.",
-      "success": "타임아웃 난 진입 주문을 '미확인(unconfirmed)' 으로 두고 다음 사이클에 /orders·/positions 로 대조해 체결이면 저널에 브로커 체결가로 기록한다(주문 응답을 실패로 단정하지 않는다). 그날 유령 포지션 0건.",
-      "cost": "중간",
-      "note": "장중에는 저널을 손대지 않는다(주문 경로 가동 중 이중청산 위험) — 마감 후 대조·정리 대상. 오늘 068050 은 모니터가 보고 청산하므로 우선순위는 '기록 누락' 자체다.",
-      "created_at": "2026-11-20T09:11:45+09:00",
-      "created_by": "trader",
-      "updated_at": "2026-11-20T11:30:00+09:00"
-    },
-    {
-      "id": "T56",
-      "title": "진입 주문이 미체결인데 저널에 open 행이 써진다 — 보유 0 인데 보유 1 로 집계되고 90분 시간청산이 유령 청산을 만든다",
-      "status": "in_progress",
-      "priority": 1,
-      "owner": "trader(runner)",
-      "command": "python3 -c \"import sqlite3;c=sqlite3.connect('/tmp/jcopy/trade_journal.sqlite3');print(c.execute('select id,ts,code,qty,price,exit_ts from trades where exit_ts is null').fetchall())\" && curl -s --max-time 8 http://127.0.0.1:8100/orders",
-      "metric": "journal_open_without_fill",
-      "check": {
-        "op": "<=",
-        "value": 0
-      },
-      "hypothesis": "진입 주문 접수 직후 저널에 open 행을 쓰고 체결 확인(/orders filled_qty·/positions)으로 되돌리지 않는다. 지정가가 시장 위에 있으면 체결 0 인 채로 행이 남아 보유로 집계되고, max_hold_90m 이 '없는 포지션'을 청산 처리해 가짜 pnl 을 만든다.",
-      "evidence": "2026-11-23 09:11:06.97 저널 trades id 24(439090 마녀공장 4주 @17,100) 생성 · 브리지 /orders order_no 11950 filled_qty 0 · cancelable 4 · /positions [] · 09:26 현재가 17,770 > 지정가 17,100(체결 불가) · runner.log 'tick watch: 439090 breach ignored (no broker position)' 30회+ · loop_state daily.entries=2(미체결 1 포함) 로 상한 슬롯 1개 소모 · 계기판 '보유 1' 은 브로커 0 과 불일치. | 2026-11-23 11:26 재판정(실체화): 439090 은 브로커 'nothing filled'+`tick watch ... no broker position` 30회+ 였는데 10:09:18 'tick stop' 청산 @16,920 · pnl -720 이 저널에 기록됐고 runner.log 는 같은 시각 'tick exit 439090: None'(브로커 거부). 손익 -720 은 허구(시세 16,920 은 체결가 아님)이고 그 청산이 30분 쿨다운(10:09~10:39)을 걸어 다음 진입(195940)이 10:39:29 로 밀렸다. 브로커는 /positions 195940 1건·/orders 0건 → 미체결 주문은 소멸. 정리는 15:40 reconcile(bogus_exits) 결과 확인 후 브로커 값만으로 반영.",
-      "success": "진입 응답 후 첫 사이클에서 /orders 로 filled_qty 를 확인하고, 0 이면 저널 행을 'pending'(보유 아님)으로 두거나 취소·만료 시 삭제한다. 저널 보유 수 == 브로커 보유 수.",
-      "cost": "중간",
-      "note": "장중 저널 직접 수정은 이중청산 위험으로 보류(11-20 선례) — 런타임 수리 + 마감 후 대조. T55(체결됐는데 행 없음)의 반대 방향이며 같은 뿌리(주문 응답≠체결)다. | 2026-11-23: 유령 청산은 슬롯 소모를 넘어 **가짜 손실(-720)과 30분 회전 정지**를 만든다 — 계기판 순손익(-36,975.5)에는 이 -720 이 섞여 있어 보정 실현은 -36,255.5/22건이다.",
-      "created_at": "2026-11-23T09:30:00+09:00",
-      "created_by": "trader",
-      "updated_at": "2026-11-23T09:30:00+09:00"
-    },
-    {
-      "id": "T57",
-      "title": "진입 체결 직후 0.4초에 stop 이 발동해 30분 쿨다운을 만들고 daytrading 경로를 정지시킨다",
-      "status": "in_progress",
-      "priority": 1,
-      "owner": "trader(runner)",
-      "command": "grep -nE 'using [0-9,]+$|exit .*stop|청산 후 쿨다운' /mnt/c/Users/jhshi/analyist_dd/trader-agent/runner.log | tail -20",
-      "metric": "instant_stop_count",
-      "check": {
-        "op": "<=",
-        "value": 0
-      },
-      "hypothesis": "모니터가 quote(6,100) 대신 'broker mark'(6,027 = -1.2%)를 기준가로 쓰고 stop_pct 0.01 이라 진입가 대비 1% 아래 값이 즉시 잡혀 0.4초 만에 stop 이 나간다. 청산 쿨다운 30분이 daytrading 스크리너 전체에 걸려 그 창의 신규 진입이 전부 막힌다.",
-      "evidence": "2026-11-23 09:11:06.82 매수 204620 13주 @6,100.85 → 09:11:07.26 'monitor stop' 청산 @6,100 (-11원, 보유 0.4초). runner.log 'monitor: 204620: quote 6,100 vs broker mark 6,027 (+1.2%) -> using 6,027'. 이후 09:25 사이클 reasons 'daytrading -: 청산 후 쿨다운 14.7분 < 30분 (마지막 청산 09:11:07)' + edge_score_low 5건(+10 more) → 오늘 daytrading 신규 진입 0.",
-      "success": "진입 당일 첫 사이클에서 stop 이 발동하지 않고(0건), 기준가가 quote 와 1% 이상 벌어지면 그 값을 쓰지 않고 보류·경고한다.",
-      "cost": "중간",
-      "note": "stop_pct 0.01 은 전략 파라미터(사람 승인 대상) — 코드 쪽은 '기준가 신뢰성'과 '쿨다운 면제(즉시 stop 은 쿨다운 미적용)' 두 가지.",
-      "created_at": "2026-11-23T09:30:00+09:00",
-      "created_by": "trader",
-      "updated_at": "2026-11-23T09:30:00+09:00"
+     "ts": "2026-11-11T09:30:01+09:00",
+     "note": "2026-11-11 재발·확대: 미체결 진입 2건(240810 1주 @67,700 · 290720 99주 @980)이 swing 슬롯 2개를 점유 → 루프 reasons 'G skip: swing 슬롯 포화 또는 산정 불가(경로 상한 2)' 가 매 사이클 반복, daily.entries=2/3. 게다가 240810 은 브로커에 같은 가격 주문이 **2건(6022·6084)** — 원인은 T41(예외 경로 NameError 로 인한 중복 발주)."
     }
-  ]
+   ]
+  },
+  {
+   "id": "T41",
+   "title": "주문 예외 경로가 NameError 로 루프 프로세스를 죽이고, 감독자 재기동이 같은 주문을 중복 발주한다 (2026-11-11 실측)",
+   "status": "done",
+   "priority": 1,
+   "provenance": "트레이더 장중 틱(2026-11-11 09:25) — 로그 실측 + 회귀 테스트",
+   "command": "cd /mnt/c/Users/jhshi/analyist_dd/trader-agent && /mnt/c/Users/jhshi/Python312-64/python.exe -m unittest runner.tests.test_loop.OrderExceptionPathTest -v 2>&1 | grep -c \"\\.\\.\\. ok\"",
+   "metric": "주문 예외 2종(차단·전송실패)을 삼키는 회귀 테스트 통과 수",
+   "check": {
+    "op": ">=",
+    "value": 2
+   },
+   "hypothesis": "`runner/loop.py:_act` 의 `except OrderBlockedError` 가 이름을 임포트하지 않아, engine.execute 가 **어떤 예외든** 던지면 그 except 절 평가에서 NameError 가 나고 프로세스가 통째로 종료된다. 브로커에는 이미 주문이 들어갔는데 루프는 '실패'로 보고 죽고, 감독자가 재기동하며 같은 계획을 다시 실행해 **동일 종목 중복 주문**이 남는다.",
+   "evidence": "2026-11-11 실측: 09:00:05 ALGO buy 240810 qty1 @67,700 → bridge /order 응답 타임아웃(BridgeTransportError) → `except OrderBlockedError` 평가에서 `NameError: name 'OrderBlockedError' is not defined`(runner/loop.py:1132) → 프로세스 종료. 09:00:17 감독자 재기동 후 같은 계획 재실행. 브로커 `/orders` 실측 = **6022·6084 두 건 모두 240810 1주 @67,700 미체결**. 저널은 1건(trades.id=9)만 기록 → 저널·브로커 불일치 + 최대 2주(135,400원, 자산의 46%) 노출.",
+   "success": "차단(OrderBlockedError)·전송실패(기타 예외) 둘 다 '그 주문만 건너뛰기'로 끝나고 프로세스가 살아 있다 (회귀 테스트 2건이 수정 전 코드에서 NameError 로 실패, 수정 후 통과)",
+   "cost": "저",
+   "note": "수정 커밋 trader-agent `ccd2a4b`(main push): `runner/loop.py` 에 OrderBlockedError 임포트 추가 + `runner/tests/test_loop.py::OrderExceptionPathTest` 2건. runner 스위트 154건 전부 OK. **남은 구멍(별건)**: 재기동 후 재발주를 막는 멱등성(pending_entries 의 order_no 가 null 이라 재시도 시 중복 위험) — T14 확장 대상.",
+   "result": {
+    "ts": "2026-11-11T09:30:01+09:00",
+    "value": 2,
+    "check": "2 >= 2",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "2",
+    "stderr_tail": ""
+   },
+   "impl": {
+    "ts": "2026-11-11T09:30:01+09:00",
+    "artifacts": [
+     "trader-agent:runner/loop.py",
+     "trader-agent:runner/tests/test_loop.py"
+    ],
+    "tests": "runner/tests 154 passed (Python312-64)",
+    "verify_after": "재기동된 루프에서 주문 예외 발생 시 'order failed <code>' 만 남고 프로세스 생존"
+   }
+  },
+  {
+   "id": "T42",
+   "title": "close 경로가 43일간 신규 진입 0 — 게이트 open 0/113 신호일(7개월 실측), 문턱 변경은 리뷰보드 사안",
+   "status": "needs_approval",
+   "priority": 2,
+   "provenance": "트레이더 장중 틱(2026-11-11 15:25) — close_gate_probe 재측정(06:05) + 저널·러너 로그 실측",
+   "command": "cd /home/jhshi/analyist_dd && python3 -c \"import json;s=json.load(open('data/reports/close_gate_probe/summary.json'));print(s['days']['total'],s['days']['gate_open'],s['days']['r1_ok'],s['days']['heat_ok'],round(s['avg_score_top10_mean'],2))\"",
+   "metric": "close 게이트가 열린(gate_open) 신호일 수",
+   "check": {
+    "op": ">=",
+    "value": 1
+   },
+   "hypothesis": "close 경로는 R1(상위10 평균 ≥88.0)과 HEAT(상위10 평균 당일등락 ≤15.0%)의 **교집합**으로 판정되는데, 실측 113 신호일에서 교집합이 0일이다(R1 통과 48일 · HEAT 통과 8일 · 두 집합이 서로소). 즉 문턱이 조금 높은 게 아니라 두 조건이 구조적으로 만나지 않아 close 전략은 2026-09-29 이후 43일간 신규 진입이 0이다.",
+   "evidence": "실측 2026-11-11: ① `data/reports/close_gate_probe/summary.json`(06:05 재측정, 신호일 146일 2026-04-06~11-09, 2,251행) → days total 113 / gate_open **0** / r1_ok 48 / heat_ok 8 / avg_score_top10_mean 87.03. ② 오늘 피드 close 20건 top10 평균 **85.35**(전체 82.61) < 88.0 → 러너 로그 `R1 block close` 87회(11-11) · 11회(11-10, 86.1) · 14회(10-08·10-09, 87.1) 전부 차단, 통과 0. ③ 저널 마지막 close 진입 `2026-09-29T15:03` (43일 전), close 실현 3건 −1,446원.",
+   "success": "게이트가 열린 날이 1일 이상 생기고 그 날 close 진입이 실제로 발생한다(문턱·교집합 로직 중 무엇을 고칠지는 리뷰보드 결정).",
+   "cost": "중",
+   "note": "**변경 자체는 이 역할 권한 밖**(게이트 문턱 변경 = 리뷰보드 승인, 2주 실측+shadow 선행). 함정: `r1_ok_heat_fail` 버킷(n=956, avg +1.783%)을 'HEAT 를 풀면 돈 번다'로 읽으면 안 된다 — median 0.0·max +30.0 은 상한가 갭(체결 불가, R26)이 섞인 흔적이라 **체결가능 필터를 건 재측정**이 선행돼야 한다. R1 만 낮추는 안(88→86)은 R1 통과 48일 중 HEAT 도 통과하는 날이 0이라 효과가 없을 것으로 추정."
+  },
+  {
+   "id": "T43",
+   "title": "bridge /balance total_eval_pnl 스케일 불일치 — 실측 -3 vs (총평가−총매입) -3,923원",
+   "status": "backlog",
+   "priority": 2,
+   "provenance": "트레이더 장외 틱(2026-11-13 19:0x) — 127.0.0.1:8100 /balance vs /positions 실측 대조(프로브 scripts/probe_balance_pnl.py)",
+   "command": "python3 /home/jhshi/analyist_dd/scripts/probe_balance_pnl.py",
+   "metric": "|total_eval_pnl - (total_eval_amount - total_buy_amount)| 원",
+   "check": {
+    "op": "<=",
+    "value": 1
+   },
+   "hypothesis": "bridge/orders.py:351 이 CpTd6033 상세필드 _d(obj,11,i) 를 합산하는데 이 값이 원화 평가손익이 아니다(실측 -3 vs 계산 -3,923). equity 는 cash+total_eval 사용이라 R4·켈리 사이징 영향 없음 — 보고 지표(total_eval_pnl)와 /positions eval_pnl(퍼센트로 보임)만 오염. 필드 인덱스/단위 재확인 후 합산식을 total_eval-total_buy 로 대체 검토."
+  },
+  {
+   "id": "T45",
+   "title": "발행 신선도 나이를 date(자정)로 계산 → 월요일 아침 close 가 3.36일로 오판돼 0건 발행 (게이트2 미집행·T11 동시 발동)",
+   "status": "needs_approval",
+   "priority": 2,
+   "provenance": "트레이더 개장 직후 틱(2026-11-16 09:25) — data/feed/screener_latest.json + reports/close_latest.json 실측",
+   "command": "cd /home/jhshi/analyist_dd && python3 -c \"import json;d=json.load(open('data/feed/screener_latest.json'));print(len(d['candidates']['close']['items']))\"",
+   "metric": "최신 발행물의 close 후보 수",
+   "check": {
+    "op": ">=",
+    "value": 1
+   },
+   "hypothesis": "feed_export.py:438 이 산출물 나이를 payload['date'](달력일 자정)로 계산한다. 금요일 14:40 산출물(date=2026-11-13)을 월요일 08:40 에 발행하면 나이가 3.36일로 계산돼 `--max-source-age-days 3.0` 에 걸려 close 가 빈 리스트로 나간다. 실제 산출물 나이는 generated_at 기준 2.75일이라 문턱 안이다 — 즉 신호가 낡아서가 아니라 기준 시각 해석 때문에 닫혔다. 같은 이유로 0건 발행이 직전 20건을 덮어써 게이트 2(후보 0=발행 실패)가 T11 과 함께 발동한다.",
+   "evidence": "실측 2026-11-16 08:40 발행: close 0건 / swing 20건 / daytrading 0건. reports/close_latest.json `date=2026-11-13`, `generated_at=2026-11-13T05:40:12Z` → date 해석 3.36일(>3.0, 차단) vs generated_at 해석 2.75일(<3.0, 통과). 10-13~11-13 close 는 20건 발행되던 상태였고 오늘 파일에서 사라졌다(items []).",
+   "success": "월요일 발행에서 close 후보가 1건 이상이고, 나이 계산이 산출물의 실제 생성 시각(generated_at) 기준으로 로그에 남는다",
+   "cost": "코드 3줄(스탬프 선택) + 회귀 1개. 계약 필드·소비자 동작 변경 없음",
+   "note": "게이트 입력 해석 변경이라 리뷰보드 승인 대상으로 올린다(권고=승인, 위험 낮음). 승인 시: stamp = payload.get('generated_at') or payload.get('date') 로 바꾸고 date 만 있을 때는 23:59 KST 로 해석. T11(0건 덮어쓰기)과 함께 처리하면 발행 실패 시 직전 발행물 보존도 같이 고칠 수 있다."
+  },
+  {
+   "id": "T46",
+   "title": "보유 포지션이 있는데 루프가 죽어도 경보가 없다 — 11-16 10:57~15:30 감시 공백 4h33m, 틱 3회 실패와 겹쳐 무보고",
+   "status": "backlog",
+   "priority": 1,
+   "provenance": "트레이더 장외 틱(2026-11-16 22:30) — loop_state.json updated_at 10:57:08 · runner.log mtime 10:57 · bridge_sup.log 13:17~15:01 'Creon not running' · Windows python 프로세스 부재 실측",
+   "command": "cd /home/jhshi/analyist_dd && python3 scripts/trader_cycle.py --probe stale",
+   "metric": "보유 포지션>0 일 때 loop_state 갱신 지연(분)",
+   "check": {
+    "op": "<=",
+    "value": 60
+   },
+   "hypothesis": "loop_sup 은 브리지가 없으면 루프를 기동하지 않고, 루프 프로세스가 장중에 죽어도 아무도 재기동·경보하지 않는다. 오늘은 10:57 루프 사망 + 13:17부터 Creon 부재 + 틱 크론 4회 중 3회 공급자 실패(11:25 timeout, 13:25·15:25 provider)로 4h33m 공백이 장 마감까지 보고되지 않았다. 감시 주체(루프)와 보고 주체(틱 크론)가 같은 실패 축에 있으면 공백이 조용해진다 → 독립 경보(loop_stale>60분 && 보유>0 → 즉시 알림/킬스위치 검토) 필요."
+  },
+  {
+   "id": "T47",
+   "title": "수수료 백필 단위 버그 — 브로커 CpTd6032 실현손익이 천원 단위로 와서 저널 pnl 이 1/1000 로 기록됨",
+   "status": "done",
+   "priority": 1,
+   "command": "C:\\Users\\jhshi\\Python311-32\\python.exe tools\\backfill_fees.py",
+   "metric": "journal_rows_with_negative_fees",
+   "check": {
+    "op": "<=",
+    "value": 0
+   },
+   "hypothesis": "CpTd6032 의 종목별 realized_pnl 이 반올림된 **천원** 단위로 오는 경우가 있다(파두 -5,331 → -5). derive_fees 는 cost=gross-net 이므로 음수 비용이 되고, apply 경로가 flag(check(음수비용))를 무시하고 써서 gross -5,185 짜리 청산이 net -5원으로 저널에 남는다 — 기대값이 1,000배 낙관적이 된다.",
+   "evidence": "2026-11-16 22:33 자동 틱 실측: 440110 저널gross -5,185 · 브로커net -5 · 비용 -5,180 flag=check(음수비용) → 그대로 반영(pnl -5.0, fees -5,180). 같은 버그의 과거 사례: 2026-10-08 475830 저널gross -1,490 · 브로커net -1 → pnl 이 -1.0 으로 남아 있었다(fees 는 이후 0 으로 되돌려짐, pnl 오염은 잔존).",
+   "success": "음수/과대 비용 행은 저널에 쓰이지 않고 [미반영] 으로 보고된다(exit 3). 오염 행은 브로커 값으로 복구된다.",
+   "cost": "저",
+   "note": "수리(2026-11-16): trader_core/fees.py 에 appliable() 추가 — flag != ok 는 fail-closed 로 기록 거부. tools/backfill_fees.py apply 경로가 이를 사용하고 [미반영] 사유를 출력하며 return 3. 회귀 3건 추가(trader_core/tests/test_fees.py: 천원단위/과대/정상). 저널 복구: id 11 → fees 146, pnl -5,331 (브로커 평균매도단가 33,977(net)×2=67,954 와 저널 매도대금 68,100 의 차이), id 4 → pnl -1,490(gross)로 복원, net 은 CpTd6032 당일조회 전용이라 미해결. 실행 전 저널 백업: journal/trade_journal.sqlite3.bak_feesunit_20261116_224545 · .bak_row4_*",
+   "result": {
+    "ts": "2026-11-16T22:50:02+09:00",
+    "value": 0,
+    "check": "0 <= 0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "음수 fees 행 0건 · id11 pnl -5331/fees 146 · id4 pnl -1490/fees 0"
+   }
+  },
+  {
+   "id": "T48",
+   "title": "피드 발행(08:20)이 swing 파이프라인(08:30)보다 먼저 돌아 항상 하루 낡은 스크리너를 발행한다",
+   "status": "failed",
+   "priority": 1,
+   "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 /usr/bin/python3 scripts/feed_export.py",
+   "metric": "feed_signal_age_days",
+   "check": {
+    "op": "<=",
+    "value": 1
+   },
+   "hypothesis": "quant-trader-preopen 크론이 08:20 에 발행하는데 scripts/swing-pipeline.sh 는 08:30:01 에 시작해 08:31:13 에 reports/swing_latest.json 을 갱신한다. 따라서 매일 피드는 **직전 거래일 파이프라인이 만든 하루 낡은** 후보·종가를 싣고, 그 종가가 소비자의 R3 3% 밴드(runner/config.py r3_max_deviation_pct)에 걸려 후보의 60~75%가 진입 단계에서 탈락한다.",
+   "evidence": "2026-11-17 실측: 08:20:40 발행본 signal_date=2026-11-15(직전 11-16 파이프라인 산출물), 08:31:13 파이프라인이 signal_date=2026-11-16 유니버스(swing_universe_2026-11-16.json)를 새로 씀 → 08:32:28 재발행하니 signal_date=11-16·valid_until=11-21 로 신선화되고 후보 리스트도 교체(096530 씨젠 1위 등). 전일(11-16) 루프 로그: 'PRE filter swing: 20 -> 7 (stale/blocked 0, window 0, price 13)' — 13건이 R3 가격편차로 탈락.",
+   "success": "매 거래일 발행본의 signal_date 가 직전 거래일이고, 장 시작 전 PRE filter 의 price 탈락이 5건 이하로 줄어든다.",
+   "cost": "저",
+   "note": "즉시 조치(2026-11-17 08:32): 발행을 한 번 더 돌려 오늘 피드를 신선화했다. 항구 조치(크론 시각 08:20→08:40 이동 또는 발행 래퍼에 '파이프라인 완료 대기')는 크론 파일 수정이라 승인 항목으로 올린다.",
+   "result": {
+    "ts": "2026-11-23T11:26:00+09:00",
+    "value": null,
+    "check": null,
+    "verdict": "수치 없음",
+    "rc": 0,
+    "stdout_tail": "",
+    "stderr_tail": "4 median=59.1 max=66.5 spread=10.1\n2026-11-23 11:26:00,843 INFO [swing] edge_scored=20/20\n2026-11-23 11:26:00,843 INFO [daytrading] 후보 0건\n2026-11-23 11:26:00,845 INFO 발행 완료: /home/jhshi/analyist_dd/data/feed/screener_latest.json (29734 bytes, generated_at=2026-11-23T11:26:00+09:00) edge_scored=40/40"
+   }
+  },
+  {
+   "id": "T49",
+   "title": "루프 감독이 프로세스 존재만 보고 '살아있으나 사이클 정지'를 못 잡는다 — 11-16 10:57 이후 4h33m 무감시",
+   "status": "needs_approval",
+   "priority": 1,
+   "command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:\\Users\\jhshi\\analyist_dd\\trader-agent\\tools\\supervise_loop.ps1",
+   "metric": "loop_state_age_minutes_max",
+   "check": {
+    "op": "<=",
+    "value": 10
+   },
+   "hypothesis": "supervise_loop.ps1 은 Win32_Process 로 run_market_loop 프로세스 **존재**만 확인한다(30초 폴링). 프로세스가 살아 있는데 사이클이 멈추면(hang) 감독자는 'loop running' 상태로 계속 통과시키고, 보유 포지션은 청산 규칙 없이 방치된다.",
+   "evidence": "2026-11-16 실측: runner.log 마지막 사이클 10:57:04('cycle done (monitor); sleeping 300s') 이후 로그 0줄 · loop.err.log 0바이트(트레이스백 없음) · loop_state.json last_cycle=10:57 그대로. 같은 시각 loop_sup.log 에는 13:17 까지 'loop running' 만 남아 있어 감독자는 정지를 인지하지 못했다. 13:17 이후 브리지 끊김으로 재기동도 실패('bridge not connected'), 보유 2종목(033100·290720)이 15:30 까지 무감시. 2026-11-17 08:30:28 감독자가 pid 14772 로 재기동(정상 동작 확인).",
+   "success": "loop_state.json 이 10분 이상 갱신되지 않으면 감독자가 해당 pid 를 종료하고 재기동하며 loop_sup.log 에 'stale loop pid N killed' 를 남긴다.",
+   "cost": "중",
+   "note": "주문 경로(감독자) 동작 변경이므로 사람 승인 항목. 승인 시 이 저장소의 supervise_loop.ps1 에 신선도 검사(파일 mtime 10분) + Stop-Process + 재기동을 추가하고, 페이퍼 1일 검증 후 반영한다."
+  },
+  {
+   "id": "T50",
+   "title": "단타(daytrading) 체결의 수수료·거래세가 저널 fees 에 0 으로 기록된다",
+   "status": "done",
+   "priority": 2,
+   "command": "cd /home/jhshi/analyist_dd && python3 - <<'EOF'\nimport sqlite3,shutil\nshutil.copy('/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3','/tmp/j.sqlite3')\nc=sqlite3.connect('/tmp/j.sqlite3')\nprint(list(c.execute(\"select id,code,screener,pnl,fees,exit_reason from trades where id>=14\")))\nEOF",
+   "metric": "daytrading_fees_sum",
+   "check": {
+    "op": ">=",
+    "value": 1
+   },
+   "hypothesis": "Cp-Td6032 실현손익 조회가 daytrading 종목(당일 왕복)의 비용을 돌려주지 않으면 journal.pnl 이 gross 로 남는다. id14(021320, 14주 @5,567.93→5,570)는 pnl +29.0 · fees 0.0 — 브리지 현금 정합(equity 243,212)으로 역산한 실제 비용은 ≈270원(추정, 수수료 왕복+거래세 0.18%)이라 실현은 ≈−117원(추정)일 수 있다.",
+   "evidence": "2026-11-18 13:05:30 실측: 저널 id14 fees=0.0, pnl=+28.9996(= (5,570−5,567.9286)×14, 비용 미차감). 같은 날 swing 청산 2건은 fees 142.8/140.7 로 기록됨 → 경로별 차이. 2026-11-19 09:2x 재측정: 11-18 21:18 브로커 대조로 id14(021320 KCC건설) pnl +29.0→−308.0·fees 0→28.9996 로 비용 반영(순액). 그러나 id15(143240 사람인)는 pnl −41.0→−261.0(순액)인데 fees 는 0.0 — pnl 만 순액이고 fees 컬럼이 비어 gross 역산이 어긋난다(부분 수리).",
+   "success": "단타 청산 행의 fees > 0 이고, 그 값으로 재계산한 pnl 이 브리지 현금 변화와 ±50원 이내로 일치한다.",
+   "cost": "저",
+   "note": "자율 조사 범위: 저널 정합·환류 도구. 체결가·비용은 브로커 값을 쓰고, 추정값으로 저널을 덮어쓰지 않는다(헌장상 체결가는 브로커 값만).",
+   "result": {
+    "ts": "2026-11-20T13:25:04+09:00",
+    "value": 106.6,
+    "check": "106.6 >= 1.0",
+    "verdict": "충족",
+    "rc": 0,
+    "stdout_tail": "vg_sell_price (2026-11-18 21:18)'), (16, '170790', 'daytrading', 2800.0, 0.0, 'tick tp'), (17, '362320', 'daytrading', 2850.0, 0.0, 'tick tp'), (18, '058630', 'daytrading', -962.0003999999944, 0.0, 'tick stop'), (19, '362320', 'daytrading', -840.0, 0.0, 'tick stop'), (20, '182360', 'daytrading', 2409.0, 0.0, 'monitor tp'), (21, '112040', 'daytrading', 0.0, 0.0, 'monitor max_hold_90m (106.6분 경과)')]",
+    "stderr_tail": ""
+   }
+  },
+  {
+   "id": "T51",
+   "title": "감독자(supervise_loop.ps1) 2개 상주 — \\trader-loop-sup 예약작업 중복 등록으로 루프가 2개 떠 브리지 시세 5초 타임아웃 → DECIDE 중단",
+   "status": "needs_approval",
+   "priority": 1,
+   "command": "powershell -NoProfile -Command \"(Get-CimInstance Win32_Process -Filter \\\"Name='powershell.exe'\\\" | Where-Object { $_.CommandLine -match 'supervise_loop' }).ProcessId\"",
+   "metric": "loop_supervisor_count_max",
+   "check": {
+    "op": "<=",
+    "value": 1
+   },
+   "hypothesis": "같은 이름의 예약작업이 2회 등록돼 있어(\\trader-loop-sup, \\trader-bridge-sup 각 2행) 스케줄이 동시에 두 감독자를 띄운다. 감독자는 'run_market_loop 프로세스가 하나라도 있으면 기동하지 않는다'만 보므로, 루프가 죽는 순간 두 감독자가 각각 1개씩 띄워 중복 루프가 된다. 두 루프가 같은 후보 60종목 시세를 동시에 조회하면 크레온 COM 직렬 처리로 5초 클라이언트 타임아웃을 넘겨 DECIDE 가 통째로 중단된다.",
+   "evidence": "2026-11-19 실측: loop_sup.log 08:30:54 pid 4032 / 08:30:55 pid 2228 두 루프 기동 → runner.log 'pre-filter quote fetch failed ... timed out' 당일 46회, 'DECIDE aborted: bridge request failed: timed out [connection_failed]' 2회(09:00~09:28 진입 0). 09:29 중복 pid 2228 종료(taskkill) 직후 같은 1분 사이클에서 decisions=12·주문 2건(170790·362320) 발생 = 타임아웃의 원인이 부하 중복. schtasks /query 결과 \\trader-loop-sup·\\trader-bridge-sup 이 각각 2행('실행 중'), 09:35 스케줄 실행으로 감독자 2개(7824·9044) 재구성 확인. 단일 60종목 /quotes 실측 2.53s(정상 시 한도 내). 2026-11-20 08:3x 재발 + 부분 완화: 08:30:47 pid 11996 / 08:30:48 pid 8512 루프 2개 기동(예약작업 2행이 각각 감독자 기동). 잔여 감독자 누적 3개(7824=11-18, 9128=11-19, 15368=11-20). 트레이더가 8512 를 종료하고 감독자를 1개로 정리한 뒤 tools/supervise_loop.ps1 에 단일 인스턴스 가드를 넣었다(커밋 dafec71): 시작 시 다른 supervise_loop.ps1 프로세스가 있으면 로그 남기고 exit 0. 검증 — 08:37:31 예약작업이 띄운 인스턴스가 'single-instance: another supervisor already running (pid 6672) - exiting' 로 자진 종료, 08:36 이후 run_market_loop 1개 유지, 당일 /quotes 타임아웃 5회(전일 중복 상태 46회). 예약작업 행 삭제는 여전히 승인 필요(브리지 감독자도 2행).",
+   "success": "루프 감독자 프로세스가 상시 1개이고, run_market_loop 프로세스도 장중 1개로 유지된다(schtasks 에서 중복 등록 1행 제거).",
+   "cost": "낮음",
+   "note": "예약작업 삭제 = 크론 변경이라 사람 승인 항목. 승인 시 실행: schtasks /delete /tn \"\\\\trader-loop-sup\" /f (중복 1행만) 후 감독자 1개 확인. 주문 경로 코드 변경 없음 — 프로세스 중복 제거만으로 DECIDE 타임아웃이 사라지는지 1거래일 관측. 2026-11-20: 코드 가드는 넣었으나 근본 원인(예약작업 2행)은 남아 있다 — 가드는 재발을 무해화할 뿐 감독자 churn 자체(매 실행마다 프로세스 1개 생성→즉시 종료)는 계속된다.",
+   "created_at": "2026-11-19T09:34:54+09:00",
+   "created_by": "trader"
+  },
+  {
+   "id": "T52",
+   "title": "trader_cycle 표본 정의 — unfilled 마커 행을 청산으로 세어 승률·기대값이 매 틱 왜곡",
+   "status": "done",
+   "priority": 3,
+   "command": "python3 -m pytest tests/test_trader_cycle_sample_definition.py -q",
+   "metric": "closed_sample_includes_unfilled_marker_rows",
+   "check": {
+    "op": "<=",
+    "value": 0
+   },
+   "hypothesis": "11-10 미체결 만료 주문(id 8)이 exit_ts 를 갖고 pnl=0 으로 종결 기록돼 있어, trader_cycle.measure() 의 'exit_ts is not null' 조건이 이 행을 패배 거래로 포함한다. 0원 거래가 분모에 들어가 승률이 낮아지고 기대값이 0 쪽으로 끌려 올라간다(계기판 quant_scoreboard.py 는 이미 unfilled: 를 제외해 두 정의가 어긋나 있었다).",
+   "evidence": "2026-11-19 11:25 실측: 사이클 보고 17건·승률 23.5%·기대값 -2,011원 ↔ 같은 저널에서 unfilled 제외 시 16건·25.0%·-2,136원(순액 -34,180 불변, gross -33,721 = 계기판 값과 일치). 차이는 unfilled 마커 1행뿐.",
+   "success": "분모에서 unfilled 행이 빠져 사이클 수치가 계기판과 같아지고, 회귀 테스트가 구코드에서 실패·신코드에서 통과한다.",
+   "cost": "낮음",
+   "note": "자율 수리(2026-11-19): _REAL_CLOSED 상수로 정의를 한 곳에 모으고 archive/measure/today 쿼리에 적용, tests/test_trader_cycle_sample_definition.py 추가(구코드 closed=3 실패 → 신코드 2 통과). 주문·전략 파라미터 변경 없음.",
+   "result": {
+    "ts": "2026-11-19T11:35:00+09:00",
+    "value": 0,
+    "check": true,
+    "verdict": "충족",
+    "measured": {
+     "closed": 16,
+     "win_rate": 0.25,
+     "expectancy_krw": -2136.2
+    }
+   },
+   "created_at": "2026-11-19T11:35:00+09:00",
+   "created_by": "trader"
+  },
+  {
+   "id": "T53",
+   "title": "계기판 순손익이 gross(수수료 미차감) — 저널 net 과 458.5원 어긋나는데 '순손익'으로 표기",
+   "status": "needs_approval",
+   "priority": 4,
+   "owner": "reviewboard(scripts/quant_scoreboard.py 소유)",
+   "command": "python3 -c \"import json;print(json.load(open('data/reports/quant_scoreboard.json'))['trader']['realized_krw'])\" && python3 scripts/trader_cycle.py --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['realized_krw'])\"",
+   "metric": "abs(scoreboard_realized_krw - journal_net_realized_krw)",
+   "check": {
+    "op": "<=",
+    "value": 1.0
+   },
+   "hypothesis": "quant_scoreboard.trader_stanza() 는 (exit-entry)*qty 로 pnl 을 계산해 fees 를 빼지 않는다. 그런데 필드는 realized_krw 이고 화면에는 '순손익'으로 나간다 → 계기판 -34,683원 ↔ 저널 net -35,141.5원(수수료 458.5원) 만큼 항상 낙관.",
+   "evidence": "2026-11-19 13:25 실측: 계기판 -34,683원/17건(gross, 수수료 0 반영) ↔ trader_cycle net -35,141.5원/17건. 차액 458.4996 = 저널 fees 합계와 정확히 일치. daytrading 5건은 fees=0 이라 net=gross(T50 잔존) 이므로 실제 격차는 더 벌어진다.",
+   "success": "계기판이 저널 pnl(net)을 우선 쓰고, 없을 때만 가격 기반 gross 로 폴백하며 필드명에 basis 를 남긴다.",
+   "note": "소유가 리뷰보드(공용 계기판)라 이 틱에서 고치지 않았다 — 승인 시 3줄 패치(fees 차감 또는 basis 표기).",
+   "why_blocked": "파일 소유가 리뷰보드(scripts/quant_scoreboard.py) — 트레이더 소유 밖. 승인 시 패치 3줄."
+  },
+  {
+   "id": "T54",
+   "title": "close·daytrading 피드의 valid_until 이 '발행일 15:30' 고정 — 20:30 발행본은 발행 즉시 만료돼 개장 전 창의 close 후보가 구조적으로 0건",
+   "status": "needs_approval",
+   "priority": 2,
+   "owner": "trader(scripts/feed_export.py)",
+   "command": "python3 -c \"import json,datetime;d=json.load(open('data/feed/screener_latest.json'));g=datetime.datetime.fromisoformat(d['generated_at']);its=d['candidates']['close']['items'];print('generated',g.isoformat(),'valid_until',its[0]['valid_until'],'expired_at_publish',datetime.datetime.fromisoformat(its[0]['valid_until'])<g)\"",
+   "metric": "expired_at_publish",
+   "check": {
+    "op": ">=",
+    "value": 0
+   },
+   "hypothesis": "valid_until_for() 가 close/daytrading 을 publish_dt.date() 15:30 으로 잡는다. 발행 크론이 20:30 이므로 발행본은 나오는 순간 만료다. 소비자(runner)는 valid_until 초과 후보를 전량 STALE 로 버리므로 08:30~09:05 창에서 close 20건이 0건이 된다. 장중 09:05~14:05 재발행본만 살아 있고 그 다음 HEAT 가 막는다.",
+   "evidence": "2026-11-19 20:30 발행본: close 20건 signal_date 2026-11-18 / valid_until 2026-11-19T15:30 (발행 20:30 보다 5시간 이전). 소비자 로그 실측 'PRE filter close: 20 -> 0 (stale/blocked 20, window 0, price 0)' · 'STALE skip 389500: stale: valid_until 2026-11-19 15:30 passed' ×20. runner.log 전체 'PRE filter close' 1,759회. 트레이더 낙찰 0건 44일째의 원인을 'HEAT 단독'으로 기록해 온 것은 오진.",
+   "success": "15:30 이후 발행이면 만료를 다음 거래일 15:30 으로 앵커한다(휴장 캘린더 반영). 검증: 20:30 발행본 close items 의 valid_until > generated_at 이고, 다음 개장 전 사이클에서 STALE 사유가 0건. HEAT·자금규칙은 변경하지 않는다(주문 수 불변).",
+   "note": "리뷰보드 2026-11-19 22:45 승인(발행 계약 변경 · 헌장 §3-B). 집행은 트레이더: 수리+회귀+20:30 발행 검증. 사용자 승인이 필요한 것은 HEAT 게이지(T42)이며 본 항목과 분리한다.",
+   "why_blocked": "리뷰보드 승인 대기 → 승인 완료. 다음 트레이더 틱에서 착수."
+  },
+  {
+   "id": "T55",
+   "title": "브리지 요청 타임아웃이 실제 체결을 '주문 실패'로 기록 — 저널에 없는 보유(유령 포지션)가 생긴다",
+   "status": "in_progress",
+   "priority": 1,
+   "owner": "trader(runner)",
+   "command": "grep -nE \"order failed .*timed out\" /mnt/c/Users/jhshi/analyist_dd/trader-agent/runner.log | tail",
+   "metric": "orphan_positions",
+   "check": {
+    "op": "<=",
+    "value": 0
+   },
+   "hypothesis": "진입 주문 POST 가 타임아웃되면 루프는 'order failed' 로 처리하고 저널 행을 쓰지 않는다. 그런데 크레온 COM 쪽에서는 주문이 이미 접수·체결될 수 있어(주문 응답=체결확인 아님) 브로커에만 있는 보유가 남는다. 그 보유는 daily.entries 에도 세지 않고 max_hold(진입시각) 기준도 없어 조기 청산 트리거가 약하다.",
+   "evidence": "2026-11-20 09:0x 실측: runner.log 'order failed 068050: bridge request failed: timed out [connection_failed]' → 브로커 /positions 에 068050 팬엔터테인먼트 74주 @1,111.14(평가 82,407원 = 자본의 33%) 존재, 저널 trades 에 068050 행 0건, loop_state daily.entries=2 인데 브로커 보유 3건. 모니터는 '068050: holding (px 1118.0 vs entry 1111.1351)' 로 추적 중이라 완전 방치는 아니지만 90분 시간청산은 걸리지 않는다. 2026-11-20 11:17 실측(영향 확정): daily.entries 가 2 로 계산돼(068050 저널 행 없음) 4번째 실주문 `ALGO buy 112040 qty 5 @14,880` 이 나갔다. 11:28 현재 filled_qty 0·cancelable 5(현재가 15,010)로 미체결 — 체결되면 오늘 진입 4건 > daily_max_trades 3 이 된다. 즉 T55 는 기록 누락을 넘어 자금 규칙(일일 상한) 우회 경로다.",
+   "success": "타임아웃 난 진입 주문을 '미확인(unconfirmed)' 으로 두고 다음 사이클에 /orders·/positions 로 대조해 체결이면 저널에 브로커 체결가로 기록한다(주문 응답을 실패로 단정하지 않는다). 그날 유령 포지션 0건.",
+   "cost": "중간",
+   "note": "장중에는 저널을 손대지 않는다(주문 경로 가동 중 이중청산 위험) — 마감 후 대조·정리 대상. 오늘 068050 은 모니터가 보고 청산하므로 우선순위는 '기록 누락' 자체다.",
+   "created_at": "2026-11-20T09:11:45+09:00",
+   "created_by": "trader",
+   "updated_at": "2026-11-20T11:30:00+09:00"
+  },
+  {
+   "id": "T56",
+   "title": "진입 주문이 미체결인데 저널에 open 행이 써진다 — 보유 0 인데 보유 1 로 집계되고 90분 시간청산이 유령 청산을 만든다",
+   "status": "in_progress",
+   "priority": 1,
+   "owner": "trader(runner)",
+   "command": "python3 -c \"import sqlite3;c=sqlite3.connect('/tmp/jcopy/trade_journal.sqlite3');print(c.execute('select id,ts,code,qty,price,exit_ts from trades where exit_ts is null').fetchall())\" && curl -s --max-time 8 http://127.0.0.1:8100/orders",
+   "metric": "journal_open_without_fill",
+   "check": {
+    "op": "<=",
+    "value": 0
+   },
+   "hypothesis": "진입 주문 접수 직후 저널에 open 행을 쓰고 체결 확인(/orders filled_qty·/positions)으로 되돌리지 않는다. 지정가가 시장 위에 있으면 체결 0 인 채로 행이 남아 보유로 집계되고, max_hold_90m 이 '없는 포지션'을 청산 처리해 가짜 pnl 을 만든다.",
+   "evidence": "2026-11-23 09:11:06.97 저널 trades id 24(439090 마녀공장 4주 @17,100) 생성 · 브리지 /orders order_no 11950 filled_qty 0 · cancelable 4 · /positions [] · 09:26 현재가 17,770 > 지정가 17,100(체결 불가) · runner.log 'tick watch: 439090 breach ignored (no broker position)' 30회+ · loop_state daily.entries=2(미체결 1 포함) 로 상한 슬롯 1개 소모 · 계기판 '보유 1' 은 브로커 0 과 불일치. | 2026-11-23 11:26 재판정(실체화): 439090 은 브로커 'nothing filled'+`tick watch ... no broker position` 30회+ 였는데 10:09:18 'tick stop' 청산 @16,920 · pnl -720 이 저널에 기록됐고 runner.log 는 같은 시각 'tick exit 439090: None'(브로커 거부). 손익 -720 은 허구(시세 16,920 은 체결가 아님)이고 그 청산이 30분 쿨다운(10:09~10:39)을 걸어 다음 진입(195940)이 10:39:29 로 밀렸다. 브로커는 /positions 195940 1건·/orders 0건 → 미체결 주문은 소멸. 정리는 15:40 reconcile(bogus_exits) 결과 확인 후 브로커 값만으로 반영. | 2026-11-23 15:11 마감 후 **브로커 당일결산(CpTd6032)으로 정정**: 439090 매수 4 / 매도 4 / 잔고 0, 평균매도 16,873 → 주문은 실제로 체결됐다(체결 시각은 브로커 payload 에 없어 미확인). 10:09:18 의 'tick exit 439090: None' 응답에도 매도가 접수·체결된 것으로 보이며 이는 T55 클래스(응답 None ≠ 미체결)다. 따라서 위 '-720 은 허구' 판정은 **철회**: 실체결 round-trip 이고 브로커 gross 는 (16,873-17,100)*4 = **-908원**이다. 남는 결함은 금액이 아니라 exit_price 가 체결가가 아닌 트리거 호가(16,920)라는 점 → T58. 또한 '보유 0 인데 보유 1' 도 당시 스냅샷 기준이며, 최종적으로는 매수·매도 수량이 저널과 일치했다(4/4).",
+   "success": "진입 응답 후 첫 사이클에서 /orders 로 filled_qty 를 확인하고, 0 이면 저널 행을 'pending'(보유 아님)으로 두거나 취소·만료 시 삭제한다. 저널 보유 수 == 브로커 보유 수.",
+   "cost": "중간",
+   "note": "장중 저널 직접 수정은 이중청산 위험으로 보류(11-20 선례) — 런타임 수리 + 마감 후 대조. T55(체결됐는데 행 없음)의 반대 방향이며 같은 뿌리(주문 응답≠체결)다. | 2026-11-23: 유령 청산은 슬롯 소모를 넘어 **가짜 손실(-720)과 30분 회전 정지**를 만든다 — 계기판 순손익(-36,975.5)에는 이 -720 이 섞여 있어 보정 실현은 -36,255.5/22건이다. | 2026-11-23 15:20 정정: 허구 청산 주장 철회(브로커 4/4 실체결, gross -908원). 계기판 -720 은 gross -908 의 트리거가 기준값 — 과소계상은 T58.",
+   "created_at": "2026-11-23T09:30:00+09:00",
+   "created_by": "trader",
+   "updated_at": "2026-11-23T15:20:00+09:00"
+  },
+  {
+   "id": "T57",
+   "title": "진입 체결 직후 0.4초에 stop 이 발동해 30분 쿨다운을 만들고 daytrading 경로를 정지시킨다",
+   "status": "in_progress",
+   "priority": 1,
+   "owner": "trader(runner)",
+   "command": "grep -nE 'using [0-9,]+$|exit .*stop|청산 후 쿨다운' /mnt/c/Users/jhshi/analyist_dd/trader-agent/runner.log | tail -20",
+   "metric": "instant_stop_count",
+   "check": {
+    "op": "<=",
+    "value": 0
+   },
+   "hypothesis": "모니터가 quote(6,100) 대신 'broker mark'(6,027 = -1.2%)를 기준가로 쓰고 stop_pct 0.01 이라 진입가 대비 1% 아래 값이 즉시 잡혀 0.4초 만에 stop 이 나간다. 청산 쿨다운 30분이 daytrading 스크리너 전체에 걸려 그 창의 신규 진입이 전부 막힌다.",
+   "evidence": "2026-11-23 09:11:06.82 매수 204620 13주 @6,100.85 → 09:11:07.26 'monitor stop' 청산 @6,100 (-11원, 보유 0.4초). runner.log 'monitor: 204620: quote 6,100 vs broker mark 6,027 (+1.2%) -> using 6,027'. 이후 09:25 사이클 reasons 'daytrading -: 청산 후 쿨다운 14.7분 < 30분 (마지막 청산 09:11:07)' + edge_score_low 5건(+10 more) → 오늘 daytrading 신규 진입 0. | 2026-11-23 마감 후 브로커 실측: 204620 매수 13 @6,100.85 · **매도 13 평균 6,067 → gross -440원**. 저널 exit_price 6,100 은 체결가가 아니라 트리거 호가라 손실을 -11원으로 **40배 과소** 기록했다. 동시에 mark 6,027 도 실제 체결(6,067)보다 40원 낮았다 — quote(6,100)와 mark(6,027) **둘 다** 당시 시장과 어긋났으므로 'mark 만 낡았다'는 설명도 불충분하다(체결 직후 0.4초 구간의 호가 자체가 불안정). 이 stop 이 건 30분 스크리너 쿨다운이 09:11~09:41 daytrading 신규 진입을 전면 차단했다(그 창 후보 20건, edge 통과 0).",
+   "success": "진입 당일 첫 사이클에서 stop 이 발동하지 않고(0건), 기준가가 quote 와 1% 이상 벌어지면 그 값을 쓰지 않고 보류·경고한다.",
+   "cost": "중간",
+   "note": "stop_pct 0.01 은 전략 파라미터(사람 승인 대상) — 코드 쪽은 '기준가 신뢰성'과 '쿨다운 면제(즉시 stop 은 쿨다운 미적용)' 두 가지.",
+   "created_at": "2026-11-23T09:30:00+09:00",
+   "created_by": "trader",
+   "updated_at": "2026-11-23T15:20:00+09:00"
+  },
+  {
+   "id": "T58",
+   "title": "시장가 청산의 저널 exit_price 가 체결가가 아니라 트리거 호가다 — 오늘 실현손익을 881원 과소 계상",
+   "status": "backlog",
+   "priority": 2,
+   "owner": "trader(runner)",
+   "command": "C:/Users/jhshi/Python311-32/python.exe tools/daily_pnl.py  # 평균매도(브로커) vs 저널 exit_price 비교",
+   "metric": "exit_slip_krw",
+   "check": {
+    "op": "<=",
+    "value": 0
+   },
+   "hypothesis": "청산 주문 후 저널에는 모니터가 판단에 쓴 호가(트리거)가 exit_price 로 기록되고, 브로커의 실제 평균 체결가는 반영되지 않는다. 시장가 매도는 호가 아래에서 체결되므로 실현손익이 체계적으로 낙관 편향된다(청산 슬리피지 = 매도금액의 -0.3~-0.5%).",
+   "evidence": "2026-11-23 실측(3건, 브로커 CpTd6032 평균매도 vs 저널 exit_price): 204620 6,067 vs 6,100 (-0.54%), 439090 16,873 vs 16,920 (-0.28%), 195940 37,968 vs 38,100 (-0.35%). 저널 sum(pnl) -342원 vs 브로커 gross -1,223원 → **차이 -881원**. 계좌 equity 변화 245,576 → 244,347 = -1,229원로 브로커 gross 와 6원 이내 일치(즉 저널이 틀린 쪽). 브로커 당일결산 매도실현손익도 -1(천원 절단)·수익률 -0.55%로 -1,223 과 정합.",
+   "success": "청산 체결 후 저널 exit_price·pnl 이 브로커 평균 체결가(또는 체결내역 export)로 갱신되고, 저널 sum(pnl) 과 계좌 equity 변화가 청산 슬리피지 항목만큼만 벌어진다. 부분체결·거부 응답에서도 가격을 추정해 쓰지 않는다.",
+   "cost": "중간",
+   "note": "T34(475830 pnl 필드)·T53(gross/net 표기)와 인접하나 별개다 — 여기서는 '기록된 가격이 체결가가 아니다'. 실주문 경로 코드라 **보호 항목**으로 두고 자동 수정하지 않는다. 대조 도구 tools/daily_pnl.py 가 이미 브로커 평균매도단가를 준다.",
+   "created_at": "2026-11-23T15:20:00+09:00",
+   "created_by": "trader(postclose)",
+   "updated_at": "2026-11-23T15:20:00+09:00"
+  }
+ ]
 }
