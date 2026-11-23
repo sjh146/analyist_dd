@@ -1,0 +1,316 @@
+{
+  "checked_at": "2026-11-23T18:43:19",
+  "fail": 0,
+  "warn": 54,
+  "details": [
+    {
+      "kind": "backlog",
+      "path": "/home/jhshi/analyist_dd/docs/QUANT_RESEARCH_BACKLOG.json",
+      "n": 50,
+      "warn": [
+        [
+          "R15",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "T17",
+          "pending",
+          "가설/상세 없음(반증 불가)"
+        ],
+        [
+          "R29",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "R47",
+          "pending",
+          "재현 명령 없음"
+        ]
+      ],
+      "fail": []
+    },
+    {
+      "kind": "backlog",
+      "path": "/home/jhshi/analyist_dd/docs/QUANT_MODEL_BACKLOG.json",
+      "n": 505,
+      "warn": [
+        [
+          "CG247",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "F2",
+          "closed_rejected",
+          "결과(result) 없음"
+        ],
+        [
+          "XR1",
+          "closed_rejected",
+          "결과(result) 없음"
+        ],
+        [
+          "XR7",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "XR11",
+          "closed_rejected",
+          "결과(result) 없음"
+        ],
+        [
+          "XR13",
+          "closed_rejected",
+          "결과(result) 없음"
+        ],
+        [
+          "CG42",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "MT189",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG141",
+          "closed_rejected",
+          "결과(result) 없음"
+        ],
+        [
+          "CG145",
+          "needs_setup",
+          "차단 사유(setup_needed) 없음"
+        ],
+        [
+          "CG165",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "XR33",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "XR35",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG191",
+          "needs_setup",
+          "차단 사유(setup_needed) 없음"
+        ],
+        [
+          "CG196",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG239",
+          "closed_rejected",
+          "결과(result) 없음"
+        ],
+        [
+          "CG243",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG244",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "XR41",
+          "needs_setup",
+          "차단 사유(setup_needed) 없음"
+        ],
+        [
+          "CG258",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG263",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG265",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG283",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG284",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG308",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG315",
+          "closed_rejected",
+          "결과(result) 없음"
+        ],
+        [
+          "CG345",
+          "closed_rejected",
+          "결과(result) 없음"
+        ],
+        [
+          "CG353",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG361",
+          "needs_setup",
+          "차단 사유(setup_needed) 없음"
+        ],
+        [
+          "KRX-01",
+          "needs_setup",
+          "차단 사유(setup_needed) 없음"
+        ],
+        [
+          "XR44",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG408",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG409",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG410",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG411",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG412",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG413",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG415",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG416",
+          "done",
+          "결과(result) 없음"
+        ],
+        [
+          "CG417",
+          "done",
+          "결과(result) 없음"
+        ]
+      ],
+      "fail": []
+    },
+    {
+      "kind": "backlog",
+      "path": "/home/jhshi/analyist_dd/docs/QUANT_TRADER_BACKLOG.json",
+      "n": 31,
+      "warn": [],
+      "fail": []
+    },
+    {
+      "kind": "ledger",
+      "path": "/home/jhshi/analyist_dd/data/reports/model_engineer_ledger.jsonl",
+      "n": 396,
+      "warn": [
+        [
+          "CG177",
+          "?",
+          "원장 필수 누락: verdict"
+        ],
+        [
+          "CG317",
+          "노이즈",
+          "원장 근거 누락: log/parsed/artifacts/summary_out 중 없음"
+        ],
+        [
+          "CG414",
+          "노이즈",
+          "원장 근거 누락: log/parsed/artifacts/summary_out 중 없음"
+        ],
+        [
+          "CG415",
+          "국면의존(방어 틸트) — 27세션 비중첩 표본에서 상승 12세션 Δ(풀) −0.297(t −0.24), 하락 15세션 Δ(풀) +5.109(t 4.21). 10폴드 덤프 재현(CG417)에서도 상승 −1.715(t −1.80)·하락 +3.827(t 2.85) → 롱 선택 알파 아님, 하락 방어 틸트. 하위k 무엣지(Δ −0.79/−0.62) 유지.",
+          "원장 근거 누락: log/parsed/artifacts/summary_out 중 없음"
+        ],
+        [
+          "CG416",
+          "판정불가(표본부족) — ON 7세션 / OFF 5세션. ON Δ(풀) ≈ +2.97(n=7)·OFF +1.06(n=5) 로 방향은 맞지만 t 검정 불가.",
+          "원장 근거 누락: log/parsed/artifacts/summary_out 중 없음"
+        ],
+        [
+          "CG417",
+          "재현 확인 — 10폴드에서도 상승 11세션 Δ(풀) −1.715(t −1.80)·하락 16세션 Δ(풀) +3.827(t 2.85). 절대 순기대 −0.034%p(사실상 0).",
+          "원장 근거 누락: log/parsed/artifacts/summary_out 중 없음"
+        ],
+        [
+          "CG419",
+          "?",
+          "원장 필수 누락: verdict"
+        ]
+      ],
+      "fail": []
+    },
+    {
+      "kind": "ledger",
+      "path": "/home/jhshi/analyist_dd/data/reports/researcher_ledger.jsonl",
+      "n": 168,
+      "warn": [],
+      "fail": []
+    },
+    {
+      "kind": "graph",
+      "counts": {
+        "SENTIMENT_OF": 1751,
+        "HAS_EVENT": 2328,
+        "HAS_THEME": 1583,
+        "HAS_IMPACT": 1323,
+        "CO_OCCURS": 3677,
+        "CO_EVENT": 21263,
+        "PART_OF_THEME": 442,
+        "TWIN_OF": 6790,
+        "BELONGS_TO": 1544
+      },
+      "warn": [],
+      "fail": []
+    }
+  ]
+}

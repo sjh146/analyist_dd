@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "updated": "2026-11-23",
+  "purpose": "역할 간 인계(handoff) 계약의 기계 판독 가능한 정본. 산문 규약(docs/QUANT_BOARD.md)을 검증 가능한 형태로 옮긴 것. 위반은 scripts/handoff_contract_check.py 가 매일 검사한다.",
+  "principle": "말로 된 승인 금지 — 파일·수치 증거 필수. 자기신고는 검증 전까지 신뢰하지 않는다.",
+  "carriers": {
+    "model_backlog": "docs/QUANT_MODEL_BACKLOG.json",
+    "research_backlog": "docs/QUANT_RESEARCH_BACKLOG.json",
+    "trader_backlog": "docs/QUANT_TRADER_BACKLOG.json",
+    "engineer_ledger": "data/reports/model_engineer_ledger.jsonl",
+    "researcher_ledger": "data/reports/researcher_ledger.jsonl",
+    "trader_ledger": "data/reports/trader_ledger.jsonl",
+    "findings": "docs/QUANT_FINDINGS.md",
+    "board": "docs/QUANT_BOARD.md"
+  },
+  "item_rules": {
+    "all_items": {
+      "required": [
+        "id",
+        "title",
+        "status",
+        "priority"
+      ],
+      "id_pattern": "^[A-Za-z][A-Za-z0-9_\\-]{0,15}$"
+    },
+    "actionable": {
+      "statuses": [
+        "pending",
+        "in_progress"
+      ],
+      "required": [
+        "hypothesis"
+      ],
+      "required_any": [
+        [
+          "success",
+          "check"
+        ],
+        [
+          "command"
+        ],
+        [
+          "evidence"
+        ]
+      ],
+      "note": "실행 가능한 항목은 반증가능 가설 + 재현 명령 + 수치 합격기준 + 근거를 갖춘다. evidence 누락은 p1 에서만 위반으로 센다(하위 우선순위는 경고)."
+    },
+    "blocked": {
+      "statuses": [
+        "needs_setup"
+      ],
+      "required": [
+        "setup_needed"
+      ],
+      "note": "막힌 항목은 '무엇이 막고 있는지'를 명시해야 한다. 없으면 영원히 침묵한다."
+    },
+    "finished": {
+      "statuses": [
+        "done",
+        "closed_rejected"
+      ],
+      "required": [
+        "result"
+      ],
+      "note": "완료·기각 항목은 결과(수치 포함)를 남긴다."
+    }
+  },
+  "directions": {
+    "researcher->engineer": {
+      "carrier": [
+        "research_backlog",
+        "findings"
+      ],
+      "gate": "품질 성적표 통과 전 피처 제안 금지",
+      "required_gate_metrics": [
+        "dq_asof_violation_rows",
+        "dq_col_quality_null_ratio",
+        "coverage",
+        "edge_vs_threshold"
+      ],
+      "edge_threshold": 0.044
+    },
+    "engineer->trader": {
+      "carrier": [
+        "model_backlog",
+        "engineer_ledger"
+      ],
+      "gate": "폴드별 AUC·평균±std·폴드 승률·purge 적용·승격 dry-run 결과 필수",
+      "required_ledger_fields": [
+        "ts",
+        "id",
+        "verdict"
+      ],
+      "promotion_requires": [
+        "auc_multifold_mean",
+        "auc_multifold_std",
+        "fold_win_rate",
+        "purge_applied"
+      ],
+      "evidence_any": [
+        "log",
+        "parsed",
+        "artifacts",
+        "summary_out"
+      ]
+    },
+    "trader->researcher": {
+      "carrier": [
+        "trader_backlog",
+        "thesis_verdicts",
+        "loss_feedback"
+      ],
+      "gate": "발행 로그(건수·close_price 누락·점수 분포)+피드 계약 검증 후 환류",
+      "required_feedback_fields": [
+        "code",
+        "reason_class",
+        "evidence"
+      ],
+      "reason_classes": [
+        "signal",
+        "timing",
+        "sizing",
+        "cost",
+        "regime"
+      ]
+    }
+  },
+  "provenance": {
+    "keys": [
+      "from_trader",
+      "from_researcher",
+      "from_engineer",
+      "source",
+      "source_rows",
+      "provenance"
+    ],
+    "note": "핸드오프로 생긴 항목은 출처 키를 가져야 중복 등재를 막을 수 있다."
+  },
+  "graph": {
+    "purpose": "Neo4j 스키마 계약. writer 와 reader 가 다른 관계명을 쓰면 피처가 조용히 0 이 된다(2026-09-24 HAS_THEME vs PART_OF_THEME 실측 사고).",
+    "allowed_labels": [
+      "Stock",
+      "Event",
+      "ImpactScore",
+      "Cycle",
+      "Theme",
+      "Sentiment",
+      "Sector"
+    ],
+    "allowed_relations": [
+      "CO_EVENT",
+      "TWIN_OF",
+      "CO_OCCURS",
+      "HAS_EVENT",
+      "SENTIMENT_OF",
+      "BELONGS_TO",
+      "HAS_THEME",
+      "PART_OF_THEME",
+      "HAS_IMPACT"
+    ],
+    "reader_writer_pairs": [
+      {
+        "writer": "HAS_THEME",
+        "reader": "PART_OF_THEME",
+        "reader_file": "services/xgboost-ml/app/feature_engine/graph_features.py"
+      }
+    ],
+    "min_relation_counts": {
+      "HAS_THEME": 1,
+      "BELONGS_TO": 1,
+      "TWIN_OF": 1
+    },
+    "note": "reader_writer_pairs 의 두 관계 중 하나라도 0 이면 FAIL — 같은 사실을 두 이름으로 쓰는 중이라는 뜻이다."
+  },
+  "severity": {
+    "FAIL": "기계적으로 깨진 계약(그래프 관계 소실, 필수 필드 전무)",
+    "WARN": "규약 미준수(증거·재현·차단사유 누락) — 다음 사이클에서 보완"
+  }
+}
