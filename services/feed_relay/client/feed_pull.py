@@ -21,7 +21,7 @@ def now_kst() -> str:
 
 
 def load_config(path: str) -> dict:
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8-sig") as fh:
         return json.load(fh)
 
 

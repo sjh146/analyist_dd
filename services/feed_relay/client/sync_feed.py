@@ -25,13 +25,15 @@ from datetime import datetime, timedelta, timezone
 PRESERVE = {"config_live.json", "config.json", "version.json", "kill_switch.txt",
             "journal", "logs", "data", "__pycache__"}
 
+GIT_EXE = os.environ.get("GIT_EXE") or "git"
+
 
 def now_kst() -> datetime:
     return datetime.now(timezone(timedelta(hours=9)))
 
 
 def git(args: list[str], cwd: str | None = None, timeout: int = 180) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    return subprocess.run([GIT_EXE, *args], cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
 def sync_repo(cfg: dict) -> dict:
@@ -42,15 +44,33 @@ def sync_repo(cfg: dict) -> dict:
         out = git(["clone", "--depth", "1", "--branch", branch, cfg["repo_url"], repo_dir])
         if out.returncode != 0:
             raise SystemExit("clone 실패: " + out.stderr.strip()[-300:])
+        git(["-C", repo_dir, "config", "core.autocrlf", "false"])
+        git(["-C", repo_dir, "reset", "--hard", "HEAD"])
     else:
+        git(["-C", repo_dir, "config", "core.autocrlf", "false"])
         fetch = git(["-C", repo_dir, "fetch", "--depth", "1", "origin", branch])
         if fetch.returncode != 0:
             raise SystemExit("fetch 실패: " + fetch.stderr.strip()[-300:])
         reset = git(["-C", repo_dir, "reset", "--hard", "FETCH_HEAD"])
         if reset.returncode != 0:
             raise SystemExit("reset 실패: " + reset.stderr.strip()[-300:])
+    rewritten = ensure_lf_checkout(repo_dir)
     head = git(["-C", repo_dir, "rev-parse", "HEAD"]).stdout.strip()
-    return {"repo_dir": repo_dir, "head": head}
+    return {"repo_dir": repo_dir, "head": head, "lf_rewrite": rewritten}
+
+
+def ensure_lf_checkout(repo_dir: str) -> bool:
+    probe = os.path.join(repo_dir, "deploy", "meta.json")
+    try:
+        with open(probe, "rb") as fh:
+            if b"\r" not in fh.read():
+                return False
+    except OSError:
+        return False
+    git(["-C", repo_dir, "config", "core.autocrlf", "false"])
+    git(["-C", repo_dir, "rm", "--cached", "-r", "-q", "."])
+    git(["-C", repo_dir, "reset", "--hard", "HEAD"])
+    return True
 
 
 def verify_and_install(cfg: dict, allow_stale: bool) -> dict:
@@ -163,8 +183,13 @@ def main(argv=None) -> int:
     ap.add_argument("--skip-git", action="store_true")
     ap.add_argument("--no-code", action="store_true")
     args = ap.parse_args(argv)
-    with open(args.config, encoding="utf-8") as fh:
+    with open(args.config, encoding="utf-8-sig") as fh:
         cfg = json.load(fh)
+    global GIT_EXE
+    if cfg.get("git_exe"):
+        GIT_EXE = str(cfg["git_exe"])
+    if cfg.get("git_ssh_command"):
+        os.environ["GIT_SSH_COMMAND"] = str(cfg["git_ssh_command"])
     try:
         info = {"skipped_git": True} if args.skip_git else sync_repo(cfg)
         out = verify_and_install(cfg, args.allow_stale)
