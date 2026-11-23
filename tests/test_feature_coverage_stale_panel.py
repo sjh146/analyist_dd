@@ -77,3 +77,40 @@ def test_cache_path_still_refuses_stale_panel(monkeypatch):
     rc, written = _run_main(monkeypatch, [])
     assert rc == 3
     assert not written, "낡은 캐시인데 기록됐다(신선도 위조)"
+
+
+def test_skip_when_already_fresh(monkeypatch):
+    """이미 신선한 측정이 있으면 25분짜리 재빌드를 반복하지 않는다."""
+    built = {"n": 0}
+    written = {}
+    monkeypatch.setattr(fcr, "_pg_connect", lambda: _DummyPG())
+    monkeypatch.setattr(fcr, "recent_measurement", lambda pg, wd, hours: (196, 196))
+
+    def _boom(pg, n_stocks, days):
+        built["n"] += 1
+        return _panel(), days
+
+    monkeypatch.setattr(fcr, "_build_small_panel", _boom)
+    monkeypatch.setattr(fcr, "upsert_coverage", lambda pg, rows: written.setdefault("rows", rows))
+    monkeypatch.setattr(sys, "argv", ["feature_coverage_report.py", "--ignore-cache",
+                                      "--days", "120", "--skip-if-fresh-hours", "20"])
+    assert fcr.main() == 0
+    assert built["n"] == 0 and not written
+
+
+def test_stale_measurement_does_not_skip(monkeypatch):
+    """신선한 측정이 없으면(부분 신선 포함) 정상적으로 재빌드한다."""
+    built = {"n": 0}
+    monkeypatch.setattr(fcr, "_pg_connect", lambda: _DummyPG())
+    monkeypatch.setattr(fcr, "recent_measurement", lambda pg, wd, hours: (5, 196))
+    monkeypatch.setattr(fcr, "upsert_coverage", lambda pg, rows: None)
+
+    def _build(pg, n_stocks, days):
+        built["n"] += 1
+        return _panel(), days
+
+    monkeypatch.setattr(fcr, "_build_small_panel", _build)
+    monkeypatch.setattr(sys, "argv", ["feature_coverage_report.py", "--ignore-cache",
+                                      "--days", "120", "--skip-if-fresh-hours", "20"])
+    assert fcr.main() == 0
+    assert built["n"] == 1

@@ -253,6 +253,26 @@ def upsert_coverage(pg, rows):
         cur.close()
 
 
+def recent_measurement(pg, window_days, hours):
+    """(최근 hours 내 재측정된 행수, 해당 창 전체 행수). 재빌드 생략 판정용.
+
+    WHY (2026-11-24): 재측정 1회가 60종목/120일 축소 빌드라 약 25분 걸린다. backlog check 가
+    rank_* 6행 때문에 0 이 되지 않아 매 틱(2시간)마다 같은 25분 빌드를 반복하면 DB 부하만
+    쌓이고 값은 그대로다 — '이미 신선하면 다시 재지 않는다'를 러너가 스스로 판단하게 한다.
+    """
+    cur = pg.cursor()
+    try:
+        cur.execute(
+            "SELECT count(*) FILTER (WHERE computed_at > now() - (%s || ' hours')::interval),"
+            " count(*) FROM feature_coverage WHERE window_days = %s",
+            (str(float(hours)), int(window_days)),
+        )
+        row = cur.fetchone() or (0, 0)
+        return int(row[0] or 0), int(row[1] or 0)
+    finally:
+        cur.close()
+
+
 def main():
     """커버리지를 재측정해 upsert 하고 판정용 요약을 남긴다.
 
@@ -273,10 +293,25 @@ def main():
                     help="낡은 패널이어도 강제로 기록(권장하지 않음 — computed_at 이 거짓말이 된다)")
     ap.add_argument("--json-out", default=None,
                     help="판정용 요약 JSON 경로(구동기 metric='feature_coverage' 가 읽는다)")
+    ap.add_argument("--skip-if-fresh-hours", type=float, default=0.0,
+                    help="이 시간 안에 같은 창(window_days) 측정이 이미 있으면 재빌드를 생략한다 "
+                         "(0=비활성). 25분짜리 재측정을 매 틱 반복하지 않기 위한 가드")
     args = ap.parse_args()
 
     pg = _pg_connect()
     try:
+        if args.skip_if_fresh_hours > 0:
+            fresh, total = recent_measurement(pg, args.days, args.skip_if_fresh_hours)
+            if fresh >= 50 and total > 0 and fresh >= 0.9 * total:
+                print(f"[feature_coverage] skip: window_days={args.days} 측정 {fresh}/{total}행이 "
+                      f"{args.skip_if_fresh_hours}h 안에 이미 갱신됨 — 재빌드 생략(신선도 유지)")
+                if args.json_out:
+                    with open(args.json_out, "w", encoding="utf-8") as f:
+                        json.dump({"skipped": True, "fresh_rows": fresh, "total_rows": total,
+                                   "window_days": args.days, "from_cache": False}, f,
+                                  ensure_ascii=False)
+                return 0
+
         df, window_days = None, None
         from_cache = False
         if not args.ignore_cache:
