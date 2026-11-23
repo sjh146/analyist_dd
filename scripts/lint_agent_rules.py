@@ -36,6 +36,10 @@ MARKERS = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
 SKIP_DIR_PARTS = {".git", "node_modules", "__pycache__", "venv", ".venv", "data", "reports", "archive", "creon_extracted_v1", "skills"}
 
 
+def path_parts(path: str) -> list[str]:
+    return [p for p in str(path).replace("\\", "/").split("/") if p and p != "."]
+
+
 def iter_py_files(root: str) -> list[str]:
     out = []
     for dirpath, dirnames, filenames in os.walk(root):
@@ -138,6 +142,9 @@ def main() -> None:
     ap.add_argument("--json", dest="json_out")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
+    if args.files:
+        args.files = [f for f in args.files
+                      if not (set(path_parts(f)) & SKIP_DIR_PARTS)]
 
     files = args.files or iter_py_files(args.root)
     counts: dict[str, int] = {}
