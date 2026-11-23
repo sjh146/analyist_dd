@@ -349,12 +349,19 @@ def main():
             df, window_days = _build_small_panel(pg, n_stocks=args.stocks, days=args.days)
             source = f"축소 빌드({args.stocks}종목/{args.days}일)"
 
-        age = panel_staleness(_panel_last_trade_date(), stale_days=args.max_panel_age_days) \
-            if from_cache else None
+        df_end = None
+        try:
+            if "date" in df.columns:
+                df_end = str(pd.to_datetime(df["date"]).max())[:10]
+        except (KeyError, TypeError, ValueError):
+            df_end = None
+        window_end = (_panel_last_trade_date() if from_cache else df_end) \
+            or _panel_last_trade_date() or df_end
+        age = panel_staleness(window_end, stale_days=args.max_panel_age_days)
         if age is not None and age > args.max_panel_age_days:
-            msg = (f"[feature_coverage] 패널 캐시 마지막 거래일이 {age}일 전 "
-                   f"(한도 {args.max_panel_age_days}일) — 이대로 쓰면 computed_at 이 "
-                   f"'오늘 측정'으로 위조된다. 쓰기 생략(exit 3). "
+            msg = (f"[feature_coverage] 측정 창 마지막 거래일이 {age}일 전 "
+                   f"(한도 {args.max_panel_age_days}일, 창끝={window_end}, 캐시={from_cache}) — "
+                   f"이대로 쓰면 computed_at 이 '오늘 측정'으로 위조된다. 쓰기 생략(exit 3). "
                    f"갱신: --ignore-cache 로 축소 재빌드 또는 패널 리빌드 후 재실행.")
             print(msg)
             if not args.allow_stale:
@@ -391,7 +398,8 @@ def main():
                 "source": source,
                 "from_cache": from_cache,
                 "window_days": window_days,
-                "panel_last_trade_date": _panel_last_trade_date(),
+                "panel_last_trade_date": window_end,
+                "cache_meta_last_trade_date": _panel_last_trade_date(),
                 "n_features": len(rows),
                 "n_dead": len(dead),
                 "n_alive": len(alive),
@@ -400,7 +408,8 @@ def main():
                 "illusion_max": round(float(illusion), 6),
                 "worst_null_ratio": round(float(worst_null), 6),
                 "dead_features": sorted(r["feature_name"] for r in dead),
-                "stale_guard": "캐시 사용 시에만 적용(신선 재빌드는 통과)",
+                "stale_guard": ("측정 창 마지막 거래일 기준(캐시·신선 빌드 모두) — "
+                                "panel_last_trade_date 는 측정에 쓴 창의 끝"),
                 "measured_at": datetime.now().isoformat(timespec="seconds"),
             }
             with open(args.json_out, "w", encoding="utf-8") as f:

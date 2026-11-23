@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T05:10:51+09:00",
+  "updated_at": "2026-11-24T05:12:41+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25402,7 +25402,7 @@
     {
       "id": "XR49",
       "title": "[리서처 R49] feature_coverage 131행이 11-18 측정으로 5일 정체 — dq_feature_oldest_age_days 4.998, 5일 문턱 직전 (재측정 경로 + 낡은 패널 쓰기 금지 가드)",
-      "status": "pending",
+      "status": "done",
       "priority": 8,
       "from_research": "R49",
       "arm": null,
@@ -25420,7 +25420,24 @@
       "promoted_at": "2026-11-24T01:07:03+09:00",
       "est_minutes": 5,
       "not_before": "2026-11-24T01:45:00+09:00",
-      "setup_done": "2026-11-24 01:4x 엔지니어: 재측정 차단 원인 2건 수리 — ① 호스트 sys.path 후보에 services/xgboost-ml 추가(ModuleNotFoundError: app) ② '캐시 낡음' 가드를 캐시 사용 시에만 적용(신선 재빌드는 통과 — 종전엔 exit 3 으로 항상 거부) ③ 요약 JSON(--json-out) + 구동기 metric 'feature_coverage' 파서·판정기 배선. 회귀 tests/test_feature_coverage_stale_panel.py 6/6 PASS."
+      "setup_done": "2026-11-24 01:4x 엔지니어: 재측정 차단 원인 2건 수리 — ① 호스트 sys.path 후보에 services/xgboost-ml 추가(ModuleNotFoundError: app) ② '캐시 낡음' 가드를 캐시 사용 시에만 적용(신선 재빌드는 통과 — 종전엔 exit 3 으로 항상 거부) ③ 요약 JSON(--json-out) + 구동기 metric 'feature_coverage' 파서·판정기 배선. 회귀 tests/test_feature_coverage_stale_panel.py 6/6 PASS.",
+      "attempts": [
+        {
+          "ts": "2026-11-24T05:12:41+09:00",
+          "rc": 0,
+          "verdict": "재측정 완료 — 신선 빌드 기준 커버리지 갱신",
+          "detail": "source=축소 빌드(30종목/30일) · 피처 202개(죽은 24 · 종목상수 90 · 시장레벨 47) · 패널 마지막 거래일 2026-10-06 · 창 30일 · 착시 최대 0.866667. 다음: 이 값으로 dq_feature_oldest_age_days 리셋 여부를 확인(위조 아님).",
+          "log": "data/reports/me_cycle/logs/me_cycle_XR49_20261124-051054.log",
+          "elapsed_min": 1.8
+        }
+      ],
+      "result": {
+        "verdict": "재측정 완료 — 신선 빌드 기준 커버리지 갱신",
+        "detail": "source=축소 빌드(30종목/30일) · 피처 202개(죽은 24 · 종목상수 90 · 시장레벨 47) · 패널 마지막 거래일 2026-10-06 · 창 30일 · 착시 최대 0.866667. 다음: 이 값으로 dq_feature_oldest_age_days 리셋 여부를 확인(위조 아님).",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG456",
