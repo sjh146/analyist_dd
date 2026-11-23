@@ -405,6 +405,43 @@ def build_items(screener, payload, prev_closes, publish_dt=None, universe=None,
     return items
 
 
+REGIME_PATH = os.path.join(PROJ, "data", "state", "market_regime.json")
+REGIME_MAX_AGE_DAYS = 5
+
+
+def _load_regime():
+    """`data/state/market_regime.json` → feed['regime'] (없거나 오래되면 빈 dict).
+
+    WHY(2026-11-23): 트레이더의 '하락장 수익 보존' 규칙이 국면을 **피드로** 받는다.
+    트레이더는 Windows 에서 돌아 WSL 파일을 직접 못 읽으므로, 이미 있는 발행 채널로 싣는다.
+    값이 낡았으면 넣지 않는다 — 소비 측은 regime 키 부재를 fail-open(발동 안 함)으로 다룬다.
+    """
+    try:
+        with open(REGIME_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(d, dict) or not d.get("state"):
+        return {}
+    asof = str(d.get("asof") or "")
+    try:
+        age = (datetime.now().date() - datetime.strptime(asof, "%Y-%m-%d").date()).days
+    except ValueError:
+        age = 0
+    if age > REGIME_MAX_AGE_DAYS:
+        logger.warning("[regime] %s 가 %d일 전 — 발행하지 않는다", asof, age)
+        return {}
+    return {
+        "state": str(d["state"]).lower(),
+        "asof": asof,
+        "index": d.get("index"),
+        "close": d.get("close"),
+        "ma20": d.get("ma20"),
+        "ret5": d.get("ret5"),
+        "reason": d.get("reason"),
+    }
+
+
 def load_stats():
     for path in STATS_CANDIDATES:
         if os.path.exists(path):
@@ -654,6 +691,12 @@ def main(argv=None):
         "source": "analyist_dd",
         "candidates": candidates,
     }
+    # 시장 국면(2026-11-23): 트레이더의 '하락장 수익 보존' 규칙이 소비한다.
+    # scripts/market_regime.py 가 09:05 전후에 쓰는 data/state/market_regime.json 을 그대로
+    # 싣는다(없거나 오래되면 키를 넣지 않는다 — 소비 측은 fail-open 으로 동작).
+    regime = _load_regime()
+    if regime:
+        feed["regime"] = regime
     stats = None if args.no_stats else load_stats()
     if stats:
         feed["scoring_summary"] = {"screener_stats": stats}
