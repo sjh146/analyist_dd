@@ -2303,7 +2303,7 @@
         "detail": "R49: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R49_repair_ranks_20261124-030002.log"
+        "log": "data/reports/res_cycle/logs/res_R49_repair_ranks_20261124-030032.log"
       }
     },
     {
