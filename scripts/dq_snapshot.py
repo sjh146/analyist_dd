@@ -33,7 +33,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 import matplotlib
-matplotlib.use("Agg")   # 헤드리스 — 디스플레이 없이 PNG 생성
+matplotlib.use("Agg")
 import matplotlib.dates as mdates   # noqa: E402
 import matplotlib.pyplot as plt     # noqa: E402
 from matplotlib import font_manager  # noqa: E402
@@ -41,13 +41,13 @@ from _paths import proj, proj_dir
 
 PROM = os.environ.get("PROM_URL", "http://127.0.0.1:9090")
 
-# 모니터링 사각지대의 '조용한 시한폭탄': Prometheus 가 연결을 받지 않으면(SYN drop · 컨테이너 소실)
-# 요청마다 20초를 기다리고, 이 스크립트는 메트릭을 200여 회 조회하므로 총 소요가 틱의 600초 상한을
-# 넘겨 **판정 없이** rc=99 로 죽는다 — 실측 2026-11-21 18:47(스택 컨테이너 14개 소실 상태):
-# 틱 보고에 `dq_snapshot rc=99` 만 남고 '모니터링 사각지대' 판정 줄이 사라졌다(같은 날 18:57 에는
-# 연결이 즉시 거부되어 사각지대 breach 로 정상 판정 — 차이는 '느린 실패 vs 빠른 실패'뿐이다).
-# → 연속 실패가 BLIND_STREAK 에 닿으면 남은 조회를 건너뛰고 전 메트릭 nodata 로 **판정**한다.
-# 사각지대를 판정하려고 만든 코드가 사각지대에서 판정을 못 하면 안 된다.
+
+
+
+
+
+
+
 BLIND_STREAK = 5
 _API_STATE = {"fail_streak": 0, "blind": False}
 
@@ -61,7 +61,7 @@ OUTDIR = os.path.join(PROJ, "data/reports/dq_snapshots")
 HISTORY = os.path.join(OUTDIR, "history.jsonl")
 KST = timezone(timedelta(hours=9))
 
-# 한글 폰트가 없으면 라벨이 깨진다 → 있는 것만 골라 쓰고, 없으면 영문 라벨을 쓴다.
+
 _KO = None
 for _cand in ("NanumGothic", "Noto Sans CJK KR", "Malgun Gothic", "Noto Sans KR"):
     try:
@@ -74,109 +74,109 @@ if _KO:
     plt.rcParams["font.family"] = _KO
 plt.rcParams["axes.unicode_minus"] = False
 
-# (메트릭, 집계, warn, breach, 라벨)  ※ warn/breach=None 이면 정보용
+
 SPECS = [
-    # ⚠ 신선도는 **거래일** 기준으로 판정한다(달력일이 아니다).
-    #   종전에는 달력일 고정 문턱 3/5 였는데 두 방향으로 틀렸다:
-    #     · 과대(오탐) — 9/24~25 추석 휴장 + 주말이면 달력 3일이 **정상**인데 warn 이 뜨고,
-    #       9/28(월) 00:00 틱은 달력 5일이 되어 **위반 오탐**이 예정돼 있었다(실측 2026-09-26 20:00 warn=3).
-    #     · 과소(실명) — 같은 문턱은 **진짜 2거래일 적재 실패**를 warn 으로 숨긴다(3일까지 정상이므로).
-    #   → 기준을 '휴장일을 제외한 거래일 지연'으로 바꾸고 문턱을 warn 1 / breach 2 로 **조인다**.
-    #   휴장일 근거는 추정이 아니라 실측이다: data/krx_holidays.json 은 data_gap.py 가
-    #   KIS 1종목 프로브가 no_data 를 반환한 날짜만 기록한 파일이다(2026-09-24·25 기록됨).
-    #   파일을 못 읽으면(폴백) 종전 달력일 문턱 3/5 를 그대로 쓰고 그 사실을 보고에 남긴다.
+
+
+
+
+
+
+
+
+
     ("market_data_freshness_days", "max", 1.0, 2.0, "데이터 신선도(거래일)"),
     ("market_data_rows_recent", "sum", None, None, "최근 적재 행수"),
     ("market_data_zero_volume_ratio_20d", "max", 0.05, 0.10, "거래량0 비율"),
     ("market_data_frozen_ratio_20d", "max", 0.05, 0.15, "동결(가격 불변) 비율"),
     ("dq_asof_violation_rows", "sum", None, 0.0, "as-of 위반 행수"),
     ("dq_claim_parse_failure", "sum", None, 0.0, "러너 파서 실패"),
-    # gap 은 **정보용(임계값 없음)** — 어떤 수치 문턱도 옳지 않다.
-    # WHY (2026-09-25 실측 위반 오탐): gap = claimed(파서생성) - persisted(테이블 델타) 인데,
-    #   멱등 upsert 러너가 이미 적재된 구간을 재실행하면 기존행이 ON CONFLICT 로 빠져
-    #   gap 이 **적재량 규모로** 커진다(실측: claimed 117,155 / 신규 54,324 → gap 62,831 ≥ 5,000 breach).
-    #   같은 실행이 실제로는 54,324행을 신규 적재한 **성공 실행**이었다.
-    #   gap 을 문턱으로 잡으면 "재수집할수록 위반"이 되어 큰 백필이 항상 breach 로 뜬다.
-    #   Prometheus 알림도 같은 이유로 gap 을 **알림하지 않는다**(config/prometheus/alert.dq.rules.yml NOTE 1).
-    #   진짜 실패는 gap 이 아니라 source>0 AND claimed==0 = dq_claim_parse_failure 로 잡는다(그건 breach 0 유지).
+
+
+
+
+
+
+
+
     ("dq_claim_gap", "sum", None, None, "자기신고 갭(중복재수집 포함·정보용)"),
     ("dq_claim_source", "sum", None, None, "소스 수신 행수"),
-    # ⚠ 임계값은 **기준선 위**에 둔다. 살아있는(nonzero_ratio>0) 피처만 분모로 세므로
-    #    상수 피처는 정의상 여기 포함되고, 실측 기준선이 0.38(29/76)이다.
-    #    warn 을 0.35 로 두면 0.38 >= 0.35 가 매 틱 성립해 **상시 경고**가 뜬다(실측 2026-09-25:
-    #    값이 0.3816 으로 15스냅샷 내내 불변인데 warn). 문턱은 Prometheus 알림(>0.50)과 맞춘다.
+
+
+
+
     ("dq_feature_stock_constant_ratio", "max", 0.45, 0.50, "종목상수 피처 비율"),
-    # ⚠ 착시/결측은 **개수(count)** 로 본다 — MAX 는 최악 피처 하나가 값을 지배해
-    #   전체 테이블 기준 기준선이 0.9998 이다(R10 의 near-empty 피처). 실측 2026-09-25 20:20.
-    #   임계값은 실측 기준선 **위**에 둔다: 착시>0.10 = 36개, 결측>0.90 = 8개.
-    #   2026-09-25 21:17 기준선 이동: 15 → 36. 악화가 아니라 **측정 인구가 180 → 199개**로
-    #   늘어난 결과다(R11 거시 2개 + R12 재무비율 19개 = +21). 같은 피처의 착시가 커진 게 아니다
-    #   — 착시는 배치별로 R10 15 / R11 2 / R12 19 이고 09-24 패널 배치는 0개다(실측).
-    #   인구가 늘면 개수 메트릭의 기준선도 함께 늘어난다 → 문턱도 그 위로 옮긴다.
-    #   MAX 메트릭은 아래에 정보용으로 남겨 추세만 본다(임계값 없음).
-    # 2026-11-10 리뷰보드 승인(R29 A안) — 기준선이 측정 인구·창 변화로 이동했다:
-    #   null_ratio_high: 8 → 30 (R14 스냅샷 일관화가 SNS 22 + kalman 4 + 커버리지부족 4를 드러냄,
-    #     2026-11-09~11-10 실측 30~31 로 안정) → warn 32 / breach 45
-    #   coverage_illusion: 36 → 41 (CG165 3빌더가 54행을 479일 창으로 재계산, 10-07 62 → 11-09 41)
-    #     → warn 45 / breach 50
-    # ⚠ 이 재보정은 **경보 피로 제거용**이다. SNS·kalman 26개의 결측 0.93~0.94 자체는 결함이며
-    #   dead 처리(C안)는 승인하지 않았다(사용자 목표 = 죽은 피처 부활). 수리는 R17 로 추적한다.
-    # ⚠ 2026-11-21 리뷰보드 승인(R38 B안) — **알림 인구를 모델 창(120일)으로 분리**했다.
-    #   같은 결함이 창 라벨 드리프트로 26 ↔ 63 을 오갔다(야간 빌더가 window_days 를 격자 스팬으로
-    #   다시 쓰면 63, 전량 재계산이 120 으로 덮으면 26 — 데이터는 그대로인데 판정만 바뀐다).
-    #   → 알림은 모델 창 행만 세는 metric 으로 옮기고(기준선 26 실측 2026-11-21 22:1x),
-    #   전체 인구값은 정보용으로 강등한다. 문턱은 R29 선례(+4/+9)대로 기준선 위에 둔다: 26 → 30/35.
-    #   A안(빌더 로드창을 120거래일로 고정)은 R43 과 충돌해 채택하지 않았다 — 빌더는 12개월 모멘텀을
-    #   살리려고 로드창을 격자 하한과 분리해 두었다(scripts/build_supply_market_features.py:109-116).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ("dq_feature_coverage_illusion_count_model_window", "max", 30.0, 35.0, "모델 창(120일) 커버리지 착시 피처 수(기준선 26)"),
     ("dq_feature_coverage_illusion_count", "max", None, None, "커버리지 착시 피처 수(전 창·정보용 — 라벨 드리프트로 26↔63)"),
     ("dq_feature_null_ratio_high_count", "max", 32.0, 45.0, "결측90%↑ 피처 수(기준선 30)"),
     ("dq_feature_coverage_illusion_max", "max", None, None, "커버리지 착시 최대(정보용)"),
     ("dq_feature_null_ratio_max", "max", None, None, "피처 결측 최대(정보용)"),
-    # ⚠ R14 배선(2026-10-06): 이 값은 **단조 증가**한다 — MIN(computed_at) 이 2026-09-24 18:11 에
-    #   고정된 128행을 가리켜 정체가 진행 중이다(실측 이력: 0.89일@09-25 → 11.9일@10-06, +1일/일).
-    #   증가 중인 값에는 기준선이 없어(스킬: "문턱을 잡기 전에 값이 변하는지 먼저 봐라") 임계값을
-    #   주지 않는다 — 낮게 잡으면 해소 전까지 매 틱 발화해 무시되고(상시 발화 함정), 높게 잡으면 근거가 없다.
-    #   대신 ALWAYS_REPORT 로 **매 틱 한 줄 보고**한다(정체 = 조용한 공전 금지). 문턱 신설은 리뷰보드 안건.
+
+
+
+
+
     ("dq_feature_oldest_age_days", "max", None, None, "가장 오래된 피처 측정 나이(일)"),
     ("dq_feature_market_level_count", "max", None, None, "시장레벨 피처 수"),
     ("dq_padding_rows_before_listing", "max", None, 0.0, "상장 전 행(padding)"),
-    # 뉴스 분석 파이프라인 (앱은 30분 주기). 실측 2026-09-25: news_analysis 의 url 유니크 제약 누락으로
-    # **2일간 저장이 전멸**(24h 3,657건 폐기)했는데 지표가 없어 로그 grep 전엔 아무도 몰랐다.
-    # 신선도로 "돌지만 저장이 안 되는" 상태를 잡는다(2시간 넘게 새 저장 없으면 warn).
+
+
+
     ("news_analysis_freshness_hours", "max", 2.0, 6.0, "뉴스 저장 신선도(시간)"),
     ("news_analysis_freshness_rows_24h", "sum", None, None, "뉴스 24h 저장 행수"),
     ("feature_alive_count", "max", None, None, "살아있는 피처"),
     ("feature_dead_count", "max", None, None, "죽은 피처"),
-    # ⚠ 북극성 보정(2026-09-28 신설): `feature_alive_count` 는 계약 #6(시장 전체 동일값 피처는
-    #   횡단면 모델 피처로 제안 금지)을 위반한 피처도 '살아있다'로 센다 — R11 거시 16개가 그렇다
-    #   (실측: cross_section_constant_ratio = 1.000, 살아 164 중 26개가 시장레벨). 그래서
-    #   횡단면으로 실제 쓸 수 있는 수를 함께 본다(실측 138 = 164 − 26). 임계값은 두지 않는다
-    #   (정보용 — 인구가 늘면 함께 늘어난다). 문턱이 필요해지면 실측 기준선 위에 잡아라.
+
+
+
+
+
     ("dq_feature_alive_xsec_count", "max", None, None, "횡단면 변별력 있는 살아있는 피처(시장레벨 제외)"),
-    # ⚠ 2026-11-13 신설(정보용 — 임계값 없음): 착시 개수는 **덮어쓰기 순서**로 26 ↔ 62 를 오간다.
-    #   전량 재계산(feature_coverage_report, 모델 창 120일)이 202행을 120 으로 덮으면 26(ok),
-    #   야간 빌더가 격자 스팬(513~514일)으로 그 피처들을 다시 쓰면 62(breach)가 된다.
-    #   실측 같은 날: 20:01 = 62(위반) → 21:11:40 전량 재계산 → 22:00 = 26(정상).
-    #   값만 보면 '수리됐다'로 오독되므로 **창 혼재 자체**를 매 틱 함께 본다(문턱은 리뷰보드 안건 R38).
+
+
+
+
+
     ("dq_feature_window_variants_count", "max", None, None, "창 정의 가짓수(1=일관·정보용)"),
     ("dq_feature_non_model_window_rows", "max", None, None, "모델 창(120일) 아닌 피처 행수(정보용)"),
     ("dq_feature_illusion_at_120d_count", "max", None, None, "모델 창 120일 기준 착시 수(정보용)"),
 ]
 
-# ── 상시 보고(정보용이지만 매 틱 보여야 하는 것) ──────────────────────────────
-# 임계값 판정(ok/warn/breach)과 **별개**로, 정체처럼 '조용히 진행되는' 신호는 매 틱 한 줄로 올린다.
-# 2026-10-05 리뷰보드 ③-7: dq_feature_oldest_age_days 는 지표엔 잡히는데 틱 보고에 한 번도 뜨지 않아
-# R14(feature_coverage 09-24 고정 128행) 정체가 11일간 아무 틱에도 보고되지 않았다.
+
+
+
+
 ALWAYS_REPORT = {
     "dq_feature_oldest_age_days": " — R14 feature_coverage 정체(09-24 고정 128행) 감시",
-    # 창 혼재는 조용히 진행되는 신호다(문턱 없음): 0 이면 창 정의 일관, >0 이면 야간 빌더가
-    # 스팬 창으로 되돌린 상태 = 착시 개수가 26 → 62 쪽으로 복귀 중(R38).
+
+
     "dq_feature_non_model_window_rows": " — 창 혼재(야간 빌더가 격자 스팬 창으로 기록) 감시: >0 이면 착시 지표가 62 쪽으로 복귀 중",
 }
 
-# 0 이 정상인 ALWAYS_REPORT 항목 — 매 틱 '=0' 을 찍으면 잡음이므로 값이 0 일 때만 침묵한다.
-# (oldest_age_days 는 0 이어도 '정체 없음'이 아니라 '방금 측정됨'이라 매 틱 찍는다.)
+
+
 SILENT_AT_ZERO = {"dq_feature_non_model_window_rows"}
 
 
@@ -195,14 +195,14 @@ def always_report_lines(metrics: dict) -> list:
         out.append(f"· [정보] {_m.get('label', _n)}({_n})={_v}{_note}")
     return out
 
-# 차트 라벨은 영문으로 쓴다 — 이 WSL 에는 한글 폰트가 없어 글리프가 전부 깨진다
-# (실측 2026-09-25: "Glyph ... missing from current font" 경고가 라벨 수만큼 발생).
-# 콘솔·JSON 은 한글 label 을 그대로 쓴다(사람이 읽는 쪽은 한글이 맞다).
-# ── 모니터링 사각지대 기준선 (실측 2026-09-25) ────────────────────────────────
-# 아래 15개는 **정상 가동 스냅샷 21개에서 21/21 전부 값이 있었다**(history.jsonl 실측).
-# news_analysis_* 2개는 도중에 추가된 지표라 9/21 — 기준선에서 제외한다.
-# 판정에 Prometheus 의 5분 lookback 을 이용한다: 스크랩 1회(60초) 누락으로는 nodata 가
-# 생기지 않고, nodata = "5분 이상 연속 소실" = 진짜 장애다.
+
+
+
+
+
+
+
+
 CORE_ALWAYS = {
     "market_data_freshness_days", "market_data_rows_recent",
     "market_data_zero_volume_ratio_20d", "market_data_frozen_ratio_20d",
@@ -232,18 +232,18 @@ EN = {
     "scrape_duration_postgres": "postgres scrape duration (s)",
 }
 
-# ── 수집 경로(스크랩) 건강 문턱 — 실측 2026-09-28 ────────────────────────────
-# 정상 범위 실측 3.9~28.2초(scrape_interval 60s / scrape_timeout 45s), 타임아웃은 45.009초.
+
+
 SCRAPE_JOB = "postgres"
-# 문턱은 **지금의 scrape_timeout 위에서** 의미가 있다(2026-11-16 변경: interval 60→120s / timeout 45→100s).
-# 실측: exporter 응답 wall = 콜드 201.8초 · 웜 49.7초 · 안정시 18.1초 — 45초 타임아웃에서는 전량 실패해
-#   dq_snapshot 이 24/24 nodata(rc=3) 를 냈다. 타임아웃만 올리면 '성공했는데 breach' 오탐이 남으므로
-#   판정 문턱도 함께 올린다(기준선이 이동하면 문턱도 옮긴다 — 상수비율·flapping 과 같은 원칙).
-SCRAPE_WARN_S = 60.0      # 정상 실측 최대(웜 49.7초 / 안정 18.1초) 위에 둔다 — 아래에 두면 매 틱 경고.
-SCRAPE_BREACH_S = 95.0    # scrape_timeout(100초) 도달 = 스크랩 실패 = dq_* 소실
+
+
+
+
+SCRAPE_WARN_S = 60.0
+SCRAPE_BREACH_S = 95.0
 SCRAPE_SERIES = 'scrape_duration_seconds{job="postgres"}'
-SCRAPE_WINDOW = "6m"       # 실패가 '단발'인지 '지속'인지 가르는 창(스크랩 간격 60초 → 6~7 표본)
-SCRAPE_FAILS_BREACH = 2    # 창 안 실패가 이 개수 이상이면 지속 장애(단발 = 재기동 과도기, 실측 ~26초)
+SCRAPE_WINDOW = "6m"
+SCRAPE_FAILS_BREACH = 2
 
 
 HOLIDAY_PATH = os.path.join(PROJ, "data", "krx_holidays.json")
@@ -279,15 +279,15 @@ def utc_date_of(now):
     return now.astimezone(timezone.utc).date()
 
 
-# 전일 바가 '마땅히 있어야 할' 시각(KST). market_data 적재는 yfinance 수집기가 18:00 스윕을
-# 끝내고 저장하는 **자정~새벽**에 일어난다(services/yfinance-collector/app/main.py: 스윕 전체를
-# 모은 뒤 Step 6 에서 저장). 그래서 00:00 틱에 전일 바를 요구하면 적재가 진행 중일 때 오탐이 된다.
+
+
+
 DUE_HOUR = 2
-# 당일 바를 '마땅히 있어야 할' 시각(KST). 저녁 파이프라인이 20:00 에 시작해 60분 상한으로
-# 당일 봉을 적재하므로(services/yfinance-collector phase 1-1, 실측 11-10 20:33 저장),
-# 22:00 이후 틱부터는 당일 바의 부재를 결번으로 센다. 종전에는 당일을 **항상** 제외해
-# 당일 적재가 통째로 실패해도 자정(UTC 날짜 전환)까지 지연 0 = '정상'으로 보였다
-# (실측 2026-11-11 21:11: market_data 최신 11-10 인데 스냅샷 freshness 0).
+
+
+
+
+
 DUE_TODAY_HOUR = 22
 
 
@@ -314,13 +314,13 @@ def trading_days_behind(freshness_days, today, holidays, now=None):
     ref = utc_date_of(now) if now is not None else today
     last = ref - timedelta(days=raw)
     if now is None:
-        back = 1                       # 계약 유지(now 미지정 = 당일 제외)
+        back = 1
     elif now.hour >= DUE_TODAY_HOUR:
-        back = 0                       # 적재 시한 경과 → 당일 바도 요구한다
+        back = 0
     elif now.hour >= DUE_HOUR:
         back = 1
     else:
-        back = 2                       # 00:00~02:00 유예(스윕 저장 중)
+        back = 2
     horizon = today - timedelta(days=back)
     n = 0
     d = last + timedelta(days=1)
@@ -394,7 +394,7 @@ def _api(path, params):
         return {}
     url = f"{PROM}{path}?" + urllib.parse.urlencode(params)
     try:
-        with opener(url).open(url, timeout=20) as r:  # 프록시 우회(net_local)
+        with opener(url).open(url, timeout=20) as r:
             data = json.load(r)
         _API_STATE["fail_streak"] = 0
         return data
@@ -506,7 +506,7 @@ def main():
     snap["holiday_calendar"] = {"path": os.path.relpath(HOLIDAY_PATH, PROJ), "usable": hol_ok,
                                "n_holidays": len(holidays)}
     if not hol_ok:
-        # 폴백 사실을 숨기지 않는다 — 거래일 판정이 꺼져 있으면 종전 달력일 문턱으로 판정된다.
+
         warns.append(f"휴장 캘린더 없음({snap['holiday_calendar']['path']}) → 신선도는 달력일 문턱 3/5 폴백")
 
     for name, agg, warn, breach, label in SPECS:
@@ -519,14 +519,14 @@ def main():
         raw_days = None
         if name == "market_data_freshness_days":
             if hol_ok:
-                raw_days = val                   # 달력일(원값)은 보존
+                raw_days = val
                 td = trading_days_behind(raw_days, now.date(), holidays, now=now)
                 if td is not None:
                     val = float(td)
             else:
-                # 폴백: 휴장 캘린더가 없으면 거래일 환산을 할 수 없다 → 종전 달력일 문턱 3/5.
-                # (1/2 를 그대로 두면 주말마다 위반 오탐이 난다 — 판정을 바꿀 수 없는 상태에서는
-                #  문턱도 같이 되돌리는 것이 맞다.)
+
+
+
                 warn, breach = 3.0, 5.0
         st = verdict(val, warn, breach)
         snap["metrics"][name] = {"label": label, "value": val, "agg": agg, "status": st,
@@ -540,18 +540,18 @@ def main():
         elif st == "warn":
             warns.append(f"{label}({name})={val:g} ≥ {warn:g}{suffix}")
 
-    # ── 수집 경로(스크랩) 자체의 건강 ─────────────────────────────────────────
-    # WHY(실측 2026-09-28 18:11~18:21 KST): postgres-exporter 스크랩이 scrape_timeout 45초에 걸려
-    #   **11회 연속 실패**했다(up=0, scrape_duration 45.009초, 모든 컬렉터가 내부 60초 데드라인 초과).
-    #   그 사이 dq_* 86개 시리즈는 Prometheus 5분 lookback 을 넘겨 stale(실명)이 됐는데, 그 창에 이
-    #   틱이 한 번도 돌지 않아(18:09:30 → 18:23:27) **어떤 틱도 실명을 보고하지 않았다** — 3시간 뒤
-    #   수동 조사로 발견했다. dq_* 소실은 5분 뒤에야 드러나므로 그 **직전 단계**를 직접 판정한다.
-    #   Alertmanager 가 없어(백로그 R15) 이 틱이 유일한 통보 경로라는 점이 이 판정의 이유다.
-    #   ⚠ 타임아웃을 50~55초로 늘리는 것은 수리가 아니다: 컬렉터 내부 데드라인이 60초라 쿼리가
-    #     멈추면 연장해도 실패하고, 늘린 만큼 실명이 더 늦게 드러난다(문턱을 낮춰 숨기는 것과 같다).
-    #   ⚠ 단발 실패는 breach 로 세지 않는다: exporter 재기동 직후 ~26초는 정상 과도기다(실측).
-    #     단발/지속은 6분 창의 **실패 횟수**로 가른다(1회 = 과도기 warn, 2회 이상 = breach).
-    #     평균이 아니라 횟수인 이유는 아래 classify_scrape_path 주석에 실측값과 함께 적어 두었다.
+
+
+
+
+
+
+
+
+
+
+
+
     sp = {"job": SCRAPE_JOB, "up": None, "duration_s": None, "status": "nodata",
           "warn_s": SCRAPE_WARN_S, "breach_s": SCRAPE_BREACH_S}
     up_vals, _ = instant(f'up{{job="{SCRAPE_JOB}"}}')
@@ -564,16 +564,16 @@ def main():
     sp["duration_s"] = max(sd_vals) if sd_vals else None
     sp["status"], _msg = classify_scrape_path(sp["up"], sp["scrapes_6m"], sp["ok_6m"], sp["duration_s"])
     if _msg:
-        # status=nodata(판정 불가)는 위반으로 단정하지 않고 경고로 올린다 — 다만 조용히는 넘기지 않는다.
+
         (breaches if sp["status"] == "breach" else warns).append(_msg)
     snap["scrape_path"] = sp
 
-    # ── 모니터링 사각지대 판정 ────────────────────────────────────────────────
-    # WHY: nodata 를 그냥 넘기면 완전 실명이 rc=0 으로 "정상" 보고된다 — 실측 2026-09-25 20:01:
-    #   postgres-exporter 스크랩이 12.7초인데 Prometheus scrape_timeout 이 10초여서 매 스크랩이
-    #   실패 → dq_* 51개 전부 소실 → dq_snapshot 은 17개 전부 '없음' 인데 rc=0 을 반환했다.
-    #   "실패할 수 없는 check 는 check 가 아니다"의 같은 함정: 판정에서 nodata 를 빼면
-    #   모니터링이 죽은 것이 모니터링이 잘 도는 것과 구분되지 않는다.
+
+
+
+
+
+
     core_missing = [n for n in nodata if n in CORE_ALWAYS]
     n_total = len(SPECS)
     if core_missing or len(nodata) / n_total >= 0.3:
@@ -582,7 +582,7 @@ def main():
     snap["nodata"] = nodata
     snap["nodata_core"] = core_missing
 
-    # ── 출력 ──
+
     print(f"[dq_snapshot] {now.isoformat(timespec='seconds')} (추세 {a.hours:g}h)")
     if nodata:
         print(f"  [!!] 조회 실패(nodata) {len(nodata)}/{n_total}: " + ", ".join(nodata))
@@ -596,7 +596,7 @@ def main():
         v = "없음" if m["value"] is None else f"{m['value']:g}"
         mark = {"ok": "OK  ", "warn": "WARN", "breach": "위반", "info": "·   ", "nodata": "데이터X"}[m["status"]]
         print(f"  [{mark}] {m['label']:22s} {v:>12s}")
-    # [정보] 상시 보고 — '·' 접두어가 곧 틱(researcher_cycle.snapshot_brief)이 뽑아 가는 형식이다.
+
     for _line in always_report_lines(snap["metrics"]):
         print(_line)
     if breaches:
@@ -610,11 +610,11 @@ def main():
     stamp = now.strftime("%Y%m%d-%H%M%S")
     jpath = os.path.join(OUTDIR, f"dq_{stamp}.json")
 
-    # ── 차트 ──
+
     png = None
     if not a.no_chart:
         series_by = {}
-        # 스크랩 경로 패널을 **맨 앞**에 둔다 — 모니터링이 눈먼 상태를 첫 화면에서 본다.
+
         _ss = range_series(SCRAPE_SERIES, a.hours)
         if _ss:
             series_by["scrape_duration_postgres"] = (_ss, "postgres scrape duration (s)",
@@ -631,8 +631,8 @@ def main():
             for i, name in enumerate(keys):
                 ax = axes[i // cols][i % cols]
                 s, label, warn, breach = series_by[name]
-                # 신선도 패널은 **거래일 지연**으로 그린다 — 달력일로 그리면 주말·휴장이
-                # 문턱선(warn 1 / breach 2)과 축이 어긋나 눈에 잘못 읽힌다(수치와 같은 단위로).
+
+
                 conv = (lambda t, v: float(trading_days_behind(v, t.date(), holidays, now=t) or 0)) \
                     if (name == "market_data_freshness_days" and hol_ok) else None
                 for ser in s[:4]:
@@ -676,7 +676,7 @@ def main():
                             "scrape_up": sp["up"], "scrape_duration_s": sp["duration_s"],
                             "chart": snap.get("chart")}, ensure_ascii=False) + "\n")
 
-    _prune(OUTDIR)   # 스냅샷 보존 정책(최근 48개) — 무한 증가 방지
+    _prune(OUTDIR)
     if breaches:
         return 3
     if warns:

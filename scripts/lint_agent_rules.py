@@ -58,16 +58,24 @@ def check_file(path: str, root: str) -> list[tuple[str, int, str]]:
     lines = src.splitlines()
     viol: list[tuple[str, int, str]] = []
 
-    for i, line in enumerate(lines, 1):
-        stripped = line.strip()
-        if not stripped.startswith("#"):
+    import io as _io, tokenize as _tok, warnings as _w
+    try:
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            toks = list(_tok.generate_tokens(_io.StringIO(src).readline))
+    except (_tok.TokenError, SyntaxError):
+        toks = []
+    for t in toks:
+        if t.type != _tok.COMMENT:
             continue
-        if ALLOWED_DIRECTIVE.match(stripped):
+        text = t.string.strip()
+        if ALLOWED_DIRECTIVE.match(text):
             continue
-        if MARKERS.search(stripped):
-            viol.append(("C002", i, "TODO/FIXME 에 티켓 ID 없음"))
+        if MARKERS.search(text):
+            viol.append(("C002", t.start[0], "TODO/FIXME 에 티켓 ID 없음"))
             continue
-        viol.append(("C001", i, "주석 금지(기계 지시자 외)"))
+        inline = lines[t.start[0] - 1][: t.start[1]].strip() != ""
+        viol.append(("C001", t.start[0], "인라인 주석 금지" if inline else "주석 금지(기계 지시자 외)"))
 
     try:
         import warnings
