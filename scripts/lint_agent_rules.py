@@ -171,9 +171,19 @@ def main() -> None:
             base = {"files": {}}
     baseline = base.get("files", {})
 
+    def allowed_for(rel: str) -> int:
+        if args.strict:
+            return 0
+        if rel in baseline:
+            return int(baseline.get(rel, 0))
+        for key, val in baseline.items():
+            if key.endswith("/" + rel):
+                return int(val)
+        return 0
+
     regressions = []
     for rel, n in counts.items():
-        allowed = 0 if args.strict else int(baseline.get(rel, 0))
+        allowed = allowed_for(rel)
         if n > allowed:
             regressions.append((rel, n, allowed, details[rel]))
 
