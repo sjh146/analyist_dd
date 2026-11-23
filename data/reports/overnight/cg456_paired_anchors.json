@@ -1,0 +1,84 @@
+{
+  "metric": "anchor_paired_delta",
+  "arm": "retrain_cg346",
+  "control": "champion",
+  "n_paired_anchors": 5,
+  "paired": [
+    {
+      "anchor": "2026-10-24",
+      "champion": 0.5889,
+      "retrain_cg346": 0.5144,
+      "delta": -0.0745,
+      "n_dates": 4,
+      "window": [
+        "2026-10-02",
+        "2026-10-08"
+      ],
+      "challenger_pooled": 0.5067,
+      "champion_pooled": 0.5907
+    },
+    {
+      "anchor": "2026-10-31",
+      "champion": 0.539,
+      "retrain_cg346": 0.4727,
+      "delta": -0.0663,
+      "n_dates": 9,
+      "window": [
+        "2026-10-02",
+        "2026-10-16"
+      ],
+      "challenger_pooled": 0.4732,
+      "champion_pooled": 0.5349
+    },
+    {
+      "anchor": "2026-11-07",
+      "champion": 0.5052,
+      "retrain_cg346": 0.4837,
+      "delta": -0.0215,
+      "n_dates": 14,
+      "window": [
+        "2026-10-02",
+        "2026-10-23"
+      ],
+      "challenger_pooled": 0.4892,
+      "champion_pooled": 0.5032
+    },
+    {
+      "anchor": "2026-11-14",
+      "champion": 0.5208,
+      "retrain_cg346": 0.4888,
+      "delta": -0.032,
+      "n_dates": 19,
+      "window": [
+        "2026-10-02",
+        "2026-10-30"
+      ],
+      "challenger_pooled": 0.4914,
+      "champion_pooled": 0.5204
+    },
+    {
+      "anchor": "2026-11-21",
+      "champion": 0.5284,
+      "retrain_cg346": 0.5043,
+      "delta": -0.0241,
+      "n_dates": 24,
+      "window": [
+        "2026-10-02",
+        "2026-11-06"
+      ],
+      "challenger_pooled": 0.4971,
+      "champion_pooled": 0.5258
+    }
+  ],
+  "unpaired": [],
+  "skipped": [],
+  "threshold": 0.02,
+  "source_dir": "/home/jhshi/analyist_dd/services/xgboost-ml/reports/overnight",
+  "delta_mean": -0.0437,
+  "delta_std": 0.0222,
+  "n_positive": 0,
+  "min": -0.0745,
+  "max": -0.0215,
+  "abs_champion_mean": 0.5365,
+  "abs_challenger_mean": 0.4928
+}
