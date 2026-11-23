@@ -1,0 +1,9 @@
+{
+  "mode": "webhook",
+  "webhook_url": "https://discord.com/api/webhooks/XXXX/YYYY",
+  "bot_token": "",
+  "channel_id": "",
+  "feed_repo": "/home/jhshi/trader-feed",
+  "relay_root": "/home/jhshi/analyist_dd/data/feed_relay",
+  "customers": ["pilot1", "pilot2"]
+}
