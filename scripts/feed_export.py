@@ -473,10 +473,19 @@ def _index_day_change():
             pct = float(row.get("fluctuationsRatio"))
         except (TypeError, ValueError):
             continue
+        level = None
+        try:
+            level = float(str(row.get("closePrice") or "").replace(",", ""))
+        except (TypeError, ValueError):
+            level = None
         if code == "KOSPI":
             out["kospi_change_pct"] = pct
+            if level:
+                out["kospi_level"] = level
         elif code == "KOSDAQ":
             out["kosdaq_change_pct"] = pct
+            if level:
+                out["kosdaq_level"] = level
     primary = out.get("kosdaq_change_pct")
     if primary is None:
         primary = out.get("kospi_change_pct")

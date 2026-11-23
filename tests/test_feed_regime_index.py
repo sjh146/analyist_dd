@@ -40,12 +40,14 @@ class _FakeResp:
         return False
 
 
-def _payload(kospi: float | None, kosdaq: float | None) -> dict:
+def _payload(kospi, kosdaq, kospi_level=4600.49, kosdaq_level=620.47) -> dict:
     datas = []
     if kospi is not None:
-        datas.append({"itemCode": "KOSPI", "fluctuationsRatio": str(kospi)})
+        datas.append({"itemCode": "KOSPI", "fluctuationsRatio": str(kospi),
+                      "closePrice": f"{kospi_level:,}"})
     if kosdaq is not None:
-        datas.append({"itemCode": "KOSDAQ", "fluctuationsRatio": str(kosdaq)})
+        datas.append({"itemCode": "KOSDAQ", "fluctuationsRatio": str(kosdaq),
+                      "closePrice": f"{kosdaq_level:,}"})
     return {"datas": datas}
 
 
@@ -99,3 +101,22 @@ def test_env_off_skips_call(mod, monkeypatch) -> None:
     monkeypatch.setattr("urllib.request.urlopen", spy)
     assert mod._index_day_change() == {}
     assert called["n"] == 0
+
+
+def test_levels_are_published_for_entry_comparison(mod, monkeypatch) -> None:
+    """연장 판정은 '샀을 때의 지수'와 비교하므로 수준(level)도 발행해야 한다."""
+    monkeypatch.setenv("FEED_INDEX_QUOTE", "1")
+    monkeypatch.setattr("urllib.request.urlopen",
+                        lambda *a, **k: _FakeResp(_payload(-2.3, -1.1, 4600.49, 620.47)))
+    out = mod._index_day_change()
+    assert out["kospi_level"] == 4600.49
+    assert out["kosdaq_level"] == 620.47
+
+
+def test_level_parse_handles_commas(mod, monkeypatch) -> None:
+    monkeypatch.setenv("FEED_INDEX_QUOTE", "1")
+    monkeypatch.setattr("urllib.request.urlopen",
+                        lambda *a, **k: _FakeResp(_payload(1.0, 1.0, 12345.67, 987.65)))
+    out = mod._index_day_change()
+    assert out["kospi_level"] == 12345.67
+    assert out["kosdaq_level"] == 987.65
