@@ -133,3 +133,11 @@ services/xgboost-ml/app/models/champion_backup_*/
 services/xgboost-ml/app/models/champion_wtest/
 services/xgboost-ml/app/models/scratch_*/
 services/xgboost-ml/app/models/*_probe/
+
+# 고객 배포 릴레이 (토큰·서명키·고객 데이터는 커밋 금지)
+data/feed_relay/customers.json
+data/feed_relay/release_key.txt
+data/feed_relay/feed/
+data/feed_relay/releases/
+data/feed_relay/telemetry/
+data/feed_relay/ack/

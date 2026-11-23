@@ -1,0 +1,12 @@
+{
+  "base_url": "https://CHANGE-ME.trycloudflare.com",
+  "customer_id": "pilot1",
+  "token": "PUT-TOKEN-HERE",
+  "channel": "stable",
+  "release_key": "PUT-RELEASE-KEY-HERE",
+  "feed_schema_version": 1,
+  "app_dir": "C:\\TraderAgent\\app",
+  "feed_out": "C:\\TraderAgent\\data\\feed\\screener_latest.json",
+  "log_dir": "C:\\TraderAgent\\logs",
+  "version": "1.0.0"
+}
