@@ -22,13 +22,15 @@ import sys
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEF_IN = os.path.join(PROJ, "services", "xgboost-ml", "reports", "overnight")
 DEF_OUT = os.path.join(PROJ, "data", "reports", "overnight")
+PREFIX = os.environ.get("CG455_PREFIX", "cg455_pt")
+OUT_NAME = os.environ.get("CG455_OUT", "cg455_anchor_level.json")
 
 
 def main(argv=None):
     argv = argv or sys.argv[1:]
     src = argv[0] if argv else DEF_IN
     out_dir = argv[1] if len(argv) > 1 else DEF_OUT
-    files = sorted(glob.glob(os.path.join(src, "cg455_pt_*.json")))
+    files = sorted(glob.glob(os.path.join(src, f"{PREFIX}_*.json")))
     rows = []
     skipped = []
     for f in files:
@@ -78,7 +80,7 @@ def main(argv=None):
     else:
         out["verdict"] = "판정불가(유효 앵커 < 2)"
     os.makedirs(out_dir, exist_ok=True)
-    dest = os.path.join(out_dir, "cg455_anchor_level.json")
+    dest = os.path.join(out_dir, OUT_NAME)
     with open(dest, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     out["written_to"] = dest

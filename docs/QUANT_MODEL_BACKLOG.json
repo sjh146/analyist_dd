@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T01:11:20+09:00",
+  "updated_at": "2026-11-24T01:34:33+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25393,6 +25393,26 @@
       "created": "2026-11-24T01:30:00+09:00",
       "hypothesis": "22사이클 무개선은 전부 '학습구간 이전 창'과 단일 앵커에서 측정됐다. 최근 국면(post-train 2026-10-02~11-06)에서 챔피언과 재학습 후보는 AUC 로 구분되는가? 구분되지 않으면 모델 교체 축은 최근 국면에서 판정 자체가 불가하고, 판단은 돈 지표(체결성·수수료 반영)로만 남는다.",
       "not_before": "2026-11-24T01:30:00+09:00"
+    },
+    {
+      "id": "CG457",
+      "title": "[앵커 프로토콜·유니버스 고정] 앵커 5개를 **같은 종목 집단**으로 재측정 — CG455 std 0.0382 에서 모집단 재추첨 효과를 분리 (CG455/CG456 후속)",
+      "status": "pending",
+      "priority": 1,
+      "kind": "measurement_integrity",
+      "owner": "model_engineer",
+      "affects_model": false,
+      "metric": "anchor_level_auc",
+      "summary_out": "/home/jhshi/analyist_dd/data/reports/overnight/cg457_anchor_level.json",
+      "arm": null,
+      "counterfactual": "CG455(00:2x) 같은 앵커 5개 · 모집단 미고정: 모집단이 실행마다 재추첨(aafd016ed4bc/89a7b5d7f0bc/74282ab1833a) → std 0.0382 · 같은 앵커(2026-11-07) 챔피언 AUC 0.4790 vs 0.5052(Δ0.0262)",
+      "command": "timeout 3000 bash scripts/cg457_pinned_anchor.sh",
+      "success": "사전 등록(변경 금지): ① 첫 앵커에서 뽑은 코드 목록을 나머지 앵커가 그대로 사용(로그의 universe.mode=pinned · codes_sha1 5/5 동일) ② 고정 후 앵커 std 를 기록: ≤0.020 이면 CG455 의 '앵커 불안정'은 대부분 **모집단 재추첨** 때문 → 앵커 프로토콜은 '유니버스 고정 + 앵커 평균±std'로 성립 ③ >0.020 이면 앵커(창 길이) 자체가 레버 → 앵커 평균만 인용하고 단일 앵커 금지는 유지",
+      "expected": "고정 코드 목록이 같으면 두 실행의 절대 AUC 가 비트 동일해져야 한다(결정성 확인). 그 상태의 앵커 std 가 진짜 앵커/창 효과다.",
+      "est_minutes": 25,
+      "created": "2026-11-24T01:35:00+09:00",
+      "not_before": "2026-11-24T01:40:00+09:00",
+      "hypothesis": "champion_robust_eval 의 표본 유니버스는 --universe-seed 를 고정해도 데이터 적립에 따라 eligible 풀이 변해 실행마다 다른 60종목을 뽑는다(실측: 3개 서로 다른 codes_sha1). 따라서 CG455 의 앵커-level std 0.0382 는 앵커 효과가 아니라 모집단 재추첨 + 창 길이 효과다. 유니버스를 코드 목록으로 고정하면(std 0.020 이하 예상) 앵커 프로토콜이 성립한다."
     }
   ],
   "updated": "2026-11-24T00:24:05+09:00"

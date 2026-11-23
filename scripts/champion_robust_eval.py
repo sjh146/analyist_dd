@@ -295,6 +295,15 @@ def main() -> int:
                          "왜(실측 2026-10-01 CG46): 유니버스 정체만 바꿔도 폴드 평균이 Δ0.0287 움직인다"
                          "(CG13, 서로소 30종목 5구간) — 단일 유니버스의 짝 Δ +0.02 는 그 잡음보다 작아 "
                          "여러 시드에서 부호가 유지되는지 확인해야 승격 근거가 된다.")
+    ap.add_argument("--universe-codes-in", dest="universe_codes_in", default=None,
+                    help="고정할 종목 코드 목록 JSON(`{\"codes\": [...]}` 또는 리스트). 주면 유니버스 "
+                         "선택을 건너뛰고 이 목록으로 채점한다 — 실측(2026-11-24 CG455/CG456): 같은 "
+                         "플래그·같은 앵커의 두 실행이 서로 다른 모집단(aafd016/89a7b5d)을 뽑아 같은 "
+                         "앵커 AUC 가 0.4790 vs 0.5052(Δ0.0262 = 문턱 1.3배)로 갈렸다. 앵커·시드 비교를 "
+                         "하려면 모집단을 먼저 고정해야 한다.")
+    ap.add_argument("--universe-codes-out", dest="universe_codes_out", default=None,
+                    help="이번 실행이 실제로 쓴 종목 코드 목록을 JSON 으로 남긴다(다음 실행의 "
+                         "--universe-codes-in 입력). 결과 파일에는 sha1 만 남으므로 목록 자체를 보존한다.")
     ap.add_argument("--out", default="app/reports/champion_robust_eval.json")
     ap.add_argument("--dump-preds", dest="dump_preds", default=None,
                     help="(선택) (fold,date,code) 별 확률·실현 선행수익 jsonl 을 이 경로에 쓴다. "
@@ -416,7 +425,13 @@ def main() -> int:
     # (창 하나만 보면 n_days 조건을 만족하는 종목이 없어 유니버스가 빈다 — 실측 함정).
     univ_start = dates_asc[max(0, len(dates_asc) - 120)]
     univ_end = dates_asc[-1]
-    if args.universe == "liquidity":
+    if args.universe_codes_in:
+        with open(args.universe_codes_in, encoding="utf-8") as f:
+            _pinned = json.load(f)
+        universe = _pinned.get("codes") if isinstance(_pinned, dict) else _pinned
+        universe = [str(c) for c in (universe or [])]
+        logger.info("표본 유니버스 %d종목(고정 코드 목록 %s)", len(universe), args.universe_codes_in)
+    elif args.universe == "liquidity":
         with conn.cursor() as cur:
             cur.execute(UNIVERSE_SQL, {"start": univ_start, "end": univ_end, "limit": args.stocks})
             universe = [r[0] for r in cur.fetchall()]
@@ -434,7 +449,18 @@ def main() -> int:
     # 표본 구성 로깅 — 결과 파일에 '무엇을 채점했는가'가 남아야 해석을 틀리지 않는다.
     # 실측(2026-09-30): 유동성 상위 80종목 중 26개가 ETF/ETN/레버리지, 학습 유니버스(200)와의
     # 교집합 5종목 → 그 OOS 0.4410 을 '자기 과제 성적'으로 읽으면 안 된다.
-    universe_info = {"mode": args.universe, "n": len(universe)}
+    universe_info = {"mode": ("pinned" if args.universe_codes_in else args.universe),
+                     "n": len(universe)}
+    if args.universe_codes_in:
+        universe_info["codes_in"] = args.universe_codes_in
+    if args.universe_codes_out:
+        import hashlib as _hl
+        with open(args.universe_codes_out, "w", encoding="utf-8") as f:
+            json.dump({"codes": sorted(universe), "mode": args.universe,
+                       "codes_sha1": _hl.sha1(
+                           ",".join(sorted(universe)).encode()).hexdigest()[:12]},
+                      f, ensure_ascii=False, indent=2)
+        universe_info["codes_out"] = args.universe_codes_out
     if args.universe == "training":
         universe_info["seed"] = args.universe_seed
         # 모집단 정체를 결과 파일에 박아 둔다 — 적립(날짜 누적) 비교가 성립하려면 '같은 모집단'이어야 한다.
