@@ -6,6 +6,7 @@
 - stale(창 밖 공백)을 0 으로 내보내면 실명이 '정상'으로 보고된다 → 999(=실패)로 내보낸다.
 """
 import os
+import subprocess
 import sys
 from datetime import date, timedelta
 
@@ -51,11 +52,22 @@ def test_stale_reports_failure_not_silence(monkeypatch, capsys):
     assert "stale" in err
 
 
-def test_check_mode_is_wired_in_main(monkeypatch):
-    """main 이 check 모드를 인식하지 못하면 백로그 command 가 'usage' 로 끝나 조용히 실패한다."""
-    monkeypatch.setattr(sys, "argv", ["data_gap.py", "check"])
-    monkeypatch.setattr(dg, "cmd_check", lambda: 0)
-    with pytest.raises(SystemExit) as e:
-        exec(compile(open(dg.__file__, encoding="utf-8").read(), dg.__file__, "exec"),
-             {"__name__": "__main__", "__file__": dg.__file__})
-    assert e.value.code == 0
+def test_check_mode_is_wired_in_main():
+    """main 이 check 모드를 모르면 usage(2)로 끝난다 — 실제 프로세스로 배선을 본다."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    proc = subprocess.run(
+        [sys.executable, os.path.join(root, "scripts", "data_gap.py"), "check"],
+        capture_output=True, text=True, timeout=300,
+    )
+    assert proc.returncode != 2, "check 모드가 usage(2)로 끝남: {0}".format(proc.stdout[:200])
+    assert "usage:" not in proc.stdout
+
+
+def test_unknown_mode_exits_usage():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    proc = subprocess.run(
+        [sys.executable, os.path.join(root, "scripts", "data_gap.py"), "bogus-mode"],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 2
+    assert "usage:" in proc.stdout

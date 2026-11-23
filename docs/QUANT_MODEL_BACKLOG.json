@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-23T20:13:46+09:00",
+  "updated_at": "2026-11-23T20:15:34+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25172,7 +25172,21 @@
       "command": "/usr/bin/python3 -m pytest -q tests 2>&1 | tail -5",
       "success": "root-tests rc=0 (0 failed)",
       "note": "검증: python3 scripts/run_test_suites.py → '5스위트 통과 · 1,651개 통과'.",
-      "result": "2026-11-23 수리: root-tests 4건 전부 원인 판정·수정 — ① data_gap 창확장 테스트가 주말 날짜(today-29=일요일)를 거래일 목록에서 찾던 결함 → 창의 최 oldest 거래일과 비교 + 주말 보정. ② money_scoreboard 한도 기대값 3→10(하루 10건 상향 반영). ③ kis_minute 페이지네이션 테스트가 XR26 이전 규약(짧은 배치=종료) → 현 규약(2콜·중복봉 1개)으로 갱신. ④ trader_cycle 픽스처 날짜 하드코딩(11-19) → 오늘 기준 생성(오늘 청산 카운트). 러너에 .env 자체 로드 + 실패 스위트 재시도(플래키 감지) 추가. 실측: 5스위트 통과 · 1,651 passed · 159.8s · 실패 0."
+      "result": {
+        "verdict": "수리 완료 — 테스트 결함(monkeypatch 불가 경로)",
+        "detail": "root-tests 1036 passed / 0 failed (2026-11-23 20:2x). 원 4건 중 3건은 19:4x 이후 코드 변경으로 해소, 남은 1건(test_data_gap_check_mode::test_check_mode_is_wired_in_main)은 테스트 자체 결함이었다 — exec(새 전역 dict)로 모듈을 재실행해 monkeypatch 가 적용될 수 없어 실제 DB 경로를 타고 rc=1 로 실패. 서브프로세스로 실제 배선을 검사하도록 교체(usage(2) 아님 + usage 문자열 부재) + unknown-mode 대조 테스트 추가.",
+        "delta": null,
+        "rc": 0
+      },
+      "attempts": [
+        {
+          "ts": "2026-11-23T20:15:34+09:00",
+          "rc": 0,
+          "verdict": "수리 완료",
+          "detail": "root-tests 1036 passed / 0 failed (2026-11-23 20:2x). 원 4건 중 3건은 19:4x 이후 코드 변경으로 해소, 남은 1건(test_data_gap_check_mode::test_check_mode_is_wired_in_main)은 테스트 자체 결함이었다 — exec(새 전역 dict)로 모듈을 재실행해 monkeypatch 가 적용될 수 없어 실제 DB 경로를 타고 rc=1 로 실패. 서브프로세스로 실제 배선을 검사하도록 교체(usage(2) 아님 + usage 문자열 부재) + unknown-mode 대조 테스트 추가.",
+          "log": "pytest -q tests → 1036 passed, 4 skipped, 0 failed"
+        }
+      ]
     },
     {
       "id": "CG452",
