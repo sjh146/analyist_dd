@@ -46,6 +46,18 @@ export BRIDGE_URL="${BRIDGE_URL:-http://127.0.0.1:8100}"
 
 log "start (dry_run=${DRY:-no})"
 
+OPEN_GATE="${DAYTRADING_OPEN_GATE_PCT:-0}"
+if [ "${OPEN_GATE:-0}" != "0" ]; then
+  if "$PY" "$REPO/scripts/kosdaq_open_gate.py" --threshold "$OPEN_GATE" \
+       --json-out "$REPO/data/state/kosdaq_open_gate.json" >> "$LOG" 2>&1; then
+    log "개장 게이트 통과(코스닥 >= +${OPEN_GATE}%) — 단타 후보 생성"
+    REGIME_ARG="--regime-block off"
+  else
+    log "개장 게이트 미달/판정불가 — 단타 차단(--regime-block on)"
+    REGIME_ARG="--regime-block on"
+  fi
+fi
+
 # 2026-11-23: 레짐 게이트 입력이 컨테이너에 안 보이면 게이트가 **조용히** 무력화된다
 # (실측: 같은 날 호스트 실행은 risk_off 로 차단, 컨테이너 실행은 20건 통과 —
 #  data/state 가 마운트되지 않아 파일이 없고 _load_regime 이 None → fail-open).
@@ -96,6 +108,11 @@ if [ "${n:-0}" -eq 0 ]; then
   n=$(run_screener "$MIN_VALUE_LO" "" "fallback")
 fi
 if [ "${n:-0}" -eq 0 ]; then
+  if printf '%s' "$REGIME_ARG" | grep -q ' on$'; then
+    log "WARN 후보 0건 + 게이트 차단 — 피드의 단타 목록을 비워 stale 진입을 막는다"
+    "$PY" scripts/feed_clear_daytrading.py $DRY >> "$LOG" 2>&1 || log "WARN clear 실패"
+    exit 0
+  fi
   log "FAIL 후보 0건 — 발행 중단(기존 피드 유지)"
   exit 1
 fi
