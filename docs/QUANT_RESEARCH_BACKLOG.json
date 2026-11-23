@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-23T21:30:00",
+  "updated_at": "2026-11-24T03:28:36+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -2271,13 +2271,13 @@
     {
       "id": "R49",
       "title": "feature_coverage 131행이 11-18 측정으로 5일 정체 — dq_feature_oldest_age_days 4.998, 5일 문턱 직전 (재측정 경로 + 낡은 패널 쓰기 금지 가드)",
-      "status": "pending",
+      "status": "done",
       "priority": 5,
       "kind": "collect",
       "recurring": true,
       "affects_model": true,
       "hypothesis": "커버리지 지표가 낡은 측정을 '오늘 측정'으로 위조할 수 있다. `feature_coverage` 210행 중 131행의 computed_at 이 2026-11-18 에 멈춰 있고(가장 오래된 값 = dq_feature_oldest_age_days 4.998), 재측정 경로인 `scripts/feature_coverage_report.py` 는 `app/models/exp_panel/panel.pkl` 캐시(meta.last_trade_date=2026-10-06)를 재사용한다 — 그대로 돌리면 **6주 전 패널로 잰 값을 computed_at=now() 로 upsert** 해 신선도 지표를 0 으로 리셋한다(위조). ① 쓰기 금지 가드를 넣고 ② 재측정이 실제로 도는 경로(패널 리빌드)의 주기를 확인한다.",
-      "evidence": "[실측 2026-11-23 21:1x] ① `SELECT computed_at, count(*) FROM feature_coverage GROUP BY 1` → 11-23 11:16(19행·수급 빌더) / 11-23 10:10(17행·이벤트 빌더) / 11-22 17:26·17:28(35행) / **11-18 12:14(131행)**. ② `dq_feature_oldest_age_days` = 4.998 (Prometheus, 21:1x). ③ `docker exec stock_xgboost_ml cat /app/app/models/exp_panel/meta.json` → last_trade_date 2026-10-06, built_at 10-06T13:44. ④ 수리: `scripts/feature_coverage_report.py` 에 패널 신선도 가드 추가(`panel_staleness` / `--max-panel-age-days` 기본 10 / `--allow-stale`) — 컨테이너 실행 실측: '패널 캐시 마지막 거래일이 48일 전 (한도 10일) — 쓰기 생략(exit 3)' 출력 확인. 회귀 3건(tests/test_feature_coverage_stale_panel.py). [실측 2026-11-24 01:06 수리·재측정] 원인 2건 추가 확정: (1) 호스트 실행 시 sys.path 후보가 '/app'·cwd 뿐이라 `ModuleNotFoundError: No module named 'app'` (R49 rc=1) → `_app_roots()` 에 repo/services/xgboost-ml 추가, (2) `--ignore-cache` 로 **방금 새로 빌드한 신선 패널**에도 캐시 낡음 가드가 걸려 exit 3 (쓰기 거부) → 가드를 캐시 경로에만 적용. 재측정 `--ignore-cache --stocks 60 --days 120` rc=0: source=축소빌드(60종목/120일) features=196, computed_at 11-24 01:06 으로 196행 갱신(stale5 137→**6**), 창 혼재(dq_feature_non_model_window_rows) 71→**0**, 창 가짓수 3→**1**, 생존 178/죽은 24. 잔여 6행 = rank_*(return_5d·return_20d·volatility_20d·volume_ratio_5·volume_ratio_20·ma_position_5) 로 11-18 21:14 고정 — 이들은 FeaturePipeline.build_training_features 가 아니라 `compute_cross_sectional_ranks`(스크리너 경로)에서 생성되므로 이 스크립트로는 갱신 불가. 판정: check_target(<=0) 은 6 이라 미달 유지 — 모델엔지니어 핸드오프(XR49) 필요.",
+      "evidence": "[실측 2026-11-23 21:1x] ① `SELECT computed_at, count(*) FROM feature_coverage GROUP BY 1` → 11-23 11:16(19행·수급 빌더) / 11-23 10:10(17행·이벤트 빌더) / 11-22 17:26·17:28(35행) / **11-18 12:14(131행)**. ② `dq_feature_oldest_age_days` = 4.998 (Prometheus, 21:1x). ③ `docker exec stock_xgboost_ml cat /app/app/models/exp_panel/meta.json` → last_trade_date 2026-10-06, built_at 10-06T13:44. ④ 수리: `scripts/feature_coverage_report.py` 에 패널 신선도 가드 추가(`panel_staleness` / `--max-panel-age-days` 기본 10 / `--allow-stale`) — 컨테이너 실행 실측: '패널 캐시 마지막 거래일이 48일 전 (한도 10일) — 쓰기 생략(exit 3)' 출력 확인. 회귀 3건(tests/test_feature_coverage_stale_panel.py). [실측 2026-11-24 01:06 수리·재측정] 원인 2건 추가 확정: (1) 호스트 실행 시 sys.path 후보가 '/app'·cwd 뿐이라 `ModuleNotFoundError: No module named 'app'` (R49 rc=1) → `_app_roots()` 에 repo/services/xgboost-ml 추가, (2) `--ignore-cache` 로 **방금 새로 빌드한 신선 패널**에도 캐시 낡음 가드가 걸려 exit 3 (쓰기 거부) → 가드를 캐시 경로에만 적용. 재측정 `--ignore-cache --stocks 60 --days 120` rc=0: source=축소빌드(60종목/120일) features=196, computed_at 11-24 01:06 으로 196행 갱신(stale5 137→**6**), 창 혼재(dq_feature_non_model_window_rows) 71→**0**, 창 가짓수 3→**1**, 생존 178/죽은 24. 잔여 6행 = rank_*(return_5d·return_20d·volatility_20d·volume_ratio_5·volume_ratio_20·ma_position_5) 로 11-18 21:14 고정 — 이들은 FeaturePipeline.build_training_features 가 아니라 `compute_cross_sectional_ranks`(스크리너 경로)에서 생성되므로 이 스크립트로는 갱신 불가. 판정: check_target(<=0) 은 6 이라 미달 유지 — 모델엔지니어 핸드오프(XR49) 필요. [실측 2026-11-24 03:24 수리·재측정] 잔여 6행(rank_*)의 원인을 리서처 소유 스크립트에서 해소 — `scripts/feature_coverage_report.py` 에 `_add_cross_sectional_ranks()` 추가(패널의 날짜별 횡단면 `rank(pct=True)`, 파이프라인 식과 동일). 커밋 b975ef5, 회귀 3건(tests/test_feature_coverage_ranks.py). 재측정 `--ignore-cache --stocks 60 --days 120`: features 196→202, computed_at 11-24 03:24:45 로 **202행 전부 갱신**(stale5 6→**0**, 창 가짓수 3→1, 모델 창 아닌 행수 54→0), rank_* 실측 nonzero 1.0 / std 0.2886. `dq_feature_oldest_age_days` 5.23 → **0.00** (dq_snapshot rc=0). 주의: 축소 패널 60종목 백분위라 rank 값 자체는 생산값이 아니다(커버리지 판정 전용).",
       "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/feature_coverage_report.py --ignore-cache --stocks 60 --days 120 --skip-if-fresh-hours 20",
       "check": "cd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM feature_coverage WHERE computed_at < now() - interval '5 days'\"",
       "check_target": {
@@ -2286,25 +2286,30 @@
         "unit": "5일 넘은 커버리지 측정 행수(주말 갭 3일은 정상 범위)"
       },
       "next_if_met": "131행이 갱신되면 dq_feature_oldest_age_days 도 실제 측정일로 내려간다. 패널 리빌드 주기(cron) 배선은 **승인 항목**.",
-      "note": "`--ignore-cache` 는 컨테이너 안에서 축소 패널을 새로 빌드한다(60종목/60일 — 대형 학습 아님). 전 종목 커버리지는 엔지니어 패널 리빌드(R14 계열)가 필요하다.",
+      "note": "`--ignore-cache` 는 컨테이너 안에서 축소 패널을 새로 빌드한다(60종목/60일 — 대형 학습 아님). 전 종목 커버리지는 엔지니어 패널 리빌드(R14 계열)가 필요하다. / 2026-11-24: rank_* 6행은 이제 이 스크립트가 직접 측정한다. 전 종목(생산) 커버리지는 여전히 엔지니어 패널 리빌드(R14 계열) 몫.",
       "attempts": [
         {
           "ts": "2026-11-24T00:48:19+09:00",
           "rc": 1,
           "detail": "R49: 131 <= 0 → 미달"
+        },
+        {
+          "ts": "2026-11-24T03:28:36+09:00",
+          "rc": 0,
+          "detail": "R49: 0 <= 0 → 충족 (rank_* 포함 재측정)"
         }
       ],
       "result": {
-        "detail": "R49: 131 <= 0 → 미달",
-        "check_value": 131.0,
-        "rc": 1,
-        "log": "data/reports/res_cycle/logs/res_R49_20261124-004817.log"
+        "detail": "R49: 0 <= 0 → 충족",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R49_repair_ranks_20261124-030002.log"
       }
     },
     {
       "id": "R50",
       "title": "빌더 자기신고 persisted_rows 수리 검증 — '테이블 총계'를 넣어 dq_claim_gap 이 -110만이던 결함(수리 후 실측 대조)",
-      "status": "pending",
+      "status": "done",
       "priority": 7,
       "kind": "collect",
       "recurring": false,
@@ -2318,7 +2323,20 @@
         "value": 1,
         "unit": "최신 claim 행의 |claimed − persisted|"
       },
-      "note": "야간 파이프라인(full_pipeline_dd)이 supply_market_features 를 읽는 동안에는 실행하지 않는다(DELETE→COPY 사이 반쪽 테이블을 패널 빌더가 읽을 수 있다). 파이프라인 종료 후 실행."
+      "note": "야간 파이프라인(full_pipeline_dd)이 supply_market_features 를 읽는 동안에는 실행하지 않는다(DELETE→COPY 사이 반쪽 테이블을 패널 빌더가 읽을 수 있다). 파이프라인 종료 후 실행.",
+      "attempts": [
+        {
+          "ts": "2026-11-24T02:54:26+09:00",
+          "rc": 0,
+          "detail": "R50: 0 <= 1 → 충족"
+        }
+      ],
+      "result": {
+        "detail": "R50: 0 <= 1 → 충족",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_R50_20261124-024756.log"
+      }
     }
   ]
 }
