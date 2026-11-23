@@ -81,6 +81,8 @@ def test_no_env_values_in_tracked_files():
 
 
 def test_no_private_key_material():
-    out = subprocess.run(["git", "-C", str(REPO), "grep", "-l", "BEGIN OPENSSH PRIVATE KEY"],
+    marker = "BEGIN OPENSSH PRIVATE " + "KEY"
+    out = subprocess.run(["git", "-C", str(REPO), "grep", "-l", "--", marker,
+                          ":(exclude)tests/test_no_secrets.py"],
                          capture_output=True, text=True)
     assert out.stdout.strip() == "", "개인키가 추적되고 있다: " + out.stdout.strip()
