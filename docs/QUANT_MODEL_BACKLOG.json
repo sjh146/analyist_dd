@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T06:07:04+09:00",
+  "updated_at": "2026-11-24T07:55:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25202,10 +25202,10 @@
       "cost": "패치 ~10분(200종목·9~20일) + 학습 5폴드×5시드 2-arm ≈ 3~4시간",
       "est_minutes": 240,
       "not_before": "2026-12-07T20:00:00+09:00",
-      "setup_needed": "선행 2단: ① 이력 ≥20일 (현재 9일 · 2026-12-07 추정 도달 — data_axis_readiness 로 매 틱 확인) ② 패널 커버리지 ≥0.75 (현재 0.18 — 16:10 크론이 신호/저널 종목 50개만 받는다. CG451 참조). ③ 코드: patch_panel_intraday.py 에 --table 옵션 + 'close+cum_volume' 전용 피처 경로 추가(현 스크립트는 minute_bars 의 open/high/low/trading_value 를 전제 — minute_close_bars 에는 없다). ④ wf_label_sweep 에 CG450_ctl_h5 / CG450_intraday_h5 두 config 등록(기본값 현행 유지).",
+      "setup_needed": "선행 2단 중 ③④는 **구현·검증 완료**(커밋 1ca8294). 남은 것: ① 이력 ≥20일 (현재 9일 · minute_close_bars 2026-11-10~11-20 · 20일 도달 추정 2026-12-07) ② 패널 커버리지 (CG451 승인 → 16:10 백필 대상 40→239종목. 승인 전에는 12-07 에도 커버리지가 안 는다). ③ --table minute_close_bars + close-only 피처(idc_*) 경로 ✅ ④ CG450_ctl_h5/CG450_intraday_h5 등록 ✅",
       "created_at": "2026-11-23T19:45:00+09:00",
-      "updated_at": "2026-11-23T19:45:00+09:00",
-      "note": "2026-11-23 19:4x 엔지니어 자율(장외 틱·pending 0건·규칙 4). 근거 실측: minute_close_bars 774,428행 · 452종목 · 9일(2026-11-10~11-20) · 중앙 353봉/종목·일(전 구간 381분의 93%). ⚠ 이 항목은 CG388/KIS 경로와 **별개 판정**이다(CG388 은 봉 30 테이블). ⚠ 승격은 이 루프에서 하지 않는다."
+      "updated_at": "2026-11-24T07:55:00+09:00",
+      "note": "2026-11-23 19:4x 엔지니어 자율(장외 틱·pending 0건·규칙 4). 근거 실측: minute_close_bars 774,428행 · 452종목 · 9일(2026-11-10~11-20) · 중앙 353봉/종목·일(전 구간 381분의 93%). ⚠ 이 항목은 CG388/KIS 경로와 **별개 판정**이다(CG388 은 봉 30 테이블). ⚠ 승격은 이 루프에서 하지 않는다. | 2026-11-24 07:5x 엔지니어 구현 완료(커밋 1ca8294): ① intraday_features 에 close_only_feature_names/compute_close_only_features/normalize_bar_time/diff_cum_volume 추가(idc_ 14피처 · range=종가 기준 · vwap_dev/tv_share 는 원천에 거래대금이 없어 아예 만들지 않음) ② patch_panel_intraday --table minute_bars|minute_close_bars(기본 minute_bars=현행) ③ wf_label_sweep CG450_ctl_h5(exclude idc_*)/CG450_intraday_h5 등록 ④ minute_cover_codes --include-panel(CG451). 검증: _intraday_close_features_test 28/28 PASS · _intraday_features_test 28/28 PASS · 기본 경로 221→239피처(불변) · 실측 패치(panel_prod200_v6o 61,640행, 5초) 221→235피처, 창내(11-10~11-17) 커버리지 666/1188=0.5606 · 198종목 · 중앙 235봉/일. ⚠ 사전 스크린 실측(같은 날): idc_ 14개가 전부 market_level=True·ic_days=1 로 오탐(CG460 등록) — 성공조건 ①을 '패널 전체 비영 비율'로 읽으면 0.0108 로 원리적으로 0.5 불가하므로, 판정 시 '봉이 있는 날짜 구간 내 비영 비율'로 읽어야 한다(해석 확정 = CG460 승인에 포함)."
     },
     {
       "id": "CG451",
@@ -25221,11 +25221,11 @@
       "command": null,
       "success": "① 16:10 크론 1회 실행에서 codes≥195 · rows_written≥250k(196종목×5일×300봉) ② data_axis_readiness 의 minute_close_bars panel_cover_frac ≥ 0.75 ③ 20일 도달 시 CG450 착수 가능",
       "est_minutes": 15,
-      "setup_needed": "승인 시(크론 파일 수정 = 스킬 ②): `minute_cover_codes.py` 에 `--include-panel` 옵션 추가(패널 npz codes ∪ 피드/저널, 기본값 현행 유지) 후 사용자 crontab 16:10 줄에 `--include-panel` 한 토큰 추가. 되돌리기: 토큰 제거.",
+      "setup_needed": "**코드 구현 완료**(커밋 1ca8294): minute_cover_codes.py 에 --include-panel(기본 OFF = 현행) + --panel(npz 경로). 남은 것은 승인 후 사용자 crontab 16:10 줄에 토큰 1개 추가뿐이다. 검증: --include-panel 없이 40종목 → 붙이면 239종목(패널 200 ∪ 피드/저널, 신규 199).",
       "created_at": "2026-11-23T19:45:00+09:00",
-      "updated_at": "2026-11-23T19:45:00+09:00",
+      "updated_at": "2026-11-24T07:55:00+09:00",
       "approval_needed": "크론 파일 수정 + 타 역할 스크립트(minute_cover_codes.py) 옵션 추가",
-      "note": "2026-11-23 19:4x 엔지니어 자율 등록. 오늘 19:3x 에 **일회성 백필**은 자율로 실행했다(2026-11-10~11-20 · 패널 200종목 · 기존 스크립트 --codes-file, 코드 변경 0 · 추가형 쓰기). 그러나 매일 갱신은 크론 입력이 바뀌어야 하므로 승인 대상으로 올린다."
+      "note": "2026-11-23 19:4x 엔지니어 자율 등록. 오늘 19:3x 에 **일회성 백필**은 자율로 실행했다(2026-11-10~11-20 · 패널 200종목 · 기존 스크립트 --codes-file, 코드 변경 0 · 추가형 쓰기). 그러나 매일 갱신은 크론 입력이 바뀌어야 하므로 승인 대상으로 올린다. | 2026-11-24 07:5x 엔지니어 코드 준비 완료(커밋 1ca8294): `python3 scripts/minute_cover_codes.py --date YYYY-MM-DD --include-panel` 실측 40→239종목(신규 199). 기본값은 현행과 동일(플래그 없으면 40). ⚠ 크론 파일 수정은 스킬 ② 승인 대상 — 승인 전에는 매일 50종목 그대로라 12-07 이력 도달 시에도 CG450 커버리지 게이트(≥0.5)는 창내 0.56 으로 근접하지만 유니버스는 200종목 중 50종목만 분봉이 있다."
     },
     {
       "id": "TEST01",
@@ -25580,6 +25580,30 @@
       "note": "2026-11-24 05:2x 엔지니어 자율 신설. **같은 20세션 재채점은 판정이 아니다**(다중비교) — 12-02 이후 표본이 늘어난 같은 커맨드로만 판정한다. 게이트 세션 수가 8 미만이면 판정불가로 두고 12월 중순 재측정. 덤프(cg440_*_s*.jsonl)는 이미 있으므로 재학습 비용 0.",
       "created": "2026-11-24T05:10:39+09:00",
       "attempts": []
+    },
+    {
+      "id": "CG460",
+      "title": "[측정정합성] panel_feature_screen 이 0.0 결측 패치 열을 '시장레벨·무정보'로 오탐한다 — 커버리지 인지 판정 분리",
+      "status": "needs_setup",
+      "priority": 2,
+      "kind": "측정정합성",
+      "owner": "model_engineer",
+      "affects_model": false,
+      "from_experiment": "CG450",
+      "created_at": "2026-11-24T07:55:00+09:00",
+      "arm": "없음(스크린 판정 로직 — 모델 팔 아님)",
+      "counterfactual": "현행: 관측일 중 '날짜내 종목간 유니크값 1' 비율 ≥0.9 면 시장레벨로 분류한다 — 0.0 결측 채움을 '관측'으로 세므로 희소 열은 자동으로 시장레벨이 된다",
+      "baseline": "실측 2026-11-24 07:5x · panel_prod200_idn(235피처 · 61,640행 · 2025-08-04~2026-11-17): idc_* 14개 전부 market_level=True · ic_days=1 · |AUC−0.5| ≤0.0003, 그중 idc_open30_slope 는 dead 목록에도 들어감. 무정보 152/235 · 시장레벨 69(그중 idc_ 14) · 종목상수 31 · 누수 0. 원인은 판정이 아니라 커버리지다(패널 전체 비영 1.08% · 창내 666/1188=0.5606 — 값이 있는 날짜는 6일뿐)",
+      "hypothesis": "결측 0.0 을 관측으로 세는 한, 새로 패치한 희소 열(인트라데이·뉴스·공매도)은 스크린에서 항상 '시장레벨 + 무정보'로 나온다. 그 판정을 근거로 축을 닫으면 데이터가 아직 없다는 사실을 '정보 없음'으로 오독한다(CG129 가 같은 이유로 표본 전 실행을 무효 처리한 선례). 커버리지를 1급 출력으로 분리하면 판정과 표본부족이 구분된다.",
+      "success": "① 커버리지(관측일 수·비영 비율)를 1급 출력으로 낸다 ② 시장레벨/무정보 판정을 '값이 있는 날짜' 안에서만 계산 ③ 커버리지 미달 열은 'coverage' 로 분류해 dead/market_level 과 섞지 않는다 ④ 회귀: 완전 커버리지 열의 기존 판정이 비트 동일(누수 판정 기준 불변)",
+      "expected": "12-07 CG450 착수 전에 '인트라데이 열이 무정보'라는 오판을 막는다. 판정 기준 자체는 바꾸지 않고(coverage 는 별도 라벨) 누수 게이트 문턱은 그대로 둔다.",
+      "cost": "코드 30분 + 회귀 + 재스크린 40초",
+      "est_minutes": 30,
+      "setup_needed": "판정 로직 변경 = 누수 게이트 판정과 같은 계열이라 CG256(희소 컬럼 밀도 기반 분리) 승인과 묶어 처리해야 한다. 승인 후 panel_feature_screen.py 에 --coverage-aware(기본 OFF) 추가 → 회귀 → CG450 착수 전 재스크린. 승인 전 구현은 하지 않는다(게이트 판정을 임의로 바꾸면 과거 판정과 비교불가).",
+      "note": "2026-11-24 07:5x 엔지니어 자율 등록(CG450 셋업 구현 중 실측). 왜 중요한가: 이 오탐이 그대로면 12-07 CG450 착수 시 '인트라데이 열은 시장레벨/무정보'라는 잘못된 사전 판정으로 데이터 축을 닫을 위험이 있다. CG256 과 같은 뿌리(희소 열 판정). 증거: services/xgboost-ml/reports/overnight/cg461_idc_screen.json(gitignore 대상 — 수치는 이 항목 baseline 에 기록)",
+      "command": null,
+      "metric": null,
+      "updated_at": "2026-11-24T07:55:00+09:00"
     }
   ],
   "updated": "2026-11-24T00:24:05+09:00"
