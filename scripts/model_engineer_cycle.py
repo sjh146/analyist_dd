@@ -6567,6 +6567,24 @@ def _forward_needs_refresh(mtime, now, max_age_hours=20.0) -> bool:
     return (now - mtime) / 3600.0 > max_age_hours
 
 
+def _current_version(window) -> str | None:
+    """전방 성적표 창(dict)에서 **현행 판본** = 가장 최근 예측 날짜의 model_version.
+
+    날짜→판본 맵(`date_versions`)이 없으면 None(그러면 요약에 현행 슬라이스를 못 붙인다).
+    왜 필요한가: pooled/top10 헤드라인은 판본이 섞이면 구판본이 값을 지배한다
+    (실측 2026-11-23: h1 혼합 top10 −0.36% vs champ 단독 +0.60%). '지금 배포된 모델'의
+    숫자는 최근 날짜 판본이어야 한다(2026-11-23 CG447).
+    """
+    dv = (window or {}).get("date_versions") or {}
+    if not dv:
+        return None
+    try:
+        last = max(dv)
+    except (TypeError, ValueError):
+        return None
+    return dv.get(last)
+
+
 def _forward_summary_line(path) -> str:
     """전방 성적표 JSON 을 한 줄로 요약(파싱 실패는 예외 없이 문자열로)."""
     try:
@@ -6582,18 +6600,37 @@ def _forward_summary_line(path) -> str:
         top, allr = w.get("top10_ret_mean"), w.get("all_ret_mean")
         bv = w.get("by_version") or {}
         vnote = ""
+        cur_note = ""
         if len(bv) > 1:
             seg = "·".join(f"{str(k).split('-')[0]}:{v.get('n_dates')}d"
                            for k, v in sorted(bv.items(),
                                               key=lambda kv: -(kv[1].get("n_dates") or 0)))
             vnote = f" · ⚠판본혼합 {seg}"
+            # 판본이 섞였으면 **현행(가장 최근 날짜의) 판본** 돈 지표를 함께 낸다.
+            # WHY (2026-11-23 실측): 혼합 헤드라인 h1 top10 −0.36%/h5 −3.99% 는 사실
+            # v1.0(구판본)이 만든 값이고, champ 단독은 h1 +0.60% vs 풀 −0.27%
+            # (Δ+0.87%p·t 0.90·분할 [+0.98,+0.75]·8날짜) 로 **부호가 반대**였다.
+            # 혼합 숫자만 보고하면 배포 모델 성과를 정반대로 오독한다(CG378 계열).
+            cur = _current_version(w)
+            m = (bv.get(cur) or {}) if cur else {}
+            if m and m.get("delta_mean_pct") is not None:
+                t = m.get("delta_t")
+                sp = m.get("split_half_pct") or [None, None]
+                cur_note = (f" · 현행[{str(cur).split('-')[0]}]"
+                            f" topk {format(float(m['topk_net_mean_pct']), '+.3f')}%"
+                            f" vs 풀 {format(float(m['pool_net_mean_pct']), '+.3f')}%"
+                            f" Δ{format(float(m['delta_mean_pct']), '+.3f')}%p"
+                            f"(t {'n/a' if t is None else format(float(t), '.2f')}"
+                            f", {'n/a' if sp[0] is None else format(float(sp[0]), '+.2f')}"
+                            f"/{'n/a' if sp[1] is None else format(float(sp[1]), '+.2f')}"
+                            f", {m.get('n_dates')}d)")
         parts.append(
             f"{h} n_dates {w.get('n_dates')} · pooled {auc if auc is None else round(float(auc), 4)}"
             # pooled 만 쓰면 '날짜 혼합 착시'가 그대로 보고된다(실측 2026-11-22: h1 pooled 0.5638 vs
             # daily 평균 0.5158 — 하루 안에서의 순위력은 0.52 수준). daily 평균을 항상 병기한다.
             f"(daily {w.get('daily_auc_mean') if w.get('daily_auc_mean') is None else round(float(w['daily_auc_mean']), 4)}) · "
             f"top10 {'n/a' if top is None else format(float(top), '+.4%')}"
-            f" vs 전체 {'n/a' if allr is None else format(float(allr), '+.4%')}{vnote}")
+            f" vs 전체 {'n/a' if allr is None else format(float(allr), '+.4%')}{vnote}{cur_note}")
     return "전방 성적표: " + " | ".join(parts)
 
 

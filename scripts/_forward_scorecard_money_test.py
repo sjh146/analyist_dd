@@ -157,6 +157,36 @@ except Exception as e:  # noqa: BLE001
     check("상수: fillable_expectancy import(폴백값 사용)", fw.FEE_BUY == 0.00015 and fw.TAX_SELL == 0.0018,
           f"{e}")
 
+# ------------------------------------------------- 7. 현행 판본 슬라이스 (CG447, 2026-11-23)
+# 왜: 판본이 섞인 헤드라인(top10)은 구판본이 지배해 배포 모델 성과를 반대로 읽게 만든다.
+# 요약 줄이 '가장 최근 날짜의 판본' 돈 지표를 별도로 붙이는지 고정한다.
+try:
+    import model_engineer_cycle as me2
+    mon = {"topk_net_mean_pct": 0.597, "pool_net_mean_pct": -0.272, "delta_mean_pct": 0.869,
+           "delta_t": 0.90, "split_half_pct": [0.98, 0.75], "n_dates": 8}
+    old_mon = {"topk_net_mean_pct": -0.883, "pool_net_mean_pct": -0.252, "delta_mean_pct": -0.632,
+               "delta_t": -0.81, "split_half_pct": [-0.16, -1.01], "n_dates": 9}
+    payload2 = {"generated_at": "2026-11-23T00:00:00", "predictions_rows": 10,
+                "model_versions": {"v1.0": 5, "champ-x": 5},
+                "result": {"h1": {"n_dates": 17, "pooled_auc": 0.5638, "daily_auc_mean": 0.5158,
+                                  "top10_ret_mean": -0.0036, "all_ret_mean": 0.0008,
+                                  "date_versions": {"2026-09-22": "v1.0", "2026-11-19": "champ-x"},
+                                  "by_version": {"v1.0": old_mon, "champ-x": mon}}}}
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(payload2, f)
+        p2 = f.name
+    line = me2._forward_summary_line(p2)
+    check("현행판본: 최근 날짜 판본 선택", me2._current_version(payload2["result"]["h1"]) == "champ-x")
+    check("현행판본: 요약에 현행 슬라이스 표기", "현행[champ]" in line, line)
+    check("현행판본: champ Δ(+0.869) 사용 — v1.0(−0.632) 아님",
+          "+0.869" in line and "-0.632" not in line, line)
+    check("현행판본: 판본혼합 경고 유지", "판본혼합" in line, line)
+    os.unlink(p2)
+    # date_versions 가 없으면 현행 슬라이스를 붙이지 않는다(추정 금지)
+    check("현행판본: date_versions 부재 → None", me2._current_version({"by_version": {}}) is None)
+except Exception as e:  # noqa: BLE001
+    check(f"현행판본 검사 예외({e})", False)
+
 print(f"\n=== PASS {len(PASS)} / FAIL {len(FAIL)} ===")
 if FAIL:
     for f in FAIL:
