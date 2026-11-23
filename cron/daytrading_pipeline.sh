@@ -42,6 +42,14 @@ export BRIDGE_URL="${BRIDGE_URL:-http://127.0.0.1:8100}"
 
 log "start (dry_run=${DRY:-no})"
 
+# 2026-11-23: 레짐 게이트 입력이 컨테이너에 안 보이면 게이트가 **조용히** 무력화된다
+# (실측: 같은 날 호스트 실행은 risk_off 로 차단, 컨테이너 실행은 20건 통과 —
+#  data/state 가 마운트되지 않아 파일이 없고 _load_regime 이 None → fail-open).
+# 조용한 불일치를 막기 위해 매 실행마다 가시성을 확인하고 로그에 남긴다.
+if ! docker exec "$CONTAINER" test -f /app/data/state/market_regime.json 2>/dev/null; then
+  log "WARN 컨테이너에 /app/data/state/market_regime.json 없음 — 레짐 게이트가 무력화(fail-open)됩니다. docker-compose xgboost-ml 의 ./data/state 마운트를 확인하세요"
+fi
+
 count_items() {
   "$PY" - "$1" <<'EOF'
 import json, sys

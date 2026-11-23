@@ -166,6 +166,10 @@ services:
       - ./data/financials:/app/data/financials
       - ./data/disclosures:/app/data/disclosures
       - ./scripts:/app/scripts
+      # 2026-11-23: 레짐 게이트 입력(data/state/market_regime.json)이 컨테이너에 없어
+      # 게이트가 fail-open(파일 없음→통과)으로 조용히 무력화됐다. 호스트와 같은 파일을
+      # 보게 해서 "호스트는 차단, 컨테이너는 20건 통과" 불일치를 없앤다.
+      - ./data/state:/app/data/state
     depends_on:
       postgres:
         condition: service_healthy
