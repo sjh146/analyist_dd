@@ -724,3 +724,7 @@
 - 판정: 충족
 - 근거: [실측 2026-11-20 21:1x] ① `SELECT max(trade_date) FROM sns_post_features` = **2026-11-13**(created_at 최대 11-13 12:06) — 11-16~11-20 5거래일 결번. ② `sns_posts` 최신 11-20 09:05(건수 정상) → 원천 문제 아님. ③ `grep -rn build_sns_attention_features /home/jhshi/cron /etc/cron.d` = 0건, writer 참조 크론 0건. ④ 수리 후 실측: writer 를 `--lookback-days 9` 로 1회 실행 → **2,532행 upsert**(게시글 92,364건 · 종목 379) → 11-12~11-20 9일 전부 채워짐(11-20 = 235종목 · attention 평균 0.496 · 게시글 52.6). ⑤ 자기신고 `[claim] sns_features_writer -> sns_post_features source=92364 claimed=2532 persisted=0`(재실행 no-op = 정상). ⑥ 스케줄 배선: 사용자 crontab `20 18 * * 1-5 /home/jhshi/cron/sns_features.sh`(sns_collect 17:30 뒤 · 야간 피처/패널 빌드 전) + 래퍼 `scripts/sns_features_cron.py`(claim_start/finish 내장).
 - 엔지니어 백로그: `XR44` (command·대조군 기입 필요)
+
+## [트레이더 환류 close-signal-date-frozen-outliers] close 피드 후보 3/20 이 84~300일 낡은 signal_date 를 달고 발행돼 소비자 신선도 게이트에서 차단된다  (2026-11-23 15:27)
+- 근거: 2026-11-23 14:40 발행본 close 후보 20건 중 3건의 signal_date 가 2026-01-27 · 2026-02-03 · 2026-08-31 (각 300·293·84일 낡음). 소비자 후보별 신선도 게이트(close 4일)에서 이 3건은 발행 즉시 차단된다. 스크리너 단위 lag 프로브(feed_signal_lag=3.0일)는 다수값만 봐서 이런 소수 이상치를 못 잡는다. 재현: python3 -c "import json,collections;d=json.load(open('data/feed/screener_latest.json'));print(collections.Counter(c.get('signal_date') for c in d['candidates']['close']['items']))"
+- 리서처 백로그: `T49`

@@ -2176,6 +2176,23 @@
         "rc": 0,
         "log": "data/reports/res_cycle/logs/res_R46_20261121-204748.log"
       }
+    },
+    {
+      "id": "T49",
+      "title": "close 피드 후보 3/20 이 84~300일 낡은 signal_date 를 달고 발행돼 소비자 신선도 게이트에서 차단된다",
+      "status": "backlog",
+      "priority": 6,
+      "from_trader": "close-signal-date-frozen-outliers",
+      "created_at": "2026-11-23T15:27:43+09:00",
+      "affects_model": false,
+      "hypothesis": null,
+      "command": null,
+      "metric": null,
+      "check": null,
+      "evidence": "트레이더 사이클 환류: 2026-11-23 14:40 발행본 close 후보 20건 중 3건의 signal_date 가 2026-01-27 · 2026-02-03 · 2026-08-31 (각 300·293·84일 낡음). 소비자 후보별 신선도 게이트(close 4일)에서 이 3건은 발행 즉시 차단된다. 스크리너 단위 lag 프로브(feed_signal_lag=3.0일)는 다수값만 봐서 이런 소수 이상치를 못 잡는다. 재현: python3 -c \"import json,collections;d=json.load(open('data/feed/screener_latest.json'));print(collections.Counter(c.get('signal_date') for c in d['candidates']['close']['items']))\"",
+      "success": null,
+      "cost": null,
+      "note": "트레이더가 넘긴 항목 — 재현 명령과 수치 check 를 리서처가 채워야 실행된다."
     }
   ]
 }
