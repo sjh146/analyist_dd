@@ -33,3 +33,10 @@ def test_swing_performance_requires_password_from_env():
     text = (REPO / "scripts/swing_performance.py").read_text(encoding="utf-8")
     assert 'os.environ.get("POSTGRES_PASSWORD", "")' in text
     assert "9MrYGP4" not in text
+
+
+def test_kis_client_default_tr_ids_are_real():
+    text = (REPO / "services/kis-collector/kis_app/client/kis_client.py").read_text(encoding="utf-8")
+    assert 'daily_tr_id="FHKST03010100"' in text
+    assert 'minute_tr_id="FHKST03010200"' in text
+    assert "HHSTC16921500" not in text

@@ -317,7 +317,7 @@ class KisClient:
     """
 
     def __init__(self, appkey, appsecret, base_url,
-                 daily_tr_id="HHSTC16921500", minute_tr_id="HHSTC16922500",
+                 daily_tr_id="FHKST03010100", minute_tr_id="FHKST03010200",
                  *, delay=3.0, jitter=0.5, retry_max=5, retry_base_delay=2.0,
                  token_rate_limit_sleep=60.0, token_max_retries=2,
                  token_path=None, http_timeout=30, sleep_fn=time.sleep,
