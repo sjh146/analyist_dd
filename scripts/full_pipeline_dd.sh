@@ -65,6 +65,27 @@ run_docker_script() {
     return $rc
 }
 
+# table_count — 호스트에서 대상 테이블 count(*) (phase 전/후 델타 측정용, R28 2026-11-23)
+table_count() {
+    docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \
+        "select count(*) from $1" 2>/dev/null | tr -d ' \r\n'
+}
+
+# run_docker_phase_claimed — run_docker_phase + phase 전/후 **행 델타** 자기신고 (R28, 2026-11-23)
+#   컨테이너 phase 는 dq_claim 배선을 쓸 수 없어 침묵했다(수집 실패가 다음 날까지 안 보임).
+#   $1 컨테이너  $2 스크립트  $3 타임아웃  $4 대상 테이블  $5 runner 이름
+run_docker_phase_claimed() {
+    local before after rc
+    before=$(table_count "$4")
+    run_docker_phase "$1" "$2" "$3"
+    rc=$?
+    after=$(table_count "$4")
+    # 자기신고 실패가 파이프라인을 깨면 안 된다(스크립트는 항상 exit 0).
+    /usr/bin/python3 scripts/phase_claim.py --runner "$5" --table "$4" \
+        --before "$before" --after "$after" --rc "$rc" 2>&1 || true
+    return $rc
+}
+
 echo "========================================"
 echo "  analyist_dd FULL PIPELINE DD"
 echo "  Started: $(date)"
@@ -281,7 +302,7 @@ async def run():
     print('News DONE')
 asyncio.run(run())
 PYEOF
-run_docker_phase stock_news_analyzer /tmp/phase_1_3.py 600
+run_docker_phase_claimed stock_news_analyzer /tmp/phase_1_3.py 600 news_analysis pipeline_news
 echo "3" > "$PROGRESS_FILE"
 sleep 30
 
@@ -294,7 +315,7 @@ from app.main import EconomicCalendarService
 EconomicCalendarService().run_daily_update()
 print('Economic Calendar DONE')
 PYEOF
-run_docker_phase stock_economic_calendar /tmp/phase_1_4.py 600
+run_docker_phase_claimed stock_economic_calendar /tmp/phase_1_4.py 600 economic_events pipeline_econ
 echo "4" > "$PROGRESS_FILE"
 sleep 30
 
@@ -319,7 +340,7 @@ for code in codes:
         count += 1
 print(f'Financials collected: {count}/{len(codes)} stocks')
 PYEOF
-run_docker_phase stock_yfinance_collector /tmp/phase_1_5.py 600
+run_docker_phase_claimed stock_yfinance_collector /tmp/phase_1_5.py 600 financial_statements pipeline_financials
 echo "5" > "$PROGRESS_FILE"
 sleep 30
 
@@ -332,7 +353,7 @@ from app.main import StockVectorizerService
 StockVectorizerService().run_vectorization()
 print('Vectorizer DONE')
 PYEOF
-run_docker_phase stock_vectorizer /tmp/phase_1_6.py 600
+run_docker_phase_claimed stock_vectorizer /tmp/phase_1_6.py 600 stock_vectors pipeline_vectors
 echo "6" > "$PROGRESS_FILE"
 
 # ==============================================================
