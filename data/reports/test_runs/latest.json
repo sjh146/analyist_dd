@@ -1,0 +1,68 @@
+{
+  "checked_at": "2026-11-23T19:37:30",
+  "results": [
+    {
+      "name": "root-tests",
+      "rc": 1,
+      "seconds": 72.1,
+      "passed": 1025,
+      "failed": 4,
+      "errors": null,
+      "skipped": 4,
+      "tail": [
+        "FAILED tests/test_money_scoreboard.py::test_utilization_peak_concurrent - Ass...",
+        "FAILED tests/test_trader_cycle_sample_definition.py::test_unfilled_marker_excluded_from_closed_sample",
+        "4 failed, 1025 passed, 4 skipped, 8 deselected, 6 warnings in 71.52s (0:01:11)"
+      ]
+    },
+    {
+      "name": "api-gateway",
+      "rc": 0,
+      "seconds": 0.3,
+      "passed": null,
+      "failed": null,
+      "errors": null,
+      "skipped": 5,
+      "tail": []
+    },
+    {
+      "name": "trader-core",
+      "rc": 0,
+      "seconds": 20.7,
+      "passed": 378,
+      "failed": null,
+      "errors": null,
+      "skipped": null,
+      "tail": []
+    },
+    {
+      "name": "trader-runner",
+      "rc": 0,
+      "seconds": 15.8,
+      "passed": 170,
+      "failed": null,
+      "errors": null,
+      "skipped": null,
+      "tail": []
+    },
+    {
+      "name": "trader-bridge",
+      "rc": 0,
+      "seconds": 22.4,
+      "passed": 68,
+      "failed": null,
+      "errors": null,
+      "skipped": null,
+      "tail": []
+    }
+  ],
+  "regressions": [],
+  "totals": {
+    "passed": 1641,
+    "failed": 4,
+    "errors": 0,
+    "suites_ok": 4,
+    "suites_bad": 1,
+    "seconds": 131.3
+  }
+}

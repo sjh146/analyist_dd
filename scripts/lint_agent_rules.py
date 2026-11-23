@@ -82,6 +82,25 @@ def check_file(path: str, root: str) -> list[tuple[str, int, str]]:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             tree = ast.parse(src)
+        if os.path.basename(path).startswith("test_") or "/tests/" in path.replace(os.sep, "/"):
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_"):
+                    body_src = ast.unparse(node)
+                    has_check = (
+                        any(isinstance(x, ast.Assert) for x in ast.walk(node))
+                        or "pytest.raises" in body_src
+                        or "assert" in body_src
+                        or any(name in body_src for name in
+                               ("assertEqual", "assertTrue", "assertFalse", "assertIn", "assertIsNone",
+                                "assertAlmostEqual", "assertRaises", "self.fail", "pytest.fail"))
+                    )
+                    if not has_check:
+                        viol.append(("T001", node.lineno, f"검증 없는 테스트: {node.name}"))
+        if os.path.basename(path).startswith("test_") or "/tests/" in path.replace(os.sep, "/"):
+            if not any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_")
+                       for n in ast.walk(tree)) and not any(
+                           isinstance(n, ast.ClassDef) and n.name.startswith("Test") for n in ast.walk(tree)):
+                viol.append(("T002", 1, "테스트 파일인데 테스트 함수가 없음"))
     except SyntaxError as e:
         return viol + [("C900", e.lineno or 0, f"구문 오류: {e.msg}")]
 
