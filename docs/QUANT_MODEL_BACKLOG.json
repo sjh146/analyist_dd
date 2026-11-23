@@ -25364,7 +25364,7 @@
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python scripts/feature_coverage_report.py --ignore-cache --json-out /app/reports/overnight/feature_coverage_xr49.json'",
       "metric": "feature_coverage",
       "hypothesis": "커버리지 지표가 낡은 측정을 '오늘 측정'으로 위조할 수 있다. `feature_coverage` 210행 중 131행의 computed_at 이 2026-11-18 에 멈춰 있고(가장 오래된 값 = dq_feature_oldest_age_days 4.998), 재측정 경로인 `scripts/feature_coverage_report.py` 는 `app/models/exp_panel/panel.pkl` 캐시(meta.last_trade_date=2026-10-06)를 재사용한다 — 그대로 돌리면 **6주 전 패널로 잰 값을 computed_at=now() 로 upsert** 해 신선도 지표를 0 으로 리셋한다(위조). ① 쓰기 금지 가드를 넣고 ② 재측정이 실제로 도는 경로(패널 리빌드)의 주기를 확인한다.",
-      "evidence": "리서처 R49 결과: R49: 131 <= 0 → 미달",
+      "evidence": "리서처 R49 결과: R49: 131 <= 0 → 미달 | [리서처 2026-11-24 01:06 재측정 완료] 재측정 경로를 리서처가 직접 수리해 1회 실행했다(호스트 rc=0, 소스=축소빌드 60종목/120일): feature_coverage 196/202행 computed_at=11-24 01:06, stale5 137→6, dq_feature_non_model_window_rows 71→0, 창 가짓수 3→1. 남은 6행은 rank_*(return_5d·return_20d·volatility_20d·volume_ratio_5·volume_ratio_20·ma_position_5) 11-18 21:14 고정 — 이들은 build_training_features 가 아니라 compute_cross_sectional_ranks(스크리너 경로)에서 생성되므로 feature_coverage_report 로는 갱신되지 않는다. 엔지니어 판단 필요: (a) 스크리너/랭크 생성 경로에서 자기 coverage 를 upsert 하거나, (b) 200종목 표준 패널 리빌드로 6행을 다시 측정. 주의: 60종목 표본으로 갱신했기 때문에 죽은 피처 수가 12→24 로 바뀌었다(200종목 표본에서만 비영인 희소 피처 — 표본 의존). alive/dead 비교 시 표본을 함께 봐라.",
       "success": "rc=0 · 요약 JSON from_cache=false · n_features>0 · 이후 dq_feature_oldest_age_days 가 실제 측정 기준으로 리셋(캐시 사용이면 '측정 무효'로 판정)",
       "expected": "미지",
       "cost": null,

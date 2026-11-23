@@ -741,3 +741,10 @@
 - 판정: 조사완료
 - 근거: [실측 2026-11-23 21:1x] ① `SELECT max(trade_date) FROM market_data` = 2026-11-20 (당일 11-23 은 거래일인데 0행). ② 직접 프로브: KRX data-dbg `stk_bydd_trd?basDd=20261123` → OutBlock_1 **0행**(21:16), `basDd=20261120` → **935행**(KOSPI) / KOSDAQ 1836행. ③ 같은 시각 `data.krx.co.kr`(운영 호스트)는 404(이 키 미승인) → dbg 호스트가 유일 경로. ④ 18:55 러너 로그도 구간 2026-11-16~2026-11-22 = 어제까지로 잘려 있다(`target_range`: `end >= today → today-1`). ⑤ 결론(현재까지): 당일봉 미발행은 **소스 한계 확정**, T-1 아침 가용성은 **미판정** — 04·06 틱에서 이 프로브를 돌려 판정한다.
 - 엔지니어 백로그: `XR48` (command·대조군 기입 필요)
+
+## [리서처 R49] feature_coverage 131행이 11-18 측정으로 5일 정체 — dq_feature_oldest_age_days 4.998, 5일 문턱 직전 (재측정 경로 + 낡은 패널 쓰기 금지 가드)  (2026-11-24 00:48)
+- 결과: R49: 131 <= 0 → 미달
+- 판정: 미달
+- 근거: [실측 2026-11-23 21:1x] ① `SELECT computed_at, count(*) FROM feature_coverage GROUP BY 1` → 11-23 11:16(19행·수급 빌더) / 11-23 10:10(17행·이벤트 빌더) / 11-22 17:26·17:28(35행) / **11-18 12:14(131행)**. ② `dq_feature_oldest_age_days` = 4.998 (Prometheus, 21:1x). ③ `docker exec stock_xgboost_ml cat /app/app/models/exp_panel/meta.json` → last_trade_date 2026-10-06, built_at 10-06T13:44. ④ 수리: `scripts/feature_coverage_report.py` 에 패널 신선도 가드 추가(`panel_staleness` / `--max-panel-age-days` 기본 10 / `--allow-stale`) — 컨테이너 실행 실측: '패널 캐시 마지막 거래일이 48일 전 (한도 10일) — 쓰기 생략(exit 3)' 출력 확인. 회귀 3건(tests/test_feature_coverage_stale_panel.py).
+- 엔지니어 백로그: `XR49` (command·대조군 기입 필요)
+- [수리·재측정 2026-11-24 01:06] 원인 2건: (1) 호스트 실행 시 sys.path 후보가 '/app'·cwd 뿐 → `ModuleNotFoundError: No module named 'app'`(R49 rc=1) → `_app_roots()` 에 repo/services/xgboost-ml 추가, (2) `--ignore-cache` 신선 재빌드에도 캐시 낡음 가드가 걸려 exit 3 → 가드를 캐시 경로에만 적용. `--ignore-cache --stocks 60 --days 120` rc=0 실측: 196행 computed_at 11-24 01:06, stale5 137→**6**, dq_feature_non_model_window_rows 71→**0**, 창 가짓수 3→**1**, 생존 178/죽은 24. 잔여 6행 = rank_*(스크리너 `compute_cross_sectional_ranks` 경로 산출 — 이 스크립트로 갱신 불가) → XR49 로 핸드오프. 표본 주의: 60종목 표본으로 갱신해 죽은 피처 12→24(희소 피처 표본 의존).
