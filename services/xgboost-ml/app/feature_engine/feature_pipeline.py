@@ -54,29 +54,29 @@ class FeaturePipeline:
         self.kalman = KalmanFeatureFilter()
         self.bayes_factors = BayesFactorFeatures()
         self.news_events = NewsEventFeatures()
-        # 인트라데이(분봉) 피처 — 데이터 축(CG101) 준비물. **기본 OFF**(env INTRADAY_FEATURES=1).
-        # 현 minute_bars 는 수집기 결함(XR26)으로 15:01~15:30 30봉·6~7일 표본뿐이라 상시 열로 넣으면
-        # 무정보 열만 늘어난다 → 수집기 수리·백필 후 패널 재빌드 또는 patch_panel_intraday 로 켠다.
+
+
+
         self.use_intraday = str(os.environ.get("INTRADAY_FEATURES", "")).strip().lower() in (
             "1", "true", "yes", "on")
         self.intraday = IntradayFeatures() if self.use_intraday else None
-        # 미국장/환율 as-of 피처 — 데이터 축. **기본 OFF**(env US_MARKET_FEATURES=1).
-        # 근거: macro_* 단변량 edge 0.0348(감성 0.003의 10배) + 미장은 한국장 전 세션이라 as-of 안전.
-        # 미설정이면 피처 이름/값이 종전과 비트 동일(패널 스키마 변경 없음).
+
+
+
         self.use_us_market = str(os.environ.get("US_MARKET_FEATURES", "")).strip().lower() in (
             "1", "true", "yes", "on")
         self.us_market = UsMarketFeatures() if self.use_us_market else None
         self.pg_conn = pg_conn
         self.neo4j_conn = neo4j_conn
         if self.neo4j_conn is None:
-            # 학습 경로는 neo4j_conn 을 넘기지 않아 그래프 피처(theme/twin/cycle)가
-            # 구조적으로 항상 0 이었다 → env 설정이 있으면 자동 연결한다.
+
+
             self.neo4j_conn = self._connect_neo4j()
         self._cache = {}
         self._cache_ttl = 3600
         self.use_feature_store = use_feature_store
-        # feature_store: 완전성이 증명될 때만 쓰인다(FS1). manifest_path 는 코드 서명·원천
-        # 워터마크를 담는 로컬 사이드카 — 운영 DB 스키마 변경 없이 무효화 키를 갖는 방법이다.
+
+
         self.feature_store = feature_store or (
             FeatureStore(pg_conn=self.pg_conn, manifest_path=feature_store_manifest)
             if use_feature_store else None)
@@ -107,7 +107,7 @@ class FeaturePipeline:
 
         features = {}
 
-        # Load market data from DB if not provided
+
         if market_df is None or market_df.empty:
             if self.pg_conn is not None:
                 try:
@@ -130,7 +130,7 @@ class FeaturePipeline:
                     self.pg_conn.rollback()
                     market_df = pd.DataFrame()
 
-        # Filter market_df to current date only (prevent look-ahead bias / stale price)
+
         if market_df is not None and not market_df.empty and date is not None:
             if 'trade_date' in market_df.columns:
                 market_df = market_df.copy()
@@ -143,23 +143,23 @@ class FeaturePipeline:
             stock_code, self.pg_conn,
         ))
 
-        # Kalman filter features (denoised momentum)
+
         if market_df is not None and not market_df.empty:
             close_s = market_df.get("close_price", market_df.get("close"))
             if close_s is not None and len(close_s) > 0:
                 close_arr = close_s.values if hasattr(close_s, 'values') else np.array(close_s)
                 features.update(self.kalman.smooth_returns(close_arr))
 
-        # Bayesian momentum/factor features (parallel path, A/B against Kalman)
+
         if market_df is not None and not market_df.empty:
             close_s = market_df.get("close_price", market_df.get("close"))
             if close_s is not None and len(close_s) > 0:
                 close_arr = close_s.values if hasattr(close_s, 'values') else np.array(close_s)
                 features.update(self.bayes_factors.compute(close_arr))
 
-        # 시점정합(as-of): 재무 보고서는 공시 지연(연간 90일/그 밖 45일)을 적용하고 시총은
-        # 그 날짜 종가로 환산한다. date 를 주지 않으면 빌드 시점 최신 스냅샷이 모든 과거 행에
-        # 들어가 종목 상수 피처가 되고(누수 게이트 ②·③) 패널이 재현 불가가 된다(2026-10-02 실측).
+
+
+
         features.update(self.factors.get_all_factors(stock_code, market_df, self.pg_conn,
                                                      date=str(date)))
 
@@ -167,14 +167,14 @@ class FeaturePipeline:
 
         features.update(self.sentiment.get_all_features(stock_code, self.pg_conn, str(date)))
 
-        # News event features (market impact, event taxonomy, theme exposure)
-        # as-of 시간 정합: date 를 넘겨 그 날짜 기준 윈도우로 계산 (미래 정보 누수 차단).
-        # NewsEventFeatures 는 date 객체를 받는다(_anchor → datetime.combine).
+
+
+
         _ev_date = datetime.strptime(str(date)[:10], "%Y-%m-%d").date()
         features.update(self.news_events.get_all_features(stock_code, self.pg_conn, _ev_date))
 
-        # SNS(네이버 종목토론방) 피처 — sns_posts × sns_post_features × market_data.
-        # date 를 넘겨 룩어헤드를 차단한다. 데이터가 없으면 빈 dict(0.0 결측).
+
+
         try:
             bundle = getattr(self, "_sns_bundle", None)
             if bundle is None or getattr(bundle, "pg_conn", None) is not self.pg_conn:
@@ -183,24 +183,24 @@ class FeaturePipeline:
         except Exception as e:
             logger.debug(f"SNS features failed for {stock_code}: {e}")
 
-        # Real sentiment from stock_sentiment table
+
         sentiment = self._get_stock_sentiment(stock_code, date)
         features.update(sentiment)
 
-        # 인트라데이(분봉) 피처 — 당일 세션(≤15:30)만 쓴다(as-of). 기본 OFF(env INTRADAY_FEATURES=1).
+
         if self.intraday is not None and self.pg_conn is not None:
             features.update(self.intraday.get_all_features(stock_code, self.pg_conn, str(date)[:10]))
 
-        # 미국장/환율 as-of 피처 — 기본 OFF(env US_MARKET_FEATURES=1).
+
         if self.us_market is not None and self.pg_conn is not None:
             features.update(self.us_market.get_all_features(self.pg_conn, str(date)[:10]))
 
-        # Quality score (F-Score from financial data, 0~1) — as-of 기준일을 넘긴다(위와 같은 이유).
+
         features["quality_score"] = self.scorer.get_f_score(stock_code, self.pg_conn, date=str(date))
 
         features.update(self.macro.get_all_features(self.pg_conn, str(date)))
 
-        # Economic event features
+
         economic = self._get_economic_events(date)
         features.update(economic)
 
@@ -213,11 +213,11 @@ class FeaturePipeline:
         except Exception as e:
             logger.debug(f"Advanced features failed for {stock_code}: {e}")
 
-        # Trainer-consistent engineered features (interactions / rolling means /
-        # target MAs). Without them the champion receives 0.0 fills and
-        # collapses to a constant prediction (Aug 2026 regression). The
-        # cross-sectional rank_* features are injected later via
-        # compute_cross_sectional_ranks() once the full universe is built.
+
+
+
+
+
         try:
             self._build_trainer_consistent_features(features, market_df)
         except Exception as e:
@@ -255,7 +255,7 @@ class FeaturePipeline:
         Mutates ``features`` in place. Failures degrade to the existing values
         (0.0 fills) rather than crashing the pipeline.
         """
-        # 1. Interaction pairs — identical formulas to trainer.py:71-80.
+
         interaction_pairs = [
             ("return_1d", "volatility_20d", "momentum_vs_volatility"),
             ("return_5d", "return_20d", "trend_interaction"),
@@ -271,9 +271,9 @@ class FeaturePipeline:
             fb = float(features.get(b, 0.0) or 0.0)
             features[name] = fa * fb
 
-        # 2. Per-stock rolling means + target MA — computed from the market
-        #    series with the SAME definitions as MarketFeatures so the values
-        #    equal what the training df contained (trainer.py:87-131).
+
+
+
         if market_df is None or market_df.empty:
             return
         close_s = market_df.get("close_price", market_df.get("close"))
@@ -283,10 +283,10 @@ class FeaturePipeline:
             close = pd.Series(
                 [float(c) for c in close_s], dtype=np.float64
             ).reset_index(drop=True)
-            rets = close.pct_change()  # return_1d series (first row NaN -> 0)
+            rets = close.pct_change()
             ret_5d = close.pct_change(5)
             ret_20d = close.pct_change(20)
-            # np.std (ddof=0) matches MarketFeatures.volatility_20d.
+
             vol20 = rets.rolling(20, min_periods=2).std(ddof=0)
 
             vol_s = market_df.get("volume")
@@ -353,11 +353,11 @@ class FeaturePipeline:
         피처 코드가 바뀌면 옛 행과 새 행이 섞이는 것을 막는다.
         """
         if self.use_feature_store and self.feature_store is not None:
-            # ⚠ FS1(2026-10-01): 완전성 증명 없이는 스토어를 쓰지 않는다. 예전엔 여기서
-            # load_batch 를 그냥 호출하고 '비어있지 않으면' 반환했는데, ① 실제 테이블 컬럼명은
-            # `value` 라서 SQL 이 죽었고 ② 요청 (stock,date)의 일부만 있으면 학습 표본이
-            # 조용히 줄어드는 부분 커버리지가 통과했다. 이제는 **기대 키 집합을 먼저 만든 뒤**
-            # (아래 dates_by_stock) load_batch 에 넘겨 전량 커버일 때만 반환한다.
+
+
+
+
+
             if feature_store_manifest:
                 self.feature_store.manifest_path = feature_store_manifest
 
@@ -390,7 +390,7 @@ class FeaturePipeline:
         else:
             dates_by_stock = {}
 
-        # ── FeatureStore 적중 시도 (전량 커버 + 매니페스트 일치일 때만) ──────────────
+
         if self.use_feature_store and self.feature_store is not None:
             expected = {(str(c), str(d)[:10])
                         for c, ds in dates_by_stock.items() for d in ds}
@@ -406,12 +406,12 @@ class FeaturePipeline:
             except Exception:
                 logger.exception("FeatureStore batch load failed; falling back to per-stock compute")
 
-        # Pre-load market data for all stocks (batch)
+
         market_data_by_stock = {}
         if self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
-                # Load up to 365 days of data per stock for lookback indicators (RSI, MA, etc.)
+
                 lookback_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=365)).strftime("%Y-%m-%d")
                 cur.execute(f"""
                     SELECT stock_code, trade_date, open_price, high_price, low_price, close_price, volume
@@ -424,7 +424,7 @@ class FeaturePipeline:
                 all_rows = cur.fetchall()
                 cur.close()
 
-                # Group by stock_code as DataFrames
+
                 stock_data = defaultdict(list)
                 for code, tdate, open_p, high_p, low_p, close_p, vol in all_rows:
                     stock_data[code].append({
@@ -459,8 +459,8 @@ class FeaturePipeline:
                         and meta.get("end_date") == end_date
                         and meta.get("code_sig") == code_sig)
                 if same:
-                    # ⚠ `list(df)` 는 **행이 아니라 컬럼 이름**을 준다(실측 2026-09-25 테스트:
-                    # rows=170 = 컬럼 수, 최종적으로 KeyError 'date' 로 빌드 실패) → records 로 읽어라.
+
+
                     _ckdf = pd.read_pickle(ck_rows)
                     rows = _ckdf.to_dict("records") if isinstance(_ckdf, pd.DataFrame) else list(_ckdf)
                     done_keys = set(meta.get("done_keys") or [])
@@ -480,9 +480,9 @@ class FeaturePipeline:
         processed0 = processed
         since_ck = 0
         for code in stock_codes:
-            # ⚠ 종목 배치마다 피처 코드 변경을 확인한다(실측 2026-09-29: 종전엔 빌드 끝에만 검사해
-            # 100% 채운 뒤 저장을 거부 → 밤 전량 소실). 이 호출은 try 밖에 있어야 한다 — inner 의
-            # `except Exception: continue` 안에 두면 조용히 삼켜져 무저장 빌드가 계속된다.
+
+
+
             self._assert_code_unchanged(code_sig, processed, total_pairs, ck_rows, ck_meta)
             stock_dates = dates_by_stock.get(code, [])
             if not stock_dates:
@@ -490,7 +490,7 @@ class FeaturePipeline:
             stock_market_df = market_data_by_stock.get(code, pd.DataFrame())
             for i, date_str in enumerate(stock_dates):
                 if done_keys and f"{code}|{date_str}" in done_keys:
-                    continue                      # 이미 처리된 페어(재개)
+                    continue
                 try:
                     features = self.build_features(code, date_str, market_df=stock_market_df)
                     if features.get("feature_count", 0) >= 10:
@@ -506,8 +506,8 @@ class FeaturePipeline:
                             f"Build progress: {processed}/{total_pairs} stock-date pairs "
                             f"({100.0 * processed / max(1, total_pairs):.1f}%) "
                             f"{rate:.2f} pair/s ETA {eta_min:.0f}min")
-                    # 저장 주기는 **별도 카운터**로 센다: processed 는 실패 페어를 건너뛰어
-                    # 항상 checkpoint_every 의 배수로 떨어지지 않는다(그러면 저장이 영영 안 된다).
+
+
                     if checkpoint_path and since_ck >= checkpoint_every:
                         since_ck = 0
                         self._save_checkpoint(ck_rows, ck_meta, rows, done_keys,
@@ -590,7 +590,7 @@ class FeaturePipeline:
             close_series = market_df.get("close_price", market_df.get("close"))
             if close_series is not None:
                 close = close_series.values if hasattr(close_series, "values") else np.array(close_series)
-                # Convert Decimal to float to avoid type errors in numpy operations
+
                 close = np.array([float(c) for c in close])
             vol_series = market_df.get("volume")
             if vol_series is not None:
@@ -601,10 +601,10 @@ class FeaturePipeline:
         valid_vol = volume is not None and len(volume) > 0
         latest_close = float(close[-1]) if valid_close else 0.0
 
-        # ----- Sector / Market features -----
 
-        # 1. sector_momentum: average return of stocks in same sector
-        # TODO: requires stocks table with sector mapping; fallback 0.0
+
+
+
         features["sector_momentum"] = 0.0
         if self.pg_conn is not None and valid_close and len(close) >= 2:
             try:
@@ -631,24 +631,24 @@ class FeaturePipeline:
                 logger.debug("sector_momentum unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 2. relative_strength: 초과수익률(종목 − 시장 동일가중)
+
         features["relative_strength"] = 0.0
         if valid_close and len(close) >= 2:
             stock_ret = close[-1] / close[-2] - 1 if close[-2] != 0 else 0.0
-            # 지수 테이블이 없으므로 전종목 동일가중 평균 1일 수익률을 시장수익률 프록시로 쓴다.
+
             market_return = self._get_market_return(date)
             if market_return is not None:
-                # 비율(stock/market) 대신 초과수익률(차) — 시장수익률이 0 근처일 때
-                # 분모 폭발을 막고 부호 해석도 그대로 유지된다.
+
+
                 features["relative_strength"] = float(stock_ret - market_return)
 
-        # 3. market_breadth: fraction of advancing stocks on the same date
-        # (advancers / total). Requires the stock_prices table; fallback 0.0.
-        # 날짜 전용(시장 전체 상승종목 비율) → **날짜별 1회 캐시**.
-        # 왜: 페어마다 재계산하면 stock_prices 14일 창을 매번 스캔한다. 실측(2026-09-30 SQL 프로파일,
-        # 60페어) **521ms/호출 × 60 = 31.3s = 전체 SQL exec 시간의 42%**. 값은 date 만의 함수라
-        # 캐시가 결과를 바꾸지 않는다(_get_market_return 과 동일 패턴). 실패도 0.0 으로 캐시해
-        # 매 페어 예외+rollback 왕복을 없앤다.
+
+
+
+
+
+
+
         _mb_key = ("market_breadth", str(date))
         features["market_breadth"] = self._cache.get(_mb_key, 0.0)
         if _mb_key not in self._cache and self.pg_conn is not None:
@@ -676,9 +676,9 @@ class FeaturePipeline:
                 self.pg_conn.rollback()
             self._cache[_mb_key] = features["market_breadth"]
 
-        # ----- Volatility / Risk features -----
 
-        # 6. vix_proxy: approximate KOSPI 200 implied volatility from historical vol
+
+
         features["vix_proxy"] = 0.0
         if valid_close and len(close) >= 21:
             rets_20 = [(close[i] / close[i - 1] - 1) for i in range(max(1, len(close) - 20), len(close))]
@@ -686,7 +686,7 @@ class FeaturePipeline:
                 hist_vol = float(np.std(rets_20) * np.sqrt(252))
                 features["vix_proxy"] = hist_vol
 
-        # 7. volatility_skew: difference between upside and downside volatility
+
         features["volatility_skew"] = 0.0
         if valid_close and len(close) >= 21:
             rets_20 = [(close[i] / close[i - 1] - 1) for i in range(max(1, len(close) - 20), len(close))]
@@ -697,15 +697,15 @@ class FeaturePipeline:
                 dn_vol = float(np.std(downside)) if len(downside) > 1 else 0.0
                 features["volatility_skew"] = up_vol - dn_vol
 
-        # ----- Flow features (from external data) -----
 
-        # 8. program_trading_ratio: program trading value / total value
-        # Uses krx_program_trading table (foreign_buy_value + foreign_sell_value) / total_value
-        # 값 출처: scripts/kis_program_trading_collect.py (KIS FHPPG04600001 프로그램매매 종합조회(일별))
-        #   → 컬럼명은 foreign_* 이지만 적재값은 시장 전체 프로그램 매수/매도 대금(원)이다.
-        #   → 즉 이 피처 = (프로그램 매수 + 프로그램 매도) / 시장 전체 거래대금 = 프로그램 매매 비중.
-        # trade_date 는 as-of(`<=`)로 조회한다: 휴장일/주말 날짜로 호출해도 0 이 되지 않고
-        #   직전 거래일 값을 쓰게 한다(시세 로딩도 같은 as-of 규칙 — 아래 market_df 필터 참고).
+
+
+
+
+
+
+
+
         features["program_trading_ratio"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -724,8 +724,8 @@ class FeaturePipeline:
                 logger.debug("program_trading_ratio unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 9. etf_flow_5d: 5-day ETF fund flow
-        # TODO: requires etf_flow table
+
+
         features["etf_flow_5d"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -742,10 +742,10 @@ class FeaturePipeline:
                 logger.debug("etf_flow_5d unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # ----- Sentiment / Ownership features -----
 
-        # 12. foreign_ownership_pct: foreign ownership percentage
-        # TODO: requires ownership table
+
+
+
         features["foreign_ownership_pct"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -763,8 +763,8 @@ class FeaturePipeline:
                 logger.debug("foreign_ownership_pct unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 13. institution_ownership_pct: institutional ownership percentage
-        # TODO: requires ownership table
+
+
         features["institution_ownership_pct"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -782,8 +782,8 @@ class FeaturePipeline:
                 logger.debug("institution_ownership_pct unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 14. retail_ownership_pct: retail ownership percentage
-        # TODO: requires ownership table
+
+
         features["retail_ownership_pct"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -802,8 +802,8 @@ class FeaturePipeline:
                 logger.debug("retail_ownership_pct unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 15. short_interest_ratio: short interest / total shares
-        # TODO: requires short_interest table
+
+
         features["short_interest_ratio"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -821,8 +821,8 @@ class FeaturePipeline:
                 logger.debug("short_interest_ratio unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 16. days_to_cover: short interest / average daily volume
-        # TODO: requires short_interest table
+
+
         features["days_to_cover"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -845,10 +845,10 @@ class FeaturePipeline:
                 logger.debug("days_to_cover unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # ----- Credit / Margin features -----
 
-        # 17. margin_balance_change: change in margin balance
-        # TODO: requires margin_balance table
+
+
+
         features["margin_balance_change"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -866,8 +866,8 @@ class FeaturePipeline:
                 logger.debug("margin_balance_change unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 18. credit_balance_change: change in credit balance
-        # TODO: requires credit_balance table
+
+
         features["credit_balance_change"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -885,8 +885,8 @@ class FeaturePipeline:
                 logger.debug("credit_balance_change unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # 19. short_selling_ratio: short selling volume / total volume
-        # Uses krx_short_selling table (short_volume / total_volume)
+
+
         features["short_selling_ratio"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -903,9 +903,9 @@ class FeaturePipeline:
                 logger.debug("short_selling_ratio unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # ----- KRX Trading features -----
 
-        # krx_total_trading_value: total KRX trading value for the date
+
+
         features["krx_total_trading_value"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -923,9 +923,9 @@ class FeaturePipeline:
                 logger.debug("krx_total_trading_value unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # krx_advance_decline_ratio: 실제 ADR (상승종목 / 하락종목)
-        # 날짜 전용(시장 전체 ADR) → **날짜별 1회 캐시**. 실측(2026-09-30 SQL 프로파일, 60페어)
-        # **470ms/호출 × 60 = 28.2s = 전체 SQL exec 시간의 38%**(market_breadth 와 합쳐 79%).
+
+
+
         _adr_key = ("krx_adr", str(date))
         features["krx_advance_decline_ratio"] = self._cache.get(_adr_key, 0.0)
         if _adr_key not in self._cache and self.pg_conn is not None:
@@ -955,12 +955,12 @@ class FeaturePipeline:
                 self.pg_conn.rollback()
             self._cache[_adr_key] = features["krx_advance_decline_ratio"]
 
-        # ----- KRX Derivatives features -----
 
-        # futures_premium: KOSPI200 futures close as proxy for market level
-        # 값 출처: scripts/krx_derivatives_collect.py (KRX drv/fut_bydd_trd → krx_derivatives.close_price,
-        #          index_name='KOSPI200' 은 코스피200 선물 프론트월 — 하루 1행만 세팅된다)
-        # as-of 조회(`<=`): 휴장일/주말에도 직전 거래일 선물 종가를 쓰게 한다.
+
+
+
+
+
         features["futures_premium"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -978,9 +978,9 @@ class FeaturePipeline:
                 logger.debug("futures_premium unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # derivatives_volume: total derivatives volume (KOSPI200 + KOSDAQ)
-        # 값 출처: scripts/krx_derivatives_collect.py → krx_derivatives.volume(상품별 정규장 거래량 합)
-        # as-of 조회: 최신 거래일(<= date)의 합계를 반환한다.
+
+
+
         features["derivatives_volume"] = 0.0
         if self.pg_conn is not None:
             try:
@@ -999,12 +999,12 @@ class FeaturePipeline:
                 logger.debug("derivatives_volume unavailable; using 0.0")
                 self.pg_conn.rollback()
 
-        # basis / basis_change_5d: 코스피200 선물 − 코스피200 현물 (지수 포인트 괴리)
-        # 값 출처: scripts/krx_derivatives_collect.py 가 KRX drv/fut_bydd_trd 의
-        #          TDD_CLSPRC(선물 종가) − SPOT_PRC(현물지수) 를 futures_options.basis 로 적재.
-        # 같은 정의를 쓰는 기존 리더: market_features.MarketFeatureCalculator.get_derivatives_features
-        #   (futures_options 를 trade_date DESC LIMIT 6 으로 읽어 basis_change_5d = rows[0] - rows[5]).
-        # 여기서는 date 기준 as-of 로 같은 의미(최근값, 5거래일 전 값과의 차)를 계산한다.
+
+
+
+
+
+
         features["basis"] = 0.0
         features["basis_change_5d"] = 0.0
         if self.pg_conn is not None:
@@ -1025,18 +1025,18 @@ class FeaturePipeline:
             except Exception:
                 logger.debug("basis unavailable; using 0.0")
             finally:
-                # 읽기 전용 — 즉시 트랜잭션을 닫는다.
-                # 왜(2026-09-28 실측): 이 경로가 commit/rollback 없이 커서만 닫아, 쓰기가 없는 빌드에서
-                # 연결이 `idle in transaction` 으로 남았다. 실측으로 그 연결 하나가 **21시간** 동안
-                # 스냅샷을 붙들고 있었고(PgIdleInTransactionTooLong 알림) autovacuum 을 막는다.
+
+
+
+
                 try:
                     self.pg_conn.rollback()
                 except Exception:
                     pass
 
-        # ----- Additional technical features -----
 
-        # 20. volatility_20d_rank: percentile rank of 20-day volatility among last 60 days
+
+
         features["volatility_20d_rank"] = 0.0
         if valid_close and len(close) >= 60:
             all_rets = [(close[i] / close[i - 1] - 1) for i in range(1, len(close))]
@@ -1047,29 +1047,29 @@ class FeaturePipeline:
                     rank = sum(1 for v in vols_60d if v <= current_vol)
                     features["volatility_20d_rank"] = float(rank / len(vols_60d) * 100)
 
-        # 21. volume_ratio_vs_avg: current volume / 20-day avg volume
+
         features["volume_ratio_vs_avg"] = 0.0
         if valid_vol and len(volume) >= 20:
             current_vol_val = float(volume[-1])
             avg_vol_20 = float(np.mean(volume[-20:]))
             features["volume_ratio_vs_avg"] = float(current_vol_val / avg_vol_20) if avg_vol_20 > 0 else 0.0
 
-        # 22. price_vs_sector: stock price change vs sector average change
+
         features["price_vs_sector"] = 0.0
         if valid_close and len(close) >= 2:
             stock_ret_1d = close[-1] / close[-2] - 1 if close[-2] != 0 else 0.0
-            # Uses sector_momentum computed above (or 0.0)
+
             features["price_vs_sector"] = float(stock_ret_1d - features.get("sector_momentum", 0.0))
 
-        # 23. beta_60d: 60-day beta to market
+
         features["beta_60d"] = 0.0
-        # TODO: requires market index price data; compute cov(stock_ret, mkt_ret) / var(mkt_ret)
+
         if valid_close and len(close) >= 61:
             stock_rets = [(close[i] / close[i - 1] - 1) for i in range(max(1, len(close) - 60), len(close))]
             if len(stock_rets) >= 2:
                 features["beta_60d"] = float(np.std(stock_rets) * np.sqrt(252))
 
-        # 25. momentum_divergence: RSI divergence signal
+
         features["momentum_divergence"] = 0.0
         if valid_close and len(close) >= 14:
             gains, losses = [], []
@@ -1108,7 +1108,7 @@ class FeaturePipeline:
             row = cur.fetchone()
             if row and row[0] is not None:
                 result["sentiment_avg_db"] = float(row[0])
-                # sentiment_momentum: positive ratio minus negative ratio
+
                 total = (row[1] or 0) + (row[2] or 0)
                 if total > 0:
                     result["sentiment_momentum"] = float((row[1] - row[2]) / total)
@@ -1234,7 +1234,7 @@ class FeaturePipeline:
             "avg_similarity_top10", "max_similarity", "similarity_std",
             "similar_count", "similar_stocks_return_avg", "similar_stocks_return_std",
 
-            # Advanced features (sector/market, volatility/risk, flow, ownership, credit/margin, technical)
+
             "value_per", "value_pbr", "value_psr", "value_pcr", "value_ncav",
             "value_ev_ebit", "value_pfcr",
             "quality_cp_to_assets", "quality_op_to_equity", "quality_roe",
@@ -1253,47 +1253,47 @@ class FeaturePipeline:
             "volatility_20d_rank", "volume_ratio_vs_avg", "price_vs_sector",
             "beta_60d", "momentum_divergence",
 
-            # KRX Trading features
+
             "krx_total_trading_value", "krx_advance_decline_ratio",
 
-            # KRX Derivatives features
+
             "futures_premium", "derivatives_volume",
 
-            # Stock sentiment features (from stock_sentiment table)
+
             "sentiment_avg_db", "sentiment_momentum",
 
-            # Economic event features
+
             "economic_event_count_7d", "economic_event_impact",
 
-            # Interaction features (computed in Trainer.prepare_training_data)
+
             "momentum_vs_volatility", "trend_interaction", "volume_price_trend",
             "cross_trend", "volatility_volume", "short_medium_term_momentum",
             "trend_confirmation", "price_volume",
 
-            # Rolling statistics (computed in Trainer.prepare_training_data)
+
             "return_5d_mean_10d", "volatility_20d_mean_10d", "volume_ratio_5_mean_10d",
 
-            # Cross-sectional percentile rank features (computed in Trainer.prepare_training_data)
+
             "rank_return_5d", "rank_return_20d", "rank_volatility_20d",
             "rank_volume_ratio_5", "rank_ma_position_5", "rank_volume_ratio_20",
 
-            # Rolling target encoding features (computed in Trainer.prepare_training_data)
+
             "target_ma_5", "target_ma_10", "target_ma_20",
 
-            # Kalman filter features (denoised momentum)
+
             "kalman_momentum_1d", "kalman_momentum_5d", "kalman_volatility",
 
-            # Bayesian momentum/factor features (parallel path, A/B against Kalman)
+
             "bayes_momentum_1d", "bayes_momentum_5d",
             "bayes_volatility", "bayes_gain_uncertainty",
 
-            # Quality score (F-Score, 0~1)
+
             "quality_score",
 
-            # SNS features (sns_posts × sns_post_features × market_data)
+
             *sns_feature_names(),
 
-            # News event features (market impact, event taxonomy, theme exposure)
+
             "market_impact_score",
             "event_realized_5d", "event_mna_5d", "event_capital_increase_5d",
             "event_cb_bw_5d", "event_stake_change_5d", "event_contract_5d",
@@ -1303,11 +1303,11 @@ class FeaturePipeline:
             "event_macro_5d", "event_market_liquidity_5d", "event_disaster_5d",
             "theme_exposure_5d",
 
-            # Intraday(minute bar) features — opt-in only (env INTRADAY_FEATURES=1).
-            # 기본 OFF: env 미설정이면 목록이 종전과 **비트 동일**하다(패널 스키마 변경 없음).
+
+
             *(intraday_feature_names() if self.use_intraday else []),
 
-            # US market / FX as-of features — opt-in only (env US_MARKET_FEATURES=1).
+
             *(us_market_feature_names() if self.use_us_market else []),
         ])
 

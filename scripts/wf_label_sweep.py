@@ -36,7 +36,7 @@ import wf_wave as W  # noqa: E402  (패널 빌드·라벨·선별·폴드 로직
 
 ml = W.ml
 
-# 라벨 변형만 바꾼다. select/recipe 는 기준 러너와 동일하게 고정해 라벨 효과만 본다.
+
 CONFIGS = [
     {"id": "LS_quant_q30_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30"},
@@ -46,11 +46,11 @@ CONFIGS = [
      "desc": "시장상대 이진 h5 top40"},
     {"id": "LS_rel_h3",       "kind": "relative", "horizon": 3, "q": None, "select": "top30",
      "desc": "시장상대 이진 h3 top30"},
-    # ── 호라이즌 축 (장외 자율 루프가 추가) ─────────────────────────────────
-    # 근거: label_wave5 실측 — h8 + 분위0.3 + top30 이 3분할 평균 0.5727±0.0277
-    # (최고 분할 0.6015 / 최저 0.5463). 그러나 그 실험은 150종목·단일분할 프로토콜이라
-    # 이 스윕(49종목·5폴드 확장창)과 직접 비교가 불가하다 → 같은 프로토콜로 h8 을 채워
-    # "라벨 호라이즌 효과"와 "유니버스 효과"를 분리한다.
+
+
+
+
+
     {"id": "LS_quant_q30_h8",  "kind": "quantile", "horizon": 8, "q": 0.30, "select": "top30",
      "desc": "분위0.3 h8 top30 — wave5 최고 설정을 동일 프로토콜로 검증"},
     {"id": "LS_quant_q30_h10", "kind": "quantile", "horizon": 10, "q": 0.30, "select": "top30",
@@ -61,48 +61,48 @@ CONFIGS = [
      "desc": "분위0.25 h5 top30 (표본 +)"},
     {"id": "LS_quant_q20_h5", "kind": "quantile", "horizon": 5, "q": 0.20, "select": "top30",
      "desc": "분위0.20 h5 top30 (표본 ++)"},
-    # ── 라벨 꼬리 두께 축 (2026-09-28 18:2x 신설 · CG18) ─────────────────────────
-    # 왜: quantile 라벨은 날짜별 **양쪽 꼬리 q** 를 쓴다(위 q=1, 아래 q=0, 가운데 결측).
-    # 그래서 q 는 비율이라 유니버스 크기와 무관해 보이지만, **절대 개수**는 종목수에 비례한다
-    # (49종목 q0.30 → 15 positive/일, 150종목 q0.30 → 45 positive/일). 즉 넓은 유니버스의
-    # 라벨은 '거의 동전던지기인 30% 경계 종목'을 대량 포함해 더 잡음이 많다.
-    # 가설: 49종목 패널의 0.5406 은 '유니버스(소형주)' 효과가 아니라 **라벨 꼬리 두께** 효과이며,
-    # 150종목 패널에서도 q 를 좁히면 AUC 가 올라 그쪽으로 수렴한다. (반대로 안 오르면
-    # 소형주 고유의 예측성 → 유니버스 축 재개 근거.)
+
+
+
+
+
+
+
+
     {"id": "LS_quant_q15_h5", "kind": "quantile", "horizon": 5, "q": 0.15, "select": "top30",
      "desc": "분위0.15 h5 top30 — 꼬리 두께 축(넓은 유니버스에서 22 positive/일)"},
     {"id": "LS_quant_q10_h5", "kind": "quantile", "horizon": 5, "q": 0.10, "select": "top30",
      "desc": "분위0.10 h5 top30 — 49종목 q0.30 과 같은 '15 positive/일' 밀도"},
     {"id": "LS_quant_q05_h5", "kind": "quantile", "horizon": 5, "q": 0.05, "select": "top30",
      "desc": "분위0.05 h5 top30 — 극단 꼬리(7 positive/일). 표본 급감 주의"},
-    # ── 라벨 '잡음' 축 (2026-09-28 신설 — 피처/HP/유니버스 축이 15사이클 전부 노이즈였음) ──
-    # 근거: 단일피처 AUC 최고 0.5072·|IC| 최고 0.0202(_db_feature_screen, 38개 중 31개 채점)
-    # → 피처·모델 조정으로는 안 움직인다. 같은 피처셋에서 라벨만 바꿔 +0.06 이 난 전례가 있고
-    # (0.5133 → 0.5270 → 분위+호라이즌), 지금까지 시험한 라벨 변형은 '분위 비율(q)·호라이즌·중앙값'
-    # 뿐이었다. 라벨 자체의 **잡음 구조**는 미측정이다:
-    #   ① smooth: 선행 h일 점대점 수익률 대신 1~h일 수익률 평균(5일 보유와 정합) → 잡음 축소
-    #   ② voladj: 수익률 ÷ 후행 20일 실현변동성(위험조정) — 횡단면 표준 관행
-    # 두 arm 모두 대조군 LS_quant_q30_h5 와 **같은 패널·같은 런**에서 A/B 한다.
+
+
+
+
+
+
+
+
     {"id": "LB_smooth_q30_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "라벨=선행 1~5일 수익률 평균(스무딩) — 5일 보유와 정합, 라벨 잡음 축소"},
     {"id": "LB_voladj_q30_h5", "kind": "voladj", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "라벨=선행 5일 수익률 ÷ 후행 20일 실현변동성 — 위험조정(시점정합)"},
-    # LB2(2026-09-28 04:2x): 약한 양(+) 두 방향의 결합 — 전처리(횡단면 rank, TR1 Δ+0.0107)와
-    # 라벨 스무딩(LB_smooth Δ+0.0053, 폴드 std 0.0308→0.0173). 두 축은 메커니즘이 다르므로
-    # 가산적일 수 있다(TR2 의 rank×depth1 은 비가산이었다: Δ+0.0060 < rank 단독 +0.0107).
+
+
+
     {"id": "TR_rank_LBsmooth_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank",
      "desc": "횡단면 rank 변환 × 라벨 스무딩 — 두 약한 양(+) 방향의 가산성 측정"},
-    # ── 피처 변환 축 (라벨은 최고 설정 고정, 횡단면 정규화만 바꾼다) ──────────────
+
     {"id": "TR_rank_h5",    "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank",
      "desc": "피처 날짜별 횡단면 rank(pct) — 시장레벨 성분 제거"},
-    # ── TR2: 두 양(+) 방향의 결합 (2026-09-26 06:08 실측) ──────────────────────
-    # 같은 날 같은 프로토콜에서 ① 횡단면 rank 변환 Δ+0.0107 (0.5519±0.0333 vs 0.5412)
-    # ② depth1·lr0.05 Δ+0.0065 (0.5478±0.0527 vs 0.5413, seeds=10) 로 **둘 다 양**이었다.
-    # 각각 단독으로는 +0.02 문턱 미달이지만 서로 다른 축이다(전처리 / 모델 용량).
-    # rank 는 최악 폴드를 0.5075→0.5207 로 올렸고 depth1 은 폴드 std 를 키우는 쪽이다 —
-    # 결합이 가산적이면 문턱에 근접하는지, 아니면 서로 상쇄되는지 측정한다.
+
+
+
+
+
+
     {"id": "TR_rank_d1_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank",
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
@@ -122,7 +122,7 @@ CONFIGS = [
     {"id": "TR_rank_h5_t40", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top40",
      "transform": "rank",
      "desc": "횡단면 rank + h5 + top40"},
-    # ── 피처 풀 분리 (룩어헤드 검증) ─────────────────────────────────────────
+
     {"id": "PO_timevary_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "pool": "timevary",
      "desc": "시간가변 피처만 — 종목-상수(최신 스냅샷) 제외"},
@@ -132,59 +132,59 @@ CONFIGS = [
     {"id": "PO_timevary_rank_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "pool": "timevary",
      "desc": "시간가변 + 횡단면 rank"},
-    # ── 시장레벨 제외 (횡단면 계약 #6) ──────────────────────────────────────
-    # 근거(실측 2026-09-25, scripts/wf_leak_select_check.py): 현재 기준선 패널
-    # (panel_420_asofpatch, 49종목)의 폴드별 top30 안에 **시장레벨 피처가 1~3개** 들어간다
-    # (program_trading_ratio 4/5폴드, oil_change_1m/3m·yield_spread·krx_advance_decline_ratio·
-    #  derivatives_volume·pbr_current 각 1폴드). 시장레벨 = 같은 날짜에 종목간 값이 하나뿐인 피처
-    # (패널 210개 중 27개; 리서처 메트릭 dq_feature_market_level_count=26 과 독립 교차확인).
-    # 그런데 라벨은 날짜내 분위(횡단면 상대)이므로, 날짜 상수 피처는 날짜별 점수를 통째로
-    # 밀어 pooled AUC 를 부풀릴 수 있다 → 제외하고 같은 프로토콜로 재측정한다.
+
+
+
+
+
+
+
+
     {"id": "MK_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "exclude_market_level": True,
      "desc": "분위0.3 h5 top30 + 시장레벨(날짜내 종목간 동일값) 피처 제외"},
     {"id": "MK_timevary_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "pool": "timevary", "exclude_market_level": True,
      "desc": "시간가변 + 시장레벨 제외 (계약 #3·#6 동시 준수)"},
-    # ── CG261 (2026-11-14): 선별 크기가 |t|≥2 후보를 버리고 있는가 ────────────────
-    # 근거(CG255 스크린 실측, panel_prod200): 시간가변 후보 15개가 |IC t|≥2 였지만
-    # top30 은 **AUC edge 순**으로 뽑으므로 event_mna_5d(edge 0.0015)처럼 IC t=-3.56 인
-    # 피처가 선별에서 탈락한다. 같은 pool·같은 시장레벨 제외에서 '선별 없음(전량)'과
-    # 'top30'을 같은 런으로 재면 선별 자체가 이득인지/손실인지가 짝 Δ 로 나온다.
-    # ⚠ 이 arm 은 피처 수가 ~123개라 과적합 위험이 크다 — 단독 상승이 아니라
-    #   대조군(MK_timevary_nomkt_h5) 대비 짝 Δ 와 폴드 승률로만 판정한다.
+
+
+
+
+
+
+
     {"id": "TV_all_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "all",
      "pool": "timevary", "exclude_market_level": True,
      "desc": "시간가변 전량(선별 없음) + 시장레벨 제외 — CG255 의 |t|≥2 후보를 버리지 않는 arm"},
-    # 선별 '기준' 축: 같은 pool·같은 크기(30)에서 풀링 edge 대신 **날짜별 횡단면 IC** 로 뽑는다.
-    # 근거(코드 주석 L195~: CG67·EV1 실측): 풀링 edge 는 희소 피처의 |AUC−0.5| 가 0 에 가까워
-    # 후보에서 영구 탈락시킨다 — event_* 17종 진입 0 · disclosure_count_5d 42% 커버리지에도 진입 0.
-    # CG255 스크린이 |t|≥2 로 잡은 후보들이 정확히 그 그룹이므로, 기준 교체가 크기 교체보다
-    # 표적에 가깝다. SL_*/CN_* 는 전부 codes_slice(30종목) arm 이라 전량 패널에서는 미측정.
+
+
+
+
+
     {"id": "IC30_nomkt_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
      "pool": "timevary", "exclude_market_level": True,
      "desc": "시간가변 + 날짜별 IC top30 선별 (풀링 edge top30 대조) + 시장레벨 제외"},
-    # ── curated 게이트 대조 (2026-09-26 실측 — 처음엔 내 해석이 틀렸다) ──────────
-    # ⚠ 정정: 이 스크립트는 L223~224 에서 **tc.select_curated_features 를 항등함수로
-    # 몽키패치**한다 → 프로덕션 트레이너의 CORE_FEATURES(48) 게이트가 여기서는 꺼져 있다.
-    # 계측 실측: 선별 30개 → 실효피처 [30], core 전체 → [48] (게이트 0개 탈락).
-    # 따라서 ① 스윕 AUC 는 '게이트 없는 210피처 풀' 에서 측정된 값이고 ② 프로덕션
-    # 챔피언 경로(48피처 게이트)와 직접 비교할 수 없다. 이 사실을 모르고 세운 가설
-    # "선별 30개 중 실효는 22개" 는 **틀렸다**(이름집합으로 센 값 12는 게이트를 꺼 둔
-    # 이 런에는 적용되지 않는다 — scripts/_rb3_curated_gate_probe.py 머리말 참고).
-    # 아래 CO_* 는 그래서 "게이트를 켜면 성능이 어떻게 되는가"를 재는 대조군이다.
+
+
+
+
+
+
+
+
+
     {"id": "CO_core30_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True,
      "desc": "core48 안에서 edge top30 — 프로덕션 게이트를 켠 상태의 대조군"},
     {"id": "CO_core_all_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "all",
      "core_only": True,
      "desc": "core48 전체(선별 없음) — 게이트 적용 시 프로덕션 피처셋과 동일 규모"},
-    # ── CG26: 게이트 ON 경로의 '선별 크기' 최적점 (2026-09-29 신설) ──────────────
-    # 왜: 게이트 ON 에서 선별 크기 곡선은 **점이 둘뿐**이다 — core30 0.5355/0.5363(같은 런 CG2)
-    # / core48 전체 0.5263. 즉 48 은 30 보다 나쁘다. 반면 게이트 OFF 곡선(SEL1: top10 0.5364 ·
-    # top15 0.5343 · top20 0.5345 · top30 0.5414)은 30 까지 상승이라 두 곡선의 모양이 다르다 →
-    # **게이트 ON 의 최적점이 30 보다 작은지**가 미측정으로 남아 있었다. 여기서 양(+)이 나오면
-    # k 를 낮추는 것만으로 승격 경로가 개선된다(추론 계약 변경 없음 — 순수 config 축).
+
+
+
+
+
+
     {"id": "CO_core15_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top15",
      "core_only": True,
      "desc": "게이트 ON + edge top15 — 게이트 ON 선별 크기 곡선의 하단(미측정)"},
@@ -194,11 +194,11 @@ CONFIGS = [
     {"id": "CO_core40_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top40",
      "core_only": True,
      "desc": "게이트 ON + edge top40 — core30(0.5355)과 core48(0.5263) 사이 확인점"},
-    # ── CG19: 게이트 ON 경로에서 '라벨 꼬리 두께' 축이 살아남는가 (2026-09-28 18:3x) ──
-    # CG18 실측(panel_150u·게이트 OFF·5폴드×5시드): q0.30 0.5189 → q0.20 0.5198 →
-    # q0.15 0.5216 → q0.10 0.5355 → q0.05 0.5609(폴드 짝 Δ+0.0420, 5/5 승).
-    # 게이트는 평범 경로에서 −0.005~−0.010 을 물리므로(CG1/CG2), 이득이 게이트를 통과하는지
-    # 생산 경로 그대로(core48) 확인해야 한다.
+
+
+
+
+
     {"id": "CO_q10_h5", "kind": "quantile", "horizon": 5, "q": 0.10, "select": "top30",
      "core_only": True,
      "desc": "게이트 ON + 분위0.10 — 49종목 q0.30 과 같은 15 pos/일 밀도"},
@@ -208,28 +208,28 @@ CONFIGS = [
     {"id": "CO_core30_h8", "kind": "quantile", "horizon": 8, "q": 0.30, "select": "top30",
      "core_only": True,
      "desc": "core30 + h8 — 게이트×호라이즌 상호작용 확인"},
-    # ── 프로덕션 게이트(core48) 전이 검정 (2026-09-28 신설) ─────────────────────
-    # 왜: 이 스크립트는 L341 에서 tc.select_curated_features 를 **항등함수로 몽키패치**한다 →
-    # 스윕 AUC 는 '게이트 없는 210피처 풀' 값이다. 그런데 승격 경로(프로덕션 챔피언 러너)는
-    # CORE_FEATURES(48) 게이트를 쓴다. 같은 런 실측: CO_core30_h5 0.5355±0.0168 ·
-    # CO_core_all_h5 0.5263±0.0246 vs 대조군 LS_quant_q30_h5 0.5414 → **게이트가 약 −0.006**.
-    # 즉 17사이클 동안의 모든 '+방향'은 게이트가 꺼진 경로에서 측정된 값이라, 승격 관문에서
-    # 유지되는지가 검증되지 않았다(무개선 17사이클의 구조적 원인 후보).
-    # 최고 기록 설정(rank×스무딩 Δ+0.0100·폴드 std 0.0107 최저분산)을 게이트 ON 으로 재측정한다.
+
+
+
+
+
+
+
+
     {"id": "CO_rank_smooth_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "core_only": True,
      "desc": "core48 게이트 ON + rank 변환 + 라벨 스무딩 — 스윕 최고 설정의 프로덕션 경로 전이 검정"},
-    # CG2(2026-09-28): 2×2 분해 — 게이트 비용과 게이트 안에서의 rank 이득을 **같은 런**에서 분리한다.
-    # CG1 실측: 게이트 OFF 최고 TR_rank_LBsmooth_h5 0.5514 vs 게이트 ON 같은 설정 CO_rank_smooth_h5
-    # 0.5412 → 게이트가 −0.0102 를 먹어 스윕 이득(Δ+0.0100)을 통째로 상쇄했다. 다만 CO_core30_h5
-    # (게이트 ON 평범)는 이 런에 없어 '게이트 자체의 비용'과 'rank·스무딩의 조건부 효과'가 미분리였다.
+
+
+
+
     {"id": "CO_rank_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "core_only": True,
      "desc": "core48 게이트 ON + rank 변환(스무딩 없음) — 게이트 안에서 rank 단독 효과"},
-    # CG3(2026-09-28): 게이트 ON 경로에서 '가진 방향을 전부 결합'하면 +0.02 에 닿는가 — 조정 축의
-    # 생산경로 천장을 확정한다. CG2 실측: 게이트 ON 평범 0.5363 → rank+스무딩 0.5412(+0.0049),
-    # rank 단독은 0.5098(−0.0265, 스무딩이 없으면 파괴적). 아직 게이트 ON 으로 안 재본 방향은
-    # 라벨 스무딩 단독과 depth1·lr0.05(게이트 OFF 에서 Δ+0.0065) 뿐이다.
+
+
+
+
     {"id": "CO_smooth_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True,
      "desc": "게이트 ON + 라벨 스무딩만(rank 없음) — 스무딩 단독 기여 분리"},
@@ -239,22 +239,22 @@ CONFIGS = [
     {"id": "CO_rank_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "게이트 ON + rank + 스무딩 + depth1 — 생산경로에서 가진 방향 전부 결합"},
-    # ── CG27(2026-09-29): 배포 가능한(추론 계약 무변경) 게이트 ON 최고 조합의 분해 ──
-    # 왜: CG8(panel_420_asofpatch·5폴드×10시드) 실측에서 ≥+0.02 를 낸 유일한 arm 은
-    # CO_rank_smooth_d1_h5 0.5592 였는데 **rank 변환이 들어 있다** → 추론 경로가 종목 단위
-    # 스트리밍(app/inference/predictor.py)이라 날짜별 횡단면 rank 를 만들 수 없어 배포 불가.
-    # 반면 라벨 스무딩(kind=smooth)과 depth1·lr0.05(recipe)는 학습 옵션일 뿐 **계약을 건드리지
-    # 않는다** → '스무딩 + depth1'(rank 없음)이 같은 런에서 ≥+0.02 를 내는지가 미측정으로 남았다.
-    # 측정된 성분(같은 패널·같은 런): CO_d1_h5 0.5545±0.0458(CG8) · CO_rank_smooth_d1_h5 0.5592±0.0075.
-    # 스무딩 단독(CO_smooth_h5)은 49종목 패널에서 **미측정**(150종목 CG11 에서만 −0.0022).
+
+
+
+
+
+
+
+
     {"id": "CO_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "게이트 ON + 라벨 스무딩 + depth1·lr0.05 (rank 없음) — 추론 계약 무변경 배포 가능 후보"},
-    # ── CG276(2026-11-14): 정보 상한의 **지평 의존성** — CG275 실측(저용량 arm 갭 0.052 ·
-    # OOS 0.5352)은 '피처에 일반화되는 신호가 ~0.53 수준'임을 시사했다. 그렇다면 질문은
-    # "그 0.53 이 이 지평(h5)의 성질인가, 피처의 성질인가"다. 같은 피처·같은 저용량 설정에서
-    # 라벨 지평만 h1/h3/h5/h10 으로 바꿔 OOS AUC 를 비교한다(AUC 는 지평별 라벨 안에서 척도무관).
-    # 판정 기준은 CO_smooth_d1_h5(h5) 대비 OOS Δ ≥ +0.02 — 미달이면 '지평 축도 종결'.
+
+
+
+
+
     {"id": "CG276_h1", "kind": "smooth", "horizon": 1, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "CG276 — 지평 h1 · 스무딩 불가(1일)라 원형 라벨 · depth1 (지평 사다리)"},
@@ -264,14 +264,14 @@ CONFIGS = [
     {"id": "CG276_h10", "kind": "smooth", "horizon": 10, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "CG276 — 지평 h10 · 스무딩 + depth1 (지평 사다리)"},
-    # ── CG69(2026-10-02): 배포 가능 arm 의 **구간 짝(pairs) 검정** — CG64/CG66/CG67 삼중 재현 ──
-    # 왜: 수리 패널(panel_420_asof3)에서 CO_smooth_d1_h5 0.5512 vs CO_core30_h5 0.5350 = Δ+0.0162 가
-    # **세 번의 독립 실행에서 소수점까지 동일**하게 나왔다(CG64·CG66·CG67 = 비트 결정적). 즉 이 Δ 는
-    # 실행 잡음이 아니라 같은 패널·같은 유니버스의 값이고, 사전문턱 +0.02 에 −0.0038 미달이다.
-    # 남은 질문은 '구간(유니버스 조각)을 바꿔도 부호가 유지되는가'다 — CG13 실측에서 서로소 30종목
-    # 구간 교체만으로 폴드 평균이 총폭 0.0287 흔들렸으므로, 단일 구간 비교로는 판정할 수 없다.
-    # 대조군은 같은 런의 US_00_30..US_120_150(게이트 ON 평범 config) — 구간마다 짝을 만들어
-    # 구간 교체 효과를 상쇄한다(구동기 judge_per 의 pairs 분기: 짝 Δ 평균 ≥ +0.02 그리고 양(+) 구간 ≥ n−1).
+
+
+
+
+
+
+
+
     {"id": "SD1s_00_30", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [0, 30],
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
@@ -292,18 +292,18 @@ CONFIGS = [
      "core_only": True, "codes_slice": [120, 150],
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "구간 [120:150) · 게이트 ON + 스무딩 + depth1 (rank 없음·배포 가능) — 짝 대조군 US_120_150"},
-    # ── CG71(2026-10-02): **선별 규칙(selection rule)** 축 — 기록상 0회 시험 ─────────────
-    # 왜 새 레버인가: 지금까지 모든 arm 이 '풀링 edge top30' 선별을 공유했다. 선별 **크기**
-    # 축(SEL1·CG26 core15/20/40·CG44 top1/3/5)은 닫혔지만 **규칙**은 한 번도 바뀌지 않았다.
-    # CG69 실측: 게이트 ON 대조군(US_*)의 AUC 가 유동성 구간에 따라 0.5204 → 0.4917 로
-    # 단조 감소하고 배포 가능 arm 은 평평(0.498)했다 → 남은 차이는 '무엇을 선별하는가'다.
-    # 메커니즘: edge_of 는 폴드 학습구간을 **풀링**한 순위 AUC 라 ① 날짜 레벨 성분(그 날
-    # 전체가 좋았는가) ② 소수 날짜·레짐 이 edge 를 만들 수 있다. 모델은 날짜별 횡단면
-    # 순위로 채점되므로 **선별 목적함수 = 채점 목적함수**로 맞추는 것이 가설이다.
-    # 배포 가능성: 선별은 학습 시점 연산이라 추론 계약(종목 단위 스트리밍)을 건드리지
-    # 않는다(모델 디렉터리의 feature_names 가 선택 결과를 고정). rank 변환과 다른 점이다.
-    # 대조군은 **같은 런의 US_00_30..US_120_150**(같은 kind·q·구간, select 만 top30)
-    # → 구간 교체 잡음(CG13 총폭 0.0287)을 상쇄하는 짝 설계.
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "SL_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
      "core_only": True, "codes_slice": [0, 30],
      "desc": "구간 [0:30) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_00_30(풀링 edge top30)"},
@@ -319,22 +319,22 @@ CONFIGS = [
     {"id": "SL_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "ic30",
      "core_only": True, "codes_slice": [120, 150],
      "desc": "구간 [120:150) · 게이트 ON + 날짜별 IC top30 선별 — 짝 대조군 US_120_150(풀링 edge top30)"},
-    # ── CG28: 데이터 축(L3) — 패널에는 살아 있으나 게이트(core48) 밖인 '부활 후보' 11개 ──────
-    # 왜 여기서 재는가: CG27(2026-09-29)에서 조정 축(피처변환·HP·유니버스·라벨·가중·k)이
-    # 게이트 ON 천장 Δ+0.0180(<사전문턱 +0.02)로 닫혔다 → 남은 레버는 데이터 축뿐이다.
-    # 그런데 R13 이 '부활 가능'으로 분류한 11개(atr_pct · authenticity_avg · bayes_* 4개 ·
-    # quality_beta · quality_price_volatility_60d · similarity_std · twin_* 2개)는
-    # ① 패널 실측에서 값이 살아 있고(atr_pct |AUC−0.5|=0.0583 · bayes_volatility 0.0516 ·
-    #    quality_price_volatility_60d 0.0489 · bayes_momentum_1d IC t=−3.33)
-    # ② **CORE_FEATURES(48) ∩ 11 = 0** — 게이트 ON 경로에서는 선별 후보조차 아니다.
-    # 즉 "부활"이 아니라 "게이트 밖에 방치"가 실체다(그대로 두면 Δ+0.0000 이 나오는데, 그건
-    # 효과 없음이 아니라 후보 아님 — EV1 사고와 동형).
-    # 설계: 후보 집합은 core48 그대로 두고 선별 **후** 강제로 덧붙인다(CG25 Δk 와 동일) →
-    # 두 arm 의 top30 이 같은 집합이라 차이는 '11컬럼 사용' 하나로 좁혀진다.
-    # 용량 교란 통제(placebo): 무정보 11개를 같은 방식으로 덧붙이는 arm 을 함께 돌린다.
-    #   무정보 판정 근거 = 패널 스크린 |IC|<0.02 & |AUC−0.5|<0.02 (panel_screen_420asofpatch.json)
-    # 배포 가능성: 11개는 feature_engine 이 추론 경로에서도 계산한다(패널과 같은 파이프라인) →
-    # 추론 계약 변경 없음. 단 승격 시 게이트 목록(train_curated) 변경은 별도 승인 대상이다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CO_core30_g11_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True,
      "gate_add": ["atr_pct", "authenticity_avg", "bayes_gain_uncertainty", "bayes_momentum_1d",
@@ -348,26 +348,26 @@ CONFIGS = [
                   "momentum_1m_reverse", "volume_price_trend", "rank_return_5d", "target_ma_5",
                   "atr", "ma_position_5"],
      "desc": "게이트 ON + 무정보(placebo) 11개 강제투입 — 용량 교란 통제(같은 수·다른 정보량)"},
-    # ── CG29: 이벤트(공시) 피처군 강제투입 — '패널 안 신규 정보'의 마지막 후보 (2026-09-29 신설) ──
-    # 계기: CG27 로 조정 축(게이트 ON 천장 Δ+0.018)·CG28 로 '기존 피처 재배치'(Δ+0.0005)가 닫혔다.
-    # 남은 것은 '패널 안에 이미 있으나 선별에 안 들어가는 신규 정보'인데 EV1(게이트 OFF A/B)에서
-    # event_* 36개가 top30 선별에 0개 들어가 두 arm 이 비트 동일했다 → "효과 없음"이 아니라
-    # "후보 아님"이다. CG28 과 같은 프로토콜(강제투입 + placebo 용량통제)로 그 구분을 없앤다.
-    # ★ 실측으로 드러난 선행 결함(scripts/_cg29_diag*.py, patch_panel_events.py):
-    #   기본 패널(panel_420_asofpatch)의 event_* 컬럼은 **2026-04 이전이 전량 0** 이다
-    #   (event_exec_change_5d 월별 nonzero: 2025-07~2026-03 전부 0.0% → 2026-04~ 1.3~3.2%).
-    #   그래서 워크포워드 폴드 1~2(학습창 ≤2026-01)는 이 피처군을 std 필터에서 **전량 탈락**시킨다
-    #   (실측: 스모크에서 `파생 피처가 필터를 통과하지 못했다 — 측정 무효` RuntimeError).
-    #   백필본은 ev 패널 뒤 17컬럼에만 있었고 커버리지가 전 구간(1.5~8%)이다 →
-    #   panel_420_asofpatch_evfix.npz = 기본 패널의 event 컬럼만 백필본으로 교체
-    #   (다른 컬럼 해시 동일 증명: patch_panel_events_backfill.json non_patched_identical_hash=true,
-    #    재실행 시 출력 npz sha256 동일 = 결정적).
-    # arm/placebo 규칙(사전 등록): arm = 백필된 17개 중 전체 nonzero ≥0.5% 인 10개
-    #   (분산 0 컬럼은 학습창에서 어차피 탈락). placebo = 비-event 무정보 피처 같은 개수
-    #   (스크린 |AUC−0.5|·|IC| 최소군).
-    # 상방 기제: pooled AUC 는 0.496~0.507 이지만 **이벤트 발생일에 조건부 정보**가 있을 수 있다
-    #   (스크린 IC t: event_patent −2.71 · partnership −2.58 · contract −2.49 · realized +2.24).
-    # 배포 가능성: event 컬럼은 feature_engine 이 추론 경로에서도 계산한다(추론 계약 변경 없음).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CO_core30_ev10_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True,
      "gate_add": ["disclosure_count_5d", "event_stake_change_5d", "event_exec_change_5d",
@@ -381,15 +381,15 @@ CONFIGS = [
                   "institution_net_buy_5d", "rank_volume_ratio_20", "bb_position",
                   "volume_ratio_5", "rsi", "similar_stocks_return_std", "rank_volume_ratio_5"],
      "desc": "게이트 ON + 무정보(placebo) 10개 강제투입 — 용량 교란 통제(같은 수·다른 정보량)"},
-    # ── CG12: 유니버스 크기 단조 추세 (2026-09-28 신설 · panel_150u 전용) ──────────
-    # 왜: **같은 프로토콜·게이트 ON** 인데 대조군 AUC 가 패널에 따라 0.5365(49종목, CG4) →
-    # 0.5101(150종목, CG11) 로 0.026 벌어진다. 등록 기준선 0.5406 은 49종목 값이고 프로덕션
-    # 챔피언은 200종목으로 학습된다 → '기준선 자체가 소유니버스 낙관 편향'이면 승격 프로토콜의
-    # +0.02 문턱은 생산 조건에서 도달 불가다(=26사이클 무개선의 구조적 원인 후보).
-    # codes_limit 은 **패널 순서(유동성 상위) 첫 N종목**이라 25⊂49⊂75⊂100⊂150 이 중첩
-    # 부분집합이고, 같은 패널·같은 행·같은 피처·같은 폴드에서 종목 수만 바뀐다.
-    # ⚠ 이건 교차패널 비교가 아니다 — U1(교차패널 Δ−0.0266)이 UN1(동일 패널 Δ+0.0071)에서
-    # 부호가 뒤집힌 전례 때문에 반드시 같은 패널 안에서 재야 한다.
+
+
+
+
+
+
+
+
+
     {"id": "UNg_25", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_limit": 25,
      "desc": "게이트 ON 대조군 · 유동성 상위 25종목 (중첩 부분집합 최소)"},
@@ -405,8 +405,8 @@ CONFIGS = [
     {"id": "UNg_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_limit": 150,
      "desc": "게이트 ON 대조군 · 150종목 전체 (대조군 끝점)"},
-    # 우승 config(rank+스무딩+depth1)의 전이를 같은 추세 위에서 본다: CG11 은 150종목에서만
-    # 쟀다(−0.0109). '49종목에서만 이긴다'면 어느 크기에서 부호가 뒤집히는지가 승격 판단의 근거다.
+
+
     {"id": "RSg_25", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "core_only": True, "codes_limit": 25,
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
@@ -423,13 +423,13 @@ CONFIGS = [
      "transform": "rank", "core_only": True, "codes_limit": 150,
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "게이트 ON + rank + 스무딩 + depth1 · 150종목 (CG11 재측정·같은 런 짝)"},
-    # ── CG13: 유니버스 교체 노이즈 밴드 (서로소 부분집합, 2026-09-28 신설) ─────────
-    # 왜: 이 스택의 '신호'는 전부 유니버스를 바꾸면 뒤집혔다(U1 교차패널 Δ−0.0266 ↔ UN1 같은
-    # 패널 +0.0071 / CG5 150종목 부호 반전 / CG12: 49종목 크기에서도 집합이 다르면 우승 config 가
-    # −0.0287). 그런데 **같은 크기의 다른 종목 집합**이 만드는 AUC 분산 자체는 한 번도 측정된 적이
-    # 없다. panel_150u 를 30종목씩 **서로소** 5구간으로 잘라 같은 config·같은 폴드를 걸면, 그 산포가
-    # 곧 '유니버스 교체만으로 만들어지는 Δ' 다. 사전등록: 두 구간의 Δ 가 +0.02 를 넘으면 유니버스
-    # 교체만으로 사전문턱이 만들어진다는 뜻 → 과거 Δ≤0.03 은 해석 불가(순열검정 필요)로 규정한다.
+
+
+
+
+
+
+
     {"id": "US_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [0, 30],
      "desc": "게이트 ON 대조군 · 서로소 구간 [0:30)"},
@@ -448,12 +448,12 @@ CONFIGS = [
     {"id": "US_all150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_limit": 150,
      "desc": "게이트 ON 대조군 · 150종목 전체(같은 런 기준점)"},
-    # ── CG24 (2026-09-29): 라벨 꼬리 이득의 **유동성 구간 의존성** ─────────────────
-    # 동기(실측): CG22 — 생산 유니버스(49종목·panel_420_asofpatch)에서 q0.05 Δ = **+0.0089**
-    # (폴드 짝 3/5, min −0.0312)로 150종목 패널의 +0.048 이 재현되지 않았다. 그런데 CG13/CG16 은
-    # q0.30 에서 유동성 상위 구간이 하위보다 +0.0287 우세함을 보였다 → 꼬리 이득이 '상위 유동성
-    # 구간 특이'라면 CG22 실패의 기제가 설명되고 축을 닫을 수 있다. 같은 행·같은 구간에서 라벨
-    # 꼬리만 q0.30↔q0.05 로 바꾼 짝 비교라 유니버스 교체 잡음이 통제된다.
+
+
+
+
+
+
     {"id": "Q5s_00_30", "kind": "quantile", "horizon": 5, "q": 0.05, "select": "top30",
      "core_only": True, "codes_slice": [0, 30],
      "desc": "게이트 ON + 분위0.05 · 서로소 구간 [0:30) (짝 대조군 US_00_30)"},
@@ -469,13 +469,13 @@ CONFIGS = [
     {"id": "Q5s_120_150", "kind": "quantile", "horizon": 5, "q": 0.05, "select": "top30",
      "core_only": True, "codes_slice": [120, 150],
      "desc": "게이트 ON + 분위0.05 · 서로소 구간 [120:150) (짝 대조군 US_120_150)"},
-    # ── CG14: 우승 후보의 구간 짝(paired) 재판정 (2026-09-28 신설) ────────────────
-    # 왜(CG13 실측 5.7분): 같은 크기(30종목) **서로소** 5구간의 게이트 ON 대조군 폴드 평균이
-    # 0.5204([0:30)) ~ 0.4917([120:150)) = Δ0.0287 로, 사전문턱 +0.02 를 **유니버스 교체만으로**
-    # 넘겼다. 즉 27사이클의 모든 Δ≤0.03 은 유니버스 교체 잡음과 구분되지 않는다.
-    # CG4/CG8 의 유일한 후보(게이트 ON + rank + 스무딩 + depth1, Δ+0.0227)도 그 밴드 안이다.
-    # → 같은 구간 **안에서** arm−대조군 짝 Δ 를 5개 얻어(구간 간 교체 효과가 상쇄된다) 평균·부호로
-    # 재판정한다. 대조군은 같은 런의 US_00_30..US_120_150(게이트 ON 평범 config)이다.
+
+
+
+
+
+
+
     {"id": "RSs_00_30", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "rank", "core_only": True, "codes_slice": [0, 30],
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
@@ -496,13 +496,13 @@ CONFIGS = [
      "transform": "rank", "core_only": True, "codes_slice": [120, 150],
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "구간 [120:150) · 게이트 ON + rank + 스무딩 + depth1 (CG4/CG8 후보)"},
-    # ── CG15: 유동성 단조 추세의 출처 분해 — 라벨 구성을 바꿔도 남는가 (2026-09-28 신설) ──
-    # 왜(CG13 실측): 게이트 ON 대조군의 폴드 평균이 패널 순서(유동성 정렬)대로
-    # 0.5204 → 0.5112 → 0.5034 → 0.4998 → 0.4917 로 **거의 단조 감소**했다. 구간마다 종목 수가
-    # 30 으로 같으므로 단순 크기 효과는 아니다. 두 갈래 후보: ①유동성 상위 종목이 실제로 더
-    # 예측 가능하다 ②분위 라벨(q=0.30)이 30종목 부분집합에서 날짜별 구성이 달라져 생기는 표본 효과.
-    # → 같은 5구간을 **시장상대(relative: 횡단면 중앙값 초과) 라벨**로 재측정한다. 추세가 사라지면
-    # 라벨 구성 효과(②), 남으면 유동성 예측성(①).
+
+
+
+
+
+
+
     {"id": "REl_00_30", "kind": "relative", "horizon": 5, "q": None, "select": "top30",
      "core_only": True, "codes_slice": [0, 30],
      "desc": "구간 [0:30) · 게이트 ON + 시장상대 라벨(중앙값 초과)"},
@@ -521,12 +521,12 @@ CONFIGS = [
     {"id": "REl_all150", "kind": "relative", "horizon": 5, "q": None, "select": "top30",
      "core_only": True, "codes_limit": 150,
      "desc": "150종목 전체 · 시장상대 라벨(같은 런 기준점)"},
-    # ── CG16: depth1(유일하게 재현됐던 HP 방향)의 구간 짝 재판정 (2026-09-28 신설) ──
-    # 왜: CG8 은 게이트 ON 에서 depth1·lr0.05 단독이 Δ+0.0180(문턱 미달)·rank+스무딩+depth1 결합이
-    # Δ+0.0227(문턱 통과)라고 기록했다. 그런데 CG13 실측으로 유니버스 교체만으로 0.0287 이 움직이고,
-    # CG14 에서 결합 후보는 구간 짝 Δ 평균 **−0.0057(1/5 구간 양(+))** 로 소멸했다 → 같은 방식으로
-    # HP 축의 마지막 후보(depth1)도 검정한다. 여기서 죽으면 튜닝 축 전체가 종료되고 남는 레버는
-    # 데이터 축(창·신규 피처)뿐이라는 결론이 선다.
+
+
+
+
+
+
     {"id": "DSs_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [0, 30],
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
@@ -547,22 +547,22 @@ CONFIGS = [
      "core_only": True, "codes_slice": [120, 150],
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "구간 [120:150) · 게이트 ON + depth1·lr0.05 (CG8 HP 후보)"},
-    # ── 데이터 축 A/B: 부활 이벤트 피처 가산효과 (2026-09-26, L3 준비) ────────────
-    # panel_420_asofpatch_ev.npz 는 기준선 패널과 **행이 비트 동일**하고(13,609행·날짜·종목·
-    # 가격 동일, 공유 210컬럼 최대 절대차 0.0) 뒤에 event_* 17개만 덧붙은 패널이다 →
-    # 같은 런에서 '17개 포함(EV_all) vs 제외(EV_none)' 를 재면 추가 피처의 가산효과가
-    # 패널·행·폴드·시드 모두 통제된 상태로 분리된다.
-    # 사전 스크린(scripts/_ev_feature_screen.py, data/reports/ev_feature_screen_20260926.json):
-    # 17개 전부 단일피처 AUC 0.4972~0.5007(평균 0.4995) · 종목상수 비율 13/17 이 50% 초과
-    # → 누수 게이트는 통과(>0.75 없음)하지만 단변량 edge 는 사실상 0. 기대 Δ ≈ 0.
+
+
+
+
+
+
+
+
     {"id": "EV_all_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "부활 이벤트 피처 포함(227컬럼) — 데이터 축 A/B 실험군"},
     {"id": "EV_none_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "exclude_names": ["event_*", "disclosure_count_5d"],
      "desc": "같은 패널에서 이벤트 피처 17개만 제외(210컬럼) — 동일 런 대조군"},
-    # ── CG376(2026-11-20): event_rolling 집계 8종 in-run A/B — '희소 카운트'가 아니라 '채워진 집계' 축 ──
-    # 패널: panel_prod200_v6.npz(221피처 = v4 213 + event_rolling 8종, 시점정합 검증 통과).
-    # 대조군은 같은 패널에서 그 8종만 제외 → 행·폴드·시드·HP 동일, 차이는 입력 8컬럼뿐.
+
+
+
     {"id": "CG376_roll_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "CG376 arm — event_rolling 집계 8종 포함(221피처)"},
     {"id": "CG376_noroll_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
@@ -570,22 +570,22 @@ CONFIGS = [
                        "funding_level_20d", "governance_level_20d", "business_level_20d",
                        "risk_level_20d", "disclosure_level_20d"],
      "desc": "CG376 대조군 — 같은 패널에서 event_rolling 집계 8종만 제외(213피처)"},
-    # ── 유니버스 축 in-run A/B (2026-09-26 신설) ────────────────────────────────
-    # 배경: 기준선 패널은 49종목인데 select=top30 이면 유니버스의 61%를 사는 셈이라
-    # '선별'이 거의 없다. U1 은 150종목을 교차패널로 비교해 Δ-0.0266(악화)이었지만
-    # 스냅샷이 달라 확증이 아니었다. panel_150u.npz(150종목·41,893행·210컬럼) 안에서
-    # 기준선 49종목 부분집합과 전체 150종목을 같은 폴드·같은 피처로 직접 대조한다.
+
+
+
+
+
     {"id": "UN_150_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "150종목 전체 — 유니버스 A/B 실험군(선별 = 상위 20%)"},
     {"id": "UN_49_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "codes_limit": 49,
      "desc": "같은 150종목 패널에서 49종목(패널 순서=유동성 상위)만 — 동일 런 대조군(선별 = 상위 61%)"},
-    # ── 하이퍼파라미터 축 (이 스택에서 한 번도 스윕된 적 없음) ──────────────────
-    # 근거: 학습 표본이 폴드당 1,230행(49종목×약25일)뿐인데 depth=4·1500트리·lr=0.03 이
-    # 고정값이었다(wf_wave.BASE.recipe). 소표본에서는 얕은 트리/큰 학습률이 더 나을 수 있고,
-    # 반대로 표본이 늘어난 축에서는 깊은 트리가 필요할 수 있다 — 어느 쪽인지 미측정.
-    # 주의: apply_hyperparams 는 n_estimators 키가 있는 모델(lightgbm)만 덮어쓴다
-    # (xgboost 는 기본 800·catboost 는 iterations 300 유지). 따라서 lr·depth 중심 비교다.
+
+
+
+
+
+
     {"id": "HP_d2_lr05_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "recipe": {"lr": 0.05, "depth": 2, "n_estimators": 2000},
      "desc": "얕은 트리(depth2)·lr0.05 — 소표본 과적합 억제 가설"},
@@ -595,11 +595,11 @@ CONFIGS = [
     {"id": "HP_d6_lr02_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "recipe": {"lr": 0.02, "depth": 6, "n_estimators": 1200},
      "desc": "깊은 트리(depth6)·lr0.02 — 상호작용 포착 가설"},
-    # ── HP2: depth 단조 실측의 후속 (2026-09-26) ────────────────────────────────
-    # 실측(5폴드×3시드): d2 0.5477 > d3 0.5469 > d4 0.5412(기준) > d6 0.5344 — depth 가 얕을수록
-    # 좋아지는 **단조** 패턴. 폴드 std(±0.03~0.05) 때문에 단일 비교는 노이즈지만, 4수준 단조는
-    # 소표본 과적합 신호다. → depth 를 더 낮추고(d1), 학습률을 올리고(lr0.08), 정규화를 직접
-    # 세게 걸어(recipe_extra) 같은 방향이 재현되는지 본다. arm 은 사전등록 HP_d2_reg_h5.
+
+
+
+
+
     {"id": "HP_d2_reg_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "recipe": {"lr": 0.05, "depth": 2, "n_estimators": 2000},
      "recipe_extra": {"subsample": 0.6, "colsample_bytree": 0.5, "min_child_weight": 10,
@@ -616,10 +616,10 @@ CONFIGS = [
      "recipe_extra": {"subsample": 0.6, "colsample_bytree": 0.5, "min_child_weight": 10,
                       "reg_lambda": 5.0, "lambda_l2": 5.0, "l2_leaf_reg": 5.0},
      "desc": "depth3·lr0.03 + 강정규화 — depth 축과 정규화 축의 상호작용"},
-    # ── HP3: 앙상블 구성 축 (미검증) ────────────────────────────────────────────
-    # 실측 로그: 3종 소프트보팅에서 catboost val AUC 0.578·가중 0.078 (xgboost 0.79·0.29).
-    # arm 사전등록 = EN_equal_h5: 가중치는 **작은 검증분할**에서 계산된 (val AUC − 0.5) 비례값이라
-    # 그 자체가 노이즈원이다 → 가중을 걷어내는 쪽이 1차 가설. 나머지는 탐색(개선 판정에 쓰지 않음).
+
+
+
+
     {"id": "EN_drop_cat_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "ens": {"skip": ["catboost"]},
      "desc": "catboost 제외(xgb+lgbm, val AUC 가중) — 최약 모델 제거 가설"},
@@ -634,53 +634,53 @@ CONFIGS = [
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "ens": {"skip": ["catboost"]},
      "desc": "depth1(현 최고) + catboost 제외 — 두 축 결합"},
-    # ── F3: 프로토콜 민감도(최소 학습창) ────────────────────────────────────────
-    # 5폴드 프로토콜은 fold1 학습행이 1,230행(49종목×약25일)뿐이다. depth 단조 실측은 그 소표본
-    # 과적합의 증상으로 읽힌다 → 폴드 수를 3으로 줄여 최소 학습창을 약 3배로 키운 프로토콜을
-    # **같은 런 안에서** 대조한다. 채택하려면 기준선 재설정(승인 대상)이 필요하다 — 여기서는
-    # '소표본 페널티가 실재하는가'만 측정한다.
+
+
+
+
+
     {"id": "F3_base_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "folds": 3,
      "desc": "기준 설정을 3폴드(최소 학습창 약 3배)로 측정 — 프로토콜 민감도"},
     {"id": "F3_d1_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "folds": 3, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "3폴드 + depth1(현 최고 HP) — 표본이 늘면 얕은 트리 이점이 사라지는가"},
-    # ── SEL1: 선별 크기(topN) 축 (정렬 버그 수정 후 미측정) ──────────────────────
-    # 근거: 학습행이 폴드당 1,230행뿐인데 피처는 30개를 쓴다. depth 단조 실측(과적합 신호)과
-    # 같은 맥락에서 '피처 수를 줄이면 일반화가 좋아지는가'는 수정 후 프로토콜에서 미측정이다.
-    # arm 사전등록 = SEL_top15_h5 (30 → 절반, 중간값). 나머지는 탐색.
+
+
+
+
     {"id": "SEL_top10_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top10",
      "desc": "edge 상위 10개만 — 소표본에서 피처 축소 가설"},
     {"id": "SEL_top15_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top15",
      "desc": "edge 상위 15개 — 사전등록 arm"},
     {"id": "SEL_top20_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top20",
      "desc": "edge 상위 20개"},
-    # ── CG44 (2026-10-01): 선별 크기 곡선의 **하한** — '최강 단일 축 하나로 기준선을 넘는가' ──
-    # 왜(패널 스크린 실측 2026-09-30, panel_995_*.json): 풀 안 최강 피처의 풀링 AUC edge 는
-    # bayes_volatility 0.0800(ic −0.0650, t −7.34, 656일) · rank_volatility_20d 0.0749 ·
-    # atr_pct 0.0739 로, 게이트 ON 앙상블 실측(0.5363)보다 **크다**. 그런데 선별 크기 곡선은
-    # top30 0.5414 > top20 0.5345 > top15 0.5343 > top10 0.5364 (SEL1, 게이트 OFF)로 30 이 최고였다.
-    # 두 관측이 상충한다: ①'최강 축 하나'가 앙상블보다 낫다(풀링 지표) ②'피처를 줄이면 나빠진다'
-    # (OOS 지표). 곡선이 top10 에서 멈춰 있어 **하한(top1/top3)** 만 미측정이다.
-    # 판정 의미: top1 ≈ 0.56 이면 '모델이 최강 축을 지운다' → 단일 피처 모델이 즉시 배포 가능한
-    # 후보(추론 계약 무변경). top1 ≤ 0.52 이면 '풀링 edge 는 OOS 에서 살아남지 않는다' →
-    # 데이터 축(부활 피처)에 남은 희망이 없다는 증거로 쓴다(스크린·스윕 상충의 해소).
+
+
+
+
+
+
+
+
+
+
     {"id": "S1_top1_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top1",
      "desc": "train 폴드 edge 최상위 **1개 피처만** — 선별 크기 곡선 하한(풀링 최강축 = OOS 최강축인가)"},
     {"id": "S3_top3_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top3",
      "desc": "train 폴드 edge 상위 3개 — 하한 근처(중복 피처 제거 효과 포함)"},
     {"id": "S5_top5_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top5",
      "desc": "train 폴드 edge 상위 5개 — top10(0.5364)과 top1 사이 중간점"},
-    # ── CG23 (2026-09-29): 표본 가중 축 — 기록상 0회 시험된 축 ────────────────────
-    # 왜: 33사이클의 모든 arm 은 표본을 **균등 가중**했다(변환·HP·앙상블·유니버스·라벨만 시험).
-    # 트레이더는 5일 보유 실현손익으로 평가받으므로 ①최근 표본에 가중(시간 감쇠)하거나
-    # ②|선행수익| 이 큰 표본에 가중하면 '돈이 되는' 표본에 집중할 수 있다.
-    # 설계(사전등록): panel_150u 를 30종목 **서로소** 5구간으로 나눠 구간 안에서 짝 비교한다
-    # (CG13 실측: 유니버스 교체만으로 폴드 평균이 Δ0.0287 움직인다 → 단일 arm 대 단일 대조군 금지).
-    # 3-arm: WDn = 가중 없음(원 경로) · WDu = 같은 가중 경로에 균등 가중(배관 통제, Δ≈0 이어야 함)
-    #        · WDw_h60 = 시간 감쇠 half-life 60거래일(사전등록 arm).
-    # ⚠ WDu 는 '가중 배관 자체가 AUC 를 바꾸지 않음'을 증명하는 통제다 — 이게 0 이 아니면
-    #    WDw 의 Δ 를 가중 효과로 귀속할 수 없다.
+
+
+
+
+
+
+
+
+
+
     {"id": "WDn_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [0, 30],
      "desc": "구간 [0:30) · 게이트 ON · 가중 없음(원 경로) — CG23 대조군"},
@@ -726,15 +726,15 @@ CONFIGS = [
     {"id": "WDw_h60_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [120, 150], "weight": {"kind": "time_decay", "hl": 60},
      "desc": "구간 [120:150) · 게이트 ON · 시간 감쇠 hl60 (사전등록 arm)"},
-    # ── CG77 (2026-10-03): 표본 가중 **잔여** 축 — |선행수익| 규모 가중 ──────────────
-    # 왜: CG23 의 가설은 ①최근 표본 가중(시간 감쇠) ②|선행 h일 수익| 이 큰 표본에 가중 —
-    #     두 갈래였는데 **원장 CG23 per_exp 를 보면 WDn/WDu/WDw_h60 뿐이고 absret arm 이
-    #     없다**(가설의 ②는 한 번도 측정되지 않았다). 즉 '표본 가중 축 소진' 판정은 ①에만
-    #     해당한다. 트레이더는 5일 보유 실현손익으로 평가받으므로 '크게 움직인' 표본에
-    #     집중하면 상위 k 정밀도가 오를 수 있다는 것이 ②의 기제다(구현은 CG23 에서 이미
-    #     넣어 둔 make_weights kind=absret — clip 0.05·바닥 0.25 로 완전 0 가중은 피한다).
-    # 대조군은 **같은 런·같은 구간**의 WDn(가중 없음 원 경로), 배관 통제는 WDu(균등 가중).
-    # 짝 Δ(ABw − WDn) 5구간 · 사전문턱 +0.02 · 양(+) ≥ 4/5.
+
+
+
+
+
+
+
+
+
     {"id": "ABw_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [0, 30], "weight": {"kind": "absret", "clip": 0.05},
      "desc": "구간 [0:30) · 게이트 ON · |선행 5일 수익| 규모 가중 (CG77 arm)"},
@@ -750,20 +750,20 @@ CONFIGS = [
     {"id": "ABw_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [120, 150], "weight": {"kind": "absret", "clip": 0.05},
      "desc": "구간 [120:150) · 게이트 ON · |선행 5일 수익| 규모 가중 (CG77 arm)"},
-    # 배관 통제(CG23 ④): 가중이 실제로 모델을 바꾸는지 확인용 — 절대값 비교가 아니라
-    # '같은 런에서 WDw ≠ WDu 임'을 보이기 위한 참조다.
+
+
     {"id": "CO_core30_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_limit": 150,
      "desc": "게이트 ON 대조군 · 150종목 전체(같은 런 기준점)"},
-    # ── CG25 (2026-09-29): 피처 시간 변화율(Δ) 파생 축 ──────────────────────────
-    # 왜: 라벨(호라이즌·분위·스무딩·상대) · 변환(rank/z) · HP · 앙상블 · 유니버스 · 표본가중이
-    # 전부 소진됐고, **피처의 시간 변화율**은 한 번도 만들지 않았다. 패널 스크린 실측(2026-09-29,
-    # panel_150u 210피처): 시간가변 최고군 = 변동성·거래량비 계열, |IC| t 는 대부분 3 미만,
-    # 무정보 141/210 → '수준'이 이미 약하니 '기울기'가 남은 정보일 수 있다.
-    # 설계: 소스 6개를 **이름으로 사전 등록**(스크린에서 소스를 고르면 선택 누수)하고 Δ1·Δ5 를
-    # 추가한다(210 → 222컬럼). 같은 구간·같은 폴드에서 derived 유무만 다른 짝 비교(CG13 실측
-    # 유니버스 잡음 Δ0.0287 때문에 단일 arm 대 단일 대조군 비교는 금지).
-    # ⚠ Δ 는 종목별 과거 행만 쓰고(shift(+k)), 라벨 결측 제거 **전에** 계산한다.
+
+
+
+
+
+
+
+
+
     {"id": "DDn_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [0, 30],
      "desc": "구간 [0:30) · 게이트 ON · 파생 없음 — CG25 대조군"},
@@ -804,35 +804,35 @@ CONFIGS = [
      "derived": {"sources": ["volatility_20d", "volatility_60d", "atr_pct", "volume_ratio_5",
                              "rsi", "ma_position_20"], "lags": [1, 5]},
      "desc": "구간 [120:150) · 게이트 ON + Δ1·Δ5 파생 12컬럼 (사전등록 arm)"},
-    # ── CG32(2026-09-29): 종목별 시계열 z-score — 마지막 남은 **배포 가능** 정규화 ─────────
-    # 왜: 게이트 ON 에서 사전문턱(+0.02)을 넘긴 유일한 조합(CO_rank_smooth_d1_h5 0.5592, CG8)은
-    # 횡단면 rank 를 포함해 **배포 불가**다 — 추론은 종목 1개·날짜 1개로 벡터를 만들어
-    # (app/inference/predictor.py) 그날 다른 종목 값이 필요하다. 반면 '자기 과거만' 쓰는
-    # 정규화(직전 20행 롤링 z-score)는 같은 경로에서 재현 가능하다(그 종목의 과거 행 조회).
-    # 정규화 축 자체는 기록상 횡단면만 시험됐다(rank Δ+0.0081~0.0107 · zscore 동류) → 시계열
-    # 정규화는 미측정이다. 대조군 = CO_core30_h5(같은 런·같은 행·같은 게이트) · 통제 =
-    # 횡단면 zscore(배포 불가 정규화) 로 '어느 정규화 축인가'까지 같은 런에서 분해한다.
+
+
+
+
+
+
+
+
     {"id": "CO_core30_tsz_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "zscore_ts", "core_only": True,
      "desc": "게이트 ON + 종목별 시계열 z-score(직전 20행, shift=1) — 배포 가능 정규화 arm"},
     {"id": "CO_core30_csz_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "transform": "zscore", "core_only": True,
      "desc": "게이트 ON + 날짜별 횡단면 z-score — '배포 불가 정규화' 통제(tsz 와 같은 런 비교)"},
-    # ── CG70(2026-10-02): 스냅샷 컬럼 제외 A/B — 기록 기준선의 누수 성분 측정 ──────────
-    # 진단(scripts/_nan_exclude_probe.py·_stockconst_probe.py, panel_420_asof3 읽기 전용):
-    #  · NaN 99% 컬럼 26개 = kalman_{activity,attention,momentum,sentiment} + sns_* 22개
-    #    → 모델에 '결측'으로 들어가 무정보(단일피처 AUC 0.5). 값 자체가 없다.
-    #  · '종목별 상수값이 비영' 컬럼 17개 = 아래 목록 — 어떤 시점 값이 그 종목의 **모든 과거 행**에
-    #    복사된 스냅샷이다. 원인이 코드로 확인된다: VectorFeatures._find_similar_stocks 와
-    #    GraphFeatures._get_twin_features/_get_sector_features 는 date 인자를 받지 않고,
-    #    stock_vectors 는 종목당 1행(최신 임베딩, created_at 2026-09-22~10-01)이라 2025-10 행에도
-    #    2026-10 임베딩이 들어간다(≈1년 룩어헤드) — CG63 이 재무 getter 를 수리할 때 함께
-    #    점검되지 않은 잔여분(as-of 위반, 규칙 3).
-    # 노출: 게이트 ON(CORE_FEATURES 48 = 생산 경로)에는 유사도·트윈·테마가 없다 → 생산경로 영향 제한.
-    #      게이트 OFF(기록 기준선 LS_quant_q30_h5 = 0.5406 경로)는 fold1 top30 에
-    #      avg_similarity_top10·max_similarity·similar_count·theme_count·news_count_5d·
-    #      positive_ratio 가 실제로 들어간다 → **기록 기준선 자체가 스냅샷 위에 있을 수 있다.**
-    # 판정: 짝 Δ = LF_snapfree_h5 − LS_quant_q30_h5 (같은 런·같은 행·같은 폴드).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "LF_snapfree_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "exclude_names": ["authenticity_avg", "avg_similarity_top10", "max_similarity", "negative_ratio",
                        "news_count_20d", "news_count_5d", "positive_ratio", "sentiment_avg",
@@ -844,18 +844,18 @@ CONFIGS = [
      "exclude_names": ["kalman_activity", "kalman_attention", "kalman_momentum", "kalman_sentiment",
                        "sns_*"],
      "desc": "플라시보: NaN 99% 컬럼 26개만 제외 — 선별에 안 들어가므로 모델이 비트 동일해야 한다"},
-    # ── CG74(2026-10-03): 중복 라벨(동일값) 열 제거 — 선별 슬롯 낭비 (정답성 축) ──────────
-    # 왜: 전 패널 공통으로 feature_names 에 같은 라벨이 2번씩 14쌍 있고 값은 **비트 동일**
-    #     (실측: cross_trend·price_volume·target_ma_5/10/20·volume_price_trend·volatility_volume …).
-    #     `dedupe_names` 가 `__dupN` 로 개명만 하므로 열은 남고, edge top30 이 같은 피처를
-    #     두 슬롯에 넣으면 실질 고유 피처가 27개로 줄어든다. drop_dup=True 로 `__dupN` 을
-    #     후보에서 빼면 30 슬롯이 서로 다른 피처로 채워진다.
-    # 기대: 정답성 수리(이득 ≈0 — 대체 슬롯 edge 가 중복과 비슷). 그래도 **측정**한다:
-    #     '중복이 선별을 낭비한다'를 같은 런 짝 Δ 로 확정해야 다음 피처 단위 판정이 깨끗해진다.
-    # ⚠ 실측(2026-10-03 07:03 스모크): **게이트 ON 에선 중복이 후보에 0개**다(CORE_FEATURES 48 밖,
-    #     `_drop_dup_test.py` NOTE [5]) → UQ_core30_h5 와 CO_core30_h5 는 AUC 0.5338 로 비트 동일.
-    #     즉 이 축은 **게이트 OFF 경로(기록 기준선 LS_quant_q30_h5)** 에서만 유효하다 →
-    #     아래 UQa_*/LU_* 5구간 짝(서로소 30종목)으로 잰다(유니버스 교체 잡음 0.0287 상쇄).
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "UQa_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "drop_dup": True, "codes_slice": [0, 30],
      "desc": "구간 [0:30) · 게이트 OFF + 중복라벨 제거 + edge top30 — 짝 대조군 LU_00_30"},
@@ -886,22 +886,22 @@ CONFIGS = [
     {"id": "LU_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "codes_slice": [120, 150],
      "desc": "게이트 OFF 대조군(중복 포함) · 서로소 구간 [120:150)"},
-    # ── CG78(2026-10-03): 피처 결측 지시자(missing indicator) 축 ─────────────────────
-    # 왜: 학습 직전 np.nan_to_num(nan=0.0)(L1377/1381)이 결측을 0 으로 대체한다 → 트리는
-    #     '값 0'과 '결측'을 구분 못 한다 → 결측 자체가 정보일 수 있다.
-    # 실측(2026-10-03, 패널별 per-column NaN 분포): 결측은 **열 단위 이분포**다 —
-    #     panel_prod200 213열: 187열 0.0% / 26열 98.2% (중간대 0개) · panel_150u 는 같은 26열이
-    #     88.5% · panel_420/995 계열도 동일. 즉 **행수준 결측은 빌드 시 0 으로 대체돼 사라졌고**
-    #     살아남은 NaN 은 '그 피처가 그 구간에 아예 없었다'(SNS·kalman) 뿐이다 → 이 축은
-    #     '수집 여부' 프록시를 재는 셈이며, 진짜 행수준 결측 지시자는 feature_pipeline(빌드 시점)
-    #     에서만 만들 수 있다(패널 재빌드 필요 = 별도 항목).
-    # 설계: CG25(Δk)·CG28(gate_add)과 같은 프로토콜 — 지시자는 **선별 후보에서 빼고** top30 을
-    #     고른 뒤 강제로 덧붙인다 → 두 arm 의 edge top30 이 동일 집합, 차이는 '지시자 10컬럼'뿐.
-    #     소스는 사전 등록 규칙(결측률 1~99.5% 내림차순 top10)으로 고정 — 결과 보고 소스를 고르면 누수.
-    # 한계(명시): 용량 교란 통제(placebo)는 이 런에 없다 → 신호가 나오면 같은 수의 무정보 파생을
-    #     붙인 placebo arm 으로 확인할 것. 게이트 OFF 경로 전용(지시자 이름이 CORE_FEATURES 밖).
-    # 배포 가능성: 추론 시점에도 '그 피처가 결측인가'는 알 수 있다 → 계약 위반 아님(단 지시자
-    #     컬럼을 추론 경로가 만들도록 feature 파이프라인 수정 필요 = 승격 시 별도 승인).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "MIs_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "codes_slice": [0, 30], "derived": {"kind": "miss", "top_k": 10},
      "desc": "구간 [0:30) · 게이트 OFF + 결측 지시자 10개 강제투입 — 짝 대조군 LU_00_30"},
@@ -917,13 +917,13 @@ CONFIGS = [
     {"id": "MIs_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "codes_slice": [120, 150], "derived": {"kind": "miss", "top_k": 10},
      "desc": "구간 [120:150) · 게이트 OFF + 결측 지시자 10개 강제투입 — 짝 대조군 LU_120_150"},
-    # ── CG76(2026-10-03): 조건부(비영) edge 선별 — 희소 피처의 선별 진입 축 ─────────────
-    # 왜: 부활 피처(disclosure_count_5d 등)는 커버리지를 살려도 **풀링 edge 가 낮아 top30 에
-    #     들어가지 못한다**(EV1 이벤트 17종 진입 0 · CG67 부활 후 AUC 비트 불변). 선별 규칙이
-    #     희소 피처를 배제하는 것이 원인이므로, 비영 행에서만 edge 를 계산해 경쟁시킨다.
-    #     대조군은 같은 런의 LU_*(edge top30) — 게이트 OFF·같은 구간·같은 q.
-    # ⚠ CG71(IC 규칙)·CG74(drop_dup)와 달리 이건 **선별 표본 도메인**을 바꾸는 것이고
-    #     dense 피처에는 작용하지 않는다(비영=전 행이면 값 동일).
+
+
+
+
+
+
+
     {"id": "CN_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
      "codes_slice": [0, 30],
      "desc": "구간 [0:30) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_00_30"},
@@ -939,13 +939,13 @@ CONFIGS = [
     {"id": "CN_120_150", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "cnd30",
      "codes_slice": [120, 150],
      "desc": "구간 [120:150) · 게이트 OFF + 조건부(비영) edge top30 — 짝 대조군 LU_120_150"},
-    # ── CG107(2026-10-05): 라벨-돈 단위 정합 — 절대수익 임계 라벨 vs 분위 ────────────────
-    # 왜: 모든 기존 라벨은 **상대**(분위 q / 시장상대 중앙값)인데 돈 지표는 **절대**(%p/세션)다.
-    #     분위 라벨은 하락일에도 '그날 상위 30%' 를 양성으로 강제하지만, 절대 임계(>=+2%)는
-    #     상승일에 양성이 늘고 하락일에 줄어 국면에 적응한다. 중간 분위를 버리지 않아 행
-    #     도메인도 넓다 → AUC 를 직접 비교하지 말고 **같은 런·같은 구간 짝 Δ** 로만 판정한다.
-    # 대조군: 같은 런의 US_00_30..US_120_150 (게이트 ON · 분위0.30 h5 · 같은 구간, 라벨 정의만 다름)
-    # 성공 기준: 구간 짝 Δ(AT − US) 평균 ≥ +0.02 그리고 양(+) ≥ 4/5.
+
+
+
+
+
+
+
     {"id": "AT_00_30", "kind": "abs_thresh", "horizon": 5, "q": 0.30, "thresh": 0.02,
      "select": "top30", "core_only": True, "codes_slice": [0, 30],
      "desc": "구간 [0:30) · 게이트 ON + 절대 임계 라벨(선행5일 >= +2%) — 짝 대조군 US_00_30"},
@@ -961,26 +961,26 @@ CONFIGS = [
     {"id": "AT_120_150", "kind": "abs_thresh", "horizon": 5, "q": 0.30, "thresh": 0.02,
      "select": "top30", "core_only": True, "codes_slice": [120, 150],
      "desc": "구간 [120:150) · 게이트 ON + 절대 임계 라벨(선행5일 >= +2%) — 짝 대조군 US_120_150"},
-    # ── CG109(2026-10-05): abs_thresh 라벨 돈 지표 **재현** — 서로소 유니버스 블록 ──────────
-    # CG108 이 [0:150) 5구간에서 돈 지표 Δ(pool) k=5 +0.710(t 2.09)·k=10 +0.682(t 3.11) 를 냈지만
-    # 사전문턱(k=3 **과** k=5 둘 다)은 k=3(t 0.98)에서 미달 = '노이즈'. 힌트가 실재하는지 보려면
-    # **서로소 종목 블록**에서 같은 프로토콜로 재현해야 한다(CG24/CG13 교훈). 여기서는 패널의
-    # 남은 50종목 블록 [150:200) 을 단일 유니버스로 쓴다(5슬라이스로 쪼개면 풀 중앙값이 10 이하로
-    # 떨어져 k=5 가 포화한다). 돈 지표는 arm vs arm 이 아니라 **널(세션 풀 평균)** 을 기준선으로 쓴다.
-    # 성공 기준: k=3·k=5 둘 다 통과. 방향 무관 이 결과로 축을 닫는다.
+
+
+
+
+
+
+
     {"id": "AT150_200", "kind": "abs_thresh", "horizon": 5, "q": 0.30, "thresh": 0.02,
      "select": "top30", "core_only": True, "codes_slice": [150, 200],
      "desc": "블록 [150:200) 50종목 · 게이트 ON + 절대 임계 라벨(+2%, h5) — 돈 지표 재현(CG109)"},
-    # ── CG80(2026-10-03): 학습 목적함수(objective) 축 — 날짜별 횡단면 랭킹 ────────────────
-    # 왜: 이 스택의 모든 arm(70+사이클)이 `binary:logistic`(행 독립) 하나를 공유한다. 그런데
-    #     라벨은 '날짜내 분위'(횡단면 상대)라 학습이 날짜 경계를 모른다. rank:pairwise + group
-    #     (날짜별 행 수)은 **날짜 안에서** 양성을 위로 올리도록 직접 최적화한다 — 추론은 행별
-    #     점수라 계약 변경이 없다(rank 변환과 달리 배포 가능).
-    # ⚠ 두 arm 은 완전히 동일하고 objective 문자열만 다르다: 같은 정렬·같은 분할·같은 단일
-    #     xgboost. 그래서 과샘플·셔플을 쓰지 않는다(group 이 깨짐) → Δ 는 objective 하나로 귀속.
-    # ⚠ 대조군이 '등록 기준선(CO_core30_h5)'이 아니라 같은 런 RPb_* 인 이유: 이 경로는
-    #     과샘플을 생략하므로 표준 경로와 수치가 다를 수 있다(그 차이는 '경로 효과'로 따로 읽는다).
-    # 성공 기준: 구간 짝 Δ(RPr − RPb) 평균 ≥ +0.02 그리고 양(+) ≥ 4/5.
+
+
+
+
+
+
+
+
+
+
     {"id": "RPb_00_30", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "codes_slice": [0, 30], "objective": "binary:logistic",
      "ens": {"skip": ["lightgbm", "catboost"]},
@@ -1021,16 +1021,16 @@ CONFIGS = [
      "core_only": True, "codes_slice": [120, 150], "objective": "rank:pairwise",
      "ens": {"skip": ["lightgbm", "catboost"]},
      "desc": "구간 [120:150) · 게이트 ON + 정렬·무과샘플 경로 · objective=rank:pairwise (CG80 arm)"},
-    # ── CG182: 모멘텀 부호 반전(비정상성) — 계열 제거 arm vs 같은 런 대조군 (2026-11-09 22:0x)
-    # 근거(실측, data/reports/supply_ic_20261109_comparison.md · scripts/supply_fresh_slice_ic.py):
-    #   h=5 스피어만 IC 가 대조 8/01~9/23 → 복구 10/09~11/06 에서
-    #   momentum_op +0.0920(t 5.47) → −0.1459(t −6.19) · momentum_ni +0.0849 → −0.1312 ·
-    #   momentum_3_12m +0.0714 → −0.0709 (bb_position 은 부호 유지 −0.0872 → −0.0666).
-    #   3종 모두 **배포 챔피언 173피처에 들어 있다**(실측 확인) → 국면 반전이 기여를 뒤집을 수 있다.
-    # ⚠ 이건 '조정 축'(피처 변환·HP·게이트) 재시험이 아니다 — 국면 의존 검정이다. 제거는 기존
-    #   exclude_names 구현(L1724~1736, 접두어 'event_*' 지원)을 그대로 쓴다(신규 코드 0).
-    # ⚠ 사전문턱: 같은 런 짝 Δ(제거 − 대조) 폴드 평균 +0.02 이상 + 순기대 앞/뒤 절반 both_positive.
-    #   미달이면 '국면 반전은 있어도 모델 기여는 아니다'로 축을 닫는다.
+
+
+
+
+
+
+
+
+
+
     {"id": "CG182_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True,
      "desc": "CG182 대조군 — 게이트 ON + top30 (현행 경로), 피처 제거 없음"},
@@ -1038,16 +1038,16 @@ CONFIGS = [
      "core_only": True,
      "exclude_names": ["momentum_op", "momentum_ni", "momentum_3_12m"],
      "desc": "CG182 arm — 부호가 뒤집힌 모멘텀 3종 제거(같은 런·같은 행)"},
-    # ── CG189: CG182 교정판 — 게이트 OFF 4-arm 아님(2-arm) · 신선 패널 재사용 (2026-11-11 02:1x) ──────
-    # 왜 교정인가(실측 2026-11-11 02:1x, me_cycle_CG182_20261111-010130.log): CG182 arm 은 core_only=True
-    #   라서 exclude_names 3종(momentum_op·momentum_ni·momentum_3_12m)이 **선별 전에 이미 잘려** 있었다 —
-    #   셋 다 CORE_FEATURES 48 에 없다(코어에는 momentum_vs_volatility·short_medium_term_momentum·
-    #   momentum_1m_reverse·kalman_momentum_1d/5d 만 있다). 로그 "피처군 제외 0개 []" → 가드가 측정 전 중단
-    #   (arm == control 이면 A/B 가 아니라 같은 실험을 두 번 돌린 것이다 — 이 가드는 유지하라).
-    #   게이트를 끄면 3종은 패널에서 시간가변이다(panel_prod200 실측: std 5453.5/1787.1/1.196,
-    #   비영 36,585·32,407·50,481 / 54,800). 즉 '게이트 OFF 경로'에서만 이 가설이 잴 수 있다.
-    # ⚠ 판정은 같은 런 짝 Δ 로만. 대상 패널은 CG188 이 만드는 panel_200liq_fresh.npz(구간 ~2026-11-09)
-    #   이므로 뒤쪽 폴드가 CG181 이 관측한 부호 반전 국면(10-09~11-06)을 포함한다.
+
+
+
+
+
+
+
+
+
+
     {"id": "CG189_ctl_nog_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG189 대조군 — 게이트 OFF + edge top30(전체 213피처 후보), 피처 제거 없음"},
@@ -1055,34 +1055,34 @@ CONFIGS = [
      "core_only": False,
      "exclude_names": ["momentum_op", "momentum_ni", "momentum_3_12m"],
      "desc": "CG189 arm — 부호가 뒤집힌 모멘텀 3종 제거(게이트 OFF·같은 런·같은 행)"},
-    # ── CG192 (2026-11-11) 학습/평가 도메인 정합 — '살 수 없는 행'을 학습에서만 뺀다 ──────────────
-    # 왜: 돈 지표는 항상 체결성 필터(당일등락 < +25%)를 건다(스킬 최우선 규칙 3). 그런데 학습 라벨은
-    #   그런 행을 그대로 포함해 '살 수 없는 상승(상한가 연속)'을 예측하도록 학습된다. 실측 근거
-    #   (close_gate_probe 2,251행): 필터 전 풀평균 +1.191%/세션이지만 상한가(+29.99%) 행이 그 이득을
-    #   만들고, 필터 후 순기대는 음수(CG185/CG190: 모든 분위 음수). 즉 학습 도메인 ⊃ 평가 도메인.
-    # 설계: **학습 행만** 마스킹하고 테스트 행은 손대지 않는다 → 폴드 AUC 의 행 도메인이 두 arm 에서
-    #   동일해 Δ 가 비교 가능하다(테스트까지 빼면 Δ 가 서로 다른 표본의 비교가 되어 무효).
-    # 당일등락 정의: 종목별 종가 pct_change(돈 지표 필터와 같은 정의). 첫 행은 NaN → 보존(보수적).
+
+
+
+
+
+
+
+
     {"id": "CG192_mask25_nog_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "train_mask_daychg_gte": 0.25,
      "desc": "CG192 arm — 학습에서 당일등락 ≥ +25%(체결 불가) 행 제외, 테스트 행은 그대로"},
-    # 감도 arm: 실측상 마스크 크기가 작다(패널 54,497행 중 ≥+25% 325행=0.60% · ≥+10% 2,274행=4.17%).
-    #  0.25 arm 이 null 이면 '체결불가 행'만의 문제인지 '극단 등락군 전체'의 문제인지 구분되지 않으므로,
-    #  같은 런에 4배 큰 마스크(4.17%)를 넣어 용량-반응을 본다(별도 런이면 폴드가 달라 비교 불가).
+
+
+
     {"id": "CG192_mask10_nog_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "train_mask_daychg_gte": 0.10,
      "desc": "CG192 감도 arm — 학습에서 당일등락 ≥ +10%(4.17%) 행 제외, 테스트 그대로"},
-    # ── CG193 (2026-11-11) 라벨 호라이즌 축 — '라벨 잡음'을 줄이면 랭킹이 오르는가 ──────────────
-    # 왜: 라벨 스무딩 축 실측(17사이클 요약) — 평균 Δ+0.0053 이지만 **폴드 std −44%(0.0308→0.0173)**.
-    #   즉 이 데이터에서 AUC 를 흔드는 1차 원인은 신호가 아니라 'h5 라벨의 경로 잡음'이다.
-    #   호라이즌 연장은 스무딩의 연속판(더 긴 구간 평균)이라 같은 기전을 더 세게 건다 — 아직
-    #   신선 패널(panel_200liq_fresh, 200종목·~11-09)에서 같은 런으로 재본 적이 없다(h3/h8/h10 은
-    #   옛 패널 기록뿐). 부수 근거: CG190 실측은 청산을 늘릴수록 순서 정보가 강해진다
-    #   (next_open ρ0.4545 → next_close ρ0.685 → t2_open ρ0.746).
-    # ⚠ arm 마다 라벨 창이 달라 **테스트 행 꼬리가 다르다**(h20 은 마지막 20거래일이 빠진다). 그래서
-    #   판정은 같은 런 폴드 짝 Δ 로만 하고, Δ ≥ +0.02 가 나오면 행을 맞춘 재측정을 한 번 더 한다.
+
+
+
+
+
+
+
+
+
     {"id": "CG193_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG193 대조군 — 게이트 OFF·h5(기준선과 같은 과제), 피처 제거 없음"},
@@ -1095,14 +1095,14 @@ CONFIGS = [
     {"id": "CG193_h20", "kind": "quantile", "horizon": 20, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG193 arm — 호라이즌 20(과확장 상단 — 라벨 잡음 최소·신호 희석 위험)"},
-    # ── CG195 (2026-11-11 장외 틱) 정보 흐름 변화율 축 ────────────────────────────────
-    #   왜: CG25 의 Δ1·Δ5 파생은 **가격·기술 6소스**(volatility_20d/60d·atr_pct·volume_ratio_5·rsi·
-    #   ma_position_20)만 시험했다(실측 Δ+0.0031 = 노이즈). 같은 파생 연산자를 **아직 시험하지 않은
-    #   정보 클래스**(SNS·공시·이벤트 / 수급·공매도)에 적용해 보는 것이 이 arm 이다.
-    #   ⚠ 뉴스·감성 컬럼은 이 패널에서 사실상 죽어 있다(실측 2026-11-11: news_count_5d·sentiment_avg
-    #     비영 0.04%) → 사전 등록에서 **제외**했다(죽은 열을 넣으면 '파생 미통과'로 측정 자체가 무효).
-    #     margin_balance_change·credit_balance_change 도 비영 0.00% 로 제외.
-    #   판정은 같은 런 CG193_ctl_h5(게이트 OFF·동일 폴드·동일 top30) 대비 폴드 짝 Δ 로만 한다.
+
+
+
+
+
+
+
+
     {"id": "CG195_dsns_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "derived": {"sources": ["sns_attention_score", "sns_momentum_score", "sns_post_count",
@@ -1115,19 +1115,19 @@ CONFIGS = [
                              "short_selling_ratio", "program_trading_ratio"],
                  "lags": [1, 5]},
      "desc": "CG195 arm — 게이트 OFF + Δ1·Δ5 파생 8컬럼 (수급·공매도 흐름, 사전등록)"},
-    # ── CG196 (2026-11-11 장외 틱) 종목상수 피처 기여 — 누수 게이트 3번 항목의 A/B ──────────────
-    #   왜: 신선 패널 스크린 실측(2026-11-11 21:0x, panel_200liq_fresh 54,497행·213피처·279일
-    #     2025-09-15~2026-11-09): 누수 의심(|AUC−0.5|>0.25) 0개 · **종목상수 29개** · 시장레벨 48개 ·
-    #     무정보 137/213. 스킬 판정 하드규칙 3 은 '종목 상수 피처가 선별을 지배하면 반려'를 요구하는데,
-    #     지금까지 이 항목은 **선별 지배 여부를 A/B 로 잰 적이 없다**(스크린 카운트만 있었다).
-    #     종목상수 = 종목별 유니크값 1개. 이 정의는 **라벨을 전혀 쓰지 않는다** → 이 제외 목록을 만드는
-    #     데 미래정보(라벨)가 개입하지 않으므로 선별 축 재시험이 아니라 **누수/기여 검정**이다.
-    #   가설: 29개 상수(메타데이터 theme_*/similar*/twin_*/sector + 사망 열 sentiment_*/news_*/기타)가
-    #     선별 top30 을 차지해 모델 용량을 쓰지만, 상수는 횡단면 순위를 만들 수 없으므로(모든 날짜에서
-    #     같은 값) OOS 랭킹 기여가 0 이거나 음수다. 제거하면 폴드 평균이 오르거나 최소한 같아야 한다.
-    #   판정(사전등록): 같은 런 짝 Δ(제거 − 대조) ≥ +0.02 & 폴드승률 ≥ 4/5 → 신호(배포 가능한 단순화
-    #     이득 = 상수 29개 제거 재학습으로 후속). |Δ| < 0.005 → '상수 기여 없음'으로 종결(누수 게이트
-    #     3번 항목의 실질 해소 + 배포 입력 단순화 근거). Δ ≤ −0.02 → 상수가 실제로 기여(제거 금지).
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CG196_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG196 대조군 — 게이트 OFF + edge top30(전체 213피처 후보), 제거 없음"},
@@ -1144,27 +1144,27 @@ CONFIGS = [
                        "credit_balance_change", "value_ncav"],
      "desc": "CG196 arm — 종목상수 29개(라벨 미사용 정의) 제거 · 같은 런·같은 행·같은 선별"},
 
-    # ── CG198 (2026-11-11 22:1x 장외) 중복라벨(__dupN) 선별 슬롯 낭비 — drop_dup A/B ────────────
-    #   왜: CG196 같은-런 실측에서 **대조군 top30 이 중복라벨을 폴드별 7/5/4/3/2개** 포함했다(실질 고유
-    #     피처 23~28 = 슬롯의 14% 낭비). `wf_wave.dedupe_names` 는 같은 라벨의 두 번째 열을 `__dupN` 로
-    #     **개명만** 하므로 값이 비트 동일한 열이 top30 의 두 슬롯을 차지한다. CG74 는 게이트 ON(중복 0)과
-    #     6개 30종목 슬라이스에서만 쟀고, 신선 200종목 패널에서는 재측정이 없다.
-    #   ⚠ 새 성능 레버가 아니라 **선별 정합성** 항목이다(변환·HP·라벨 변경 없음).
-    #   판정(사전등록): 짝 Δ(dupdrop−ctl) ≥ +0.02 & 폴드승률 ≥ 4/5 → 슬롯 회수가 레버 · |Δ| < 0.005 →
-    #     '중복 슬롯은 AUC 무관' 종결 · Δ ≤ −0.02 → 중복열 기여(제거 금지). 대조군은 **같은 런의
-    #     CG196_ctl_h5** 를 쓴다(과거 런 대조 금지).
+
+
+
+
+
+
+
+
+
     {"id": "CG198_dupdrop_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False, "drop_dup": True,
      "desc": "CG198 arm — 중복라벨(__dupN) 선별 후보 제거(drop_dup) · 같은 런 대조군 CG196_ctl_h5"},
 
-    # ── CG199 (2026-11-11 23:0x 장외 틱) 재현성 검정 — 최근 최고 델타(CG195_dsns +0.0056)가 앵커를
-    #   옮기면 살아남는가. 왜: 최근 6사이클 델타는 +0.0002~+0.0056 전부 사전문턱 +0.02 미달이고,
-    #   CG156 실측의 날짜 레벨 잡음바닥(|Δ| 0.0175~0.0597)이 그보다 크다 → '가장 좋았던 델타'가
-    #   앵커 잡음인지 신호인지를 재현으로만 분리할 수 있다. 앵커 = 패널 끝(2026-11-09)에서 2거래일
-    #   앞(2026-11-05) — 폴드 경계도 함께 이동하므로 같은 런 안에서 짝 비교한다.
-    #   ⚠ 새 성능 레버가 아니라 **측정 신뢰도** 항목이다(설정 변경 없음: CG195_dsns 와 비트 동일 설정).
-    #   판정(사전등록): 짝 Δ ≥ +0.02 & 폴드승률 ≥ 4/5 → 신호(그 arm 을 다음 대조군으로 승격) ·
-    #     |Δ| < 0.01 → 직전 델타는 앵커 잡음으로 종결(조정 축 전체를 닫는 근거) · Δ ≤ −0.02 → 부호 불안정.
+
+
+
+
+
+
+
+
     {"id": "CG199_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG199 대조군 — 앵커 2026-11-05 · 게이트 OFF · edge top30 · 제거/파생 없음"},
@@ -1175,16 +1175,16 @@ CONFIGS = [
                  "lags": [1, 5]},
      "desc": "CG199 arm — CG195_dsns 설정 그대로(Δ1·Δ5 파생 10컬럼) · 앵커만 2거래일 앞(재현성 검정)"},
 
-    # ── CG202 (2026-11-12 02:0x 장외 틱) 선별 청정화 × Δ파생 상호작용 — '죽은 열이 슬롯을 먹어
-    #   시간가변 신호가 가려졌는가'. 왜: CG196 같은-런 실측에서 대조군 top30 이 종목상수·중복라벨을
-    #   폴드별 최대 7개까지 포함했다(실질 고유 피처 23개). CG195_dsns(Δ1·Δ5 파생)의 Δ+0.0056 은
-    #   이 오염된 선별 위에서 측정됐고, 제거 arm(CG196_noconst·CG198_dupdrop)은 각각 단독으로
-    #   Δ+0.0002 수준이었다 → **두 정리와 파생을 동시에 켠 조합은 아직 측정된 적이 없다**.
-    #   가설: 상수·중복을 걷어낸 선별 위에서만 Δ파생(SNS·공시·이벤트 흐름)이 슬롯에 진입해 신호가 산다.
-    #   판정(사전등록, 앵커 3개 평균): 짝 Δ(clean_dsns − clean) ≥ +0.02 & 부호 3/3 & 폴드승률 ≥4/5 → 신호.
-    #     |앵커평균 Δ| < 0.005 또는 부호 불일치 → '청정화는 파생 신호를 살리지 못한다'로 데이터축 재개
-    #     조건(CG73)만 남기고 조정 축 종결. rc≠0/요약 미갱신 = 실행실패(노이즈 아님).
-    #   파생 소스는 CG195 와 동일(뉴스·감성·margin 은 비영 0.0x% 로 사전 제외).
+
+
+
+
+
+
+
+
+
+
     {"id": "CG202_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG202 대조군 — 게이트 OFF · edge top30 · 제거/중복/파생 없음"},
@@ -1215,15 +1215,15 @@ CONFIGS = [
                              "disclosure_count_5d", "economic_event_count_7d"],
                  "lags": [1, 5]},
      "desc": "CG202 arm2 — 청정 선별 + Δ1·Δ5 파생 10컬럼 (상호작용 검정의 처리군)"},
-    # ── CG204(2026-11-12): 배포가능 최고 조정 arm × 청정 선별(누수게이트 대응) ──
-    # 왜: CG202 실측(앵커 3개 평균)에서 청정 선별 단독 0.5096±0.0016, 청정+Δ파생 0.5142 → 짝 Δ
-    #   +0.0046(폴드승률 6/15) = 노이즈. 남은 질문은 '청정 선별을 **배포가능 최고 조정 arm**에 얹으면
-    #   AUC 가 움직이는가'다 — CO_smooth_d1_h5 는 rank 변환이 없어 추론 계약 무변경(배포 가능)이고,
-    #   스킬 누수게이트 ③ '종목상수 피처가 선별을 지배'에 정면으로 걸리는 후보다(상수 29개는 top30
-    #   슬롯을 점유하지만 시점정보가 없다). 대조군을 같은 런의 CO_smooth_d1_h5 로 두어 HP·스무딩은
-    #   상쇄하고 **선별 청정화만**의 기여를 분리한다.
-    #   판정(사전등록, 앵커 3개 평균): 짝 Δ ≥ +0.02 & 부호 3/3 & 폴드승률 ≥ 0.6 → 신호.
-    #     |Δ| < 0.005 → 조정 축 완전 종결(데이터 축만 남음).
+
+
+
+
+
+
+
+
+
     {"id": "CG204_clean_smooth_d1_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "drop_dup": True,
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
@@ -1237,17 +1237,17 @@ CONFIGS = [
                        "etf_flow_5d", "institution_ownership_pct", "margin_balance_change",
                        "credit_balance_change", "value_ncav"],
      "desc": "CG204 — CO_smooth_d1_h5 + 종목상수 29개 제거·중복라벨 제거 (배포가능 조정 arm 위 청정화)"},
-    # ── CG205(2026-11-12): 누수게이트 ③ 실측 — 게이트 OFF 경로에서 종목상수가 선별을 지배하는가 ──
-    # 왜: CG204 는 **측정 전에 실패**했다(구동 가드: exclude_names 29개가 아무 컬럼도 제외하지 않음).
-    #   원인 실측(panel_200liq_fresh, 213피처·200종목·279일 2025-09-15~2026-11-09):
-    #   종목상수(종목별 유니크값 1개, const_ratio≥0.99)는 21개인데 **전부 CORE_FEATURES(48) 밖**(테마·
-    #   유사도·수급)이고, core48 안의 종목상수는 sentiment_avg·sentiment_avg_5d·sentiment_avg_20d 3개뿐이며
-    #   셋 다 std=0(무정보)이라 std 필터에서 이미 탈락한다 → 게이트 ON 경로(core_only=True)에서
-    #   누수게이트 ③은 **구조적으로 성립 불가**(제외할 컬럼이 후보에 0개).
-    #   남는 위험은 게이트 OFF 경로다: 스윕 기본값이 게이트 OFF 이므로 과거 실험 대부분이 종목상수를
-    #   후보로 삼았다. 그 9개(std>0 종목상수)가 top30 슬롯을 점유해 AUC 를 오염시키는지 직접 잰다.
-    #   판정: |짝 Δ| < 0.005 → 게이트 OFF 실험들도 오염 없음(과거 결론 유효) / ≥ +0.02 → 과거 게이트 OFF
-    #   실험의 해석을 재검토(측정정합성 이슈, 리뷰보드 보고).
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CG205_ctl_nocore_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
@@ -1259,29 +1259,29 @@ CONFIGS = [
                        "twin_avg_correlation", "twin_count", "avg_similarity_top10", "max_similarity",
                        "sector_count"],
      "desc": "CG205 처리군 — 게이트 OFF 동일 조건 + 종목상수 9개(std>0) 제외 (누수게이트 ③ 실측)"},
-    # ── CG234(2026-11-13, 데이터 축): 스크린 상위 시간가변 피처를 선별이 버리고 있는가 ────────
-    # 근거: CG233 스크린(panel_prod200, 213피처, q0.3·h5) — 누수 의심 0, 무정보 120/213,
-    #   IC |t|≥2 시간가변 후보 66개. 그중 커버리지 100% 인 similar_stocks_return_std(t 7.47)·
-    #   similar_stocks_return_avg(t 7.46)·debt_ratio(t 6.43)는 CORE_FEATURES(48) 밖이라 게이트 ON
-    #   경로의 **선별 후보조차** 아니었다. 조정 축 상한(+0.011)이 막힌 지금, 데이터 축에서
-    #   '이미 보유한 신호를 선별이 버리는지'가 마지막 확인 지점이다.
-    # 프로토콜(사전등록): 같은 패널·같은 폴드·같은 시드에서 대조군 CO_smooth_d1_h5 vs 이 arm.
-    #   gate_add 는 선별 **후에** 덧붙이는 경로(dv_names)라 top30 집합이 동일하고 차이는 '후보 3종
-    #   추가' 하나로 좁혀진다(용량 교란 최소). 판정은 앵커 평균 Δ ≥ +0.02 & 전 앵커 부호 양(+) → 신호.
-    # ⚠ 희소 피처 제외: sns_author_quality_score(fill 2.2%)는 사전필터(시장레벨 판정)에서 탈락한다
-    #   — 관측일 대부분 종목 1개뿐이라 '날짜내 종목간 상수'로 판정되는 것이고, 그 단일피처 AUC
-    #   0.5889 는 횡단면 신호가 아니라 날짜 성분일 수 있다(누수게이트 ④). 강제로 넣으려면
-    #   시장레벨 필터 우회 플래그가 필요해 별도 승인 사안으로 남긴다.
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CO_FW4_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "gate_add": ["similar_stocks_return_std", "similar_stocks_return_avg", "debt_ratio"],
      "desc": "CG234 — 게이트 ON + 스크린 dense 후보 3종(similar_stocks 2·debt_ratio)을 선별 후 강제 포함"},
-    # ── CG235(2026-11-13): 모델계열 대조 — 선형(로지스틱)이 GBDT 앙상블을 이기는가 ────────────
-    # 근거: 신선 패널 5폴드 평균이 0.508~0.512(동전던지기 근처)이고 조정 축 상한이 +0.011 이다.
-    #   이 스택에서 채점된 학습기는 xgboost·lightgbm·catboost 세 GBDT 뿐 — 선형은 미측정이다.
-    #   선형이 동등하거나 높으면 '신호는 선형인데 트리가 잡음을 학습' → 모델계열 투자 근거,
-    #   크게 낮으면 '비선형 상호작용은 있으나 크기가 작다' → 새 데이터가 유일한 레버로 확정된다.
-    # 판정: 앵커 3개 평균 Δ(선형 − GBDT 대조군) 와 앵커 std 비교(CG234 와 같은 프로토콜).
+
+
+
+
+
+
     {"id": "CG235_lin_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "linear": True, "linear_C": 0.1,
      "desc": "CG235 — 같은 선별·같은 폴드·같은 시드에서 학습기만 표준화 로지스틱(C=0.1)로 교체"},
@@ -1291,25 +1291,25 @@ CONFIGS = [
     {"id": "CG235_lin_c10_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "linear": True, "linear_C": 1.0,
      "desc": "CG235c — 같은 경로·로지스틱 C=1.0(약한 L2) — 정규화 민감도 확인"},
-    # CG237: 선형은 트리보다 '피처 수'에 둔감하다(표준화 + L2). top30 선별이 선형의 이득을 잘라내고
-    # 있는지 확인 — core48 전체를 넣어 같은 프로토콜로 비교한다(선별 단계만 다름).
+
+
     {"id": "CG237_lin_all_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "all",
      "core_only": True, "linear": True, "linear_C": 0.1,
      "desc": "CG237 — 선형(C=0.1) + core48 전체 사용(선별 top30 대신) — 피처 수 민감도"},
-    # ── CG241(2026-11-13): SNS/감성 '관측 희소' 축 — as-of 전방채움으로 커버리지를 올리면 신호가 살아나는가
-    # 근거(실측, panel_200liq_fresh 213피처·200종목·279일): SNS 3종은 **죽지 않았고** 관측 커버리지만
-    #   낮다 — sns_sentiment_score/attention/momentum 관측률 각 0.1218(관측된 값은 3~5천 유니크).
-    #   결측 표식은 NaN 이므로 트리는 88% 행에서 이 피처를 못 쓴다.
-    # 선행 구현(자율): scripts/_cg239_ffill_panel.py → panel_200liq_ffill.npz(217열, 가산만).
-    #   as-of 종목별 전방채움 + 경과일 상한 5거래일 + 경과일 지표. 누수 자기검정
-    #   (`--test`: 원본 비트동일·독립 재계산 일치·NaN 규약) 전부 PASS.
-    # ⚠ 사전 관측: 상한 5일 채움으로 커버리지는 0.1218→0.1403(Δ+1.9%p) 만 오른다 —
-    #   종목별 게시 공백이 대부분 5거래일보다 길다는 뜻이다. 따라서 **효과 기대는 낮다**.
-    #   그래도 판정은 감이 아니라 같은 런 짝 Δ 로 남긴다(축 종결 근거를 수치로).
-    # 대조 프로토콜(2026-11-15 18:1x **교정**): ffill_* 은 CORE_FEATURES(48) 밖이므로 선별 후보에
-    #   애초에 들어가지 않는다 → exclude_names 없이도 두 arm 의 top30 이 동일하다. 게다가
-    #   exclude_names+gate_add 조합은 **측정 전에 죽는다**(같은 날 CG285 실측: exclude 가 cols 에서
-    #   dv 를 지워 `_der` 가 비고 "파생 피처가 필터를 통과하지 못했다" RuntimeError) → 제거.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CG241_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True,
      "desc": "CG241 대조군 — ffill 패널에서 ffill_* 미사용(원본과 동일 정보)"},
@@ -1318,35 +1318,35 @@ CONFIGS = [
      "gate_add": ["ffill_sns_sentiment_score", "ffill_sns_attention_score",
                   "ffill_sns_momentum_score", "ffill_sns_stale_days"],
      "desc": "CG241 처리군 — 같은 선별 + as-of 전방채움 4종(상한 5거래일·경과일 지표) 강제 포함"},
-    # ── CG240(2026-11-13): 라벨 정의 축 — 절대수익 분위 vs **당일 횡단면 초과수익** 분위 ──────────
-    # 왜: 지금까지 라벨은 전부 절대수익 축(quantile/smooth/abs_thresh)이다. 그런데 돈 지표
-    #   (체결 가능 순기대)는 '그날 살 수 있었던 풀의 평균 대비 초과'를 잰다 — CG103 실측에서
-    #   arm 이 세션 풀평균을 넘지 못했다(k3 Δ+0.462%p t 0.81 · k5 Δ-0.006). 학습 목표가 절대수익
-    #   이면 '시장이 다 오른 날'의 베타를 종목 신호로 배운다. 라벨만 demean 하고 패널·폴드·시드·
-    #   HP 는 대조군(CO_smooth_d1_h5)과 동일하게 둔다 → 차이는 라벨 정의 하나.
-    # ⚠ 설계 정정(같은 세션 실측): 'demean + 분위' 는 **no-op** 이다 — 날짜별 상수 이동은
-    #   날짜 내 순서를 보존하므로 절대수익 분위 라벨과 비트 동일(자체점검에서 확인). 그래서 arm 은
-    #   대조군(smooth 라벨)과 **같은 스무딩** 위에서 분위 대신 '당일 풀평균 초과' 절대문턱을 쓴다:
-    #   양성률·행 도메인이 실제로 달라지고, 학습 목표가 돈 지표와 같은 초과 축이 된다.
-    # ⚠ 생산 라벨 규칙은 바꾸지 않는다(리뷰보드 사안). 이 arm 은 실험 A/B 전용이다.
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CG240_ex_h5", "kind": "excess_smooth_thresh", "horizon": 5, "q": 0.30, "thresh": 0.0,
      "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "CG240 — 라벨을 '당일 횡단면 풀평균 초과(스무딩 동일)' 이진으로 (나머지 동일)"},
-    # ── CG285(2026-11-15 18:0x): 종목별 거래대금(유동성) 축 — 패널에 '금액' 피처가 없다 ─────────
-    # 근거(실측): 돈 지표의 체결성 필터가 버리는 71.6% 의 주원인은 상한가(0.3%·34행)가 아니라
-    #   **거래대금 10억 미만**이다(CG283). 그런데 panel_420_asofpatch 210피처에 종목별 거래대금은
-    #   0개다 — 있는 `krx_total_trading_value` 는 날짜별 유니크값 1개(시장레벨 집계)이고
-    #   `volume_ratio_20`·`price_volume` 은 거래량 스케일이지 금액이 아니다. 즉 모델은
-    #   '살 수 있는 종목'의 축을 볼 수 없다.
-    # 선행 구현(자율): scripts/_cg285_tv_panel.py → panel_420_tv.npz(214열, 가산만).
-    #   원본 210열 비트동일 · 절단 재계산 자기검정 8/8 PASS · 단일피처 AUC 0.4716~0.4976
-    #   (누수 게이트 0.75 미만) · 종목상수 ratio ≤ 0.021.
-    # 프로토콜: gate_add 경로는 이미 tv_* 를 **선별 후보에서 빼고 선별 후에 덧붙인다**(`_keep`=fn−dv).
-    #   따라서 exclude_names 는 쓰지 않는다 — 실측(2026-11-15 18:0x): exclude_names+gate_add 조합은
-    #   exclude 가 `cols` 에서 dv 를 지워버려 `_der` 가 비고 "파생 피처가 필터를 통과하지 못했다"로
-    #   측정 전에 죽는다(즉 두 장치는 배타적이다). CG241 의 같은 설계도 그래서 미검증 상태다.
-    #   대조군은 CO_smooth_d1_h5 와 동일 config → 이 패널에서 비트 동일이면 가산이 무해함이 증명된다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CG285_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True,
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
@@ -1356,14 +1356,14 @@ CONFIGS = [
      "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "gate_add": ["tv_rank_cs_20", "tv_rank_cs_60", "tv_ratio_5_20", "tv_log"],
      "desc": "CG285 처리군 — 같은 선별 + as-of 종목별 거래대금 4종(20/60일 횡단면 rank·5/20 비율·log) 강제 포함"},
-    # ── CG286(2026-11-15 18:2x): 학습 도메인 정합 재시험 — '살 수 있는 행'으로만 배운다 ─────────
-    # 왜 CG192 를 다시 재는가: CG192(당일등락 ≥ +25% 학습 제외)는 **0.60%(325/54,497)만** 뺐다 →
-    #   Δ+0.0003 은 '효과 없음'이 아니라 '검정력 없음'이다. 돈 지표의 체결성 필터가 실제로 버리는
-    #   것은 거래대금 10억 미만 = **71.6%**(CG283 실측)다. 즉 지금 모델은 71.6%의 '살 수 없는 행'
-    #   위에서 순위를 배우고, 그 예측을 36% 표본에서 평가받는다.
-    # ⚠ 마스크는 **학습 행에만** 건다(테스트 행 도메인 동일 → 짝 Δ 비교가능). 기준 컬럼 tv_log 는
-    #   CORE_FEATURES(48) 밖이라 선별 후보를 바꾸지 않는다 → 차이는 '학습 도메인' 하나.
-    #   임계 = log1p(1e9)=20.7233(돈 지표 필터와 동일) · 감도 = log1p(3e9)=21.8219.
+
+
+
+
+
+
+
+
     {"id": "CG286_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "CG286 대조군 — 전체 행 학습(현행), tv_log 는 마스크로도 쓰지 않음"},
@@ -1375,12 +1375,12 @@ CONFIGS = [
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "train_mask_col": "tv_log", "train_mask_gte": 21.821878125947855,
      "desc": "CG286 감도 arm — 학습에서 거래대금 < 30억 행 제외(마스크 강도 반응 확인)"},
-    # ── CG287(2026-11-15 18:4x): CG286(행 제거)의 반작용 — 행은 버리지 말고 '살 수 있는 행'에 가중 ──
-    # 왜: CG286 실측 — 학습 도메인을 유동성으로 자르면 AUC 가 0.5518 → 0.4970(−0.0549, 0/5 폴드)로
-    #   붕괴했고, 체결가능 부분집합 재채점에서도 0.5543 → 0.5115(−0.0428) 였다. 두 해석이 가능하다:
-    #   ① 정보는 illiquid 행에 있고 그 신호는 배포 모집단으로 전이되지 않는다(축 종결)
-    #   ② 행을 **버리면** 표본·정보가 함께 사라진다(가중이라면 다를 수 있다)
-    #   이 실험은 ②를 반증 가능한 형태로 검정한다: 같은 행 도메인, 가중만 이동.
+
+
+
+
+
+
     {"id": "CG287_ctl_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "CG287 대조군 — 전체 행 동일 가중(CG286_ctl 과 동일 설정)"},
@@ -1394,16 +1394,16 @@ CONFIGS = [
      "weight": {"kind": "fillable", "col": "tv_log", "gte": 20.72326583794641,
                 "w_high": 4.0, "w_low": 0.25},
      "desc": "CG287 감도 arm — 체결가능 가중 4.0 / 불가 0.25 (강한 이동)"},
-    # ── CG323(2026-11-18 04:1x): 공매도(krx_short_selling) 데이터 축 첫 측정 ──────────────────
-    # 왜 이제 가능한가: 미배선 원천 스윕이 커버리지를 낡은 패널(panel_prod200, ~2026-09-23)로 재서
-    #   cover 0.125(BLOCKED)로 판정했지만, 신선 패널(panel_200liq_ffill_2605)로 재면 0.880(176/200)이다
-    #   (data/reports/source_sweep_freshpanel_20261118.json). 원천 24,472행·306종목·119거래일.
-    #   현 217피처에는 공매도 정보가 사실상 없다(supply_market_features.short_selling_ratio 비영 2,373행).
-    # 설계: 두 arm 은 **같은 패널**(panel_200liq_ffill_2605_ss.npz, 221열)에서 돌고, 대조군만 ss_* 4열을
-    #   제외한다(exclude_names 접두어) → 차이는 '공매도 피처 가산' 하나뿐(같은 행·같은 폴드).
-    # as-of: 피처는 t-1 이전 관측값만 붙였다(patch_panel_ss.py 자체검정 ⑤). 원천 created_at 이 당일
-    #   10:3x 인 행이 많아 같은 날 값은 장중 부분집계다.
-    # ⚠ 판정은 같은 런 짝 Δ ≥ +0.02 (사전문턱) + 돈 지표 앞/뒤 절반 both_positive. 미달이면 축 종결.
+
+
+
+
+
+
+
+
+
+
     {"id": "CG323_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "exclude_names": ["ss_*"],
@@ -1411,55 +1411,55 @@ CONFIGS = [
     {"id": "CG323_ss_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": False,
      "desc": "CG323 arm — 공매도 4열 가산(ss_ratio·ma5·ma20·z20, t-1 지연)"},
-    # ── CG324(2026-11-18): 분위 라벨의 **기준 모집단**을 체결가능 행으로 재정의 ──────────────
-    # 왜: 돈 지표의 체결성 필터가 버리는 행이 패널의 71.6%(거래대금 10억 미만, CG283)인데
-    # quantile 문턱은 그 행들까지 모집단에 넣어 계산된다 → 학습 목표가 평가 도메인과 어긋난다.
-    # 여기서는 문턱만 체결가능 행으로 계산하고 **행은 버리지 않는다**(라벨 부여는 전행) →
-    # 대조군과 폴드 AUC 의 행 도메인이 같아 Δ 가 비교 가능하다.
-    # ⚠ 판정: 같은 런 짝 Δ(CG324_maskq−LS_quant_q30_h5) 폴드평균 ≥ +0.02 & 폴드승률 ≥ 4/5 &
-    #   체결가능 순기대가 대조군보다 높을 때만 신호. 미달이면 라벨 축 종결.
-    # 실행 패널은 tv_log 가 있는 panel_420_tv(49종목·281거래일) — 마스크가 실제로 문다:
-    #   실측 keep_frac 0.2735 · 문턱이 바뀐 날짜 276/276 · 라벨 뒤집힘 1.1% (자체점검 5/5 PASS).
-    #   ⚠ 액체 200종목 패널에서는 keep_frac 0.976(2.4%만 제외) → 사실상 no-op(뒤집힘 0.0%)이므로 쓰지 않는다.
+
+
+
+
+
+
+
+
+
+
     {"id": "CG324_maskq_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "label_mask": {"daychg_lt": 25.0, "col": "tv_log", "col_gte": 20.72},
      "desc": "CG324 arm — 분위 기준모집단을 체결가능 행(등락<+25% & tv_log≥20.72)으로 (행 유지)"},
-    # ── CG325(2026-11-18): **시드 잡음 바닥** — 같은 config·같은 패널·같은 폴드에서 시드만 바꾼
-    # 두 arm 의 짝 Δ 분포. 왜: 이 프로토콜의 판정 문턱은 Δ ≥ +0.02 인데, '같은 설정을 다시 돌리면
-    # Δ 가 얼마나 흔들리는가'는 한 번도 측정되지 않았다. 문턱이 시드 잡음 안쪽이면 지난 Δ 판정들도
-    # 재해석해야 한다(CG319/320/322 는 절대 AUC 바닥만 쟀고 Δ 바닥은 안 쟀다). 코드·데이터 무변경.
+
+
+
+
     {"id": "CG325_seedA_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "seed_offset": 100, "desc": "CG325 시드잡음 A — LS_quant_q30_h5 와 동일, 시드 100~104"},
     {"id": "CG325_seedB_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "seed_offset": 200, "desc": "CG325 시드잡음 B — LS_quant_q30_h5 와 동일, 시드 200~204"},
-    # ── CG430(2026-11-22): 학습 라벨을 **실행 진입가**로 맞춘다 — 익일 시가 진입 라벨 ─────────
-    # 왜: 학습 라벨은 close(t)→close(t+h) 인데 돈 지표는 익일 시가 진입으로 채점한다(실주문 가능
-    #   시점). h5 라벨 수익의 약 1/5 은 진입 전 오버나이트 갭 = 살 수 없는 성분이다. 모델은 그 성분을
-    #   예측하는 데 용량을 쓰고, 그 예측은 체결 경로에서 재현되지 않는다(CG420 실측: 진입 시점만
-    #   바꿔도 top-k Δ 가 1.388%p(t 2.38) → 1.216%p(t 2.06) 로 움직였다).
-    # 설계: 대조군은 기존 CO_smooth_d1_h5 를 **그대로** 쓰고(같은 런), arm 만 분모를 open(t+1) 로
-    #   바꾼다 → 같은 패널·같은 폴드·같은 시드·같은 레시피, 차이는 '진입가 정의' 하나.
-    # ⚠ 판정은 돈이 1차(같은 덤프·같은 세션·entry next_open·k 3/5/10): arm Δ(arm−풀) ≥ +0.5%p &
-    #   t ≥ 2 & 분할 both_positive AND arm−대조군 짝 Δ ≥ +0.5%p. AUC 는 라벨이 달라 절대 비교가
-    #   아니라 **참고**로만 보고한다(Δ>AUC 로 판정하지 말 것 — 스킬 최우선 규칙).
+
+
+
+
+
+
+
+
+
+
     {"id": "CG430_open_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "entry": "next_open",
      "desc": "CG430 arm — 익일 시가 진입 라벨(close(t+k)/open(t+1)−1, 스무딩) · 대조군 CO_smooth_d1_h5"},
-    # ── CG431(2026-11-22 21:1x): 패널 죽은 열 등록부 + 제거 A/B ───────────────────────────────
-    # 계기: v6 패널(221피처)을 피처별 '마지막 비영일'로 감사(2026-11-22, numpy 1분) —
-    #   최근 20거래일 값이 전부 0 인 열 17개(전 기간 비영 0인 12 + 마지막 비영 < 2026-10-15 인 5).
-    #   NEVER(12): authenticity_avg · credit_balance_change · days_to_cover · etf_flow_5d ·
-    #     event_patent_5d · event_recall_5d · institution_ownership_pct · margin_balance_change ·
-    #     sector_count · sector_momentum · short_interest_ratio · value_ncav
-    #   STALE(5): cycle_up(2026-06-22) · event_market_liquidity_5d(2026-08-07) ·
-    #     cycle_down/interest_rate_change_1m/krx_total_trading_value(2026-09-23)
-    #   ※ krx_total_trading_value 2026-09-23 정지는 백로그 KRX-01 과 같은 사건이다(원천 40거래일 정지).
-    # 설계: 같은 패널·같은 폴드·같은 시드 2-arm. 대조군=현행, arm=죽은 17열을 선별 후보에서 제외.
-    #   기대: XGBoost 는 상수 0 열을 무시하므로 Δ≈0 이 예상된다 — 이 실험의 1차 산출물은
-    #   '죽은 열이 선별 슬롯을 낭비하는가'의 유무 판정과, 다음 데이터 축 우선순위용 등록부다.
-    # ⚠ 판정: 같은 런 짝 Δ폴드평균 ≥ +0.02 만 신호. 미달이면 '죽은 열은 비용이 아니다'로 축 종결하고
-    #   부활은 원천 확보(KRX-01·XR2·margin/credit/ETF 수집) 과제로만 남긴다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     {"id": "CG431_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "CG431 대조군 — v6 패널 221피처 현행(죽은 열 포함)"},
     {"id": "CG431_rmdead_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
@@ -1490,7 +1490,7 @@ def apply_train_domain_mask(tr, threshold):
         return tr, 0
     dc = np.asarray(tr.groupby("stock_code", sort=False)["price"].pct_change().values,
                     dtype=float)
-    drop = np.greater_equal(dc, float(threshold))     # NaN >= x → False (보존)
+    drop = np.greater_equal(dc, float(threshold))
     return tr[~drop], int(drop.sum())
 
 
@@ -1523,7 +1523,7 @@ def build_label_mask(df, spec):
         if col not in df.columns:
             raise RuntimeError(f"label_mask col={col} 이 패널에 없다")
         v = pd.to_numeric(df[col].to_numpy(dtype=float), errors="coerce")
-        drop = ~(np.isfinite(v) & np.greater_equal(v, float(cgte)))   # NaN 도 제외(체결 불가로 본다)
+        drop = ~(np.isfinite(v) & np.greater_equal(v, float(cgte)))
         mask &= ~drop
         diag.update({"col": col, "col_gte": float(cgte), "col_dropped": int(drop.sum())})
     diag["keep"] = int(mask.sum())
@@ -1549,7 +1549,7 @@ def apply_train_mask_col(tr, col, threshold):
     if col not in tr.columns:
         raise RuntimeError(f"train_mask_col={col} 이 학습 프레임에 없다 — 패널에 그 컬럼이 필요하다")
     v = pd.to_numeric(tr[col].to_numpy(dtype=float), errors="coerce")
-    keep = np.isfinite(v) & np.greater_equal(v, float(threshold))   # NaN(측정 불가)은 제거
+    keep = np.isfinite(v) & np.greater_equal(v, float(threshold))
     return tr[keep], int((~keep).sum())
 
 
@@ -1614,7 +1614,7 @@ def transform_matrix(Xdf, dates, kind, codes=None):
         mu = g.transform(lambda s: s.shift(1).rolling(_TS_WIN, min_periods=_TS_MIN).mean())
         sd = g.transform(lambda s: s.shift(1).rolling(_TS_WIN, min_periods=_TS_MIN).std())
         z = (df[cols] - mu) / sd.replace(0.0, np.nan)
-        # 과거가 _TS_MIN 행 미만인 구간(각 종목 초반)은 표준화 불가 → 0(중립)으로 둔다.
+
         z = z.replace([np.inf, -np.inf], np.nan).fillna(0.0)
         return df.assign(**{c: z[c] for c in cols})[cols].values
     raise ValueError(f"unknown transform: {kind}")
@@ -1671,7 +1671,7 @@ def make_weights(spec, dates_tr, fwd_tr=None, day_pos=None, t0_pos=None, col_val
         med = float(np.nanmedian(a)) if np.isfinite(a).any() else 0.0
         a = np.where(np.isfinite(a), a, med)
         mx = float(a.max()) if a.size and a.max() > 0 else 1.0
-        w = 0.25 + 0.75 * (a / mx)      # 완전 0 가중은 행을 없애는 것과 같아 바닥을 둔다
+        w = 0.25 + 0.75 * (a / mx)
     else:
         raise RuntimeError(f"unknown weight kind: {kind}")
     if not np.all(np.isfinite(w)) or float(w.sum()) <= 0:
@@ -1697,7 +1697,7 @@ def train_seed_weighted(X_train, X_val, X_test, y_train, y_val, y_test, feature_
         return _orig_train_seed(X_train, X_val, X_test, y_train, y_val, y_test,
                                 feature_names, out_dir, seed, lr, depth, n_estimators,
                                 allow_sentiment, scale_pos_weight)
-    _tc = ml.tc                     # main() 이 몽키패치한 것과 같은 모듈 객체
+    _tc = ml.tc
     curated = _tc.select_curated_features(feature_names, allow_sentiment)
     if not curated:
         raise RuntimeError("no curated features selected")
@@ -1816,9 +1816,9 @@ def train_seed_rank(X_train, X_test, y_train, y_test, feature_names, out_dir,
         raise RuntimeError(
             f"랭킹 arm 은 단일 모델이어야 한다 — 현재 {len(ens.models)}개(ens.skip 미설정?)")
     xm = ens.models[0]
-    # ⚠ scale_pos_weight 를 **양 arm 모두 1.0 으로** 고정한다: 랭킹 objective 는 이 파라미터를
-    # 무시하므로(xgboost 경고 "scale_pos_weight are not used"), 대조군만 1.4 를 쓰면 Δ 에
-    # 'objective' 와 '클래스 재가중' 두 변화가 섞인다. 여기서 중립화해 차이를 objective 하나로 좁힌다.
+
+
+
     _p = getattr(xm, "params", None)
     if isinstance(_p, dict):
         _p["scale_pos_weight"] = 1.0
@@ -1909,7 +1909,7 @@ def add_derived(df, base_names, spec, log=None):
     lags = [int(k) for k in (spec.get("lags") or [1, 5])]
     if not lags:
         raise RuntimeError("derived.lags 가 비었다")
-    # 위치 기반으로만 계산한다(중복 라벨 pandas 정렬 사고 방지 — 시장레벨 제외 주석 참고).
+
     mat = df[base_names].values.astype(float)
     if mat.shape[1] != len(base_names):
         raise RuntimeError(
@@ -1938,20 +1938,20 @@ def main():
     ap = argparse.ArgumentParser(description="라벨 설계 스윕 (확장창 walk-forward)")
     ap.add_argument("--panel", default="/app/app/models/wf/panel_420.npz")
     ap.add_argument("--days", type=int, default=420)
-    # 구간 끝 고정(기본: 실행 시각). 긴 패널 빌드의 체크포인트 재개용 — wf_wave.build_panel 주석 참조.
+
     ap.add_argument("--end-date", default=None,
                     help="패널 빌드 구간 끝 날짜 YYYY-MM-DD (기본: 실행 시각)")
-    # ── 평가 앵커 이동 (2026-11-12 CG200) ─────────────────────────────────────────
-    # 왜 --end-date 로는 앵커가 안 움직이나(실측 CG199 2026-11-12): 폴드 격자가 **패널 왼쪽부터**
-    # step=n//(folds+1) 로 잘리므로 끝에서 1~2일을 잘라도 마지막 폴드 경계가 dd[step*(i+1)-1] 에
-    # 그대로 고정된다(n=279→277 에서도 step=46, fold5 컷 = dd[275]) → 테스트 날짜 집합이 폴드 AUC
-    # 4자리까지 비트 동일했다. 앵커를 실제로 옮기려면 격자를 **오른쪽(앵커)에서 역산**해야 한다.
+
+
+
+
+
     ap.add_argument("--asof-date", default=None,
                     help="평가 앵커 YYYY-MM-DD — 이 날짜 이후 행 제외 + 폴드 격자를 앵커에서 역산"
                          "(앵커 잡음 측정용. 미지정 = 현행 왼쪽 정렬 격자와 비트 동일)")
     ap.add_argument("--limit", type=int, default=50)
-    # ── 유니버스 확장 옵션 (비우면 현행 기본값: KOSDAQ·코드순·최소 50일) ──
-    # 유니버스를 바꿀 때는 --panel 파일명도 새로 줘라(캐시가 파일명으로만 구분된다).
+
+
     ap.add_argument("--market", default=None,
                     help="'KOSPI' | 'KOSDAQ' | 'all'(둘 다) | 미지정(현행 기본 KOSDAQ)")
     ap.add_argument("--since", default=None, help="유니버스 기준 시작일(YYYY-MM-DD)")
@@ -1959,9 +1959,9 @@ def main():
     ap.add_argument("--min-value", type=float, default=None, help="일평균 거래대금 하한(원)")
     ap.add_argument("--order", default=None, choices=["code", "value"],
                     help="code(현행 알파벳순) | value(거래대금 상위)")
-    # ── 유니버스 경로 (2026-09-28 CG10 배선) ────────────────────────────────────
-    # prod = 프로덕션 챔피언 학습기와 같은 함수(app.training.universe.select_training_universe)
-    # 로 코드를 고른다 → 스윕 실측이 승격 조건을 대표하게 된다. 기본값(미지정)은 현행 유지.
+
+
+
     ap.add_argument("--universe", default=None, choices=["curated", "prod"],
                     help="curated(현행 기본) | prod(프로덕션 규칙 — --market/--since/--order 무시)")
     ap.add_argument("--universe-seed", type=int, default=0,
@@ -1977,41 +1977,41 @@ def main():
     ap.add_argument("--summary-out", default="/app/reports/overnight/wf_label_sweep_summary.json",
                     help="요약 JSON 경로 — ⚠ 기본값을 덮으면 진행 중 사이클의 판정 요약이 오염된다")
     ap.add_argument("--dry-run", action="store_true")
-    # ── 확률 덤프 (2026-09-28 CG21) ────────────────────────────────────────────
-    # 왜: AUC 는 순위 지표라 '라벨 꼬리를 좁혀 과제가 쉬워진 것'과 '실제로 상위 k 를 잘
-    # 고르게 된 것'을 구분하지 못한다. 매매 KPI 는 상위 k 바스켓의 정밀도·기대수익이므로
-    # 폴드별 (date, code, y_true, y_pred, fwd_ret) 를 남겨 사후 계산이 가능하게 한다.
-    # 기본 None → 기존 실행에는 아무 영향이 없다(파일도 쓰지 않는다).
+
+
+
+
+
     ap.add_argument("--dump-preds", default=None,
                     help="폴드 앙상블 확률 jsonl 저장 경로 (예: /app/scripts/_preds_CG21.jsonl)")
-    # ── CG278(2026-11-14): 라벨 극단만 담는 덤프의 **측정기 결함** 수리 ──────────────
-    # 왜: 아래 `d = d[~pd.isna(d["_y"])]` 가 중간 분위를 통째로 버리므로, 이 덤프로 돈 지표를
-    # 계산하면 '미래 상·하위 30%로 미리 걸러진 유니버스'가 후보집합이 된다(실측: 세션당 118행
-    # = 200종목의 59%, y_true 정확히 50/50). 그러면 풀평균이 거래가능 풀평균이 아니고 Δ 는
-    # 실전 초과기대가 아니다. 이 플래그를 켜면 **전 유니버스**(라벨 결측 포함) 예측을 따로 덤프해
-    # y_true=None 행으로 싣는다 → 체결성 필터·풀평균이 진짜 후보집합 위에서 계산된다.
-    # 기본 OFF = 기존 실행 비트·파일 완전 동일.
+
+
+
+
+
+
+
     ap.add_argument("--dump-all-codes", action="store_true",
                     help="--dump-preds 와 함께: 전 유니버스(라벨 결측 포함) 예측도 덤프(돈 지표 정합)")
-    # ── 학습셋 AUC (2026-11-14 CG275) ──────────────────────────────────────────
-    # 왜: AUC 가 19사이클 동안 안 움직인 이유가 ① 정보 상한(데이터에 신호가 없다)인지
-    # ② 과적합/OOS 분산(용량·정규화 문제)인지 가르려면 **같은 폴드에서** in-sample AUC 와
-    # OOS AUC 를 짝으로 재야 한다. 기본 OFF = 기존 실행 비트 동일.
+
+
+
+
     ap.add_argument("--report-train-auc", action="store_true",
                     help="폴드별 학습셋(in-sample) AUC 를 함께 기록(요약 folds[].train_auc)")
-    # ── CG339(2026-11-18): 선별 문턱 미달 피처 강제 포함 ──────────────────────────
-    # 왜: CG338 실측 — 신규 원천(공매도)이 단변량 AUC 0.5333(t 4.59)로 살아 있어도 선별 문턱
-    # (|AUC−0.5| ≥ 0.044)에 못 미치면 10폴드 중 9폴드 AUC 가 **비트 동일**했다(학습행렬 무변화).
-    # "정보가 없다"와 "선별이 버렸다"를 가르는 유일한 직접 검정이 '강제로 넣고 재는 것'이다.
-    # 기본 None = 기존 실행 비트 완전 동일. 개수는 30→32 로 늘어나므로 로그에 대조군 개수를 함께 남긴다.
+
+
+
+
+
     ap.add_argument("--force-features", default=None,
                     help="선별 후 강제로 덧붙일 피처 이름 목록(쉼표 구분). 후보 풀에 없으면 측정 전 실패")
-    # ── CG342(2026-11-18): 강제 포함 arm 은 **같은 런 대조군이 없으면 판정 불가**였다 ──────────
-    # 실측: CG339(0.5111±0.031)·CG340(0.5113±0.0296) 둘 다 rc=0 으로 완주했지만 `--force-features`
-    # 가 **전역 인자**라 같은 런에 '강제 없음' arm 을 만들 수 없어 구동기 판정이 '기준선없음'으로
-    # 남았다(축을 닫을 근거도, 신호로 올릴 근거도 없는 무효 측정). --force-paired 는 각 config 를
-    # <id>(대조군) + <id>__ff(강제) 로 펼쳐 **같은 폴드·같은 시드**의 짝 Δ 를 만든다.
-    # 기본 OFF = 기존 실행 비트 동일.
+
+
+
+
+
+
     ap.add_argument("--force-paired", action="store_true",
                     help="--force-features 와 함께: 각 config 를 <id>(대조군) + <id>__ff(강제) 로 펼친다")
     args = ap.parse_args()
@@ -2035,7 +2035,7 @@ def main():
 
     ml.log(f"label_sweep start KST={ml.now_kst().isoformat(timespec='seconds')} "
            f"panel={args.panel} folds={args.folds} seeds={args.seeds}")
-    # 'all' → None(시장 필터 해제). 미지정(None)이면 build_panel 이 현행 기본값을 쓴다.
+
     uni = {}
     if args.market is not None:
         uni["market"] = None if args.market == "all" else args.market
@@ -2061,14 +2061,14 @@ def main():
     import train_curated as tc
     tc.select_curated_features = lambda n, a=False: list(n)
 
-    # ── 실험용 추가 정규화 파라미터 주입 (2026-09-26 HP2) ────────────────────────
-    # 공유 트레이너(train_curated.py·overnight_ml_loop.py)는 손대지 않는다. 이 스크립트
-    # 프로세스 안에서만 tc.apply_hyperparams 를 감싸, cfg["recipe_extra"] 의 키를 모델별
-    # params 에 덮어쓴다(키가 없는 모델은 그대로 — xgboost/lightgbm/catboost 의 정규화 키
-    # 이름이 서로 다르므로 각 모델이 아는 것만 적용된다).
-    # 근거: depth 단조 실측(d2 0.5477 > d3 0.5469 > d4 0.5412 > d6 0.5344, 5폴드×3시드) =
-    # 소표본 과적합 신호 → 정규화(서브샘플·열샘플·min_child_weight·L2)를 직접 세게 걸어본다.
-    # 프로덕션 경로에는 전혀 영향이 없다(여기서만 유효).
+
+
+
+
+
+
+
+
     _orig_apply = tc.apply_hyperparams
     _extra: dict = {}
 
@@ -2086,13 +2086,13 @@ def main():
 
     tc.apply_hyperparams = _apply_with_extra
 
-    # ── 실험용 앙상블 구성 제어 (2026-09-26 HP3 축) ─────────────────────────────
-    # EnsembleModel(내 소유: services/xgboost-ml/app/models/ensemble_model.py)은
-    # xgboost·lightgbm·catboost 3종을 val AUC 가중(weight = max(auc-0.5, 0.01))으로 평균한다.
-    # 이 구성(모델 집합·가중 방식)은 이 스택에서 한 번도 검증된 적이 없다 — 실측 로그에서
-    # catboost 가중이 0.078 로 가장 낮았다(val AUC 0.578 vs xgboost 0.79).
-    # 여기서는 ml(=overnight_ml_loop)의 EnsembleModel 이름만 서브클래스로 바꾼다 →
-    # 공유 모듈·프로덕션 경로는 무변경.
+
+
+
+
+
+
+
     _OrigEns = getattr(ml, "EnsembleModel", None)
     _ens_cfg: dict = {"skip": set(), "equal_weights": False}
 
@@ -2108,7 +2108,7 @@ def main():
 
             def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None,
                       sample_weight=None):
-                # sample_weight 는 CG23(표본 가중) 전용 통로 — None(기본) 이면 기존과 동일.
+
                 _m = super().train(X_train, y_train, X_val, y_val,
                                    feature_names=feature_names, sample_weight=sample_weight)
                 if _ens_cfg.get("equal_weights"):
@@ -2117,13 +2117,13 @@ def main():
 
         ml.EnsembleModel = _EnsembledForSweep
 
-    # ── CG235(2026-11-13): 모델계열 대조 — GBDT 앙상블 대신 정규화 선형(로지스틱) ─────────────
-    # 왜: 이 스택에서 모델계열은 xgboost·lightgbm·catboost **세 GBDT 뿐**이고, 선형 모델은
-    #   한 번도 채점된 적이 없다. 5폴드 평균 AUC 가 신선 패널에서 0.508~0.512(=동전던지기 근처)로
-    #   고정된 지금, "GBDT 가 잡음에 과적합하는가 / 신호 자체가 선형인데 트리가 놓치는가"를
-    #   구분해야 다음 투자(새 데이터 vs 새 모델계열)를 정할 수 있다.
-    # 계약: 같은 선별·같은 폴드·같은 시드·같은 라벨에서 **학습기만** 바꾼다(공유 트레이너 무변경).
-    #   표준화 + L2 로지스틱(C=cfg["linear_C"] 또는 0.1). 표본 가중은 sklearn 규약으로 전달.
+
+
+
+
+
+
+
     class _LinearModel:
         def __init__(self, model_dir="models"):
             self.model_dir = model_dir
@@ -2154,21 +2154,21 @@ def main():
             return self
 
         def predict(self, X):
-            # ⚠ 1D 로 돌려준다 — GBDT 앙상블(EnsembleModel.predict)과 같은 계약이다.
-            #   2D (n,2) 로 주면 ml._safe_auc 가 roc_auc_score(y, 2D) 에서 ValueError 를 잡아
-            #   **조용히 0.5 를 반환**한다(실측: 1차 스모크 AUC 0.5000 ± 0.0000 = 이 버그였다).
+
+
+
             return np.asarray(self.models[0].predict_proba(X), dtype=float)[:, 1]
 
     _EnsGBDT = ml.EnsembleModel
 
     out_path = args.out
-    # dirname 이 빈 문자열(파일명만 준 경우)이면 makedirs("") 가 크래시한다 → 있을 때만 만든다.
+
     for _p in (out_path, args.summary_out):
         _d = os.path.dirname(_p)
         if _d:
             os.makedirs(_d, exist_ok=True)
     results = []
-    dump_recs: list = []        # --dump-preds 전용(CG21). 기본 경로에서는 비어 있다.
+    dump_recs: list = []
 
     cfgs = CONFIGS
     if args.only:
@@ -2177,7 +2177,7 @@ def main():
         if not cfgs:
             print(f"--only 에 해당하는 실험 없음: {sorted(want)}", flush=True)
             return 1
-    # ── CG342: 강제 arm 을 같은 런 대조군과 짝지어 편다(각 config → <id> + <id>__ff) ────────────
+
     if args.force_paired:
         if not _ff_names:
             print("--force-paired 는 --force-features 와 함께 써야 한다(강제 목록 비어 있음)", flush=True)
@@ -2190,14 +2190,14 @@ def main():
             _pairs += [ctl, arm]
         cfgs = _pairs
     ml.log(f"실행 실험 {len(cfgs)}개: {[c['id'] for c in cfgs]}")
-    # CG23: absret 가중을 쓰는 config 가 있으면 선행수익(_fwd)을 항상 계산해야 한다
-    # (기본은 --dump-preds 일 때만 계산 — 기존 동작 무변경).
+
+
     _need_fwd = any(str((c.get("weight") or {}).get("kind") or "") == "absret" for c in cfgs)
 
     for cfg in cfgs:
         exp_id = cfg["id"]
-        # CG342: 강제 목록은 **arm 별**이다(--force-paired 의 대조군은 빈 목록).
-        # 전역 _ff_names 를 그대로 쓰면 대조군에도 강제가 걸려 짝 A/B 가 성립하지 않는다.
+
+
         _ffn = list(cfg.get("_force", _ff_names))
         _ffs = set(_ffn)
         rec = {"exp": exp_id, "desc": cfg["desc"], "kind": cfg["kind"],
@@ -2222,21 +2222,21 @@ def main():
                               thresh=cfg.get("thresh"), label_mask=_lm,
                               entry=cfg.get("entry"))
             d = df.copy()
-            # ── CG25 파생 피처(Δk): 라벨 결측 제거 **전에** 계산한다 ────────────────────
-            # 왜 전에: 분위 라벨은 중간 분위도 NaN 이라, 결측 제거 후 shift 하면 Δ1 이 실제로는
-            # 며칠 차이가 된다(조용한 오정의). 기본(bn=base_names)이면 기존 경로와 완전히 동일하다.
+
+
+
             bn = base_names
             dv_names: list = []
             if cfg.get("derived"):
                 d, bn = add_derived(d, base_names, cfg["derived"], log=ml.log)
-                # 파생 이름 = 확장 목록의 꼬리. 선별·게이트에서 특별 취급하기 위해 들고 간다.
+
                 dv_names = [f for f in bn if f not in set(base_names)]
-            # ── CG28 gate_add: 게이트(core48) **밖**의 기존 패널 피처를 게이트 ON 경로에 강제 투입 ──
-            # 왜: L3 '부활 가능' 11개(atr_pct·bayes_*·twin_* 등)는 패널에서 살아 있는데
-            # CORE_FEATURES(48) 에 **하나도 없다** → 게이트 ON 실험에서는 선별 후보조차 아니라
-            # '효과 0'과 '후보 아님'이 구분되지 않는다(실측: core48 ∩ 11 = 0).
-            # Δk(파생)와 동일 취급으로 후보 집합은 core48 그대로 두고 선별 **후에** 덧붙인다 →
-            # 두 arm 의 top30 이 같은 집합이 되어 차이가 '추가 정보' 하나로 좁혀진다.
+
+
+
+
+
+
             ga_names: list = []
             if cfg.get("gate_add"):
                 if not cfg.get("core_only"):
@@ -2249,35 +2249,35 @@ def main():
                 ga_names = _want
                 dv_names = list(dv_names) + _want
             d["_y"] = y
-            # ── 실현 선행수익(진단·precision@k 전용, 2026-09-28 CG21) ────────────────
-            # 판정에는 쓰지 않는다(판정은 폴드 평균 AUC 만). 매매 KPI 는 '상위 k 바스켓의
-            # 보유기간 수익률'이라 예측 확률과 함께 남겨야 사후에 계산할 수 있다.
-            # 라벨과 같은 shift(-h) 정의를 쓴다(스무딩 라벨이어도 여기선 단순 선행수익).
+
+
+
+
             if args.dump_preds or _need_fwd:
                 try:
                     d["_fwd"] = df.groupby("stock_code", sort=False)["price"].transform(
                         lambda s: s.shift(-int(cfg["horizon"])) / s - 1.0).values
-                except Exception as e:      # 계산 실패 시에도 측정은 계속(진단만 생략)
+                except Exception as e:
                     ml.log(f"  {exp_id}: 선행수익 계산 실패({type(e).__name__}: {e}) — fwd_ret 결측")
                     d["_fwd"] = np.nan
-            # 라벨 참조일(그 종목의 h번째 미래 '행'의 날짜) — purge 를 달력 h일이 아니라
-            # **라벨이 실제로 참조하는 날짜** 기준으로 하기 위해 미리 계산한다.
-            # 근거(실측 2026-09-25): 달력 h일 purge 만으로는 거래 갭이 있는 종목의 학습 행이
-            # 테스트 구간 가격을 라벨로 참조한다(폴드4 8행 · 폴드5 14행 = 학습행의 0.09~0.13%).
+
+
+
+
             try:
                 d["_ref"] = df.groupby("stock_code", sort=False)["date"].shift(-cfg["horizon"])
-            except Exception as e:      # 계산 실패 시 기존(달력) purge 로 계속
+            except Exception as e:
                 ml.log(f"  {exp_id}: 라벨 참조일 계산 실패({type(e).__name__}: {e}) — 달력 purge 유지")
                 d["_ref"] = None
-            # CG278: 라벨 필터 **전** 프레임을 보관 — 전 유니버스 덤프용(--dump-all-codes).
-            # 파생 피처·_fwd·_ref 는 위에서 이미 계산됐으므로 참조만 잡으면 된다(아래 d 재할당은
-            # 새 객체라 d_all 은 필터되지 않은 프레임을 계속 가리킨다).
+
+
+
             d_all = d if (args.dump_preds and getattr(args, "dump_all_codes", False)) else None
             d = d[~pd.isna(d["_y"])]
-            # ── 평가 앵커 절단(--asof-date, 2026-11-12 CG200) ────────────────────────
-            # 앵커 이후 행은 라벨 유효 행에서 제외한다. 폴드 격자는 위에서 앵커 기준 역산이므로
-            # 앵커가 1거래일만 움직여도 전 폴드 테스트 창이 이동한다(그게 없어서 CG199 는
-            # '--end-date 이동'을 앵커 이동으로 오독했다 — 폴드 AUC 4자리 동일).
+
+
+
+
             if args.asof_date:
                 _n_before_asof = len(d)
                 d = d[d["date"].astype(str) <= str(args.asof_date)]
@@ -2285,24 +2285,24 @@ def main():
                        f"{_n_before_asof} → {len(d)}")
                 if len(d) < 200:
                     raise RuntimeError(f"앵커 절단 후 행이 {len(d)} — 측정 불가")
-            # ── 종목 필터(유니버스 in-run 대조, 2026-09-26 신설) ─────────────────
-            # 왜: 유니버스 효과(49 vs 150종목)를 재려면 같은 패널·같은 피처·같은 폴드에서
-            # **행 집합만** 바꿔야 한다. U1(교차패널 비교)은 스냅샷이 달라 Δ-0.0266 이
-            # 확증이 못 됐다. codes_from_panel 로 기준선 패널의 종목 목록을 그대로 가져와
-            # 부분집합을 만들면 두 arm 이 같은 날짜·같은 폴드·같은 피처가 된다.
+
+
+
+
+
             _cfp = cfg.get("codes_from_panel")
             _clim = int(cfg.get("codes_limit") or 0)
-            _cslic = cfg.get("codes_slice")          # [start, stop) on the panel-ordered code list
+            _cslic = cfg.get("codes_slice")
             if _cfp or _clim or _cslic:
                 if _cfp:
                     _zp = np.load(_cfp, allow_pickle=True)
                     keep, _src = {str(c) for c in _zp["codes"]}, os.path.basename(str(_cfp))
                 else:
-                    # 패널 순서(유니버스 정렬 순) 그대로의 고유 코드 목록.
-                    # codes_limit = 첫 N개(중첩 부분집합) · codes_slice = [a,b) 구간(서로소 부분집합).
-                    # 왜 둘 다 필요한가(2026-09-28 CG12/CG13): ① 크기 축은 중첩이어야 '종목 수 효과'가
-                    # 분리되고 ② 같은 크기의 **다른 종목 집합**이 만드는 AUC 분산은 서로소 부분집합으로만
-                    # 잴 수 있다(유니버스 교체만으로 사전문턱 +0.02 가 만들어지는지 검정).
+
+
+
+
+
                     _seen: list = []
                     for _c in d["stock_code"].astype(str):
                         if _c not in _seen:
@@ -2323,16 +2323,16 @@ def main():
             step = n // (args.folds + 1)
             fold_means, fold_sizes = [], []
             n_eff_all = set()
-            # cfg 별 폴드 수 override (2026-09-26 F3): 학습 표본이 폴드당 1,230행뿐이라
-            # depth 를 낮출수록 좋아지는 단조 패턴이 나왔다 → 최소 학습창을 늘린 프로토콜
-            # (3폴드 = fold1 학습 약 3,400행)을 **같은 런 안에서** 5폴드와 대조한다.
-            # ⚠ 프로토콜이 다르면 기록 기준선과 직접 비교하지 말 것(구동기는 arm/cf 쌍으로 판정).
+
+
+
+
             n_folds = int(cfg.get("folds") or args.folds)
             if n_folds != args.folds:
                 step = n // (n_folds + 1)
-            # ── 평가 앵커(--asof-date, 2026-11-12 CG200) ─────────────────────────────
-            # 앵커가 주어지면 격자를 **오른쪽(앵커)에서 역산**해 앵커가 움직일 때 전 폴드의
-            # 테스트 창이 함께 이동한다(왼쪽 정렬은 끝 여분날 때문에 컷이 고정 = CG199 측정무효 원인).
+
+
+
             _win = fold_window_indices(n, n_folds, step, right_anchored=bool(args.asof_date))
             ml.log(f"  {exp_id}: 폴드 격자 {'앵커(오른쪽) 역산' if args.asof_date else '왼쪽 정렬'} "
                    f"n_dates={n} folds={n_folds} step={step} "
@@ -2351,12 +2351,12 @@ def main():
                     if n_ref_purged:
                         tr = tr[np.logical_not(_bad)]
                 te = d[(d["date"] > cut) & (d["date"] <= nxt)]
-                # ── CG192 학습 도메인 마스크(2026-11-11): 체결 불가 행을 **학습에서만** 뺀다 ──
-                # 왜 학습만인가: 테스트 행까지 빼면 폴드 AUC 의 행 도메인이 arm 마다 달라져 Δ 가
-                # 서로 다른 표본의 차이가 된다(비교 무효). 돈 지표(체결성 필터)는 어차피 테스트에서
-                # 살 수 없는 행을 걸러내므로, 학습만 정합시키면 '평가 도메인에서만 배우는' 모델이 된다.
-                # 당일등락 = 종목별 종가 pct_change(돈 지표 필터와 같은 정의). 그 종목의 폴드 첫 행은
-                # pct_change 가 NaN → 비교가 False → **보존**된다(측정 불가 행은 빼지 않는다).
+
+
+
+
+
+
                 _mg = cfg.get("train_mask_daychg_gte")
                 _n_before_mask = len(tr)
                 tr, n_masked = apply_train_domain_mask(tr, _mg)
@@ -2366,10 +2366,10 @@ def main():
                     if len(tr) < 100:
                         ml.log(f"  {exp_id} fold{i}: 마스크 후 학습행 {len(tr)} — 건너뜀")
                         continue
-                # ── CG286 학습 도메인 마스크(2026-11-15): '살 수 있는 행'으로만 배운다 ─────────
-                # CG192 는 당일등락 기준이라 0.6%만 뺐지만, 돈 지표가 실제로 버리는 71.6% 는
-                # 거래대금 10억 미만이다(CG283). 마스크 기준 컬럼은 tv_log(=log1p(거래대금),
-                # CORE_FEATURES 밖) → 후보 집합은 두 arm 이 동일하고 차이는 '학습 행 도메인' 하나.
+
+
+
+
                 _mcol = cfg.get("train_mask_col")
                 _mgte = cfg.get("train_mask_gte")
                 if _mcol and _mgte is not None:
@@ -2382,9 +2382,9 @@ def main():
                     continue
                 trd = tr["date"].astype(str).values
                 ted = te["date"].astype(str).values
-                # ── CG23 표본 가중: 폴드 학습행에 대한 가중치(행 순서 = tr 순서) ────────
-                # 여기서 계산하는 이유: purge 까지 끝난 tr 이 실제 학습행이고, 가중치는 그 행에
-                # 1:1 로 붙어야 한다. 날짜 위치(day_pos)는 폴드가 쓰는 dd 기준이다.
+
+
+
                 w_tr = None
                 if cfg.get("weight"):
                     _dpos = {str(x): j for j, x in enumerate(dd)}
@@ -2411,8 +2411,8 @@ def main():
                     transform_matrix(te[bn], ted, tkind, codes=te["stock_code"].values)
                     .astype(np.float32), nan=0.0)
                 yte = te["_y"].values.astype(int)
-                # CG278: 같은 폴드·같은 윈도의 **전 유니버스** 테스트 행(라벨 결측 포함).
-                # 학습에 쓰이지 않는 행만 추가로 채점하므로 판정(AUC)에는 영향이 없다(기본 OFF).
+
+
                 te_all = ted_all = codes_all = None
                 Xte_all = None
                 if d_all is not None:
@@ -2423,38 +2423,38 @@ def main():
                                      if "stock_code" in te_all.columns else [" " * 0] * len(te_all))
                     else:
                         te_all = None
-                # ── 하드 가드: 이름↔열 매핑이 깨지면 **즉시 실패**시킨다.
-                # 왜: 패널 피처명에 중복 라벨이 있으면(=있었다) `df[list]` 가 열을 부풀려
-                # (210→238) 선별 인덱스가 다른 열을 가리키고, 이름 기반 판정이 조용히 무효가 된다
-                # (실측 2026-09-25). 이름 수와 열 수가 다르면 그 실험은 보고할 수 없다.
+
+
+
+
                 if Xtr.shape[1] != len(bn) or Xte.shape[1] != len(bn):
                     raise RuntimeError(
                         f"피처 열 수 불일치(Xtr={Xtr.shape[1]}, Xte={Xte.shape[1]}, "
                         f"names={len(bn)}) — 패널 중복 라벨로 이름↔열 매핑이 깨졌다")
                 cols = np.std(Xtr, axis=0) > 0
-                # ── 피처 풀 필터 (종목-상수 vs 시간가변) ─────────────────────────
-                # 실측: top30 을 지배하는 피처(net_income, op_margin, roa, debt_ratio…)가
-                # **종목당 값이 1개**(14개월 패널 전체에서 상수)다 → 최신 스냅샷을 과거 날짜에
-                # 적용한 것이라면 룩어헤드이고, 측정 AUC 가 부풀려진다. 이 필터로 분리 측정한다.
+
+
+
+
                 pool = cfg.get("pool")
                 if pool in ("timevary", "const"):
                     nun = tr[bn].groupby(tr["stock_code"].values).nunique()
                     is_const = (nun.max(axis=0).values <= 1)
                     pool_mask = is_const if pool == "const" else ~is_const
                     cols = cols & pool_mask
-                # ── 시장레벨 제외 (계약 #6): **그 폴드의 학습 구간에서만** 판정한다.
-                # 시장레벨 = 관측 2개 이상인 날짜에서 종목간 유니크값이 1인 비율 ≥ 0.9.
-                # 결측 지배 컬럼을 '시장레벨'로 오분류하지 않도록 그런 날짜만 분모로 센다.
+
+
+
                 n_mkt_excluded = 0
                 mkt_excluded_names = []
                 if cfg.get("exclude_market_level"):
-                    # ⚠ 패널에는 **중복 컬럼명**이 있다(실측: 210개 중 14개 중복 —
-                    # cross_trend·price_volume·target_ma_5 … ). 중복 라벨이 있는 DataFrame 에
-                    # `&` 같은 pandas 연산을 걸면 **라벨 정렬**이 일어나 결과가 라벨 정렬 순서로
-                    # 나오고, 그 `.values` 를 위치 기반 배열(cols/base_names)과 AND 하면
-                    # 엉뚱한 컬럼이 제외된다(실측 2026-09-25: op_margin·price_volume·
-                    # rank_volatility_20d 가 제외되고 정작 시장레벨인 program_trading_ratio 는 남았다)
-                    # → 위치 기반(numpy)으로만 계산하고, 합성 유니크 이름으로 프레임을 만든다.
+
+
+
+
+
+
+
                     try:
                         _mat = tr[bn].values.astype(float)
                         _tmp = pd.DataFrame(
@@ -2473,26 +2473,26 @@ def main():
                             out=np.zeros(_cnt.shape[1], dtype=float),
                             where=_den > 0)
                         is_mkt = _rate >= 0.9
-                    except Exception as e:      # 판정 실패 시 제외하지 않는다(측정은 계속)
+                    except Exception as e:
                         ml.log(f"  {exp_id} fold{i}: 시장레벨 판정 실패({type(e).__name__}: {e}) — 제외 없음")
                         is_mkt = np.zeros(len(bn), dtype=bool)
                     n_mkt_excluded = int((cols & is_mkt).sum())
                     mkt_excluded_names = [f for f, m in zip(bn, cols & is_mkt) if m]
                     cols = cols & ~is_mkt
-                # ── core48 게이트 정합: 선별을 **실제 모델 입력 후보 안에서** 수행 ──────
-                # train_seed 가 내부에서 CORE_FEATURES ∩ 선별 로 다시 거르므로(실측:
-                # 선별 30개 → 실효 22개), 게이트를 먼저 적용해야 '선별 = 실효' 가 된다.
+
+
+
                 if cfg.get("core_only"):
                     core_set = {str(f) for f in getattr(W.tc, "CORE_FEATURES", []) or []}
                     if not core_set:
                         raise RuntimeError("core_only 요청인데 CORE_FEATURES 를 읽지 못했다")
-                    _pre_core = cols.copy()          # std>0 · pool · 시장레벨 제외를 이미 통과한 컬럼
+                    _pre_core = cols.copy()
                     cols = cols & np.array([f in core_set for f in bn], dtype=bool)
                     if dv_names:
-                        # CG25: 파생 피처는 core48 게이트에 없으므로 그대로 두면 전량 잘린다.
-                        # 이 실험은 '프로덕션 게이트를 켠 상태에서 파생을 **추가**하면 움직이는가'이므로
-                        # 파생만 게이트 밖으로 통과시킨다(실험 config 한정 · 프로덕션 무변경).
-                        # 단 앞선 필터(std=0 · pool · 시장레벨)를 통과한 파생만 되살린다.
+
+
+
+
                         _dset0 = set(dv_names)
                         cols = cols | (_pre_core & np.array([f in _dset0 for f in bn], dtype=bool))
                         if ga_names:
@@ -2502,12 +2502,12 @@ def main():
                             if len(_kept) < len(ga_names):
                                 ml.log(f"  {exp_id}: ⚠ gate_add 누락 "
                                        f"{sorted(set(ga_names) - set(_kept))} — 사전필터(std·pool·시장레벨) 탈락")
-                # ── 특정 피처군 제외(A/B 가산효과 측정, 2026-09-26 신설) ──────────
-                # 왜: 같은 패널·같은 행에서 "이 피처군을 넣었을 때 vs 뺐을 때"를 재려면
-                # 컬럼 단위 제외가 필요하다. 패널 단위 비교는 스냅샷(구간·피처코드)이 달라
-                # 통제가 약하다 — U1(150종목)이 그래서 확증이 못 됐다(교차패널 Δ-0.0266).
-                # exclude_names 는 정확한 이름 또는 접두어("event_*") 목록. 위치 기반(numpy)으로만
-                # 계산한다(중복 라벨 pandas 정렬 사고 — 아래 시장레벨 제외 주석 참고).
+
+
+
+
+
+
                 xnames = [str(x) for x in (cfg.get("exclude_names") or [])]
                 if xnames:
                     hit = np.array(
@@ -2521,23 +2521,23 @@ def main():
                         raise RuntimeError(
                             f"exclude_names={xnames} 가 아무 컬럼도 제외하지 않았다 — "
                             "이름 표기가 틀렸다(측정 전에 실패시킨다)")
-                # ── CG74: 중복 라벨(동일값) 열 제거 — edge top30 선별 슬롯 낭비 방지 ──────
-                # 왜: npz 의 feature_names 에는 **같은 라벨이 2번** 들어 있다(전 패널 공통 14쌍,
-                # 실측 비트 동일: cross_trend·price_volume·target_ma_5·volume_price_trend …).
-                # `wf_wave.dedupe_names` 는 두 번째부터 `__dupN` 접미사로 **개명만** 하므로
-                # 열은 그대로 남고, edge top30 이 같은 피처를 두 슬롯에 넣으면 실질 27개(고유)만
-                # 학습에 쓰인다. `drop_dup=True` 는 `__dupN` 열을 **선별 후보에서 제거**해
-                # 30 슬롯을 서로 다른 피처로 채운다. 같은 런 A/B 로 '중복이 낭비인가'를 잰다.
+
+
+
+
+
+
+
                 if cfg.get("drop_dup"):
                     _dupm = np.array([bool(re.search(r"__dup\d+$", f)) for f in bn], dtype=bool)
                     n_dup = int((cols & _dupm).sum())
                     cols = cols & np.logical_not(_dupm)
                     ml.log(f"  {exp_id}: 중복 라벨 제거 {n_dup}개 (후보 {int(cols.sum())})")
-                # ── CG339: --force-features 는 **사전필터까지 우회**한다 ─────────────
-                # 왜: 공매도 컬럼은 원천 시작일(2026-05-26) 이전 폴드에서 std=0 이라 여기서 탈락한다.
-                # 그러면 '선별이 버렸다'가 아니라 '학습창에 데이터가 없다'가 되어 강제 포함 실험이
-                # 성립하지 않는다. 강제 지정한 이름은 후보 풀에 반드시 남기고, 학습창 비영 비율을
-                # 함께 로그로 남겨 Δ0 을 '정보 없음'으로 오독하지 않게 한다(측정 정합).
+
+
+
+
+
                 _ff_info = []
                 if _ffn:
                     _fmiss = sorted(_ffs - set(bn))
@@ -2555,11 +2555,11 @@ def main():
                     ml.log(f"  {exp_id} fold{i}: 강제 피처 학습창 " + " · ".join(_ff_info))
                 fn = [f for f, m in zip(bn, cols) if m]
                 Xtr, Xte = Xtr[:, cols], Xte[:, cols]
-                # ── CG25 선별: 파생을 **선별 후보에서 빼고** top30 을 고른 뒤 강제로 덧붙인다 ──
-                # 왜: 파생을 후보에 넣으면 top30 이 다른 30개가 되어(선별 경쟁) '추가 정보'가 아니라
-                # '선별 교체'를 재게 된다. 후보에서 빼면 두 arm 의 edge top30 이 **동일 집합**이 되고
-                # 차이는 '파생 12컬럼을 더 쓰는가' 하나로 좁혀진다(용량 교란 최소화).
-                # ⚠ 파생이 선별에 0개 들어간 것을 '효과 없음'으로 오독하지 않도록 개수를 로그에 남긴다.
+
+
+
+
+
                 if dv_names:
                     _dset = set(dv_names)
                     _keep = [j for j, f in enumerate(fn) if f not in _dset]
@@ -2574,10 +2574,10 @@ def main():
                            f"{' (gate_add 포함)' if ga_names else ''}")
                 else:
                     idx, sel_desc = W.subset(fn, cfg["select"], Xtr, ytr, trd)
-                # ── CG339: 강제 포함(--force-features) — 선별 문턱이 병목인지 직접 검정 ──
-                # 선별 집합은 그대로 두고 후보 풀에만 있던 피처를 **덧붙인다**(개수 30→32).
-                # 후보 풀에 없으면 사전필터(std0·pool·시장레벨)에서 탈락한 것이므로 측정 전에
-                # 실패시킨다(0개 추가된 arm 을 '효과 없음'으로 오독하는 사고 방지).
+
+
+
+
                 if _ffn:
                     _have = {fn[j] for j in idx}
                     _add = [j for j, f in enumerate(fn) if f in _ffs and f not in _have]
@@ -2590,21 +2590,21 @@ def main():
                            f"선별 기진입 {len(_have & _ffs)} · append {len(_add)} "
                            f"→ n_features {len(idx)} (대조군 {_base_n})")
                 sel = [fn[j] for j in idx]
-                # ── CG234: gate_add 후보가 실제로 선별에 들어갔는지 남긴다 ─────────────────────
-                # gate_add 는 dv_names 경로로 **선별 후에 강제 append** 되므로(top30 집합은 두 arm
-                # 동일) 진입 개수가 곧 '추가 정보가 실제로 모델 입력에 들어간 양'이다. 사전필터
-                # (std·pool·시장레벨)에서 탈락한 이름은 여기 0으로 나타난다 — 그 경우 '선별이
-                # 버렸다'가 아니라 '필터가 막았다'이므로 판정 문구를 구분해야 한다.
+
+
+
+
+
                 if ga_names:
                     _ga_sel = sorted(set(ga_names) & set(sel))
                     ml.log(f"  {exp_id}: gate_add 선별 진입 {len(_ga_sel)}/{len(ga_names)}개 {_ga_sel}")
-                # CG74 투명성: 선별 집합에 중복열(`__dupN`)이 몇 개 들어갔는지 남긴다 —
-                # 이것이 0 이 아니면 'drop_dup' arm 과 대조군이 **다른 집합**이라는 증거다
-                # (둘 다 0 이면 이 축은 측정 불가이므로 Δ0 을 '효과 없음'으로 오독하게 된다).
+
+
+
                 _ndup_sel = sum(1 for f in sel if re.search(r"__dup\d+$", f))
-                # '실질 서로 다른 피처' = 선별 수 − 중복열 수(중복열은 값이 다른 열과 동일하다).
-                # ⚠ len(set(sel)) 을 '고유'로 적지 말라 — dedupe_names 가 이름을 유일하게 만들어
-                #   항상 30 이 나온다(값 기준 고유성과 무관). 2026-10-03 실측 교훈.
+
+
+
                 ml.log(f"  {exp_id}: 선별 {len(idx)}개 (중복열 {_ndup_sel}개·실질 고유 "
                        f"{len(idx) - _ndup_sel}개) {sel_desc}")
                 recipe = cfg.get("recipe") or W.BASE["recipe"]
@@ -2614,11 +2614,11 @@ def main():
                 _ens_cfg["equal_weights"] = bool((cfg.get("ens") or {}).get("equal_weights"))
                 _ens_cfg["linear"] = bool(cfg.get("linear"))
                 _ens_cfg["linear_C"] = cfg.get("linear_C")
-                # 모델계열 스위치(CG235) — 실험 config 한정. 기본은 GBDT 앙상블(_EnsGBDT).
+
                 ml.EnsembleModel = _LinearModel if cfg.get("linear") else _EnsGBDT
                 aucs = []
                 probs = []
-                probs_all = []      # CG278: 전 유니버스(라벨 결측 포함) 예측 — --dump-all-codes 전용
+                probs_all = []
                 if te_all is not None:
                     try:
                         Xte_all = np.nan_to_num(
@@ -2627,13 +2627,13 @@ def main():
                     except Exception as e:
                         ml.log(f"  {exp_id} fold{i}: 전 유니버스 행렬 실패({type(e).__name__}: {e})")
                         Xte_all, te_all = None, None
-                tr_probs = []       # 학습셋(in-sample) 예측 — --report-train-auc 일 때만 채운다
+                tr_probs = []
                 n_eff_seen = set()
                 for seed in range(int(cfg.get("seed_offset") or 0),
                                   int(cfg.get("seed_offset") or 0) + args.seeds):
                     _obj = cfg.get("objective")
                     if _obj:
-                        # CG80: 목적함수 축 — 같은 경로에 objective 만 바꾼 두 arm.
+
                         a, _m, _c, _e = train_seed_rank(
                             Xtr[:, idx], Xte[:, idx], ytr, yte, sel,
                             f"/app/app/models/wf/labelsweep_{exp_id}", seed,
@@ -2646,8 +2646,8 @@ def main():
                             recipe["lr"], recipe["depth"],
                             recipe["n_estimators"], True, None, w_tr)
                     aucs.append(float(a))
-                    # 실효 피처 수 = train_seed 내부 curated 게이트를 통과한 개수.
-                    # 선별 수와 다르면 그 실험은 '게이트 키홀'을 통해 측정된 것이다.
+
+
                     n_eff_seen.add(len(_c) if _c is not None else -1)
                     n_eff_all |= n_eff_seen
                     try:
@@ -2655,29 +2655,29 @@ def main():
                         probs.append(_p[:, -1] if _p.ndim > 1 else _p)
                     except Exception:
                         pass
-                    # CG278: 같은 모델로 전 유니버스를 채점(돈 지표 후보집합 정합).
+
                     if te_all is not None:
                         try:
                             _pa = np.asarray(_e.predict(Xte_all[:, idx]), dtype=float)
                             probs_all.append(_pa[:, -1] if _pa.ndim > 1 else _pa)
                         except Exception:
                             pass
-                    # 학습셋 예측(CG275): '정보 상한 vs 과적합' 을 가르려면 같은 런·같은 폴드에서
-                    # in-sample AUC 를 함께 재야 한다. 학습셋이 커서 비용은 학습 대비 작다.
+
+
                     if getattr(args, "report_train_auc", False):
                         try:
                             _q = np.asarray(_e.predict(Xtr[:, idx]), dtype=float)
                             tr_probs.append(_q[:, -1] if _q.ndim > 1 else _q)
                         except Exception:
                             pass
-                # ── 정직 지표: pooled AUC(현재 판정값) 옆에 **날짜별 횡단면 AUC 평균**을 함께 남긴다.
-                # 라벨이 날짜내 분위(횡단면 상대)인데 판정은 날짜를 섞은 pooled AUC 라,
-                # 날짜 상수(시장레벨) 피처는 날짜별 점수를 통째로 밀어 pooled 만 부풀릴 수 있다.
-                # 두 값이 크게 벌어지면 "개선"은 종목간 실력이 아니라 날짜 구성의 산물이다.
+
+
+
+
                 ens_pooled_auc = None
                 daily_auc_mean = None
                 n_dates_scored = 0
-                train_auc = None        # in-sample AUC (--report-train-auc)
+                train_auc = None
                 if probs:
                     from sklearn.metrics import roc_auc_score
                     ens_p = np.mean(np.vstack(probs), axis=0)
@@ -2694,8 +2694,8 @@ def main():
                             n_dates_scored = len(_da)
                     except Exception as e:
                         ml.log(f"  {exp_id} fold{i}: 날짜별 AUC 계산 실패({type(e).__name__}: {e})")
-                    # ── 학습셋(in-sample) AUC — 같은 런에서 OOS 와 짝을 이룬다(CG275) ──
-                    # 갭(train − OOS)이 크면 '정보 상한'(데이터 투자), 작으면 '분산'(용량·정규화).
+
+
                     if tr_probs:
                         try:
                             _tp = np.mean(np.vstack(tr_probs), axis=0)
@@ -2704,7 +2704,7 @@ def main():
                                    f"(in-sample) vs OOS {ens_pooled_auc}")
                         except Exception as e:
                             ml.log(f"  {exp_id} fold{i}: 학습셋 AUC 계산 실패({type(e).__name__}: {e})")
-                    # ── 확률 덤프(CG21): 판정에는 쓰지 않고 매매 KPI 계산용으로만 남긴다 ──
+
                     if args.dump_preds:
                         _codes = (te["stock_code"].astype(str).values
                                   if "stock_code" in te.columns else [""] * len(ted))
@@ -2715,17 +2715,17 @@ def main():
                                 {"exp": exp_id, "fold": int(i), "date": str(ted[_j]),
                                  "code": str(_codes[_j]), "y_true": int(yte[_j]),
                                  "y_pred": float(ens_p[_j]), "fwd_ret": float(_fwd[_j])})
-                        # CG278: 전 유니버스 행(y_true=None)도 같은 파일에 싣는다 — 돈 지표의
-                        # 후보집합·풀평균이 '미래 극단'으로 미리 걸러지지 않게 하려면 이 행들이 필요하다.
+
+
                         if te_all is not None and probs_all:
                             _ens_pa = np.mean(np.vstack(probs_all), axis=0)
                             _fwd_a = (np.asarray(te_all["_fwd"].values, dtype=float)
                                       if "_fwd" in te_all.columns
                                       else np.full(len(ted_all), np.nan))
-                            # 중복 제거(실측 2026-11-14 스모크): 패널에 같은 (날짜,종목) 행이 2개
-                            # 있는 경우가 있어(세션 318행 vs 유니크 198종목) 라벨행과 겹치는 행은
-                            # 버리고, 남은 행도 (날짜,종목) 첫 행만 싣는다 — 안 하면 풀평균이
-                            # 중복가중되고 top-k 가 같은 종목을 두 번 고른다.
+
+
+
+
                             _seen_all = {(str(ted[_j]), str(_codes[_j])) for _j in range(len(ted))}
                             _n_skip_dup = 0
                             for _j in range(len(ted_all)):
@@ -2782,7 +2782,7 @@ def main():
         with open(out_path, "a") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
-    # ── 확률 덤프 저장(파일 핸들을 오래 열지 않는다: 중단돼도 손상 없음) ──────────
+
     if args.dump_preds:
         try:
             _dd = os.path.dirname(args.dump_preds)
@@ -2792,7 +2792,7 @@ def main():
                 for _r in dump_recs:
                     f.write(json.dumps(_r, ensure_ascii=False) + "\n")
             print(f"preds dumped: {args.dump_preds} ({len(dump_recs)} rows)", flush=True)
-        except Exception as e:      # 덤프 실패가 AUC 판정을 막아서는 안 된다
+        except Exception as e:
             print(f"preds dump 실패({type(e).__name__}: {e})", flush=True)
 
     ok = [r for r in results if r.get("status") == "ok"]

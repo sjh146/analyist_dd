@@ -54,56 +54,56 @@ PROJ = os.environ.get("ME_PROJ", proj_dir())
 BACKLOG = os.path.join(PROJ, "docs/QUANT_MODEL_BACKLOG.json")
 LEDGER = os.path.join(PROJ, "data/reports/model_engineer_ledger.jsonl")
 RUNTIME = os.path.join(PROJ, "data/reports/me_cycle")
-LOGDIR = os.path.join(PROJ, "data/reports/me_cycle/logs")   # 호스트 사용자 소유 경로.
-# ⚠ services/xgboost-ml/reports/overnight 는 **컨테이너(uid 1000)가 소유**하므로 호스트에서
-# 직접 쓰면 PermissionError 로 사이클이 죽는다(실측 2026-09-25). 컨테이너가 쓰는 요약 JSON 은
-# 읽기만 하므로 문제없다. 호스트 측 사이클 로그는 우리 소유 경로에 남긴다.
+LOGDIR = os.path.join(PROJ, "data/reports/me_cycle/logs")
+
+
+
 PIDFILE = os.path.join(RUNTIME, "running.pid")
 LOCKFILE = os.path.join(RUNTIME, "cycle.lock")
 STATE = os.path.join(RUNTIME, "state.json")
-# ── 미전달 보고 복구용: Hermes 크론 실행 기록 ────────────────────────────────
-# 실측(2026-09-30): 이 잡의 04:00·05:00·06:00·07:00 틱이 전부
-# `RuntimeError: Hermes can't reach the model provider` 로 실패했다. 틱 스크립트 자체는 돌았으므로
-# 04:51 에 끝난 U3 결과의 원장 `reported` 플래그는 켜졌지만 **사용자에게는 전달되지 않았다**
-# (executions.db 의 delivery_outcome='failed'). 원장 플래그만 믿으면 결과가 영구 소실된다.
-# → reported 로 표시할 때 `reported_at` 을 함께 남기고, 다음 틱이 그 시각에 대응하는 크론 실행의
-#   전달 결과를 executions.db 에서 확인해 실패였으면 플래그를 되돌린다(재보고 경로).
+
+
+
+
+
+
+
 HERMES_EXEC_DB = os.path.expanduser(
     os.environ.get("ME_EXEC_DB", "~/.hermes/cron/executions.db"))
 JOBID_FILE = os.path.join(RUNTIME, "cron_job_id.txt")
-DEFAULT_JOB_ID = "d4070d508732"        # quant-model-engineer-overnight
-REPORT_EARLY_SEC = 300                  # 보고 처리 시각과 실행 시작 시각의 허용 선행 오차
-REPORT_WINDOW_SEC = 3600                # 한 실행이 소비한 기록으로 보는 사후 창
-# 미전달 감지의 시간 상한. 이보다 오래된 실패 실행은 되돌리지 않는다 — 밤사이 틱 6회분이라
-# 재보고 기회는 충분하고, 그보다 오래된 실패를 되살리면 이미 지나간 상태의 결과를 다시 뿌리게 된다.
+DEFAULT_JOB_ID = "d4070d508732"
+REPORT_EARLY_SEC = 300
+REPORT_WINDOW_SEC = 3600
+
+
 UNDELIVERED_LOOKBACK_HOURS = 6
 KST = timezone(timedelta(hours=9))
 CONTAINER = "stock_xgboost_ml"
 LOAD_MAX = float(os.environ.get("ME_LOAD_MAX", "3.5"))
-# 장외 문턱(2026-11-21 실측): 장외 상시 부하(hermes gateway + postgres 유휴 연결 + neo4j)가
-# load1 3.2~3.9 로 **계속 깔려** 있어 3.5 단일 문턱은 우리 실험이 아닌 잡음에 틱을 굶겼다
-# (04:07 틱 load1=3.88 차단, 그때 /proc/stat 실측 idle 36~43%, 경쟁 학습 0건). 장외 문턱을 올리되
-# 아래 가드가 **즉시 CPU 유휴율**을 함께 요구해 진짜 경쟁(수집·다른 학습: idle<20%)은 그대로 막는다.
+
+
+
+
 LOAD_MAX_NIGHT = float(os.environ.get("ME_LOAD_MAX_NIGHT", "4.5"))
 CPU_IDLE_MIN = float(os.environ.get("ME_CPU_IDLE_MIN", "20"))
 MARKET_OPEN, MARKET_CLOSE = (9, 0), (15, 30)
-# 돈 지표 널 판정의 최소 짝 세션 (2026-11-22 CG419): 표본이 20세션 미만이면 t·분할 검정이
-# 표본부족을 '미검출'로 오독한다 → 판정불가로 남긴다(사전등록: 표본 < 40 = 판정불가).
+
+
 MIN_PAIRED_SESSIONS = 20
-# KRX 휴장일 파일 — scripts/data_gap.py 가 데이터 공백을 probe 하며 자동 유지한다.
+
 HOLIDAY_PATH = os.path.join(PROJ, "data/krx_holidays.json")
-# 평일 20:00 컨테이너 재생성 창(위 설계원칙 7). 실측 2026-09-25: U1 패널 빌드가
-# 30,000/41,893(71.6%)·4h14m 지점에서 docker compose 재생성으로 SIGKILL(137) → 전량 소실.
-RECREATE_WEEKDAYS = (1, 2, 3, 4, 5)     # cron 의 1-5 = 월~금
+
+
+RECREATE_WEEKDAYS = (1, 2, 3, 4, 5)
 RECREATE_HOUR = 20
-RECREATE_SAFETY_MIN = 10                # 재생성 10분 전부터는 새로 시작하지 않는다
-# 재생성 **직후** 창 — 20:00 정각에 뜬 틱이 '창을 넘지 않는' 짧은 실험(8~12분)을 시작하면
-# 컨테이너 교체(SIGKILL 137)에 그대로 노출된다. eta_blocks 는 '예상 종료가 창을 넘는가'만
-# 보므로 이 경로를 못 막는다. full_pipeline_dd.sh 는 running.pid 가 있으면 xgboost-ml 을
-# 재생성에서 제외하지만, 파이프라인이 pidfile 을 읽는 시점(20:00:0x)과 우리가 쓰는 시점의
-# 경쟁이라 보장이 아니다(실측 2026-09-25 20:00:16 U1 rc=137). 그래서 창 앞뒤로 시작을 막는다.
-RECREATE_GRACE_MIN = 12                 # 20:00~20:12 은 시작 금지(다음 틱에서 재시도)
-RETRY_MAX = 3                           # 인프라 사고(소실·타임아웃) 재시도 상한
+RECREATE_SAFETY_MIN = 10
+
+
+
+
+
+RECREATE_GRACE_MIN = 12
+RETRY_MAX = 3
 
 
 def now_kst():
@@ -114,7 +114,7 @@ def log(msg):
     print(f"[{now_kst().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-# ── 백로그 입출력 ────────────────────────────────────────────────────────────
+
 def load_backlog():
     with open(BACKLOG, encoding="utf-8") as f:
         return json.load(f)
@@ -131,7 +131,7 @@ def backlog_indent():
     """
     try:
         with open(BACKLOG, encoding="utf-8") as f:
-            f.readline()                      # '{'
+            f.readline()
             nxt = f.readline()
         if nxt.startswith(" "):
             return max(1, len(nxt) - len(nxt.lstrip(" ")))
@@ -144,9 +144,9 @@ def save_backlog(b):
     b["updated_at"] = now_kst().isoformat(timespec="seconds")
     tmp = BACKLOG + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        # 들여쓰기는 커밋된 파일의 관례를 따른다(backlog_indent) — 아니면 매 틱 2만 줄 churn.
+
         json.dump(b, f, ensure_ascii=False, indent=backlog_indent())
-    os.replace(tmp, BACKLOG)   # 원자적 교체 — 중간에 죽어도 백로그가 깨지지 않는다
+    os.replace(tmp, BACKLOG)
 
 
 def load_ledger(limit=None):
@@ -161,8 +161,8 @@ def load_ledger(limit=None):
                     rec = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                # 스키마 정규화(읽기 측): 수동·복구 기록은 `detail` 없이 `note` 만 가질 수 있다.
-                # 소비자(틱 표시·스코어보드·감사)가 KeyError 로 죽지 않게 여기서 채운다(디스크 불변).
+
+
                 if not rec.get("detail"):
                     rec["detail"] = rec.get("note") or "(근거 미기록)"
                 out.append(rec)
@@ -170,7 +170,7 @@ def load_ledger(limit=None):
 
 
 SCORECARD = os.path.join(PROJ, "data", "reports", "model_engineer_scorecard.json")
-# 배포 경로 전방(forward) 성적표 — ml_predictions × 실현 선행수익(CG68/CG75 계측기).
+
 FORWARD_SCORECARD = os.path.join(PROJ, "services", "xgboost-ml", "reports", "overnight",
                                  "forward_scorecard.json")
 
@@ -187,9 +187,9 @@ def validation_block():
     (자기신고 금지 — 값을 만들어 내지 않고, 낡았으면 낡은 사실이 보이게 둔다).
     """
     try:
-        import champion_scorecard as _cs          # 같은 디렉터리(scripts/) — 지연 임포트
+        import champion_scorecard as _cs
         return _cs.validation_block(SCORECARD)
-    except Exception as e:                        # 성적표 부재·손상이 기록을 막지 않는다
+    except Exception as e:
         log(f"검증 블록 생략({type(e).__name__}: {e})")
         return None
 
@@ -206,7 +206,7 @@ def append_ledger(rec):
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
-# ── 미전달 보고 감지(크론 실행 DB) ──────────────────────────────────────────
+
 def cron_job_id():
     """이 틱을 돌리는 크론 잡 id. 환경변수 → 파일 → 기본값 순으로 찾는다."""
     jid = (os.environ.get("ME_CRON_JOB_ID") or os.environ.get("HERMES_CRON_JOB_ID") or "").strip()
@@ -262,33 +262,33 @@ def check_undelivered_reports():
     크론 실행 DB 를 못 읽으면 **아무것도 바꾸지 않고** NOTE 만 남긴다(잘못 되돌리면 중복 보고).
     """
     led = load_ledger()
-    # reported_at 이 없으면 ts 로 대체한다 — 세션이 원장 플래그만 수동으로 켠 기록도 감지 대상에 넣기
-    # 위해서다(실측 2026-10-01 19:07 CG56: reported=True·reported_at=None 으로 남아 감지기 사각지대).
+
+
     cand = [r for r in led if r.get("reported") and (r.get("reported_at") or r.get("ts"))]
     if not cand:
         return []
     try:
         hist = _exec_history(cron_job_id())
-    except Exception as e:      # sqlite3 부재·DB 이동·스키마 변경 — 본업을 막지 않는다
+    except Exception as e:
         return [f"NOTE: 미전달 감지 불가({type(e).__name__}: {e}) — 원장 플래그는 유지"]
     floor = now_kst() - timedelta(hours=UNDELIVERED_LOOKBACK_HOURS)
-    # 미전달 판정에 **status 축**을 추가한다. 종전엔 delivery_outcome in (failed, unknown) 만
-    # 봤는데, 호스트/세션 종료로 중단된 실행은 delivery_outcome=NULL 이다(실측 2026-10-01:
-    # 18:00·19:00 틱이 'Interrupted by shutdown', status=failed·outcome=NULL → 감지기가 못 잡아
-    # CG56 결과가 조용히 소실될 참이었다). 진행 중(running)은 종전대로 보류한다.
+
+
+
+
     hist_norm = []
-    for started, status, outcome in hist:      # hist 는 started_at desc = 최신순
+    for started, status, outcome in hist:
         st = _parse_ts(started)
         if st is None or st < floor:
             continue
         undelivered = (outcome in ("failed", "unknown")
                        or (status in ("failed", "unknown") and outcome != "delivered"))
         hist_norm.append((st, undelivered, started, status, outcome))
-    # 기록별로 **가장 최근** 실행이 그 기록을 소비했는지로 판정한다. 종전엔 실패 실행마다 독립적으로
-    # 훑어서, 나중 실행이 이미 전달한 기록까지 **옛 실패 실행의 창**에 걸려 중복 보고됐다 — 틱이
-    # 매시간이라 창 3600s 가 겹친다(실측 2026-10-05: 04:01 failed·05:00 delivered 가 같은 기록의
-    # reported_at=05:00:12 를 함께 덮어 06:00 틱이 CG105/MT49/CG106 을 재보고할 참이었다).
-    flagged = {}                               # hist_norm 인덱스 -> [기록]
+
+
+
+
+    flagged = {}
     for r in cand:
         rt = _parse_ts(r.get("reported_at") or r.get("ts"))
         if rt is None:
@@ -298,7 +298,7 @@ def check_undelivered_reports():
             if -REPORT_EARLY_SEC <= dt <= REPORT_WINDOW_SEC:
                 if undelivered:
                     flagged.setdefault(idx, []).append(r)
-                break          # 최신 실행이 이 기록을 소비했다 → 그 실행의 전달 여부로 확정
+                break
     bad, changed = [], False
     for idx in sorted(flagged):
         _st, _und, started, status, outcome = hist_norm[idx]
@@ -316,7 +316,7 @@ def check_undelivered_reports():
     return []
 
 
-# ── 가드 ────────────────────────────────────────────────────────────────────
+
 def _pid_of(path, json_key=None):
     """pidfile 또는 state.json 에서 pid 를 읽는다. 없거나 깨졌으면 None."""
     try:
@@ -345,9 +345,9 @@ def _pid_alive(pid):
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
-        return False                 # ESRCH — 진짜로 없다
+        return False
     except PermissionError:
-        pass                         # EPERM/EACCES — 존재한다. 아래 cmdline 으로 재사용만 거른다
+        pass
     except OSError:
         return False
     try:
@@ -355,7 +355,7 @@ def _pid_alive(pid):
             cmd = f.read()
     except OSError:
         return True
-    return b"_cycle.py" in cmd      # 두 역할 모두 *_cycle.py 로 실행된다
+    return b"_cycle.py" in cmd
 
 
 def running_pid(exclude_self=True):
@@ -462,18 +462,18 @@ def in_recreate_window(dt=None) -> bool:
     return (RECREATE_HOUR, 0) <= t < (RECREATE_HOUR, RECREATE_GRACE_MIN)
 
 
-# ── 저녁 파이프라인(full_pipeline_dd.sh) 동시 실행 가드 ─────────────────────────
-# 왜(실측 2026-10-05 20:0x): 파이프라인은 평일 20:00 에 시작해 실측상 21:40~23:20 에 끝난다.
-# 그 안에 Phase 2 '챔피언 재학습'(=학습 1건)이 들어 있는데, 시작 시점의 load1 가드는 파이프라인이
-# 아직 **수집 단계**일 때 통과한다(실측 그 시각 load1=2.2 < 3.5) → est 130분짜리 실험이 재학습과
-# 정면으로 겹쳐 돌면 서로 3~20배 느려지고(같은 패널·config 가 유휴 7s/cell vs 경쟁 155s/cell),
-# 컨테이너 timeout 여유가 1.5배뿐인 항목은 그대로 잘려 결과를 잃는다(하드규칙 5 직렬화).
-# 짧은 항목(est < PIPELINE_LONG_MIN)은 종전대로 통과시킨다 — 수집 단계는 가볍고, 막으면
-# 큐 전체가 몇 시간씩 굶는다.
+
+
+
+
+
+
+
+
 PIPELINE_SCRIPTS = ("full_pipeline_dd.sh", "evening_pipeline.sh")
-PIPELINE_LONG_MIN = 60      # 이 길이(분) 이상은 파이프라인 실행 중에 시작하지 않는다(--force 예외)
-# '실행 중'으로 인정할 첫 토큰(인터프리터/래퍼). 그 밖의 첫 토큰(cat·ls …)이 스크립트 이름을
-# 인자로 가진 경우는 '읽는 중'이지 '실행 중'이 아니다.
+PIPELINE_LONG_MIN = 60
+
+
 _PIPELINE_RUNNERS = {"bash", "sh", "dash", "zsh", "nohup", "setsid", "timeout", "env",
                      "python", "python3"}
 
@@ -507,8 +507,8 @@ def pipeline_pid_from_cmdlines(cmdlines, self_pids=()):
         head = argv[0].rsplit("/", 1)[-1]
         for k, tok in enumerate(argv):
             if any(c.isspace() for c in tok):
-                # 셸 -c 의 명령 문자열은 argv 원소 1개다 — 첫 단어만 본다(`cd /repo && … | head` 같은
-                # 진단용 셸이 스크립트 이름을 품고 있어도 '실행 중'으로 오탐하지 않기 위해서다).
+
+
                 first = tok.split()[0] if tok.split() else ""
                 if first and first.rsplit("/", 1)[-1] in PIPELINE_SCRIPTS and \
                         (k == 0 or head in _PIPELINE_RUNNERS):
@@ -556,9 +556,9 @@ def container_up():
     return r.stdout.strip() == "true"
 
 
-# 두 역할(모델엔지니어·리서처)이 **각자 락**을 갖고 있어 서로의 작업을 모른다.
-# CPU 가 4코어뿐이므로 교차 락이 필요하다 — 없으면 16:00 에 학습(엔지니어)과 수집(리서처)이
-# 동시에 시작해 둘 다 느려지거나 OOM/재시작으로 죽는다(과거 패널 빌드 SIGKILL 전례).
+
+
+
 PEER_PIDFILES = ("data/reports/me_cycle/running.pid", "data/reports/res_cycle/running.pid")
 
 
@@ -576,8 +576,8 @@ def peer_running():
             continue
         if pid == os.getpid():
             continue
-        # 교차 락도 같은 EPERM 함정을 피해야 한다: 상대 역할이 root 로 떠 있으면
-        # os.kill(pid,0) 이 EPERM 을 주므로 '없음'으로 넘기면 락이 조용히 풀린다.
+
+
         if _pid_alive(pid):
             return pid, rel
     return None, None
@@ -619,15 +619,15 @@ def eta_blocks(item) -> tuple:
     return False, ""
 
 
-# ── 컨테이너 `timeout` ↔ `est_minutes` 자기모순 가드 (2026-10-11 CG173 실측) ────────────
-# 왜: 백로그에 `est_minutes: 45`(2700s) 인데 명령은 `timeout 1800`(30분)이었다 — 스킬 교훈
-# "est_minutes 만 고치면 반쪽"이 **등록 단계에서** 재발해, 30분짜리 패널 빌드가 [c] 50/100일
-# 지점에서 SIGKILL(rc=124)로 소실됐다(체크포인트가 없어 재실행은 처음부터).
-# 대책 두 겹: ① 틱/현황이 pending 항목의 자기모순을 **경고**로 드러낸다(등록 실수 조기 발견)
-# ② execute() 가 필요 벽시계를 계산해 명령의 timeout 을 **올려서** 실행한다 — 내리는 방향은
-#    절대 하지 않는다(상한을 넓히는 것만 안전).
+
+
+
+
+
+
+
 _CMD_TIMEOUT_RE = re.compile(r"\btimeout\s+(\d+)\b")
-# `--only TAG1,TAG2` (값은 공백·따옴표 전까지) — 스윕 명령의 config 선별 목록.
+
 _ONLY_RE = re.compile(r"--only[=\s]+([^\s'\"]+)")
 
 
@@ -717,14 +717,14 @@ def prereg_control_gap(item):
     arm = item.get("arm")
     cf = ((item.get("counterfactual") or "").split(" ") or [""])[0]
     have = set(tags)
-    # 함정: counterfactual 문구가 arm 이름으로 시작하면('LS_quant_q30_h5 (기본 분위…') 첫 토큰이
-    # arm 과 같아 '대조군이 있다'로 오인된다 — 그건 **자기대조**라 Δ 항상 0 = 판정 무효다.
+
+
     if cf and cf in have and cf != arm:
         return None
-    # `--force-paired` 가 만드는 <arm>/<arm>__ff 쌍은 같은 런 대조군이 있다.
+
     if "--force-paired" in (item.get("command") or ""):
-        # arm 이름을 자기 id 로 적은 항목(예: CG380__ff)도 실제 산출물 키는 <--only 태그>__ff 다.
-        # 판정은 per_exp 키로 하므로 경고를 띄우지 말고, 실행 후 판정에서 키를 맞춘다.
+
+
         return None
     if arm and (f"{arm}__ff" in have or (arm.endswith("__ff") and arm[:-4] in have)):
         return None
@@ -787,10 +787,10 @@ def guards(force=False, item=None) -> tuple:
     blocked, why = eta_blocks(item)
     if blocked and not force:
         return False, why
-    # ── 저녁 파이프라인 실행 중 + 긴 실험 = 직렬화 위반(하드규칙 5) ──────────────────
-    # 위치가 중요하다: eta_blocks 와 **같은 성격**(지금 시작하면 손해 · 기다리면 된다)이라
-    # --force 로는 통과시킨다 — u3_launcher.sh 가 20:35~21:00 창에 `--start <ID> --force` 로
-    # 긴 항목을 명시적으로 강행하는 설계를 막으면 안 된다. 반대로 틱(force=False)은 막힌다.
+
+
+
+
     if not force:
         _p, _pname = pipeline_in_flight()
         _est = (item or {}).get("est_minutes") if isinstance(item, dict) else None
@@ -799,29 +799,29 @@ def guards(force=False, item=None) -> tuple:
                            f"{PIPELINE_LONG_MIN}분 항목은 시작하지 않음(4코어 직렬화: 수집·챔피언 "
                            f"재학습과 동시 실행 시 서로 3~20배 느려져 컨테이너 timeout 에 잘린다)"
                            f" · 다음 틱에서 재시도")
-    # --force 로도 뚫지 않는다(2026-09-29 수리): 예전 술어는 `market_hours() and not force`
-    # 라서 --force 가 장중 가드를 그대로 통과했다 — 아래 load 가드 주석의 "장중은 force 로도
-    # 뚫지 않는다"와 코드가 어긋나 있었다. 장중엔 트레이더·피드가 CPU 우선이고 그건 사람이
-    # 즉흥적으로 넘길 판단이 아니다(런처도 20:35~21:00 창만 쓴다).
+
+
+
+
     if market_hours():
         return False, f"{market_note()} — 시작하지 않음 (--force 로도 차단)"
     l = load1()
     _idle = cpu_idle_pct()
-    # 문턱 선택: 장중은 위에서 이미 반환되므로 여기는 항상 장외 경로다 → LOAD_MAX_NIGHT.
-    # 단, load1 만으로는 장외 잡음(유휴 연결·게이트웨이)을 경쟁으로 오독한다(2026-11-21 실측:
-    # load1=3.88 인데 idle 43%). 그래서 **load1 > 문턱 이거나 idle < CPU_IDLE_MIN** 이면 막는다.
+
+
+
     _limit = LOAD_MAX_NIGHT
     if l > _limit or (_idle is not None and _idle < CPU_IDLE_MIN):
-        # 표현 주의: 예전 문구는 "다른 학습이 도는 중"이라고 단정했다. 실측(2026-09-25 17:00)
-        # 정작 CPU 를 쓰는 것은 **우리 U1 패널 빌드**였고(진행 중 사이클), 그 문구 때문에
-        # "남의 작업이 돌아 대기 중"으로 잘못 보고됐다.
-        #
-        # --force 는 **장외에서만** 부하 가드를 무시한다. 실측(2026-09-25 21:00): 저녁
-        # 파이프라인의 챔피언 재학습 + yfinance 수집이 postgres 를 291% CPU 로 태워 load1=7 인
-        # 동안, 대기형 런처(u1_launcher.sh)의 90분 강제 시작이 이 가드를 뚫지 못하고 rc=3 으로
-        # 끝났다 → 아무도 다시 띄우지 않으면 밤이 통째로 날아간다(패널 빌드 11시간).
-        # 진짜 직렬화 대상은 '우리 학습 두 개'이고 그건 위에서 이미 확인했다(사이클·타 역할 없음).
-        # 장중(트레이더/피드 우선)은 force 로도 뚫지 않는다 — 위 장중 가드가 먼저 막는다.
+
+
+
+
+
+
+
+
+
+
         if force and not market_hours():
             log(f"주의: load1={l:.2f} > {_limit} 또는 idle={_idle if _idle is None else round(_idle,1)}% "
                 f"< {CPU_IDLE_MIN}% 이지만 --force·장외·경쟁 사이클 없음 → 강행")
@@ -888,17 +888,17 @@ def next_item(backlog, force=False):
                     _led = []
             missing = [d for d in deps if not _dep_done(d, backlog, _led)]
             if missing:
-                # 실측(2026-10-05 CG121): 선행 미완 항목을 그냥 pending 으로 올리면 **빈 산출물로
-                # 즉시 실패**해 원장에 잡음만 남는다(CG121 은 CG120 덤프가 없으면 즉시 실패).
-                # depends_on 이 선언돼 있으면 여기서 조용히 건너뛰고, 선행이 done 이 되는 틱에 시작한다.
+
+
+
                 log(f"{i['id']}: 선행 미완({', '.join(missing)}) → 건너뜀")
                 continue
-        # ── not_before: '아직 정보가 없는' 재실행을 막는다 (2026-11-20 실측) ──────────────
-        # 실측: 적립 시리즈(CG371/372/373)가 07:27·16:24·18:26 에 **소수점까지 동일한** 결과
-        # (28날짜·0.5412·SD 0.0368)를 세 번 냈다 — 11-13 라벨이 11-20 종가를 요구하는데
-        # market_data 최신일이 11-19 라 표본이 늘 수 없었다. 날짜는 캘린더로만 자라므로
-        # 그 사이 재실행은 17분 × 3회를 정보 0으로 태운다. 항목에 `not_before`(KST ISO)를
-        # 적어 두면 그 시각 전까지 후보에서 제외한다.
+
+
+
+
+
+
         nb = i.get("not_before")
         if nb and not force:
             try:
@@ -910,12 +910,12 @@ def next_item(backlog, force=False):
                     continue
             except ValueError:
                 log(f"{i['id']}: not_before 형식 오류({nb!r}) — 무시하고 진행")
-        # ── '셸 주석' command 도 없는 것과 같다 (2026-11-21 CG197 실측) ────────────────
-        # 실측: CG197 의 command 가 `# 선행: XR26 수리 후. 그 다음 한 줄 — docker exec ...`
-        # 였다. 앞의 '#' 때문에 셸은 **아무것도 실행하지 않고 rc=0** 으로 끝나고, 요약 JSON 은
-        # 갱신되지 않아 구동기가 '요약 미갱신 = 실행실패'로 판정한다 → 틱 1회 + 원장에 가짜
-        # 실행실패가 남는다. 'command 없음'과 동일하게 취급해 건너뛴다(사람이 보고 고칠 수 있게
-        # 경고는 남긴다).
+
+
+
+
+
+
         _cmd = str(i.get("command") or "").strip()
         if not _cmd or _cmd.startswith("#"):
             log(f"경고: {i['id']} 는 pending 인데 command 가 없다" if not _cmd else
@@ -931,27 +931,27 @@ def next_item(backlog, force=False):
     return None
 
 
-# ── 지표 파싱 (자기신고 금지 — 요약 JSON 에서 직접 계산) ───────────────────────
+
 def summary_path(kind, command=None, summary_out=None, quiet=False):
-    # quiet=True 는 **스캔 경로 전용**(rejudge_parser_gap 이 모든 항목의 경로를 계산할 때).
-    # 왜(실측 2026-11-12 21:0x): 그 스캔이 pending/backlog/needs_setup 전 항목에 대해 이 함수를
-    # 부르므로, 파서가 아직 없는 metric(prediction_run_mix_audit·publish_input_skew 등)마다
-    # 매 틱 "알 수 없는 metric … (판정불가로 기록)"이 찍혔다 — 실제로는 아무것도 기록되지 않는
-    # 스캔인데 사람이 읽는 보고에 '판정불가 기록'이 4줄씩 쌓여 실패로 오독된다.
-    # 항목이 산출물 경로를 **직접 선언**한 경우(summary_out) 그 경로를 최우선으로 쓴다.
-    # 왜(실측 2026-11-10 CG186): command 가 래퍼 스크립트(`sh scripts/cg186_retrain_audit.sh`)면
-    # --out/--summary-out 플래그가 커맨드 문자열에 없어 구동기가 기본 경로를 본다 → 래퍼가 실제로는
-    # /app/reports/overnight/cg186_audit.json 에 (rc=0, 43.6분, 폴드·돈 지표 전부 포함) 썼는데도
-    # '요약 미갱신' → 판정불가로 원장에 남았다(측정이 있는데 판정이 사라짐).
-    # 래퍼마다 경로 규칙을 코드에 하드코딩하는 대신 항목 JSON 이 경로를 말하게 한다.
+
+
+
+
+
+
+
+
+
+
+
     if summary_out:
-        # ⚠ 실측 갭 수리(2026-11-19 CG359): summary_out 이 **호스트 상대경로**인 항목
-        # (`data/reports/overnight/cg359_paired_dates.json` — 호스트 python3 집계기가 쓴 파일)에
-        # 무조건 _container_path_to_host 를 걸어 `services/xgboost-ml/data/reports/...` 로 바꿔
-        # 버렸다 → 파일이 없으니 재판정이 '요약 파일 없음'으로 skip 되고, 8.8분 측정이
-        # 'parser 없음'인 채 원장에 남았다(측정은 있는데 판정이 사라짐).
-        # 규칙: /app/ → 컨테이너 변환, 절대경로 → 그대로, 상대경로 → PROJ 아래에 **실재하면** 그 파일,
-        # 없으면 종전처럼 컨테이너 경로로 해석(기존 항목 회귀 방지).
+
+
+
+
+
+
+
         p = str(summary_out).strip("'\"")
         if p.startswith("/app/"):
             return _container_path_to_host(p)
@@ -962,62 +962,62 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
             return host_p
         return _container_path_to_host(p)
     if kind == "score_deciles":
-        # 점수 분위 순기대(CG190) — 랭킹이 순서 정보를 갖는지. --out 경로를 커맨드에서 읽는다.
+
         out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg190_score_deciles.json")
     if kind == "wf_sweep_summary":
-        # ⚠ 실측 갭 수리(2026-10-02): 종전엔 기본 경로를 **고정**해 돌려줬다. 그런데
-        # wf_label_sweep.py 는 `--summary-out <path>` 를 받으므로, 그걸 준 실행은 기본 경로를
-        # 건드리지 않는다 → 구동기가 "요약 미갱신 → 실행실패" 로 오판하고(원장에 rc=0 인데
-        # 측정값 없음), 반대로 기본 경로를 덮어써 다른 실험의 산출물을 잃는다.
-        # champion_robust_eval 에서 같은 함정을 2026-09-29 에 수리했다(_out_arg).
+
+
+
+
+
         out = _arg(command or "", "--summary-out")
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_label_sweep_summary.json")
     if kind == "wf_wave_summary":
-        # ⚠ 실측 갭 수리(2026-10-03 CG10): CG10 의 command 는 `wf_wave.py` 인데 metric 을
-        # `wf_sweep_summary` 로 등록해 두어, 구동기가 **다른 파일**(wf_label_sweep_summary.json,
-        # mtime 22:59 = 실행 시작 이전)을 보고 "요약 미갱신 → 판정불가" 로 기록했다. 실제로는
-        # wf_wave 가 `reports/overnight/wf_wave_summary.json`(mtime 03:43)에 WF1~WF5 를 써 뒀다
-        # → 2.6시간 실행의 실측이 원장에서 사라질 참이었다(CG43 과 같은 'metric 등록 누락' 함정).
-        # 스키마는 wf_label_sweep 과 호환(results[].folds{}.mean)이라 parse_wf_sweep 를 재사용한다.
+
+
+
+
+
+
         out = _arg(command or "", "--summary-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/wf_wave_summary.json")
     if kind in ("baseline_protocol_gap", "wf_fold_auc"):
-        # 같은 런 기준선 재측정(CG260) — wf_label_sweep 요약을 쓰므로 --summary-out 을 그대로 따른다.
-        # (실측 2026-11-14 00:19: 이 분기가 없어 파서·경로 둘 다 미등록 → rc=0 완주가 '판정불가'로 닫혔다.)
-        # `wf_fold_auc` 는 CG261 이 등록한 사실상 오타 metric 이다(다른 108개 항목은 wf_sweep_summary).
-        # 실측(2026-11-14 02:01): CG261 시작 로그에 "알 수 없는 metric 'wf_fold_auc' — 요약 경로 없음
-        # (판정불가로 기록)" 이 찍혔다 → 90분짜리 3-arm 실행이 끝나도 원장에 판정이 남지 않는다.
-        # 별도 판정기를 새로 만들지 않고 같은 런 짝 Δ 판정기(baseline_protocol_gap)에 별칭으로 붙인다
-        # — 이 항목의 성공 조건이 정확히 'arm 별 같은 런 폴드 짝 Δ ≥ +0.02 · 폴드 승률 ≥ 0.8' 이다.
+
+
+
+
+
+
+
         out = _arg(command or "", "--summary-out") or _arg(command or "", "--out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         raise ValueError(f"{kind}: --summary-out/--out 경로가 커맨드에 없다")
     if kind == "champion_robust_eval":
-        # champion_robust_eval.py 는 컨테이너 cwd=/app 에서 --out /app/reports/... 로 쓴다
-        # (/app = services/xgboost-ml). CG31 이 이 metric 으로 돌아간다.
-        #
-        # 실측 함정(2026-09-29): 경로를 **고정**해 두면 여러 arm 을 서로 다른 --out 으로 돌릴 때
-        # 구동기가 항상 기본 경로만 보게 되어 '요약 미갱신 → 실행실패'로 오판한다(같은 파일을
-        # 덮어써 이전 기준선 산출물을 잃는 위험도 있다). 커맨드에 `--out <path>` 가 있으면
-        # 그 파일을 요약으로 쓴다.
+
+
+
+
+
+
+
         out = _out_arg(command or "")
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/champion_robust_eval.json")
     if kind == "robust_auc_se":
-        # CG370 — 선언된 --out 을 **존재 여부와 무관하게** 먼저 쓴다.
-        # 왜(실측 2026-11-20 06:09): oos_accrual 폴백을 그대로 쓰면 --out 파일이 아직 없는 실행 중에
-        # 옛 앵커 파일(oos_accrual_20261118_f1full.json)을 요약으로 돌려준다 → 실행이 끝나
-        # cg370_frozen200.json 에 새 결과를 써도 구동기는 옛 파일을 보고 mtime 가드에 걸려
-        # '판정불가'로 닫힌다(40분 측정 소실).
+
+
+
+
+
         out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
@@ -1025,15 +1025,15 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         cand = _glob.glob(os.path.join(PROJ, "services/xgboost-ml/reports/overnight/oos_accrual_*.json"))
         return max(cand, key=os.path.getmtime) if cand else ""
     if kind == "oos_accrual":
-        # OOS 적립 러너(CG354/CG356)의 산출물 이름에는 **앵커 날짜**가 박혀 있다
-        # (oos_accrual_<앵커>.json). 커맨드 문자열 경로는 `$(date +%Y%m%d)` 같은 미전개 셸이라
-        # 그대로 쓰면 파일을 못 찾는다 → 디렉터리에서 mtime 최신 파일을 고른다(없으면 실행 전
-        # 상태이므로 None 을 주지 않고 이름 규칙상의 경로를 돌려 '요약 없음'으로 명시 실패시킨다).
+
+
+
+
         import glob as _glob
-        # ⚠ 실측 갭 수리(2026-11-19 CG360/CG362): 커맨드가 `--out /app/reports/overnight/cg360_champ200.json`
-        # 처럼 **파일명에 앵커가 없는** 자기 산출물을 지정해도 종전엔 `oos_accrual_*.json` 글롭만 봐서
-        # 직전 앵커 파일(mtime 이 실행 시작 이전)을 집어 "요약 미갱신 → 판정불가"로 닫혔다
-        # (25.9분 학습·4400행 측정이 원장에서 사라짐). 명시 --out 이 실재하면 그 파일이 우선이다.
+
+
+
+
         _out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
         if _out:
             _p = _container_path_to_host(_out.strip("'\""))
@@ -1044,20 +1044,20 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
             return max(cand, key=os.path.getmtime)
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/oos_accrual_<앵커>.json")
     if kind == "champion_promote_dryrun":
-        # 승격 게이트 dry-run(champion_promote --summary-out) 요약. CG43 이 이 metric 으로 돈다.
-        # 실측(2026-09-30 22:34): 이 metric 이 등록돼 있지 않아 구동기가 "parser 없음 →
-        # 판정불가" 로 기록할 참이었다 — rc=0 이면 백로그가 done 으로 닫히면서 **게이트 판정
-        # (status·사유·후보 AUC)이 원장에서 통째로 사라진다**(항목의 유일한 산출물인데도).
+
+
+
+
         out = _arg(command or "", "--summary-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/ml_result.json")
     if kind == "champion_scorecard":
-        # 배포 챔피언 검증 성적표(scripts/champion_scorecard.py --out · MT49). 커맨드는 **호스트
-        # python3** 로 돌고 산출물도 호스트 경로에 쓴다 → 상대경로는 PROJ 기준으로 푼다.
-        # (실측 2026-10-05: 종전엔 _container_path_to_host 로 보내 상대 `data/reports/...` 가
-        #  `services/xgboost-ml/data/reports/...` 로 변환돼 '요약 파일 없음 → 판정불가'가 났다.
-        #  컨테이너 산출물(--out /app/...)은 이 분기와 무관하다.)
+
+
+
+
+
         out = (_arg(command or "", "--out") or "").strip("'\"")
         if not out:
             return SCORECARD
@@ -1065,63 +1065,63 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
             return _container_path_to_host(out)
         return out if os.path.isabs(out) else os.path.join(PROJ, out)
     if kind == "intraday_screen":
-        # 인트라데이(분봉) 피처 **사전 스크린**(scripts/intraday_feature_screen.py --json-out). CG128.
-        # 데이터 축(CG101)의 첫 측정 — 수집기 결함(XR26)으로 지금은 장마감 30분(15:01~15:30)만 쌓인다.
-        # 그 구간만으로도 '종가 동시호가 전 매매압력'이라는 별개 정보를 담는지 먼저 채점한다.
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg128_intraday_screen.json")
     if kind == "champion_seed_family":
-        # 다중 시드(유니버스) 짝 판정 집계(scripts/champion_seed_family_agg.py --agg-out). CG50/CG51.
-        # 왜 전용 metric 인가(실측 2026-10-01): 같은 모델·같은 창에서 유니버스 정체만 바꿔도
-        # 폴드평균이 0.5042~0.5439(std 0.0133)로 움직여 사전문턱 +0.02 가 1.50σ 였다(CG48/49)
-        # → 단일 유니버스 Δ 는 증거가 아니다. 시드 5개를 **짝으로** 비교해야 SE 0.006 으로 줄어
-        # 문턱이 3σ 위에 선다. 집계기가 만든 단일 JSON 을 이 metric 이 읽는다(--agg-out).
+
+
+
+
+
         out = _arg(command or "", "--agg-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: champion_seed_family 인데 커맨드에 --agg-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "topk_precision":
-        # 상위 k 정밀도·실현수익 짝 집계(scripts/topk_precision.py --json-out). CG54.
-        # 왜 전용 metric 인가(2026-10-01): AUC 는 순위 지표라 '사전문턱 미달'이 '돈이 안 된다'를
-        # 뜻하지 않는다(CG53: Δ+0.0133·t 2.54 로 후보가 챔피언보다 일관되게 높지만 문턱 미달).
-        # 트레이더가 실제로 사는 것은 상위 k 뿐이므로 정밀도·실현수익으로 승격/교체를 판단한다.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — k별 통계는 `kstats` 로 싣는다.
+
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: topk_precision 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "money_anchor_repeat":
-        # 돈 지표 앵커 반복성 — scripts/money_anchor_repeat.py --json-out (CG244).
-        # 왜 전용 metric 인가(2026-11-13): CG242 는 앵커 1개에서 top-k +0.834%p 를 '양(+)'으로
-        # 보고했으나 같은 세션 풀평균이 +1.404%p 였다 — 단일 앵커 돈 지표는 베타와 구분되지 않는다.
-        # 이 계측기는 앵커 N개에서 Δ(top-k − 풀평균)의 부호 반복만 본다.
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: money_anchor_repeat 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_gate_bands"):
-        # 돈 지표(체결성·수수료 반영 top-k 순기대) — scripts/fillable_topk_expectancy.py --json-out.
-        # `fillable_topk_vs_pool` 은 같은 --json-out 을 읽되 판정만 '모델 top-k vs 널(풀 평균)' 로
-        # 바꾼 변형이다(2026-10-04 CG96: CG95 는 arm vs arm 만 봐 둘 다 양(+)이라 베타 구분 불가).
-        # 왜 전용 metric 인가(2026-10-04 CG95): CG93/CG94 의 top-k 정밀도는 `--restrict-q` 로
-        # **실현 선행수익의 꼬리**를 후보집합으로 삼아 측정된 것이라(예측 시점에 알 수 없는 선택)
-        # 그 자체로는 매매 가능한 바스켓이 아니다. 이 역할의 최우선 규칙은 "실험은 '돈' 지표로
-        # 측정한다"이므로, 전 유니버스 채점(--dump-all) 위에서 세션별 상위 k 동일비중 순기대를
-        # 짝으로 재는 전용 계측기를 쓴다. ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+
+
+
+
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             p = out.strip("'\"").rstrip(";,)")
-            # ⚠ 실측 갭 수리(2026-11-21 CG382): 시드 루프 커맨드
-            # `for s in 0 1 2; do ... --json-out /app/reports/overnight/cg382_money_s$s.json; done`
-            # 은 첫 occurrence 에 **미전개 셸 변수**가 남아(_arg 는 첫 --json-out 만 본다) 호스트
-            # 경로 `..._s$s.json` 이 존재하지 않는다 → 11.8분 측정이 '판정불가(요약 파일 없음)' 으로
-            # 사라졌다(실제로는 시드 파일 3개가 정상 생성). `$var`/`${var}` 를 `*` 로 바꿔 glob 한 뒤
-            # mtime 최신을 쓴다.
+
+
+
+
+
+
             if "$" in p:
                 import glob as _glob, re as _re
                 pat = _re.sub(r"\$\{?\w+\}?", "*", _container_path_to_host(p))
@@ -1132,228 +1132,228 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         log("경고: fillable_topk_expectancy 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "fillable_topk_spread":
-        # 상위 k vs 하위 k 짝 스프레드 + 5분위 단조성 — scripts/_cg213_spread.py --out (CG213).
-        # 왜 별도 metric 인가(2026-11-13): 기존 돈 지표는 전부 'top-k − 풀평균'이라 '점수가 수익을
-        # 단조로 정렬하는가'를 못 본다. 상위가 하위를 못 이기면 어떤 순위 소비자도 살릴 수 없다.
+
+
+
         out = _arg(command or "", "--out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: fillable_topk_spread 인데 커맨드에 --out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "rank_ic_money":
-        # 세션별 횡단면 **랭크 IC** 검정 — scripts/rank_ic_money.py --json-out (CG113).
-        # 왜 전용 metric 인가(2026-10-05): CG111 실측으로 돈 지표(top-k − 풀평균)의 검출 바닥이
-        # k=3 에서 sd 0.415 %p/세션임이 드러났다 → CG96~CG112 의 '노이즈' 판정은 '미검출'과
-        # 구분되지 않는다. k=3 바스켓(세션당 3종목) 대신 **세션당 수백 종목의 랭크상관**을 쓰면
-        # 같은 표본에서 검정력이 한 자릿수 올라간다. IC 는 순기대가 아니라 **필요조건** 검정이다.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+
+
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: rank_ic_money 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "factor_money_screen":
-        # 고전 팩터(가치·퀄리티·모멘텀·저변동·멀티팩터) **랭킹 정보** 스크린 —
-        # scripts/factor_money_screen.py --out (CG115). 왜 전용 metric 인가(2026-10-05):
-        # 모델 랭킹의 돈 방향 정보 축이 닫힌 뒤(CG114) 남은 질문은 '정보가 데이터에 없는가,
-        # 모델이 못 뽑는가'이고 팩터는 그 대조군이다. 스키마가 다르다(factors{...}).
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+
+
+
+
+
         out = _out_arg(command or "")
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/factor_money_screen.json")
     if kind == "factor_money_fillable":
-        # 같은 스크립트의 --fillable 실행(CG116): top-k vs 세션 풀평균(널 기준선) 돈 판정.
+
         out = _out_arg(command or "")
         if out:
             return _container_path_to_host(out)
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/factor_money_screen_fillable.json")
     if kind in ("screen", "db_feature_screen"):
-        # DB 원천 컬럼 스크린(CG270). ⚠ 이 항목의 커맨드는 `--out` 이 아니라 **셸 리다이렉트**(`>`)
-        # 로 산출물을 쓴다(`... _db_feature_screen.py > reports/overnight/cg270_db_screen.json`).
-        # _arg 는 '--flag 값' 만 보므로 리다이렉트 대상도 함께 읽는다 — 안 그러면 경로를 놓쳐
-        # rc=0 완주가 또 '판정불가'로 닫힌다(실측 2026-11-14 07:00).
+
+
+
+
         out = _arg(command or "", "--out") or _redirect_arg(command or "")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/db_feature_screen.json")
     if kind == "blend_eval":
-        # 라벨 다양성 앙상블(scripts/blend_eval.py --out). CG56.
-        # 왜 전용 metric 인가(실측 2026-10-01): 요약 스키마가 champion_robust_eval 과 **다르다**
-        # (`folds` 없이 `fold_means`/`windows`/`paired`) — 그 metric 이름을 재사용하면 파서가
-        # "folds 비어 있음(유효 창 없음)" 으로 판정불가를 내고 rc=0 으로 항목이 done 으로 닫혀
-        # 항목의 유일한 산출물(짝 Δ)이 원장에서 사라진다(CG43 과 같은 함정).
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 시드별 값은 `seeds` 로 싣는다.
+
+
+
+
+
+
         out = _out_arg(command or "")
         if out:
             return _container_path_to_host(out)
         log("경고: blend_eval 인데 커맨드에 --out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "forward_scorecard":
-        # 배포 경로 **전방(forward)** 성적표(scripts/forward_scorecard.py --out). CG75.
-        # 왜 전용 metric 인가(2026-10-03): 창 기반 champion_robust_eval 은 학습구간이 항상
-        # 최신까지라 남는 창이 **학습 이전**뿐이다(CG45/58/61/62) → 전방 검증 수단이 없었다.
-        # ml_predictions × 실현 선행수익이 유일한 전방 표본이므로 그 계측기를 metric 으로
-        # 배선해 둔다. ⚠ 미배선 상태로 pending 이 되면 구동기가 '판정불가'로 기록하고 rc=0 이라
-        # done 으로 닫혀 항목의 유일한 산출물이 사라진다(CG43/CG10 함정) — CG75 의 setup_needed ④.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 창별 값은 `windows` 로 싣는다.
+
+
+
+
+
+
+
         out = _out_arg(command or "")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/forward_scorecard.json")
     if kind == "calibration_probe":
-        # 확률 보정 계측기(scripts/calibration_probe.py --json-out). CG83.
-        # 왜 전용 metric 인가(2026-10-03 CG81 진단): OOS 확률의 과신(최대 +0.1783)·절대문턱
-        # 0.55 의 스케일 의존을 실측으로 확인했고, 보정 계층의 효과(Brier·ECE)를 원장에 남기려면
-        # Brier/ECE 를 담는 전용 파서가 필요하다(wf_sweep 파서로는 폴드 AUC 만 남아 판정 대상이
-        # 사라진다 — CG43/CG10 함정). ⚠ per_exp 는 만들지 않는다(scoreboard 오독 방지).
+
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: calibration_probe 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "policy_compare":
-        # 소비 문턱 정책 비교 계측기(scripts/policy_compare_probe.py --json-out). CG84.
-        # 왜 전용 metric 인가(2026-10-03): CG83 으로 '절대문턱은 확률 보정으로도 성립하지 않는다'
-        # 가 확정됐고(보정 후 0.55 초과 37.0%→6.2%), 남은 판단은 '절대문턱 vs 분위(top-k)' 중
-        # 무엇이 실제로 돈이 되는가다. 그 값(실현수익 짝 Δ·부호검정)은 폴드 AUC 도 Brier 도 아니라
-        # 기존 파서 어디에도 안 담긴다 → 전용 파서가 필요하다(CG43/CG10 함정).
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — k별 통계는 `policy` 로 싣는다.
+
+
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: policy_compare 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "panel_leak_gate":
-        # 패널 누수 지문 사전 게이트(scripts/panel_leak_gate.py --json-out). CG85.
-        # 하드 판정규칙 ③(누수 게이트)은 '종목 상수 피처가 선별을 지배하면 중단'인데, 그 지문을
-        # 실험 **전에** 판정하는 계측기가 없었다 — 실측(2026-10-03)으로 패널 함대가 as-of 수리
-        # 시점(2026-10-02) 전후로 갈리는 것을 확인했고(CLEAN: asof3/asof4ev/prod200 ·
-        # LEAKY: 150u/995/asofpatch/asof2), 그 판정을 원장에 남기려면 전용 파서가 필요하다.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 패널별 판정은 `panels` 로 싣는다.
+
+
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: panel_leak_gate 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "regime_ic_screen":
-        # 시장 국면별 랭크 IC 분해 화면(scripts/regime_ic_screen.py --json-out). CG126/CG127.
-        # 왜 전용 metric 인가(2026-10-06): 모델측 AUC 축 전부와 돈 축이 닫힌 뒤 남은 유일한
-        # '재개 조건'이 XR11 노트의 국면 조건화였다. 스키마가 IC·국면버킷·ΔIC 라 기존 파서에
-        # 담기지 않는다(CG43/CG10 함정 방지). ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         log("경고: regime_ic_screen 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
         return ""
     if kind == "protocol_noise_floor":
-        # 프로토콜 **재현 잡음바닥** (scripts/cg143_noise_floor.sh — 고정 앵커 반복). CG143.
-        # 왜 전용 metric 인가(2026-10-09 실측): 창 앵커가 CURRENT_DATE 라 하루만 지나도 표본 창·
-        # 유니버스가 통째로 밀린다 → 배포 챔피언(2026-09-24 이후 **모델 불변**)을 같은 계열
-        # 프로토콜로 재측정한 13회가 0.4935~0.5448(폭 0.0513), 명시적 동일 프로토콜 1일 차
-        # 2회(CG136/139) Δ0.0227 = **사전문턱 +0.02 와 같은 크기**다. 이 값이 문턱보다 크면
-        # 그동안의 '신호있음' 판정 다수가 잡음과 구분 불가라는 뜻 → 문턱·프로토콜 재정의 근거.
-        # 스키마가 folds/robust_auc 가 아니라 결정성·앵커이동 Δ 라 기존 파서에 안 담긴다.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+
+
+
+
+
+
+
+
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg143_noise_floor.json")
     if kind == "protocol_noise_curve":
-        # 프로토콜 잡음바닥 **스케일링**(scripts/cg144_noise_curve.sh — 앵커 1·2·5·7거래일). CG144.
-        # 왜 전용 metric 인가(2026-10-09): CG143 의 단일 1일 차 Δ(0.0175)만으로는 '이동폭이 커지면
-        # 문턱을 넘나'를 알 수 없다 — 그 곡선이 일 단위 판정 가능성(= 문턱 재정의 필요성)을 결정한다.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지).
+
+
+
+
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg144_noise_curve.json")
     if kind == "protocol_pair_anchor":
-        # 앵커 **평균** 짝 Δ 실측(scripts/cg145_pair_anchor.sh — 산출물 접두는 `TAGPFX=` env). CG145/CG146.
-        # 왜 전용 metric 인가(2026-10-09 실측): CG143/144 는 '같은 모델의 레벨'이 앵커만 옮겨도
-        # 최대 |Δ| 0.0597(사전문턱의 3배) 로 흔들림을 보였다. 남은 질문은 '두 arm 을 같은 앵커에서
-        # **짝으로** 재면 그 공통분이 상쇄돼 Δ 가 안정되는가'이고, 그게 승격 판정 문턱의 근거다.
-        # 요약 파일명이 실행마다 TAGPFX 로 달라지므로 커맨드에서 뽑는다(고정 경로면 이전 실측을 잃는다).
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 값이 AUC 자체가 아니라 앵커 잡음이다.
+
+
+
+
+
+
         pfx = _env_arg(command or "", "TAGPFX") or "cg145"
         return os.path.join(PROJ, f"services/xgboost-ml/reports/overnight/{pfx}_pair_anchor.json")
     if kind == "scale_regime_audit":
-        # 배포 스코어 스케일 체제 감사(scripts/scale_regime_audit.py --json-out). CG162.
-        # 왜 전용 metric 인가(2026-10-11 자율 신설): 전방 16일 중 9일에 전 종목 confidence 최대가
-        # 소비 절대문턱 0.55 에 **한 행도 닿지 않았다**(10-02~10-08 7일 연속, max 0.2277~0.2944).
-        # 이 기간 '무진입'은 신호 품질이 아니라 점수 스케일 체제 문제다(앞 구간 14~15% 도달 → 0%).
-        # 기존 파서(wf_sweep=폴드 AUC, forward_scorecard=top10 수익)에는 이 날짜별 상태가 안 담긴다.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 가 'arm 폴드 AUC' 로 오독한다) — 날짜별 상태는
-        # `per_date` 로 싣고, 판정 입력은 trailing_blocked_streak 다.
+
+
+
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/scale_regime_audit.json")
     if kind == "scale_bisect_probe":
-        # 배포 스코어 압축 원인 이분 프로브(scripts/_cg163_scale_bisect.py --out). CG175.
-        # 왜 전용 metric 인가(2026-10-11 자율 신설): 10-02~10-08 발행 confidence 가 전 종목
-        # mean 0.05~0.08·max 0.23~0.29 로 눌렸다(CG162). 원인 후보는 ①서빙 모델 신원 ②당시 입력
-        # 피처 열화인데, 발행 시 features_used 스냅샷이 **전 행 빈 배열**(CG164 실측)이라 사후
-        # 분리가 불가능하다. 이 프로브는 같은 (종목,날짜)를 오프라인 재채점해 발행본과 짝 비교한다
-        # — 확률 스케일 진단이라 기존 파서(AUC 폴드·전방 수익)에 담기지 않는다.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 가 'arm 폴드 AUC' 로 오독한다) — 판정 입력은
-        # summary.paired_delta.champion.mean_rescored_minus_published 다.
+
+
+
+
+
+
+
+
         out = _arg(command or "", "--out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/app/reports/cg175_scale_bisect.json")
     if kind == "robust_oos_audit":
-        # 감사 프로토콜(scripts/model_metric_protocol_audit.py --out)의 **단일 모델** 재기준선. CG180.
-        # 왜 전용 metric 인가(2026-11-10 실측): 백로그가 metric='robust_auc' 로 등록됐는데 구동기에
-        # 그 kind 가 없어 요약 경로를 못 찾았고(경고만 남기고 판정불가), 커맨드의 --models JSON 이
-        # 4단 셸(bash→docker exec→sh -c→python)을 지나며 `[[` 가 셸 문법으로 해석돼
-        # json.decoder.JSONDecodeError(char 2) 로 rc=1 즉사했다. 챔피언 기준선을 새 데이터로 다시
-        # 재는 일은 **승격 게이트가 인용하는 숫자**를 만드는 작업이라 자동 경로가 반드시 있어야 한다.
-        # 대조군이 없는 '기준선 실측'이므로 per_exp 를 만들지 않는다(스코어보드 오독 방지).
+
+
+
+
+
+
+
         out = _out_arg(command or "")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/model_metric_protocol_audit.json")
     if kind == "metric_audit_pair":
-        # 감사 프로토콜(scripts/model_metric_protocol_audit.py --out)의 **같은 런 짝** 판정. CG171.
-        # 왜 전용 metric 인가(2026-10-11 실측): 승격 게이트가 읽는 증거(robust_oos.json = 감사 도구
-        # 산출물)의 짝 Δ 를 구동기가 판정하지 못해, 챔피언 값은 10-05 파일을 **다른 런**에서 인용할
-        # 수밖에 없었다(CG168). 감사 산출물에는 arm 과 기준선이 **한 파일에** 들어 있는데(그게 이
-        # 도구의 존재 이유), 그걸 판정하는 metric kind 가 없었다 → 짝 Δ 가 원장에 남지 않는다.
-        # ⚠ per_exp 를 만들지 않는다(scoreboard 오독 방지) — 한 파일에 기준선 값도 함께 있어
-        # 그대로 per_exp 로 실으면 기준선이 '최고 arm' 으로 잡힌다(CG31·CG143 사고와 동형).
+
+
+
+
+
+
+
         out = _out_arg(command or "")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/model_metric_protocol_audit.json")
     if kind == "source_freshness":
-        # 배선된 피처 원천 신선도 게이트(scripts/source_freshness_gate.py --json-out). CG165.
-        # 왜 필요한가(2026-11-12 실측): CG165·XR26·CG179 등이 metric='source_freshness' 인데
-        # summary_path 에 분기가 없어 **매 틱** "알 수 없는 metric" 경고가 났고 원장에는
-        # '판정불가'만 쌓였다 → 신선도 정지가 있었는지 사후 확인이 불가능했다. 감지기는 이미
-        # 돌고 JSON 스키마도 고정이므로 배선만 하면 판정이 남는다.
-        # ⚠ 모델 성능이 아니라 **입력 신선도**다 — per_exp 를 만들지 않는다.
+
+
+
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "data/reports/source_freshness.json")
     if kind == "reproducibility_overlap":
-        # CG369 — 두 런의 덤프 교집합·예측 동일성 검사(scripts/_cg369_repro_check.py --json).
-        # 실측(2026-11-20 05:07): 이 metric 이 등록돼 있지 않아 시작 로그에
-        # "알 수 없는 metric 'reproducibility_overlap' — 요약 경로 없음(판정불가로 기록)" 이 찍혔다
-        # → 두 런(2400s×2) 측정이 끝나도 원장에 교집합·재현 판정이 남지 않는다.
-        # 경로는 커맨드의 --json 에서 읽는다(상대경로 reports/... 는 /app = services/xgboost-ml 기준).
+
+
+
+
+
         out = _arg(command or "", "--json")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg369_repro_frozen.json")
     if kind == "sns_money_control":
-        # SNS 점수/유동성 대조 top-k 돈 지표(scripts/sns_ic_probe.py --money ...). CG250.
-        # 기존 fillable_topk_* 파서는 다른 스키마라 이 산출물(money.result.<feature>.kN)을 못 읽는다
-        # → 그대로 두면 매 실행이 '판정불가'로 원장에 쌓인다. 전용 분기로 요약 경로만 잇는다.
+
+
+
         out = _arg(command or "", "--json-out")
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg250_sns_control.json")
-    # 알 수 없는 metric(또는 metric 없음)은 **예외를 내지 않고 빈 경로**로 돌려준다.
-    # 왜(2026-09-30): 백로그에는 metric 이 없는 항목이 8개 있다(진단·준비 항목). 종전
-    # `raise ValueError` 는 그 항목을 `--start` 하는 순간 guards 통과 직후 크래시를 내
-    # ① 원장 기록 없이 사라지고(설계원칙 4 위반) ② 틱이 그 항목을 영원히 집지 못하게 했다.
-    # 빈 경로면 "요약 없음 → 판정불가" 로 정직하게 끝난다(성능 주장 없음).
+
+
+
+
+
     if kind and not quiet:
         log(f"경고: 알 수 없는 metric {kind!r} — 요약 경로 없음(판정불가로 기록)")
     return ""
@@ -1433,10 +1433,10 @@ def parse_wf_sweep(path, mtime_floor) -> dict:
     with open(path, encoding="utf-8") as f:
         d = json.load(f)
     if not isinstance(d, dict) or "results" not in d:
-        # 왜 명시 오류인가(실측 2026-11-15, CG292): summary_out 이 **다른 스키마**(champion_robust_eval
-        # 의 robust_auc/folds[])인 항목을 wf_sweep_summary 로 등록하면 per_exp={} 가 되어
-        # judge_per 가 (판정불가, detail='') 로 닫혔다 — 149분짜리 실측이 근거 없이 사라졌다.
-        # 조용히 빈 판정을 내지 말고 '스키마 불일치'를 원장에 남긴다.
+
+
+
+
         return {"error": (f"요약 스키마 불일치: results[] 없음(키={sorted(list(d))[:8]}) — "
                           f"metric 등록이 산출물 형식과 다르다")}
     per: dict = {}
@@ -1496,7 +1496,7 @@ def parse_baseline_protocol_gap(path, mtime_floor, item=None) -> dict:
         if fold_names is None:
             fold_names = names
         if names != fold_names:
-            # 폴드 키가 arm 마다 다르면 '같은 구간 짝' 이 성립하지 않는다 — 짝 Δ 를 만들지 않는다.
+
             fold_names = [] if fold_names else fold_names
         arms[r.get("exp")] = {
             "desc": r.get("desc"),
@@ -1563,7 +1563,7 @@ def parse_champion_robust(path, mtime_floor) -> dict:
         try:
             d = json.load(f)
         except json.JSONDecodeError as e:
-            # 쓰는 중인 파일(부분 기록)을 읽으면 여기로 온다 → 틱이 크래시하지 않게 오류로 반환한다.
+
             return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
     folds = [f for f in (d.get("folds") or []) if isinstance(f, dict)
              and isinstance(f.get("auc_mean"), (int, float))]
@@ -1585,7 +1585,7 @@ def parse_champion_robust(path, mtime_floor) -> dict:
     }
 
 
-PER_DATE_AUC_SD = 0.0587   # CG353 실측: within-fold per-date AUC SD(14폴드 풀링)
+PER_DATE_AUC_SD = 0.0587
 
 
 def parse_oos_accrual(path, mtime_floor) -> dict:
@@ -1614,7 +1614,7 @@ def parse_oos_accrual(path, mtime_floor) -> dict:
     if not folds:
         return {"error": "folds 비어 있음(유효 창 없음)", "measured_at": d.get("measured_at")}
 
-    # 누적 원장 — 날짜 단위 union(dates 없으면 창키 폴백 = 상한).
+
     ledger = os.path.join(PROJ, "data/reports/oos_accrual.jsonl")
     rows = []
     if os.path.exists(ledger):
@@ -1639,10 +1639,10 @@ def parse_oos_accrual(path, mtime_floor) -> dict:
     run_dates = {str(x) for fl in folds for x in (fl.get("dates") or [])}
     n_union = len(real | run_dates) if run_dates else n_ledger
     se = PER_DATE_AUC_SD / (n_union ** 0.5) if n_union else None
-    # 이 런이 **실제로 측정한** 날짜 SD(폴드 auc_std 의 날짜수 가중평균). 상수 대체용.
-    # 왜(실측 2026-11-19 CG360): 종목수 80→200 실험에서 날짜 SD 가 0.0614→0.0522 로 줄었는데도
-    # se_per_date 가 상수 0.0587 이라 SE 0.0125 로 고정 표시돼, '종목수를 늘리는 레버가 먹혔는가'가
-    # 판정문에서 보이지 않았다(개선을 개선으로 읽을 수 없는 측정 표시 버그).
+
+
+
+
     _sds = [(float(x["auc_std"]), int(x.get("n_dates") or 0)) for x in folds
             if isinstance(x.get("auc_std"), (int, float)) and int(x.get("n_dates") or 0) > 0]
     _tot = sum(n for _, n in _sds)
@@ -1670,7 +1670,7 @@ def parse_oos_accrual(path, mtime_floor) -> dict:
     }
 
 
-SE_PREDICTED_30D = 0.0114   # CG370 사전 예측: 날짜 SD 0.0623(CG366) / sqrt(30) = 0.01137
+SE_PREDICTED_30D = 0.0114
 
 
 def parse_robust_auc_se(path, mtime_floor) -> dict:
@@ -1858,10 +1858,10 @@ def parse_robust_paired_seeds(path, mtime_floor) -> dict:
         "deltas": d.get("deltas"),
         "challenger_arm": d.get("label_a"),
         "base_arm": d.get("label_b"),
-        # 창/폴드 불일치를 그대로 넘긴다 → judge_seed_family 가 '판정불가'로 막는다
+
         "window_mismatch": d.get("window_mismatch") or None,
         "fold_mismatch": d.get("fold_mismatch") or None,
-        # 창 클러스터 분산 — 시드 SE 과소추정(유사반복) 방지용 기록. 판정 규칙은 건드리지 않는다.
+
         "window_cluster": d.get("window_cluster"),
         "folds": d.get("folds"),
     }
@@ -2003,16 +2003,16 @@ def judge_seed_family(item, parsed) -> tuple:
     detail = (f"시드 {n}개 짝 Δ 평균 {dm_s} (SE {p.get('se')} · t {p.get('t')} · "
               f"양(+) {p.get('pos_seeds')}{tie_note}) · 대조군 {parsed.get('baseline_auc')} vs "
               f"챌린저 {parsed.get('robust_auc')} · 문턱 {thr:+.2f}")
-    # 2026-10-02(CG59) 하드닝: 두 arm 이 다른 창/폴드 수에서 채점됐다면 Δ 자체가 무의미하다
-    # (실측 CG24: 얇은 라벨 arm 이 '표본 부족'으로 2/5 폴드만 측정돼도 판정 요약에는 안 드러났다).
+
+
     if p.get("window_mismatch"):
         return "판정불가", f"두 arm 의 채점 창이 다름(Δ 무의미) — {p['window_mismatch'][0]}", dm
     if p.get("fold_mismatch"):
         return "판정불가", f"두 arm 의 폴드 수가 다름(Δ 무의미) — {p['fold_mismatch'][0]}", dm
     if n < 3:
         return "판정불가", f"시드 수 부족({n}<3) — SE 과대. {detail}", dm
-    # 기대 시드 수: 항목 커맨드에 `--expect-seeds N` 이 있으면 그 수를 강제한다.
-    # WHY: 시드 하나가 중단으로 빠지면 '3/3 신호있음'이 조용히 성립한다(집계기는 통과시킨다).
+
+
     exp = _arg((item or {}).get("command") or "", "--expect-seeds")
     if exp.strip().isdigit() and n < int(exp):
         return "판정불가", f"기대 시드 수 미달({n}<{exp.strip()}) — arm 완주 후 재집계. {detail}", dm
@@ -2064,11 +2064,11 @@ def parse_champion_promote_dryrun(path, mtime_floor) -> dict:
         "n_rows": d.get("n_rows"), "n_features": d.get("n_features"),
         "up_rate": d.get("up_rate"), "retrained_at": d.get("retrained_at"),
         "decided_at": d.get("decided_at"),
-        # ⚠ 실측 갭 수리(2026-10-05 CG122): 종전엔 status·reason 만 실어, 승격을 실제로 막은
-        # **돈 기준 게이트의 구조화 증거**(expectancy_gate: pct·sessions·trades·halves·
-        # champion_pct)와 라이브 스코어 게이트가 원장에서 통째로 사라졌다(요약 JSON 에는 있는데
-        # 원장에는 prose 사유만). 승격/보류 판정의 근거 수치를 원장에서 직접 읽을 수 있어야
-        # 다음 역할(트레이더)이 재검증 없이 신뢰할 수 있다.
+
+
+
+
+
         "expectancy_gate": d.get("expectancy_gate"),
         "live_score_gate": d.get("live_score_gate"),
         "candidate_robust_oos": d.get("candidate_robust_oos"),
@@ -2158,10 +2158,10 @@ def judge_promote_dryrun(item, parsed) -> tuple:
         parts.append(f"양성률 {parsed['up_rate']}")
     if parsed.get("reason"):
         parts.append(f"사유: {parsed['reason']}")
-    # ⚠ 실측 갭 수리(2026-10-07 CG134): 비-dry-run 경로는 dry-run 분기 **뒤**에서
-    # 라이브 스코어 게이트를 검사한다(champion_promote L~404) → 후보가 AUC·돈 기준을 모두
-    # 통과해도 토큰이 blocked 면 status="blocked_live_score" 로 끝난다. 종전 매핑에 이 키가
-    # 없어 "판정불가" 로 기록됐다 — 그러면 '게이트가 막았다'는 사실이 원장에서 사라진다.
+
+
+
+
     verdict = {"would_promote": "게이트 통과(승격후보 생성)",
                "kept_incumbent": "후보 생성·게이트 거부",
                "promoted": "승격됨(비-dry-run)",
@@ -2208,8 +2208,8 @@ def parse_date_paired_auc(path, mtime_floor) -> dict:
     return {
         "protocol": d.get("protocol"),
         "arms": arm_stats,
-        # 팔 값(per_exp)을 만들지 않는다 — 후보 실험이 아니라 계측기이므로 스코어보드 무개선
-        # 카운터에 섞이면 안 된다(절대 기준선 비교는 oos_accrual 이 담당).
+
+
         "robust_auc": None,
         "paired": {
             "n": pair.get("n_pairs"),
@@ -2241,8 +2241,8 @@ def judge_date_paired_auc(item, parsed) -> tuple:
     if n is None or delta is None:
         return "판정불가", "짝 Δ 없음", None
     head = f"{n}날짜 짝 Δ {delta:+.4f}"
-    # 부분 필드 결측(se 만 있고 sd/t 가 None)이면 서식 예외로 tick 이 죽는다 —
-    # 실측(2026-11-19): `{None:.4f}` TypeError 가 판정기 하나에서 tick 전체를 멈출 수 있었다.
+
+
     sd, tv = p.get("delta_sd"), p.get("t")
     if se is not None and sd is not None and tv is not None:
         head += f" (sd {sd:.4f} · SE {se:.4f} · t {tv:+.2f}"
@@ -2257,7 +2257,7 @@ def judge_date_paired_auc(item, parsed) -> tuple:
     head += f" · 창 {p.get('first')}~{p.get('last')})"
     if n < 10:
         return "판정불가", f"{head} → 날짜 표본 {n} < 10 (판정 최소)", delta
-    # 해상 게이트: 짝 SE 가 문턱의 1/3(≈0.0067)을 넘으면 +0.02 를 3σ 로 볼 수 없다.
+
     if se is None or se > thr / 3:
         return ("미해상 — 짝 SE 과대",
                 f"{head} → 짝 SE {se} > {thr/3:.4f}: 이 프로토콜로 +0.02 를 해상할 수 없다"
@@ -2335,13 +2335,13 @@ def judge_repro_overlap(item, parsed) -> tuple:
 
 
 METRIC_ALIASES = {
-    # 2026-11-22 CG397 실측: 등록 metric 을 'fillable_expectancy' 로 적었더니 파서가 없어
-    # rc=0 · 측정 성립인데도 원장에 '판정불가 parser 없음' 으로 남았다(같은 json-out 스키마인데
-    # 이름만 달랐다). 이름 한 글자 때문에 사이클 판정이 통째로 무효가 되지 않도록 별칭을 둔다.
+
+
+
     "fillable_expectancy": "fillable_topk_expectancy",
-    # 2026-11-22 CG402 실측: metric='forward_scorecard_version_mix' 로 등록했더니 rc=0·25초 완주에
-    # 요약 JSON(8날짜 pooled 0.5409)까지 남았는데 원장에는 'parser 없음 → 판정불가'만 적혔다.
-    # 스키마는 forward_scorecard 그대로(model_versions 필터만 추가)이므로 별칭으로 흡수한다.
+
+
+
     "forward_scorecard_version_mix": "forward_scorecard",
 }
 
@@ -2357,51 +2357,51 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind == "reproducibility_overlap":
         return parse_repro_overlap(spath, mtime_floor)
     if kind in ("wf_sweep_summary", "wf_wave_summary"):
-        # 두 요약의 스키마가 같다(results[].folds{}.mean · exp/desc) → 같은 파서를 쓴다.
+
         return parse_wf_sweep(spath, mtime_floor)
     if kind in ("baseline_protocol_gap", "wf_fold_auc", "fold_auc_mean"):
-        # 같은 런 기준선 재측정(CG260) · CG261 의 wf_fold_auc 별칭. per_exp 를 싣지 않는 전용 파서
-        # — judge 도 전용이다.
-        # fold_auc_mean(CG377): wf_label_sweep 요약을 '여러 config 나란히' 판정하려고 쓴 이름인데
-        # 파서·판정기 어디에도 등록돼 있지 않아 rc=0 완주가 'parser 없음 → 판정불가'로 닫힐 참이었다
-        # (CG376 과 같은 등록 누락 함정, 2026-11-21). 같은 스키마(results[].folds{}.mean)이므로
-        # 같은 런 짝 Δ 판정기로 보낸다 — per_exp 를 만들지 않아 패널 교체 잡음이 스코어보드에 새지 않는다.
+
+
+
+
+
+
         return parse_baseline_protocol_gap(spath, mtime_floor, item=item)
     if kind == "champion_robust_eval":
         return parse_champion_robust(spath, mtime_floor)
     if kind == "oos_accrual":
-        # CG354/CG356 — 견고평가 요약 + 누적 원장(날짜 union·SE). 계측기 항목.
+
         return parse_oos_accrual(spath, mtime_floor)
     if kind == "robust_auc_se":
-        # CG370 — 같은 스키마에 'SE vs 사전 예측' 만 덧붙인다(경로 규칙도 oos_accrual 공유).
+
         return parse_robust_auc_se(spath, mtime_floor)
     if kind == "date_paired_auc":
-        # CG359 — 날짜 단위 짝 Δ(auc_date_pair). 폴드 2개 짝 SE 0.0187 을 날짜 22단위로 재측정.
+
         return parse_date_paired_auc(spath, mtime_floor)
     if kind == "money_seed_family":
-        # CG355 — 시드별 돈 지표 집계(시드 부호 유지 검정).
+
         return parse_money_seed_family(spath, mtime_floor)
     if kind == "insample_gap":
-        # CG275 — 폴드별 train vs OOS 갭 리포트(scripts/_insample_gap_report.py)
+
         return parse_insample_gap(spath, mtime_floor)
     if kind == "horizon_ladder":
-        # CG276 — 같은 리포트 스키마(arms{exp:{oos_mean,gap}})를 지평 사다리로 판정한다
+
         return parse_insample_gap(spath, mtime_floor)
     if kind == "champion_promote_dryrun":
         return parse_champion_promote_dryrun(spath, mtime_floor)
     if kind == "champion_seed_family":
         return parse_champion_seed_family(spath, mtime_floor)
     if kind == "robust_seed_range":
-        # CG347 — 유니버스 시드 표집 잡음 범위(계측기). arm 값(per_exp)을 만들지 않는다.
+
         return parse_robust_seed_range(spath, mtime_floor)
     if kind == "robust_paired_seeds":
-        # CG348 — 같은 유니버스 시드 짝 Δ (시드 잡음 상쇄). 판정기는 judge_seed_family 재사용.
+
         return parse_robust_paired_seeds(spath, mtime_floor)
     if kind == "topk_precision":
         return parse_topk_precision(spath, mtime_floor)
     if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_topk_spread",
                 "fillable_gate_bands"):
-        # fillable_gate_bands(CG316)는 같은 --json-out 스키마의 conditions.fillable.gate 를 읽는다.
+
         return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "money_anchor_repeat":
         return parse_money_anchor_repeat(spath, mtime_floor)
@@ -2427,7 +2427,7 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind == "panel_feature_screen":
         return parse_panel_feature_screen(spath, mtime_floor)
     if kind in ("screen", "db_feature_screen"):
-        # DB 원천 컬럼 스크린(CG270) — 스키마가 features{} 라 panel_feature_screen 파서로는 못 읽는다.
+
         return parse_db_feature_screen(spath, mtime_floor, item=item)
     if kind == "blend_eval":
         return parse_blend_eval(spath, mtime_floor)
@@ -2521,8 +2521,8 @@ def parse_robust_oos_audit(path, mtime_floor, label=None) -> dict:
                   "n_sessions": c.get("n_sessions"), "n_trades": c.get("n_trades"),
                   "halves": c.get("halves")},
         "generated_at": (d.get("meta") or {}).get("generated_at") or d.get("generated_at"),
-        # 같은 런에 다른 모델이 함께 채점됐으면(예 CG183: champ + cand) 그 값도 넘긴다 —
-        # 같은 창·같은 런의 짝 비교가 성립해야 Δ 해석이 가능하다(하드룰 #2).
+
+
         "other_models": {k: {"robust_auc": v.get("robust_auc"), "folds": v.get("folds"),
                              "train_end": v.get("train_end")}
                          for k, v in b_all.items() if k != lab},
@@ -2652,7 +2652,7 @@ def parse_forward_scorecard(path, mtime_floor) -> dict:
                            ("n_pairs", "n_dates", "skipped", "pooled_auc", "daily_auc_mean",
                             "daily_auc_list", "base_rate_up", "top10_ret_mean", "all_ret_mean",
                             "money", "money_filter",
-                            # CG378: 창 귀속(버전 혼합 여부) — pooled 만 보고하면 배포 모델 성과로 오독된다
+
                             "dates", "date_versions", "by_version")}
     out = {"summary_mtime": mt, "generated_at": d.get("generated_at"),
            "predictions_rows": d.get("predictions_rows"),
@@ -2975,7 +2975,7 @@ def parse_topk_precision(path, mtime_floor) -> dict:
         "skip_stats": d.get("skip_stats") or {},
         "saturated_cells": d.get("saturated_cells") or {},
         "paired": paired,
-        "kstats": d.get("per_exp") or {},     # ⚠ per_exp 키로 올리지 않는다(위 주석)
+        "kstats": d.get("per_exp") or {},
         "summary_mtime": mt,
     }
 
@@ -3063,14 +3063,14 @@ def parse_fillable_topk_expectancy(path, mtime_floor) -> dict:
         "exit": d.get("exit"), "horizon": d.get("horizon"), "ks": d.get("ks"),
         "arm_tag": d.get("arm_tag"), "control_tag": d.get("control_tag"),
         "fee_roundtrip_pct": d.get("fee_roundtrip_pct"),
-        # stride 를 반드시 싣는다 — h5 를 stride 1 로 채점하면 세션 창이 겹쳐 t 가 부푼다
-        # (2026-11-21 CG385: 같은 덤프 Δ+1.710 t 4.10 → stride 5 Δ+1.036 t 1.35). 판정 문구에
-        # stride 가 없으면 중첩표본 수치가 유의한 엣지로 오독된다.
+
+
+
         "stride": d.get("stride", 1),
         "rows": d.get("rows"), "n_sessions_fillable": d.get("n_sessions_fillable"),
         "pool_median_fillable": d.get("pool_median_fillable"),
         "conditions": conds, "summary_mtime": mt,
-        # CG213(fillable_topk_spread) 전용 필드 — 없으면 판정기가 분위 단조성을 못 본다.
+
         "row_tag": d.get("row_tag"), "quintile5": d.get("quintile5"),
     }
 
@@ -3172,10 +3172,10 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
     """
     if parsed.get("error"):
         return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
-    # 대조군이 arm 과 **같은 태그**면 이 판정기는 비교할 짝이 없다 — 짝 Δ 가 0/240 ties 로 나와
-    # '노이즈'라는 가짜 결론이 된다(실측 2026-11-18 CG343: arm=control=LS_quant_q30_h5, ties 240/240,
-    # Δ+0.000 → '노이즈'로 원장에 남았다. 실제로는 같은 런의 baseline_pool 짝이
-    # top-k−풀평균 +1.006%p(t 2.01)를 이미 계산해 두고 있었다). 그럴 때는 널(풀평균) 판정기로 넘긴다.
+
+
+
+
     conds0 = parsed.get("conditions") or {}
     _fl = ((conds0.get("fillable") or {}).get("k") or {})
     _ties = sum(((_fl.get(str(k)) or {}).get("paired") or {}).get("ties") or 0 for k in _fl)
@@ -3187,15 +3187,15 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
     conds = parsed.get("conditions") or {}
     fill = (conds.get("fillable") or {}).get("k") or {}
     unf = (conds.get("unfiltered") or {}).get("k") or {}
-    # k 목록은 **측정이 실제로 낸 키**를 쓴다. 실측(2026-11-13 CG222): 명령이 --k 5,10 이면
-    # fill 에 '3' 이 없어 종전 코드가 '판정불가(k=3 통계 없음)'로 닫았다 — 측정은 정상(Δ−0.034,
-    # t −0.09)인데 판정기 하드코딩 때문에 결과가 사라졌다. 3·5 가 있으면 그 둘(사전문턱),
-    # 없으면 가장 작은 k 두 개로 같은 문턱을 적용한다.
+
+
+
+
     ks = [k for k in ("3", "5") if k in fill]
-    # 선언한 ks(요약의 ks 필드)와 실제 키가 어긋나면 **집계 실패**다 — 조용히 한 k 만으로 판정하면
-    # 사전문턱(3·5 둘 다)이 한쪽으로 약해진다. 실측(2026-11-17 자체점검 FAIL): '5' 키만 지운
-    # 요약이 k=3 만 보고 '신호있음'으로 통과했다. 반대로 실행 자체가 3·5 를 안 낸 경우(CG222:
-    # --k 5,10)는 결측이 아니므로 아래 fallback 으로 최소 두 k 에 같은 문턱을 적용한다.
+
+
+
+
     declared = [str(x) for x in (parsed.get("ks") or [])]
     missing = [k for k in ("3", "5") if (k in declared) and (k not in fill)]
     if missing:
@@ -3231,9 +3231,9 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
                else f"k={k} 통계 결측")
         parts.append(fmt + ("" if good else " ✗"))
     ref = ""
-    # 널(그날 체결가능 풀평균) 대비 상대 엣지 — 절대 순기대는 시장 베타로 뒤집혀도 랭킹 엣지는 여기서
-    # 보인다. 실측(2026-11-21 CG382): arm 절대 앞 +3.08/뒤 −0.50 인데 풀 대비는 앞 +1.95/뒤 +1.48 로
-    # 양 절반 유지(k=3 Δ+1.710 t 4.10 · 255세션). 판정(verdict)은 바꾸지 않고 근거만 덧붙인다.
+
+
+
     _bp = ((conds.get("fillable") or {}).get("baseline_pool") or {})
     _pbk = _bp.get("paired_by_k") or {}
     pool_rel = ""
@@ -3258,9 +3258,9 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
         ud = (unf[uk].get("paired") or {}).get("delta_mean")
         ref = (f" · 참고(체결성 필터 OFF): k={uk} arm {ua:+.3f}%p · Δ{ud:+.3f}"
                if isinstance(ua, (int, float)) and isinstance(ud, (int, float)) else "")
-    # 중첩표본 경고 — h5 라벨을 stride 1 로 채점하면 세션 창이 5겹으로 겹쳐 t 가 부풀려진다.
-    # 실측(2026-11-21 CG385, 같은 덤프·같은 255세션): stride 1 Δ+1.710 t 4.10 → stride 5 Δ+1.036 t 1.35.
-    # 원장 문구에 stride 를 남겨, 뒤에 읽는 사람이 '유의했다'로 오독하지 않게 한다.
+
+
+
     _stride = parsed.get("stride") or 1
     _overlap = ""
     try:
@@ -3303,10 +3303,10 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
     if not ks or not paired_by_k:
         return "판정불가", "baseline_pool 없음(구 스키마 — 널 기준선 미계산)", None
     parts, ok_all, first = [], True, None
-    # k 목록은 **측정이 실제로 낸 키**를 쓴다(2026-11-22 CG414 실측: 명령이 --k 5,10 이었는데
-    # ("3","5") 하드코딩 때문에 측정이 정상(Δ k5 +1.978 t 3.71)인데도 '판정불가(k=3 통계 없음)'로
-    # 닫혔다). 3·5 가 있으면 그 둘(사전문턱), 없으면 가장 작은 k 두 개에 같은 문턱을 적용한다.
-    # 단 **선언 ks(요약의 ks 필드)에 있는 k 가 결측**이면 집계 실패이므로 판정불가로 남긴다.
+
+
+
+
     declared = [str(x) for x in (parsed.get("ks") or [])]
     missing = [k for k in ("3", "5") if (k in declared) and (k not in ks)]
     if missing:
@@ -3317,11 +3317,11 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
             ks_list = sorted(ks, key=lambda x: int(x))[:2]
         except (TypeError, ValueError):
             ks_list = list(ks)[:2]
-    # ── 표본 하한 (2026-11-22 CG419 실측) ─────────────────────────────────────
-    # 챔피언 50날짜 재측정이 window_mode 기본(chunks)에서 학습구간과 겹치는 창 3개가 제외돼
-    # 20날짜만 채점됐고, stride 5 + 유동성 필터(풀 중앙값 29종목)로 **짝 세션 4개**만 남았다.
-    # n=4 의 Δ −2.17(t −1.5) 를 '노이즈'로 닫으면 '표본부족'과 '엣지 미검출'이 구분되지 않는다
-    # (사전등록 CG419 ③: 표본 < 40 이면 판정불가). 그래서 하한을 판정기에서 강제한다.
+
+
+
+
+
     try:
         n_paired_max = max(int((paired_by_k.get(k) or {}).get("n_dates") or 0) for k in ks_list)
     except (TypeError, ValueError):
@@ -3355,9 +3355,9 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
                if all(isinstance(x, (int, float)) for x in (net, d, t))
                else f"k={k} 통계 결측")
         parts.append(fmt + ("" if good else " ✗"))
-    # 하위 k(모델이 싫어하는 종목) — 회피/숏 후보 축. 사전등록(CG414): 하위 k 가 풀평균을
-    # +0.5%p 이상·t≥2 로 하회하면 '회피 리스트' 가치가 있다. 판정 자체는 top-k 문턱으로 내되
-    # 근거를 원장에 남겨 숏 축을 열/닫은 이유가 숫자로 남게 한다.
+
+
+
     _bk = fill.get("bottom_k") or {}
     _bparts = []
     for k in sorted(_bk, key=lambda x: int(x) if str(x).isdigit() else 99):
@@ -3417,8 +3417,8 @@ def judge_fillable_gate_bands(item, parsed) -> tuple:
               f"OFF {offp.get('n')}세션 풀 {off_txt} · "
               + (f"Δ(ON−OFF) {d:+.3f}%p · " if isinstance(d, (int, float)) else "")
               + " · ".join(f"{n} {'✓' if v else '✗'}" for n, v in crit))
-    # 대역별 **모델 top-k** 성적 — 게이트는 '언제 살까', top-k 는 '무엇을 살까'다. 둘을 같이 봐야
-    # 롱온리 경로가 성립한다(판정은 위 풀 기준 그대로, 근거만 덧붙인다).
+
+
     _ab = []
     for _nm in ("on", "off"):
         _kk = (bands.get(_nm) or {}).get("k") or {}
@@ -4020,9 +4020,9 @@ def judge_db_feature_screen(item, parsed) -> tuple:
                 + ", ".join(r["feature"] for r in cand), max(r["abs_delta"] for r in cand))
     if block:
         detail += " · 문턱은 넘었으나 커버리지/종목상수 조건에서 탈락: " + ", ".join(r["feature"] for r in block)
-    # 범위는 **이번 스크린이 채점한 수**로 적는다(상수 문구 금지).
-    # 실측 2026-11-14: CG270 의 하드코딩 문구("3테이블 44컬럼 한정")가 CG274(8테이블 86피처)
-    # 에도 그대로 복사돼, 종결 범위를 실제보다 좁게 보고할 뻔했다.
+
+
+
     return (f"후보 없음 — 데이터 축 종결({len(rows)}컬럼 중 {len(scored)}채점)", detail, None)
 
 
@@ -4155,9 +4155,9 @@ def parse_blend_eval(path, mtime_floor) -> dict:
     return {
         "measured_at": d.get("measured_at"), "protocol": d.get("protocol"),
         "metric_name": d.get("metric_name"),
-        "robust_auc": d.get("robust_auc"),                 # 결합 arm 의 시드평균
+        "robust_auc": d.get("robust_auc"),
         "auc_std_across_folds": d.get("auc_std_across_folds"),
-        "fold_means": d.get("fold_means"),                 # 시드별 결합 AUC(창=시드)
+        "fold_means": d.get("fold_means"),
         "blend_mean": (arms.get("blend") or {}).get("mean"),
         "champ_mean": d.get("champ_mean"), "cand_mean": d.get("cand_mean"),
         "seeds": d.get("windows"), "n_seeds": d.get("n_seeds"),
@@ -4415,7 +4415,7 @@ def parse_intraday_screen(path, mtime_floor) -> dict:
            "n_rows": d.get("n_rows"), "horizons": {}, "summary_mtime": mt}
     for h, blk in hz.items():
         feats = (blk or {}).get("features") or {}
-        best = None                      # (|ic|, name, 블록)
+        best = None
         for name, v in feats.items():
             if not isinstance(v, dict):
                 continue
@@ -4575,18 +4575,18 @@ def judge_factor_money_screen(item, parsed) -> tuple:
         return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
     pv = parsed.get("paired_vs_factor")
     if pv and not item.get("paired_vs_factor"):
-        # 등록 누락 가드(실측 2026-10-05 CG119): 요약에 짝 블록이 있으면 그 항목은 **짝 판정 대상**이다.
-        # 플래그가 없다고 CG115(패널 팩터) 규칙으로 조용히 폴백하면 로그의 "= 모델 우위 없음" 과
-        # 원장 verdict("정보있음") 가 어긋난다 → 잘못된 verdict 대신 판정불가로 세우고 등록을 고친다.
+
+
+
         return ("판정불가",
                 "항목에 paired_vs_factor 플래그가 없는데 요약에 짝 블록이 있다 — 등록 누락(수리 필요)",
                 None)
     if item.get("paired_vs_factor"):
-        # CG117 짝 경로: 같은 (code,date) 행에서 ΔIC = IC(모델) − IC(멀티팩터) 를 판정한다.
-        # ⚠ IC 는 순기대가 아니다 — 승격 근거가 아니라 'ML 이 팩터 대비 정보 우위가 있는가'의
-        #    복잡도 유지 근거 판정이다. per_exp 를 만들지 않는다(scoreboard 오독 방지).
-        # 분기 기준은 **항목 플래그**다: 플래그가 있는데 요약에 짝 블록이 없으면(예: --arm-jsonl
-        # 없이 실행) CG115 규칙으로 조용히 폴백하지 않고 판정불가로 세운다 — 잘못된 판정 방지.
+
+
+
+
+
         if not pv or pv.get("error") or not pv.get("paired"):
             why = ((pv or {}).get("error") if isinstance(pv, dict) else None) \
                 or "요약에 paired_vs_factor 없음(--arm-jsonl 없이 실행됨)"
@@ -4913,7 +4913,7 @@ def parse_metric_audit_pair(path, mtime_floor, arm_label=None, control_label=Non
     if len(labels) >= 2:
         al = arm_label if arm_label in labels else labels[0]
         cl = control_label if control_label in labels else labels[-1]
-        assert al != cl  # arm/control 은 서로 다른 label 이어야 한다(중복 지정 = 설정 오류)
+        assert al != cl
         a, cc_ = arms[al], arms[cl]
         fa, fc = a["folds"], cc_["folds"]
         delta_folds = ([round(a_ - c_, 6) for a_, c_ in zip(fa, fc)] if len(fa) == len(fc) and fa else [])
@@ -4938,8 +4938,8 @@ def parse_metric_audit_pair(path, mtime_floor, arm_label=None, control_label=Non
             "control_halves": (cc_["halves"] or {}).get("stable"),
             "arm_front_back": [(a["halves"] or {}).get("front_pct"), (a["halves"] or {}).get("back_pct")],
         }
-        # 세션별 짝 Δ (CG172) — 감사 도구 part_c 가 모델 ≥2 일 때 top-level `c_paired` 로 싣는다.
-        # 있으면 돈 다리를 주변(marginal) 대신 **같은 세션 짝**으로 판정한다(시장 베타 상쇄).
+
+
         cp = d.get("c_paired") or {}
         if isinstance(cp, dict) and isinstance(cp.get("delta_mean"), (int, float)):
             out["pair"]["expectancy_paired"] = {
@@ -4983,7 +4983,7 @@ def judge_metric_audit_pair(item, parsed) -> tuple:
     a_exp, c_exp = p.get("arm_expectancy_pct"), p.get("control_expectancy_pct")
     auc_pass = (isinstance(df, float) and df >= thr)
     wp = 0.1
-    # 돈 다리 — 세션별 짝 Δ 가 있으면 그것으로 판정한다(CG172). 없으면 주변(marginal)로 폴백(무회귀).
+
     pp = p.get("expectancy_paired") or {}
     if isinstance(pp.get("delta_mean"), float) and isinstance(pp.get("t"), float):
         ph = (pp.get("halves") or {}).get("stable")
@@ -5227,10 +5227,10 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
     if kind == "champion_seed_family":
         return judge_seed_family(item, parsed)
     if kind == "robust_seed_range":
-        # CG347 — 시드 표집 잡음 범위 판정(계측기 검정, 모델 팔 아님)
+
         return judge_robust_seed_range(item, parsed)
     if kind == "robust_paired_seeds":
-        # CG348 — 같은 시드 짝 Δ. 시드 ≥3·Δ평균 ≥+0.02·양(+) 시드 전부 규칙이 seed_family 와 동일.
+
         return judge_seed_family(item, parsed)
     if kind == "topk_precision":
         return judge_topk_precision(item, parsed)
@@ -5322,7 +5322,7 @@ def rejudge_parser_gap() -> list:
     sig = _rejudge_sig()
     fixed, changed = [], False
     for r in rows:
-        # 같은 코드 서명으로 이미 '판정 불변'을 확인한 기록은 다시 파싱하지 않는다(잡음·낭비 차단).
+
         _st = r.get("rejudge_stable")
         if isinstance(_st, dict) and sig and _st.get("sig") == sig:
             continue
@@ -5331,31 +5331,31 @@ def rejudge_parser_gap() -> list:
         if isinstance(pe, dict) and "parser 없음" in str(pe.get("error", "")):
             gap = "parser"
         elif isinstance(pe, dict) and "conditions.fillable.k 없음" in str(pe.get("error", "")):
-            # 요약 경로 오지정(실측 2026-11-17 CG314): summary_out 이 체인의 첫 산출물(AUC 평가
-            # cg3xx_robust.json)을 가리켜 돈 지표 파서가 스키마 불일치로 '집계 실패'를 냈다.
-            # 실제 돈 지표 json 은 정상 생성돼 있었다(80분 재실행은 낭비) → 경로를 고친 뒤
-            # 같은 산출물로 재판정한다. 파일이 진짜 비어 있으면 아래 parse 가 다시 error 라 skip 된다.
+
+
+
+
             gap = "summary_path"
         elif isinstance(pe, dict) and "요약 미갱신" in str(pe.get("error", "")):
-            # 경로 지정 갭(실측 2026-11-19 CG360): 커맨드가 --out 으로 자기 산출물을 지정했는데
-            # 구동기가 다른(직전 앵커) 파일을 봐 "요약 미갱신"으로 닫힌 기록. summary_path 수리를
-            # 배선한 뒤 같은 산출물로 재판정한다(파일이 정말 옛 것이면 parse 가 같은 error 로 skip).
+
+
+
             gap = "summary_path"
         elif isinstance(pe, dict) and "요약 파일 없음" in str(pe.get("error", "")):
-            # 경로 해석 갭(실측 2026-11-21 CG382): 시드 루프 커맨드의 미전개 셸 변수(`$s`) 때문에
-            # 구동기가 없는 경로를 보고 '판정불가'로 닫았는데, 시드별 산출물은 정상 생성돼 있었다.
-            # summary_path 의 glob 해석을 배선한 뒤 같은 산출물로 재판정한다(파일이 정말 없으면
-            # parse 가 같은 error 로 skip 되므로 안전).
+
+
+
+
             gap = "summary_path"
         elif (str(r.get("verdict", "")) == "기준선없음"
               and isinstance(pe, dict) and isinstance(pe.get("per_exp"), dict)
               and len(pe["per_exp"]) >= 2):
-            # 판정기 갭(실측 2026-11-18 CG342): 같은 런에 arm·대조군 두 config 가 다 있는데도
-            # 대조군 이름 파싱 실패로 '기준선없음'이 된 기록. 재실행하지 않고 요약으로 재판정한다.
+
+
             gap = "judge_pair"
         elif "통계 없음" in str(r.get("detail", "")):
-            # 판정기 갭(실측 2026-11-13 CG222): 파싱은 정상인데 판정기가 없는 k 만 찾아
-            # '판정불가'로 닫은 기록. 판정기를 고친 뒤에는 같은 요약으로 다시 판정할 수 있다.
+
+
             gap = "judge"
         if not gap:
             continue
@@ -5373,8 +5373,8 @@ def rejudge_parser_gap() -> list:
         r["rejudged"] = {"ts": now_kst().isoformat(timespec="seconds"),
                          "note": "파서 사후 배선 — 요약 JSON 재파싱으로 판정 교정(재실행 아님)"}
         if unchanged:
-            # 재판정해도 판정이 그대로다 — 마커만 남기고 '변경'으로 보고하지 않는다
-            # (매 틱 같은 줄을 로그·보고에 찍지 않기 위해. 판정기 코드가 바뀌면 sig 가 달라져 재판정된다).
+
+
             r["rejudge_stable"] = {"ts": now_kst().isoformat(timespec="seconds"), "sig": sig,
                                    "verdict": verdict,
                                    "note": "재판정 결과가 기존 판정과 동일 — 같은 코드 서명에서는 재파싱 생략"}
@@ -5473,7 +5473,7 @@ def backlog_status_after(rc, cause, gate_rc5, n_attempts):
     return "failed", None
 
 
-# ── 판정 (요약 JSON 에서 직접 계산 — 로그 문구·winner 기준 금지) ───────────────
+
 def judge_per(item, per_exp) -> tuple:
     """per_exp(config → {mean,std,folds,...}) 에서 (verdict, detail, delta) 를 계산한다.
 
@@ -5489,16 +5489,16 @@ def judge_per(item, per_exp) -> tuple:
     verdict, detail, delta = "판정불가", "", None
     per = per_exp if isinstance(per_exp, dict) else {}
     if not per:
-        # 빈 detail 은 '확인 안 함'과 구분되지 않는다(실측 2026-11-15 CG292: 149분 실측이
-        # 근거 문구 없이 판정불가로 닫혀 사람이 원인을 알 수 없었다).
+
+
         return verdict, "요약에 폴드 평균(per_exp)이 없음 — 스키마/경로 불일치 의심", delta
-    # ── 구간 짝(paired) 프로토콜 (2026-09-28, CG13 후속) ─────────────────────────
-    # 왜: CG13 실측(5.7분)에서 **같은 크기(30종목) 서로소 5구간**의 게이트 ON 대조군 폴드 평균이
-    # 0.5204([0:30)) ~ 0.4917([120:150)) = Δ0.0287 로 사전문턱 +0.02 를 유니버스 교체만으로 넘겼다.
-    # 그러면 '단일 arm vs 단일 대조군' 비교는 유니버스 교체 잡음과 뒤섞여 해석할 수 없다 →
-    # 같은 구간 **안에서** arm−대조군 짝 Δ 를 구해(구간 간 교체 효과가 상쇄된다) 평균·부호로 판정한다.
-    # 사전등록: 짝 Δ 평균 ≥ +0.02 **이고** 양(+) 구간이 n-1 개 이상이면 신호, 평균 ≤ −0.02 면 악화,
-    # 그 사이는 노이즈(구간 수가 5라 '1개 예외'까지 허용한다).
+
+
+
+
+
+
+
     pairs = item.get("pairs")
     if pairs:
         ds, wins, miss = [], 0, []
@@ -5520,10 +5520,10 @@ def judge_per(item, per_exp) -> tuple:
             return verdict, detail, delta
     arm = item.get("arm")
     cf_name = (item.get("counterfactual") or "").split(" ")[0]
-    # 함정 ③(실측 2026-11-18 CG342): 대조군이 '같은 런의 arm 쌍둥이'인 항목은 counterfactual 이
-    # 한국어 설명으로 시작해 첫 토큰('같은')이 config 이름이 아니다 → 같은 런에 두 arm 이 다 있는데도
-    # '기준선없음'(비교 불가)으로 닫혀 12.7분 실측이 무효가 됐다. `--force-paired` 가 만드는
-    # <id>/<id>__ff 쌍은 **이름 규칙**으로 복원한다(문구 파싱에 의존하지 않는다).
+
+
+
+
     if arm and cf_name not in per:
         _twin = arm[:-4] if arm.endswith("__ff") else (arm + "__ff")
         if _twin in per:
@@ -5533,8 +5533,8 @@ def judge_per(item, per_exp) -> tuple:
     if arm and arm in per and cf_name in per and cf_name != arm:
         delta = round(per[arm]["mean"] - per[cf_name]["mean"], 4)
         verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
-        # 폴드 짝 승률 — 같은 런·같은 폴드·같은 시드면 폴드별 Δ 를 계산할 수 있다(사전등록 ②).
-        # 평균만 보면 '소수 폴드가 만든 Δ'를 구분할 수 없다(CG343 교훈: 평균 +1.01 vs 중앙값 −0.04).
+
+
         fa, fc = per[arm].get("folds"), per[cf_name].get("folds")
         fw = ""
         if isinstance(fa, list) and isinstance(fc, list) and len(fa) == len(fc) and fa:
@@ -5546,22 +5546,22 @@ def judge_per(item, per_exp) -> tuple:
                   f" (같은 런 짝 · 폴드 std {per[arm].get('std', float('nan')):.4f}){fw} "
                   f"(최고: {best[0]} {best[1]['mean']:.4f})")
     elif arm and arm in per and base_rec and base_rec.get("value") is not None:
-        # 대조군이 이 런에 없거나(다른 패널) arm 과 동명(자기대조) → 기록 기준선과 비교한다.
+
         base = float(base_rec["value"])
         delta = round(per[arm]["mean"] - base, 4)
         verdict = "신호있음" if delta >= 0.02 else ("악화" if delta <= -0.02 else "노이즈")
         why = "자기대조(대조군이 다른 패널·다른 런)" if cf_name == arm \
             else f"대조군 {cf_name} 이 이 런에 없음"
-        # 증거 강도 문구는 **스냅샷 동일 여부**로 갈린다(실측 2026-09-30 U3b): 같은 패널 원본에서
-        # 행 구간만 잘라 비교하면(창 A/B) 교차패널 잡음이 없으므로 '타 패널 대조라 증거 약함'은
-        # 거짓이다. 백로그 baseline.same_panel=true 로 표시한 항목만 in-snapshot 문구를 쓴다.
+
+
+
         strength = ("같은 패널 원본·행 구간만 다름(in-snapshot)" if base_rec.get("same_panel")
                     else "타 패널 대조라 증거 약함")
         detail = (f"가설 {arm} {per[arm]['mean']:.4f} vs 기록 기준선 {base:.4f} "
                   f"({base_rec.get('source', '출처미상')}) → Δ{delta:+.4f} [{why} · {strength}]")
     elif cf_name in per and cf_name != arm:
-        # arm 미지정: 대조군 **을 제외한** 최고 config 와 비교한다. 대조군이 이미 최고면
-        # 비교 자체가 Δ0 이 되어 의미가 없다(함정 ① 과 같은 종류).
+
+
         others = [(k, v) for k, v in per.items() if k != cf_name]
         if others:
             w = max(others, key=lambda kv: kv[1]["mean"])
@@ -5575,8 +5575,8 @@ def judge_per(item, per_exp) -> tuple:
                       + (f" · 기록 기준선 {float(base_rec['value']):.4f} 존재" if base_rec else ""))
     else:
         if arm and arm in per and base_rec:
-            # baseline 은 있는데 value 가 null(진단·계측기 항목) — float(None) 으로 죽으면 원장 기록 없이
-            # 사라진다(설계원칙 4 위반). 숫자 AUC 판정 대상이 아님을 정직하게 적는다.
+
+
             verdict = "기준선없음"
             detail = (f"가설 {arm} {per[arm]['mean']:.4f} · 기록 기준선 값 없음"
                       f"(value={base_rec.get('value')!r} · {base_rec.get('source', '출처미상')})"
@@ -5671,9 +5671,9 @@ def judge_champion_baseline(item, parsed) -> tuple:
               + f" · 풀링 {parsed.get('auc_pooled')} · 날짜별평균 {parsed.get('auc_per_date_mean')}"
               + f" · 행 {parsed.get('rows_scored')}")
     cf_val = item.get("counterfactual_value")
-    # 같은 런 병렬 채점(2026-11-10 CG183): 요약에 다른 모델이 함께 있으면 그 값을 대조로 쓴다.
-    # 왜: 재학습 후보의 판정은 '기록된 기준선'이 아니라 **같은 창·같은 런의 챔피언**과 짝지어야
-    # 한다(창·패널·시드 잡음이 상쇄된다). counterfactual_model 을 항목에 명시한 경우만 작동.
+
+
+
     if not isinstance(cf_val, (int, float)):
         cm = item.get("counterfactual_model")
         oth = (parsed.get("other_models") or {}).get(cm) if cm else None
@@ -5723,7 +5723,7 @@ def judge_oos_accrual(item, parsed) -> tuple:
               + ("" if parsed.get("date_level")
                  else " · ⚠ 날짜 미기록(창키 union = 상한, SE 과소평가 위험)"))
     if n >= target:
-        # 해상 목표 날짜수는 **이 런의 측정 sd** 로 계산한다(상수 고정값은 종목수 변경을 못 따라간다).
+
         _sd = sd_m if isinstance(sd_m, (int, float)) and sd_m > 0 else PER_DATE_AUC_SD
         need = {"0.010": int(math.ceil((_sd / 0.010) ** 2)),
                 "0.007": int(math.ceil((_sd / 0.007) ** 2))}
@@ -5836,7 +5836,7 @@ def _attempts_list(it):
     return it["attempts"]
 
 
-# ── 사이클 실행 ──────────────────────────────────────────────────────────────
+
 def _panel_snapshot_mismatch(run_log) -> str:
     """실행 로그에서 '패널 하드 불일치' 줄을 찾는다(없으면 "").
 
@@ -5862,11 +5862,11 @@ def execute(item, force=False):
     ok, why = guards(force, item)
     if not ok:
         log(f"시작 보류: {why}")
-        # 거부는 '사이클 실행'이 아니다 — pidfile/state 를 남기면 다음 틱이 "기록 없이 죽었다"로
-        # 오보하고 **원장에 가짜 실행실패 기록 + 재시도 카운터**를 남긴다. 실측(2026-09-27 15:10):
-        # `--start U3` 가 부하 가드로 거부됐는데 state.json 에 pid 27092 가 남아, 그대로 뒀으면
-        # 16:00 틱이 "사이클이 기록 없이 죽었다: U3" 로 orphan 을 기록할 참이었다.
-        # 단, **내 pid 일 때만** 지운다(뒤늦게 끝난 옛 자식이 지금 도는 사이클의 락을 지우면 안 된다).
+
+
+
+
+
         try:
             if os.path.exists(PIDFILE) and \
                     open(PIDFILE, encoding="utf-8").read().strip() == str(os.getpid()):
@@ -5883,19 +5883,19 @@ def execute(item, force=False):
     run_log = os.path.join(LOGDIR, f"me_cycle_{item['id']}_{stamp}.log")
     started = now_kst()
 
-    # metric 이 없는 항목(예: 산출물 존재를 보는 항목)도 크래시 없이 '판정불가' 로 끝나야 한다.
-    # 실측 2026-09-26: L4 는 metric 키가 없어 사후 처리에서 KeyError 로 죽을 수 있었다.
+
+
     spath = summary_path(item.get("metric") or "", item.get("command"), item.get("summary_out"))
     pre_mtime = os.path.getmtime(spath) if os.path.exists(spath) else 0.0
-    # floor 에 **실행 시작 시각**을 포함한다: 파일 mtime 만 쓰면 갱신되지 않은 옛 요약이
-    # 통과한다(설계원칙 4 함정, 실측 2026-09-25).
+
+
     mtime_floor = max(pre_mtime, time.time())
 
     log(f"실행: {item['id']} — {item['title']}")
     log(f"로그: {run_log}")
-    # ── timeout 자기모순 자동 수리(2026-10-11 CG173) ─────────────────────────────────
-    # est_minutes 로 본 필요 벽시계보다 명령의 `timeout` 이 짧으면 **올려서** 실행한다.
-    # 등록값을 신뢰해 그대로 돌리면 진행률 90% 지점에서 SIGKILL 로 전부 잃는다(체크포인트 없음).
+
+
+
     eff_command = item["command"]
     _t = command_timeout_seconds(eff_command)
     _need = required_timeout_seconds(item.get("est_minutes"))
@@ -5904,17 +5904,17 @@ def execute(item, force=False):
         log(f"⚠ timeout 자기모순 수리: 명령 timeout {_t}s < 필요 {_need}s "
             f"(est_minutes={item.get('est_minutes')}) → {_chg} 로 상향")
         log(f"  효과 명령: {eff_command}")
-    # ── 체크포인트 없는 빌드형 명령 경고(2026-11-19 CG346 실측) ────────────────────────
-    # 실측: CG346 이 `--checkpoint-path` 없이 timeout 8400s(140분)로 떠서 빌드 ETA 192분보다 짧아
-    # 23.7%(13,000/54,746)에서 잘릴 구조였고, 중단 시 58분 진행이 전량 소실됐다(재시도 0%부터).
-    # 체크포인트 유무는 등록 누락이 잦으므로 시작 시점에 드러낸다.
+
+
+
+
     _BUILD_TOKENS = ("retrain_champion", "wf_wave", "rebuild_panel", "build_training_features")
     if any(t in eff_command for t in _BUILD_TOKENS) and "--checkpoint" not in eff_command:
         log("⚠ 체크포인트 없음: 빌드형 명령에 --checkpoint-path 가 없다 — 컨테이너 재생성·timeout 으로 "
             "끊기면 진행분이 전량 소실되고 재시도가 0%부터 시작한다(실측 CG346: 23.7% 지점 58분 소실)")
-    # ── 사전등록 '판정 불가' 경고(2026-11-18) ──────────────────────────────────────────
-    # 같은 런 대조군도 기록 기준선도 없으면 10~60분을 쓰고도 verdict='기준선없음' 으로 닫힌다
-    # (최근 40판정 중 8건). 시작 전에 드러내 실행 중지·재등록 판단을 가능하게 한다.
+
+
+
     _pg = prereg_control_gap(item)
     if _pg:
         log(f"⚠ 사전등록 판정불가 위험: {_pg}")
@@ -5928,35 +5928,35 @@ def execute(item, force=False):
         proc = subprocess.run(eff_command, shell=True, stdout=lf,
                               stderr=subprocess.STDOUT, cwd=PROJ)
     rc = proc.returncode
-    cause = ""          # rc==0 이면 미설정 — 아래 재시도 분기가 참조하므로 초기화한다
+    cause = ""
 
-    # ── rc=5 예외(champion_promote) ─────────────────────────────────────────────
-    # champion_promote.py 는 후보가 무효(invalid_candidate)일 때 **5** 를 돌려준다. 이건 인프라
-    # 실패가 아니라 **게이트가 내린 판정**이다(실측 2026-09-30 CG43: 항목의 유일한 산출물이
-    # 그 판정인데 rc!=0 이면 '실행실패·측정값 없음'으로 지워진다). 요약이 실제로 갱신됐을 때만
-    # 완료로 다루고, 요약이 없으면 종전대로 실패로 기록한다.
+
+
+
+
+
     gate_rc5 = False
     if rc == 5 and item.get("metric") == "champion_promote_dryrun":
         _p5 = parse_champion_promote_dryrun(spath, mtime_floor)
         gate_rc5 = not _p5.get("error")
 
     if rc != 0 and not gate_rc5:
-        # 실패한 실행에 성능 판정을 붙이지 않는다(설계원칙 6). 옛 요약을 읽어 Δ 를 만들면
-        # 소실이 '노이즈(측정됨)'로 세어져 무개선 카운터·승격 판단이 오염된다.
+
+
         cause = failure_cause(rc, started, run_log)
         parsed = {"error": "실행 실패 — 측정값 없음", "rc": rc, "cause": cause,
                   "summary_mtime": os.path.getmtime(spath) if os.path.exists(spath) else None}
         verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
         per: dict = {}
     else:
-        # ── 산출물 파일명이 실행마다 달라지는 metric 은 **실행 후 경로를 다시 푼다**(2026-11-19 CG356)
-        # 실측: OOS 적립 러너는 `oos_accrual_<앵커>.json` 처럼 파일명이 매번 달라진다. 경로를
-        # 실행 전에 한 번만 풀면(그때의 최신 파일 = 전날 것) 사후 파싱이 **옛 파일**을 보고
-        # "요약 미갱신(mtime <= 바닥)" → rc=0 완주가 판정불가로 사라진다(CG356: 0.5198·10날짜 소실).
+
+
+
+
         if item.get("metric") == "oos_accrual" or "$" in (spath or "") or not os.path.exists(spath or ""):
-            # 일반화(실측 2026-11-21 CG383): 시드 루프 커맨드의 `--json-out ..._s$s.json` 처럼 **미전개
-            # 셸 변수**가 든 경로는 실행 전엔 glob 이 비어 spath 가 리터럴로 남는다(그대로 사후 파싱하면
-            # 3파일이 정상 생성됐는데도 '판정불가(요약 파일 없음)'). 실행 후 다시 풀어 준다.
+
+
+
             try:
                 _sp2 = summary_path(item.get("metric") or "", item.get("command"), item.get("summary_out"))
             except ValueError:
@@ -5964,23 +5964,23 @@ def execute(item, force=False):
             if _sp2 and os.path.exists(_sp2) and os.path.getmtime(_sp2) > mtime_floor:
                 spath = _sp2
         parsed = parse_by_metric(item, spath, mtime_floor)
-        # 판정: **가설군(item['arm'])** 을 **대조군(counterfactual)** 과 비교한다.
-        # ⚠ 함정(실측 2026-09-25): '최고 점수(winner) vs 대조군' 으로 비교하면, 가설군이 **진** 경우
-        # winner == 대조군 이 되어 Δ 0.0000 "노이즈" 로 잘못 기록된다. 실제로는 h8 0.5068 vs
-        # h5 0.5406 = Δ−0.0338 인데 원장에 Δ+0.0000 으로 남았다. 반드시 arm 기준으로 계산하라.
+
+
+
+
         _pe = parsed.get("per_exp")
         per = _pe if isinstance(_pe, dict) else {}
         verdict, detail, delta = _judge3(judge_by_metric(item, parsed, per))
         if parsed.get("error") and not per:
             detail = parsed["error"]
-        # ── 패널 스냅샷 불일치 = 측정무효 (2026-11-12 CG199 실사고) ────────────────────
-        # 실측: `--end-date 2026-11-05` 로 '앵커를 2거래일 옮긴 재현성 검정'을 돌렸는데
-        # build_panel 이 완성 패널 재사용 시 요청 구간을 **경고만 하고 무시**해, 실제로는
-        # 같은 데이터(끝 2026-11-09)로 CG195 와 비트동일한 값(ctl 0.5106 · arm 0.5162)이 나왔다.
-        # 구동기는 그걸 '노이즈(=측정됨 → 재현 실패)'로 원장에 남겼다 — **가짜 재현**이고,
-        # 만약 델타가 +0.02 를 넘었다면 '앵커를 바꿔도 살아남는 신호'라는 완전한 거짓 결론이 된다.
-        # 패널 메타가 하드 불일치(유니버스·limit·구간)면 그 런의 숫자는 요청 조건의 값이 아니므로
-        # 노이즈가 아니라 **측정무효**로 기록한다(축 종결 근거로도 쓰지 않는다).
+
+
+
+
+
+
+
+
         if verdict != "실행실패":
             _mm = _panel_snapshot_mismatch(run_log)
             if _mm:
@@ -6002,11 +6002,11 @@ def execute(item, force=False):
         rec["rc_note"] = "champion_promote rc=5 = 후보 무효(invalid_candidate) — 게이트 판정이므로 실행실패 아님"
     append_ledger(rec)
 
-    # ── 백로그 갱신: 여기서 예외가 나도 원장 기록은 이미 남았다 ────────────────────
-    # 실측(2026-10-01 00:02 CG38): attempts 가 int 였던 항목에서 append 가 AttributeError 로
-    # 죽어 `--run` 프로세스가 통째로 사라졌고, 원장에는 rc=0 기록이 있는데 백로그는 pending 인
-    # 반쪽 상태가 됐다(다음 틱이 이미 끝난 실험을 재실행). 원인은 정규화로 고쳤지만, 앞으로
-    # 다른 예외가 나도 이 블록이 사이클 전체를 죽이지 않게 감싼다.
+
+
+
+
+
     try:
         b = load_backlog()
         for it in b["items"]:
@@ -6015,9 +6015,9 @@ def execute(item, force=False):
                     "ts": rec["ts"], "rc": rc, "verdict": verdict, "detail": detail,
                     "log": rec["log"], "elapsed_min": rec["elapsed_min"],
                 })
-                # 인프라 사고(컨테이너 재생성·타임아웃·빌드 중 피처 코드 변경·패널 락 보류)는
-                # 가설의 결과가 아니다 → pending 으로 되돌려 다시 돌린다(최대 RETRY_MAX 회).
-                # 결정 로직은 순수 함수로 뽑아 자체점검한다(scripts/_backlog_status_test.py).
+
+
+
                 st, resume = backlog_status_after(rc, cause, gate_rc5, len(it["attempts"]))
                 if st == "pending":
                     it["status"] = "pending"
@@ -6070,8 +6070,8 @@ def start_background(item_id, force=False):
     if force:
         cmd.append("--force")
     logfile = os.path.join(RUNTIME, f"bg_{item_id}.log")
-    # "w" 로 truncate: append 로 두면 이전 실행의 크래시 스택트레이스가 남아
-    # 틱이 "최근 출력"으로 옛 오류를 보여준다(실측 2026-09-25 혼동 발생).
+
+
     with open(logfile, "w", encoding="utf-8") as lf:
         p = subprocess.Popen(cmd, stdout=lf, stderr=subprocess.STDOUT,
                              start_new_session=True, cwd=PROJ)
@@ -6079,9 +6079,9 @@ def start_background(item_id, force=False):
         f.write(str(p.pid))
     with open(STATE, "w", encoding="utf-8") as f:
         json.dump({"id": item_id, "pid": p.pid, "started": now_kst().isoformat(timespec="seconds")}, f)
-    # ── 기동 확인: 가드 거부로 즉시 죽은 자식을 '실행 중'으로 세우지 않는다 ────────────
-    # 실측(2026-09-27 15:10): `--start U3` 가 부하 가드 거부로 rc=3 즉시 종료했는데 pidfile·state
-    # 가 남아 다음 틱이 "기록 없이 죽었다"로 오보하고 원장에 가짜 실행실패를 남길 참이었다.
+
+
+
     time.sleep(3)
     refused = False
     try:
@@ -6090,11 +6090,11 @@ def start_background(item_id, force=False):
     except OSError:
         pass
     if p.poll() is not None or refused:
-        # 즉시 종료가 **정상 완료**인지 구분한다(실측 2026-10-03, _orphan_record_test [2]):
-        # `command` 가 `true` 나 진단 쿼리처럼 3초 안에 끝나는 항목은 자식이 원장에 기록을 남기고
-        # 정상 종료한다 — 그런데 종전엔 이를 "가드 거부 또는 즉시 종료"로 **단정**해 ① 운영자에게
-        # 거짓 실패를 보고하고 ② 그 항목이 실제로 수행됐는지 알 길이 없었다. 시작 시각 이후의
-        # 원장 기록을 확인해 구분한다(가드 거부는 로그에 '시작 보류' 가 있고 원장 기록이 없다).
+
+
+
+
+
         started_at, done_ts = None, None
         try:
             with open(STATE, encoding="utf-8") as f:
@@ -6169,7 +6169,7 @@ def ingest(item_id, log_rel=None):
                            "per_exp": per or None, "rc": 0}
     save_backlog(b)
     log(f"ingest {item_id}: {verdict} — {detail}")
-    # 창별 값을 표시한다(per_exp 가 아니다 — 카운터·best_robust 오염 방지 위해 파서가 windows 로 싣는다).
+
     for w in (parsed.get("windows") or []):
         if not isinstance(w, dict):
             continue
@@ -6181,7 +6181,7 @@ def ingest(item_id, log_rel=None):
     return 0
 
 
-# ── 틱/상태 출력 (에이전트가 읽는 요약) ────────────────────────────────────────
+
 def north_star(role):
     """목표 사슬 스코어보드에서 내 북극성 한 줄을 가져온다.
 
@@ -6223,7 +6223,7 @@ def money_baseline_note(path=None):
         dt = datetime.fromisoformat(d["created_at"])
         now = now_kst()
         if dt.tzinfo is None and now.tzinfo is not None:
-            dt = dt.replace(tzinfo=now.tzinfo)      # 기록은 KST 벽시계(naive)로 쓴다
+            dt = dt.replace(tzinfo=now.tzinfo)
         age = f" · age {(now - dt).total_seconds() / 86400:.1f}d"
     except (KeyError, TypeError, ValueError):
         pass
@@ -6272,7 +6272,7 @@ def _progress_note(item_id):
         return ""
     if not last:
         return f" · 로그 {lines:,}줄 (진행 로그 없음)"
-    pair = last.rsplit("Build progress:", 1)[-1].strip().split()[0]     # "15600/41893"
+    pair = last.rsplit("Build progress:", 1)[-1].strip().split()[0]
     done, _, total = pair.partition("/")
     if not done.isdigit() or not total.isdigit() or int(total) == 0:
         return f" · {pair}"
@@ -6324,13 +6324,13 @@ def _record_orphan(orphan, started):
                    "progress": (note.strip(" ·") or None)},
         "verdict": "실행실패",
         "detail": detail + note,
-        "reported": True,      # 이 줄에서 이미 사람에게 보고했다(중복 보고 방지)
-        # 미전달 감지용: 이 시각에 대응하는 크론 실행이 전달 실패면 다음 틱이 되돌려 재보고한다.
+        "reported": True,
+
         "reported_at": now_kst().isoformat(timespec="seconds"),
     }
     append_ledger(rec)
 
-    # 백로그도 execute() 와 같은 규칙으로 갱신한다(인프라 사고 = 가설의 결과가 아니다).
+
     b = load_backlog()
     status = "?"
     for it in b["items"]:
@@ -6353,14 +6353,14 @@ def _record_orphan(orphan, started):
     return rec, status
 
 
-# ── U3 런처 상시 유지 ─────────────────────────────────────────────────────────
-# 왜 틱이 런처를 관리하는가(실측 2026-09-28 05:0x): U3(995일 창 패널 빌드)는 est_minutes 가
-# 컨테이너 재생성 창을 넘는 장시간 항목이라 **틱은 시작할 수 없다**(--force 필요) → 런처가
-# 20:35~21:00 창에 대신 착수시킨다. 그런데 런처는 Hermes 세션에서 nohup 으로 뜨므로
-# **세션이 끝나면 함께 사라진다**(실측: 04:31:45 에 뜬 pid 84267 이 05:0x 에 이미 없음 —
-# 로그에 종료 흔적조차 없이). 런처가 없으면 그날 밤 U3 는 시작조차 못 하고 큐가 조용히 멈춘다.
-# 틱은 크론이라 세션과 무관하게 매시간 돌므로, 틱이 생존을 확인해 없으면 setsid 로 다시 띄운다
-# (자식의 프로세스 그룹을 세션에서 분리해야 세션 정리 SIGKILL 을 피한다).
+
+
+
+
+
+
+
+
 LAUNCHER = os.path.join(PROJ, "scripts/u3_launcher.sh")
 PANEL995 = os.path.join(PROJ, "services/xgboost-ml/app/models/wf/panel_995.npz")
 
@@ -6422,19 +6422,19 @@ def ensure_launcher(dry=False) -> str:
 def _print_results(rows):
     """원장 기록을 틱 stdout 으로 출력한다(자기신고 금지 — 요약 JSON 에서 계산된 값만)."""
     for r in rows:
-        # ⚠ 모든 필드를 .get 으로 읽는다 — 수동 기입·복구 기록은 스키마가 완전하지 않다.
-        # 실측 2026-11-14 16:05: 수동 실행분을 원장에 편입한 CG273 에 `detail` 이 없어
-        # (provenance 는 `note`) _print_results 가 KeyError 로 죽었고, **틱 전체가 rc=1** 로
-        # 끝나 그 결과가 사용자에게 전달되지 않았다(보고 지연 = 다음 틱이 미전달을 되돌려 재보고).
-        # 표시 함수는 어떤 기록 형태에도 죽지 않아야 한다(판정은 이미 원장에 있다).
+
+
+
+
+
         detail = r.get("detail") or r.get("note") or "(근거 미기록)"
         print(f"=== 결과 도착: {r.get('id')} — {r.get('title')}")
         print(f"  rc={r.get('rc')} 경과 {r.get('elapsed_min')}분 판정={r.get('verdict')}")
         print(f"  근거: {detail}")
         per: dict = (r.get("parsed") or {}).get("per_exp") or {}
         for name, v in per.items():
-            # 표시용 통계는 없을 수 있다(정정·부분 기록) → .get 으로 읽어 절대 죽지 않게 한다.
-            # 실측 2026-09-25: 정정 스크립트가 std 를 빼고 써서 tick 이 KeyError 로 죽었다.
+
+
             print(f"    {name}: 폴드 평균 {v.get('mean')} std {v.get('std', '-')} "
                   f"(min {v.get('min', '-')} max {v.get('max', '-')}) "
                   f"폴드승률 {v.get('fold_win_rate', '-')} {v.get('folds', [])}")
@@ -6458,7 +6458,7 @@ def handoff_items(backlog):
         iid = str(i.get("id", ""))
         if iid.startswith("XR") or any(k in i for k in HANDOFF_KEYS):
             out.append(i)
-    # 우선순위 → id 숫자 순으로 결정적으로 소비한다(파일 순서에 의존하면 승격 순서가 흔들린다).
+
     def _key(it):
         iid = str(it.get("id", "XR999"))
         num = "".join(ch for ch in iid if ch.isdigit())
@@ -6537,7 +6537,7 @@ def refresh_scorecard_if_stale(max_age_hours=6.0):
         ts = _parse_ts(r.get("ts"))
         if ts is not None:
             newest = max(newest, ts.timestamp())
-    content_stale = newest > (anchor + 60)         # 60s 여유(쓰기 순서 경쟁)
+    content_stale = newest > (anchor + 60)
     if age_h is not None and age_h <= max_age_hours and not content_stale:
         return f"성적표: 최신({anchor_label} · age {age_h:.1f}h)"
     try:
@@ -6562,7 +6562,7 @@ def refresh_scorecard_if_stale(max_age_hours=6.0):
 
 def _forward_needs_refresh(mtime, now, max_age_hours=20.0) -> bool:
     """전방 성적표를 재생성해야 하는가 — mtime 축만(내용 축 없음: 매일 행이 늘어난다)."""
-    if not mtime:                                   # 파일 부재(mtime=0)
+    if not mtime:
         return True
     return (now - mtime) / 3600.0 > max_age_hours
 
@@ -6606,11 +6606,11 @@ def _forward_summary_line(path) -> str:
                            for k, v in sorted(bv.items(),
                                               key=lambda kv: -(kv[1].get("n_dates") or 0)))
             vnote = f" · ⚠판본혼합 {seg}"
-            # 판본이 섞였으면 **현행(가장 최근 날짜의) 판본** 돈 지표를 함께 낸다.
-            # WHY (2026-11-23 실측): 혼합 헤드라인 h1 top10 −0.36%/h5 −3.99% 는 사실
-            # v1.0(구판본)이 만든 값이고, champ 단독은 h1 +0.60% vs 풀 −0.27%
-            # (Δ+0.87%p·t 0.90·분할 [+0.98,+0.75]·8날짜) 로 **부호가 반대**였다.
-            # 혼합 숫자만 보고하면 배포 모델 성과를 정반대로 오독한다(CG378 계열).
+
+
+
+
+
             cur = _current_version(w)
             m = (bv.get(cur) or {}) if cur else {}
             if m and m.get("delta_mean_pct") is not None:
@@ -6626,8 +6626,8 @@ def _forward_summary_line(path) -> str:
                             f", {m.get('n_dates')}d)")
         parts.append(
             f"{h} n_dates {w.get('n_dates')} · pooled {auc if auc is None else round(float(auc), 4)}"
-            # pooled 만 쓰면 '날짜 혼합 착시'가 그대로 보고된다(실측 2026-11-22: h1 pooled 0.5638 vs
-            # daily 평균 0.5158 — 하루 안에서의 순위력은 0.52 수준). daily 평균을 항상 병기한다.
+
+
             f"(daily {w.get('daily_auc_mean') if w.get('daily_auc_mean') is None else round(float(w['daily_auc_mean']), 4)}) · "
             f"top10 {'n/a' if top is None else format(float(top), '+.4%')}"
             f" vs 전체 {'n/a' if allr is None else format(float(allr), '+.4%')}{vnote}{cur_note}")
@@ -6779,10 +6779,10 @@ def source_freshness_note(max_age_h=1.0):
                 return err
         with open(sfg.EVID, encoding="utf-8") as f:
             res = json.load(f)
-        # mtime 만 믿지 않는다: 부팅 직후 시계가 틀린 채 찍힌 증거는 mtime 이 '방금'이어도
-        # 내용의 기준일이 낡았다. 실측(2026-11-09): 호스트가 10-11~11-09 꺼져 있었는데
-        # 부팅 직후 틱이 생성시각 2026-10-08 짜리 '전 원천 정상' 증거를 캐시로 재사용해
-        # 21거래일 공백을 0 으로 보고했다. 생성시각이 max_age_h 밖이면 다시 잰다.
+
+
+
+
         try:
             gen = datetime.fromisoformat(str(res.get("generated_at", "")).replace("Z", "+00:00"))
             skew_h = abs((datetime.now(timezone.utc) - gen).total_seconds()) / 3600.0
@@ -6852,7 +6852,7 @@ def recover_unrecorded(backlog, max_age_h=12, dry_run=False):
             continue
         try:
             verdict, detail, delta = _judge3(judge_by_metric(it, parsed))
-        except Exception as e:                      # 판정 불가는 복구 실패로만 남긴다
+        except Exception as e:
             log(f"복구 판정 실패 {it.get('id')}: {type(e).__name__}: {e}")
             continue
         out.append((it.get("id"), verdict, detail))
@@ -6895,29 +6895,29 @@ def tick(force=False):
         print(ns)
     print(money_baseline_note())
     print(f"  런처: {ensure_launcher()}")
-    # 성적표(MK49)가 낡으면 여기서 재생성한다 — 트레이더 계약 2번이 옛 값을 최신으로 오보하는 것을 막는다.
+
     print(f"  {refresh_scorecard_if_stale()}")
-    # 전방(forward) 성적표 — 배포 경로의 유일한 전방 검증인데 아무도 주기 실행하지 않아
-    # 표본이 늘어도 '표본부족' 에 머물렀다(CG75). 틱이 하루 1회 갱신한다(읽기 전용, ~14초).
+
+
     print(f"  {refresh_forward_scorecard_if_stale()}")
-    # 배선된 원천의 신선도 — 미배선 스윕은 '배선된' 원천의 정지를 못 본다(2026-10-11 실측:
-    # 3개 피처 테이블이 09-28/29 정지 = 최대 7거래일 결손이 12일간 무보고). 감지 전용·캐시 1h.
+
+
     print(f"  {source_freshness_note()}")
-    # 이전 틱이 '보고 처리'했지만 크론 실행이 전달 실패한 기록을 되돌린다 → 아래 unreported 블록이
-    # 같은 결과를 다시 출력한다(영구 소실 방지). 실측 2026-09-30: 제공자 불통 4시간 동안 U3 소실.
+
+
     for line in check_undelivered_reports():
         print(line)
-    # 파서가 없어 '판정불가(parser 없음)'로 남은 기록을 요약 JSON 재파싱으로 교정한다
-    # (실측 2026-09-30 CG43 — 실행 중 프로세스는 옛 모듈을 들고 돌므로 착수 후 배선한 파서가
-    #  반영되지 않는다. 재실행 없이 결과를 살린다).
+
+
+
     for iid, verdict, detail in rejudge_parser_gap():
         print(f"  재판정(파서 사후 배선): {iid} → {verdict} — {detail[:160]}")
-    # ── 핸드오프 소비(실측 2026-10-01): 다른 역할이 넘긴 항목은 `backlog` 로 들어오는데
-    #    next_item 은 `pending` 만 본다 → 승격 장치가 없으면 영원히 안 돈다(트레이더가 보고한
-    #    handoffs_unfilled 13/16 의 정체). 틱당 1건씩 큐에 올리고 남은 수를 항상 보고한다.
+
+
+
     _hb = load_backlog()
-    # 등록 자기모순(est_minutes ↔ 명령 timeout)을 매 틱 드러낸다 — pending 이 있을 때만
-    # 출력되므로 조용한 틱을 오염시키지 않는다(2026-10-11 CG173 실측 후 추가).
+
+
     for _w in timeout_selfcheck_warnings(_hb.get("items")):
         print(f"  ⚠ 백로그 자기모순: {_w}")
     for _w in prereg_selfcheck_warnings(_hb.get("items")):
@@ -6927,10 +6927,10 @@ def tick(force=False):
         save_backlog(_hb)
         for _iid, _st in _promoted:
             print(f"  핸드오프 승격: {_iid} → {_st}")
-    # 실측(2026-10-04 00:0x): handoff_items 는 status in (backlog, needs_setup) 을 모두 세는데
-    # promote_handoffs 는 **backlog 만** 승격한다. 그런데 종전 메시지는 합계를 그대로 찍어
-    # "매 틱 1건씩 큐로 올린다"고 오보했다 → 11건 전부 needs_setup 인 동안 큐가 전혀 줄지
-    # 않는데도 구동기가 스스로 도는 것처럼 보였다(운영자가 '자동 소비 중'으로 오독).
+
+
+
+
     _hb_items = handoff_items(_hb)
     _hb_backlog = [i for i in _hb_items if i.get("status") == "backlog"]
     _hb_ns = [i for i in _hb_items if i.get("status") == "needs_setup"]
@@ -6960,9 +6960,9 @@ def tick(force=False):
             print("  최근 출력:", tail.replace("\n", "\n  "))
         return 0
 
-    # ── 조용한 실패 감지: pidfile 은 있는데 프로세스가 죽었고 원장 기록도 없다 ──
-    # 이 검사가 없으면 크래시(권한·문법·컨테이너 재시작)로 죽은 사이클이 흔적 없이 사라져
-    # "왜 오늘 실험이 하나도 안 돌았지?" 를 아무도 모른다.
+
+
+
     if os.path.exists(PIDFILE):
         orphan, started = None, None
         try:
@@ -6976,7 +6976,7 @@ def tick(force=False):
         except OSError:
             pass
         if orphan:
-            # 이 사이클의 시작 시각 이후로 그 id 의 원장 기록이 있는가?
+
             done = any(r.get("id") == orphan and (not started or r.get("ts", "") >= started)
                        for r in load_ledger())
             if not done:
@@ -6987,13 +6987,13 @@ def tick(force=False):
                     print("  로그 꼬리:", tail.replace("\n", "\n  "))
                 except OSError:
                     pass
-                # 원장·백로그에 남긴다: 안 남기면 "왜 그 실험 기록이 없지"를 아무도 모른다.
+
                 rec, st_new = _record_orphan(orphan, started)
                 print(f"  기록: {rec['verdict']} · {rec['detail']} · 백로그 상태 → {st_new}")
                 print("  → 원인을 고치고 다시 시작하라(재시도는 구동기가 체크포인트에서 재개한다).")
                 return 0
 
-    # ── 완주했지만 미기록(2026-11-11 CG196 실사고) — pidfile 이 없어도 요약 JSON 으로 잡는다 ──
+
     recd = recover_unrecorded(load_backlog())
     if recd:
         for iid, v, d in recd:
@@ -7005,8 +7005,8 @@ def tick(force=False):
     unreported = [r for r in led if not r.get("reported")]
     if unreported:
         _print_results(unreported)
-        # 보고 처리 표시(같은 결과를 매 틱 반복 보고하지 않는다). reported_at 은 **미전달 감지용**이다:
-        # 이 시각에 대응하는 크론 실행이 전달 실패면 다음 틱이 플래그를 되돌려 재보고한다.
+
+
         stamp = now_kst().isoformat(timespec="seconds")
         for r in unreported:
             r["reported"] = True
@@ -7019,17 +7019,17 @@ def tick(force=False):
         print("→ 이 결과를 사용자에게 3부 형식으로 보고하고, 필요하면 다음 가설을 설계하라.")
         return 0
 
-    # 후보를 **먼저** 고른 뒤 가드에 넘긴다: 가드 중에는 항목 길이(est_minutes)에 의존하는 것
-    # (저녁 파이프라인 동시 실행)이 있어, item 없이 부르면 그 가드가 판단을 못 하고 다음 단계
-    # (start_background→execute)에서 rc=3 으로 죽어 틱이 '기동 실패'처럼 보인다(2026-10-05).
+
+
+
     it = next_item(load_backlog(), force)
     ok, why = guards(force, it)
     if not ok:
         print(f"대기: {why}")
         return 0
     if not it:
-        # 규칙 6 을 **기계적으로** 만든다: 예전엔 "새 가설을 설계하라" 한 줄만 찍혀서 틱 에이전트가
-        # needs_setup·핸드오프를 찾아 헤매거나 그냥 넘어갔다(실측 2026-10-01: 남은 핸드오프 12건).
+
+
         b = load_backlog()
         setup = [i for i in b["items"] if i.get("status") == "needs_setup"]
         setup.sort(key=lambda i: (_prio(i), str(i.get("id"))))
@@ -7046,12 +7046,12 @@ def tick(force=False):
         else:
             print("  → 구현이 끝나면 그 항목을 pending 으로 바꾸고 command·counterfactual·success·"
                   "est_minutes 를 채워라(그러면 다음 틱이 착수한다).")
-        # 데이터 축 준비도 — 남은 3축(인트라데이·공매도·뉴스)의 선행은 **수집 데이터**라 내가 만들 수
-        # 없다. 사람이 "이제 됐나"를 매번 확인하는 대신 DB 실측으로 채점하고, 문턱을 넘으면 그 항목을
-        # pending 으로 자동 승격한다(자율: 실험 등록). 미달이면 막는 숫자를 남긴다.
+
+
+
         for line in data_axis_readiness_note():
             print(line)
-        # 미배선 원천 전수 스윕 — '등록된 4축 말고 더 없나?' 를 기계적으로 답한다(위 노트의 사각).
+
         for line in source_axis_sweep_note():
             print(line)
         return 0
@@ -7075,8 +7075,8 @@ def status():
         print(f"  [{i['status']:11s}] {i['id']:3s} {i['title']}")
         if i.get("result"):
             r = i["result"]
-            # 원장/백로그의 result 는 dict 일 수도, 자유서술 문자열일 수도 있다(실측 L4).
-            # dict 만 가정하면 --status 가 TypeError 로 죽어 현황 조회가 불가능해진다.
+
+
             if isinstance(r, dict):
                 print(f"                 → {r.get('verdict')} {r.get('detail')}")
             else:
@@ -7091,9 +7091,9 @@ def status():
     if led:
         print("최근 원장(5):")
         for r in led:
-            # 원장 행은 실행 중 크래시·수동 편입 등으로 일부 키가 없을 수 있다(실측 2026-11-09:
-            # 'verdict' 없는 행 하나 때문에 --status 전체가 KeyError 로 죽어 현황 조회 불가).
-            # 상태 조회는 어떤 행이 와도 죽지 않아야 한다 — 결측은 '?' 로 표시한다.
+
+
+
             print(f"  {r.get('ts', '?')} {r.get('id', '?')} rc={r.get('rc', '?')} "
                   f"{r.get('verdict', '?')} {r.get('elapsed_min', '?')}분 "
                   f"reported={r.get('reported')}")
@@ -7139,15 +7139,15 @@ def main():
             log(f"백로그에 {a.run} 없음")
             return 2
         rc = execute(it, a.force)
-        # 백그라운드 실행이 끝나면 pidfile 정리 — 단, **그 pidfile 이 내 것일 때만**.
-        # 실측(2026-09-25): 소유권 검사 없이 지우면 뒤늦게 끝난 옛 자식이 지금 도는
-        # 사이클의 pidfile 을 지워 교차 락까지 무력화한다(16:00엔 있었고 17:00엔 없었다).
+
+
+
         try:
             if _pid_of(PIDFILE) == os.getpid():
                 os.remove(PIDFILE)
-            # state.json 도 같은 소유권 규칙으로 정리한다. 실측(2026-09-27 15:10): 가드 거부로
-            # 즉시 끝난 `--run U3` 이 pidfile 만 지워 state.json 에 죽은 pid 가 남았고,
-            # running_pid() 의 fallback 이 그걸 읽어 "실행 중"으로 오인할 수 있는 상태였다.
+
+
+
             with open(STATE, encoding="utf-8") as fh:
                 if json.load(fh).get("pid") == os.getpid():
                     os.remove(STATE)

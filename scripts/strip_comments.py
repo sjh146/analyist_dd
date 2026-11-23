@@ -69,7 +69,10 @@ def main() -> None:
     targets = list(args.files or [])
     if args.top:
         base = json.load(open(os.path.join(PROJ, "docs/lint_baseline.json"), encoding="utf-8"))["files"]
-        targets += [os.path.join(PROJ, k) for k, _ in sorted(base.items(), key=lambda x: -x[1])[: args.top]]
+        excluded = tuple(SKIP_DIR_PARTS)
+        ranked = [(k, v) for k, v in sorted(base.items(), key=lambda x: -x[1])
+                  if not any(part in k.split(os.sep) for part in excluded)]
+        targets += [os.path.join(PROJ, k) for k, _ in ranked[: args.top]]
     if not targets:
         print("대상 없음 — --files 또는 --top N")
         sys.exit(1)

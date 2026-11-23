@@ -59,12 +59,12 @@ from .rules import (
 from .state import StateStore, default_state
 
 HALT_REASON_LOSS = "daily_loss_limit"
-# Pre-filter quote batches: one big /quotes call exceeds the bridge 5s timeout
-# (measured 2026-09-29 14:52: 20 codes -> timeout -> every candidate dropped).
+
+
 PRE_FILTER_QUOTE_CHUNK = 5
-# Prefix of the halt reason written when the health checks fail repeatedly.
-# MarketLoop._is_check_halt keys the auto-resume behaviour off it, so _check
-# must keep building its reason with this prefix.
+
+
+
 CHECK_HALT_PREFIX = "check failures"
 
 
@@ -140,7 +140,7 @@ class LoopReport:
     """The outcome of a single loop cycle."""
 
     ts: datetime
-    phase: str = "idle"  # idle|check|decide|act|monitor|close|halted
+    phase: str = "idle"
     market_open: bool = False
     fresh: bool = False
     checked: bool = False
@@ -156,14 +156,14 @@ class LoopReport:
     dry_run: bool = True
     halted: bool = False
     halt_reason: str = ""
-    # True when the halt is a connectivity *pause* that the loop clears by
-    # itself once the link is back (see MarketLoop._auto_resume_halt).  A
-    # non-resumable halt (R4 loss limit, kill-switch file) ends the process.
+
+
+
     resumable: bool = False
     closed: bool = False
     reasons: List[str] = field(default_factory=list)
-    # Post-close journal<->broker reconciliation summary (empty unless the
-    # close cycle ran with ``close_reconcile`` enabled).
+
+
     reconcile: Dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> Dict[str, Any]:
@@ -233,24 +233,24 @@ class MarketLoop:
         )
         self._log = log if log is not None else _default_log
         self._sleep = time.sleep
-        # Reason lines from the cycle last written to the log.  The state file is
-        # overwritten every cycle, so without this the day's own explanation
-        # ("heat blocked close", "no enterable candidates") left no durable trace
-        # in runner.log -- measured 2026-10-02: the close list was heat-blocked
-        # from the open (avg +17.0% > +15.0% ceiling) and runner.log read
-        # "monitor: no open positions" for the whole session.  Keyed by
-        # (date, reasons) so a change is logged once and a stable set is silent.
+
+
+
+
+
+
+
         self._logged_reason_key: Optional[tuple] = None
-        # Codes whose realtime subscription this process already asked for.
+
         self._tick_subscribed: set = set()
-        # Wall-clock sanity: a skewed clock once made this loop trade and then
-        # run its day-end logic at the wrong moment.  Entries are blocked while
-        # the local clock disagrees with an external HTTP Date.
+
+
+
         self.clock_guard = ClockGuard.from_config(self.engine_cfg)
 
-    # ------------------------------------------------------------------ #
-    # Public API
-    # ------------------------------------------------------------------ #
+
+
+
     def run_once(self, now: Optional[datetime] = None) -> LoopReport:
         """Execute one full cycle and return its :class:`LoopReport`."""
         now = _as_kst(now if now is not None else _now_kst())
@@ -258,8 +258,8 @@ class MarketLoop:
         report.market_open = market_is_open(
             now, self.engine_cfg.market_open, self.engine_cfg.market_close
         )
-        # Re-read the state file every cycle so a remote HALT/resume or CLI
-        # halt/resume (a different process) is honoured immediately.
+
+
         self.state = self.state_store.read()
         self._roll_day(now)
 
@@ -271,9 +271,9 @@ class MarketLoop:
 
         halted_reason = self._halted()
         if halted_reason is not None and self._auto_resume_halt(halted_reason, now, report):
-            # A check-failure halt is a *pause*, not a hard stop: the link may
-            # come back on its own (Creon re-login, bridge restart) and nothing
-            # else has to happen.  Keep the process alive and retry every cycle.
+
+
+
             halted_reason = None
         if halted_reason is not None:
             report.halted = True
@@ -290,11 +290,11 @@ class MarketLoop:
             self._finish_report(report)
             return report
 
-        # Active window: run the full pipeline.
+
         report.phase = "check"
         snapshot = self._check(now, report)
         if snapshot is None or not report.checked:
-            self._finish_report(report)  # CHECK failed / halted this cycle
+            self._finish_report(report)
             return report
         self._decide_and_act(now, snapshot, report)
         self._verify_pending_entries(now, report)
@@ -331,9 +331,9 @@ class MarketLoop:
                 if wait is not None and wait > 0:
                     delay = min(delay, max(5.0, wait))
             else:
-                # Focus windows (open / early afternoon / closing auction) run a
-                # shorter cadence so stops and close-screener entries are not
-                # missed between 5-minute cycles.
+
+
+
                 delay, focus = cycle_interval(
                     report.ts, delay, getattr(self.config, "focus_windows", None)
                 )
@@ -365,9 +365,9 @@ class MarketLoop:
         for reason in report.reasons:
             self._log("  - {0}".format(reason))
 
-    # ------------------------------------------------------------------ #
-    # Sub-cycle exit watch (realtime cache)
-    # ------------------------------------------------------------------ #
+
+
+
     def _tick_watch_wait(self, delay: float, report: LoopReport) -> None:
         """Sleep *delay* seconds while watching the realtime cache for breaches.
 
@@ -392,11 +392,11 @@ class MarketLoop:
             self._sleep(min(seconds, remaining))
             try:
                 if self._tick_watch_pass(report):
-                    return  # an exit went out: start the next cycle now
+                    return
             except Exception as exc:  # noqa: BLE001 - never wedge the loop
                 self._log("tick watch failed: {0}".format(exc))
-                # Keep the cadence: a broken watch must not turn into fast
-                # cycles (each cycle costs broker requests).
+
+
                 self._sleep(max(0.0, deadline - time.monotonic()))
                 return
 
@@ -646,9 +646,9 @@ class MarketLoop:
             "market_close": self.engine_cfg.market_close,
         }
 
-    # ------------------------------------------------------------------ #
-    # Day / schedule bookkeeping
-    # ------------------------------------------------------------------ #
+
+
+
     def _schedule_mode(self, now: datetime) -> tuple:
         """Return ``(mode, why)``: active|idle|closed relative to the window.
 
@@ -699,8 +699,8 @@ class MarketLoop:
         fresh["date"] = today
         self.state["daily"] = fresh
         self.state["check"]["consecutive_failures"] = 0
-        # A pending entry belongs to the day it was placed: yesterday's codes
-        # must never be matched against today's journal rows.
+
+
         self.state["pending_entries"] = {}
         self._log("day rollover -> {0}".format(today))
         self._persist_state()
@@ -712,9 +712,9 @@ class MarketLoop:
         self.state["last_cycle"] = report.as_dict()
         self._persist_state()
 
-    # ------------------------------------------------------------------ #
-    # CHECK
-    # ------------------------------------------------------------------ #
+
+
+
     def _check(self, now: datetime, report: LoopReport) -> Optional[Any]:
         """Verify bridge + feed + freshness; returns the feed snapshot or None.
 
@@ -771,12 +771,12 @@ class MarketLoop:
                 report.halted = True
                 report.halt_reason = reason
                 report.phase = "halted"
-                # A connectivity halt is a pause: the process keeps running and
-                # clears it once the bridge answers again.
+
+
                 report.resumable = True
             return None
 
-        # Success: reset the counter and record the day's start equity once.
+
         report.checked = True
         report.fresh = True
         report.consecutive_failures = 0
@@ -789,9 +789,9 @@ class MarketLoop:
         self._persist_state()
         return snapshot
 
-    # ------------------------------------------------------------------ #
-    # DECIDE + ACT
-    # ------------------------------------------------------------------ #
+
+
+
     def _tradable_snapshot(
         self,
         snapshot: Any,
@@ -833,10 +833,10 @@ class MarketLoop:
             try:
                 quotes.update(self.bridge.quotes(chunk) or {})
             except Exception as exc:  # noqa: BLE001 - never wedge the cycle
-                # 시세를 못 받으면 **거르지 않는다**(원본 스냅샷 유지). 여기서 실패를 닫아버리면
-                # 전 후보가 탈락해 매매가 통째로 막힌다 — 실제로 2026-09-29 14:52 에 20종목
-                # 일괄 조회가 브리지 5초 타임아웃에 걸려 `price 20`(전량 탈락)이 났다.
-                # 계획 단계의 기존 R3 검사가 종목별로 다시 확인하므로 안전하다.
+
+
+
+
                 self._log(
                     "warning: pre-filter quote fetch failed ({0}) - "
                     "skipping the price pre-filter this cycle".format(exc)
@@ -888,33 +888,33 @@ class MarketLoop:
     ) -> None:
         """Run the engine gate pipeline, then apply R1/R2/R3 and execute."""
         report.phase = "decide"
-        # R1/heat judge the candidate *list* (regime proxy) -> compute them on the
-        # unfiltered snapshot, then hand the engine only what it can actually buy.
+
+
         blocked_screeners = apply_r1(snapshot, self.config)
         for screener, reason in blocked_screeners.items():
             report.reasons.append("R1 block {0}: {1}".format(screener, reason))
 
-        # Heat gauge: a list can be strong *and* late.  Above the ceilings the
-        # candidates are the top of the move, so block them like R1 does.
+
+
         for screener, reason in heat_blocks(snapshot, self.config).items():
             if screener not in blocked_screeners:
                 blocked_screeners[screener] = reason
                 report.reasons.append("HEAT block {0}: {1}".format(screener, reason))
-        # Count after the heat gauge: taking it before left a heat-only block
-        # invisible in the state file (measured 2026-09-30: close blocked by
-        # heat while blocked_screeners still read 1 for the R1-blocked swing).
+
+
+
         report.blocked_screeners = len(blocked_screeners)
 
-        # Candidate-level staleness: gate 1 only seals the snapshot, so a fresh
-        # file can still carry days-old per-stock signals (2026-09-29: a close
-        # candidate detected 09-23 was tradeable on 09-29).  Drop just those
-        # codes -- the rest of the list stays usable.
+
+
+
+
         stale_codes = stale_candidates(snapshot, self.config, now)
         for code in sorted(stale_codes):
             report.reasons.append("STALE skip {0}: {1}".format(code, stale_codes[code]))
 
-        # Position slots must go to enterable candidates only (see
-        # _tradable_snapshot): filter, then evaluate.
+
+
         tradable, pre_notes = self._tradable_snapshot(
             snapshot, stale_codes, blocked_screeners, now
         )
@@ -932,8 +932,8 @@ class MarketLoop:
             entry_count, self.config.r2_max_entries_per_day
         )
 
-        # Wall-clock gate: with a skewed clock the whole session model (market
-        # hours, focus windows, day rollover) is wrong, so no new entries.
+
+
         clock_blocked = False
         if self.clock_guard is not None:
             try:
@@ -945,10 +945,10 @@ class MarketLoop:
 
         plans: List[OrderPlan] = []
         window_blocked: Dict[str, str] = {}
-        # Anti-churn: with the daily cap at 100 and a 60s cadence in the focus
-        # windows, the same candidate list would be re-bought every cycle.  One
-        # entry per code per day keeps "100 entries" meaning 100 *different*
-        # names rather than the same six names sixteen times.
+
+
+
+
         entered_today: set = set()
         if getattr(self.config, "r2_one_entry_per_code_per_day", True) and self.journal:
             try:
@@ -960,10 +960,10 @@ class MarketLoop:
         for decision in eval_report.decisions:
             plan = decision.plan
             if plan is None or plan.side != "buy":
-                # Engine gate rejected the candidate (per-stock cap, open-position
-                # cap, cash, ...).  Surface the first failing gate detail so the
-                # cycle log explains why a candidate list produced no orders
-                # (2026-09-29: 6 candidates -> 3 orders with no reason recorded).
+
+
+
+
                 detail = ""
                 for gate in getattr(decision, "gates", ()) or ():
                     if not getattr(gate, "ok", True):
@@ -987,8 +987,8 @@ class MarketLoop:
             if plan.code in entered_today:
                 dup_skipped.append(plan.code)
                 continue
-            # Per-screener entry window: a 종가 list may only be bought into the
-            # closing auction, a swing list any time, etc. (profiles.py).
+
+
             profile = profile_for(decision.screener, self.config.screener_profiles)
             allowed, why = profile.entry_allowed(
                 now, self.engine_cfg.market_open, self.engine_cfg.market_close
@@ -996,7 +996,7 @@ class MarketLoop:
             if not allowed:
                 window_blocked.setdefault(decision.screener, why)
                 continue
-            # Attribution: which profile (entry window + exit mode) governs it.
+
             plan.algo = dict(plan.algo or {})
             plan.algo["exit_mode"] = getattr(profile, "exit_mode", "") or ""
             plan.algo["entry_window"] = getattr(profile, "entry_window", "") or ""
@@ -1030,14 +1030,14 @@ class MarketLoop:
 
         if r2_blocked:
             report.reasons.append(r2_reason)
-            plans = []  # no new entries; monitor still runs
+            plans = []
         elif clock_blocked:
-            plans = []  # clock unverified/skewed: monitor + exits only
+            plans = []
         elif plans:
-            # R2 is a DAILY cap, so it must also bound a single cycle: checking
-            # it once before the batch let a 6-candidate cycle open 6 entries
-            # against a max-3 budget (observed live 2026-09-10).  Truncate to
-            # the remaining budget instead.
+
+
+
+
             remaining = max(
                 0, int(self.config.r2_max_entries_per_day) - entry_count
             )
@@ -1054,7 +1054,7 @@ class MarketLoop:
                 plans = plans[:remaining]
             report.plans = len(plans)
 
-        # R5: BC-250 news/sentiment veto on the surviving plans.
+
         if plans:
             plans, gate_notes = self._apply_news_gate(plans)
             report.r5_blocked = len(gate_notes)
@@ -1127,17 +1127,17 @@ class MarketLoop:
         """Route each surviving plan through the engine (live or dry-run)."""
         report.phase = "act"
         pending_entries: List[str] = []
-        # R2b (2026-11-11 duplicate-order defect): the candidate feed can carry
-        # the same code twice in one payload, and every plan of a cycle is built
-        # from the SAME AccountState snapshot, so the engine's committed_qty gate
-        # cannot see an order placed a millisecond earlier in this batch.  Two
-        # live buys of 240810 went out in one cycle that way.  Two independent
-        # guards, because either alone has a hole:
-        #   * one plan per code per cycle (the feed duplicate),
-        #   * a broker preflight: never stack onto a code that already has a
-        #     working order (the previous cycle's unfilled order).
-        # A failed preflight is fail-CLOSED: a missed entry is cheap, a duplicate
-        # is not, and the observed trigger was a bridge timeout, not a quiet link.
+
+
+
+
+
+
+
+
+
+
+
         working: Optional[set] = set()
         try:
             working = {
@@ -1186,10 +1186,10 @@ class MarketLoop:
                 if plan.side == "buy":
                     self._bump_entries()
             else:
-                # Fill detection: MockBridge returns {"status": "filled", ...};
-                # the live bridge client returns the inner order object
-                # {"order_no", side, code, qty, price, order_type, message}
-                # (no status key).  Anything else is unexpected.
+
+
+
+
                 filled = isinstance(result, dict) and (
                     str(result.get("status", "")).lower() == "filled"
                     or result.get("order_no") is not None
@@ -1200,8 +1200,8 @@ class MarketLoop:
                     status = str((confirm or {}).get("status") or "")
                     unconfirmed = plan.side == "buy" and status in ("working", "unconfirmed")
                     if unconfirmed:
-                        # The order was *accepted*; the broker has not filled it.
-                        # Say exactly that: the echo is not a fill confirmation.
+
+
                         report.reasons.append(
                             "{0} order {1} qty {2} @ {3} placed, FILL NOT CONFIRMED "
                             "({4}: {5})".format(
@@ -1227,9 +1227,9 @@ class MarketLoop:
                                 partial_note,
                             )
                         )
-                    # Algorithm attribution, one line per order (not per cycle,
-                    # so the cadence stays untouched): which screener, scoring
-                    # mode, sizing path and stop model produced this fill.
+
+
+
                     self._log(
                         "ALGO {0} {1} qty {2} :: {3}".format(
                             plan.side, plan.code, plan.qty,
@@ -1388,7 +1388,7 @@ class MarketLoop:
             return 0
         codes = set()
         fetch_daily = getattr(self.bridge, "daily_pnl", None)
-        if fetch_daily is None:  # 구형/모의 브리지 → 저널 카운트만 사용
+        if fetch_daily is None:
             return 0
         try:
             daily = fetch_daily() or {}
@@ -1410,9 +1410,9 @@ class MarketLoop:
             codes.add(str(code))
         return len(codes)
 
-    # ------------------------------------------------------------------ #
-    # MONITOR + R4
-    # ------------------------------------------------------------------ #
+
+
+
     def _monitor(self, now: datetime, report: LoopReport) -> None:
         """Scan positions for stop/tp exits, then apply the R4 loss limit."""
         report.phase = "monitor"
@@ -1517,9 +1517,9 @@ class MarketLoop:
             handle.write(str(reason_line))
             handle.write("\n")
 
-    # ------------------------------------------------------------------ #
-    # CLOSE
-    # ------------------------------------------------------------------ #
+
+
+
     def _close_day(self, now: datetime, report: LoopReport) -> None:
         """Cancel outstanding orders and write the daily summary into state."""
         report.phase = "close"
@@ -1549,10 +1549,10 @@ class MarketLoop:
                 report.reasons.append("CLOSE cancel {0} failed: {1}".format(order_no, exc))
         report.reasons.append("CLOSE cancelled {0} outstanding order(s)".format(cancelled))
 
-        # A working order that never filled is a *phantom* position as soon as
-        # the journal has already booked it (the order echo is not a fill
-        # confirmation).  Reconcile against the pre-cancel snapshot so the
-        # phantom does not eat an entry slot / the per-code guard tomorrow.
+
+
+
+
         reconcile_summary = self._post_close_reconcile(outstanding, report)
 
         start_equity = daily.get("start_equity")
@@ -1591,9 +1591,9 @@ class MarketLoop:
             )
         )
 
-    # ------------------------------------------------------------------ #
-    # Post-close reconciliation
-    # ------------------------------------------------------------------ #
+
+
+
     def _post_close_reconcile(
         self, outstanding: List[Dict[str, Any]], report: LoopReport
     ) -> Dict[str, Any]:
@@ -1616,9 +1616,9 @@ class MarketLoop:
             return {}
         positions = [p for p in positions if isinstance(p, dict)]
         codes = [str(p.get("code")) for p in positions if p.get("code")]
-        # Journal rows the broker is flat on have no position to quote, but the
-        # current price is still the operator's best hint for --fix-exit; the
-        # bridge answers both sets in one request.
+
+
+
         try:
             open_codes = [row["code"] for row in self.journal.open_trades()]
         except Exception as exc:  # noqa: BLE001
@@ -1638,8 +1638,8 @@ class MarketLoop:
             result = reconcile(
                 self.journal, positions, quotes=quotes, open_orders=outstanding,
                 apply=apply,
-                # Never guess a flat close price from the quote: the real exit
-                # is a broker fill.  Report those for the operator instead.
+
+
                 apply_flat_close=False,
             )
         except Exception as exc:  # noqa: BLE001 - the close must still finish
@@ -1699,8 +1699,8 @@ class MarketLoop:
             ("unfilled", "qty_fixed", "adopted", "reopened", "corrected",
              "closed", "needs_price", "bogus_exits")
         )
-        # ``closed`` is report-only here (see apply_flat_close above) while the
-        # others were written; keep that distinction explicit in the state.
+
+
         summary["report_only"] = summary["closed"] + summary["needs_price"] + summary["bogus_exits"]
         return summary
 
