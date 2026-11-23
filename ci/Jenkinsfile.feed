@@ -1,7 +1,6 @@
 pipeline {
   agent any
   options {
-    timestamps()
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '30'))
   }
@@ -13,27 +12,30 @@ pipeline {
     REPO = '/work/analyist_dd'
     FEED_REPO = '/work/trader-feed'
     TZ = 'Asia/Seoul'
-    STALE_FLAG = "${params.ALLOW_STALE ? '--allow-stale' : ''}"
+    GIT_ORIGIN = 'https://github.com/sjh146/trader-feed.git'
+    APP_DIR = '/work/trader-agent'
   }
   stages {
     stage('Validate feed') {
       steps {
         dir("${env.REPO}") {
-          sh 'python3 scripts/publish_feed_github.py --dry-run --repo-dir "$FEED_REPO" $STALE_FLAG'
+          sh "python3 scripts/publish_feed_github.py --dry-run --repo-dir ${env.FEED_REPO} ${params.ALLOW_STALE ? '--allow-stale' : ''}"
         }
       }
     }
     stage('Publish feed') {
       steps {
         dir("${env.REPO}") {
-          sh '''
-            set -eu
-            git -C "$FEED_REPO" config user.name "analyist_dd bot"
-            git -C "$FEED_REPO" config user.email "bot@sjh146.local"
-            git -C "$FEED_REPO" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/sjh146/trader-feed.git"
-            python3 scripts/publish_feed_github.py --repo-dir "$FEED_REPO" $STALE_FLAG
-            git -C "$FEED_REPO" log --oneline -1
-          '''
+          withEnv(["STALE=${params.ALLOW_STALE ? '--allow-stale' : ''}"]) {
+            sh '''
+              set -e
+              git -C "$FEED_REPO" config user.name "analyist_dd bot"
+              git -C "$FEED_REPO" config user.email "bot@sjh146.local"
+              git -C "$FEED_REPO" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/sjh146/trader-feed.git"
+              python3 scripts/publish_feed_github.py --repo-dir "$FEED_REPO" $STALE
+              git -C "$FEED_REPO" log --oneline -1
+            '''
+          }
         }
       }
     }
@@ -42,11 +44,11 @@ pipeline {
       steps {
         dir("${env.REPO}") {
           sh '''
-            set -eu
+            set -e
             git -C "$FEED_REPO" config user.name "analyist_dd bot"
             git -C "$FEED_REPO" config user.email "bot@sjh146.local"
             git -C "$FEED_REPO" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/sjh146/trader-feed.git"
-            python3 scripts/publish_code_github.py --repo-dir "$FEED_REPO" --version "$VERSION"
+            python3 scripts/publish_code_github.py --repo-dir "$FEED_REPO" --app-dir "$APP_DIR" --version "$VERSION"
             git -C "$FEED_REPO" log --oneline -1
           '''
         }
@@ -60,8 +62,7 @@ pipeline {
 import json, os
 meta = json.load(open("deploy/meta.json"))
 print("feed published:", meta["published_at"], "candidates:", meta["candidates"])
-ver = "app/VERSION"
-print("code version:", open(ver).read().strip() if os.path.isfile(ver) else "none")
+print("code version:", open("app/VERSION").read().strip() if os.path.isfile("app/VERSION") else "none")
 PY
           '''
         }
@@ -71,9 +72,7 @@ PY
   post {
     always {
       dir("${env.FEED_REPO}") {
-        sh '''
-          git remote set-url origin https://github.com/sjh146/trader-feed.git || true
-        '''
+        sh 'git remote set-url origin "$GIT_ORIGIN" || true'
       }
     }
     failure {

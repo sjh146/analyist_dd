@@ -33,13 +33,30 @@ analyist_dd 피드를 `trader-feed` 저장소에 커밋·푸시한다. 실패하
 ## 기동
 
     cd deploy/jenkins
+    ./bootstrap.sh
+
+bootstrap.sh 가 순서대로 한다: 기존 컨테이너 정지 → 플러그인 설치(회선 23KB/s면 20~30분) →
+홈 소유권 정리 → 이미지 빌드(python3 포함) → 기동 → 잡 확인.
+
+수동 절차:
+
+    docker compose build
     docker compose up -d
-    docker exec analyist_jenkins jenkins-plugin-cli --plugins configuration-as-code workflow-aggregator git credentials-binding timestamper github
-    docker compose restart
+
+- 잡은 `init.groovy.d/create_jobs.groovy` 가 기동 시 만든다(JCasC 의 jobs 는 job-dsl 플러그인이 필요해 쓰지 않음).
+- 파이프라인은 컨테이너 안에서 `python3` 를 쓰므로 이미지에 python3 를 넣는다(Dockerfile).
+- `/work` 디렉터리는 jenkins 소유여야 한다(sh 스텝이 `@tmp` 를 만든다).
 
 - 접속: http://127.0.0.1:8081 (admin / .env 의 JENKINS_ADMIN_PASSWORD)
 - 최초 1회는 플러그인 설치 후 재시작해야 JCasC 가 잡을 만든다.
 - 호스트 크론에 08:50 백업 게시(`publish_feed_github.py`)가 걸려 있어 Jenkins 장애 시에도 피드는 나간다(중복 게시는 스크립트가 `unchanged` 로 걸러낸다).
+
+## 트러블슈팅 기록
+
+- JCasC 에 `jobs:` 를 넣으면 `UnknownConfiguratorException: No configurator found for root element: jobs` 로 부팅 실패(job-dsl 필요) → init.groovy.d 로 이전.
+- `timestamps()` 옵션은 timestamper 플러그인 필요 → 제거.
+- `$(dirname)` 규칙: sh 스텝이 `/work/analyist_dd@tmp` 를 만들므로 `/work` 소유권이 jenkins 여야 한다(AccessDenied).
+- 파라미터 잡은 `/build` 가 아니라 `/buildWithParameters` 로 트리거해야 400 이 안 난다.
 
 ## 운영 규칙
 
