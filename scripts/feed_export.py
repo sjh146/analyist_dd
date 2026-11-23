@@ -439,7 +439,50 @@ def _load_regime():
         "ma20": d.get("ma20"),
         "ret5": d.get("ret5"),
         "reason": d.get("reason"),
+        **_index_day_change(),
     }
+
+
+INDEX_POLL_URL = ("https://polling.finance.naver.com/api/realtime/"
+                  "domestic/index/KOSPI,KOSDAQ")
+
+
+def _index_day_change():
+    """당일 지수 등락률(%) — 트레이더의 '시한부 청산 연장' 조건(2026-11-23 사용자 지적).
+
+    WHY: "장이 올랐을 경우"에만 이긴 포지션의 보유를 연장해야 한다. 트레이더는
+    Windows 에서 돌아 지수를 직접 못 받으므로 발행 채널로 싣는다. 실패하면 {} 를
+    돌려주고 소비 측은 market_up 부재 → 연장 안 함으로 처리한다(fail-safe).
+    호출은 발행 때만(1일 3~4회), 응답은 수 KB, 타임아웃 5초.
+    """
+    if str(os.environ.get("FEED_INDEX_QUOTE", "1")).lower() in ("0", "off", "false"):
+        return {}
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(INDEX_POLL_URL, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001 — 발행을 막지 않는다
+        logger.warning("[regime] 지수 등락률 조회 실패(%s) — market_up 미발행", exc)
+        return {}
+    out = {}
+    for row in payload.get("datas") or []:
+        code = str(row.get("itemCode") or "").upper()
+        try:
+            pct = float(row.get("fluctuationsRatio"))
+        except (TypeError, ValueError):
+            continue
+        if code == "KOSPI":
+            out["kospi_change_pct"] = pct
+        elif code == "KOSDAQ":
+            out["kosdaq_change_pct"] = pct
+    primary = out.get("kosdaq_change_pct")
+    if primary is None:
+        primary = out.get("kospi_change_pct")
+    if primary is not None:
+        out["market_up"] = primary > 0
+    return out
 
 
 def load_stats():
