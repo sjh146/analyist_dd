@@ -1,0 +1,112 @@
+{
+  "panel_universe": 200,
+  "axes": [
+    {
+      "axis": "intraday",
+      "items": [
+        "CG129",
+        "CG101",
+        "CG197"
+      ],
+      "ready": false,
+      "blocking": "minute_bars: 봉 30<300 · 이력 19<20일 · 커버 0.14<0.75 · minute_close_bars: 이력 9<20일 · 커버 0.53<0.75",
+      "measured": {
+        "pairs": 5143,
+        "median_bars_per_day": 30.0,
+        "n_dates": 19,
+        "panel_cover_frac": 0.135
+      },
+      "tracks": {
+        "minute_bars": {
+          "ready": false,
+          "pairs": 5143,
+          "median_bars_per_day": 30.0,
+          "n_dates": 19,
+          "n_codes": 301,
+          "span": "2026-09-23~2026-11-20",
+          "panel_cover_frac": 0.135,
+          "blocking": "봉 30<300 · 이력 19<20일 · 커버 0.14<0.75",
+          "eta_n_dates": "2026-11-23"
+        },
+        "minute_close_bars": {
+          "ready": false,
+          "pairs": 2913,
+          "median_bars_per_day": 340.0,
+          "n_dates": 9,
+          "n_codes": 521,
+          "span": "2026-11-10~2026-11-20",
+          "panel_cover_frac": 0.525,
+          "blocking": "이력 9<20일 · 커버 0.53<0.75",
+          "eta_n_dates": "2026-12-07"
+        }
+      },
+      "thresholds": {
+        "median_bars_per_day": 300,
+        "n_dates": 20,
+        "panel_cover_frac": 0.75
+      }
+    },
+    {
+      "axis": "short_selling",
+      "items": [
+        "CG141"
+      ],
+      "ready": false,
+      "closed": "축 종결(CG323, 2026-11-18 · 신선 패널 5폴드×5시드 첫 측정: 짝 Δ+0.0096 · 돈 k3 −0.61%p t−1.68/k5 −0.23 t−0.84 → 모델 레버 아님)",
+      "blocking": "축 종결(CG323, 2026-11-18 · 신선 패널 5폴드×5시드 첫 측정: 짝 Δ+0.0096 · 돈 k3 −0.61%p t−1.68/k5 −0.23 t−0.84 → 모델 레버 아님)",
+      "measured": {
+        "n_rows": 264890,
+        "n_codes": 2627,
+        "n_days": 159,
+        "span": "2026-03-30~2026-11-19",
+        "panel_cover_frac": 0.995
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 250
+      }
+    },
+    {
+      "axis": "news::news_events",
+      "items": [
+        "CG73",
+        "CG60"
+      ],
+      "ready": false,
+      "closed": "",
+      "blocking": "커버리지(패널 유니버스)·이력(≥400d) 동시 필요",
+      "measured": {
+        "n_rows": 14213,
+        "n_codes": 536,
+        "n_days": 208,
+        "span": "2026-04-01~2026-11-23",
+        "panel_cover_frac": 0.18
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 400
+      }
+    },
+    {
+      "axis": "news::sns_posts",
+      "items": [
+        "CG73",
+        "CG60"
+      ],
+      "ready": false,
+      "closed": "축 종결(CG327, 2026-11-18 · SNS 관심·모멘텀·게시량 9피처 패널 주입 후 단일피처 스크린: 선별문턱 |AUC−0.5|≥0.044 통과 0/9, 최고 snsa_posts 0.4700(edge 0.030) · 행 채움 30%)",
+      "blocking": "축 종결(CG327, 2026-11-18 · SNS 관심·모멘텀·게시량 9피처 패널 주입 후 단일피처 스크린: 선별문턱 |AUC−0.5|≥0.044 통과 0/9, 최고 snsa_posts 0.4700(edge 0.030) · 행 채움 30%)",
+      "measured": {
+        "n_rows": 528133,
+        "n_codes": 505,
+        "n_days": 660,
+        "span": "2018-10-22~2026-11-23",
+        "panel_cover_frac": 0.175
+      },
+      "thresholds": {
+        "panel_cover_frac": 0.75,
+        "n_days": 400
+      }
+    }
+  ]
+}

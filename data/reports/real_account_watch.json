@@ -11,20 +11,20 @@
     "equity_note": "정정(11-20): 앞서 526,771은 broker_total_eval 오독. 루프 일일 start_equity(246,645)와 브리지 equity(247,307)로 확인."
   },
   "current": {
-    "trades": 22,
-    "closed": 22,
-    "realized": -36244.0,
-    "wins": 5,
-    "win_rate": 22.7,
-    "expectancy": -1647.0,
-    "last_trade_ts": "2026-11-20T11:17:35.940738+09:00",
-    "checked_at": "2026-11-21T14:37:16"
+    "trades": 25,
+    "closed": 25,
+    "realized": -36586.0,
+    "wins": 6,
+    "win_rate": 24.0,
+    "expectancy": -1463.0,
+    "last_trade_ts": "2026-11-23T10:39:29.831058+09:00",
+    "checked_at": "2026-11-23T19:11:49"
   },
   "delta": {
-    "realized": -2479.0,
-    "closed": 11,
-    "expectancy": 1423.0,
-    "loss_pct": -1.0050882847817715
+    "realized": -2821.0,
+    "closed": 14,
+    "expectancy": 1607.0,
+    "loss_pct": -1.1437491130977722
   },
   "alerts": [],
   "window_end": "2026-11-24 (1주일 관찰 종료)"

@@ -1,0 +1,336 @@
+{
+  "request_type": "swing_screener",
+  "date": "2026-11-22",
+  "generated_at": "2026-11-22T23:31:09.356933Z",
+  "total": 20,
+  "up": 20,
+  "down": 0,
+  "high_confidence": 1,
+  "batch_type": "signal",
+  "auc": "0.551318",
+  "top_up": [
+    {
+      "stock_code": "348370",
+      "stock_name": "엔켐",
+      "sector": "전기제품",
+      "confidence": 0.6646,
+      "expected_return": 32.92,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "214150",
+      "stock_name": "클래시스",
+      "sector": "건강관리장비와용품",
+      "confidence": 0.6365,
+      "expected_return": 27.3,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "085910",
+      "stock_name": "네오티스",
+      "sector": "자동차부품",
+      "confidence": 0.6196,
+      "expected_return": 23.92,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "243840",
+      "stock_name": "신흥에스이씨",
+      "sector": "전기제품",
+      "confidence": 0.6057,
+      "expected_return": 21.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "025980",
+      "stock_name": "아난티",
+      "sector": "호텔,레스토랑,레저",
+      "confidence": 0.6049,
+      "expected_return": 20.98,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "278650",
+      "stock_name": "HLB바이오스텝",
+      "sector": "생명과학도구및서비스",
+      "confidence": 0.6023,
+      "expected_return": 20.46,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "440110",
+      "stock_name": "파두",
+      "sector": "반도체와반도체장비",
+      "confidence": 0.5957,
+      "expected_return": 19.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "096530",
+      "stock_name": "씨젠",
+      "sector": "생명과학도구및서비스",
+      "confidence": 0.5916,
+      "expected_return": 18.32,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "124500",
+      "stock_name": "아이티센글로벌",
+      "sector": "IT서비스",
+      "confidence": 0.5911,
+      "expected_return": 18.22,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "127120",
+      "stock_name": "제이에스링크",
+      "sector": "생명과학도구및서비스",
+      "confidence": 0.5907,
+      "expected_return": 18.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "114190",
+      "stock_name": "강원에너지",
+      "sector": "전자장비와기기",
+      "confidence": 0.5892,
+      "expected_return": 17.84,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "388050",
+      "stock_name": "지투파워",
+      "sector": "전기장비",
+      "confidence": 0.5825,
+      "expected_return": 16.5,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "357780",
+      "stock_name": "솔브레인",
+      "sector": "반도체와반도체장비",
+      "confidence": 0.578,
+      "expected_return": 15.6,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "019210",
+      "stock_name": "와이지-원",
+      "sector": "기계",
+      "confidence": 0.5751,
+      "expected_return": 15.02,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "290650",
+      "stock_name": "엘앤씨바이오",
+      "sector": "건강관리장비와용품",
+      "confidence": 0.5702,
+      "expected_return": 14.04,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "046890",
+      "stock_name": "서울반도체",
+      "sector": "디스플레이장비및부품",
+      "confidence": 0.5691,
+      "expected_return": 13.82,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "078340",
+      "stock_name": "컴투스",
+      "sector": "게임엔터테인먼트",
+      "confidence": 0.5662,
+      "expected_return": 13.24,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "000250",
+      "stock_name": "삼천당제약",
+      "sector": "제약",
+      "confidence": 0.5657,
+      "expected_return": 13.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "119850",
+      "stock_name": "지엔씨에너지",
+      "sector": "전기장비",
+      "confidence": 0.5649,
+      "expected_return": 12.98,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "263750",
+      "stock_name": "펄어비스",
+      "sector": "게임엔터테인먼트",
+      "confidence": 0.5639,
+      "expected_return": 12.78,
+      "batch_type": "signal"
+    }
+  ],
+  "top_down": [],
+  "candidates": [
+    {
+      "stock_code": "348370",
+      "stock_name": "엔켐",
+      "sector": "전기제품",
+      "confidence": 0.6646,
+      "expected_return": 32.92,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "214150",
+      "stock_name": "클래시스",
+      "sector": "건강관리장비와용품",
+      "confidence": 0.6365,
+      "expected_return": 27.3,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "085910",
+      "stock_name": "네오티스",
+      "sector": "자동차부품",
+      "confidence": 0.6196,
+      "expected_return": 23.92,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "243840",
+      "stock_name": "신흥에스이씨",
+      "sector": "전기제품",
+      "confidence": 0.6057,
+      "expected_return": 21.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "025980",
+      "stock_name": "아난티",
+      "sector": "호텔,레스토랑,레저",
+      "confidence": 0.6049,
+      "expected_return": 20.98,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "278650",
+      "stock_name": "HLB바이오스텝",
+      "sector": "생명과학도구및서비스",
+      "confidence": 0.6023,
+      "expected_return": 20.46,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "440110",
+      "stock_name": "파두",
+      "sector": "반도체와반도체장비",
+      "confidence": 0.5957,
+      "expected_return": 19.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "096530",
+      "stock_name": "씨젠",
+      "sector": "생명과학도구및서비스",
+      "confidence": 0.5916,
+      "expected_return": 18.32,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "124500",
+      "stock_name": "아이티센글로벌",
+      "sector": "IT서비스",
+      "confidence": 0.5911,
+      "expected_return": 18.22,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "127120",
+      "stock_name": "제이에스링크",
+      "sector": "생명과학도구및서비스",
+      "confidence": 0.5907,
+      "expected_return": 18.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "114190",
+      "stock_name": "강원에너지",
+      "sector": "전자장비와기기",
+      "confidence": 0.5892,
+      "expected_return": 17.84,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "388050",
+      "stock_name": "지투파워",
+      "sector": "전기장비",
+      "confidence": 0.5825,
+      "expected_return": 16.5,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "357780",
+      "stock_name": "솔브레인",
+      "sector": "반도체와반도체장비",
+      "confidence": 0.578,
+      "expected_return": 15.6,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "019210",
+      "stock_name": "와이지-원",
+      "sector": "기계",
+      "confidence": 0.5751,
+      "expected_return": 15.02,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "290650",
+      "stock_name": "엘앤씨바이오",
+      "sector": "건강관리장비와용품",
+      "confidence": 0.5702,
+      "expected_return": 14.04,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "046890",
+      "stock_name": "서울반도체",
+      "sector": "디스플레이장비및부품",
+      "confidence": 0.5691,
+      "expected_return": 13.82,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "078340",
+      "stock_name": "컴투스",
+      "sector": "게임엔터테인먼트",
+      "confidence": 0.5662,
+      "expected_return": 13.24,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "000250",
+      "stock_name": "삼천당제약",
+      "sector": "제약",
+      "confidence": 0.5657,
+      "expected_return": 13.14,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "119850",
+      "stock_name": "지엔씨에너지",
+      "sector": "전기장비",
+      "confidence": 0.5649,
+      "expected_return": 12.98,
+      "batch_type": "signal"
+    },
+    {
+      "stock_code": "263750",
+      "stock_name": "펄어비스",
+      "sector": "게임엔터테인먼트",
+      "confidence": 0.5639,
+      "expected_return": 12.78,
+      "batch_type": "signal"
+    }
+  ]
+}

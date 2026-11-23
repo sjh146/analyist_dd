@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-11-23T23:26:08",
+  "date": "20261123",
+  "checks": [
+    {
+      "check": "pipeline_gates",
+      "rc": 0,
+      "seconds": 0,
+      "last_line": "  결과: 5/5 통과"
+    },
+    {
+      "check": "supply_lag_r21",
+      "rc": 0,
+      "seconds": 14,
+      "last_line": "회전 유니버스 최대 지연 30"
+    },
+    {
+      "check": "market_pattern_r41",
+      "rc": 0,
+      "seconds": 2,
+      "last_line": "R41: 창 30세션 / 원장 65세션 → 충족 (결함 없음) | 공백 0건"
+    },
+    {
+      "check": "yf_claim_r28",
+      "rc": 0,
+      "seconds": 6,
+      "last_line": "1"
+    },
+    {
+      "check": "data_gap_r35",
+      "rc": 0,
+      "seconds": 4,
+      "last_line": "0"
+    }
+  ],
+  "failed": []
+}

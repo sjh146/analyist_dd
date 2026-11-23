@@ -1,0 +1,9 @@
+{
+ "asof": "2026-11-23",
+ "index": "KOSDAQ",
+ "close": 645.68,
+ "ma20": 695.659,
+ "ret5": -7.715,
+ "state": "risk_off",
+ "reason": "close<ma20,ret5<=-3%"
+}

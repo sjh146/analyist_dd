@@ -1,27 +1,27 @@
 {
   "days": 14,
-  "trades": 15,
+  "trades": 18,
   "overall": {
-    "n": 15,
-    "win_pct": 26.67,
-    "expectancy_krw": -1861.23,
-    "expectancy_pct": -1.08,
-    "avg_win": 2380.75,
-    "avg_loss": -3403.77,
-    "fee_share_pct": 0.99,
-    "avg_hold_min": 4817.36
+    "n": 18,
+    "win_pct": 27.78,
+    "expectancy_krw": -1570.03,
+    "expectancy_pct": -0.93,
+    "avg_win": 1982.4,
+    "avg_loss": -2936.35,
+    "fee_share_pct": 0.96,
+    "avg_hold_min": 4022.7
   },
   "by_screener": [
     {
       "screener": "daytrading",
-      "n": 9,
+      "n": 12,
       "win_pct": 33.33,
-      "expectancy_krw": 335.11,
-      "expectancy_pct": 0.43,
-      "avg_win": 2627.67,
-      "avg_loss": -811.17,
-      "fee_share_pct": 0.23,
-      "avg_hold_min": 79.68
+      "expectancy_krw": 222.83,
+      "expectancy_pct": 0.27,
+      "avg_win": 2068,
+      "avg_loss": -699.75,
+      "fee_share_pct": 0.21,
+      "avg_hold_min": 72.11
     },
     {
       "screener": "none",
@@ -50,14 +50,14 @@
     {
       "bucket": "4",
       "min_score": 4,
-      "n": 1,
+      "n": 3,
       "win_pct": 0,
-      "expectancy_krw": -261.0,
-      "expectancy_pct": -0.33,
+      "expectancy_krw": -330.67,
+      "expectancy_pct": -0.46,
       "avg_win": null,
-      "avg_loss": -261.0,
+      "avg_loss": -330.67,
       "fee_share_pct": 0,
-      "avg_hold_min": 34.7
+      "avg_hold_min": 30.97
     },
     {
       "bucket": "5",
@@ -74,14 +74,14 @@
     {
       "bucket": "6-7",
       "min_score": 6,
-      "n": 4,
-      "win_pct": 50,
-      "expectancy_krw": 778.25,
-      "expectancy_pct": 0.99,
-      "avg_win": 2541.5,
+      "n": 5,
+      "win_pct": 60,
+      "expectancy_krw": 700.4,
+      "expectancy_pct": 0.89,
+      "avg_win": 1824,
       "avg_loss": -985.0,
       "fee_share_pct": 0,
-      "avg_hold_min": 32.17
+      "avg_hold_min": 43.74
     },
     {
       "bucket": "None",
@@ -99,25 +99,25 @@
   "by_hour": [
     {
       "hour": "09-10",
-      "n": 8,
-      "win_pct": 50,
-      "expectancy_krw": -358.96,
-      "expectancy_pct": 0.38,
+      "n": 10,
+      "win_pct": 40,
+      "expectancy_krw": -360.27,
+      "expectancy_pct": 0.19,
       "avg_win": 2380.75,
-      "avg_loss": -3098.67,
-      "fee_share_pct": 0.65,
-      "avg_hold_min": 7820.53
+      "avg_loss": -2187.62,
+      "fee_share_pct": 0.63,
+      "avg_hold_min": 6262.24
     },
     {
       "hour": "10-11",
-      "n": 2,
-      "win_pct": 0,
-      "expectancy_krw": -2103.4,
-      "expectancy_pct": -2.78,
-      "avg_win": null,
+      "n": 3,
+      "win_pct": 33.33,
+      "expectancy_krw": -1272.6,
+      "expectancy_pct": -1.68,
+      "avg_win": 389,
       "avg_loss": -2103.4,
-      "fee_share_pct": 3.51,
-      "avg_hold_min": 1504.8
+      "fee_share_pct": 3.21,
+      "avg_hold_min": 1033.2
     },
     {
       "hour": "11-12",
@@ -156,25 +156,36 @@
   "by_hold": [
     {
       "hold": "≤30",
-      "n": 1,
-      "win_pct": 100,
-      "expectancy_krw": 2233,
-      "expectancy_pct": 2.82,
+      "n": 2,
+      "win_pct": 50,
+      "expectancy_krw": 1111.0,
+      "expectancy_pct": 1.41,
       "avg_win": 2233,
-      "avg_loss": null,
+      "avg_loss": -11.0,
       "fee_share_pct": 0,
-      "avg_hold_min": 12.7
+      "avg_hold_min": 6.35
     },
     {
       "hold": "31-60",
-      "n": 6,
-      "win_pct": 33.33,
-      "expectancy_krw": 518.5,
-      "expectancy_pct": 0.65,
+      "n": 7,
+      "win_pct": 28.57,
+      "expectancy_krw": 341.57,
+      "expectancy_pct": 0.41,
       "avg_win": 2825,
-      "avg_loss": -634.75,
-      "fee_share_pct": 0.36,
-      "avg_hold_min": 38.15
+      "avg_loss": -651.8,
+      "fee_share_pct": 0.33,
+      "avg_hold_min": 41.01
+    },
+    {
+      "hold": "61-90",
+      "n": 1,
+      "win_pct": 100,
+      "expectancy_krw": 389,
+      "expectancy_pct": 0.51,
+      "avg_win": 389,
+      "avg_loss": null,
+      "fee_share_pct": 0,
+      "avg_hold_min": 90
     },
     {
       "hold": ">90",
@@ -202,25 +213,32 @@
     },
     {
       "stop_model": "fixed",
-      "n": 13,
-      "win_pct": 30.77,
-      "expectancy_krw": -868.5,
-      "expectancy_pct": -0.66,
-      "avg_win": 2380.75,
-      "avg_loss": -2312.61,
-      "fee_share_pct": 1.53,
-      "avg_hold_min": 5456.17
+      "n": 16,
+      "win_pct": 31.25,
+      "expectancy_krw": -727.03,
+      "expectancy_pct": -0.57,
+      "avg_win": 1982.4,
+      "avg_loss": -1958.59,
+      "fee_share_pct": 1.48,
+      "avg_hold_min": 4442.4
     }
   ],
   "by_factor": [],
   "cost": {
-    "fee_share_pct": 0.99,
-    "avg_trade_krw": 88915.6
+    "fee_share_pct": 0.96,
+    "avg_trade_krw": 86514.22
   },
   "suggestions": [],
-  "queued": [],
+  "queued": [
+    {
+      "title": "feed_feedback 부정 버킷: hour=09-10",
+      "priority": 2,
+      "status": "added",
+      "id": "Q20261123-02"
+    }
+  ],
   "basis": {
-    "window_exits": 18,
+    "window_exits": 21,
     "excluded": [
       {
         "id": 5,
@@ -241,19 +259,19 @@
         "exit_reason": "reconcile: broker flat"
       }
     ],
-    "cutoff": "2026-11-06T16:45:02+09:00"
+    "cutoff": "2026-11-09T16:45:01+09:00"
   },
   "claim": {
     "runner": "feed_feedback",
-    "source_rows": 22,
-    "claimed_rows": 15,
-    "persisted_rows": 15,
+    "source_rows": 25,
+    "claimed_rows": 18,
+    "persisted_rows": 18,
     "dq": "not_called: DB 127.0.0.1:5434 는 SELECT 전용(과제 지시) — dq_runner_claim INSERT 를 하지 않고 소스/파서/저장 3값을 여기 남긴다"
   },
   "notes": [
-    "edge_factors 미기록: 창 내 15건 모두 candidate.edge_factors 없음 — 진입 요인 기록 배선(d3c4938) 이후 진입부터 채워진다 (실측 2026-11-18)",
-    "보유 중 최대 변동: 분봉 미적재로 8/15건 null(no_minute_bars)",
-    "진입일 OHLC: 4/15건 null(no_market_data)",
+    "edge_factors 미기록: 창 내 18건 모두 candidate.edge_factors 없음 — 진입 요인 기록 배선(d3c4938) 이후 진입부터 채워진다 (실측 2026-11-18)",
+    "보유 중 최대 변동: 분봉 미적재로 10/18건 null(no_minute_bars)",
+    "진입일 OHLC: 3/18건 null(no_market_data)",
     "진입 시각이 09:00–15:00 밖인 1건은 by_hour 에서 제외(스펙 버킷 밖)"
   ]
 }

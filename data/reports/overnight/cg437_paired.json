@@ -1,0 +1,87 @@
+{
+  "metric": "robust_paired_seeds",
+  "label_a": "champion",
+  "label_b": "cand_cg437",
+  "n_seeds": 5,
+  "seeds": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4"
+  ],
+  "auc_a": {
+    "0": 0.5522,
+    "1": 0.5002,
+    "2": 0.5209,
+    "3": 0.5428,
+    "4": 0.5436
+  },
+  "auc_b": {
+    "0": 0.5636,
+    "1": 0.5951,
+    "2": 0.558,
+    "3": 0.571,
+    "4": 0.5354
+  },
+  "deltas": {
+    "0": -0.0114,
+    "1": -0.0949,
+    "2": -0.0371,
+    "3": -0.0282,
+    "4": 0.0082
+  },
+  "delta_mean": -0.03268,
+  "delta_std": 0.038842,
+  "delta_se": 0.017371,
+  "t": -1.881,
+  "pos_seeds": 1,
+  "pos_frac": 0.2,
+  "folds": [
+    {
+      "fold": 1,
+      "n": 5,
+      "delta_mean": -0.15448,
+      "delta_sd": 0.073462,
+      "pos": 0,
+      "auc_a": 0.528,
+      "auc_b": 0.68248
+    },
+    {
+      "fold": 2,
+      "n": 5,
+      "delta_mean": -0.02102,
+      "delta_sd": 0.03783,
+      "pos": 2,
+      "auc_a": 0.48452,
+      "auc_b": 0.50554
+    },
+    {
+      "fold": 3,
+      "n": 5,
+      "delta_mean": 0.07746,
+      "delta_sd": 0.059674,
+      "pos": 4,
+      "auc_a": 0.58324,
+      "auc_b": 0.50578
+    }
+  ],
+  "window_cluster": {
+    "n_clusters": 3,
+    "fold_mean_deltas": [
+      -0.15448,
+      -0.02102,
+      0.07746
+    ],
+    "mean": -0.03268,
+    "sd": 0.116409,
+    "se": 0.067209,
+    "t": -0.486,
+    "pos_folds": 1,
+    "note": "시드 SE 는 같은 날짜창 공유로 과소추정 — 창 클러스터 SE 를 함께 본다"
+  },
+  "threshold": 0.02,
+  "window_mismatch": [],
+  "fold_mismatch": [],
+  "meets_threshold": false
+}

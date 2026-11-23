@@ -1,5 +1,5 @@
 {
- "ts": "2026-11-22T21:09:13+09:00",
+ "ts": "2026-11-23T16:08:08+09:00",
  "panel": "panel_prod200.npz",
  "panel_snapshot": {
   "shape": [
@@ -68,10 +68,10 @@
    "table": "etf_premium_snapshots",
    "code_col": "code",
    "date_col": "trade_date",
-   "rows": 62322,
+   "rows": 102102,
    "n_codes": 102,
-   "n_days": 3,
-   "span": "2026-11-18~2026-11-20",
+   "n_days": 4,
+   "span": "2026-11-18~2026-11-23",
    "panel_cover_n": 0,
    "panel_cover_frac": 0.0,
    "verdict": "BLOCKED"
@@ -116,10 +116,10 @@
    "table": "news_events",
    "code_col": "stock_code",
    "date_col": "event_date",
-   "rows": 13909,
-   "n_codes": 518,
-   "n_days": 207,
-   "span": "2026-04-01~2026-11-22",
+   "rows": 14095,
+   "n_codes": 528,
+   "n_days": 208,
+   "span": "2026-04-01~2026-11-23",
    "panel_cover_n": 34,
    "panel_cover_frac": 0.17,
    "verdict": "CLOSED"
@@ -164,22 +164,22 @@
    "table": "stock_sentiment",
    "code_col": "stock_code",
    "date_col": "created_at",
-   "rows": 413,
-   "n_codes": 226,
-   "n_days": 8,
-   "span": "2026-11-15~2026-11-22",
-   "panel_cover_n": 15,
-   "panel_cover_frac": 0.075,
+   "rows": 457,
+   "n_codes": 244,
+   "n_days": 9,
+   "span": "2026-11-15~2026-11-23",
+   "panel_cover_n": 20,
+   "panel_cover_frac": 0.1,
    "verdict": "CLOSED"
   },
   {
    "table": "news_event_extraction",
    "code_col": "stock_code",
    "date_col": "created_at",
-   "rows": 2092,
-   "n_codes": 215,
-   "n_days": 9,
-   "span": "2026-11-12~2026-11-22",
+   "rows": 2286,
+   "n_codes": 234,
+   "n_days": 10,
+   "span": "2026-11-12~2026-11-23",
    "panel_cover_n": 12,
    "panel_cover_frac": 0.06,
    "verdict": "CLOSED"
@@ -200,10 +200,10 @@
    "table": "ml_predictions",
    "code_col": "stock_code",
    "date_col": "created_at",
-   "rows": 118402,
+   "rows": 124738,
    "n_codes": 4353,
-   "n_days": 29,
-   "span": "2026-09-22~2026-11-21",
+   "n_days": 31,
+   "span": "2026-09-22~2026-11-23",
    "panel_cover_n": 200,
    "panel_cover_frac": 1.0,
    "verdict": "WIRED"
@@ -308,9 +308,9 @@
    "table": "trader_fills",
    "code_col": "code",
    "date_col": null,
-   "rows": 21,
-   "panel_cover_n": 1,
-   "panel_cover_frac": 0.005,
+   "rows": 24,
+   "panel_cover_n": 2,
+   "panel_cover_frac": 0.01,
    "verdict": "STATIC"
   },
   {
@@ -341,7 +341,7 @@
    "table": "dq_runner_claim",
    "code_col": null,
    "date_col": null,
-   "rows": 1162,
+   "rows": 1595,
    "verdict": "MARKET_LEVEL"
   },
   {
@@ -411,14 +411,14 @@
    "table": "news_analysis",
    "code_col": null,
    "date_col": "published_at",
-   "rows": 1905,
+   "rows": 2099,
    "verdict": "MARKET_LEVEL"
   },
   {
    "table": "news_stock_match_failures",
    "code_col": null,
    "date_col": "created_at",
-   "rows": 5,
+   "rows": 17,
    "verdict": "MARKET_LEVEL"
   },
   {
@@ -432,7 +432,7 @@
    "table": "strategy_runs",
    "code_col": null,
    "date_col": null,
-   "rows": 69,
+   "rows": 71,
    "verdict": "MARKET_LEVEL"
   },
   {
@@ -446,7 +446,7 @@
    "table": "thesis_verdicts",
    "code_col": null,
    "date_col": "created_at",
-   "rows": 12,
+   "rows": 14,
    "verdict": "MARKET_LEVEL"
   },
   {
