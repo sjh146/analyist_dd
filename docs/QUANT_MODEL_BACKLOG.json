@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-23T21:08:08+09:00",
+  "updated_at": "2026-11-23T22:29:02+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25077,7 +25077,7 @@
       "owner": "engineer",
       "affects_model": false,
       "priority": 1,
-      "status": "pending",
+      "status": "done",
       "metric": "robust_auc_multifold",
       "summary_out": "/app/reports/overnight/cg448_summary.json",
       "est_minutes": 180,
@@ -25093,7 +25093,24 @@
       "cost": "5폴드×3시드 2-arm ≈ 2.5~3시간(유휴). 20:00 evening_pipeline 재생성과 겹치지 않게 20:55 이후 착수(not_before).",
       "note": "2026-11-23 18:5x 엔지니어 자율(장외 틱·pending 0건·규칙 4). 새 레버 시험이 아니라 **판정 자(protocol)의 통일**이다 — AUC 만 올라도 승격 금지(최우선 규칙 4). ⚠ LS_quant_q30_h5 의 v6 값(CG399 2폴드 0.5107)을 이 런의 5폴드 값과 직접 비교하지 말 것 — 판정은 이 런 안의 짝 Δ 로만. ⚠ 돈 대조 cg410_null 은 2025-10-22~2026-11-05 만 덮으므로 --date-to 2026-11-05 로 양쪽 구간을 맞췄다(신규 3거래일은 AUC 판정에만 쓴다). ⚠ 패널 v6 는 2026-11-17 까지 — 11-18~20 은 미포함. | 2026-11-23 19:4x 등록 자기모순 2건 수리(엔지니어 자율): ① 컨테이너 timeout 11400/10800 → 16500/16200 (필요값 = est 180분×1.5+300s) ② counterfactual 첫 토큰을 문장('같은')이 아니라 태그(LS_quant_q30_h5)로 — 판정자가 같은 런 대조군을 인식하지 못해 '판정 불가' 경고가 났다. 명령·arm·문턱은 불변.",
       "created_at": "2026-11-23T18:55:00+09:00",
-      "updated_at": "2026-11-23T19:45:00+09:00"
+      "updated_at": "2026-11-23T19:45:00+09:00",
+      "attempts": [
+        {
+          "ts": "2026-11-23T22:12:25+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "parser 없음 (metric='robust_auc_multifold')",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG448_20261123-220726.log",
+          "elapsed_min": 5.0
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "같은 런 기준선 LS_quant_q30_h5 0.5466±0.0096 | CG376_noroll_h5 0.5473±0.0096(폴드 0.5331~0.5631 · 승률 1.00) · 짝Δ vs LS_quant_q30_h5 +0.0006(양(+) 2/5 [+0.0000, +0.0012, +0.0019, +0.0000, +0.0000]) → 최고 후보 CG376_noroll_h5 짝Δ +0.0006",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG449",
@@ -25212,6 +25229,43 @@
         "rc": 0
       },
       "created_at": "2026-11-23T20:13:46+09:00"
+    },
+    {
+      "id": "CG453",
+      "title": "[승격 게이트·일일] 저녁 파이프라인 챌린저(2026-11-23 11:53 재학습, val ensemble AUC 0.5791) 승격 판정 — dry-run + 돈 기준",
+      "status": "done",
+      "priority": 1,
+      "kind": "measure",
+      "owner": "engineer",
+      "metric": "champion_promote_dryrun",
+      "command": "docker exec stock_xgboost_ml python -m app.training.champion_promote --candidate app/models/champion_cand --champion app/models/champion --dry-run --require-expectancy --summary-out /app/reports/overnight/cg453_promote_dryrun.json",
+      "summary_out": "/app/reports/overnight/cg453_promote_dryrun.json",
+      "counterfactual": "app/models/champion (현행 배포·auc.txt 0.551318 · 스코어보드 견고 0.5519)",
+      "success": "dry-run status 를 원장에 남긴다. would_promote 이면 --dry-run 없이 승격(백업 확인)→재기동. AUC 단독 승격 금지.",
+      "est_minutes": 5,
+      "hypothesis": "val 단일분할 ensemble AUC 0.5791 은 챔피언 0.5513 보다 +0.0278 높지만, 최우선 규칙 1·4 에 따라 단일분할 상승은 승격 근거가 아니다. 같은 후보의 다중폴드 OOS 가 0.50 수준이고 순기대가 음수면 kept_incumbent 로 닫혀야 한다.",
+      "evidence": "training-result-20261123-115350.json: n_rows 11,873(n_val 2,375)·199피처·up_rate 0.4101·ensemble_auc 0.5791(xgb 0.4990/lgb 0.5896/cat 0.5784)·deployed_substance 0.5470 · robust_oos.json(12:23): robust_auc 0.5008±0.0324(5요청·3평가·80종목·top3·next_open·113세션·1,771거래)·expectancy −0.153%p(t −0.81)·halves −0.1644/−0.1418 both_negative.",
+      "result": {
+        "verdict": "기각(kept_incumbent) — AUC 단독 상승, 돈 게이트·다중폴드 OOS 동시 미달",
+        "status": "kept_incumbent",
+        "candidate_ensemble_auc_val": "0.5791 (단일 val 분할 2,375행 — 판정 근거 아님)",
+        "candidate_robust_oos_auc": "0.5008±0.0324 (3/5폴드 평가)",
+        "expectancy_pct": -0.153,
+        "expectancy_t": -0.81,
+        "sessions": 113,
+        "trades": 1771,
+        "halves": {
+          "front_pct": -0.1644,
+          "back_pct": -0.1418,
+          "stable": "neither"
+        },
+        "champion_baseline": "0.5513 (robust_auc.json 단일분할) · 스코어보드 견고 0.5519",
+        "reason": "돈 기준 게이트 거부: 순기대 -0.153%p ≤ +0.000%p; 분할표본 불안정(앞 -0.1644 / 뒤 -0.1418)",
+        "note": "xgb val AUC 0.4990(동전던지기) vs 앙상블 0.5791 — 앙상블 수치는 lgb/cat 이 2,375행 val 에서 만든 값이고 배포 실질(deployed_substance)은 0.5470. 단일분할 AUC 로 승격했다면 3폴드 OOS 0.5008 모델이 배포될 참이었다."
+      },
+      "note": "2026-11-23 22:3x 엔지니어 자율(일일 크론·장외). 저녁 파이프라인이 11:53 KST 에 champion_cand 를 갱신했는데 22:25 까지 게이트 판정 기록이 없어 등록·판정했다. 챔피언 디렉터리는 건드리지 않았다(dry-run 만). 판정은 요약 JSON 에서 직접 읽었다. 산출물: /app/reports/overnight/cg453_promote_dryrun.json (명령이 이 이름으로 기록 — 위 command 와 동일 인자).",
+      "created_at": "2026-11-23T22:36:00+09:00",
+      "finished_at": "2026-11-23T22:38:00+09:00"
     }
   ],
   "updated": "2026-11-23T18:55:00+09:00"

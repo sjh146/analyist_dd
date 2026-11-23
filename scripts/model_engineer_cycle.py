@@ -1510,6 +1510,10 @@ def parse_baseline_protocol_gap(path, mtime_floor, item=None) -> dict:
             "n_features": r.get("n_effective_features"),
         }
     ref = item.get("paired_reference") or ""
+    if not ref:
+        _cf = (item.get("counterfactual") or "").split(" ")[0]
+        if _cf and _cf in arms and _cf != (item.get("arm") or ""):
+            ref = _cf
     pairs: dict = {}
     if ref in arms and len(fold_names or []) > 1:
         for name, a in arms.items():
@@ -2343,6 +2347,7 @@ METRIC_ALIASES = {
 
 
     "forward_scorecard_version_mix": "forward_scorecard",
+    "robust_auc_multifold": "baseline_protocol_gap",
 }
 
 
