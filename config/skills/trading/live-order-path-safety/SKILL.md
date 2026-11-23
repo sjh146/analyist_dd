@@ -209,6 +209,18 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
   memory. To undo a duplicate, cancel one order rather than trading into it, and confirm from the
   working-order list (a cancel answers with an echo, not with state; the request also needs the
   instrument code beside the order id — a missing field is refused as invalid input).
+- **Widening profit-taking on a market-direction hunch: verify the premise first, then make the widening conditional.**
+  When the owner says "US semis rallied, our market will rise, let winners run", quote the **measured** index moves
+  (prior close and the currently running session are different facts — a −10.7% prior close with a +1% live bounce is not
+  "rallied") and read the regime artifact before touching exits: under `risk_off` the day's entries are zero, so a wider
+  take-profit changes nothing. Say that ordering out loud instead of implementing the exit change as if it were the fix.
+  Then implement the widening as a **per-profile pair of conditional knobs** (`trailing_stop_pct_up`, `tp_pct_up`) resolved at
+  exit time only when the position's market is above its entry-time level — reuse the existing `market_rose_since_entry(row)`
+  check (it reads `algo_json.market_index`) rather than adding a second signal — and leave base values for flat/down days.
+  Keep the take-profit stored per trade in the journal (a knob change then affects new entries only) and pin both branches
+  with tests: market up ⇒ wide trail/TP, market down ⇒ base values, and a position that never armed behaves as before.
+  Unconditional longer holds already measured negative expectancy on this book; widening must not become the default for
+  the days the premise is wrong.
 - **Queue live-path defects as protected tasks, not as auto-merge candidates.** File the finding with
   its measured evidence (row, prices, timestamps) and mark it protected so the autonomous loop produces
   a proposal plus a human-review request rather than editing the order path unattended.

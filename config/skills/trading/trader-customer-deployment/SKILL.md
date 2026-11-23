@@ -51,6 +51,9 @@ KRX/KIS/DART 재배포 이슈를 피할 수 있고(고객은 신호만 받음), 
 5. 검증: 공개 URL `/health` 200, 무토큰 401, 토큰 피드 200 + limits, pull 후 `ack/*.jsonl` 행, 업데이트 후 `version.json`.
 6. 모의 1~2주 → 실계좌 소액 → 증액. 각 단계 통과 기준을 문서로 남긴다.
 
+자동화·설치 상세: `references/jenkins-orchestration.md`(잡 생성·플러그인·트리거·토큰 처리),
+`references/windows-install-kit.md`(PowerShell 인코딩·MinGit ssh·예약작업·preflight).
+
 ## 5. 업데이트 안전 규칙
 
 - 다운로드 → 서명·sha 검증 → 스테이징 → 파일별 sha 검증 → 현재 app 백업 → 교체 → 실패 시 롤백.
@@ -58,13 +61,34 @@ KRX/KIS/DART 재배포 이슈를 피할 수 있고(고객은 신호만 받음), 
 - 스키마·최소 버전 핀: 클라이언트가 `feed_schema_version`/`min_client_version` 미충족이면 피드를 거부한다.
 - 채널은 stable/beta 로 나누고 파일럿 고객만 beta 에 둔다.
 
+## 4a. git pull 배포 경로 (릴레이 없이 쓰는 두 번째 경로)
+
+터널·서버 없이 **비공개 git 저장소 하나로 피드와 코드를 함께** 배포할 수 있다. 레이아웃:
+
+    deploy/latest.json · deploy/meta.json · deploy/history/YYYY-MM-DD.json   (피드 + sha256)
+    app/  VERSION · BUILD_INFO.json + trader-agent 코드              (고객이 실행)
+    client/ sync_feed.py · preflight.ps1 · install.ps1              (클라이언트 자신도 git 으로 갱신)
+
+- 고객 PC 는 `git fetch --depth 1 origin main && git reset --hard FETCH_HEAD` 로 맞춘다.
+  **`pull` 을 쓰지 않는다** — 고객 저장소는 읽기 전용(deploy key)이라 커밋이 없고, reset 이 충돌·드리프트를 원천 차단한다.
+- 피드 검증: `meta.sha256`(파일 바이트) + `generated_at` 이 오늘인지 + `feed_schema_version`. 실패면 파일을 건드리지 않고
+  종료코드 1 → 트레이더는 거래하지 않는다(fail-closed).
+- 코드 교체: `app/VERSION` 과 설치된 `version.json` 비교 → 스테이징 복사 → 필수 파일(`trader_core/engine.py` 등) 검증
+  → 현재 app 백업 → `os.replace` → 실패 시 백업 복원. `config_live.json`·`logs/`·`journal/`·`kill_switch.txt` 는 제외(PRESERVE)한다.
+- 게시 측은 내용 해시(`published_at` 제외)로 **같은 내용이면 커밋하지 않는다** — 매일 빈 커밋이 쌓이면 이력이 못 읽게 된다.
+- **줄바꿈이 무결성을 깬다**: Windows 체크아웃이 CRLF 로 바꾸면 `sha256` 이 서버와 달라져 고객이 피드를 거부한다.
+  저장소에 `* -text` `.gitattributes` 를 두고, 클라이언트는 `core.autocrlf false` 설정 후 이미 오염된 트리를
+  `git rm --cached -r -q . && git reset --hard HEAD` 로 **재체크아웃**해야 고친다(설정만 바꿔도 기존 파일은 그대로다).
+
 ## 6. 보안 (사고 방지)
 
-- 릴리스 서명키는 **고객 토큰과 분리**한다. 토큰이 샌 것이 코드 위조로 이어지면 안 된다.
-- 상용 전 HMAC → Ed25519 로 올리고 공개키를 클라이언트에 고정한다.
-- 토큰·서명키·고객 데이터는 `.gitignore` 에 넣는다(커밋되면 전 고객 키 교체다).
-- 텔레메트리는 계좌번호 패턴을 마스킹하고 집계 수치만 보낸다.
-- 원격 지원은 고객 동의 하 임시 경로만(상시 접속 금지).
+- **서명키를 전 고객이 공유하면 고객 1명이 전 고객용 악성 업데이트를 서명할 수 있다 — CRITICAL 이다.**
+  고객 config 에는 **고객별 파생 키**만 넣는다: `key_c = HMAC-SHA256(master, "release:<customer_id>")`.
+  마스터는 서버에만 두고, 서버가 `/v1/manifest` 를 요청 고객의 파생 키로 서명해 내려준다(manifest 도 Bearer 인증 필수).
+  회귀 테스트로 **다른 고객 키로는 검증이 실패**하는지 고정한다.
+- 파생 키도 대칭(HMAC)이다. 상용 전 Ed25519 로 올려 **개인키는 서버에만**, 공개키를 클라이언트에 고정한다.
+- 고객 토큰은 서버에 sha256 만 저장하고 발급 시 1회만 표시한다. `.env`·서명키·고객 데이터는 `.gitignore` 에 넣는다.
+- 텔레메트리는 계좌번호 패턴을 마스킹하고 집계 수치만 보낸다. 원격 지원은 고객 동의 하 임시 경로만.
 
 ## 7. 공개 경로 선택
 
