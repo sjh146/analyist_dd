@@ -28,6 +28,10 @@ DRY=""
 [ "${1:-}" = "--dry-run" ] && DRY="--dry-run"
 # 최소 거래대금(원). HI 는 실측 근거(왕복비용 0.4% 이하 종목이 대부분 10억 이상),
 # 09:10 개장 직후 0건이면 LO 로 자동 강등된다.
+# 2026-11-23 저녁 사용자 지시("내일부터 매매할 수 있게"): risk_off 에서도 후보를 만든다.
+# 위험 관리는 트레이더가 맡는다(risk_off 기본 보수: 사이즈 ×0.5·엣지 +2·일 2건).
+# 레짐 게이트를 다시 켜려면 DAYTRADING_REGIME_BLOCK=on 으로 실행한다.
+REGIME_ARG="--regime-block ${DAYTRADING_REGIME_BLOCK:-off}"
 MIN_VALUE_HI="${DAYTRADING_MIN_VALUE_HI:-1000000000}"
 MIN_VALUE_LO="${DAYTRADING_MIN_VALUE_LO:-300000000}"
 
@@ -68,12 +72,10 @@ EOF
 
 run_screener() {  # $1 = 최소 거래대금, $2 = 추가 인자(대역 파일), $3 = 라벨
   local mv="${1:-$MIN_VALUE_LO}" extra="${2:-}" label="${3:-band}"
-  # 정책(2026-11-23 사용자 결정 '1', docs/DECISION_regime_gate_policy.md):
-  # 레짐 게이트는 **켜 둔다** — risk_off 면 후보 0건이 정상이다. 여기에
-  # --regime-block off 를 추가하지 말 것(tests/test_pipeline_regime_block_on.py 가 고정).
+  # 레짐 게이트는 REGIME_ARG 로만 제어한다(기본 off = 후보 생성 허용).
   docker exec -w /app -e PYTHONPATH=/app "$CONTAINER" \
     python scripts/daytrading_screener.py --top-n 20 --json-out "$CONT_JSON" \
-    --min-trading-value "$mv" $extra >> "$LOG" 2>&1
+    --min-trading-value "$mv" $extra $REGIME_ARG >> "$LOG" 2>&1
   local rc=$?
   local n
   n=$(count_items "$CONT_HOST")

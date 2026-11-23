@@ -26,6 +26,9 @@ DRY=""
 [ "${1:-}" = "--dry-run" ] && DRY="--dry-run"
 
 cd "$REPO" || exit 1
+
+# 2026-11-23 저녁: risk_off 에서도 후보 생성(위험은 트레이더가 조인다).
+REGIME_ARG="--regime-block ${DAYTRADING_REGIME_BLOCK:-off}"
 ts() { date '+%F %T'; }
 log() { echo "[$(ts)] $*" >> "$LOG"; }
 
@@ -61,12 +64,12 @@ EOF
 # 2) 유니버스 압축 스크리너 → 후보 0건이면 제한 없이 1회 재시도
 # 레짐 갱신(2026-11-20 사장 승인) — 스크리너 게이트용. 실패해도 fail-open.
 "$PY" scripts/market_regime.py >> "$LOG" 2>&1 || log "WARN market_regime 실패 — 기존 상태로 진행"
-"$PY" scripts/daytrading_screener.py --top-n 20 --rank-band-file "$UNIV" --json-out "$SRC" >> "$LOG" 2>&1
+"$PY" scripts/daytrading_screener.py --top-n 20 --rank-band-file "$UNIV" --json-out "$SRC" $REGIME_ARG >> "$LOG" 2>&1
 n=$(count_items "$SRC")
 log "screener(rank-band) items=$n"
 if [ "$n" -eq 0 ]; then
   log "WARN 대역 적용 후 후보 0건 — 대역 없이 재시도"
-  "$PY" scripts/daytrading_screener.py --top-n 20 --json-out "$SRC" >> "$LOG" 2>&1
+  "$PY" scripts/daytrading_screener.py --top-n 20 --json-out "$SRC" $REGIME_ARG >> "$LOG" 2>&1
   n=$(count_items "$SRC")
   log "screener(fallback) items=$n"
 fi
