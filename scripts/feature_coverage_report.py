@@ -129,7 +129,7 @@ def _load_panel_cached():
             meta = json.load(f)
             window_days = int(meta.get("days", window_days))
         df = pd.read_pickle(panel_cache)
-        return df, window_days
+        return _add_cross_sectional_ranks(df), window_days
     except Exception as e:  # noqa: BLE001
         print(f"[feature_coverage] exp_panel 캐시 로드 실패(무시): {e}")
         return None, None
@@ -163,6 +163,33 @@ def panel_staleness(last_trade_date, today=None, stale_days=None):
     return (today - last).days
 
 
+RANK_SOURCE_COLS = [
+    "return_5d", "return_20d", "volatility_20d",
+    "volume_ratio_5", "ma_position_5", "volume_ratio_20",
+]
+
+
+def _add_cross_sectional_ranks(df):
+    """패널에 ``rank_*`` 6개를 붙인다 (같은 날 횡단면 백분위).
+
+    WHY (2026-11-24 R49 잔여 6행): rank_* 는 `FeaturePipeline.compute_cross_sectional_ranks`
+    (스크리너·트레이너 경로)에서 생성되고 `build_training_features` 패널에는 없다. 그래서 이
+    리포트가 아무리 돌아도 rank_* 6행은 11-18 측정에 고정돼 `dq_feature_oldest_age_days` 가
+    5일 문턱에 붙어 있었다. 식은 파이프라인과 동일(`vals.rank(pct=True)`)하되, 패널은 한 종목이
+    여러 날짜를 가지므로 **날짜별 그룹**으로 나눠 적용한다.
+    주의: 이 축소 패널은 60종목이라 백분위 입도가 1/60 — 커버리지(비영률·상수성) 판정에는
+    충분하지만 백분위 값 자체를 전 종목 생산값으로 쓰면 안 된다(측정용).
+    """
+    if df is None or len(df) == 0 or "date" not in df.columns:
+        return df
+    for col in RANK_SOURCE_COLS:
+        if col not in df.columns:
+            continue
+        num = pd.to_numeric(df[col], errors="coerce")
+        df[f"rank_{col}"] = num.groupby(df["date"]).rank(pct=True)
+    return df
+
+
 def _build_small_panel(pg, n_stocks=30, days=30):
     """캐시 부재 시 소량 축소 빌드 (대형 학습/빌드 아님)."""
     _ensure_app_on_path()
@@ -178,7 +205,7 @@ def _build_small_panel(pg, n_stocks=30, days=30):
     )
     if df is None or len(df) == 0:
         raise RuntimeError("축소 패널 빌드 실패 (결과 없음)")
-    return df, days
+    return _add_cross_sectional_ranks(df), days
 
 
 def compute_coverage(df, window_days):
