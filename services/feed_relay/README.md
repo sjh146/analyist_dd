@@ -47,7 +47,10 @@
 ## 보안
 
 - 고객 토큰은 sha256 만 저장(원문 미보관). 유출 시 `add_customer.py` 재실행으로 교체.
-- 업데이트 서명 키(`data/feed_relay/release_key.txt`)는 고객 토큰과 **분리**. 키가 없으면 릴리스 빌드가 새로 만든다.
+- 업데이트 서명은 **고객별 파생 키**를 쓴다: `HMAC-SHA256(master, "release:<customer_id>")`.
+  마스터 키(`data/feed_relay/release_key.txt`)는 서버에만 두고, 고객 config 에는 그 고객의 파생 키만 넣는다.
+  따라서 고객 1명의 키가 유출돼도 **다른 고객용 업데이트를 위조할 수 없다**(이전 공유 키 방식의 CRITICAL 결함 수정).
+- `/v1/manifest` 는 Bearer 토큰이 필요하고, 서버가 요청 고객의 파생 키로 서명해 내려준다.
 - 텔레메트리는 계좌번호 패턴을 `***-****` 로 마스킹하고 집계 수치만 보낸다.
 - 공개 경로는 파일럿에서 Cloudflare 빠른 터널(URL 매번 변경) 또는 Tailscale Funnel. 상용은 커스텀 도메인 + Cloudflare Tunnel 을 권장.
 - 서명은 현재 HMAC-SHA256(릴리스 키 공유). 상용 전 Ed25519 로 교체하고 공개키를 클라이언트에 고정한다.

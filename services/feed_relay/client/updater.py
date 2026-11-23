@@ -26,7 +26,7 @@ def canonical(payload: dict) -> bytes:
 
 def verify_manifest(manifest: dict, release_key: str) -> bool:
     sig = str(manifest.get("signature") or "")
-    body = {k: v for k, v in manifest.items() if k != "signature"}
+    body = {k: v for k, v in manifest.items() if k not in ("signature", "customer_id")}
     want = hmac.new(release_key.encode("utf-8"), canonical(body), hashlib.sha256).hexdigest()
     return hmac.compare_digest(sig, want)
 
@@ -39,9 +39,12 @@ def sha256_file(path: str) -> str:
     return h.hexdigest()
 
 
-def fetch_manifest(base_url: str, channel: str, timeout: float = 20.0) -> dict:
-    url = "{0}/v1/manifest?channel={1}".format(base_url.rstrip("/"), channel)
-    with urllib.request.urlopen(url, timeout=timeout) as resp:
+def fetch_manifest(base_url: str, channel: str, customer_id: str, token: str,
+                   timeout: float = 20.0) -> dict:
+    url = "{0}/v1/manifest?channel={1}&customer_id={2}".format(
+        base_url.rstrip("/"), channel, customer_id)
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -97,7 +100,8 @@ def apply_release(app_dir: str, staging: str, version: str) -> None:
 
 def update(cfg: dict, force: bool = False) -> dict:
     app_dir = cfg["app_dir"]
-    manifest = fetch_manifest(cfg["base_url"], cfg.get("channel") or "stable")
+    manifest = fetch_manifest(cfg["base_url"], cfg.get("channel") or "stable",
+                              cfg.get("customer_id") or "", cfg.get("token") or "")
     if not verify_manifest(manifest, cfg["release_key"]):
         raise SystemExit("manifest 서명 검증 실패 — 업데이트 중단")
     version = str(manifest.get("version") or "")

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
 import ssl
@@ -108,6 +109,33 @@ class Relay:
         payload["channel"] = customer.get("channel") or "stable"
         payload["limits"] = customer.get("limits") or {}
         return payload
+
+    def master_key(self) -> str:
+        path = os.path.join(self.root, "release_key.txt")
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return fh.read().strip()
+        except OSError:
+            return ""
+
+    def customer_key(self, customer_id: str) -> str:
+        master = self.master_key()
+        if not master:
+            return ""
+        return hmac.new(master.encode("utf-8"), ("release:" + str(customer_id)).encode("utf-8"),
+                        hashlib.sha256).hexdigest()
+
+    def sign_for(self, manifest: dict, customer_id: str) -> dict:
+        key = self.customer_key(customer_id)
+        if not key:
+            return manifest
+        body = {k: v for k, v in manifest.items() if k != "signature"}
+        canon = json.dumps(body, ensure_ascii=False, sort_keys=True,
+                           separators=(",", ":")).encode("utf-8")
+        signed = dict(body)
+        signed["signature"] = hmac.new(key.encode("utf-8"), canon, hashlib.sha256).hexdigest()
+        signed["customer_id"] = customer_id
+        return signed
 
     def manifest_for(self, channel: str) -> dict | None:
         version = str(self.channels.get(channel) or "")
@@ -191,11 +219,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(503, {"ok": False, "error": "feed_not_published"})
             return self._send(200, payload)
         if path == "/v1/manifest":
-            channel = (parse_qs(parsed.query).get("channel") or ["stable"])[0]
+            query = parse_qs(parsed.query)
+            channel = (query.get("channel") or ["stable"])[0]
+            cid = (query.get("customer_id") or [""])[0]
+            customer = self.relay.auth(cid, self._token())
+            if customer is None:
+                return self._send(401, {"ok": False, "error": "unauthorized"})
             manifest = self.relay.manifest_for(channel)
             if manifest is None:
                 return self._send(404, {"ok": False, "error": "no_manifest"})
-            return self._send(200, manifest)
+            return self._send(200, self.relay.sign_for(manifest, str(customer.get("id"))))
         if path.startswith("/v1/pkg/"):
             version = path[len("/v1/pkg/"):].strip()
             pkg = self.relay.pkg_path(version)

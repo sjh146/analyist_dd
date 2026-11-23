@@ -32,3 +32,28 @@ strix 보고서의 수정안 중 `ml_pipeline.groovy`·`ml_infinite_loop.groovy`
 3. GitHub 저장소에 남은 옛 비밀번호 문자열(무효값) — 이력 정리 여부 결정.
 4. Jenkins 관리자 비밀번호·GH 토큰이 `deploy/jenkins/.env`(gitignore) 에 평문. 파일 권한 600 유지, 백업 시 제외.
 5. 공개 저장소에 데이터 파일 280개(ETF 프리미엄·공시 이력) 추적 중 — 자격증명은 아니지만 사업 데이터 노출 범위 검토 필요.
+
+## 5. strix 전체 결과 (17건) 반영 내역
+
+strix 최종: CRITICAL 1 · HIGH 4 · MEDIUM 6 · LOW 4 · INFO 2 (비용 $0.64, 산출물 `/tmp/strix_runs/strix-target_e687`).
+
+### 수정 완료
+
+| 항목 | 내용 | 조치 |
+|---|---|---|
+| CRITICAL 9.9 | 고객 config 에 공유 릴리스 서명키 → 고객 1인이 전 고객 악성 업데이트 서명 가능 | 고객별 파생 키(`HMAC(master,"release:<id>")`)로 전환, manifest 인증 필수화, 회귀 2건(교차 위조 차단) |
+| HIGH 8.8 | 레거시 jenkins docker.sock + 0.0.0.0 | 서비스 제거, 컨테이너 삭제 |
+| HIGH 7.7 | `.env.bak` 시크릿 | 추적 아님 확인(이미 `*.env.bak*` ignore). 로컬 파일이라 저장소 유출 아님 |
+| MEDIUM 6.7 | `swing_performance.py` 하드코딩 DB 비밀번호 fallback | 제거, env 필수화(미설정 시 연결 단계에서 중단) |
+| MEDIUM 5.3 | 텔레메트리 계좌 마스킹 우회(하이픈 없는 번호) | 정규식 보강(10~14자리·계좌 컨텍스트), 회귀 1건 |
+| MEDIUM 6.5 | `stock_report` NameError로 500 | `req.request_type` → 상수, 회귀 1건 |
+
+### 미수정(다음 작업)
+
+- HIGH 8.1 `ci/Jenkinsfile.feed` VERSION 주입 주장: 실제로는 모든 사용처가 큰따옴표 인용 + `publish_code_github.py` 가 `^\d+\.\d+\.\d+$` 검증 → 재현 불가로 판정(추가 하드닝 여지)
+- HIGH 8.1 `plan-executor.groovy` GString 주입: 레거시 Jenkins 잡 파일(서비스 제거로 휴면). 삭제 또는 이관 결정 필요
+- MEDIUM 5.0 `updater.py` manifest 미기재 파일·심볼릭 링크 미검증 → 번들 화이트리스트 검사 추가 필요
+- MEDIUM 5.0 `sync_feed.py` 백업 디렉터리 위치/실패 전파 → 백업을 앱 외부로 이동
+- MEDIUM 5.3 피드 서비스(8090) 무인증·경로 노출 → Windows 방화벽 또는 인증 추가
+- LOW 2.5/3.6/3.8 토큰 URL 삽입·git 인자 주입·groovy 인용 → 각각 `-c http.extraheader`, `--` 구분자, 인용 추가
+- INFO torch 2.5.1 CVE-2025-32434, sentence-transformers 3.4.1 CVE-2026-68770 → 업그레이드 계획 필요

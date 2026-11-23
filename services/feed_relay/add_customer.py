@@ -14,6 +14,12 @@ import os
 import secrets
 
 
+def hashlib_hmac(master: str, customer_id: str) -> str:
+    return __import__("hmac").new(master.encode("utf-8"),
+                                  ("release:" + customer_id).encode("utf-8"),
+                                  __import__("hashlib").sha256).hexdigest()
+
+
 def load(path: str) -> dict:
     try:
         with open(path, encoding="utf-8") as fh:
@@ -56,9 +62,11 @@ def main(argv=None) -> int:
     key_path = os.path.join(args.root, "release_key.txt")
     try:
         with open(key_path, encoding="utf-8") as fh:
-            release_key = fh.read().strip()
+            master = fh.read().strip()
     except OSError:
-        release_key = ""
+        master = ""
+    if master:
+        release_key = hashlib_hmac(master, args.id)
 
     cfg = {
         "base_url": args.base_url or "https://CHANGE-ME",

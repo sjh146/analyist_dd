@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import importlib.util
 import json
 import os
@@ -33,9 +34,12 @@ def relay(tmp_path):
     root = tmp_path / "relay"
     (root / "feed").mkdir(parents=True)
     token = "pilot-token-123"
+    (root / "release_key.txt").write_text("master-test-key\n", encoding="utf-8")
     (root / "customers.json").write_text(json.dumps({"customers": [
         {"id": "pilot1", "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
-         "channel": "stable", "limits": {"max_daily_trades": 5}}
+         "channel": "stable", "limits": {"max_daily_trades": 5}},
+        {"id": "pilot2", "token_sha256": hashlib.sha256(b"pilot2-token").hexdigest(),
+         "channel": "stable", "limits": {"max_daily_trades": 1}}
     ]}), encoding="utf-8")
     (root / "feed" / "latest.json").write_text(json.dumps({
         "generated_at": "2026-11-24T08:30:00+09:00", "feed_schema_version": 1,
@@ -90,14 +94,20 @@ def test_release_manifest_signed_and_served(relay, tmp_path):
     (app / "trader_core" / "engine.py").write_text("VALUE = 1\n", encoding="utf-8")
     (app / "run_market_loop.py").write_text("print('ok')\n", encoding="utf-8")
     out = build.build(str(app), relay["root"], "1.0.0", "stable",
-                      str(tmp_path / "release_key.txt"))
+                      str(pathlib.Path(relay["root"]) / "release_key.txt"))
     assert out["files"] == 2
-    key = (tmp_path / "release_key.txt").read_text().strip()
+    key = "master-test-key"
 
-    status, body = _get(relay["base"] + "/v1/manifest?channel=stable")
+    status, body = _get(relay["base"] + "/v1/manifest?channel=stable&customer_id=pilot1", relay["token"])
     manifest = json.loads(body)
     assert status == 200 and manifest["version"] == "1.0.0"
-    assert build.sign({k: v for k, v in manifest.items() if k != "signature"}, key) == manifest["signature"]
+    derive = lambda cid: hmac.new(key.encode(), ("release:" + cid).encode(), hashlib.sha256).hexdigest()
+    signed = {k: v for k, v in manifest.items() if k not in ("signature", "customer_id")}
+    expect = hmac.new(derive("pilot1").encode(),
+                      json.dumps(signed, ensure_ascii=False, sort_keys=True,
+                                 separators=(",", ":")).encode(), hashlib.sha256).hexdigest()
+    assert manifest["signature"] == expect
+    assert manifest["customer_id"] == "pilot1"
 
     status, pkg = _get(relay["base"] + "/v1/pkg/1.0.0")
     assert status == 200 and hashlib.sha256(pkg).hexdigest() == manifest["bundle_sha256"]
@@ -122,11 +132,13 @@ def test_client_update_applies_and_is_idempotent(relay, tmp_path):
     app_src = tmp_path / "src"
     (app_src / "trader_core").mkdir(parents=True)
     (app_src / "trader_core" / "engine.py").write_text("VALUE = 2\n", encoding="utf-8")
-    build.build(str(app_src), relay["root"], "1.0.0", "stable", str(tmp_path / "key.txt"))
-    key = (tmp_path / "key.txt").read_text().strip()
+    build.build(str(app_src), relay["root"], "1.0.0", "stable",
+                str(pathlib.Path(relay["root"]) / "release_key.txt"))
+    key = "master-test-key"
 
+    derived = hmac.new(key.encode(), b"release:pilot1", hashlib.sha256).hexdigest()
     app_dst = tmp_path / "customer" / "app"
-    cfg = {"base_url": relay["base"], "channel": "stable", "release_key": key,
+    cfg = {"base_url": relay["base"], "channel": "stable", "release_key": derived,
            "app_dir": str(app_dst), "customer_id": "pilot1", "token": relay["token"]}
     first = updater.update(cfg)
     assert first["changed"] is True and first["version"] == "1.0.0"
@@ -141,9 +153,31 @@ def test_update_rejects_bad_signature(relay, tmp_path):
     app_src = tmp_path / "src"
     app_src.mkdir()
     (app_src / "run_market_loop.py").write_text("x\n", encoding="utf-8")
-    build.build(str(app_src), relay["root"], "1.0.0", "stable", str(tmp_path / "key.txt"))
+    build.build(str(app_src), relay["root"], "1.0.0", "stable",
+                str(pathlib.Path(relay["root"]) / "release_key.txt"))
     cfg = {"base_url": relay["base"], "channel": "stable", "release_key": "wrong-key",
            "app_dir": str(tmp_path / "app"), "customer_id": "pilot1", "token": relay["token"]}
     with pytest.raises(SystemExit):
         updater.update(cfg)
     assert not (tmp_path / "app").exists()
+
+
+def test_manifest_signature_is_per_customer(relay, tmp_path):
+    build = _load("relay_build_pc", "services/feed_relay/build_release.py")
+    updater = _load("relay_updater_pc", "services/feed_relay/client/updater.py")
+    app = tmp_path / "app"
+    app.mkdir()
+    (app / "run_market_loop.py").write_text("print(1)\n", encoding="utf-8")
+    build.build(str(app), relay["root"], "2.0.0", "stable",
+                str(pathlib.Path(relay["root"]) / "release_key.txt"))
+
+    status, body = _get(relay["base"] + "/v1/manifest?channel=stable&customer_id=pilot1", relay["token"])
+    manifest = json.loads(body)
+    key1 = hmac.new(b"master-test-key", b"release:pilot1", hashlib.sha256).hexdigest()
+    key2 = hmac.new(b"master-test-key", b"release:pilot2", hashlib.sha256).hexdigest()
+    assert updater.verify_manifest(manifest, key1) is True
+    assert updater.verify_manifest(manifest, key2) is False
+
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(relay["base"] + "/v1/manifest?channel=stable&customer_id=pilot1")
+    assert exc.value.code == 401

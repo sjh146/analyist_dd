@@ -102,7 +102,7 @@ def build(app_dir: str, root: str, version: str, channel: str, key_path: str) ->
         "files": files,
         "alg": "hmac-sha256",
     }
-    manifest["signature"] = sign(manifest, release_key)
+    manifest["master_signature"] = sign(manifest, release_key)
     with open(os.path.join(rel_dir, "manifest.json"), "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, ensure_ascii=False, indent=2)
 
