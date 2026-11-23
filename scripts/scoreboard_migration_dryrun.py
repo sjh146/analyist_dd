@@ -43,6 +43,8 @@ def clean_panel_baseline(qsb, arm, panel_key, days, limit):
     """
     for rec in qsb._jsonl(qsb.ME_LEDGER):
         cfg = ((rec.get("parsed") or {}).get("config") or {})
+        if not isinstance(cfg, dict):
+            continue        # parsed.config 가 arm 이름 문자열인 기록(CG245 등) — 패널 정보 없음
         p = str(cfg.get("panel") or "").rsplit("/", 1)[-1]
         if p != panel_key:
             continue
@@ -66,6 +68,8 @@ def arm_table(qsb, panel_key, limit=None, baseline_tags=None):
     rows = []
     for rec in qsb._jsonl(qsb.ME_LEDGER):
         cfg = ((rec.get("parsed") or {}).get("config") or {})
+        if not isinstance(cfg, dict):
+            continue        # parsed.config 가 arm 이름 문자열인 기록 — 패널/한도 판정 불가
         panel = str(cfg.get("panel") or "?").rsplit("/", 1)[-1]
         if panel != panel_key:
             continue
