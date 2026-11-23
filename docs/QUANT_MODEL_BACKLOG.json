@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T01:42:06+09:00",
+  "updated_at": "2026-11-24T05:10:51+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -22117,7 +22117,7 @@
     },
     {
       "id": "CG361",
-      "status": "needs_setup",
+      "status": "closed_rejected",
       "priority": 1,
       "owner": "model_engineer",
       "est_minutes": 20,
@@ -22136,7 +22136,16 @@
       "evidence": " [2026-11-22 01:1x 근거 추가] 같은 모델을 같은 창에서 재는 방식만 바꾼 값 — rank_ 보존(백테스트) CG395 0.5474±0.0454(2창 [0.5021,0.5928]·18날짜·1440행) vs rank_ 0.0(서빙 실경로) CG396 0.4893±0.0490([0.4403,0.5383]) → Δ−0.0581(두 폴드 모두 음). 배포 스코어카드 money.json robust 0.4908 과 0.4893 이 사실상 일치 = 카운터 기준선 0.5406 은 서빙이 도달할 수 없는 값이다. 즉 22사이클 \"무개선\"은 모델 무신호가 아니라 기준선-서빙 불일치로도 설명된다.",
       "updated_engineer": "2026-11-22T01:12:00+09:00",
       "updated_at": "2026-11-24T00:12:59+09:00",
-      "command": null
+      "command": null,
+      "closed_at": "2026-11-24T03:15:00+09:00",
+      "result": {
+        "verdict": "근거 반증 — 기준선 0.5406 은 단일 val split 이 아니다 (다중폴드 평균)",
+        "detail": "원장 실측: L1(2026-09-25)·L2(2026-09-25) 의 LS_quant_q30_h5 = folds 5개 [0.521,0.5228,0.5524,0.5972,0.5098] mean 0.5406 std 0.0316 (panel_420_asofpatch·folds=5·seeds=3) — 단일 분할값이 아니라 5폴드 평균이다. 같은 패널 재측정도 두 번 재현: CG260 같은 런 0.5302±0.0168(Δ-0.0104) · CG262 0.5414±0.0308(Δ+0.0008) — 둘 다 문턱 미달, 기준선 유효. 따라서 \"무개선 카운터 기준선이 잘못된 프로토콜\" 전제는 기각.",
+        "checked": "data/reports/model_engineer_ledger.jsonl L1/L2/CG260/CG262",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
     },
     {
       "id": "CG362",
@@ -24759,20 +24768,54 @@
       "affects_model": false,
       "priority": 2,
       "status": "pending",
-      "metric": "fillable_topk_vs_pool",
-      "summary_out": "/app/reports/overnight/cg440_money_s0.json",
+      "metric": "money_seed_family",
+      "summary_out": "data/reports/overnight/cg440_seed_family_pool.json",
       "est_minutes": 80,
       "not_before": "2026-12-02T20:00:00+09:00",
       "title": "[돈 지표·확정] 챔피언 상대 엣지 재측정 — 세션 18→26 으로 늘려 '단일 시드 지배'를 사전 배제한 판정 (CG439 후속)",
       "arm": "champion",
       "counterfactual": "풀 평균(그날 체결가능 전 종목 평균) = 무작위 k 기대 + retrain_cg346",
-      "command": "timeout 9000 docker exec stock_xgboost_ml sh -c 'cd /app && for s in 0 1 2 3 4; do for m in champion retrain_cg346; do OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date $(date -d tomorrow +%Y-%m-%d) --folds 2 --dates-per-fold 15 --universe training --universe-seed $s --dump-preds /app/reports/overnight/cg440_${m}_s${s}.jsonl --dump-all --dump-tag ${m}_s${s} --out /app/reports/overnight/cg440_${m}_s${s}_eval.json || exit 1; done; done; for s in 0 1 2 3 4; do PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s} --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --sides top,bottom --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg440_money_s${s}.json; PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s} --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --sides top,bottom --exit close_h --horizon 5 --stride 1 --overlap-block 5 --json-out /app/reports/overnight/cg440_money_s${s}_bb.json; done'",
+      "command": "timeout 9000 docker exec stock_xgboost_ml sh -c 'cd /app && for s in 0 1 2 3 4; do for m in champion retrain_cg346; do OMP_NUM_THREADS=4 timeout 1800 python -u scripts/champion_robust_eval.py --model-dir app/models/$m --window-mode post_train --train-start 2025-09-24 --train-end 2026-10-01 --oos-start 2026-10-02 --asof-date $(date -d tomorrow +%Y-%m-%d) --folds 2 --dates-per-fold 15 --universe training --universe-seed $s --dump-preds /app/reports/overnight/cg440_${m}_s${s}.jsonl --dump-all --dump-tag ${m}_s${s} --out /app/reports/overnight/cg440_${m}_s${s}_eval.json || exit 1; done; done; for s in 0 1 2 3 4; do PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s} --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --sides top,bottom --exit close_h --horizon 5 --stride 1 --json-out /app/reports/overnight/cg440_money_s${s}.json; PYTHONPATH=/app python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s} --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --sides top,bottom --exit close_h --horizon 5 --stride 1 --overlap-block 5 --json-out /app/reports/overnight/cg440_money_s${s}_bb.json; done' ; for s in 0 1 2 3 4; do docker cp stock_xgboost_ml:/app/reports/overnight/cg440_money_s${s}.json /tmp/cg440/ ; done ; python3 scripts/money_seed_family.py --glob '/tmp/cg440/cg440_money_s*.json' --null pool --ks 3,5,10 --out data/reports/overnight/cg440_seed_family_pool.json",
       "hypothesis": "CG439 는 사전등록 3조건을 문면상 통과했으나 Δ 기여가 seed3 한 개(+4.25, t 4.16)에 몰려 있어 ‘5시드 반복’이 실제로는 ‘한 유니버스 발견’일 가능성이 남았다. 세션이 18→26 으로 늘면 날짜 t 의 표본오차가 줄어 seed3 없이도 신호가 서는지 판정할 수 있다.",
       "evidence": "CG439 실측(2026-11-23): k=5 Δ +0.620/−0.212/+0.928/+4.246/+1.010 · 평균 +1.318 · 4/5 양수 · seed3 제외 시 평균 +0.587·t<1.4 · stride5 Δ평균 +0.693(n=4). champion−retrain 5/5 양수(평균 +1.30, t 최대 2.66). OOS 상한은 모델 학습 종료(2026-10-01)로 고정 — 2026-12-02 시점 예상 세션 26.",
       "success": "사전 등록(변경 금지): k=5, stride=1 기준 ① Δ평균 ≥ +0.50%p/세션 ② 5시드 중 ≥4 양수 ③ 최소 1시드 날짜 t ≥ 2 ④ **leave-one-seed-out: 어느 한 시드를 빼도 Δ평균 ≥ +0.50**(신설 — CG439 의 단일시드 지배 차단) ⑤ **블록 부트스트랩 t(블록=h) ≥ 2 인 시드 ≥ 3** — stride=5 는 세션 18→4 로 검정력이 붕괴하므로(CG439 실측) 쓰지 않는다. ①~⑤ 전부 → '상대 엣지 실재'로 축 확정, 실매매 반영은 별도 승인. ④ 또는 ⑤ 실패 → '모델 랭킹 상대 엣지 없음'으로 축을 닫고 데이터 축 단독으로 간다.",
       "expected": "Δ평균 +0.4~+0.9, seed3 제외 시 +0.2~+0.6 → ④ 미달로 축 종결될 가능성이 높다고 본다.",
       "cost": "학습·채점 5시드×2모델 ≈ 70분 + 채점 5분",
-      "created": "2026-11-23T05:45:00+09:00"
+      "created": "2026-11-23T05:45:00+09:00",
+      "attempts": [
+        {
+          "ts": "2026-11-24T04:10:06+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "arm champion_s0 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 20 · k=5 arm -2.066%p/세션 · 풀평균 -3.654 · Δ(arm−풀) +1.588(t 1.82) · 양세션 30.0% · 분할 neither [-3.240/-0.892] ✗ · 풀평균 t -3.16 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive · 하위k: k=5 하위 -5.460%p · Δ(풀대비) -1.805(t -2.39 · pos/neg 5/15) → 사전등록 미충족(베타 초과 미검출)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG440_20261124-030905.log",
+          "elapsed_min": 61.0
+        },
+        {
+          "ts": "2026-11-24T05:10:39+09:00",
+          "rc": 0,
+          "verdict": "측정무효",
+          "detail": "사전등록 표본 미달(세션 20 < 26, not_before 2026-12-02 이전 강행) + 단일 시드(s0) 판정. 5시드 집계 Δ+1.5244(4/5 양수, mean t 1.41, LOO 최소 +1.256) · arm 절대 −2.8503%p(0/5 양수) → 시드 부호 불일치. 12-02 재실행 대기로 상태 pending 복귀.",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG440_20261124-030905.log"
+        },
+        {
+          "ts": "2026-11-24T05:10:42+09:00",
+          "rc": 0,
+          "verdict": "노이즈",
+          "detail": "k=5 시드 평균 Δ+1.5244%p (sd 1.1015) · 시드 양(+) 4/5 · pooled pos/neg 64/36 · mean t +1.41 · arm 절대 -2.8503%p (양(+) 시드 0/5)  · 시드별 [s0: +1.588(t +1.82), s1: -0.564(t -0.74), s2: +2.219(t +1.83), s3: +1.781(t +1.91), s4: +2.597(t +2.25)] → 시드 부호 불일치 4/5 · t +1.41 < 2 (단일 시드 이득은 시드 잡음)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG440_20261124-030905.log",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "노이즈",
+        "detail": "k=5 시드 평균 Δ+1.5244%p (sd 1.1015) · 시드 양(+) 4/5 · pooled pos/neg 64/36 · mean t +1.41 · arm 절대 -2.8503%p (양(+) 시드 0/5)  · 시드별 [s0: +1.588(t +1.82), s1: -0.564(t -0.74), s2: +2.219(t +1.83), s3: +1.781(t +1.91), s4: +2.597(t +2.25)] → 시드 부호 불일치 4/5 · t +1.41 < 2 (단일 시드 이득은 시드 잡음)",
+        "delta": 1.5244,
+        "per_exp": null,
+        "rc": 0
+      },
+      "note": "2026-11-24 05:2x 엔지니어: 03:09 실행분은 **측정무효**로 기록한다 — ① not_before(2026-12-02 20:00) 이전 강행(--start --force)이라 사전등록 표본(세션 26)에 미달(실측 세션 20, OOS 2026-10-02~11-17 31일) ② 그런데도 판정은 summary_out=..._s0.json **한 시드**로 내려졌다(구동기 파서가 시드 루프를 모름). 같은 런 5시드 집계(scripts/money_seed_family.py --null pool): k=5 Δ +1.5244(sd 1.10, 4/5 양수, pooled 64/36, mean t +1.41, LOO 최소 +1.256) · arm 절대 −2.8503%p(양(+) 시드 0/5) · 모든 시드 분할 neither. → 시드 부호 불일치(s1 −0.564)라 하드룰상 신호 아님. 파서는 시드 루프+단일 시드 요약을 '판정불가'로 닫도록 수리했고, 이 항목은 metric=money_seed_family 로 바꿔 12-02 재실행 때 집계로 판정한다. 부수 관찰: 이 창의 풀 평균이 −3.65%p/세션이라 절대 순기대는 구조적으로 음(−)이다 — 상대 랭킹 Δ로만 평가해야 하는 창이었다(절대 알파 축은 CG459 로 분리). | 05:11 상태 정정: ingest 가 done 으로 닫았으나 표본 20<26 이므로 pending 유지(not_before 2026-12-02 20:00). 11-24 실행분은 '예비 측정'으로만 인용한다."
     },
     {
       "id": "CG441",
@@ -24928,7 +24971,7 @@
       "hypothesis": "CG442 실측: Δ k5 +0.894%p/세션(iid t 2.65 · bb t 1.53) · 폴드 4/5 양수 · LOSO 최소 +0.483. 방향은 일관되나 유효 독립세션이 51개뿐이라 문턱에 못 미친다. 세션이 15개 이상 늘면 블록 t 가 2 를 넘는지가 '실재 vs 잡음'을 가른다. 같은 표본 재채점은 금지(p-hacking).",
       "evidence": "CG442(2026-11-23): 종가진입 k3 Δ+1.029(bb 1.68)/k5 Δ+0.894(bb 1.53) · 익일시가 k5 Δ+0.941(bb 1.67) · 폴드 k5 [-0.512,+0.164,+2.021,+2.535,+0.261] · 상승 135세션 Δ-1.106 vs 하락 120세션 Δ+3.143.",
       "success": "사전 등록(변경 금지): 새 표본에서 ① k=5 Δ(arm−풀) ≥ +0.5%p/세션 ② 블록 부트스트랩(블록=5) t ≥ 2 ③ 폴드 승률 ≥ 4/5 ④ leave-one-fold-out Δ평균 ≥ +0.5. ①~④ 전부 → '상대 엣지 실재'로 확정하고 그때 배포 경로(배치 추론, 별도 승인) 검토로 넘긴다. ② 또는 ④ 실패 → 축 영구 종결.",
-      "setup_needed": "선행 3단: ① panel_prod200 신선 패널을 --end-date 2026-12-04 로 고정 빌드(구간 밀림으로 체크포인트가 폐기되지 않게) ② 패널 날짜 범위가 2026-11-20 이후를 덮는지 확인(현 v6 는 11-05 까지) ③ 그 패널로 위 command 실행 + hash-null 덤프 생성(cg409_vol_gate.py 의 --out-null 경로 재사용). command 의 panel_prod200_v7.npz 이름은 빌드 산출물명에 맞춰 승격 시 확정한다.",
+      "setup_needed": "명령 체인 결함(실측 2026-11-24 02:4x): step2 fillable_topk_expectancy 가 --arm-jsonl cg443_dump.jsonl / --control-jsonl cg443_null.jsonl 을 먹는데, step1(wf_label_sweep)은 cg443_preds.jsonl 만 만든다 → 두 파일을 만드는 단계가 없다(CG410 때는 cg409_vol_gate.py 가 그 역할). 수리: step1 뒤에 `python -u scripts/cg409_vol_gate.py --preds /app/reports/overnight/cg443_preds.jsonl --tag CO_rank_smooth_d1_h5 --panel /app/app/models/wf/panel_prod200_v7.npz --out-arm /tmp/cg443_volgate.jsonl --control-jsonl... --out-control /app/reports/overnight/cg443_dump.jsonl --out-null /app/reports/overnight/cg443_null.jsonl --tag-control cg443_nogate --tag-null cg443_null` 삽입 + fillable 태그를 cg443_nogate 로 정합. 수리 전 실행하면 90분 학습 뒤 step2 에서 파일 없음으로 실패한다.",
       "expected": "블록 t 1.8~2.3 구간 — 문턱 근처라 어느 쪽으로도 갈 수 있다.",
       "cost": "패널 빌드(야간) + 스윕 5폴드×3시드 ≈ 60~90분",
       "created": "2026-11-23T06:13:23+09:00"
@@ -25002,7 +25045,7 @@
       "owner": "engineer",
       "affects_model": false,
       "priority": 1,
-      "status": "pending",
+      "status": "needs_setup",
       "metric": "fillable_topk_vs_pool",
       "summary_out": "/app/reports/overnight/cg446_money.json",
       "est_minutes": 35,
@@ -25018,7 +25061,11 @@
       "cost": "재채점만(새 패널·cg443 덤프 재사용) ≈ 2분. 패널 빌드는 CG443 이 선행.",
       "note": "2026-11-23 16:2x 엔지니어 자율 신설. CG443(새 패널·≥+15세션)의 덤프를 재사용하므로 같은 not_before 를 쓴다 — 별도 패널 빌드 금지(24h 낭비). p-hacking 방지: 같은 255세션 재채점 금지.",
       "created_at": "2026-11-23T16:26:00+09:00",
-      "updated_at": "2026-11-23T16:26:00+09:00"
+      "updated_at": "2026-11-23T16:26:00+09:00",
+      "depends_on": [
+        "CG443"
+      ],
+      "setup_needed": "선행 누락(실측 2026-11-24): arm/control jsonl(cg443_dump/cg443_null)은 CG443 산출물인데 depends_on 이 비어 있어 next_item 이 그대로 시작할 수 있었다. CG443 배선 결함 수리 후 pending 으로 되돌린다."
     },
     {
       "id": "CG447",
@@ -25414,7 +25461,7 @@
     {
       "id": "CG457",
       "title": "[앵커 프로토콜·유니버스 고정] 앵커 5개를 **같은 종목 집단**으로 재측정 — CG455 std 0.0382 에서 모집단 재추첨 효과를 분리 (CG455/CG456 후속)",
-      "status": "pending",
+      "status": "done",
       "priority": 1,
       "kind": "measurement_integrity",
       "owner": "model_engineer",
@@ -25429,7 +25476,92 @@
       "est_minutes": 25,
       "created": "2026-11-24T01:35:00+09:00",
       "not_before": "2026-11-24T01:40:00+09:00",
-      "hypothesis": "champion_robust_eval 의 표본 유니버스는 --universe-seed 를 고정해도 데이터 적립에 따라 eligible 풀이 변해 실행마다 다른 60종목을 뽑는다(실측: 3개 서로 다른 codes_sha1). 따라서 CG455 의 앵커-level std 0.0382 는 앵커 효과가 아니라 모집단 재추첨 + 창 길이 효과다. 유니버스를 코드 목록으로 고정하면(std 0.020 이하 예상) 앵커 프로토콜이 성립한다."
+      "hypothesis": "champion_robust_eval 의 표본 유니버스는 --universe-seed 를 고정해도 데이터 적립에 따라 eligible 풀이 변해 실행마다 다른 60종목을 뽑는다(실측: 3개 서로 다른 codes_sha1). 따라서 CG455 의 앵커-level std 0.0382 는 앵커 효과가 아니라 모집단 재추첨 + 창 길이 효과다. 유니버스를 코드 목록으로 고정하면(std 0.020 이하 예상) 앵커 프로토콜이 성립한다.",
+      "attempts": [
+        {
+          "ts": "2026-11-24T02:26:07+09:00",
+          "rc": 0,
+          "verdict": "앵커 불안정 — 단일 앵커 AUC 는 기준선이 될 수 없다",
+          "detail": "앵커 5개 AUC [2026-10-24:0.5889(4d) · 2026-10-31:0.539(9d) · 2026-11-07:0.5052(14d) · 2026-11-14:0.5208(19d) · 2026-11-21:0.5284(24d)] · 평균 0.5365 · std 0.0284 · 범위 0.0837 (0.5052~0.5889) · ⚠중첩 창(앵커를 옮기면 표본 날짜가 누적: [4, 9, 14, 19, 24]) — 이 std 는 앵커 잡음 + 창 길이 효과. 함의: **단일 창·단일 앵커의 '기록 기준선 대비 Δ'는 앵커 잡음과 구분 불가**(범위 0.0837 = 사전문턱 +0.02 의 4.2배). 유효 비교는 같은 창·같은 앵커의 짝 Δ뿐이며, post-train 절대 AUC 를 기준선으로 등록하는 안은 기각한다.",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG457_20261124-020754.log",
+          "elapsed_min": 18.2
+        }
+      ],
+      "result": {
+        "verdict": "앵커 불안정 — 단일 앵커 AUC 는 기준선이 될 수 없다",
+        "detail": "앵커 5개 AUC [2026-10-24:0.5889(4d) · 2026-10-31:0.539(9d) · 2026-11-07:0.5052(14d) · 2026-11-14:0.5208(19d) · 2026-11-21:0.5284(24d)] · 평균 0.5365 · std 0.0284 · 범위 0.0837 (0.5052~0.5889) · ⚠중첩 창(앵커를 옮기면 표본 날짜가 누적: [4, 9, 14, 19, 24]) — 이 std 는 앵커 잡음 + 창 길이 효과. 함의: **단일 창·단일 앵커의 '기록 기준선 대비 Δ'는 앵커 잡음과 구분 불가**(범위 0.0837 = 사전문턱 +0.02 의 4.2배). 유효 비교는 같은 창·같은 앵커의 짝 Δ뿐이며, post-train 절대 AUC 를 기준선으로 등록하는 안은 기각한다.",
+        "delta": 0.0284,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG458",
+      "kind": "experiment",
+      "owner": "engineer",
+      "affects_model": false,
+      "priority": 1,
+      "status": "done",
+      "metric": "champion_robust_eval",
+      "est_minutes": 25,
+      "summary_out": "/app/reports/overnight/cg458_fixed_len.json",
+      "title": "[앵커 프로토콜·창 길이 고정] 비중첩 등길이 5폴드(24일씩)로 챔피언 재측정 — CG457 std 0.0284 에서 '창 길이 효과'를 제거 (CG457 후속)",
+      "arm": "champion (유니버스 고정 cg457_universe_codes.json · 등길이 24일×5폴드)",
+      "counterfactual": "CG457(중첩 창 [4,9,14,19,24] · std 0.0284 · 범위 0.0837) — 길이가 다르면 레벨이 계통적으로 움직인다",
+      "command": "timeout 2400 docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 2100 python -u scripts/champion_robust_eval.py --window-mode chunks --folds 5 --dates-per-fold 24 --stocks 60 --horizon 5 --label-kind rel --universe training --universe-codes-in /app/reports/overnight/cg457_universe_codes.json --asof-date 2026-11-24 --train-start 2026-07-03 --train-end 2026-10-01 --model-dir app/models/champion --out /app/reports/overnight/cg458_fixed_len.json'",
+      "hypothesis": "CG457: 같은 모집단을 고정해도 앵커 std 0.0284·범위 0.0837(문턱 +0.02 의 4.2배)인데 창 날짜수가 [4,9,14,19,24] 로 함께 커진다 → std 의 상당분이 '창 길이' 계통 효과다. 창 길이를 24일로 고정하면 std 가 줄어야 한다.",
+      "evidence": "CG457(2026-11-24 02:26): 앵커 5 [0.5889(4d)·0.539(9d)·0.5052(14d)·0.5208(19d)·0.5284(24d)] 평균 0.5365 std 0.0284 · 등록 기준선 0.5406 대비 −0.0041(노이즈 std 의 1/7) · CG455 같은 앵커 11-07 0.4790 vs 0.5052(모집단 재추첨 Δ0.0262).",
+      "success": "사전 등록(변경 금지): ① rc=0·폴드 5개 전부 n_dates=24 ② 폴드 std ≤ 0.020 이면 '앵커 불안정성은 대부분 창 길이 효과' → 등길이 다중폴드를 기준선 프로토콜 후보로 리뷰보드에 올린다(프로토콜 변경=승인 대상) ③ std > 0.020 이면 앵커/국면 잡음이 실재 → 단일 창 절대 AUC 영구 금지, 비교는 같은 창·앵커 짝 Δ 만.",
+      "attempts": [
+        {
+          "ts": "2026-11-24T02:42:05+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "parser 없음 (metric='robust_auc_folds')",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG458_20261124-022728.log",
+          "elapsed_min": 14.6
+        },
+        {
+          "ts": "2026-11-24T02:48:43+09:00",
+          "rc": 0,
+          "verdict": "기준선 실측",
+          "detail": "워크포워드 견고 AUC 0.5186±0.0158 (시간창 3개 [0.5005, 0.5163, 0.5390]) · 풀링 0.5173 · 날짜별평균 0.5186 · 행 4300",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG458_20261124-022728.log",
+          "elapsed_min": null,
+          "ingested": true
+        }
+      ],
+      "result": {
+        "verdict": "기준선 실측",
+        "detail": "워크포워드 견고 AUC 0.5186±0.0158 (시간창 3개 [0.5005, 0.5163, 0.5390]) · 풀링 0.5173 · 날짜별평균 0.5186 · 행 4300",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      }
+    },
+    {
+      "id": "CG459",
+      "kind": "experiment",
+      "owner": "engineer",
+      "affects_model": false,
+      "priority": 2,
+      "status": "needs_setup",
+      "metric": "money_seed_family",
+      "summary_out": "data/reports/overnight/cg459_seed_family_pool.json",
+      "est_minutes": 90,
+      "not_before": "2026-12-02T20:00:00+09:00",
+      "title": "[돈 지표·신규축] 시장 국면 게이트 — h5 절대 순기대가 '상승 국면'에서만 양(+)인가 (CG440 5시드 실측 후속)",
+      "arm": "champion+trailing_pool_gate(high)",
+      "counterfactual": "같은 런의 무게이트 롱(항상 top-k) + 세션 풀 평균(hash-null)",
+      "hypothesis": "CG440 5시드 실측에서 상대 랭킹 Δ는 +1.52%p/세션(4/5 양수)인데 절대 순기대는 −2.85%p/세션(0/5 양수)이었다 — 이 창의 풀 평균이 −3.65%p/세션이라 **베타가 알파를 덮었다**. 따라서 모델 개선이 돈이 되려면 '언제 롱할지'가 필요하고, 직전 5세션 풀수익(국면)으로 게이트하면 절대 순기대가 양(+)으로 뒤집히는지가 이 축의 질문이다.",
+      "evidence": "2026-11-24 CG440 5시드: pool −3.654/−3.952/−6.123/−4.038/−4.106 (전부 음) · arm −2.066/−4.516/−3.904/−2.257/−1.508 · Δ +1.588/−0.564/+2.219/+1.781/+2.597. 배포 챔피언 돈 기준(113세션/1771거래) 순기대 −0.3431%p(t −1.72) — 무게이트 롱은 이미 음(−).",
+      "success": "사전 등록(변경 금지): k=5 · stride=1 · exit close_h h5 · 수수료 왕복 0.21%p 기준 ① 게이트 ON(직전 5세션 풀수익>0) 조건의 **절대** 순기대 ≥ +0.5%p/세션 ② 블록 부트스트랩(블록=5) t ≥ 2 ③ 무게이트 대비 절대 기대 +1.0%p 이상 개선 ④ 5시드 중 ≥4 시드가 ①~③ 동시 충족(시드 부호 유지) ⑤ 게이트 ON 세션 수 ≥ 8 (표본 문턱). ①~⑤ 전부 → '국면 게이트'를 승격 게이트 표본 정의 안건으로 리뷰보드에 올린다(승격 아님). ④ 또는 ⑤ 실패 → 국면 게이트 축 종결.",
+      "expected": "상승 국면 세션이 표본의 1/3 이하면 ⑤ 미달로 닫힐 가능성이 크다 — 그 경우 결론은 '롱온리 전략은 이 시장에서 알파 없음'으로 축을 닫고 데이터 축(인트라데이 CG450)으로 간다.",
+      "cost": "기존 덤프 재채점 5시드 × 2조건 ≈ 15분 + 새 표본 확보(세션 ≥+15) 대기",
+      "command": "for s in 0 1 2 3 4; do docker exec stock_xgboost_ml sh -c \"cd /app && OMP_NUM_THREADS=2 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg440_champion_s${s}.jsonl --arm-tag champion_s${s}_gate --control-jsonl /app/reports/overnight/cg440_retrain_cg346_s${s}.jsonl --control-tag retrain_cg346_s${s} --k 5 --exit close_h --horizon 5 --stride 1 --gate-rule trailing_pool --gate-side high --gate-days 5 --overlap-block 5 --json-out /app/reports/overnight/cg459_money_s${s}.json\" ; docker cp stock_xgboost_ml:/app/reports/overnight/cg459_money_s${s}.json /tmp/cg459/ ; done ; python3 scripts/money_seed_family.py --glob '/tmp/cg459/cg459_money_s*.json' --null pool --ks 5 --out data/reports/overnight/cg459_seed_family_pool.json",
+      "note": "2026-11-24 05:2x 엔지니어 자율 신설. **같은 20세션 재채점은 판정이 아니다**(다중비교) — 12-02 이후 표본이 늘어난 같은 커맨드로만 판정한다. 게이트 세션 수가 8 미만이면 판정불가로 두고 12월 중순 재측정. 덤프(cg440_*_s*.jsonl)는 이미 있으므로 재학습 비용 0.",
+      "created": "2026-11-24T05:10:39+09:00",
+      "attempts": []
     }
   ],
   "updated": "2026-11-24T00:24:05+09:00"

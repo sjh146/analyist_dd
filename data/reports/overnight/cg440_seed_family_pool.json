@@ -1,0 +1,156 @@
+{
+  "metric_name": "money_seed_family",
+  "null": "pool",
+  "ks": [
+    "5",
+    "3",
+    "10"
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "n_seeds": 5,
+  "arms": {
+    "arm_tags": [
+      "champion_s0",
+      "champion_s1",
+      "champion_s2",
+      "champion_s3",
+      "champion_s4"
+    ],
+    "control_tags": [
+      "세션별 풀 평균(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓 기대값",
+      "세션별 풀 평균(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓 기대값",
+      "세션별 풀 평균(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓 기대값",
+      "세션별 풀 평균(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓 기대값",
+      "세션별 풀 평균(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓 기대값"
+    ],
+    "exit": "close_h",
+    "horizon": 5,
+    "fee_roundtrip_pct": 0.21,
+    "n_sessions_fillable": 20,
+    "pool_median_fillable": 22
+  },
+  "pair": {
+    "mode": "fold_date",
+    "same_fold_structure": true,
+    "arm_folds": 2,
+    "control_folds": 2,
+    "date_overlap": 20,
+    "note": "폴드→날짜집합 동일 → (fold,date) 짝"
+  },
+  "per_k": {
+    "5": {
+      "n_seeds": 5,
+      "per_seed": [
+        {
+          "seed": 0,
+          "delta": 1.5884,
+          "t": 1.82,
+          "sd": 3.9081,
+          "n_dates": 20,
+          "pos": 12,
+          "neg": 8,
+          "arm_mean": -2.066,
+          "control_mean": -3.6544,
+          "arm_pos_pct": 30.0,
+          "arm_stable": "neither",
+          "arm_front": -3.2399,
+          "arm_back": -0.8921
+        },
+        {
+          "seed": 1,
+          "delta": -0.5642,
+          "t": -0.74,
+          "sd": 3.3913,
+          "n_dates": 20,
+          "pos": 12,
+          "neg": 8,
+          "arm_mean": -4.5163,
+          "control_mean": -3.9521,
+          "arm_pos_pct": 15.0,
+          "arm_stable": "neither",
+          "arm_front": -6.547,
+          "arm_back": -2.4855
+        },
+        {
+          "seed": 2,
+          "delta": 2.2191,
+          "t": 1.83,
+          "sd": 5.4364,
+          "n_dates": 20,
+          "pos": 12,
+          "neg": 8,
+          "arm_mean": -3.9035,
+          "control_mean": -6.1226,
+          "arm_pos_pct": 25.0,
+          "arm_stable": "neither",
+          "arm_front": -7.0781,
+          "arm_back": -0.7288
+        },
+        {
+          "seed": 3,
+          "delta": 1.7812,
+          "t": 1.91,
+          "sd": 4.1716,
+          "n_dates": 20,
+          "pos": 16,
+          "neg": 4,
+          "arm_mean": -2.2571,
+          "control_mean": -4.0383,
+          "arm_pos_pct": 20.0,
+          "arm_stable": "neither",
+          "arm_front": -2.7218,
+          "arm_back": -1.7923
+        },
+        {
+          "seed": 4,
+          "delta": 2.5973,
+          "t": 2.25,
+          "sd": 5.1671,
+          "n_dates": 20,
+          "pos": 12,
+          "neg": 8,
+          "arm_mean": -1.5084,
+          "control_mean": -4.1058,
+          "arm_pos_pct": 20.0,
+          "arm_stable": "unstable",
+          "arm_front": -5.8294,
+          "arm_back": 2.8125
+        }
+      ],
+      "mean_delta": 1.5244,
+      "mean_arm_mean": -2.8503,
+      "n_positive_arm_seeds": 0,
+      "sd_delta_across_seeds": 1.1015,
+      "min_delta": -0.5642,
+      "max_delta": 2.5973,
+      "n_positive_seeds": 4,
+      "all_positive": false,
+      "all_negative": false,
+      "pooled_pos": 64,
+      "pooled_neg": 36,
+      "mean_t": 1.414
+    },
+    "3": {
+      "n_seeds": 0,
+      "per_seed": []
+    },
+    "10": {
+      "n_seeds": 0,
+      "per_seed": []
+    }
+  },
+  "files": [
+    "cg440_money_s0.json",
+    "cg440_money_s1.json",
+    "cg440_money_s2.json",
+    "cg440_money_s3.json",
+    "cg440_money_s4.json"
+  ],
+  "measured_at": "2026-11-24T05:09:34+09:00"
+}

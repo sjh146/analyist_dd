@@ -3375,12 +3375,22 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
     = 순기대>0 · 분할표본 both_positive · 챔피언 대비 +0.1%p)과 동일하고, (c)는 표본(세션 80)에서
     +0.1%p 가 잡음과 구분되는지(≈2σ) 보는 장치다. AUC 처럼 폴드 std ±0.03 을 감안한 +0.02 문턱이
     아니라 **돈 단위(%p/세션)** 문턱이라는 점이 다르다 — 이 역할의 최우선 규칙.
+
+    시드 루프 차단(2026-11-24 CG440): 커맨드가 `for s in 0 1 2 3 4` 로 5시드를 돌려 요약 파일도
+    5개인데 summary_out 이 `..._s0.json` 이면 판정이 **한 시드**로 내려간다(CG440: s0 Δ+1.588 '노이즈',
+    같은 런 5시드 집계 Δ+1.524·4/5 양수·LOO 최소 +1.256·arm 절대 −2.8503·양(+) 0/5 → 이유부터 달랐다).
+    단일 시드 판정은 하드룰 위반이므로 값을 쓰지 않고 '판정불가'로 닫아 money_seed_family 집계를 지목한다.
     """
     if parsed.get("error"):
         return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
 
-
-
+    _cmd = str(item.get("command") or "")
+    _tag = str(parsed.get("arm_tag") or "")
+    if _cmd.count("for s in") >= 1 and re.search(r"_s\d+$", _tag):
+        return "판정불가", (
+            f"시드 루프 커맨드인데 요약은 단일 시드만 읽었다(arm_tag={_tag}) — 시드 부호 유지가 판정의 "
+            "핵심이므로 한 시드 값으로 신호/노이즈를 쓰지 않는다. metric=money_seed_family 로 집계하라: "
+            "python3 scripts/money_seed_family.py --glob '<seed files>' --null <control|pool> --ks 3,5 --out <family.json>"), None
 
     conds0 = parsed.get("conditions") or {}
     _fl = ((conds0.get("fillable") or {}).get("k") or {})
@@ -6003,6 +6013,8 @@ def judge_money_seed_family(item, parsed) -> tuple:
               f"· 시드 양(+) {b.get('n_positive_seeds')}/{b.get('n_seeds')} "
               f"· pooled pos/neg {b.get('pooled_pos')}/{b.get('pooled_neg')} "
               f"· mean t {b.get('mean_t'):+.2f} "
+              + (f"· arm 절대 {b['mean_arm_mean']:+.4f}%p (양(+) 시드 {b.get('n_positive_arm_seeds')}/{b['n_seeds']}) "
+                 if isinstance(b.get("mean_arm_mean"), (int, float)) else "")
               + " · 시드별 ["
               + ", ".join(f"s{x.get('seed')}: {x.get('delta'):+.3f}(t {x.get('t'):+.2f})"
                           for x in b.get("per_seed") or []
