@@ -1,6 +1,9 @@
 services:
   jenkins:
-    image: jenkins/jenkins:lts-jdk17
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: analyist_jenkins:local
     container_name: analyist_jenkins
     restart: unless-stopped
     mem_limit: 1200m
@@ -20,6 +23,7 @@ services:
       - /home/jhshi/trader-feed:/work/trader-feed
       - /mnt/c/Users/jhshi/analyist_dd/trader-agent:/work/trader-agent:ro
       - /home/jhshi/analyist_dd/ci:/var/jenkins_home/ci:ro
+      - ./init.groovy.d:/var/jenkins_home/init.groovy.d:ro
     ulimits:
       nofile:
         soft: 8192

@@ -7,7 +7,9 @@ analyist_dd 피드를 `trader-feed` 저장소에 커밋·푸시한다. 실패하
 
     deploy/jenkins/
       docker-compose.yml   Jenkins LTS (127.0.0.1:8081, 메모리 1.2GB 제한)
-      casc.yaml            JCasC: 관리자 계정, GitHub PAT 자격증명, 잡 2개
+      casc.yaml            JCasC: 관리자 계정, GitHub PAT 자격증명
+      init.groovy.d/create_jobs.groovy  잡 2개 생성(피드·코드 게시)
+      Dockerfile           python3 포함 이미지(파이프라인이 python3 사용)
       .env                 JENKINS_ADMIN_PASSWORD, GH_TOKEN (커밋 금지)
       home/                JENKINS_HOME (커밋 금지)
     ci/Jenkinsfile.feed    파이프라인 본문(검증 → 게시 → 번들 → 요약)
@@ -22,8 +24,11 @@ analyist_dd 피드를 `trader-feed` 저장소에 커밋·푸시한다. 실패하
 
 | 잡 | 트리거 | 내용 |
 |---|---|---|
-| `feed-publish` | 평일 08:40 KST | 피드 검증 → 게시 → (VERSION 지정 시) 코드 번들 |
+| `feed-publish` | 평일 08:40 KST | 피드 검증 → 게시 → (VERSION 지정 시) 코드 게시 |
 | `feed-publish-manual` | 수동 | 같은 파이프라인, ALLOW_STALE 기본 true |
+
+코드 게시는 `VERSION` 파라미터를 넣고 빌드하면 `scripts/publish_code_github.py` 가
+`app/` 을 갱신한다. 고객 PC 는 08:45 sync 에서 피드와 코드를 함께 받는다.
 
 ## 기동
 

@@ -15,10 +15,15 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
+
+PRESERVE = {"config_live.json", "config.json", "version.json", "kill_switch.txt",
+            "journal", "logs", "data", "__pycache__"}
 
 
 def now_kst() -> datetime:
@@ -95,17 +100,76 @@ def verify_and_install(cfg: dict, allow_stale: bool) -> dict:
     return {"ok": True, "out": out_path, **state}
 
 
+def read_text(path: str) -> str:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+def install_code(cfg: dict) -> dict:
+    repo_app = os.path.join(cfg["repo_dir"], "app")
+    if not os.path.isdir(repo_app):
+        return {"code": "absent"}
+    version = read_text(os.path.join(repo_app, "VERSION"))
+    if not version:
+        raise SystemExit("app/VERSION 없음 — 코드 번들 손상")
+    app_dir = cfg["app_dir"]
+    have = ""
+    try:
+        with open(os.path.join(app_dir, "version.json"), encoding="utf-8") as fh:
+            have = str(json.load(fh).get("version") or "")
+    except (OSError, ValueError):
+        have = ""
+    if have == version:
+        return {"code": "unchanged", "version": version}
+    parent = os.path.dirname(os.path.abspath(app_dir))
+    os.makedirs(parent, exist_ok=True)
+    staging = os.path.join(parent, ".app-new-" + time.strftime("%Y%m%d%H%M%S"))
+    if os.path.isdir(staging):
+        shutil.rmtree(staging)
+    shutil.copytree(repo_app, staging, ignore=shutil.ignore_patterns(*PRESERVE))
+    if not os.path.isfile(os.path.join(staging, "trader_core", "engine.py")):
+        shutil.rmtree(staging, ignore_errors=True)
+        raise SystemExit("코드 검증 실패: trader_core/engine.py 없음")
+    backup = app_dir.rstrip("/\\") + ".bak-" + time.strftime("%Y%m%d%H%M%S")
+    had_app = os.path.isdir(app_dir)
+    if had_app:
+        for name in PRESERVE:
+            src = os.path.join(app_dir, name)
+            if os.path.isfile(src):
+                shutil.copy2(src, os.path.join(staging, name))
+        os.replace(app_dir, backup)
+    try:
+        os.replace(staging, app_dir)
+        with open(os.path.join(app_dir, "version.json"), "w", encoding="utf-8") as fh:
+            json.dump({"version": version,
+                       "installed_at": now_kst().isoformat(timespec="seconds")}, fh)
+    except OSError:
+        shutil.rmtree(app_dir, ignore_errors=True)
+        if had_app and os.path.isdir(backup):
+            os.replace(backup, app_dir)
+        raise
+    if had_app:
+        shutil.rmtree(backup, ignore_errors=True)
+    return {"code": "installed", "version": version}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="피드 저장소 pull")
     ap.add_argument("--config", default="config.json")
     ap.add_argument("--allow-stale", action="store_true")
     ap.add_argument("--skip-git", action="store_true")
+    ap.add_argument("--no-code", action="store_true")
     args = ap.parse_args(argv)
     with open(args.config, encoding="utf-8") as fh:
         cfg = json.load(fh)
     try:
         info = {"skipped_git": True} if args.skip_git else sync_repo(cfg)
         out = verify_and_install(cfg, args.allow_stale)
+        if not args.no_code and cfg.get("install_code", True) and cfg.get("app_dir"):
+            out.update(install_code(cfg))
     except SystemExit as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 1

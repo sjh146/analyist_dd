@@ -31,9 +31,16 @@
 
 | 시각 | 작업 | 실패 시 |
 |---|---|---|
-| 08:45 | `sync_feed.bat` — trader-feed pull, 오늘 피드 검증 | 거래하지 않음(fail-closed) |
+| 08:45 | `sync_feed.bat` — trader-feed pull → 오늘 피드 검증 + 코드 버전 교체 | 거래하지 않음(fail-closed) |
 | 08:50 | `loop_start_bg.bat` — 트레이더 루프 시작 | 로그 확인 |
 | 15:40 | `post_close.bat` — 텔레메트리 전송 + 코드 번들 업데이트 | 다음날 재시도 |
+
+## 코드 업데이트 동작
+
+- 서버가 `app/VERSION` 을 올려 푸시하면, 다음 08:45 sync 에서 자동 교체된다.
+- 교체는 스테이징 → 검증 → 백업 → 스왑 순서이고, 검증 실패 시 기존 코드를 유지한다.
+- `config_live.json`·`logs/`·`journal/`·`kill_switch.txt` 는 덮어쓰지 않는다.
+- 장중에는 돌지 않는다(예약 시각 08:45 고정). 수동 실행은 `python sync_feed.py --config config.json`.
 
 ## 고객 PC 점검 명령
 

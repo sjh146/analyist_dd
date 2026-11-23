@@ -7,7 +7,7 @@ pipeline {
   }
   parameters {
     booleanParam(name: 'ALLOW_STALE', defaultValue: false, description: '오래된 피드도 게시(수동 복구용)')
-    string(name: 'VERSION', defaultValue: '', description: '코드 번들 버전(비우면 번들 단계 생략)')
+    string(name: 'VERSION', defaultValue: '', description: '코드 번들 버전(X.Y.Z). 비우면 피드만 게시')
   }
   environment {
     REPO = '/work/analyist_dd'
@@ -19,33 +19,35 @@ pipeline {
     stage('Validate feed') {
       steps {
         dir("${env.REPO}") {
-          sh 'python3 services/feed_relay/publish_feed.py --dst /tmp/feed_check.json $STALE_FLAG || true'
-          sh 'python3 scripts/publish_feed_github.py --dry-run --repo-dir "${FEED_REPO}" $STALE_FLAG'
+          sh 'python3 scripts/publish_feed_github.py --dry-run --repo-dir "$FEED_REPO" $STALE_FLAG'
         }
       }
     }
-    stage('Publish feed to GitHub') {
+    stage('Publish feed') {
       steps {
         dir("${env.REPO}") {
           sh '''
             set -eu
             git -C "$FEED_REPO" config user.name "analyist_dd bot"
             git -C "$FEED_REPO" config user.email "bot@sjh146.local"
+            git -C "$FEED_REPO" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/sjh146/trader-feed.git"
             python3 scripts/publish_feed_github.py --repo-dir "$FEED_REPO" $STALE_FLAG
             git -C "$FEED_REPO" log --oneline -1
           '''
         }
       }
     }
-    stage('Build code bundle') {
+    stage('Publish code') {
       when { expression { params.VERSION?.trim() } }
       steps {
         dir("${env.REPO}") {
           sh '''
             set -eu
-            python3 services/feed_relay/build_release.py --version "$VERSION" --channel stable \
-              --app-dir /work/trader-agent --root /work/releases
-            ls -lh /work/releases/releases/"$VERSION"
+            git -C "$FEED_REPO" config user.name "analyist_dd bot"
+            git -C "$FEED_REPO" config user.email "bot@sjh146.local"
+            git -C "$FEED_REPO" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/sjh146/trader-feed.git"
+            python3 scripts/publish_code_github.py --repo-dir "$FEED_REPO" --version "$VERSION"
+            git -C "$FEED_REPO" log --oneline -1
           '''
         }
       }
@@ -53,17 +55,29 @@ pipeline {
     stage('Summary') {
       steps {
         dir("${env.FEED_REPO}") {
-          sh 'python3 -c "import json;d=json.load(open(\'deploy/meta.json\'));print(\'published\',d[\'published_at\'],\'generated\',d[\'generated_at\'],\'candidates\',d[\'candidates\'])"'
+          sh '''
+            python3 - <<"PY"
+import json, os
+meta = json.load(open("deploy/meta.json"))
+print("feed published:", meta["published_at"], "candidates:", meta["candidates"])
+ver = "app/VERSION"
+print("code version:", open(ver).read().strip() if os.path.isfile(ver) else "none")
+PY
+          '''
         }
       }
     }
   }
   post {
-    failure {
-      echo '피드 게시 실패 — 고객 PC 는 fail-closed 로 거래하지 않는다.'
+    always {
+      dir("${env.FEED_REPO}") {
+        sh '''
+          git remote set-url origin https://github.com/sjh146/trader-feed.git || true
+        '''
+      }
     }
-    success {
-      echo '피드 게시 완료.'
+    failure {
+      echo '게시 실패 — 고객 PC 는 fail-closed 로 거래하지 않는다.'
     }
   }
 }

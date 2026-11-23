@@ -128,3 +128,74 @@ def test_publish_refuses_empty_candidates(tmp_path, feed_repo):
                                "candidates": {"close": {"items": []}}}), encoding="utf-8")
     with pytest.raises(SystemExit):
         publish.prepare_payload(str(src), 18.0, False)
+
+
+def _add_code(work, version: str = "1.2.3"):
+    app = work / "app"
+    (app / "trader_core").mkdir(parents=True, exist_ok=True)
+    (app / "runner").mkdir(parents=True, exist_ok=True)
+    (app / "trader_core" / "engine.py").write_text("VALUE = '{0}'\n".format(version), encoding="utf-8")
+    (app / "runner" / "loop.py").write_text("print('loop')\n", encoding="utf-8")
+    (app / "run_market_loop.py").write_text("print('main')\n", encoding="utf-8")
+    (app / "VERSION").write_text(version + "\n", encoding="utf-8")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "code " + version)
+    _git(work, "push", "-q", "origin", "main")
+
+
+def test_sync_installs_code_and_keeps_local_config(tmp_path, feed_repo):
+    publish = _load("pub_feed5", "scripts/publish_feed_github.py")
+    sync = _load("sync_feed5", "services/feed_relay/client/sync_feed.py")
+    src = tmp_path / "f.json"
+    src.write_text(json.dumps({"generated_at": publish.now_kst().isoformat(timespec="seconds"),
+                               "candidates": {"close": {"items": [{"stock_code": "005930"}]}}}),
+                   encoding="utf-8")
+    feed, meta = publish.prepare_payload(str(src), 18.0, False)
+    publish.publish(str(feed_repo["work"]), feed, meta, "origin", "main", False, "feed: code")
+    _add_code(feed_repo["work"], "1.2.3")
+
+    app_dir = tmp_path / "c" / "app"
+    app_dir.mkdir(parents=True)
+    (app_dir / "config_live.json").write_text('{"local": true}', encoding="utf-8")
+    cfg = {"repo_url": feed_repo["url"], "repo_dir": str(tmp_path / "c" / "r"),
+           "feed_out": str(tmp_path / "c" / "feed.json"), "branch": "main",
+           "app_dir": str(app_dir), "feed_schema_version": 1}
+    cfg_path = tmp_path / "c" / "config.json"
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+
+    assert sync.main(["--config", str(cfg_path)]) == 0
+    assert (app_dir / "trader_core" / "engine.py").read_text(encoding="utf-8").startswith("VALUE")
+    assert (app_dir / "config_live.json").read_text(encoding="utf-8") == '{"local": true}'
+    state = json.loads((app_dir / "version.json").read_text(encoding="utf-8"))
+    assert state["version"] == "1.2.3"
+
+    assert sync.main(["--config", str(cfg_path), "--no-code"]) == 0
+
+
+def test_code_missing_engine_aborts_without_touching_app(tmp_path, feed_repo):
+    publish = _load("pub_feed6", "scripts/publish_feed_github.py")
+    sync = _load("sync_feed6", "services/feed_relay/client/sync_feed.py")
+    src = tmp_path / "f.json"
+    src.write_text(json.dumps({"generated_at": publish.now_kst().isoformat(timespec="seconds"),
+                               "candidates": {"close": {"items": [{"stock_code": "1"}]}}}),
+                   encoding="utf-8")
+    feed, meta = publish.prepare_payload(str(src), 18.0, False)
+    publish.publish(str(feed_repo["work"]), feed, meta, "origin", "main", False, "feed: badcode")
+    app = feed_repo["work"] / "app"
+    (app / "runner").mkdir(parents=True, exist_ok=True)
+    (app / "runner" / "loop.py").write_text("print(1)\n", encoding="utf-8")
+    (app / "VERSION").write_text("2.0.0\n", encoding="utf-8")
+    _git(feed_repo["work"], "add", "-A")
+    _git(feed_repo["work"], "commit", "-q", "-m", "bad code")
+    _git(feed_repo["work"], "push", "-q", "origin", "main")
+
+    app_dir = tmp_path / "d" / "app"
+    app_dir.mkdir(parents=True)
+    (app_dir / "keep.txt").write_text("old", encoding="utf-8")
+    cfg = {"repo_url": feed_repo["url"], "repo_dir": str(tmp_path / "d" / "r"),
+           "feed_out": str(tmp_path / "d" / "feed.json"), "branch": "main",
+           "app_dir": str(app_dir), "feed_schema_version": 1}
+    cfg_path = tmp_path / "d" / "config.json"
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+    assert sync.main(["--config", str(cfg_path)]) == 1
+    assert (app_dir / "keep.txt").read_text(encoding="utf-8") == "old"
