@@ -10,7 +10,41 @@ import json
 import os
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+
+KST = timedelta(hours=9)
+
+
+def _signal_date() -> str:
+    """시그널 기준일 = **최근 거래일**(market_data 의 max(trade_date)).
+
+    WHY(실측 2026-11-23 08:31 KST): 이 컨테이너의 TZ 는 UTC 라 `date.today()` 가
+    **전날**을 가리킨다 — 월요일 08:30 실행이 `date=2026-11-22(일요일)` 로 기록돼
+    swing 피드 20건의 signal_date 가 비거래일로 나갔다(피드 계약: signal_date 는
+    신호의 기준 거래일). 달력일이 아니라 데이터가 가리키는 날짜를 쓴다.
+    DB 를 못 읽으면 **KST 달력일**로 폴백한다(UTC 날짜로 되돌아가지 않는다).
+    """
+    try:
+        import psycopg2
+
+        conn = psycopg2.connect(
+            host=os.environ.get("POSTGRES_HOST", "postgres"),
+            port=int(os.environ.get("POSTGRES_PORT", "5432")),
+            dbname=os.environ.get("POSTGRES_DB", "stock_trading"),
+            user=os.environ.get("POSTGRES_USER", "stock_user"),
+            password=os.environ.get("POSTGRES_PASSWORD", ""),
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT max(trade_date) FROM market_data")
+                row = cur.fetchone()
+        finally:
+            conn.close()
+        if row and row[0]:
+            return row[0].isoformat()
+    except Exception as exc:  # noqa: BLE001 — 날짜 계산 실패가 잡 전체를 죽이면 안 된다
+        sys.stderr.write(f"[swing_job] signal_date DB 조회 실패({exc}) → KST 달력일 폴백\n")
+    return (datetime.utcnow() + KST).date().isoformat()
 
 
 def _row_to_candidate(row: dict) -> dict:
@@ -49,9 +83,11 @@ def main():
         os.remove(out_csv)
 
     # 전체 스코어 유니버스 덤프 경로(피드 계약 v1.1 rank_pct 근거). /app/reports 는
-    # 호스트 reports/ 로 마운트돼 있어 분석측이 바로 읽는다. 날짜는 payload 의 date 와 같게
-    # 맞춘다(컨테이너 로컬 날짜 = UTC 기준 → 08:30 KST 실행이면 전일).
-    universe_path = f"/app/reports/swing_universe_{date.today().isoformat()}.json"
+    # 호스트 reports/ 로 마운트돼 있어 분석측이 바로 읽는다. 파일명과 payload 의 date 는
+    # **같은 값(최근 거래일)** 을 쓴다 — 2026-11-23 실측: 컨테이너 TZ(UTC)의 date.today() 가
+    # 월요일 08:30 실행에서 일요일(11-22)을 찍어 signal_date 가 비거래일이 됐다.
+    signal_date = _signal_date()
+    universe_path = f"/app/reports/swing_universe_{signal_date}.json"
 
     cmd = [
         sys.executable, screener,
@@ -88,7 +124,7 @@ def main():
 
     result = {
         "request_type": "swing_screener",
-        "date": date.today().isoformat(),
+        "date": signal_date,
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "total": len(candidates),
         "up": len(up),
