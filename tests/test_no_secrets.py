@@ -86,3 +86,25 @@ def test_no_private_key_material():
                           ":(exclude)tests/test_no_secrets.py"],
                          capture_output=True, text=True)
     assert out.stdout.strip() == "", "개인키가 추적되고 있다: " + out.stdout.strip()
+
+
+PLACEHOLDER_VALUES = {"stock_password", "changeme", "password", "example", "test"}
+
+HARDCODED_SECRET = re.compile(
+    r'os\.environ\.get\(\s*"(?![A-Z0-9_]*(?:PATH|HOST|PORT|USER|DB|URL|DIR))[A-Z0-9_]*'
+    r'(?:PASSWORD|SECRET|API_KEY|APP_KEY|ACCESS_TOKEN)[A-Z0-9_]*"\s*,\s*"[^"]{6,}"')
+
+
+def test_no_hardcoded_secret_fallbacks():
+    leaks = []
+    for path in _tracked():
+        if not path.endswith(".py"):
+            continue
+        full = REPO / path
+        text = full.read_text(encoding="utf-8", errors="replace") if full.is_file() else ""
+        for match in HARDCODED_SECRET.finditer(text):
+            value = match.group(0).rsplit('"', 2)[-2]
+            if value.strip().lower() in PLACEHOLDER_VALUES:
+                continue
+            leaks.append((path, match.group(0)[:80]))
+    assert leaks == [], "시크릿 기본값 하드코딩: {0}".format(leaks[:5])

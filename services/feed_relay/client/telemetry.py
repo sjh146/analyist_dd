@@ -16,6 +16,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 ACCOUNT_RE = re.compile(r"\b\d{8,}-\d{2,}\b")
+ACCOUNT_PLAIN_RE = re.compile(r"\b\d{10,14}\b")
+ACCOUNT_CTX_RE = re.compile(r"(계좌\s*번호?|acct(?:ount)?\s*(?:no|num)?)[^\d]{0,8}(\d{6,14})", re.I)
 
 
 def now_kst() -> str:
@@ -23,7 +25,9 @@ def now_kst() -> str:
 
 
 def mask(text: str) -> str:
-    return ACCOUNT_RE.sub("***-****", text)
+    out = ACCOUNT_RE.sub("***-****", text)
+    out = ACCOUNT_CTX_RE.sub(lambda m: m.group(1) + " ***-****", out)
+    return ACCOUNT_PLAIN_RE.sub("***-****", out)
 
 
 def tail(path: str, lines: int = 200) -> list[str]:

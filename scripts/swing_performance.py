@@ -41,7 +41,7 @@ PG_HOST = os.environ.get("POSTGRES_HOST", "postgres")
 PG_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
 PG_DB = os.environ.get("POSTGRES_DB", "stock_trading")
 PG_USER = os.environ.get("POSTGRES_USER", "stock_user")
-PG_PASS = os.environ.get("POSTGRES_PASSWORD", "9MrYGP4JkNZpMlRGhichIp8TqPuNDNPr")
+PG_PASS = os.environ.get("POSTGRES_PASSWORD", "")
 
 # 한국 주식 왕복 거래비용 기본값 (%)
 DEFAULT_ROUND_TRIP_COST_PCT = 0.31
@@ -49,6 +49,8 @@ DEFAULT_ROUND_TRIP_COST_PCT = 0.31
 
 def get_pg_conn():
     import psycopg2
+    if not PG_PASS:
+        raise SystemExit("POSTGRES_PASSWORD 미설정 — .env 를 로드한 뒤 실행하세요")
     return psycopg2.connect(host=PG_HOST, port=PG_PORT, dbname=PG_DB,
                             user=PG_USER, password=PG_PASS)
 

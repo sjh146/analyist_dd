@@ -179,7 +179,7 @@ def _build_stock_report(symbol: str) -> dict:
 
     summary = {
         "symbol": symbol,
-        "request_type": req.request_type,
+        "request_type": "stock_report",
         "verdict": (
             latest_pred.get("direction") if latest_pred else "no_data"
         ),
