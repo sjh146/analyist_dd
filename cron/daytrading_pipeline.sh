@@ -26,6 +26,10 @@ CONT_HOST="$REPO/services/xgboost-ml/data/reports/daytrading_latest.json"
 CONTAINER=stock_xgboost_ml
 DRY=""
 [ "${1:-}" = "--dry-run" ] && DRY="--dry-run"
+# 최소 거래대금(원). HI 는 실측 근거(왕복비용 0.4% 이하 종목이 대부분 10억 이상),
+# 09:10 개장 직후 0건이면 LO 로 자동 강등된다.
+MIN_VALUE_HI="${DAYTRADING_MIN_VALUE_HI:-1000000000}"
+MIN_VALUE_LO="${DAYTRADING_MIN_VALUE_LO:-300000000}"
 
 cd "$REPO" || exit 1
 ts() { date '+%F %T'; }
@@ -54,10 +58,11 @@ EOF
 "$PY" scripts/rank_universe.py --pct-from 2 --pct-to 12 --pages 7 --quiet >> "$LOG" 2>&1 \
   || log "WARN rank_universe 실패 — 전체 유니버스로 진행(fail-open)"
 
-run_screener() {  # $1 = 추가 인자(대역 파일), $2 = 라벨
-  local extra="${1:-}" label="${2:-band}"
+run_screener() {  # $1 = 최소 거래대금, $2 = 추가 인자(대역 파일), $3 = 라벨
+  local mv="${1:-$MIN_VALUE_LO}" extra="${2:-}" label="${3:-band}"
   docker exec -w /app -e PYTHONPATH=/app "$CONTAINER" \
-    python scripts/daytrading_screener.py --top-n 20 --json-out "$CONT_JSON" $extra >> "$LOG" 2>&1
+    python scripts/daytrading_screener.py --top-n 20 --json-out "$CONT_JSON" \
+    --min-trading-value "$mv" $extra >> "$LOG" 2>&1
   local rc=$?
   local n
   n=$(count_items "$CONT_HOST")
@@ -65,10 +70,17 @@ run_screener() {  # $1 = 추가 인자(대역 파일), $2 = 라벨
   echo "$n"
 }
 
-n=$(run_screener "--rank-band-file $UNIV" "rank-band")
+# 2026-11-23: 거래대금 하한 3억 → 10억(스프레드 넓은 박한 종목 배제, 실측 근거).
+# 개장 직후(09:10)는 당일 누적 거래대금이 작아 10억으로 0건이 나올 수 있으므로
+# 3억으로 한 번 더 시도한 뒤, 그래도 0건이면 기존처럼 대역 없이 재시도한다.
+n=$(run_screener "$MIN_VALUE_HI" "--rank-band-file $UNIV" "rank-band-10eok")
+if [ "${n:-0}" -eq 0 ]; then
+  log "WARN 10억 하한에서 후보 0건 — 3억 하한으로 재시도"
+  n=$(run_screener "$MIN_VALUE_LO" "--rank-band-file $UNIV" "rank-band-3eok")
+fi
 if [ "${n:-0}" -eq 0 ]; then
   log "WARN 대역 적용 후 후보 0건 — 대역 없이 재시도"
-  n=$(run_screener "" "fallback")
+  n=$(run_screener "$MIN_VALUE_LO" "" "fallback")
 fi
 if [ "${n:-0}" -eq 0 ]; then
   log "FAIL 후보 0건 — 발행 중단(기존 피드 유지)"
