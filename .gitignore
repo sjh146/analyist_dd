@@ -141,3 +141,7 @@ data/feed_relay/feed/
 data/feed_relay/releases/
 data/feed_relay/telemetry/
 data/feed_relay/ack/
+
+# Jenkins (로컬 홈·시크릿)
+deploy/jenkins/home/
+deploy/jenkins/.env

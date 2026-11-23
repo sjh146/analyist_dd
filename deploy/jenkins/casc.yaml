@@ -1,0 +1,75 @@
+jenkins:
+  systemMessage: "analyist_dd feed publisher (Jenkins)"
+  numExecutors: 2
+  mode: NORMAL
+  scmCheckoutRetryCount: 3
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - string:
+              scope: GLOBAL
+              id: "github-pat"
+              secret: "${GH_TOKEN}"
+              description: "GitHub PAT (trader-feed push)"
+
+jobs:
+  - script: |
+      pipelineJob('feed-publish') {
+        description('analyist_dd 피드를 trader-feed 저장소에 게시한다. 실패하면 고객 PC 는 거래하지 않는다.')
+        logRotator { numToKeep(30) }
+        parameters {
+          booleanParam('ALLOW_STALE', false, '오래된 피드도 게시(수동 복구용)')
+          stringParam('VERSION', '', '코드 번들 버전(비우면 번들 단계 생략)')
+        }
+        triggers {
+          cron('TZ=Asia/Seoul\n40 8 * * 1-5')
+        }
+        definition {
+          cps {
+            script(readFileFromWorkspace('ci/Jenkinsfile.feed'))
+            sandbox(true)
+          }
+        }
+      }
+
+  - script: |
+      pipelineJob('feed-publish-manual') {
+        description('수동 복구용: 장중/장후 아무 때나 같은 게시를 실행한다.')
+        logRotator { numToKeep(10) }
+        parameters {
+          booleanParam('ALLOW_STALE', true, '오래된 피드도 게시')
+          stringParam('VERSION', '', '코드 번들 버전')
+        }
+        definition {
+          cps {
+            script(readFileFromWorkspace('ci/Jenkinsfile.feed'))
+            sandbox(true)
+          }
+        }
+      }
+
+unclassified:
+  location:
+    url: "http://127.0.0.1:8081/"
+    adminAddress: "bot@sjh146.local"
+  timestamper:
+    allPipelines: true
+  gitHubPluginConfig:
+    hookUrl: "http://127.0.0.1:8081/github-webhook/"
+
+tool:
+  git:
+    installations:
+      - name: Default
+        home: git

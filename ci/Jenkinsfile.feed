@@ -1,0 +1,69 @@
+pipeline {
+  agent any
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '30'))
+  }
+  parameters {
+    booleanParam(name: 'ALLOW_STALE', defaultValue: false, description: '오래된 피드도 게시(수동 복구용)')
+    string(name: 'VERSION', defaultValue: '', description: '코드 번들 버전(비우면 번들 단계 생략)')
+  }
+  environment {
+    REPO = '/work/analyist_dd'
+    FEED_REPO = '/work/trader-feed'
+    TZ = 'Asia/Seoul'
+    STALE_FLAG = "${params.ALLOW_STALE ? '--allow-stale' : ''}"
+  }
+  stages {
+    stage('Validate feed') {
+      steps {
+        dir("${env.REPO}") {
+          sh 'python3 services/feed_relay/publish_feed.py --dst /tmp/feed_check.json $STALE_FLAG || true'
+          sh 'python3 scripts/publish_feed_github.py --dry-run --repo-dir "${FEED_REPO}" $STALE_FLAG'
+        }
+      }
+    }
+    stage('Publish feed to GitHub') {
+      steps {
+        dir("${env.REPO}") {
+          sh '''
+            set -eu
+            git -C "$FEED_REPO" config user.name "analyist_dd bot"
+            git -C "$FEED_REPO" config user.email "bot@sjh146.local"
+            python3 scripts/publish_feed_github.py --repo-dir "$FEED_REPO" $STALE_FLAG
+            git -C "$FEED_REPO" log --oneline -1
+          '''
+        }
+      }
+    }
+    stage('Build code bundle') {
+      when { expression { params.VERSION?.trim() } }
+      steps {
+        dir("${env.REPO}") {
+          sh '''
+            set -eu
+            python3 services/feed_relay/build_release.py --version "$VERSION" --channel stable \
+              --app-dir /work/trader-agent --root /work/releases
+            ls -lh /work/releases/releases/"$VERSION"
+          '''
+        }
+      }
+    }
+    stage('Summary') {
+      steps {
+        dir("${env.FEED_REPO}") {
+          sh 'python3 -c "import json;d=json.load(open(\'deploy/meta.json\'));print(\'published\',d[\'published_at\'],\'generated\',d[\'generated_at\'],\'candidates\',d[\'candidates\'])"'
+        }
+      }
+    }
+  }
+  post {
+    failure {
+      echo '피드 게시 실패 — 고객 PC 는 fail-closed 로 거래하지 않는다.'
+    }
+    success {
+      echo '피드 게시 완료.'
+    }
+  }
+}

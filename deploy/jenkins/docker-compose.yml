@@ -1,0 +1,26 @@
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: analyist_jenkins
+    restart: unless-stopped
+    mem_limit: 1200m
+    ports:
+      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:50001:50000"
+    environment:
+      - TZ=Asia/Seoul
+      - JAVA_OPTS=-Xmx768m -Duser.timezone=Asia/Seoul -Dhudson.model.DirectoryBrowserSupport.CSP=
+      - CASC_JENKINS_CONFIG=/var/jenkins_home/casc.yaml
+      - JENKINS_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD:?set in .env}
+      - GH_TOKEN=${GH_TOKEN:?set in .env}
+    volumes:
+      - ./home:/var/jenkins_home
+      - ./casc.yaml:/var/jenkins_home/casc.yaml:ro
+      - /home/jhshi/analyist_dd:/work/analyist_dd
+      - /home/jhshi/trader-feed:/work/trader-feed
+      - /mnt/c/Users/jhshi/analyist_dd/trader-agent:/work/trader-agent:ro
+      - /home/jhshi/analyist_dd/ci:/var/jenkins_home/ci:ro
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 8192
