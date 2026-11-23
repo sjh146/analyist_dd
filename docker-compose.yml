@@ -38,9 +38,9 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
     ports:
-      - "7474:7474"
-      - "7687:7687"
-      - "2004:2004"
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+      - "127.0.0.1:2004:2004"
     networks:
       - stock_network
     healthcheck:
@@ -58,7 +58,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - stock_network
     healthcheck:
@@ -214,7 +214,7 @@ services:
     environment:
       - JOB_RUNNER_URL=http://job-runner:8010
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./services/api-gateway:/app
       - ./reports:/app/reports
@@ -260,7 +260,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./config/prometheus:/etc/prometheus
       - prometheus_data:/prometheus
@@ -271,7 +271,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       # fail-closed: GF_ADMIN_PASSWORD 미설정 시 compose 기동 실패 (CWE-798 admin/admin 차단)
       - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:?set GF_ADMIN_PASSWORD in .env}
@@ -286,20 +286,6 @@ services:
       - stock_network
     restart: unless-stopped
 
-  jenkins:
-    image: jenkins/jenkins:lts
-    ports:
-      - "8080:8080"
-      - "50000:50000"
-    volumes:
-      - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./config/jenkins/init.groovy:/var/jenkins_home/init.groovy.d/init.groovy
-      - ./config/jenkins/plugins.txt:/usr/share/jenkins/ref/plugins.txt
-    networks:
-      - stock_network
-    restart: unless-stopped
-
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: stock_postgres_exporter
@@ -310,7 +296,7 @@ services:
     command:
       - "--extend.query-path=/etc/postgres-exporter/queries.yaml"
     ports:
-      - "9187:9187"
+      - "127.0.0.1:9187:9187"
     networks:
       - stock_network
     depends_on:
@@ -341,7 +327,7 @@ services:
       REDIS_ADDR: redis://redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
-      - "9121:9121"
+      - "127.0.0.1:9121:9121"
     networks:
       - stock_network
     depends_on:
