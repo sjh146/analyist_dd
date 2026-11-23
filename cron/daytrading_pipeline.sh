@@ -68,6 +68,9 @@ EOF
 
 run_screener() {  # $1 = 최소 거래대금, $2 = 추가 인자(대역 파일), $3 = 라벨
   local mv="${1:-$MIN_VALUE_LO}" extra="${2:-}" label="${3:-band}"
+  # 정책(2026-11-23 사용자 결정 '1', docs/DECISION_regime_gate_policy.md):
+  # 레짐 게이트는 **켜 둔다** — risk_off 면 후보 0건이 정상이다. 여기에
+  # --regime-block off 를 추가하지 말 것(tests/test_pipeline_regime_block_on.py 가 고정).
   docker exec -w /app -e PYTHONPATH=/app "$CONTAINER" \
     python scripts/daytrading_screener.py --top-n 20 --json-out "$CONT_JSON" \
     --min-trading-value "$mv" $extra >> "$LOG" 2>&1
