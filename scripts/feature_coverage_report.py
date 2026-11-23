@@ -26,6 +26,7 @@ ID_COLUMNS = {"stock_code", "date", "feature_count"}
 
 PANEL_CACHE = os.path.join("app", "models", "exp_panel", "panel.pkl")
 PANEL_META = os.path.join("app", "models", "exp_panel", "meta.json")
+PANEL_STALE_DAYS = int(os.environ.get("FEATURE_COVERAGE_PANEL_STALE_DAYS", "10"))
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS feature_coverage (
@@ -101,6 +102,33 @@ def _load_panel_cached():
     except Exception as e:  # noqa: BLE001
         print(f"[feature_coverage] exp_panel 캐시 로드 실패(무시): {e}")
         return None, None
+
+
+def _panel_last_trade_date():
+    """exp_panel meta 의 last_trade_date (판단 불가면 None)."""
+    try:
+        with open(PANEL_META, "r", encoding="utf-8") as f:
+            return (json.load(f) or {}).get("last_trade_date")
+    except (OSError, ValueError):
+        return None
+
+
+def panel_staleness(last_trade_date, today=None, stale_days=None):
+    """패널 마지막 거래일과 오늘의 간격(달력일). 판단 불가면 None.
+
+    WHY (2026-11-23 실측): `app/models/exp_panel` 캐시는 2026-10-06 에 만들어졌는데,
+    이 리포트를 그대로 돌리면 **10-06 패널로 측정한 커버리지**를 `computed_at=now()` 로
+    upsert 한다 — `dq_feature_oldest_age_days` 가 0 으로 리셋돼 '오늘 재측정'처럼 보이는
+    **신선도 위조**다(실제로는 6주 전 값). 그래서 낡은 패널이면 쓰기를 거부하고 exit 3.
+    """
+    if not last_trade_date:
+        return None
+    try:
+        last = datetime.strptime(str(last_trade_date)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    today = today or datetime.now().date()
+    return (today - last).days
 
 
 def _build_small_panel(pg, n_stocks=30, days=30):
@@ -200,6 +228,10 @@ def main():
                          "(캐시가 있으면 기본은 캐시 재사용 — 캐시가 낡았으면 결과도 낡는다)")
     ap.add_argument("--stocks", type=int, default=30, help="축소 패널 종목 수")
     ap.add_argument("--days", type=int, default=30, help="축소 패널 기간(일)")
+    ap.add_argument("--max-panel-age-days", type=int, default=PANEL_STALE_DAYS,
+                    help="패널 캐시 마지막 거래일이 이만큼 낡으면 쓰기를 거부(신선도 위조 방지)")
+    ap.add_argument("--allow-stale", action="store_true",
+                    help="낡은 패널이어도 강제로 기록(권장하지 않음 — computed_at 이 거짓말이 된다)")
     args = ap.parse_args()
 
     pg = _pg_connect()
@@ -211,6 +243,17 @@ def main():
         if df is None:
             df, window_days = _build_small_panel(pg, n_stocks=args.stocks, days=args.days)
             source = f"축소 빌드({args.stocks}종목/{args.days}일)"
+
+        age = panel_staleness(_panel_last_trade_date(), stale_days=args.max_panel_age_days)
+        if age is not None and age > args.max_panel_age_days:
+            msg = (f"[feature_coverage] 패널 캐시 마지막 거래일이 {age}일 전 "
+                   f"(한도 {args.max_panel_age_days}일) — 이대로 쓰면 computed_at 이 "
+                   f"'오늘 측정'으로 위조된다. 쓰기 생략(exit 3). "
+                   f"갱신: --ignore-cache 로 축소 재빌드 또는 패널 리빌드 후 재실행.")
+            print(msg)
+            if not args.allow_stale:
+                return 3
+            print("[feature_coverage] --allow-stale: 그래도 기록한다(값은 낡은 패널 기준).")
 
         rows = compute_coverage(df, window_days)
         dead = [r for r in rows if r["nonzero_ratio"] == 0]

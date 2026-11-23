@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-23T16:55:00",
+  "updated_at": "2026-11-23T21:30:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1804,13 +1804,18 @@
           "ts": "2026-11-22T20:47:37+09:00",
           "rc": 0,
           "detail": "R35: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-23T20:48:03+09:00",
+          "rc": 0,
+          "detail": "R35: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R35: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R35_20261122-204735.log"
+        "log": "data/reports/res_cycle/logs/res_R35_20261123-204800.log"
       }
     },
     {
@@ -2229,6 +2234,65 @@
       "notes": "감시 항목(recurring) — 어떤 결과에서도 status 는 pending 유지. 중복 스케줄 제거는 리뷰보드 승인(=크론 변경).",
       "attempts": [],
       "result": "[11-23 수정] 중복 확인: /etc/cron.d/analyist_dd:28 (10 19 * * 1-5 root kis_supply.sh) 와 사용자 crontab 동일 줄이 같은 19:10 에 각각 등록 → 같은 스크립트가 평일 2회 실행(KIS 호출 2배·진행파일 동시 쓰기). 사용자 crontab 쪽을 제거하고 cron.d 한 곳만 남김. 검증: user 측 kis_supply 0건 / cron.d 1건, crontab 전체 16항목 유지(supply_features 20:15 단독 정상)."
+    },
+    {
+      "id": "R48",
+      "title": "KRX OpenAPI 는 당일봉을 안 준다 — 직전 거래일 봉이 '아침 몇 시'부터 발행되는지 시각별 실측 (07:30 로더 가능성 판정)",
+      "status": "pending",
+      "priority": 4,
+      "kind": "investigate",
+      "recurring": true,
+      "affects_model": true,
+      "hypothesis": "market_data 가 항상 하루 뒤지는 이유는 로더 버그가 아니라 소스 발행 시각이다. 18:55 `krx_daily.sh` 는 `end = today-1` 로 자르므로 11-23 저녁의 최신 봉은 11-20 이다(실측). 같은 시각 API 에 당일(11-23)을 물으면 0행이므로 당일봉은 소스에 없다. 남은 질문: **직전 거래일 봉이 07:30 이전에 발행되는가**. 그렇다면 08:40 피드 발행 전에 T-1 봉을 적재하는 로더 1회를 추가해 신호를 하루 신선하게 만들 수 있다(현재 아침 피드는 T-2 종가로 스크리닝).",
+      "evidence": "[실측 2026-11-23 21:1x] ① `SELECT max(trade_date) FROM market_data` = 2026-11-20 (당일 11-23 은 거래일인데 0행). ② 직접 프로브: KRX data-dbg `stk_bydd_trd?basDd=20261123` → OutBlock_1 **0행**(21:16), `basDd=20261120` → **935행**(KOSPI) / KOSDAQ 1836행. ③ 같은 시각 `data.krx.co.kr`(운영 호스트)는 404(이 키 미승인) → dbg 호스트가 유일 경로. ④ 18:55 러너 로그도 구간 2026-11-16~2026-11-22 = 어제까지로 잘려 있다(`target_range`: `end >= today → today-1`). ⑤ 결론(현재까지): 당일봉 미발행은 **소스 한계 확정**, T-1 아침 가용성은 **미판정** — 04·06 틱에서 이 프로브를 돌려 판정한다.",
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/r48_krx_t1_availability.py",
+      "check": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/r48_krx_t1_availability.py",
+      "check_target": {
+        "op": ">=",
+        "value": 2,
+        "unit": "직전 거래일 봉을 500행 이상 준 마켓 수(2=KOSPI+KOSDAQ 둘 다)"
+      },
+      "next_if_met": "07:30 직전거래일 봉 적재 크론 추가는 **승인 항목**(크론 파일 수정)으로 올린다 — 08:40 피드 발행 전에 T-1 종가가 들어오면 아침 스크리닝이 하루 신선해진다.",
+      "note": "판정은 시각 의존: 04:00·06:00 KST 틱의 실행 결과가 증거다. 22:00 이후 틱의 '가용'은 18:55 적재 이후라 자명하다 — 그 값으로 성급히 종결하지 말 것."
+    },
+    {
+      "id": "R49",
+      "title": "feature_coverage 131행이 11-18 측정으로 5일 정체 — dq_feature_oldest_age_days 4.998, 5일 문턱 직전 (재측정 경로 + 낡은 패널 쓰기 금지 가드)",
+      "status": "pending",
+      "priority": 5,
+      "kind": "collect",
+      "recurring": true,
+      "affects_model": true,
+      "hypothesis": "커버리지 지표가 낡은 측정을 '오늘 측정'으로 위조할 수 있다. `feature_coverage` 210행 중 131행의 computed_at 이 2026-11-18 에 멈춰 있고(가장 오래된 값 = dq_feature_oldest_age_days 4.998), 재측정 경로인 `scripts/feature_coverage_report.py` 는 `app/models/exp_panel/panel.pkl` 캐시(meta.last_trade_date=2026-10-06)를 재사용한다 — 그대로 돌리면 **6주 전 패널로 잰 값을 computed_at=now() 로 upsert** 해 신선도 지표를 0 으로 리셋한다(위조). ① 쓰기 금지 가드를 넣고 ② 재측정이 실제로 도는 경로(패널 리빌드)의 주기를 확인한다.",
+      "evidence": "[실측 2026-11-23 21:1x] ① `SELECT computed_at, count(*) FROM feature_coverage GROUP BY 1` → 11-23 11:16(19행·수급 빌더) / 11-23 10:10(17행·이벤트 빌더) / 11-22 17:26·17:28(35행) / **11-18 12:14(131행)**. ② `dq_feature_oldest_age_days` = 4.998 (Prometheus, 21:1x). ③ `docker exec stock_xgboost_ml cat /app/app/models/exp_panel/meta.json` → last_trade_date 2026-10-06, built_at 10-06T13:44. ④ 수리: `scripts/feature_coverage_report.py` 에 패널 신선도 가드 추가(`panel_staleness` / `--max-panel-age-days` 기본 10 / `--allow-stale`) — 컨테이너 실행 실측: '패널 캐시 마지막 거래일이 48일 전 (한도 10일) — 쓰기 생략(exit 3)' 출력 확인. 회귀 3건(tests/test_feature_coverage_stale_panel.py).",
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/feature_coverage_report.py --ignore-cache --stocks 60 --days 60",
+      "check": "cd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM feature_coverage WHERE computed_at < now() - interval '5 days'\"",
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "5일 넘은 커버리지 측정 행수(주말 갭 3일은 정상 범위)"
+      },
+      "next_if_met": "131행이 갱신되면 dq_feature_oldest_age_days 도 실제 측정일로 내려간다. 패널 리빌드 주기(cron) 배선은 **승인 항목**.",
+      "note": "`--ignore-cache` 는 컨테이너 안에서 축소 패널을 새로 빌드한다(60종목/60일 — 대형 학습 아님). 전 종목 커버리지는 엔지니어 패널 리빌드(R14 계열)가 필요하다."
+    },
+    {
+      "id": "R50",
+      "title": "빌더 자기신고 persisted_rows 수리 검증 — '테이블 총계'를 넣어 dq_claim_gap 이 -110만이던 결함(수리 후 실측 대조)",
+      "status": "pending",
+      "priority": 7,
+      "kind": "collect",
+      "recurring": false,
+      "affects_model": false,
+      "hypothesis": "`build_supply_market_features` 가 `SELECT COUNT(*)`(테이블 총계)를 persisted_rows 로 자기신고해 dq_claim_gap 이 적재 규모의 음수로 부풀었다(claimed 112,313 vs 1,220,890 → -1,108,577). 빌더가 정상 적재해도 지표는 실패처럼 읽혔다. 수리: persisted = COPY 로 실제 쓴 행수(= generated), 총계·삭제량은 note 로만. 이 항목은 **실제 재실행 1회로 지표가 닫히는지**(gap≈0) 확인한다. 구현만으로 통과를 근거 삼지 않는다(스킬 규칙).",
+      "evidence": "[실측 2026-11-23 20:16 claim 행] `build_supply_market_features | supply_market_features | claimed 112,313 | persisted 1,220,890 | source 112,313 | note: grid=112313 alive=15/19 since=2026-10-09 window_days=39 balance_quantity_null=all ownership_inst_pct_null=all`. ② 로그도 '삭제 112,312행 → 삽입 1,220,890행' 으로 같은 착시. ③ note 의 'balance_quantity_null=all / ownership_inst_pct_null=all' 은 **상수 문자열**(측정값 아님). ④ 수리: persisted=generated + note 에 allnull 실측 + table_total. 회귀 3건(tests/test_supply_claim_persisted.py) 통과.",
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 PROJ_DIR=/home/jhshi/analyist_dd && /usr/bin/python3 scripts/build_supply_market_features.py",
+      "check": "cd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT abs(claimed_rows - persisted_rows) FROM dq_runner_claim WHERE runner='build_supply_market_features' ORDER BY run_at DESC LIMIT 1\"",
+      "check_target": {
+        "op": "<=",
+        "value": 1,
+        "unit": "최신 claim 행의 |claimed − persisted|"
+      },
+      "note": "야간 파이프라인(full_pipeline_dd)이 supply_market_features 를 읽는 동안에는 실행하지 않는다(DELETE→COPY 사이 반쪽 테이블을 패널 빌더가 읽을 수 있다). 파이프라인 종료 후 실행."
     }
   ]
 }

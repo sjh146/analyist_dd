@@ -385,6 +385,16 @@ def compute_coverage_rows(grid, window_days, computed_at):
     return rows
 
 
+def claim_persisted_rows(copied_rows, table_total=None):
+    """자기신고 `persisted_rows` = 이번 실행이 **실제로 COPY 한 행수**.
+
+    WHY: 테이블 총계를 넣으면 dq_claim_gap = claimed − persisted 가 적재 규모의 음수로
+    부풀어(실측 2026-11-23: 112,313 vs 1,220,890 → -1,108,577) 지표가 '적재 실패'처럼 읽힌다.
+    총계는 note(table_total=)로만 남긴다. table_total 인자는 진단용으로 무시한다.
+    """
+    return int(copied_rows or 0)
+
+
 def main():
     ap = argparse.ArgumentParser(description="수급·시장·모멘텀 피처 19개 빌더 (R10)")
     ap.add_argument("--since", default="2025-06-16", help="피처 시작일(격자 하한)")
@@ -504,8 +514,9 @@ def main():
     cur.copy_expert(f"COPY {TABLE} (stock_code, trade_date, {', '.join(FEATURES)}) "
                     f"FROM STDIN", buf)
     conn.commit()
+    persisted = claim_persisted_rows(generated)
     cur.execute(f"SELECT COUNT(*) FROM {TABLE}")
-    persisted = cur.fetchone()[0]
+    table_total = cur.fetchone()[0]
 
     # ── 10) feature_coverage 재계산(19개 행, 동일 computed_at — R10 method) ──
     cur.execute("""CREATE TABLE IF NOT EXISTS feature_coverage (
@@ -537,10 +548,12 @@ def main():
                 cross_section_constant_ratio = EXCLUDED.cross_section_constant_ratio
         """, r)
     conn.commit()
-    log(f"적재 완료: 삭제 {deleted}행 → 삽입 {persisted}행 / feature_coverage 19행 갱신 "
+    log(f"적재 완료: 삭제 {deleted}행 → 삽입 {persisted}행 (테이블 총계 {table_total}) / feature_coverage 19행 갱신 "
         f"(computed_at={computed_at.isoformat()})")
 
     # ── 11) 자기신고 (소스 수신 / 파서 생성 / 실제 저장 3분리) ─────────────
+    allnull_cols = [c for c in ("balance_quantity", "institution_ownership_pct")
+                    if c in grid.columns and bool(grid[c].isna().all())]
     try:
         from dq_claim import record_claim
         record_claim(conn, "build_supply_market_features", TABLE,
@@ -548,7 +561,8 @@ def main():
                      source_rows=grid_rows,
                      note=f"grid={grid_rows} alive={len(alive)}/19 "
                           f"since={a.since} window_days={window_days} "
-                          f"balance_quantity_null=all ownership_inst_pct_null=all")
+                          f"allnull={','.join(allnull_cols) or '-'} "
+                          f"table_total={table_total} deleted={deleted}")
         conn.commit()
     except Exception as exc:  # noqa: BLE001
         log(f"자기신고 생략: {exc}")
