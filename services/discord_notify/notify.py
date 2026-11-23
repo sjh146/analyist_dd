@@ -118,12 +118,18 @@ def morning_message(feed: dict, cfg: dict) -> str:
     per = " · ".join("{0} {1}".format(k, v) for k, v in counts.items())
     regime = feed["regime"] or "미상"
     kosdaq = ("KOSDAQ {0}".format(feed["kosdaq"])) if feed["kosdaq"] else "지수 미상"
+    gen = str(feed["generated_at"] or "")
+    gen_hm = gen[11:16] if len(gen) >= 16 else gen
     lines = [
         "**[08:30] 장전 체크 — 오늘 준비하세요**",
         "",
-        "피드: {0} 발행 · 후보 {1}건 ({2})".format(feed["generated_at"], total, per),
+        "피드: {0} 발행 · 후보 {1}건 ({2})".format(gen_hm, total, per),
         "국면: {0} · {1}".format(regime, kosdaq),
         "",
+    ]
+    if str(regime) == "risk_off":
+        lines += ["⚠️ 오늘은 하락 국면(risk_off): 진입 축소·보수 운용으로 설정되어 있습니다.", ""]
+    lines += [
         "**지금 하실 일 (3단계)**",
         "1. PC 전원을 켜 주세요 (대기 상태 유지)",
         "2. 크레온 PLUS 에 로그인해 주세요 (자동 로그인 불가)",
@@ -132,8 +138,6 @@ def morning_message(feed: dict, cfg: dict) -> str:
         "3단계가 끝나야 오늘 매매가 시작됩니다. 완료 후 이 메시지에 ✅ 반응을 남겨 주세요.",
         "문제가 있으면 #질문 채널에 PC 이름과 함께 적어 주세요.",
     ]
-    if str(regime) == "risk_off":
-        lines.insert(5, "⚠️ 오늘은 하락 국면(risk_off): 진입 축소·보수 운용으로 설정되어 있습니다.")
     return "\n".join(lines)
 
 
