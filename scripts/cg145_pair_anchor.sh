@@ -106,3 +106,20 @@ json.dump(out, open(os.path.join(host, f"{pfx}_pair_anchor.json"), "w"),
 print(json.dumps(out, ensure_ascii=False, indent=2))
 PY
 echo "DONE" >>"$LOG"
+
+# ── 앵커 키 짝짓기 집계 (2026-11-24 CG145 구현) ────────────────────────────────
+# 위 인라인 집계는 사람용 요약이고, 기계 판독 증거는 단일 진실원(robust_paired_seeds.py
+# --key-by anchor)이 만든다 — 앵커별 짝 Δ 평균±std + **앵커 잡음 하한(mean−sd)** 포함.
+# 앵커 키는 각 eval JSON 의 window_anchor 이므로 파일만 모으면 짝이 맞는다.
+A_ARM=$(echo $ARMS | awk '{print $1}' | cut -d: -f1)
+B_ARM=$(echo $ARMS | awk '{print $2}' | cut -d: -f1)
+A_FILES=""; B_FILES=""
+for kv in $ANCHORS; do
+  tag=${kv%%:*}
+  A_FILES="$A_FILES $OUTDIR/${TAGPFX}_${tag}_${A_ARM}.json"
+  B_FILES="$B_FILES $OUTDIR/${TAGPFX}_${tag}_${B_ARM}.json"
+done
+docker exec stock_xgboost_ml sh -c "cd /app && python3 scripts/robust_paired_seeds.py --key-by anchor \
+  --arm-a $A_FILES --arm-b $B_FILES --label-a $A_ARM --label-b $B_ARM \
+  --out $OUTDIR/${TAGPFX}_pair_anchor_keys.json" >>"$LOG" 2>&1
+echo "KEYS rc=$?" >>"$LOG"

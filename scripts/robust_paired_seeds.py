@@ -27,7 +27,20 @@ def _auc(d):
     return float(v if v is not None else d.get("robust_auc"))
 
 
-def _load_arm(paths, label):
+def _pair_key(d, key_by="seed"):
+    """짝의 키 — 무엇을 고정하고 비교하는가.
+
+    seed   = 같은 유니버스 표집(CG347: 시드만 바꿔도 절대 AUC 가 0.0227 움직인다)
+    anchor = 같은 평가 앵커(CG144: 앵커만 2~7거래일 옮겨도 최대 |Δ| 0.0597 = 사전문턱의 3배).
+             CG145 승인(2026-11-21) 이후 승격 판정은 '복수 고정 앵커 평균 짝 Δ' 로 낸다.
+    """
+    if key_by == "anchor":
+        a = d.get("window_anchor")
+        return str(a) if a else "?"
+    return str((d.get("universe") or {}).get("seed", "?"))
+
+
+def _load_arm(paths, label, key_by="seed"):
     out = {}
     for p in paths:
         try:
@@ -35,10 +48,11 @@ def _load_arm(paths, label):
                 d = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        seed = str((d.get("universe") or {}).get("seed", "?"))
+        seed = _pair_key(d, key_by)
         folds = d.get("folds") or []
         out[seed] = {"auc": round(_auc(d), 6), "path": os.path.basename(p),
                      "model_dir": d.get("model_dir"), "label": label,
+                     "window_anchor": d.get("window_anchor"),
                      # 창 서명 — 두 arm 이 같은 날짜창에서 채점됐는지 검사하는 근거
                      "n_folds": len(folds),
                      "windows": [list(f.get("window") or []) for f in folds],
@@ -57,6 +71,8 @@ def main(argv=None):
     ap.add_argument("--label-b", default="B")
     ap.add_argument("--out", required=True)
     ap.add_argument("--threshold", type=float, default=0.02)
+    ap.add_argument("--key-by", dest="key_by", choices=("seed", "anchor"), default="seed",
+                    help="짝의 키: seed(기본·현행) 또는 anchor(CG145 승인 = 복수 고정 앵커 평균)")
     args = ap.parse_args(argv)
 
     if not os.path.isabs(args.out):
@@ -64,14 +80,23 @@ def main(argv=None):
         args.out = os.path.join(root, args.out)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
 
-    a = _load_arm(args.arm_a, args.label_a)
-    b = _load_arm(args.arm_b, args.label_b)
-    seeds = sorted(set(a) & set(b), key=lambda s: (s == "?", s))
+    a = _load_arm(args.arm_a, args.label_a, args.key_by)
+    b = _load_arm(args.arm_b, args.label_b, args.key_by)
+
+    def _order(k):
+        """정렬 키 — 시드는 숫자, 앵커는 날짜, 키 없음('?')은 항상 뒤."""
+        try:
+            return (k == "?", 0, float(k), "")
+        except ValueError:
+            return (k == "?", 1, 0.0, k)
+
+    seeds = sorted(set(a) & set(b), key=_order)
     deltas = {s: round(a[s]["auc"] - b[s]["auc"], 6) for s in seeds}
     vals = list(deltas.values())
     n = len(vals)
     if n < 2:
-        res = {"metric": "robust_paired_seeds", "error": "공통 시드 < 2 — 짝 Δ 계산 불가",
+        res = {"metric": "robust_paired_seeds", "key_by": args.key_by,
+               "error": f"공통 키({args.key_by}) < 2 — 짝 Δ 계산 불가",
                "arm_a": a, "arm_b": b}
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(res, f, ensure_ascii=False, indent=2)
@@ -129,12 +154,25 @@ def main(argv=None):
                        "t": round(cmean / cse, 3) if cse else None,
                        "pos_folds": sum(1 for v in fms if v > 0),
                        "note": "시드 SE 는 같은 날짜창 공유로 과소추정 — 창 클러스터 SE 를 함께 본다"}
+    anchor_noise = None
+    if args.key_by == "anchor" and n >= 2:
+        anchor_noise = {
+            "n_anchors": n,
+            "delta_sd": round(sd, 6),
+            "mean_minus_sd": round(mean - sd, 6),
+            "mean_plus_sd": round(mean + sd, 6),
+            "gate_mean_minus_sd_ge_threshold": bool((mean - sd) >= args.threshold),
+            "pos_anchors": pos,
+            "note": "앵커 간 산포를 뺀 보수적 하한이 문턱을 넘는가 — 문턱 재정의는 리뷰보드(CG145)",
+        }
     res = {
         "metric": "robust_paired_seeds",
+        "key_by": args.key_by,
         "label_a": args.label_a,
         "label_b": args.label_b,
         "n_seeds": n,
         "seeds": seeds,
+        "anchor_noise": anchor_noise,
         "auc_a": {s: a[s]["auc"] for s in seeds},
         "auc_b": {s: b[s]["auc"] for s in seeds},
         "deltas": deltas,
