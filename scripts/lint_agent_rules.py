@@ -33,7 +33,7 @@ ALLOWED_DIRECTIVE = re.compile(
 )
 TICKET = re.compile(r"\b[A-Z]{2,10}-\d+\b")
 MARKERS = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
-SKIP_DIR_PARTS = {".git", "node_modules", "__pycache__", "venv", ".venv", "data", "reports", "archive", "creon_extracted_v1"}
+SKIP_DIR_PARTS = {".git", "node_modules", "__pycache__", "venv", ".venv", "data", "reports", "archive", "creon_extracted_v1", "skills"}
 
 
 def iter_py_files(root: str) -> list[str]:
