@@ -149,6 +149,106 @@ def compute_intraday_features(bars: Sequence[Sequence],
     return feats
 
 
+CLOSE_ONLY_PREFIX = "idc_"
+CLOSE_ONLY_STATS: Tuple[str, ...] = ("ret", "range", "slope", "up_ratio", "realvol", "vol_share")
+
+
+def close_only_feature_names() -> List[str]:
+    """close-only 경로가 만드는 피처 이름 전체(고정 순서).
+
+    Naver 전구간 분봉 `minute_close_bars` 는 종가·누적거래량만 준다(open/high/low/거래대금 없음).
+    `_window_stats` 전제를 그대로 쓰면 range·vwap_dev·tv_share 가 정의되지 않고 조용히 0 이 되어
+    '결측'과 '무정보'가 구분되지 않는다. 그래서 정의를 이름까지 분리한다(접두사 idc_) — 같은 열에
+    두 원천을 섞으면 어느 원천으로 만든 값인지 판독이 불가능해진다(CG450 준비물 ③).
+    """
+    names: List[str] = []
+    for win, _lo, _hi in WINDOWS:
+        names.extend(f"{CLOSE_ONLY_PREFIX}{win}_{s}" for s in CLOSE_ONLY_STATS)
+    names.extend([f"{CLOSE_ONLY_PREFIX}am_pm_ret_diff", f"{CLOSE_ONLY_PREFIX}n_bars"])
+    return names
+
+
+def normalize_bar_time(t) -> str:
+    """'0900' / '09:00' / '090000' → 'HHMMSS'(6자리). 창 경계 비교(WINDOWS)를 원천 표기와 무관하게 만든다."""
+    s = str(t or "").strip().replace(":", "").replace(".", "")
+    if not s.isdigit():
+        return s
+    if len(s) == 4:
+        s = s + "00"
+    return s.ljust(6, "0")[:6]
+
+
+def diff_cum_volume(bars: Sequence[Sequence]) -> List[tuple]:
+    """(time, close, cum_volume) 오름차순 → (time, close, volume) 로 바꾼다(누적→증분).
+
+    첫 봉의 증분은 그 봉의 누적값이다. 음수(리셋·정정)는 0 으로 절단하고 음수 발생 건수를 세지 않는다
+    (집계는 호출측 리포트가 bars 로 한다 — 여기서는 값만 만든다).
+    """
+    out: List[tuple] = []
+    prev = 0.0
+    for b in bars:
+        cum = float(b[2] or 0.0)
+        vol = cum - prev
+        prev = cum
+        out.append((normalize_bar_time(b[0]), float(b[1] or 0.0), vol if vol > 0 else 0.0))
+    return out
+
+
+def _close_window_stats(bars: Sequence[Sequence]) -> Optional[Dict[str, float]]:
+    """봉 목록(time, close, volume) → close-only 창 통계. 계산 불가면 None.
+
+    range 는 종가만 있으므로 (창 내 최고 종가 − 최저 종가)/마지막 종가 — high/low 기반 값과
+    **다른 정의**다(그래서 이름이 idc_ 다). vwap_dev 는 만들지 않는다(거래대금 없음).
+    """
+    if len(bars) < MIN_BARS:
+        return None
+    closes = [float(b[1] or 0.0) for b in bars]
+    vols = [float(b[2] or 0.0) if len(b) > 2 else 0.0 for b in bars]
+    if closes[0] <= 0 or closes[-1] <= 0:
+        return None
+    mean_close = sum(closes) / len(closes)
+    sl = _slope(closes)
+    rets = [closes[i] / closes[i - 1] - 1.0 for i in range(1, len(closes)) if closes[i - 1] > 0]
+    return {
+        "ret": closes[-1] / closes[0] - 1.0,
+        "range": (max(closes) - min(closes)) / closes[-1],
+        "slope": (sl / mean_close) if (sl is not None and mean_close > 0) else 0.0,
+        "up_ratio": (sum(1 for i in range(1, len(closes)) if closes[i] > closes[i - 1])
+                     / max(1, len(closes) - 1)),
+        "realvol": _pstdev(rets),
+        "_sum_vol": sum(vols),
+    }
+
+
+def compute_close_only_features(bars: Sequence[Sequence],
+                                day_volume: Optional[float] = None) -> Dict[str, float]:
+    """(time, close, cum_volume) 봉 목록 → close-only 피처 dict. `bars` 는 시각 오름차순이어야 한다.
+
+    day_volume = 그날 총 거래량(누적거래량의 마지막 값). 없으면 vol_share 는 0.0(결측 규약).
+    """
+    feats: Dict[str, float] = {n: 0.0 for n in close_only_feature_names()}
+    bars = diff_cum_volume(list(bars or []))
+    feats[f"{CLOSE_ONLY_PREFIX}n_bars"] = float(len(bars))
+    if not bars:
+        return feats
+    dv = float(day_volume or 0.0)
+    for win, lo, hi in WINDOWS:
+        st = _close_window_stats([b for b in bars if lo <= str(b[0]) <= hi])
+        if st is None:
+            continue
+        for k in CLOSE_ONLY_STATS:
+            key = f"{CLOSE_ONLY_PREFIX}{win}_{k}"
+            if k == "vol_share":
+                feats[key] = (st["_sum_vol"] / dv) if dv > 0 else 0.0
+            else:
+                feats[key] = float(st[k])
+    am = _close_window_stats([b for b in bars if AM_WINDOW[0] <= str(b[0]) <= AM_WINDOW[1]])
+    pm = _close_window_stats([b for b in bars if PM_WINDOW[0] <= str(b[0]) <= PM_WINDOW[1]])
+    if am is not None and pm is not None:
+        feats[f"{CLOSE_ONLY_PREFIX}am_pm_ret_diff"] = float(pm["ret"] - am["ret"])
+    return feats
+
+
 class IntradayFeatures:
     """`minute_bars`(× `market_data`)에서 (종목, 날짜) 단위 인트라데이 피처를 만든다."""
 

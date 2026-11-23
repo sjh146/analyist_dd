@@ -57,6 +57,18 @@ def _journal_codes(journal_path: str, trade_date: str) -> list[str]:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def _panel_codes(path: str) -> list[str]:
+    """패널 npz 의 codes (유니버스 합집합용). 실패해도 조용히 빈 목록 — 현행 동작을 깨지 않는다."""
+    try:
+        import numpy as np
+
+        with np.load(path, allow_pickle=True) as z:
+            return [str(c).strip() for c in z["codes"]]
+    except Exception as exc:  # noqa: BLE001 — 수집이 죽는 것보다 패널 합집합이 빠지는 편이 낫다
+        print("panel codes 읽기 실패(%s): %s" % (path, exc))
+        return []
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="분봉 백필 대상 코드 목록 생성")
     ap.add_argument("--date", required=True, help="YYYY-MM-DD")
@@ -65,19 +77,28 @@ def main(argv=None) -> int:
     ap.add_argument("--daytrading", default=os.path.join(REPO, "reports", "daytrading_latest.json"))
     ap.add_argument("--journal", default=os.path.join(
         "/mnt/c/Users/jhshi/analyist_dd/trader-agent", "journal", "trade_journal.sqlite3"))
+    ap.add_argument("--panel", default=os.path.join(
+        REPO, "services", "xgboost-ml", "app", "models", "wf", "panel_prod200_v6o.npz"),
+        help="--include-panel 의 유니버스 원천(npz)")
+    ap.add_argument("--include-panel", action="store_true",
+                    help="패널 유니버스 코드를 합집합에 포함(기본 OFF = 현행 피드+저널만, CG451)")
     args = ap.parse_args(argv)
 
     codes: list[str] = []
     codes += _feed_codes(args.feed)
     codes += _feed_codes(args.daytrading)
     codes += _journal_codes(args.journal, args.date)
+    n_feed = len(codes)
+    if args.include_panel:
+        codes += _panel_codes(args.panel)
 
     clean = sorted({c for c in codes if c.isdigit() and len(c) == 6})
     out = args.out or os.path.join(REPO, "reports", "minute_codes_%s.txt" % args.date)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as fh:
         fh.write("\n".join(clean) + ("\n" if clean else ""))
-    print("minute_codes date=%s n=%d out=%s" % (args.date, len(clean), out))
+    print("minute_codes date=%s n=%d (feed+journal=%d, include_panel=%s) out=%s"
+          % (args.date, len(clean), n_feed, args.include_panel, out))
     return 0
 
 

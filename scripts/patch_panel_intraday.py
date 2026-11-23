@@ -29,7 +29,12 @@ from collections import defaultdict
 import numpy as np
 import psycopg2
 
-from app.feature_engine.intraday_features import compute_intraday_features, feature_names
+from app.feature_engine.intraday_features import (
+    close_only_feature_names,
+    compute_close_only_features,
+    compute_intraday_features,
+    feature_names,
+)
 
 
 def _pg_connect():
@@ -48,9 +53,13 @@ def main() -> int:
     ap.add_argument("--out", dest="dst", required=True)
     ap.add_argument("--report", default="", help="커버리지 리포트 json 경로")
     ap.add_argument("--limit", type=int, default=0, help="앞 N행만 처리(스모크, 0=전체)")
+    ap.add_argument("--table", default="minute_bars", choices=("minute_bars", "minute_close_bars"),
+                    help="봉 원천. minute_bars=OHLCV+거래대금(id_*) · "
+                         "minute_close_bars=종가+누적거래량만(idc_*, CG450)")
     args = ap.parse_args()
 
-    new_names = feature_names()
+    close_only = args.table == "minute_close_bars"
+    new_names = close_only_feature_names() if close_only else feature_names()
     z = np.load(args.src, allow_pickle=True)
     X = z["X"].astype(np.float32, copy=True)
     names = [str(n) for n in z["feature_names"]]
@@ -77,24 +86,38 @@ def main() -> int:
     cur = conn.cursor()
     # 봉: 패널에 등장하는 종목·구간만(불필요한 전량 스캔 방지). 시각 문자열 사전순 = 시각순.
     bars = defaultdict(list)
-    cur.execute(
-        "SELECT stock_code, trade_date, \"time\", open_price, high_price, low_price, close_price, "
-        "volume, trading_value FROM minute_bars "
-        "WHERE stock_code = ANY(%s) AND trade_date BETWEEN %s::date AND %s::date "
-        "ORDER BY stock_code, trade_date, \"time\"",
-        (want_codes, dmin, dmax))
-    for code, dt, tm, o, h, l, c, v, tv in cur.fetchall():
-        bars[(str(code), str(dt)[:10])].append(
-            (str(tm), float(o or 0), float(h or 0), float(l or 0), float(c or 0),
-             float(v or 0), float(tv or 0)))
-    # 일 거래량·거래대금(vol_share/tv_share 분모) — market_data.
+    day_vol: dict = {}
     daily = {}
-    cur.execute(
-        "SELECT stock_code, trade_date, volume, trading_value FROM market_data "
-        "WHERE stock_code = ANY(%s) AND trade_date BETWEEN %s::date AND %s::date",
-        (want_codes, dmin, dmax))
-    for code, dt, v, tv in cur.fetchall():
-        daily[(str(code), str(dt)[:10])] = (float(v or 0.0), float(tv or 0.0))
+    if close_only:
+        cur.execute(
+            "SELECT stock_code, trade_date, \"time\", close_price, cum_volume FROM minute_close_bars "
+            "WHERE stock_code = ANY(%s) AND trade_date BETWEEN %s::date AND %s::date "
+            "ORDER BY stock_code, trade_date, \"time\"",
+            (want_codes, dmin, dmax))
+        for code, dt, tm, c, cum in cur.fetchall():
+            key = (str(code), str(dt)[:10])
+            cv = float(cum or 0.0)
+            bars[key].append((str(tm), float(c or 0.0), cv))
+            if cv > day_vol.get(key, 0.0):
+                day_vol[key] = cv
+    else:
+        cur.execute(
+            "SELECT stock_code, trade_date, \"time\", open_price, high_price, low_price, close_price, "
+            "volume, trading_value FROM minute_bars "
+            "WHERE stock_code = ANY(%s) AND trade_date BETWEEN %s::date AND %s::date "
+            "ORDER BY stock_code, trade_date, \"time\"",
+            (want_codes, dmin, dmax))
+        for code, dt, tm, o, h, l, c, v, tv in cur.fetchall():
+            bars[(str(code), str(dt)[:10])].append(
+                (str(tm), float(o or 0), float(h or 0), float(l or 0), float(c or 0),
+                 float(v or 0), float(tv or 0)))
+        # 일 거래량·거래대금(vol_share/tv_share 분모) — market_data.
+        cur.execute(
+            "SELECT stock_code, trade_date, volume, trading_value FROM market_data "
+            "WHERE stock_code = ANY(%s) AND trade_date BETWEEN %s::date AND %s::date",
+            (want_codes, dmin, dmax))
+        for code, dt, v, tv in cur.fetchall():
+            daily[(str(code), str(dt)[:10])] = (float(v or 0.0), float(tv or 0.0))
     conn.close()
 
     added = np.zeros((n_rows, len(new_names)), dtype=np.float32)
@@ -104,7 +127,10 @@ def main() -> int:
         bl = bars.get(key)
         if not bl:
             continue
-        feats = compute_intraday_features(bl, daily.get(key))
+        if close_only:
+            feats = compute_close_only_features(bl, day_vol.get(key))
+        else:
+            feats = compute_intraday_features(bl, daily.get(key))
         added[i] = np.array([feats[n] for n in new_names], dtype=np.float32)
         patched += 1
 
@@ -122,7 +148,8 @@ def main() -> int:
             "max": float(col.max()) if nz else 0.0,
         }
     summary = {
-        "src": args.src, "dst": args.dst,
+        "src": args.src, "dst": args.dst, "table": args.table,
+        "feature_family": "close_only(idc_ · 종가+누적거래량)" if close_only else "ohlcv(id_ · OHLCV+거래대금)",
         "rows": n_rows, "rows_scanned": take, "rows_with_bars": patched,
         "with_bars_ratio": round(patched / max(1, take), 6),
         "date_range": [dmin, dmax], "n_codes": len(want_codes),

@@ -1470,6 +1470,12 @@ CONFIGS = [
                        "event_market_liquidity_5d", "interest_rate_change_1m",
                        "krx_total_trading_value"],
      "desc": "CG431 arm — 죽은 열 17개를 선별 후보에서 제외(같은 런·같은 폴드)"},
+
+    {"id": "CG450_ctl_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "exclude_names": ["idc_*"],
+     "desc": "CG450 대조군 — 패치 패널에서 인트라데이(idc_*) 열을 선별 후보에서 제외(같은 런·같은 행)"},
+    {"id": "CG450_intraday_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "desc": "CG450 arm — Naver 전구간 분봉 close-only 피처 포함(같은 패널·같은 폴드·같은 시드)"},
 ]
 
 
