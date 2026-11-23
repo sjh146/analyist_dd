@@ -1354,6 +1354,16 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
 
 
 
+    if kind == "anchor_level_auc":
+        return os.path.join(PROJ, "data/reports/overnight/cg455_anchor_level.json")
+    if kind == "anchor_paired_delta":
+        return os.path.join(PROJ, "data/reports/overnight/cg456_paired_anchors.json")
+    if kind == "feature_coverage":
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "data/reports/feature_coverage.json")
+
     if kind and not quiet:
         log(f"경고: 알 수 없는 metric {kind!r} — 요약 경로 없음(판정불가로 기록)")
     return ""
@@ -1947,6 +1957,191 @@ def judge_robust_seed_range(item, parsed) -> tuple:
     return ("문턱 해상 가능", f"{detail} → 시드 잡음이 문턱 미만. 남은 분산원은 날짜 표집.", rng)
 
 
+def parse_anchor_level_auc(path, mtime_floor) -> dict:
+    """앵커(창 상한) 레벨 AUC 격자(`data/reports/overnight/cg455_anchor_level.json`)를 파싱한다.
+
+    왜 이 metric 이 필요한가(실측 2026-11-24 CG455): champion_robust_eval 은 한 번의 실행이
+    '창 하나'다. 같은 모델·같은 학습구간에서 창 상한만 옮겨도 post-train AUC 가 0.4790~0.5889
+    (**범위 0.1099**)로 흔들렸는데, 종전에는 metric 이 등록되지 않아 17.8분 실행이
+    '판정불가(parser 없음)'로 원장에서 사라졌다. 이 값은 arm 실험이 아니라 **계측기**이므로
+    per_exp 를 만들지 않는다(스코어보드 무개선 카운터에 섞이면 안 된다).
+    """
+    if not path:
+        return {"error": "요약 경로 없음"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if d.get("error"):
+        return {"error": d["error"], "anchors": d.get("anchors")}
+    return {
+        "metric": "anchor_level_auc",
+        "n_anchors": d.get("n_anchors"),
+        "anchors": d.get("anchors"),
+        "mean": d.get("mean"),
+        "std": d.get("std"),
+        "min": d.get("min"),
+        "max": d.get("max"),
+        "range": d.get("range"),
+        "nested_windows": d.get("nested_windows"),
+        "window_date_counts": d.get("window_date_counts"),
+        "verdict_raw": d.get("verdict"),
+        "threshold": d.get("threshold", 0.02),
+        "summary_mtime": mt,
+    }
+
+
+def judge_anchor_level_auc(item, parsed) -> tuple:
+    """앵커 레벨 잡음 판정 — 사전 등록 규칙(CG455): std≤0.010 기준선 후보 / std>0.020 단일앵커 금지."""
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    n = int(parsed.get("n_anchors") or 0)
+    sd = parsed.get("std")
+    rows = parsed.get("anchors") or []
+    grid = " · ".join(f"{r.get('anchor')}:{r.get('auc')}({r.get('n_dates')}d)" for r in rows)
+    detail = (f"앵커 {n}개 AUC [{grid}] · 평균 {parsed.get('mean')} · std {parsed.get('std')} · "
+              f"범위 {parsed.get('range')} ({parsed.get('min')}~{parsed.get('max')})")
+    if parsed.get("nested_windows"):
+        detail += (" · ⚠중첩 창(앵커를 옮기면 표본 날짜가 누적: "
+                   f"{parsed.get('window_date_counts')}) — 이 std 는 앵커 잡음 + 창 길이 효과")
+    if n < 2 or sd is None:
+        return "판정불가", f"유효 앵커 {n}개(<2) — std 추정 불가. {detail}", None
+    if float(sd) > 0.020:
+        return ("앵커 불안정 — 단일 앵커 AUC 는 기준선이 될 수 없다",
+                f"{detail}. 함의: **단일 창·단일 앵커의 '기록 기준선 대비 Δ'는 앵커 잡음과 구분 불가**"
+                f"(범위 {parsed.get('range')} = 사전문턱 +0.02 의 "
+                f"{round((parsed.get('range') or 0)/0.02, 1)}배). 유효 비교는 같은 창·같은 앵커의 짝 Δ"
+                f"뿐이며, post-train 절대 AUC 를 기준선으로 등록하는 안은 기각한다.", sd)
+    if float(sd) <= 0.010:
+        return ("앵커 안정 — post-train 기준선 후보(등록은 승인 항목)",
+                f"{detail}. std {sd} ≤ 0.010 이므로 앵커 평균±std 를 기준선 후보로 등록 제안(② 승인).", sd)
+    return ("중간 — 평균±std 병기 없이는 판정 불가",
+            f"{detail}. std {sd} 가 0.010~0.020 → 단일 값 인용 금지, 앵커 평균±std 병기 요구.", sd)
+
+
+def parse_anchor_paired_delta(path, mtime_floor) -> dict:
+    """앵커별 짝 Δ(`data/reports/overnight/cg456_paired_anchors.json`)를 파싱한다.
+
+    CG455 실측(앵커 레벨 std 0.0382 · 범위 0.1099)으로 **절대 AUC 의 단일 앵커 비교는 폐기**됐고,
+    남은 유효 비교는 '같은 앵커·같은 창에서 두 모델을 함께 재는 짝 Δ' 뿐이다. 그 짝 Δ 를
+    창(앵커) 5개에 대해 평균±std 로 내는 것이 이 metric 이다. arm 실험이 아니므로 per_exp 없음.
+    """
+    if not path:
+        return {"error": "요약 경로 없음"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    return {
+        "metric": "anchor_paired_delta",
+        "arm": d.get("arm"), "control": d.get("control"),
+        "n_paired_anchors": d.get("n_paired_anchors"),
+        "paired": d.get("paired"), "unpaired": d.get("unpaired"),
+        "delta_mean": d.get("delta_mean"), "delta_std": d.get("delta_std"),
+        "n_positive": d.get("n_positive"),
+        "min": d.get("min"), "max": d.get("max"),
+        "abs_champion_mean": d.get("abs_champion_mean"),
+        "abs_challenger_mean": d.get("abs_challenger_mean"),
+        "threshold": d.get("threshold", 0.02),
+        "summary_mtime": mt,
+    }
+
+
+def judge_anchor_paired_delta(item, parsed) -> tuple:
+    """앵커 짝 Δ 판정 — 사전 등록: 유효 짝 ≥3 · 평균 +0.02 이상 · 4/5 앵커 양(+) 이면 신호."""
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    n = int(parsed.get("n_paired_anchors") or 0)
+    dm, ds = parsed.get("delta_mean"), parsed.get("delta_std")
+    rows = parsed.get("paired") or []
+    grid = " · ".join(f"{r.get('anchor')}:{r.get('champion')}→{r.get('retrain_cg346', r.get('arm_value'))}"
+                      f"({r.get('delta'):+})" for r in rows) if rows else ""
+    detail = (f"짝 앵커 {n}개 [{grid}] · Δ평균 {dm} · 앵커 std {ds} · 양(+) {parsed.get('n_positive')}/{n} · "
+              f"절대 챔피언 {parsed.get('abs_champion_mean')} vs 후보 {parsed.get('abs_challenger_mean')}"
+              f"(패널·창 동일)")
+    if n < 3 or dm is None:
+        return "판정불가", f"유효 짝 {n}개(<3) — 앵커 std 추정 불가. {detail}", None
+    if dm >= 0.02 and int(parsed.get("n_positive") or 0) >= max(3, round(n * 0.8)):
+        return ("신호 — 같은 창 짝 Δ 평균이 사전문턱 +0.02 이상(승격은 돈 게이트 별도)",
+                f"{detail}. AUC 축 신호로 기록하되 **승격 아님** — champion_promote --require-expectancy 통과가 "
+                f"별도로 필요하다.", dm)
+    if dm <= -0.02:
+        return ("악화 — 후보가 같은 창에서 챔피언보다 낮다",
+                f"{detail}. 후보 교체 축은 이 창에서 닫는다(돈 지표도 함께 확인).", dm)
+    return ("노이즈 — 같은 창 짝 Δ 가 사전문턱 +0.02 미만",
+            f"{detail}. post-train 창에서 두 모델은 AUC 로 구분되지 않는다 — 이 창의 판단은 돈 지표"
+            f"(체결성·수수료 반영)로만 하라.", dm)
+
+
+def parse_feature_coverage(path, mtime_floor) -> dict:
+    """피처 커버리지 재측정 요약(`feature_coverage_report.py --json-out`)을 파싱한다.
+
+    왜(실측 2026-11-24, XR49): 커버리지 지표 210행 중 131행이 computed_at 2026-11-18 에 멈춰
+    있었고, 재측정 경로는 ① 호스트에서 `ModuleNotFoundError: app` ② 신선 재빌드에도 '캐시 낡음'
+    가드가 걸려 exit 3 으로 **항상 막혀** 있었다. 수리 후 재측정이 완주하는지, 그리고
+    '낡은 패널로 computed_at 만 갱신'(신선도 위조)이 아닌지를 요약 JSON 으로 판정한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    return {
+        "metric": "feature_coverage",
+        "source": d.get("source"), "from_cache": d.get("from_cache"),
+        "window_days": d.get("window_days"),
+        "panel_last_trade_date": d.get("panel_last_trade_date"),
+        "n_features": d.get("n_features"), "n_dead": d.get("n_dead"),
+        "n_alive": d.get("n_alive"),
+        "n_stock_constant": d.get("n_stock_constant"),
+        "n_market_level": d.get("n_market_level"),
+        "illusion_max": d.get("illusion_max"),
+        "worst_null_ratio": d.get("worst_null_ratio"),
+        "dead_features": d.get("dead_features"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_feature_coverage(item, parsed) -> tuple:
+    """커버리지 재측정 판정 — 신선 빌드(from_cache=False)면 갱신 성공, 캐시면 위조 위험으로 무효."""
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    n = int(parsed.get("n_features") or 0)
+    detail = (f"source={parsed.get('source')} · 피처 {n}개(죽은 {parsed.get('n_dead')} · "
+              f"종목상수 {parsed.get('n_stock_constant')} · 시장레벨 {parsed.get('n_market_level')}) · "
+              f"패널 마지막 거래일 {parsed.get('panel_last_trade_date')} · "
+              f"창 {parsed.get('window_days')}일 · 착시 최대 {parsed.get('illusion_max')}")
+    if n <= 0:
+        return "판정불가", f"피처 0개 — 측정 자체가 비었다. {detail}", None
+    if parsed.get("from_cache"):
+        return ("측정 무효 — 낡은 캐시 패널 재사용(computed_at 위조 위험)",
+                f"{detail}. `--ignore-cache` 로 신선 재빌드해야 커버리지 신선도가 의미를 갖는다.", None)
+    return ("재측정 완료 — 신선 빌드 기준 커버리지 갱신",
+            f"{detail}. 다음: 이 값으로 dq_feature_oldest_age_days 리셋 여부를 확인(위조 아님).", None)
+
+
 def parse_champion_seed_family(path, mtime_floor) -> dict:
     """다중 시드(유니버스) 짝 판정 집계(champion_seed_family_agg.py)를 파싱한다.
 
@@ -2396,6 +2591,12 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_champion_promote_dryrun(spath, mtime_floor)
     if kind == "champion_seed_family":
         return parse_champion_seed_family(spath, mtime_floor)
+    if kind == "anchor_level_auc":
+        return parse_anchor_level_auc(spath, mtime_floor)
+    if kind == "anchor_paired_delta":
+        return parse_anchor_paired_delta(spath, mtime_floor)
+    if kind == "feature_coverage":
+        return parse_feature_coverage(spath, mtime_floor)
     if kind == "robust_seed_range":
 
         return parse_robust_seed_range(spath, mtime_floor)
@@ -5231,6 +5432,12 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_promote_dryrun(item, parsed)
     if kind == "champion_seed_family":
         return judge_seed_family(item, parsed)
+    if kind == "anchor_level_auc":
+        return judge_anchor_level_auc(item, parsed)
+    if kind == "anchor_paired_delta":
+        return judge_anchor_paired_delta(item, parsed)
+    if kind == "feature_coverage":
+        return judge_feature_coverage(item, parsed)
     if kind == "robust_seed_range":
 
         return judge_robust_seed_range(item, parsed)

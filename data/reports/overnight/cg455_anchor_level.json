@@ -1,0 +1,103 @@
+{
+  "metric": "anchor_level_auc",
+  "n_anchors": 5,
+  "anchors": [
+    {
+      "file": "cg455_pt_2026-10-24.json",
+      "anchor": "2026-10-24",
+      "auc": 0.5889,
+      "auc_pooled": 0.5907,
+      "n_dates": 4,
+      "window": [
+        [
+          "2026-10-02",
+          "2026-10-08"
+        ]
+      ],
+      "rows_scored": 240,
+      "train_start": "2026-07-03",
+      "train_end": "2026-10-01"
+    },
+    {
+      "file": "cg455_pt_2026-10-31.json",
+      "anchor": "2026-10-31",
+      "auc": 0.539,
+      "auc_pooled": 0.5349,
+      "n_dates": 9,
+      "window": [
+        [
+          "2026-10-02",
+          "2026-10-16"
+        ]
+      ],
+      "rows_scored": 540,
+      "train_start": "2026-07-03",
+      "train_end": "2026-10-01"
+    },
+    {
+      "file": "cg455_pt_2026-11-07.json",
+      "anchor": "2026-11-07",
+      "auc": 0.479,
+      "auc_pooled": 0.4744,
+      "n_dates": 14,
+      "window": [
+        [
+          "2026-10-02",
+          "2026-10-23"
+        ]
+      ],
+      "rows_scored": 840,
+      "train_start": "2026-07-03",
+      "train_end": "2026-10-01"
+    },
+    {
+      "file": "cg455_pt_2026-11-14.json",
+      "anchor": "2026-11-14",
+      "auc": 0.4961,
+      "auc_pooled": 0.494,
+      "n_dates": 19,
+      "window": [
+        [
+          "2026-10-02",
+          "2026-10-30"
+        ]
+      ],
+      "rows_scored": 1140,
+      "train_start": "2026-07-03",
+      "train_end": "2026-10-01"
+    },
+    {
+      "file": "cg455_pt_2026-11-21.json",
+      "anchor": "2026-11-21",
+      "auc": 0.5154,
+      "auc_pooled": 0.5191,
+      "n_dates": 24,
+      "window": [
+        [
+          "2026-10-02",
+          "2026-11-06"
+        ]
+      ],
+      "rows_scored": 1440,
+      "train_start": "2026-07-03",
+      "train_end": "2026-10-01"
+    }
+  ],
+  "skipped": [],
+  "threshold": 0.02,
+  "source_dir": "/home/jhshi/analyist_dd/services/xgboost-ml/reports/overnight",
+  "mean": 0.5237,
+  "std": 0.0382,
+  "min": 0.479,
+  "max": 0.5889,
+  "range": 0.1099,
+  "nested_windows": true,
+  "window_date_counts": [
+    4,
+    9,
+    14,
+    19,
+    24
+  ],
+  "verdict": "앵커 불안정(std>0.020) — 단일 앵커 AUC 는 기준선이 될 수 없다(축 종결 근거) · ⚠중첩 창(앵커=창 상한) — std 에 창 길이 효과 포함"
+}

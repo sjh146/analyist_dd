@@ -79,10 +79,40 @@ def _pg_connect():
     )
 
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_HERE)
+
+
+def _app_roots():
+    """`app` 패키지가 있을 수 있는 루트 후보 (컨테이너 /app → 호스트 repo/services/xgboost-ml).
+
+    WHY (2026-11-24 실측): R49 가 호스트에서 `--ignore-cache` 로 돌 때
+    `ModuleNotFoundError: No module named 'app'` 으로 죽었다. 후보가 "/app" 과 cwd 뿐이라
+    호스트에서 services/xgboost-ml/app 을 못 찾았다 — 재측정 경로 자체가 막혀
+    feature_coverage 가 5일(그리고 계속) 정체했다.
+    """
+    cands = ["/app", os.getcwd(), os.path.join(_REPO_ROOT, "services", "xgboost-ml")]
+    out = []
+    for p in cands:
+        if p and p not in out:
+            out.append(p)
+    return out
+
+
 def _ensure_app_on_path():
-    for p in ("/app", os.getcwd()):
+    for p in _app_roots():
         if p and p not in sys.path:
             sys.path.insert(0, p)
+
+
+def _panel_files():
+    """(panel.pkl, meta.json) 실제 경로 — 존재하는 루트를 고른다(없으면 cwd 기준 기본값)."""
+    rel = os.path.join("app", "models", "exp_panel")
+    for root in _app_roots():
+        d = os.path.join(root, rel)
+        if os.path.exists(os.path.join(d, "panel.pkl")):
+            return os.path.join(d, "panel.pkl"), os.path.join(d, "meta.json")
+    return PANEL_CACHE, PANEL_META
 
 
 def _load_panel_cached():
@@ -90,14 +120,15 @@ def _load_panel_cached():
 
     캐시가 없으면 (None, None) 반환.
     """
-    if not (os.path.exists(PANEL_CACHE) and os.path.exists(PANEL_META)):
+    panel_cache, panel_meta = _panel_files()
+    if not (os.path.exists(panel_cache) and os.path.exists(panel_meta)):
         return None, None
     try:
         window_days = 120
-        with open(PANEL_META, "r", encoding="utf-8") as f:
+        with open(panel_meta, "r", encoding="utf-8") as f:
             meta = json.load(f)
             window_days = int(meta.get("days", window_days))
-        df = pd.read_pickle(PANEL_CACHE)
+        df = pd.read_pickle(panel_cache)
         return df, window_days
     except Exception as e:  # noqa: BLE001
         print(f"[feature_coverage] exp_panel 캐시 로드 실패(무시): {e}")
@@ -107,7 +138,8 @@ def _load_panel_cached():
 def _panel_last_trade_date():
     """exp_panel meta 의 last_trade_date (판단 불가면 None)."""
     try:
-        with open(PANEL_META, "r", encoding="utf-8") as f:
+        _, panel_meta = _panel_files()
+        with open(panel_meta, "r", encoding="utf-8") as f:
             return (json.load(f) or {}).get("last_trade_date")
     except (OSError, ValueError):
         return None
@@ -222,6 +254,13 @@ def upsert_coverage(pg, rows):
 
 
 def main():
+    """커버리지를 재측정해 upsert 하고 판정용 요약을 남긴다.
+
+    낡음 가드는 **캐시를 쓴 경우에만** 적용한다(2026-11-24 수리): `--ignore-cache` 로 방금 새로
+    빌드한 신선 패널에도 가드가 걸려 exit 3 으로 쓰기를 거부해, 재측정 경로가 항상 막혀 있었다
+    (R49 rc=1/3 의 두 번째 원인). `--json-out` 요약이 없으면 rc=0 완주도 원장엔 '판정불가'만
+    남으므로, 구동기의 metric='feature_coverage' 파서가 이 파일을 읽는다.
+    """
     ap = argparse.ArgumentParser(description="피처 커버리지 리포트")
     ap.add_argument("--ignore-cache", action="store_true",
                     help="exp_panel 캐시를 무시하고 지금 새로 축소 패널을 빌드한다 "
@@ -232,19 +271,24 @@ def main():
                     help="패널 캐시 마지막 거래일이 이만큼 낡으면 쓰기를 거부(신선도 위조 방지)")
     ap.add_argument("--allow-stale", action="store_true",
                     help="낡은 패널이어도 강제로 기록(권장하지 않음 — computed_at 이 거짓말이 된다)")
+    ap.add_argument("--json-out", default=None,
+                    help="판정용 요약 JSON 경로(구동기 metric='feature_coverage' 가 읽는다)")
     args = ap.parse_args()
 
     pg = _pg_connect()
     try:
         df, window_days = None, None
+        from_cache = False
         if not args.ignore_cache:
             df, window_days = _load_panel_cached()
+            from_cache = df is not None
         source = "exp_panel 캐시"
         if df is None:
             df, window_days = _build_small_panel(pg, n_stocks=args.stocks, days=args.days)
             source = f"축소 빌드({args.stocks}종목/{args.days}일)"
 
-        age = panel_staleness(_panel_last_trade_date(), stale_days=args.max_panel_age_days)
+        age = panel_staleness(_panel_last_trade_date(), stale_days=args.max_panel_age_days) \
+            if from_cache else None
         if age is not None and age > args.max_panel_age_days:
             msg = (f"[feature_coverage] 패널 캐시 마지막 거래일이 {age}일 전 "
                    f"(한도 {args.max_panel_age_days}일) — 이대로 쓰면 computed_at 이 "
@@ -279,6 +323,27 @@ def main():
         if const:
             print(f"[feature_coverage] 종목 상수 목록({len(const)}): "
                   + ", ".join(sorted(r["feature_name"] for r in const)))
+        if args.json_out:
+            summary = {
+                "metric": "feature_coverage",
+                "source": source,
+                "from_cache": from_cache,
+                "window_days": window_days,
+                "panel_last_trade_date": _panel_last_trade_date(),
+                "n_features": len(rows),
+                "n_dead": len(dead),
+                "n_alive": len(alive),
+                "n_stock_constant": len(const),
+                "n_market_level": len(mkt),
+                "illusion_max": round(float(illusion), 6),
+                "worst_null_ratio": round(float(worst_null), 6),
+                "dead_features": sorted(r["feature_name"] for r in dead),
+                "stale_guard": "캐시 사용 시에만 적용(신선 재빌드는 통과)",
+                "measured_at": datetime.now().isoformat(timespec="seconds"),
+            }
+            with open(args.json_out, "w", encoding="utf-8") as f:
+                json.dump(summary, f, ensure_ascii=False, indent=2)
+            print(f"[feature_coverage] 요약 기록: {args.json_out}")
         return 0
     finally:
         pg.close()
