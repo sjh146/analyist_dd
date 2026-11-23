@@ -27,6 +27,34 @@ HISTORY = os.path.join(OUT_DIR, "history.jsonl")
 HOST_PY = "/usr/bin/python3"
 WIN_PY = "/mnt/c/Users/jhshi/Python312-64/python.exe"
 
+def load_env() -> None:
+    """저장소 .env 를 스스로 읽는다 (2026-11-23).
+
+    WHY: 이 러너를 수동 실행하면 POSTGRES_PASSWORD 가 없어 DB 의존 테스트가 실패하고,
+    같은 코드가 4건/5건으로 다르게 보고된다(실측). 크론 래퍼만 .env 를 읽어서
+    "야간은 4건, 수동은 5건"이라는 혼동이 생겼다. 러너가 직접 읽고 호스트 매핑
+    포트(127.0.0.1:5434)를 강제해 판정을 한 가지로 만든다.
+    """
+    path = os.path.join(PROJ, ".env")
+    try:
+        fh = open(path, encoding="utf-8")
+    except OSError:
+        fh = None
+    if fh is not None:
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                key = key.strip()
+                val = val.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = val
+    os.environ["POSTGRES_HOST"] = "127.0.0.1"
+    os.environ["POSTGRES_PORT"] = "5434"
+
+
 SUITES = [
     {"name": "root-tests", "dir": "tests", "python": HOST_PY, "timeout": 900},
     {"name": "api-gateway", "dir": "services/api-gateway/tests", "python": HOST_PY, "timeout": 600},
@@ -75,15 +103,44 @@ def run_suite(suite: dict) -> dict:
         return {"name": suite["name"], "rc": -2, "error": str(e)}
 
 
+def run_with_retries(suite: dict, retries: int) -> dict:
+    """실패한 스위트만 *retries* 회 재실행 — 한 번이라도 통과하면 flaky 로 표시.
+
+    2026-11-23 사용자 지시(야간 3회 반복). 전 스위트를 3회 돌리면 시간이 3배가 되므로
+    실패한 것만 재시도한다(정상 야간은 131s 그대로).
+    """
+    result = run_suite(suite)
+    bad = result.get("rc", 0) != 0 or (result.get("failed") or 0) > 0
+    if not bad or retries <= 0 or result.get("suite_skipped"):
+        result["attempts"] = 1
+        return result
+    attempts = 1
+    for _ in range(int(retries)):
+        attempts += 1
+        retry = run_suite(suite)
+        retry_bad = retry.get("rc", 0) != 0 or (retry.get("failed") or 0) > 0
+        if not retry_bad:
+            retry["attempts"] = attempts
+            retry["flaky"] = True
+            return retry
+        result = retry
+    result["attempts"] = attempts
+    result["flaky"] = False
+    return result
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--retries", type=int, default=2,
+                    help="실패 스위트 재실행 횟수(기본 2 → 최대 3회 시도, 플래키 감지)")
     args = ap.parse_args()
     os.makedirs(OUT_DIR, exist_ok=True)
+    load_env()
 
     suites = [s for s in SUITES if not args.only or any(o in s["name"] for o in args.only)]
-    results = [run_suite(s) for s in suites]
+    results = [run_with_retries(s, args.retries) for s in suites]
 
     prev = {}
     if os.path.exists(LATEST):
@@ -128,6 +185,9 @@ def main() -> None:
 
     print(f"[테스트] 통과 {t['suites_ok']} / 실패 {t['suites_bad']} · {t['passed']:,} passed "
           f"{t['failed']} failed {t['errors']} errors · {t['seconds']}s")
+    flaky = [r["name"] for r in results if r.get("flaky")]
+    if flaky:
+        print(f"  ⚠ 플래키(재시도에서 통과): {', '.join(flaky)}")
     if regressions:
         print(f"  ⚠ 회귀(이전 통과 → 지금 실패): {', '.join(regressions)}")
     for r in bad[:6]:

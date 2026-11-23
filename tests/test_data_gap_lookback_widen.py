@@ -31,12 +31,17 @@ def test_fresh_db_keeps_default_window():
 
 def test_long_outage_widens_window_to_cover_gap():
     """21거래일 공백(실측 10-11~11-09)이면 창이 그 공백 시작까지 넓어져야 한다."""
-    latest = date.today() - timedelta(days=29)  # 2026-11-09 사고의 달력 29일
+    latest = date.today() - timedelta(days=29)
+    while latest.weekday() >= 5:
+        latest -= timedelta(days=1)
     _db(3_000_000, latest)
     lb = dg.effective_lookback()
     assert lb > dg.LOOKBACK_DAYS, "장기 공백인데 창이 그대로면 점검이 공백을 볼 수 없다"
     assert lb >= 30, "공백 시작일(마지막 적재 다음날)이 창 안에 들어와야 한다: %s" % lb
-    assert latest.isoformat() in dg.expected_dates(lb), "마지막 적재일 자체가 점검 창에 없다"
+    oldest_in_window = date.fromisoformat(min(dg.expected_dates(lb)))
+    assert oldest_in_window <= latest, (
+        "마지막 적재일이 점검 창보다 최신이면 공백을 볼 수 없다: 창 시작 %s > 적재 %s"
+        % (oldest_in_window, latest))
 
 
 def test_window_is_capped_and_falls_back_to_range_backfill():

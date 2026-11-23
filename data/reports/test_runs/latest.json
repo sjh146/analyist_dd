@@ -1,68 +1,70 @@
 {
-  "checked_at": "2026-11-23T19:37:30",
+  "checked_at": "2026-11-23T20:14:17",
   "results": [
     {
       "name": "root-tests",
-      "rc": 1,
-      "seconds": 72.1,
-      "passed": 1025,
-      "failed": 4,
+      "rc": 0,
+      "seconds": 90.2,
+      "passed": 1035,
+      "failed": null,
       "errors": null,
       "skipped": 4,
-      "tail": [
-        "FAILED tests/test_money_scoreboard.py::test_utilization_peak_concurrent - Ass...",
-        "FAILED tests/test_trader_cycle_sample_definition.py::test_unfilled_marker_excluded_from_closed_sample",
-        "4 failed, 1025 passed, 4 skipped, 8 deselected, 6 warnings in 71.52s (0:01:11)"
-      ]
+      "tail": [],
+      "attempts": 1
     },
     {
       "name": "api-gateway",
       "rc": 0,
-      "seconds": 0.3,
+      "seconds": 0.8,
       "passed": null,
       "failed": null,
       "errors": null,
       "skipped": 5,
-      "tail": []
+      "tail": [],
+      "attempts": 1
     },
     {
       "name": "trader-core",
       "rc": 0,
-      "seconds": 20.7,
+      "seconds": 27.1,
       "passed": 378,
       "failed": null,
       "errors": null,
       "skipped": null,
-      "tail": []
+      "tail": [],
+      "attempts": 1
     },
     {
       "name": "trader-runner",
       "rc": 0,
-      "seconds": 15.8,
+      "seconds": 18.5,
       "passed": 170,
       "failed": null,
       "errors": null,
       "skipped": null,
-      "tail": []
+      "tail": [],
+      "attempts": 1
     },
     {
       "name": "trader-bridge",
       "rc": 0,
-      "seconds": 22.4,
+      "seconds": 43.2,
       "passed": 68,
       "failed": null,
       "errors": null,
       "skipped": null,
-      "tail": []
+      "tail": [],
+      "attempts": 2,
+      "flaky": true
     }
   ],
   "regressions": [],
   "totals": {
-    "passed": 1641,
-    "failed": 4,
+    "passed": 1651,
+    "failed": 0,
     "errors": 0,
-    "suites_ok": 4,
-    "suites_bad": 1,
-    "seconds": 131.3
+    "suites_ok": 5,
+    "suites_bad": 0,
+    "seconds": 179.8
   }
 }

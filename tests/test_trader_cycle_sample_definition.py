@@ -9,6 +9,7 @@ import importlib.util
 import os
 import sqlite3
 import sys
+from datetime import date
 
 import pytest
 
@@ -25,6 +26,7 @@ def _load_cycle():
 
 
 def _fixture_journal(path):
+    today = date.today().isoformat()
     conn = sqlite3.connect(path)
     conn.execute(
         """create table trades (
@@ -35,13 +37,13 @@ def _fixture_journal(path):
     )
     rows = [
         # 실청산 2건: +1000(승) / -400(패)
-        ("2026-11-19T09:00:00+09:00", "buy", "111111", 10, 1000.0, "2026-11-19T09:30:00+09:00", 1100.0, "tick tp", 1000.0, 5.0),
-        ("2026-11-19T09:05:00+09:00", "buy", "222222", 10, 1000.0, "2026-11-19T09:35:00+09:00", 960.0, "tick stop", -400.0, 5.0),
+        (today + "T09:00:00+09:00", "buy", "111111", 10, 1000.0, today + "T09:30:00+09:00", 1100.0, "tick tp", 1000.0, 5.0),
+        (today + "T09:05:00+09:00", "buy", "222222", 10, 1000.0, today + "T09:35:00+09:00", 960.0, "tick stop", -400.0, 5.0),
         # 마커: 체결 0 → 포지션 아니었음
-        ("2026-11-19T09:10:00+09:00", "buy", "333333", 10, 1000.0, "2026-11-19T15:30:00+09:00", 1000.0,
+        (today + "T09:10:00+09:00", "buy", "333333", 10, 1000.0, today + "T15:30:00+09:00", 1000.0,
          "unfilled: broker order 1 filled_qty=0 at close (expired), never a position - closed at entry, 0 PnL", 0.0, 0.0),
         # 미청산
-        ("2026-11-19T10:00:00+09:00", "buy", "444444", 10, 1000.0, None, None, None, None, 0.0),
+        (today + "T10:00:00+09:00", "buy", "444444", 10, 1000.0, None, None, None, None, 0.0),
     ]
     for ts, side, code, qty, price, exit_ts, exit_price, reason, pnl, fees in rows:
         conn.execute(

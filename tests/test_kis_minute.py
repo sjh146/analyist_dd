@@ -129,7 +129,14 @@ class TestPagination:
         assert len(client.calls) == 10  # 391봉/10건 = 40페이지 > 방어 한도
         assert len(bars) == 10 * 10
 
-    def test_short_batch_ends_immediately(self):
+    def test_short_batch_does_not_end_pagination(self):
+        """XR26 실측(2026-11): KIS 당일분봉은 fid_cnt 와 무관하게 1회 최대 30봉만 준다.
+
+        그래서 '짧은 배치 = 마지막 페이지'로 판정하면 매일 15:01~15:30 한 페이지에서
+        조기 종료된다. 종료는 '개장 도달' 또는 '진행 없음'으로만 판정한다 →
+        이 스텁(1봉)은 한 번 더 호출한 뒤 진행 없음으로 끝난다.
+        """
+
         class ShortClient:
             def __init__(self):
                 self.calls = []
@@ -146,7 +153,7 @@ class TestPagination:
         collector = MinuteCollector(client, None)
         bars = collector.collect_stock("005930", "KOSPI", "20260825",
                                        fid_cnt=100)
-        assert len(client.calls) == 1
+        assert len(client.calls) == 2, client.calls
         assert len(bars) == 1
 
     def test_no_progress_guard(self):

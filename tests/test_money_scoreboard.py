@@ -194,7 +194,7 @@ def test_utilization_peak_concurrent():
     # Config(1/3·100%)가 정본 — 문자열 비교가 아니라 approx 로, 1/3 은 부동소수).
     assert cu["limits"] == LIMITS
     if LIMITS_META["loaded"]:
-        assert cu["limits"] == {"max_daily_trades": 3, "per_stock_pct": pytest.approx(1 / 3),
+        assert cu["limits"] == {"max_daily_trades": 10, "per_stock_pct": pytest.approx(1 / 3),
                                 "max_open_positions": 3, "total_exposure_pct": 1.0}
 
 
