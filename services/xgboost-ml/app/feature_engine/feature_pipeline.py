@@ -6,6 +6,7 @@ Orchestrates feature extraction from all data sources into a single feature dict
 import pandas as pd
 import numpy as np
 import json
+import atexit
 import logging
 import os
 import time
@@ -35,6 +36,38 @@ from app.feature_engine.us_market_features import (
 )
 
 logger = logging.getLogger(__name__)
+
+_MISS: Dict[str, int] = {}
+
+
+def _note_miss(feature: str, exc: BaseException) -> None:
+    """피처 조회 실패를 세어 두고, 같은 사유는 한 번만 WARNING 으로 남긴다."""
+    key = "{0}:{1}".format(feature, type(exc).__name__)
+    _MISS[key] = _MISS.get(key, 0) + 1
+    if _MISS[key] == 1:
+        logger.warning("피처 결측 %s — %s: %s (동일 사유는 집계만)",
+                       feature, type(exc).__name__, str(exc)[:160])
+
+
+def feature_miss_report() -> Dict[str, int]:
+    return dict(_MISS)
+
+
+def _dump_miss_report() -> None:
+    if not _MISS:
+        return
+    try:
+        import json
+        import os
+        out = os.environ.get("FEATURE_MISS_REPORT", "/app/data/state/feature_miss_report.json")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as fh:
+            json.dump(_MISS, fh, ensure_ascii=False, indent=1, sort_keys=True)
+    except Exception as exc:
+        logger.warning("피처 결측 리포트 저장 실패: %s", exc)
+
+
+atexit.register(_dump_miss_report)
 
 
 class FeaturePipeline:
@@ -126,7 +159,7 @@ class FeaturePipeline:
                         market_df = pd.DataFrame(rows, columns=['trade_date', 'open', 'high', 'low', 'close', 'volume'])
                         market_df = market_df.sort_values('trade_date').reset_index(drop=True)
                 except Exception as e:
-                    logger.debug(f"Failed to load market data for {stock_code}: {e}")
+                    _note_miss("group:market_data", e)
                     self.pg_conn.rollback()
                     market_df = pd.DataFrame()
 
@@ -181,7 +214,7 @@ class FeaturePipeline:
                 bundle = self._sns_bundle = SnsFeatureBundle(pg_conn=self.pg_conn)
             features.update(bundle.load(stock_code, date=str(date)))
         except Exception as e:
-            logger.debug(f"SNS features failed for {stock_code}: {e}")
+            _note_miss("group:sns_features", e)
 
 
         sentiment = self._get_stock_sentiment(stock_code, date)
@@ -211,7 +244,7 @@ class FeaturePipeline:
         try:
             features.update(self._build_advanced_features(stock_code, date, market_df))
         except Exception as e:
-            logger.debug(f"Advanced features failed for {stock_code}: {e}")
+            _note_miss("group:advanced_features", e)
 
 
 
@@ -221,7 +254,7 @@ class FeaturePipeline:
         try:
             self._build_trainer_consistent_features(features, market_df)
         except Exception as e:
-            logger.debug(f"Trainer-consistent features failed for {stock_code}: {e}")
+            _note_miss("group:trainer_features", e)
 
         features["feature_count"] = len(features)
         features["stock_code"] = stock_code
@@ -308,7 +341,7 @@ class FeaturePipeline:
             features["target_ma_10"] = _last(rets.rolling(10, min_periods=1).mean())
             features["target_ma_20"] = _last(rets.rolling(20, min_periods=1).mean())
         except Exception as e:  # pragma: no cover - defensive
-            logger.debug(f"trainer-consistent rolling features unavailable: {e}")
+            _note_miss("group:trainer_rolling", e)
 
     def compute_cross_sectional_ranks(self, features_by_code: Dict[str, Dict]) -> None:
         """Inject ``rank_*`` features — percentile rank within each date's
@@ -627,8 +660,8 @@ class FeaturePipeline:
                             sector_return = sum(sector_closes) / len(sector_closes) if sector_closes else 0.0
                             features["sector_momentum"] = float(sector_return)
                 cur.close()
-            except Exception:
-                logger.debug("sector_momentum unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("sector_momentum", exc)
                 self.pg_conn.rollback()
 
 
@@ -671,8 +704,8 @@ class FeaturePipeline:
                 if row and row[1] and row[1] > 0:
                     features["market_breadth"] = float(row[0] / row[1])
                 cur.close()
-            except Exception:
-                logger.debug("market_breadth unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("market_breadth", exc)
                 self.pg_conn.rollback()
             self._cache[_mb_key] = features["market_breadth"]
 
@@ -720,8 +753,8 @@ class FeaturePipeline:
                 if row and row[1] and row[1] > 0:
                     features["program_trading_ratio"] = float(row[0] / row[1])
                 cur.close()
-            except Exception:
-                logger.debug("program_trading_ratio unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("program_trading_ratio", exc)
                 self.pg_conn.rollback()
 
 
@@ -738,8 +771,8 @@ class FeaturePipeline:
                 if row and row[0]:
                     features["etf_flow_5d"] = float(row[0])
                 cur.close()
-            except Exception:
-                logger.debug("etf_flow_5d unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("etf_flow_5d", exc)
                 self.pg_conn.rollback()
 
 
@@ -759,8 +792,8 @@ class FeaturePipeline:
                 if row and row[0]:
                     features["foreign_ownership_pct"] = float(row[0])
                 cur.close()
-            except Exception:
-                logger.debug("foreign_ownership_pct unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("foreign_ownership_pct", exc)
                 self.pg_conn.rollback()
 
 
@@ -778,8 +811,8 @@ class FeaturePipeline:
                 if row and row[0]:
                     features["institution_ownership_pct"] = float(row[0])
                 cur.close()
-            except Exception:
-                logger.debug("institution_ownership_pct unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("institution_ownership_pct", exc)
                 self.pg_conn.rollback()
 
 
@@ -798,8 +831,8 @@ class FeaturePipeline:
                 if row and row[0]:
                     features["retail_ownership_pct"] = float(row[0])
                 cur.close()
-            except Exception:
-                logger.debug("retail_ownership_pct unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("retail_ownership_pct", exc)
                 self.pg_conn.rollback()
 
 
@@ -817,8 +850,8 @@ class FeaturePipeline:
                 if row and row[0] and row[1] and row[1] > 0:
                     features["short_interest_ratio"] = float(row[0] / row[1])
                 cur.close()
-            except Exception:
-                logger.debug("short_interest_ratio unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("short_interest_ratio", exc)
                 self.pg_conn.rollback()
 
 
@@ -841,8 +874,8 @@ class FeaturePipeline:
                 if row and row[0] and row[1] and row[1] > 0:
                     features["days_to_cover"] = float(row[0] / row[1])
                 cur.close()
-            except Exception:
-                logger.debug("days_to_cover unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("days_to_cover", exc)
                 self.pg_conn.rollback()
 
 
@@ -862,8 +895,8 @@ class FeaturePipeline:
                 if len(rows) >= 2 and rows[0][0] and rows[1][0] and rows[1][0] != 0:
                     features["margin_balance_change"] = float((rows[0][0] - rows[1][0]) / rows[1][0] * 100)
                 cur.close()
-            except Exception:
-                logger.debug("margin_balance_change unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("margin_balance_change", exc)
                 self.pg_conn.rollback()
 
 
@@ -881,8 +914,8 @@ class FeaturePipeline:
                 if len(rows) >= 2 and rows[0][0] and rows[1][0] and rows[1][0] != 0:
                     features["credit_balance_change"] = float((rows[0][0] - rows[1][0]) / rows[1][0] * 100)
                 cur.close()
-            except Exception:
-                logger.debug("credit_balance_change unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("credit_balance_change", exc)
                 self.pg_conn.rollback()
 
 
@@ -899,8 +932,8 @@ class FeaturePipeline:
                 if row and row[0] and row[1] and row[1] > 0:
                     features["short_selling_ratio"] = float(row[0] / row[1])
                 cur.close()
-            except Exception:
-                logger.debug("short_selling_ratio unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("short_selling_ratio", exc)
                 self.pg_conn.rollback()
 
 
@@ -919,8 +952,8 @@ class FeaturePipeline:
                 if row and row[0]:
                     features["krx_total_trading_value"] = float(row[0])
                 cur.close()
-            except Exception:
-                logger.debug("krx_total_trading_value unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("krx_total_trading_value", exc)
                 self.pg_conn.rollback()
 
 
@@ -950,8 +983,8 @@ class FeaturePipeline:
                 if row and row[1] and row[1] > 0:
                     features["krx_advance_decline_ratio"] = float(row[0] / row[1])
                 cur.close()
-            except Exception:
-                logger.debug("krx_advance_decline_ratio unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("krx_advance_decline_ratio", exc)
                 self.pg_conn.rollback()
             self._cache[_adr_key] = features["krx_advance_decline_ratio"]
 
@@ -974,8 +1007,8 @@ class FeaturePipeline:
                 if row and row[0]:
                     features["futures_premium"] = float(row[0])
                 cur.close()
-            except Exception:
-                logger.debug("futures_premium unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("futures_premium", exc)
                 self.pg_conn.rollback()
 
 
@@ -995,8 +1028,8 @@ class FeaturePipeline:
                 if row and row[0]:
                     features["derivatives_volume"] = float(row[0])
                 cur.close()
-            except Exception:
-                logger.debug("derivatives_volume unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("derivatives_volume", exc)
                 self.pg_conn.rollback()
 
 
@@ -1022,8 +1055,8 @@ class FeaturePipeline:
                     features["basis"] = latest
                     if len(rows) >= 6:
                         features["basis_change_5d"] = latest - float(rows[5][0])
-            except Exception:
-                logger.debug("basis unavailable; using 0.0")
+            except Exception as exc:
+                _note_miss("basis", exc)
             finally:
 
 
@@ -1113,8 +1146,8 @@ class FeaturePipeline:
                 if total > 0:
                     result["sentiment_momentum"] = float((row[1] - row[2]) / total)
             cur.close()
-        except Exception:
-            logger.debug("_get_stock_sentiment unavailable; using 0.0")
+        except Exception as exc:
+            _note_miss("_get_stock_sentiment", exc)
             self.pg_conn.rollback()
         return result
 
@@ -1139,8 +1172,8 @@ class FeaturePipeline:
                 result["economic_event_count_7d"] = float(row[0] or 0)
                 result["economic_event_impact"] = float(row[1] or 0)
             cur.close()
-        except Exception:
-            logger.debug("_get_economic_events unavailable; using 0.0")
+        except Exception as exc:
+            _note_miss("_get_economic_events", exc)
             self.pg_conn.rollback()
         return result
 
