@@ -59,22 +59,30 @@ def coverage_rows() -> list[tuple]:
     return rows
 
 
+def classify_feature(nonzero: float, const: float) -> str:
+    """판정 우선순위: dead(nonzero<0.0005) → sparse(<0.01) → constant(const>0.99) → alive."""
+    if nonzero < 0.0005:
+        return "dead"
+    if nonzero < 0.01:
+        return "sparse"
+    if const > 0.99:
+        return "constant"
+    return "alive"
+
+
 def main() -> int:
     rows = coverage_rows()
     if not rows:
         print("feature_coverage 조회 실패")
         return 2
 
-    alive, sparse, constant, dead = [], [], [], []
+    buckets = {"alive": [], "sparse": [], "constant": [], "dead": []}
     for name, nz, const, _ in rows:
-        if nz < 0.0005:
-            dead.append(name)
-        elif nz < 0.01:
-            sparse.append(name)
-        elif const > 0.99:
-            constant.append(name)
-        else:
-            alive.append(name)
+        buckets[classify_feature(nz, const)].append(name)
+    alive = buckets["alive"]
+    sparse = buckets["sparse"]
+    constant = buckets["constant"]
+    dead = buckets["dead"]
 
     now = kst()
     today = now.date().isoformat()
