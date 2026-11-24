@@ -154,6 +154,7 @@ SPECS = [
 
 
     ("dq_feature_alive_xsec_count", "max", None, None, "횡단면 변별력 있는 살아있는 피처(시장레벨 제외)"),
+    ("dq_feature_feature_count", "max", None, None, "feature_coverage 행수(정보용 — 창 인구 판정의 분모)"),
 
 
 
@@ -178,6 +179,33 @@ ALWAYS_REPORT = {
 
 
 SILENT_AT_ZERO = {"dq_feature_non_model_window_rows"}
+
+
+def blind_instrument_warns(metrics: dict) -> list:
+    """'계기가 꺼져 있어 통과'인 경우를 경고로 올린다(실측 2026-11-24).
+
+    `dq_feature_coverage_illusion_count_model_window` 의 판정 인구는 **모델 창(120일)** 행이다.
+    그런데 11-24 20:1x 실측에서 feature_coverage 209행이 전부 창 30일(166) · 525일(24) · 42일(19)
+    이고 **120일 행이 0개**였다 → 게이트는 0(=ok)으로 읽히지만 이는 '착시가 없다'가 아니라
+    '잴 인구가 없다'다. 같은 이유로 `dq_feature_illusion_at_120d_count` 도 0 이 된다.
+    0 을 정상으로 보고하면 window-mix 결함(R38)이 조용해지므로, 인구가 비면 경고로 올린다.
+    """
+    m = metrics or {}
+    fc = (m.get("dq_feature_feature_count") or {}).get("value")
+    if not fc:
+        alive = (m.get("feature_alive_count") or {}).get("value") or 0
+        dead = (m.get("feature_dead_count") or {}).get("value") or 0
+        fc = (alive + dead) or None
+    nm = (m.get("dq_feature_non_model_window_rows") or {}).get("value")
+    ill_all = (m.get("dq_feature_coverage_illusion_count") or {}).get("value")
+    ill_model = (m.get("dq_feature_coverage_illusion_count_model_window") or {}).get("value")
+    if not fc or nm is None:
+        return []
+    if nm >= fc:
+        return [f"계기판 실명: 모델 창(120일) 커버리지 행 0/{fc:g} — 착시 게이트 "
+                f"{0 if ill_model is None else ill_model:g} 는 '착시 없음'이 아니라 '판정 인구 없음'"
+                f"(전 창 착시 {0 if ill_all is None else ill_all:g})"]
+    return []
 
 
 def always_report_lines(metrics: dict) -> list:
@@ -601,6 +629,7 @@ def main():
         print(_line)
     if breaches:
         print(f"  ★ 위반 {len(breaches)}: " + " | ".join(breaches))
+    warns.extend(blind_instrument_warns(snap["metrics"]))
     if warns:
         print(f"  · 경고 {len(warns)}: " + " | ".join(warns))
     snap["breaches"] = breaches
