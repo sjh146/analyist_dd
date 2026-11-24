@@ -834,6 +834,24 @@ class FeaturePipeline:
 
 
 
+        features["theme_momentum"] = 0.0
+        if self.pg_conn is not None:
+            try:
+                cur = self.pg_conn.cursor()
+                cur.execute("""
+                    SELECT avg(d.avg_ret_pct) FROM theme_daily d
+                    JOIN stock_themes st ON st.theme = d.theme
+                    WHERE st.stock_code = %s AND d.trade_date <= %s::date
+                      AND d.trade_date > %s::date - INTERVAL '7 days'
+                """, (stock_code, date, date))
+                row = cur.fetchone()
+                cur.close()
+                if row and row[0] is not None:
+                    features["theme_momentum"] = float(row[0])
+            except Exception as exc:
+                _note_miss("theme_momentum", exc)
+                self.pg_conn.rollback()
+
         features["short_interest_ratio"] = 0.0
         features["days_to_cover"] = 0.0
         features["short_ratio_5d"] = 0.0
@@ -1261,6 +1279,7 @@ class FeaturePipeline:
             "vix_proxy", "volatility_skew",
             "program_trading_ratio", "etf_flow_5d",
             "foreign_ownership_pct", "institution_ownership_pct", "retail_ownership_pct",
+            "market_breadth", "theme_momentum",
             "short_interest_ratio", "days_to_cover",
             "short_ratio_5d", "short_ratio_trend",
             "margin_balance_change", "credit_balance_change", "short_selling_ratio",

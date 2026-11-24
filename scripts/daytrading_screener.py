@@ -311,6 +311,47 @@ def _regime_gate(regime, today=None):
     return True, reason.strip()
 
 
+def _theme_points(pg, date_str, hot_up_ratio=0.65, hot_ret=1.5, points=8.0, mild=4.0):
+    """theme_daily 기준 '뜨거운 테마' 소속 종목에 정렬 가점을 준다(2026-11-24).
+
+    up_ratio >= hot_up_ratio 그리고 avg_ret_pct >= hot_ret 이면 points,
+    up_ratio >= 0.55 이면 mild. 테마 테이블이 없으면 빈 dict(fail-open).
+    """
+    if pg is None:
+        return {}, {}
+    try:
+        cur = pg.cursor()
+        cur.execute("""
+            SELECT theme, up_ratio, avg_ret_pct FROM theme_daily
+            WHERE trade_date = COALESCE(%s::date, (SELECT max(trade_date) FROM theme_daily))
+        """, (date_str,))
+        rows = cur.fetchall()
+        if not rows:
+            return {}, {}
+        hot, mild_themes = [], []
+        for theme, up_ratio, avg_ret in rows:
+            if up_ratio is None or avg_ret is None:
+                continue
+            if float(up_ratio) >= hot_up_ratio and float(avg_ret) >= hot_ret:
+                hot.append(theme)
+            elif float(up_ratio) >= 0.55:
+                mild_themes.append(theme)
+        cur.execute("SELECT stock_code, theme FROM stock_themes")
+        members = cur.fetchall()
+    except Exception as exc:
+        logger.warning("테마 가점 계산 실패(무시): %s", exc)
+        return {}, {}
+    hot_set, mild_set = set(hot), set(mild_themes)
+    out = {}
+    for code, theme in members:
+        if theme in hot_set:
+            out[code] = max(out.get(code, 0.0), float(points))
+        elif theme in mild_set:
+            out[code] = max(out.get(code, 0.0), float(mild))
+    info = {"hot": sorted(hot_set), "mild": sorted(mild_set), "codes": len(out)}
+    return out, info
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="단타스크리너 — 칼만 노이즈 제거 + 챔피언 모델 기반 당일 매수 후보 선별")
@@ -380,6 +421,9 @@ def main():
 
         allow_codes = _load_universe_codes(args.universe_file)
         excl, bonus = _load_rank_band(args.rank_band_file)
+        theme_pts, theme_info = _theme_points(pg, args.date)
+        if theme_pts:
+            logger.info("테마 가점 대상 %d종목 (뜨거운 테마 %s)", len(theme_pts), theme_info.get("hot"))
         ranked = run_screener(
             provider,
             top_n=args.top_n,
@@ -393,6 +437,7 @@ def main():
             exclude_codes=excl,
             bonus_codes=bonus,
             bonus_points=args.rank_bonus,
+            theme_points=theme_pts,
         )
 
         rows = build_output_rows(ranked)

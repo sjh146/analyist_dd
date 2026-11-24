@@ -172,7 +172,8 @@ def run_screener(provider: MarketDataProvider,
                  allow_codes: Optional[set] = None,
                  exclude_codes: Optional[set] = None,
                  bonus_codes: Optional[set] = None,
-                 bonus_points: float = 5.0) -> pd.DataFrame:
+                 bonus_points: float = 5.0,
+                 theme_points: Optional[dict] = None) -> pd.DataFrame:
     """Full pipeline: universe → lookback → kalman → (model) → score → rank.
 
     크레온 상승률 랭킹 사용 방식(2026-11-18 실측 후 확정 — 사용자 선택 2번):
@@ -257,6 +258,13 @@ def run_screener(provider: MarketDataProvider,
             scored["_rank_score"] = scored["score"] + np.where(hit, float(bonus_points), 0.0)
             logger.info("상승률 대역 가점: %d/%d 종목에 +%.1f점(정렬 전용)",
                         int(hit.sum()), len(scored), float(bonus_points))
+    if theme_points:
+        scored = scored.copy()
+        extra = scored["stock_code"].astype(str).map(
+            {str(k): float(v) for k, v in theme_points.items()}).fillna(0.0)
+        base = scored["_rank_score"] if "_rank_score" in scored.columns else scored["score"]
+        scored["_rank_score"] = base + extra
+        logger.info("테마 가점: %d/%d 종목(정렬 전용)", int((extra > 0).sum()), len(scored))
     ranked = rank_candidates(scored, top_n=top_n)
     if "_rank_score" in ranked.columns:
         ranked = ranked.drop(columns=["_rank_score"])
