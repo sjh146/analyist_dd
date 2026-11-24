@@ -52,14 +52,21 @@ EVENT_PATTERNS = [
     ("exec_change", r"대표이사|임원|등기이사|사외이사|대표자"),
     ("litigation", r"소송|가처분|법적분쟁|판결"),
     ("mna", r"합병|회사분할|영업양수|영업양도|최대주주\s*변경|주식교환"),
-    ("new_product", r"신제품|신규\s*출시|개발\s*완료|상용화"),
+    ("new_product", r"신제품|신규\s*출시|개발\s*완료|상용화|신규\s*시설투자|시설투자|증설|생산능력|임상"),
     ("partnership", r"업무협약|MOU|제휴|공동\s*개발"),
     ("patent", r"특허|상표|실용신안|디자인권"),
     ("realized", r"영업이익|매출액|손익구조|잠정|실적"),
     ("recall", r"리콜|회수|결함|판매중지"),
     ("regulation", r"규제|제재|과징금|시정명령|영업정지"),
-    ("stake_change", r"대량보유|지분|주식등의|보유비율"),
-    ("treasury", r"자기주식|자사주"),
+    ("stake_change", r"대량보유|지분|주식등의|보유비율|소유주식|주식변동"),
+    ("treasury", r"자기주식|자사주|주식소각|신탁계약"),
+    ("shareholder_meeting", r"주주총회|주주명부폐쇄|의결권대리행사"),
+    ("ir", r"기업설명회|IR개최"),
+    ("dividend", r"배당"),
+    ("debt_guarantee", r"채무보증|지급보증"),
+    ("option_grant", r"주식매수선택권|스톡옵션"),
+    ("investment", r"타법인주식|출자증권|투자판단관련주요경영사항"),
+    ("rumor", r"풍문|보도에대한해명|조회공시"),
 ]
 COMPILED = [(name, re.compile(pat)) for name, pat in EVENT_PATTERNS]
 # 정기공시(사업/반기/분기/기한연장)는 이벤트가 아니다 — disclosure_count_5d 에서 제외한다.
@@ -72,9 +79,17 @@ def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+PREFIX = re.compile(r"^\[[^\]]{1,20}\]\s*")
+
+
 def classify(name: str):
-    """report_nm → 매칭되는 이벤트 유형 인덱스 목록. 정기공시면 빈 목록."""
-    idx = [i for i, (_, rx) in enumerate(COMPILED) if rx.search(name)]
+    """report_nm → 매칭되는 이벤트 유형 인덱스 목록. 정기공시면 빈 목록.
+
+    WHY(2026-11-24): `[기재정정]주주총회소집결의` 처럼 대괄호 접두어가 붙은 공시가
+    전부 미매칭으로 빠져 이벤트 피처가 0 이었다. 접두어를 떼고 원문으로 매칭한다.
+    """
+    clean = PREFIX.sub("", (name or "").strip())
+    idx = [i for i, (_, rx) in enumerate(COMPILED) if rx.search(clean)]
     return idx
 
 
@@ -289,6 +304,15 @@ def main():
         return 0
 
     # ── 멱등 적재: 구간 DELETE 후 COPY ───────────────────────────────────
+    cur.execute("SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'event_features'")
+    existing = {row[0] for row in cur.fetchall()}
+    for col in COLS:
+        if col not in existing:
+            cur.execute("ALTER TABLE event_features ADD COLUMN IF NOT EXISTS {0} INTEGER DEFAULT 0".format(col))
+            log("컬럼 추가: " + col)
+    conn.commit()
+
     cur.execute("SELECT COUNT(*) FROM event_features")
     before_total = cur.fetchone()[0]
     cur.execute("DELETE FROM event_features WHERE trade_date >= %s", (a.since,))
