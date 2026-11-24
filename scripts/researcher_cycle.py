@@ -495,6 +495,8 @@ def _recent_recurring_ids(minutes=RECUR_COOLDOWN_MIN):
             ts = datetime.fromisoformat(str(r.get("ts")))
         except (TypeError, ValueError):
             continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=cutoff.tzinfo)
         if ts >= cutoff and r.get("id"):
             ids.add(r["id"])
     return ids
@@ -543,6 +545,22 @@ def _stale_ids(cands, last):
     return out
 
 
+def _slot_hour(item, hour):
+    """이 항목이 특정 KST 정시에만 증거를 얻을 수 있는 프로브인지(`slot_hours`).
+
+    WHY(실측 2026-11-24): R48 은 "직전 거래일 봉이 07:30 이전에 발행되는가"를 묻는 항목인데
+    증거는 개장 전 틱(00·02·04·06)에만 있다. 그런데 pick_item 의 회전 양보가 '더 오래 굶은
+    후보'에게 순서를 넘기므로, 개장 전 틱은 매번 다른 pending(R27·R41)이 가져갔다 —
+    원장 실측 11-24 04:48 R27 / 06:47 R41, **R48 은 한 번도 실행되지 않았다**(영구 pending).
+    시각창 항목은 그 창을 놓치면 증거 자체가 사라지므로 회전 양보에서 제외한다.
+    """
+    try:
+        slots = {int(x) for x in (item.get("slot_hours") or [])}
+    except (TypeError, ValueError):
+        return False
+    return int(hour) in slots
+
+
 def pick_item(b, force=False):
     """다음 실행 항목 — `base.next_item()` 과 같되 **상시 감시를 회전에서 양보시킨다**.
 
@@ -569,6 +587,13 @@ def pick_item(b, force=False):
         runnable.append(i)
     stale = _stale_ids(runnable, _last_run_map()) if runnable else set()
     runnable_ids = {i["id"] for i in runnable}
+    hour = now_kst().hour
+    slotted = [i for i in runnable
+               if _slot_hour(i, hour) and i["id"] not in (recent if i.get("recurring") else set())]
+    if slotted:
+        chosen = sorted(slotted, key=lambda i: (i.get("priority", 99), i["id"]))[0]
+        log(f"시각창 프로브 {chosen['id']} — {hour}시 슬롯(회전 양보 없이 우선)")
+        return chosen
     for i in pend:
         if i["id"] not in runnable_ids:
             continue
