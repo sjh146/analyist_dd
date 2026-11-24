@@ -12,7 +12,7 @@ WHY (2026-11-17, data/state/ceo_priority.json day=2026-11-16 escalations 에스�
 실측 확정값 (2026-11-17 실행 — 재조사 금지):
   cd /mnt/c/Users/jhshi/analyist_dd/trader-agent && /usr/bin/python3 -c "import sys;sys.path.insert(0,'.');from trader_core.config import Config;c=Config();print(c.daily_max_trades,c.max_position_pct,c.max_open_positions,c.max_invested_pct)"
   → 3 0.3333333333333333 3 1.0
-  (리포 내 사본 /home/jhshi/analyist_dd/trader-agent/trader_core/config.py 도 같은 4값 — 확인)
+  (trader-agent 는 별도 저장소(github.com/sjh146/trader-agent) — 게시본이 단일 진실원)
 
 계약:
   - candidates 기본 순서: TRADER_AGENT_DIR 환경변수 → Windows 라이브 사본 → 리포 내 사본.
@@ -51,7 +51,6 @@ def _candidates(candidates):
     return [p for p in (
         os.environ.get("TRADER_AGENT_DIR"),
         "/mnt/c/Users/jhshi/analyist_dd/trader-agent",
-        os.path.join(_REPO, "trader-agent"),
     ) if p]
 
 
