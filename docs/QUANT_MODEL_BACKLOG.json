@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T04:14:41+09:00",
+ "updated_at": "2026-11-25T05:11:54+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -26587,6 +26587,94 @@
     "per_exp": null,
     "rc": 0
    }
+  },
+  {
+   "id": "CG479",
+   "status": "done",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "baseline_ranking_money",
+   "money_primary": "model",
+   "money_k": [
+    5
+   ],
+   "money_gate": {
+    "min_excess": 0.5,
+    "min_abs_t": 2.0,
+    "require_split": true,
+    "floor": "rand_row_and_mde"
+   },
+   "money_split_out": "/app/reports/overnight/cg479_h1_back.json",
+   "title": "[라벨·청산 축] 보유기간만 바꿔도 돈 엣지가 생기는가 — 같은 덤프·같은 세션 h 1/3/10 · model vs rand 바닥",
+   "hypothesis": "CG478 은 h5 고정에서 모델 랭킹이 rand 바닥보다 −0.586%p(t −1.29) 열등했다. h5 보유가 손실의 원인일 수 있으므로 h1(익일청산)·h3·h10 으로 보유기간만 바꿔 재면 비용 왕복 0.21%p 차감 후에도 순기대가 양(+)이 되는지 갈린다. 사전 기대: h1 이 가장 유리(노출 짧음)하나 풀 널 자체가 −0.03~−0.09%p 라 문턱 미달 가능성이 높다.",
+   "evidence": "CG478(2026-11-25 04:1x): model k5 Δ(pool) −0.137(t −0.44) · rand k5 +0.449(t +1.37) → 초과 −0.586(t −1.29) · 분할 both_positive=False · 풀 널 −0.0892%p(255세션·stride1). CG477: lowvol20 +0.891(t 2.41) 이나 stride5 에선 t 0.73(중첩 낙관).",
+   "counterfactual": "rand(무작위 k·reps 20) — 같은 h·같은 세션에서의 바닥. lowvol20 은 같은 런의 참조 arm",
+   "success": "사전 등록(변경 금지): ① h1 에서 model k5 − rand ≥ +0.5%p/세션 AND |t| ≥ 2 AND 분할(후반 절반) both_positive → 신호(청산·보유기간 축 재개, 트레이더 핸드오프 후보) ② 미달이면 h3/h10 보조 관측과 함께 '보유기간·진입시점 조정으로도 비용 후 엣지 없음'으로 청산 축을 돈 근거로 종결(규칙 ⑤) ③ rc≠0/요약 미갱신 = 실행실패. 승격·교체 없음.",
+   "command": "cd /home/jhshi/analyist_dd && docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --baselines model,lowvol20,rand --k 5 --stride 1 --horizon 1 --rand-reps 20 --json-out /app/reports/overnight/cg479_h1_full.json' && docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --baselines model,lowvol20,rand --k 5 --stride 5 --date-from 2026-04-29 --horizon 1 --rand-reps 20 --json-out /app/reports/overnight/cg479_h1_back.json' && docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --baselines model,lowvol20,rand --k 5 --stride 1 --horizon 3 --rand-reps 10 --json-out /app/reports/overnight/cg479_h3_full.json' && docker exec stock_xgboost_ml sh -c 'cd /app && timeout 900 python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --baselines model,lowvol20,rand --k 5 --stride 1 --horizon 10 --rand-reps 10 --json-out /app/reports/overnight/cg479_h10_full.json'",
+   "expected": "h1 초과 ≈ 0 또는 음(-) · h10 은 더 음(-) → ②로 청산 축 종결 가능성이 높다. 판정에 쓰는 주 요약은 첫 --json-out(cg479_h1_full.json).",
+   "cost": "4회 실행 · 각 20~40초(덤프 30,053행 재사용, 학습 없음)",
+   "est_minutes": 10,
+   "setup_needed": null,
+   "created_at": "2026-11-25T05:10:30+09:00",
+   "updated_at": "2026-11-25T05:10:30+09:00",
+   "from_experiment": "CG478",
+   "note": "CG478 사전등록 ②('라벨/청산 축으로 이동')의 집행 항목. 엔지니어 자율 등록(2026-11-25 05:2x).",
+   "attempts": [
+    {
+     "ts": "2026-11-25T05:11:21+09:00",
+     "rc": 0,
+     "verdict": "노이즈(등록 문턱 미달)",
+     "detail": "model k5 Δ(pool) +0.142%p (t +1.00) · rand행 Δ +0.061 → 초과 +0.081 (t_indep 0.41) · rand MDE(reps 20) 평균 대비 초과 +0.094 · 분할(앞/뒤) 초과 -0.268/+0.427 → both_positive=False · 후반 절반 창 ['2026-04-29', '2026-11-04'] strideNone: model Δ 1.2622 vs rand Δ 0.2936 (split=unstable) · 문턱: 초과≥+0.5%p·|t|≥2.0·분할양수=True → 미달",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG479_20261125-051034.log",
+     "elapsed_min": 0.8
+    }
+   ],
+   "not_before": "2026-11-25T05:10:30+09:00",
+   "result": {
+    "verdict": "노이즈(등록 문턱 미달)",
+    "detail": "model k5 Δ(pool) +0.142%p (t +1.00) · rand행 Δ +0.061 → 초과 +0.081 (t_indep 0.41) · rand MDE(reps 20) 평균 대비 초과 +0.094 · 분할(앞/뒤) 초과 -0.268/+0.427 → both_positive=False · 후반 절반 창 ['2026-04-29', '2026-11-04'] strideNone: model Δ 1.2622 vs rand Δ 0.2936 (split=unstable) · 문턱: 초과≥+0.5%p·|t|≥2.0·분할양수=True → 미달",
+    "delta": 0.0809,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG480",
+   "status": "pending",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "baseline_ranking_money",
+   "money_primary": "lowvol20",
+   "money_k": [
+    5
+   ],
+   "money_gate": {
+    "min_excess": 0.5,
+    "min_abs_t": 2.0,
+    "require_split": true,
+    "floor": "rand_row_and_mde"
+   },
+   "money_split_out": "/app/reports/overnight/cg480_lv_h10_back.json",
+   "title": "[돈·저변동 h10] lowvol20 − rand 초과가 중첩 없는 stride10 에서도 유지되는가 — h10 관측의 사전등록 재검",
+   "hypothesis": "CG479 보조 관측에서 보유기간을 늘릴수록 저변동 우위가 커졌다(h3 Δ+0.655·t 2.32 → h10 Δ+1.296·t 2.46, rand 는 +0.436/+0.154). 초과(lowvol−rand)는 h10 에서 +1.14%p 로 등록 문턱 +0.5 를 넘지만 ① stride1 중첩 ② h 를 사후에 고른 다중비교 라 신호가 아니다. 비중첩 stride10 + 후반 절반 분할로 같은 문턱을 다시 넘는지가 판정 대상.",
+   "evidence": "CG479(2026-11-25 05:11): h1 model Δ+0.142(t 1.00)·rand +0.061 → 초과 +0.081(t 0.41) both_positive=False(판정 노이즈) · h3 model −0.145 / lowvol20 +0.655(t 2.32) / rand +0.436(t 1.71) · h10 model −0.568(t −1.44) / lowvol20 +1.296(t 2.46) / rand +0.154(t 0.35) · 풀 널 h1 −0.258 · h3 −0.089 · h10 −0.448%p(n=255).",
+   "counterfactual": "rand(무작위 k·reps 20) — 같은 h10·같은 세션의 바닥. model 은 참조 arm(모델은 보유기간을 늘릴수록 더 나빠졌다)",
+   "success": "사전 등록(변경 금지): ① stride10 전구간에서 lowvol20 − rand ≥ +0.5%p/세션 AND |t| ≥ 2 AND 후반 절반 분할 both_positive → 신호(저변동 축 재개 — 단 서로소 기간·유니버스 재현이 선행하고 승격 아님) ② 미달이면 'h10 저변동 우위도 중첩·사후 h 선택의 산물'로 축 종결 ③ rc≠0/요약 미갱신 = 실행실패. 승격·교체 없음.",
+   "command": "cd /home/jhshi/analyist_dd && docker exec stock_xgboost_ml sh -c 'cd /app && timeout 1200 python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --baselines lowvol20,model,rand --k 5 --stride 10 --horizon 10 --rand-reps 20 --json-out /app/reports/overnight/cg480_lv_h10_stride10.json' && docker exec stock_xgboost_ml sh -c 'cd /app && timeout 1200 python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --baselines lowvol20,model,rand --k 5 --stride 10 --date-from 2026-04-29 --horizon 10 --rand-reps 20 --json-out /app/reports/overnight/cg480_lv_h10_back.json'",
+   "expected": "stride10 은 표본이 1/10(≈26세션)로 줄어 t 가 2 아래로 떨어질 가능성이 높다 → ② 종결 예상. 다만 부호가 유지되면 '저변동 × 장기보유' 가설은 살아 있는 것으로 기록.",
+   "cost": "2회 실행 · 각 20~40초(덤프 재사용, 학습 없음)",
+   "est_minutes": 8,
+   "setup_needed": null,
+   "created_at": "2026-11-25T05:11:54+09:00",
+   "updated_at": "2026-11-25T05:11:54+09:00",
+   "from_experiment": "CG479",
+   "note": "CG479 보조 관측(h3/h10)에서 나온 저변동 장기보유 우위를 사전등록 절차로 재검. 사후 h 선택 편향을 명시했고 승격 근거로 쓰지 않는다.",
+   "attempts": [],
+   "not_before": "2026-11-25T05:11:54+09:00"
   }
  ],
  "updated": "2026-11-24T20:20:00+09:00"

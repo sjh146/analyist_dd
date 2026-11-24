@@ -114,18 +114,90 @@ BASELINES = {
 }
 
 
+def _parse_blend(name):
+    """`blend(a+b+0.5)` → ('a', 'b', 0.5). 형식이 아니면 None.
+
+    왜(2026-11-25 CG478 후속): 모델 랭킹의 증분 가치는 '단독 vs rand'만으로는 판정되지 않는다
+    (CG478: 모델 k5 초과 −0.586 vs rand, t −1.29). 남은 질문은 **최고 팩터(lowvol20, CG477 Δ+0.891
+    t+2.41) 위에 모델을 얹으면 돈이 더 나오는가** — 그건 두 랭킹의 횡단면 결합이 필요하다.
+    결합은 (exp,date) 횡단면 백분위 랭크의 가중평균으로만 한다(스케일 다른 raw 값을 더하면
+    모델 확률이 팩터를 압도한다).
+    """
+    if not (isinstance(name, str) and name.startswith("blend(") and name.endswith(")")):
+        return None
+    try:
+        a, b, w = name[6:-1].split("+")
+        return a.strip(), b.strip(), float(w)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _rank_pct(vals):
+    """None 은 None, 나머지는 0~1 백분위(동점은 평균 순위). 클수록 좋다."""
+    idx = [j for j, v in enumerate(vals) if v is not None]
+    out = [None] * len(vals)
+    if not idx:
+        return out
+    order = sorted(idx, key=lambda j: vals[j])
+    m = len(order)
+    pos, j = {}, 0
+    while j < m:
+        k = j
+        while k + 1 < m and vals[order[k + 1]] == vals[order[j]]:
+            k += 1
+        r = (j + k) / 2.0 / max(1, m - 1) if m > 1 else 0.5
+        for t in range(j, k + 1):
+            pos[order[t]] = r
+        j = k + 1
+    for j in idx:
+        out[j] = pos[j]
+    return out
+
+
 def build_scores(rows, series, names, seed=0):
-    """(exp,fold,date,code) 마다 랭킹별 점수. 모델은 dump y_pred 재사용."""
+    """(exp,fold,date,code) 마다 랭킹별 점수. 모델은 dump y_pred 재사용.
+
+    names 에 `blend(a+b+w)` 형식이 있으면 a·b 를 먼저 계산한 뒤 횡단면 백분위로 결합한다.
+    """
     random.seed(seed)
-    out = {n: [] for n in names}
+    need = list(names)
+    for n in names:
+        p = _parse_blend(n)
+        if p:
+            for c in p[:2]:
+                if c not in need:
+                    need.append(c)
+    out = {n: [] for n in need}
     for r in rows:
         s, i = _idx(series, r["code"], r["date"])
-        for n in names:
+        for n in need:
+            if _parse_blend(n):
+                continue
             if n == "model":
                 sc = r["score"]
             else:
                 sc = BASELINES[n](s, i) if (s is not None and i is not None) else None
             out[n].append({**r, "score": sc})
+    for n in names:
+        p = _parse_blend(n)
+        if not p:
+            continue
+        a_, b_, w = p
+        if a_ not in out or b_ not in out:
+            out[n] = [{**r, "score": None} for r in out[a_] if a_ in out] or []
+            continue
+        groups = defaultdict(list)
+        for j, r in enumerate(out[a_]):
+            groups[(r["exp"], r["date"])].append(j)
+        ra, rb = [None] * len(out[a_]), [None] * len(out[a_])
+        for _key, js in groups.items():
+            for j, x in zip(js, _rank_pct([out[a_][j]["score"] for j in js])):
+                ra[j] = x
+            for j, x in zip(js, _rank_pct([out[b_][j]["score"] for j in js])):
+                rb[j] = x
+        out[n] = [{**r, "score": (None if ra[j] is None or rb[j] is None
+                                  else w * ra[j] + (1.0 - w) * rb[j])}
+                  for j, r in enumerate(out[a_])]
     return out
 
 
