@@ -1369,6 +1369,14 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "data/reports/minute_cover_latest.json")
 
+    if kind == "baseline_ranking_money":
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        if not quiet:
+            log("경고: baseline_ranking_money 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
+
     if kind and not quiet:
         log(f"경고: 알 수 없는 metric {kind!r} — 요약 경로 없음(판정불가로 기록)")
     return ""
@@ -2685,6 +2693,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "money_anchor_repeat":
         return parse_money_anchor_repeat(spath, mtime_floor)
+    if kind == "baseline_ranking_money":
+        return parse_baseline_ranking_money(spath, mtime_floor, item=item)
     if kind == "rank_ic_money":
         return parse_rank_ic_money(spath, mtime_floor)
     if kind == "factor_money_screen":
@@ -3353,6 +3363,184 @@ def parse_fillable_topk_expectancy(path, mtime_floor) -> dict:
 
         "row_tag": d.get("row_tag"), "quintile5": d.get("quintile5"),
     }
+
+
+def parse_baseline_ranking_money(path, mtime_floor, item=None) -> dict:
+    """scripts/baseline_ranking_money.py --json-out 요약(무작위 바닥 대비 초과 포함).
+
+    스키마: {metric_name, dump, exit, horizon, ks, fee_roundtrip_pct, rows, codes, date_range,
+             pool{stat, halves}, baselines: {arm: {k: {k: {arm, halves, paired_vs_pool}}}},
+             rand_mde: {reps, delta_stats_by_k: {k: {n, mean, sd, min, max, se}}}}
+
+    왜(실측 2026-11-25 04:07 CG477): metric 이름만 등록하고 파서를 안 달아 rc=0 완주가
+    '판정불가(parser 없음)'로 닫혔다 → 남은 산출물(두 개의 요약 JSON)이 판정 없이 사라진다.
+    이 파서는 **등록된 item 필드로만** 유의성 문턱을 읽는다(money_primary·money_k·money_gate·
+    money_split_out) — 파서가 문턱을 스스로 정하면 사후 합리화가 된다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    item = item or {}
+    bas = d.get("baselines") or {}
+    if not bas:
+        return {"error": "baselines 없음(집계 실패)", "summary_mtime": mt}
+
+    def _krow(arm, k):
+        o = ((bas.get(arm) or {}).get("k") or {}).get(str(k))
+        if not o:
+            return None
+        pv = o.get("paired_vs_pool") or {}
+        h = o.get("halves") or {}
+        return {
+            "arm_net": (o.get("arm") or {}).get("mean"),
+            "arm_t": (o.get("arm") or {}).get("t"),
+            "delta_pool": pv.get("delta_mean"), "t_pool": pv.get("t"),
+            "pos": pv.get("pos"), "neg": pv.get("neg"), "n_dates": pv.get("n_dates"),
+            "sd_pool": pv.get("sd"),
+            "front": (h.get("front") or {}).get("mean"),
+            "back": (h.get("back") or {}).get("mean"),
+        }
+
+    table = {}
+    for arm in bas:
+        for k in (d.get("ks") or []):
+            r = _krow(arm, k)
+            if r:
+                table.setdefault(arm, {})[str(k)] = r
+
+    prim = item.get("money_primary") or ("lowvol20" if "lowvol20" in bas else next(iter(bas)))
+    ks = item.get("money_k") or [5]
+    if not isinstance(ks, (list, tuple)):
+        ks = [ks]
+    rows = {}
+    mde = (d.get("rand_mde") or {}).get("delta_stats_by_k") or {}
+    reps = (d.get("rand_mde") or {}).get("reps") or 1
+    for k in ks:
+        p = _krow(prim, k)
+        r = _krow("rand", k)
+        if not p:
+            continue
+        row = {"primary": prim, "k": k, **p}
+        row["rand_row"] = r
+        if r and p.get("delta_pool") is not None and r.get("delta_pool") is not None:
+            row["excess_vs_rand_row"] = p["delta_pool"] - r["delta_pool"]
+            if p.get("front") is not None and r.get("front") is not None:
+                row["excess_front"] = p["front"] - r["front"]
+                row["excess_back"] = p["back"] - r["back"]
+                row["split_both_positive"] = bool(row["excess_front"] > 0 and row["excess_back"] > 0)
+            sd_p, sd_r = p.get("sd_pool"), r.get("sd_pool")
+            n = p.get("n_dates") or 0
+            if sd_p and sd_r and n:
+                se = ((sd_p ** 2 + sd_r ** 2) ** 0.5) / (n ** 0.5)
+                row["se_excess_indep"] = round(se, 4)
+                row["t_excess_indep"] = round(row["excess_vs_rand_row"] / se, 2) if se else None
+        m = mde.get(str(k))
+        if m and p.get("delta_pool") is not None:
+            row["rand_mde"] = m
+            row["excess_vs_rand_mde"] = round(p["delta_pool"] - m["mean"], 4)
+        rows[str(k)] = row
+
+    if not rows:
+        return {"error": f"등록 arm '{prim}' 의 k={ks} 통계 없음(baselines={list(bas)})",
+                "summary_mtime": mt}
+
+    split_path = item.get("money_split_out")
+    split = None
+    if split_path:
+        sp = (summary_path("baseline_ranking_money", None, split_path, quiet=True)
+              or _container_path_to_host(str(split_path)))
+        if os.path.exists(sp):
+            try:
+                with open(sp, encoding="utf-8") as f:
+                    sd = json.load(f)
+                pr = (((sd.get("baselines") or {}).get(prim) or {}).get("k") or {})
+                rn = (((sd.get("baselines") or {}).get("rand") or {}).get("k") or {})
+                split = {"path": sp, "date_range": sd.get("date_range"), "rows": sd.get("rows"),
+                         "stride": sd.get("stride"),
+                         "pool_mean": ((sd.get("pool") or {}).get("stat") or {}).get("mean"),
+                         "k": {k: {"primary_delta_pool": (pr.get(k) or {}).get("paired_vs_pool", {}).get("delta_mean"),
+                                   "rand_delta_pool": (rn.get(k) or {}).get("paired_vs_pool", {}).get("delta_mean"),
+                                   "primary_front": (((pr.get(k) or {}).get("halves") or {}).get("front") or {}).get("mean"),
+                                   "primary_back": (((pr.get(k) or {}).get("halves") or {}).get("back") or {}).get("mean"),
+                                   "primary_split": ((pr.get(k) or {}).get("halves") or {}).get("stable")}
+                              for k in rows}}
+            except (json.JSONDecodeError, OSError) as e:
+                split = {"error": f"분할 요약 파싱 실패: {e}", "path": sp}
+
+    return {
+        "metric_name": d.get("metric_name"),
+        "dump": d.get("dump"), "exit": d.get("exit"), "horizon": d.get("horizon"),
+        "ks": d.get("ks"), "rows": d.get("rows"), "codes": d.get("codes"),
+        "date_range": d.get("date_range"), "fee_roundtrip_pct": d.get("fee_roundtrip_pct"),
+        "pool_mean_pct": ((d.get("pool") or {}).get("stat") or {}).get("mean"),
+        "pool_n": ((d.get("pool") or {}).get("stat") or {}).get("n"),
+        "rand_reps": reps,
+        "primary_baseline": prim, "rows_by_k": rows,
+        "all_baselines": table,
+        "split_back_half": split,
+        "summary_mtime": mt,
+    }
+
+
+def judge_baseline_ranking_money(item, parsed):
+    """무작위(rand) 바닥 대비 초과가 등록 문턱을 넘는지 판정한다(CG477).
+
+    문턱은 item['money_gate'] 에서만 읽는다(기본: 초과 +0.5%p/세션·|t|≥2·분할 양수).
+    바닥은 두 가지를 **모두** 요구한다(보수): ① 단일 rand 행 ② rand reps 평균(MDE).
+    """
+    if parsed.get("error"):
+        return "판정불가", parsed["error"], None
+    gate = item.get("money_gate") or {}
+    min_ex = float(gate.get("min_excess", 0.5))
+    min_t = float(gate.get("min_abs_t", 2.0))
+    need_split = bool(gate.get("require_split", True))
+    rows = parsed.get("rows_by_k") or {}
+    if not rows:
+        return "판정불가", "k별 통계 없음", None
+    k = str((item.get("money_k") or [5])[0]) if isinstance(item.get("money_k"), list) else str(item.get("money_k") or 5)
+    row = rows.get(k) or next(iter(rows.values()))
+    ex_row = row.get("excess_vs_rand_row")
+    ex_mde = row.get("excess_vs_rand_mde")
+    parts = []
+    ok = True
+    if ex_row is None:
+        return "판정불가", f"k={k} rand 행 통계 없음", None
+    parts.append(f"{row['primary']} k{k} Δ(pool) {row['delta_pool']:+.3f}%p (t {row['t_pool']:+.2f})"
+                 f" · rand행 Δ {row['rand_row']['delta_pool']:+.3f}"
+                 f" → 초과 {ex_row:+.3f} (t_indep {row.get('t_excess_indep')})")
+    if ex_row < min_ex:
+        ok = False
+    if ex_mde is not None:
+        parts.append(f"rand MDE(reps {parsed.get('rand_reps')}) 평균 대비 초과 {ex_mde:+.3f}")
+        if ex_mde < min_ex:
+            ok = False
+    t_use = row.get("t_excess_indep")
+    if t_use is not None and abs(t_use) < min_t:
+        ok = False
+    if need_split:
+        sb = row.get("split_both_positive")
+        parts.append(f"분할(앞/뒤) 초과 {row.get('excess_front'):+.3f}/{row.get('excess_back'):+.3f} → both_positive={sb}")
+        if not sb:
+            ok = False
+    sbh = parsed.get("split_back_half") or {}
+    if sbh.get("k", {}).get(k):
+        s = sbh["k"][k]
+        parts.append(f"후반 절반 창 {sbh.get('date_range')} stride{sbh.get('stride')}: "
+                     f"{row['primary']} Δ {s.get('primary_delta_pool')} vs rand Δ {s.get('rand_delta_pool')}"
+                     f" (split={s.get('primary_split')})")
+    verdict = "신호(스크리닝 통과)" if ok else "노이즈(등록 문턱 미달)"
+    parts.append(f"문턱: 초과≥+{min_ex}%p·|t|≥{min_t}·분할양수={need_split} → {'통과' if ok else '미달'}")
+    return verdict, " · ".join(parts), ex_row
 
 
 def parse_money_anchor_repeat(path, mtime_floor) -> dict:
@@ -5542,6 +5730,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_fillable_topk_spread(item, parsed)
     if kind == "money_anchor_repeat":
         return judge_money_anchor_repeat(item, parsed)
+    if kind == "baseline_ranking_money":
+        return judge_baseline_ranking_money(item, parsed)
     if kind == "rank_ic_money":
         return judge_rank_ic_money(item, parsed)
     if kind == "factor_money_screen":
