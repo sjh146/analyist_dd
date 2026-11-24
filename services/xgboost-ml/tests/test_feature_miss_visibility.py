@@ -32,3 +32,11 @@ def test_sentiment_uses_sns_source() -> None:
     assert "sns_post_features" in body
     assert "stock_sentiment" in body
     assert body.index("sns_post_features") < body.index("stock_sentiment")
+
+
+def test_short_features_use_real_source() -> None:
+    src = PIPE.read_text(encoding="utf-8")
+    assert "krx_short_selling" in src
+    assert "FROM short_interest\n" not in src
+    assert "FROM margin_balance\n" not in src
+    assert "FROM credit_balance\n" not in src

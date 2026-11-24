@@ -760,20 +760,6 @@ class FeaturePipeline:
 
 
         features["etf_flow_5d"] = 0.0
-        if self.pg_conn is not None:
-            try:
-                cur = self.pg_conn.cursor()
-                cur.execute("""
-                    SELECT SUM(net_flow) FROM etf_flow
-                    WHERE trade_date <= %s AND trade_date >= %s
-                """, (date, (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")))
-                row = cur.fetchone()
-                if row and row[0]:
-                    features["etf_flow_5d"] = float(row[0])
-                cur.close()
-            except Exception as exc:
-                _note_miss("etf_flow_5d", exc)
-                self.pg_conn.rollback()
 
 
 
@@ -838,85 +824,41 @@ class FeaturePipeline:
 
 
         features["short_interest_ratio"] = 0.0
-        if self.pg_conn is not None:
-            try:
-                cur = self.pg_conn.cursor()
-                cur.execute("""
-                    SELECT short_interest, total_shares FROM short_interest
-                    WHERE stock_code = %s AND trade_date <= %s
-                    ORDER BY trade_date DESC LIMIT 1
-                """, (stock_code, date))
-                row = cur.fetchone()
-                if row and row[0] and row[1] and row[1] > 0:
-                    features["short_interest_ratio"] = float(row[0] / row[1])
-                cur.close()
-            except Exception as exc:
-                _note_miss("short_interest_ratio", exc)
-                self.pg_conn.rollback()
-
-
-
         features["days_to_cover"] = 0.0
+        features["short_ratio_5d"] = 0.0
+        features["short_ratio_trend"] = 0.0
         if self.pg_conn is not None:
             try:
                 cur = self.pg_conn.cursor()
                 cur.execute("""
-                    SELECT si.short_interest, AVG(sp.volume) as avg_vol
-                    FROM short_interest si
-                    JOIN stock_prices sp ON si.stock_code = sp.stock_code
-                    WHERE si.stock_code = %s AND sp.trade_date <= %s
-                      AND sp.trade_date >= %s
-                    GROUP BY si.short_interest
-                    ORDER BY si.trade_date DESC LIMIT 1
-                """, (stock_code, date,
-                      (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=25)).strftime("%Y-%m-%d")))
+                    SELECT
+                        sum(short_volume) FILTER (WHERE trade_date > %s::date - INTERVAL '28 days') AS sh20,
+                        sum(total_volume) FILTER (WHERE trade_date > %s::date - INTERVAL '28 days') AS vol20,
+                        avg(total_volume) FILTER (WHERE trade_date > %s::date - INTERVAL '28 days') AS avgvol20,
+                        avg(short_ratio) FILTER (WHERE trade_date > %s::date - INTERVAL '7 days') AS sr5,
+                        avg(short_ratio) AS sr20
+                    FROM krx_short_selling
+                    WHERE stock_code = %s AND trade_date <= %s::date
+                """, (date, date, date, date, stock_code, date))
                 row = cur.fetchone()
-                if row and row[0] and row[1] and row[1] > 0:
-                    features["days_to_cover"] = float(row[0] / row[1])
                 cur.close()
+                if row:
+                    sh20, vol20, avgvol20, sr5, sr20 = [float(v) if v is not None else 0.0 for v in row]
+                    if vol20 > 0:
+                        features["short_interest_ratio"] = sh20 / vol20 * 100.0
+                    if avgvol20 > 0:
+                        features["days_to_cover"] = sh20 / (avgvol20 * 20.0)
+                    features["short_ratio_5d"] = sr5
+                    features["short_ratio_trend"] = sr5 - sr20
             except Exception as exc:
-                _note_miss("days_to_cover", exc)
+                _note_miss("group:short_selling", exc)
                 self.pg_conn.rollback()
-
-
-
-
 
         features["margin_balance_change"] = 0.0
-        if self.pg_conn is not None:
-            try:
-                cur = self.pg_conn.cursor()
-                cur.execute("""
-                    SELECT margin_balance FROM margin_balance
-                    WHERE stock_code = %s AND trade_date <= %s
-                    ORDER BY trade_date DESC LIMIT 2
-                """, (stock_code, date))
-                rows = cur.fetchall()
-                if len(rows) >= 2 and rows[0][0] and rows[1][0] and rows[1][0] != 0:
-                    features["margin_balance_change"] = float((rows[0][0] - rows[1][0]) / rows[1][0] * 100)
-                cur.close()
-            except Exception as exc:
-                _note_miss("margin_balance_change", exc)
-                self.pg_conn.rollback()
 
 
 
         features["credit_balance_change"] = 0.0
-        if self.pg_conn is not None:
-            try:
-                cur = self.pg_conn.cursor()
-                cur.execute("""
-                    SELECT credit_balance FROM credit_balance
-                    WHERE stock_code = %s AND trade_date <= %s
-                    ORDER BY trade_date DESC LIMIT 2
-                """, (stock_code, date))
-                rows = cur.fetchall()
-                if len(rows) >= 2 and rows[0][0] and rows[1][0] and rows[1][0] != 0:
-                    features["credit_balance_change"] = float((rows[0][0] - rows[1][0]) / rows[1][0] * 100)
-                cur.close()
-            except Exception as exc:
-                _note_miss("credit_balance_change", exc)
-                self.pg_conn.rollback()
 
 
 
@@ -1309,6 +1251,7 @@ class FeaturePipeline:
             "program_trading_ratio", "etf_flow_5d",
             "foreign_ownership_pct", "institution_ownership_pct", "retail_ownership_pct",
             "short_interest_ratio", "days_to_cover",
+            "short_ratio_5d", "short_ratio_trend",
             "margin_balance_change", "credit_balance_change", "short_selling_ratio",
             "volatility_20d_rank", "volume_ratio_vs_avg", "price_vs_sector",
             "beta_60d", "momentum_divergence",
