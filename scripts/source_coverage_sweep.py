@@ -64,6 +64,9 @@ CLOSED_NOTE = {
     "news_event_extraction": "이력 4일 — 신설",
     "news_analysis": "이력 4일(700행) — news_events 파생",
 }
+UNDER_TEST = {
+    "major_holders": "CG465 피처 주입 A/B 진행 중(2026-11-24 등록)",
+}
 CODE_PREF = ["stock_code", "code", "short_code", "ticker", "std_id", "isin"]
 DATE_PREF = ["trade_date", "date", "event_date", "asof_date", "rcept_dt", "posted_at",
              "published_at", "created_at", "datetime"]
@@ -165,6 +168,8 @@ def classify(r: dict) -> str:
         return "WIRED"
     if r["table"] in CLOSED_NOTE:
         return "CLOSED"
+    if r["table"] in UNDER_TEST:
+        return "UNDER_TEST"
     if not r.get("date_col") or (r.get("date_col") == "created_at" and (r.get("n_days") or 0) <= 5):
         return "STATIC"                # 종목당 1행(종목상수)·메타 타임스탬프 → 시점가변 아님
     cover, days = r.get("panel_cover_frac") or 0.0, r.get("n_days") or 0
@@ -189,7 +194,8 @@ def render_md(res: dict) -> str:
         L.append("| {} | `{}` | {} | {} | {} | {} | {} |".format(
             r["verdict"], r["table"], r.get("rows", ""), r.get("n_codes", ""),
             r.get("n_days", ""), r.get("panel_cover_frac", ""),
-            CLOSED_NOTE.get(r["table"], "") if r["verdict"] == "CLOSED" else ""))
+            CLOSED_NOTE.get(r["table"], "") if r["verdict"] == "CLOSED"
+            else (UNDER_TEST.get(r["table"], "") if r["verdict"] == "UNDER_TEST" else "")))
     L += ["", "판정 뜻: WIRED=이미 피처 배선 · CLOSED=실측 무정보/부분커버 확정 · "
               "MARKET_LEVEL=종목축 없음(횡단면 입력 불가) · STATIC=종목상수/메타 · "
               "BLOCKED=게이트 미달 · NEW_CANDIDATE=피처 배선 실험 등록 대상", ""]
@@ -204,8 +210,8 @@ def sweep(json_out: str = EVID, panel: str | None = None) -> dict:
     rec = chunked_batch(tabs, pc)
     for r in rec.values():
         r["verdict"] = classify(r)
-    order = {"NEW_CANDIDATE": 0, "BLOCKED": 1, "CLOSED": 2, "WIRED": 3,
-             "STATIC": 4, "MARKET_LEVEL": 5, "EMPTY": 6}
+    order = {"NEW_CANDIDATE": 0, "UNDER_TEST": 1, "BLOCKED": 2, "CLOSED": 3, "WIRED": 4,
+             "STATIC": 5, "MARKET_LEVEL": 6, "EMPTY": 7}
     rows = sorted(rec.values(), key=lambda r: (order[r["verdict"]],
                                                -(r.get("panel_cover_frac") or 0)))
     res = {"ts": __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -256,7 +262,8 @@ def main() -> int:
             continue
         det = " · ".join(f"{k}={r.get(k)}" for k in ("rows", "n_codes", "n_days", "panel_cover_frac")
                          if r.get(k) is not None)
-        note = CLOSED_NOTE.get(r["table"], "") if r["verdict"] == "CLOSED" else ""
+        note = (CLOSED_NOTE.get(r["table"], "") if r["verdict"] == "CLOSED"
+                else (UNDER_TEST.get(r["table"], "") if r["verdict"] == "UNDER_TEST" else ""))
         print(f"  [{r['verdict']:13}] {r['table']:24} {det}" + (f"  ↳ {note}" if note else ""))
     print("게이트: " + summary_line(res))
     print(f"증거: {a.json_out}")

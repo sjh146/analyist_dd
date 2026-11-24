@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T18:41:44",
+  "updated_at": "2026-11-24T19:14:17",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -12375,15 +12375,15 @@
     {
       "id": "CG101",
       "title": "신규 정보 클래스 — 인트라데이(분봉) 이력 축적 + 인트라데이 피처 스크린(데이터 축 개척)",
-      "status": "pending",
+      "status": "needs_setup",
       "priority": 1,
       "metric": "wf_sweep_summary",
       "counterfactual": "CO_core30_h5 (청정 패널 panel_prod200·게이트 ON·5폴드×5시드) — 인트라데이 피처 미포함",
       "success": "인트라데이 피처 4종(개장범위·VWAP괴리·후반모멘텀·오전/오후 수익률차) 중 ① 단일피처 |AUC−0.5| ≥ 0.044 인 것이 1종 이상(시간가변 확인) ② 게이트 ON 확장창 다중폴드 평균이 대조군 대비 +0.02 이상. 미달이면 인트라데이 축도 종결.",
       "hypothesis": "2026-10-04 실측으로 **기존 보유 원천의 재조합은 전부 닫혔다**: 모델 축(변환·HP·앙상블·선별 규칙/크기·표본가중·목적함수·보정) · 라벨 축(분위·호라이즌·스무딩) · 창·유니버스 축 · 돈 축(CG96~CG100). 데이터 축도 전수 스크린 결과 후보가 없다 — event_features 18종 AUC 0.497~0.500 · foreign_institutional IC +0.0045~+0.0082(t<0.7) · sns 7일 · minute_bars 6일 · news 교집합 12종목 · 공매도 교집합 1.5%. 남은 제약은 '정보의 양'이 아니라 '없는 정보'다. 가격경로(인트라데이)는 패널에 전혀 없는 유일한 정보 클래스이고, 트레이더 보유기간(5일)의 진입 타이밍 신호(개장 갭 되돌림·종가 부근 모멘텀)를 담을 수 있다 — 아직 한 번도 측정된 적 없다.",
       "command": null,
-      "setup_needed": null,
-      "note": "등록 2026-10-04. 대안 후보와 비교해 인트라데이를 1순위로 둔 근거: 다른 미사용 원천은 '커버리지 부족'(공매도 89일·교집합 1.5%, SNS 7일) 또는 'edge 0'(event·수급)으로 확정 실측됐다. 인트라데이만 커버리지도 미확보 + edge 도 미측정 = 유일한 미지 영역이다. | 2026-10-05 00:0x 원인 규명: '30분 창'은 설계가 아니라 결함 — collector 종료조건이 `len(page_bars) < fid_cnt(100)` 인데 KIS 당일분봉조회 1회 상한이 30봉이라 매일 1페이지에서 중단된다(오프라인 재현 확인). 즉 XR26 만 고치면 오늘부터 전 구간 수집이 가능하다 — '수개월 누적 대기'가 필수 전제가 아니었다. | 2026-10-06 23:0x 엔지니어 자율: 준비물 ②(피처 빌더) **구현·검증 완료** — `app/feature_engine/intraday_features.py`(18피처: open30/close30 × 8통계 + id_am_pm_ret_diff·id_n_bars · 스크린 l30_* 와 원소 단위 동일) + `FeaturePipeline` 옵트인 배선(env INTRADAY_FEATURES=1 · 기본 OFF = 피처목록 199종 비트 동일) + 패널 패치 도구 `scripts/patch_panel_intraday.py` + 자체점검 `scripts/_intraday_features_test.py` **28/28 PASS**(DB 실측 대조·as-of 날짜격리·결측 0.0·퇴화 입력·배선 OFF/ON). ⚠ 신규 실측 블로커: 준비물 ③(패널 A/B)은 현 패널로 **불가** — panel_prod200(2025-08-04~2026-09-23)과 minute_bars(2026-09-23~10-06)의 겹침이 **0행**(09-23 은 4종목 120봉뿐)이고 분봉 301종목 ∩ 패널 200종목 = **23종목(11.5%)**이다 → 수리(XR26)·백필에 더해 **인트라데이 구간을 덮는 패널 + 수집 유니버스 정합**이 선행이다. 패치 도구 자체는 정상(합성 패널 1,595행 스모크: close30 8종 전부 채워짐, open30 은 현 데이터에 봉이 없어 0). | 분봉 이력 축적 + 인트라데이 피처 스크린 — B안 채택으로 착수.",
+      "setup_needed": "선행 데이터 미충족(실측 2026-11-24 19:0x): minute_bars 봉=30.0(<300)·이력 19일·panel_cover 0.135, minute_close_bars 봉=334·이력 10일(<20)·cover 0.99. 인트라데이 열 커버리지 <0.5 면 희석계수 때문에 선별 진입 불가(사전문턱 ①). 해소 경로는 CG450/CG451(같은 원천)이며 20일 도달 추정 2026-12-07. 커버리지 ≥0.75 확인 후 command 를 저작해 pending 으로 되돌린다.",
+      "note": "등록 2026-10-04. 대안 후보와 비교해 인트라데이를 1순위로 둔 근거: 다른 미사용 원천은 '커버리지 부족'(공매도 89일·교집합 1.5%, SNS 7일) 또는 'edge 0'(event·수급)으로 확정 실측됐다. 인트라데이만 커버리지도 미확보 + edge 도 미측정 = 유일한 미지 영역이다. | 2026-10-05 00:0x 원인 규명: '30분 창'은 설계가 아니라 결함 — collector 종료조건이 `len(page_bars) < fid_cnt(100)` 인데 KIS 당일분봉조회 1회 상한이 30봉이라 매일 1페이지에서 중단된다(오프라인 재현 확인). 즉 XR26 만 고치면 오늘부터 전 구간 수집이 가능하다 — '수개월 누적 대기'가 필수 전제가 아니었다. | 2026-10-06 23:0x 엔지니어 자율: 준비물 ②(피처 빌더) **구현·검증 완료** — `app/feature_engine/intraday_features.py`(18피처: open30/close30 × 8통계 + id_am_pm_ret_diff·id_n_bars · 스크린 l30_* 와 원소 단위 동일) + `FeaturePipeline` 옵트인 배선(env INTRADAY_FEATURES=1 · 기본 OFF = 피처목록 199종 비트 동일) + 패널 패치 도구 `scripts/patch_panel_intraday.py` + 자체점검 `scripts/_intraday_features_test.py` **28/28 PASS**(DB 실측 대조·as-of 날짜격리·결측 0.0·퇴화 입력·배선 OFF/ON). ⚠ 신규 실측 블로커: 준비물 ③(패널 A/B)은 현 패널로 **불가** — panel_prod200(2025-08-04~2026-09-23)과 minute_bars(2026-09-23~10-06)의 겹침이 **0행**(09-23 은 4종목 120봉뿐)이고 분봉 301종목 ∩ 패널 200종목 = **23종목(11.5%)**이다 → 수리(XR26)·백필에 더해 **인트라데이 구간을 덮는 패널 + 수집 유니버스 정합**이 선행이다. 패치 도구 자체는 정상(합성 패널 1,595행 스모크: close30 8종 전부 채워짐, open30 은 현 데이터에 봉이 없어 0). | 분봉 이력 축적 + 인트라데이 피처 스크린 — B안 채택으로 착수. | 2026-11-24 19:1x 엔지니어 자율: status pending→needs_setup 정정. pending 인데 command 가 없어 매 틱 경고만 남기고 큐를 오염시켰다(command 없음 = 판정불가).",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
       "approved_by": "2026-11-21",
       "gated_by": "CG388",
@@ -14018,7 +14018,7 @@
     {
       "id": "CG145",
       "title": "앵커 평균 프로토콜 — 승격 판정용 짝 Δ 를 '복수 고정 앵커의 평균'으로 내라 (CG144 후속: 단일 앵커 Δ 는 잡음 3배)",
-      "status": "pending",
+      "status": "needs_setup",
       "priority": 1,
       "kind": "측정정합성",
       "owner": "engineer",
@@ -14036,13 +14036,13 @@
       "expected": "짝 Δ(두 arm 을 같은 앵커에서 함께 측정)는 앵커 공통분이 상쇄돼 레벨보다 안정적일 가능성이 크다 — 그 안정성 수준(std)을 재는 것이 목적.",
       "cost": "짝 1쌍 × 앵커 3개 = 컨테이너 6런 ≈ 12분(모델 재학습 없음).",
       "est_minutes": 15,
-      "setup_needed": null,
+      "setup_needed": "리뷰보드 승인 필요(측정 프로토콜 개정 = 스코어보드 기준선/프로토콜 변경 축). 근거 갱신: CG462 실측 — 같은 런 5폴드 짝 Δ SE 중앙 0.0050 · MDE(80%) 0.0140 → +0.02 문턱은 t≈4 로 검출 가능하고, 미달의 원인은 '잡음'이 아니라 '실효 0'(|Δ| 중앙 0.0053, Δ 중앙 0.0000). 즉 앵커 1회 판정을 앵커평균으로 바꿔도 결론이 뒤집힐 여지가 작다 — 승인 시 CG349/CG348 실측으로 갈리는지 재측정한다.",
       "result": {
         "verdict": "단일앵커 판정 갈림 — 2/3 앵커만 문턱 통과(부호는 3/3 일관) → 앵커평균 짝 프로토콜 필요 근거 확보",
         "detail": "짝(champion_cand − champion)·동일 config(folds5×10일·stocks60·h5·rel·universe training)·앵커 0/2/7거래일: Δ d0 +0.0055 · d2 +0.0352 · d7 +0.0265 → 평균 +0.0224±0.0125(pstdev), 부호 3/3 양(+). 레벨: champ 0.5344/0.5121/0.5121(평균 0.5195·std 0.0105) · cand 0.5399/0.5473/0.5386(평균 0.5419·std 0.0038). 문턱(+0.02) 판정: d0 미달(x)·d2 초과(O)·d7 초과(O) → **같은 두 모델·같은 config 인데 앵커만 바꿔 '노이즈'와 '신호'가 갈린다**(CG139 3창 +0.0290 / CG140 6창 +0.0056 불일치와 같은 기제). 산출물: services/xgboost-ml/reports/overnight/cg145_pair_anchor.json · 스크립트 scripts/cg145_pair_anchor.sh · 컨테이너 6런 27분(2026-10-09 07:02~07:29).",
         "rc": 0
       },
-      "note": "구동기가 needs_setup 을 건너뛰므로 pending 아님(승인 대기). 선행 실측은 자율 완료(측정 정합성, 승인 불필요) — 스크립트·증거 산출물 준비됨. 승인 시 pending 승격 후 앵커를 6~8개로 늘려 짝Δ 평균±std 를 판정 문턱으로 등록한다(기준선·프로토콜 변경 = 리뷰보드). ⚠ 이 실측은 승격 근거가 아니다 — 10-08 후보는 돈 게이트(CG138)가 이미 거부(분할표본 불안정)했고, 여기서 잰 것은 '판정 절차의 잡음'이다. | 2026-10-09T19:5x 엔지니어 자율 [근거 갱신 — 승인 판단용] CG146 6앵커 실측 결과: ① 같은 빈티지 재실행은 비트동일(cand@d7 0.5085 ×3: 19:05/19:20/19:25, rows=1780 동일) → 짝 프로토콜의 잡음은 비결정성이 아니다(CG148). ② 그러나 **채점 모집단이 하루 안에도 자란다**: 07:29(rows 1750) cand@d7 0.5386 vs 19:05(rows 1780) 0.5085 = Δ0.0301. → 다른 시각에 잰 값은 섞어 쓰면 안 된다. ③ CG146 5앵커 중 d7 짝은 rows 불일치(1750 vs 1780)로 무효. ④ 유효 짝 4개: +0.0370/+0.0352/+0.0406/+0.0142 → 평균 +0.0318±0.0111(부호 4/4, 문턱 3/4) — 레벨 std(champ 0.0134·cand 0.0126)보다 짝 Δ std 가 작아 '짝이 앵커 공통분을 일부 상쇄'는 지지된다. ⑤ 단, 유효앵커가 4개(예정 6개)뿐이고 3/4 만 문턱 통과라 사전등록 기준(부호 ≥5/6)은 채우지 못한다 → 승인 요청은 **조건부**( 프로토콜에 '팔별 채점 모집단 일치 검사' 를 필수 전제로 넣을 때만). | 앵커 평균 프로토콜 채택 — 승격 판정 Δ는 복수 고정 앵커 평균으로 낸다(단일 앵커는 잡음 3배). 2026-11-21 19:1x 엔지니어: command 미정 상태로 pending 에 두면 (a) 구동기 등록 자기모순 경고가 매 틱 뜨고 (b) 실행 큐를 차지한다 → needs_setup 으로 내리고, 승인/프로토콜 확정 후 command 한 줄과 함께 pending 으로 올린다. | 사용자 승인 완료(11-21) → 실행 대기. 앵커 6~8개 짝Δ 평균±std 판정 문턱 등록. | 2026-11-23 19:4x 엔지니어: command 미정 pending 이 매 틱 자기모순 경고를 띄우고 실행 큐를 점유 → needs_setup 강등(남은 일 = 코드 구현). 구현 완료 시 command·counterfactual·success 를 채워 pending 승격. | 2026-11-24T00:15 엔지니어 구현 완료(커밋 8205e91): robust_paired_seeds.py --key-by anchor(앵커별 짝 Δ 평균±std) + anchor_noise 블록(mean−sd 가 사전문턱을 넘는가 — 문턱값 자체는 불변, 리뷰보드 안건) + cg145_pair_anchor.sh 증거 배선. 회귀 scripts/_cg145_anchor_test.py 13/13 PASS, 기본 시드 모드는 실데이터(cg348 짝)에서 비트동일 확인. ⚠ 실행 승격은 보류 — 실측(2026-11-24 00:14, 챔피언 앵커 2026-11-20·folds3): 유효 폴드 1개뿐이고 그 창이 2026-01-20~04-20(학습 이전)이다. 제외된 창 2개가 04-28~08-04·08-05~11-11 로 전부 학습구간(07-03~10-01)과 겹친다 → 현 챔피언에서는 앵커를 옮겨도 **채점 창이 바뀌지 않아** 앵커 프로토콜을 측정할 수 없다. 선행조건은 CG350(학습 이후 부분창 절단) 승인이다.",
+      "note": "구동기가 needs_setup 을 건너뛰므로 pending 아님(승인 대기). 선행 실측은 자율 완료(측정 정합성, 승인 불필요) — 스크립트·증거 산출물 준비됨. 승인 시 pending 승격 후 앵커를 6~8개로 늘려 짝Δ 평균±std 를 판정 문턱으로 등록한다(기준선·프로토콜 변경 = 리뷰보드). ⚠ 이 실측은 승격 근거가 아니다 — 10-08 후보는 돈 게이트(CG138)가 이미 거부(분할표본 불안정)했고, 여기서 잰 것은 '판정 절차의 잡음'이다. | 2026-10-09T19:5x 엔지니어 자율 [근거 갱신 — 승인 판단용] CG146 6앵커 실측 결과: ① 같은 빈티지 재실행은 비트동일(cand@d7 0.5085 ×3: 19:05/19:20/19:25, rows=1780 동일) → 짝 프로토콜의 잡음은 비결정성이 아니다(CG148). ② 그러나 **채점 모집단이 하루 안에도 자란다**: 07:29(rows 1750) cand@d7 0.5386 vs 19:05(rows 1780) 0.5085 = Δ0.0301. → 다른 시각에 잰 값은 섞어 쓰면 안 된다. ③ CG146 5앵커 중 d7 짝은 rows 불일치(1750 vs 1780)로 무효. ④ 유효 짝 4개: +0.0370/+0.0352/+0.0406/+0.0142 → 평균 +0.0318±0.0111(부호 4/4, 문턱 3/4) — 레벨 std(champ 0.0134·cand 0.0126)보다 짝 Δ std 가 작아 '짝이 앵커 공통분을 일부 상쇄'는 지지된다. ⑤ 단, 유효앵커가 4개(예정 6개)뿐이고 3/4 만 문턱 통과라 사전등록 기준(부호 ≥5/6)은 채우지 못한다 → 승인 요청은 **조건부**( 프로토콜에 '팔별 채점 모집단 일치 검사' 를 필수 전제로 넣을 때만). | 앵커 평균 프로토콜 채택 — 승격 판정 Δ는 복수 고정 앵커 평균으로 낸다(단일 앵커는 잡음 3배). 2026-11-21 19:1x 엔지니어: command 미정 상태로 pending 에 두면 (a) 구동기 등록 자기모순 경고가 매 틱 뜨고 (b) 실행 큐를 차지한다 → needs_setup 으로 내리고, 승인/프로토콜 확정 후 command 한 줄과 함께 pending 으로 올린다. | 사용자 승인 완료(11-21) → 실행 대기. 앵커 6~8개 짝Δ 평균±std 판정 문턱 등록. | 2026-11-23 19:4x 엔지니어: command 미정 pending 이 매 틱 자기모순 경고를 띄우고 실행 큐를 점유 → needs_setup 강등(남은 일 = 코드 구현). 구현 완료 시 command·counterfactual·success 를 채워 pending 승격. | 2026-11-24T00:15 엔지니어 구현 완료(커밋 8205e91): robust_paired_seeds.py --key-by anchor(앵커별 짝 Δ 평균±std) + anchor_noise 블록(mean−sd 가 사전문턱을 넘는가 — 문턱값 자체는 불변, 리뷰보드 안건) + cg145_pair_anchor.sh 증거 배선. 회귀 scripts/_cg145_anchor_test.py 13/13 PASS, 기본 시드 모드는 실데이터(cg348 짝)에서 비트동일 확인. ⚠ 실행 승격은 보류 — 실측(2026-11-24 00:14, 챔피언 앵커 2026-11-20·folds3): 유효 폴드 1개뿐이고 그 창이 2026-01-20~04-20(학습 이전)이다. 제외된 창 2개가 04-28~08-04·08-05~11-11 로 전부 학습구간(07-03~10-01)과 겹친다 → 현 챔피언에서는 앵커를 옮겨도 **채점 창이 바뀌지 않아** 앵커 프로토콜을 측정할 수 없다. 선행조건은 CG350(학습 이후 부분창 절단) 승인이다. | 2026-11-24 19:1x 엔지니어 자율: 단일실행 판정 vs 앵커평균 판정의 실익을 CG462(MDE 0.014·실효 0)로 먼저 깎았다. 승인 전 실행 금지 상태로 내림.",
       "resolution": "[2026-11-17 승인] 앵커 평균 프로토콜 채택 — 승격 판정은 복수 고정 앵커 평균 짝 Δ 로 낸다.",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
       "approved_by": "2026-11-21",
@@ -15723,7 +15723,7 @@
     {
       "id": "CG191",
       "priority": 1,
-      "status": "pending",
+      "status": "needs_setup",
       "kind": "measurement_integrity",
       "owner": "engineer",
       "affects_model": false,
@@ -15734,11 +15734,11 @@
       "counterfactual": "현행 표본(close_gate_probe 전체 후보 2,251행·113세션) 의 같은 런 값",
       "success": "① 표본 정의를 문서·코드에 명시(어떤 집합의 수익인지) ② 새 표본으로 champion/cand 순기대를 같은 체결성 필터·수수료 0.21%p 로 재산출 ③ 표본 0이면 '측정 불가'로 기록(음수로 단정 금지) ④ 승격 게이트가 인용하는 숫자의 표본이 바뀌므로 리뷰보드 승인 후에만 기준선 교체",
       "est_minutes": 60,
-      "note": "2026-11-11 07:3x 엔지니어 자율 신설(CG190 후속). 근거 파일: data/reports/close_gate_probe/summary.json (days.gate_open=0, n_signal_days=146, days.total=113). 청산 선택에 따른 차이도 함께 기록: next_open 풀 −0.339%p(t −2.75) · next_close −1.325%p(t −5.14) · t2_open 유사 → 표본 자체가 '종가매수 경로'의 가정임을 확인. ⚠ 프로토콜(표본 정의) 변경은 리뷰보드 승인 대상이므로 pending 으로 올리지 않는다. | 승격 돈 게이트 표본 정의 재정의 승인. 2026-11-21 19:1x 엔지니어: command 미정 상태로 pending 에 두면 (a) 구동기 등록 자기모순 경고가 매 틱 뜨고 (b) 실행 큐를 차지한다 → needs_setup 으로 내리고, 승인/프로토콜 확정 후 command 한 줄과 함께 pending 으로 올린다. | 2026-11-23 16:2x CG445 실측 보강: 무조건 롱 표본은 하락 구간에서 구조적으로 음수다 — 눌림(직전 5세션 풀수익 ≤0) 대역만 보유하면 절대 순기대 k5 +1.80%p(255세션·bb t 2.03)·최근 110세션 +1.70(bb 2.38) 이나 게이트 ON 대역은 −0.20/−2.21. 즉 '순기대>0' 게이트는 표본 정의(무조건 롱 vs 현금 오버레이)에 따라 부호가 바뀐다 — 표본 정의를 코드·문서에 명시해야 하는 이유의 실측 근거. | 사용자 승인 완료(11-21) → 실행 대기. 근거: data/reports/close_gate_probe/summary.json (gate_open=0 / n_signal_days=146). | 2026-11-23 19:4x 엔지니어: command 미정 pending 이 매 틱 자기모순 경고를 띄우고 실행 큐를 점유 → needs_setup 강등(남은 일 = 코드 구현). 구현 완료 시 command·counterfactual·success 를 채워 pending 승격.",
+      "note": "2026-11-11 07:3x 엔지니어 자율 신설(CG190 후속). 근거 파일: data/reports/close_gate_probe/summary.json (days.gate_open=0, n_signal_days=146, days.total=113). 청산 선택에 따른 차이도 함께 기록: next_open 풀 −0.339%p(t −2.75) · next_close −1.325%p(t −5.14) · t2_open 유사 → 표본 자체가 '종가매수 경로'의 가정임을 확인. ⚠ 프로토콜(표본 정의) 변경은 리뷰보드 승인 대상이므로 pending 으로 올리지 않는다. | 승격 돈 게이트 표본 정의 재정의 승인. 2026-11-21 19:1x 엔지니어: command 미정 상태로 pending 에 두면 (a) 구동기 등록 자기모순 경고가 매 틱 뜨고 (b) 실행 큐를 차지한다 → needs_setup 으로 내리고, 승인/프로토콜 확정 후 command 한 줄과 함께 pending 으로 올린다. | 2026-11-23 16:2x CG445 실측 보강: 무조건 롱 표본은 하락 구간에서 구조적으로 음수다 — 눌림(직전 5세션 풀수익 ≤0) 대역만 보유하면 절대 순기대 k5 +1.80%p(255세션·bb t 2.03)·최근 110세션 +1.70(bb 2.38) 이나 게이트 ON 대역은 −0.20/−2.21. 즉 '순기대>0' 게이트는 표본 정의(무조건 롱 vs 현금 오버레이)에 따라 부호가 바뀐다 — 표본 정의를 코드·문서에 명시해야 하는 이유의 실측 근거. | 사용자 승인 완료(11-21) → 실행 대기. 근거: data/reports/close_gate_probe/summary.json (gate_open=0 / n_signal_days=146). | 2026-11-23 19:4x 엔지니어: command 미정 pending 이 매 틱 자기모순 경고를 띄우고 실행 큐를 점유 → needs_setup 강등(남은 일 = 코드 구현). 구현 완료 시 command·counterfactual·success 를 채워 pending 승격. | 2026-11-24 19:1x 엔지니어 자율: status pending→needs_setup(승인 대기). command 부재 상태로 pending 이면 매 틱 경고만 발생.",
       "created_at": "2026-11-11T07:09:41+09:00",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
       "approved_by": "2026-11-21",
-      "setup_needed": null,
+      "setup_needed": "리뷰보드 승인 필요: 승격 게이트가 인용하는 '순기대' 숫자의 표본 정의가 바뀐다(운영 판단 기준 변경). 선행 CG420(익일시가 진입·Δ+2.622 t 2.61)과 CG442(같은 축 Δ+0.894 bb t 1.53)로 표본·프로토콜이 이미 갈려 있어, 정의 통일 없이는 승격 비교가 무효다.",
       "updated_at": "2026-11-23T19:45:00+09:00",
       "status_note": "2026-11-24 승인 복원(reconcile_approvals)"
     },
@@ -15936,7 +15936,7 @@
     {
       "id": "CG194",
       "priority": 1,
-      "status": "pending",
+      "status": "backlog",
       "kind": "measurement",
       "owner": "engineer",
       "affects_model": true,
@@ -15951,7 +15951,7 @@
       "arm": null,
       "counterfactual": null,
       "setup_needed": null,
-      "note": "2026-11-11 18:2x 엔지니어 자율 신설(CG191 후속). ⚠ 승격 게이트의 표본 정의 변경은 리뷰보드 승인 대상(CG191)이므로 이 항목은 '측정 경로 확보'까지만. ⚠ journal 은 트레이더 소유 — 읽기만 했고 수정하지 않았다. | 순기대를 실계좌 체결·청산 기록으로 계산하도록 전환 승인.",
+      "note": "2026-11-11 18:2x 엔지니어 자율 신설(CG191 후속). ⚠ 승격 게이트의 표본 정의 변경은 리뷰보드 승인 대상(CG191)이므로 이 항목은 '측정 경로 확보'까지만. ⚠ journal 은 트레이더 소유 — 읽기만 했고 수정하지 않았다. | 순기대를 실계좌 체결·청산 기록으로 계산하도록 전환 승인. | 2026-11-24 19:1x 엔지니어 자율: command·counterfactual·success 3종이 모두 비어 있어 판정 자체가 불가능한 껍데기 항목이었다. 실행 후보에서 제외하려고 backlog 로 내린다(내용 보강 시 pending 승격).",
       "created_at": "2026-11-11T18:35:00+09:00",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
       "approved_by": "2026-11-21",
@@ -23167,7 +23167,7 @@
     {
       "id": "STRIDE_H",
       "title": "[머니 프로토콜] h>1 라벨 채점에 비중첩(--stride h) 병기 의무화",
-      "status": "pending",
+      "status": "backlog",
       "priority": 1,
       "approved_by": "2026-11-21",
       "approval": "[2026-11-21 사용자 승인(묶음 A·B·C 전체)]",
@@ -23179,7 +23179,8 @@
       },
       "setup_needed": null,
       "note_20261121": "2026-11-21: '--stride' 옵션은 있었지만 기본 stride=1 로 조용히 지나갔다(경고 0). 경고 배선 후 needs_setup 로 내림 — 의무화는 기준선 재측정 동반 필요.",
-      "status_note": "2026-11-24 승인 복원(reconcile_approvals)"
+      "status_note": "2026-11-24 승인 복원(reconcile_approvals)",
+      "note": "2026-11-24 19:1x 엔지니어 자율: command·counterfactual·success 3종 부재 — 판정 불가 껍데기 항목. backlog 로 내린다."
     },
     {
       "id": "CG388",
@@ -24981,7 +24982,7 @@
       "expected": "블록 t 1.8~2.3 구간 — 문턱 근처라 어느 쪽으로도 갈 수 있다.",
       "cost": "패널 빌드(야간) + 스윕 5폴드×3시드 ≈ 60~90분",
       "created": "2026-11-23T06:13:23+09:00",
-      "note": "2026-11-24 06:1x 엔지니어 수리(자율·코드검증): cg409_vol_gate.py CLI 실측 확인(--preds/--tag/--panel/--tag-arm/--tag-control/--out-arm/--out-control/--out-null/--tag-null) → step2 삽입 + 태그 정합(cg443_nogate / cg443_null), fillable 에 --sides top,bottom·--regime-split pool_sign·--overlap-block 5 를 CG442 와 동일하게 배선. **아직 needs_setup 유지** — 남은 선행: ①panel_prod200_v7.npz 미존재(최신 데이터 패널 빌드가 선행; 빌드 산출물명 확정 시 command 의 panel 경로 교체) ②success ③(폴드 승률)·④(LOSO)는 5창 루프가 필요한데 창 경계는 **실제 패널 날짜범위에서 산출**해야 한다(고정 날짜 하드코딩 금지). 빌드 없이 90분 학습을 돌리면 이전처럼 step2 에서 파일없음으로 소실된다."
+      "note": "2026-11-24 06:1x 엔지니어 수리(자율·코드검증): cg409_vol_gate.py CLI 실측 확인(--preds/--tag/--panel/--tag-arm/--tag-control/--out-arm/--out-control/--out-null/--tag-null) → step2 삽입 + 태그 정합(cg443_nogate / cg443_null), fillable 에 --sides top,bottom·--regime-split pool_sign·--overlap-block 5 를 CG442 와 동일하게 배선. **아직 needs_setup 유지** — 남은 선행: ①panel_prod200_v7.npz 미존재(최신 데이터 패널 빌드가 선행; 빌드 산출물명 확정 시 command 의 panel 경로 교체) ②success ③(폴드 승률)·④(LOSO)는 5창 루프가 필요한데 창 경계는 **실제 패널 날짜범위에서 산출**해야 한다(고정 날짜 하드코딩 금지). 빌드 없이 90분 학습을 돌리면 이전처럼 step2 에서 파일없음으로 소실된다. | 2026-11-24 19:1x 엔지니어: 이 항목의 유일한 미충족 선행(panel_prod200_v7.npz)을 CG464 로 등록했다. CG464 는 2026-12-14 23:00 이후 착수(새 세션 ≥+15 날짜 산술) — 그 전에 이 항목을 pending 으로 올리지 말라."
     },
     {
       "id": "CG444",
@@ -25681,7 +25682,47 @@
       "setup_needed": "프로토콜(판정 조건) 변경이라 리뷰보드 승인 대상 — 승인 후 내가 할 것: ① model_engineer_cycle 판정기에 paired_t 계산·병기 ② 회귀 테스트(기존 요약 JSON 재판정 결과 불변 확인) ③ 스코어보드 stanza 문서 갱신. 문턱값 자체는 바꾸지 않는다(낮추지 않음).",
       "est_minutes": 40,
       "note": "2026-11-24 18:2x 엔지니어 자율 신설(CG462 후속). 근거 수치: 짝 SE 중앙 0.0050 · p75 0.0129 · max 0.0185 · MDE 0.0140."
+    },
+    {
+      "id": "CG464",
+      "title": "[데이터 축·선행] panel_prod200_v7 빌드 — CG443(돈 확증)·CG450(인트라데이)의 유일한 미충족 선행 (end-date 고정·체크포인트 재개)",
+      "status": "pending",
+      "priority": 1,
+      "kind": "data_prep",
+      "owner": "engineer",
+      "affects_model": false,
+      "created_at": "2026-11-24T19:09:45+09:00",
+      "not_before": "2026-12-14T23:00:00+09:00",
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 18300 python -u scripts/wf_wave.py --days 420 --limit 200 --universe prod --panel /app/app/models/wf/panel_prod200_v7.npz --end-date 2026-12-14'",
+      "counterfactual": "현행 최신 패널 panel_prod200_v6o.npz(2026-11-22 빌드) — 마지막 거래일 2026-11-23 이후 세션이 없어 CG443 의 '새 세션 ≥+15' 조건을 채우지 못한다",
+      "success": "① rc=0 · panel_prod200_v7.npz 생성(행수 ≥ panel_prod200_v6o 대비 증가) ② sidecar 의 마지막 거래일 = 2026-12-14 ③ 체크포인트 재개 로그 확인(구간 고정으로 재개 가능) ④ 생성 직후 scripts/panel_feature_screen.py 로 누수 게이트(단일피처 |AUC−0.5|>0.25 0개·종목상수 비율) 통과",
+      "hypothesis": "CG443(유일한 양(+) 돈 축 확증)과 CG450(인트라데이 데이터 축)이 둘 다 '더 새로운 패널'을 선행으로 요구하는데 v7 은 아직 없다. 패널 없이 12-05 에 도달하면 그 밤도 '선행 누락'으로 소진된다. 실측 근거: CG10 이 같은 형태(200종목·420일) 빌드를 161.3분에 완주(ledger 2026-10-03).",
+      "est_minutes": 200,
+      "metric": "panel_build",
+      "summary_out": "/app/app/models/wf/panel_prod200_v7.npz",
+      "note": "2026-11-24 19:1x 엔지니어 자율(장외 틱·pending 실행가능 0건·규칙 4). 날짜 산술 실측: 마지막 거래일 2026-11-23 → 12-14 까지 평일 14거래일(11/24~12/14, 공휴일 미반영)이라 '새 세션 ≥+15'는 12-14 이후에나 성립한다. 그래서 CG443 의 not_before(12-05)를 그대로 두면 그 자체 기준을 못 채우므로, 빌드를 12-14 23:00 이후로 잡아 평일 20:00 재생성 창(rc=137 원인)을 피하고 3시간 빌드가 02시 전후에 끝나게 했다. 컨테이너 timeout 14400s 는 실측 161분의 1.5배. | 2026-11-24 19:2x 구동기 자기모순 수리: 컨테이너 timeout 14400→18300s(est 200분×91.5). 실측 근거 CG10 161.3분."
+    },
+    {
+      "id": "CG465",
+      "title": "[데이터 축] DART 대량보유(major_holders) 5종 피처 주입 A/B — 미배선 원천 스윕이 올린 유일한 신규 후보",
+      "status": "pending",
+      "priority": 1,
+      "kind": "experiment",
+      "owner": "engineer",
+      "affects_model": false,
+      "created_at": "2026-11-24T19:14:17+09:00",
+      "metric": "wf_sweep_summary",
+      "summary_out": "/app/reports/overnight/cg465_summary.json",
+      "est_minutes": 35,
+      "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 3600 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o_mh.npz --folds 5 --seeds 5 --only CG376_noroll_h5 --force-features mh_stake_last,mh_stake_max1y,mh_n_rep_180,mh_rep_cnt_90,mh_days_since --force-paired --dump-preds /app/reports/overnight/cg465_preds.jsonl --out /app/reports/overnight/cg465_sweep.jsonl --summary-out /app/reports/overnight/cg465_summary.json'",
+      "counterfactual": "같은 런 CG376_noroll_h5 (강제투입 OFF·같은 패널·같은 5폴드×5시드·event_rolling 8종 제외 213피처)",
+      "hypothesis": "DART 5% 대량보유 보고는 '기관/행동주의 지분'이라는 새 정보 클래스다. 원천은 2,632종목·486접수일·2024-11-25~2026-11-24 로 게이트(커버≥0.75·일수≥250)를 넘었고, 패널 200종목 커버 178(0.89). 아직 어떤 패널에도 배선되지 않았다. 단변량으로는 약하지만(최고 |AUC−0.5| 0.019 · IC t 2.0) 다피처 결합·비선형 상호작용이 남아 있는지가 질문이다.",
+      "evidence": "실측 2026-11-24 19:0x~19:1x 엔지니어 자율: ① 원천 major_holders 6,267행·2,632종목·486일(2024-11-25~2026-11-24) ② 패널 커버 178/200=0.89 ③ 빌더 scripts/build_major_holders_features.py → data/reports/mh_features.npz(5열, mh_stake_chg 는 결측 100% 로 자동 제외) ④ patch_panel_ss.py 주입 → panel_prod200_v6o_mh.npz(221→226열, 주입열 결측 50.2~55.0%, as-of 자체검증 PASS: 사용 관측일 < 패널날짜) ⑤ panel_feature_screen(h5 q0.30): mh_stake_last AUC 0.5191·IC +0.0157(t 2.0) / mh_stake_max1y 0.5083(t −0.63) / mh_days_since 0.5034(t −0.62) / mh_rep_cnt_90 0.4967(t 1.13) / mh_n_rep_180 0.4896(t 0.47) — 누수 의심 0개 ⑥ 스모크(2폴드×1시드, 별도 경로 cg465_smoke*): 대조군 0.5497 vs 주입 0.5542 = Δ+0.0045(참고용, 판정 아님).",
+      "success": "사전 등록(변경 금지): 같은 런 짝 Δ(강제투입 − 대조군) 폴드 평균 ≥ **+0.02** AND 폴드 승률 ≥ 4/5 → 신호. 미달(<+0.02)은 '노이즈'로 기록하고 데이터 축 major_holders 를 종결한다(원천 스윕 UNDER_TEST→CLOSED 이동). 통과 시에만 후속 돈 지표(cg465_preds 덤프로 fillable_topk_expectancy, 체결성 필터+수수료 0.21%p)를 별도 항목으로 등록한다 — AUC 만으로 승격 후보 금지.",
+      "expected": "Δ 0~+0.01. 단변량 IC t<2.5 이고 유효 관측이 309일이라 문턱 넘기 어렵다 — 다만 '정보 클래스가 새것'이라 0 이 아닌 값이면 축을 살릴 근거가 된다.",
+      "cost": "스윕 5폴드×5시드 ≈ 30분(스모크 2폴드 1시드 ~1분)",
+      "note": "2026-11-24 19:1x 엔지니어 자율(장외 틱·실행가능 pending 0건·규칙 4). 원천은 미배선 원천 스윕이 이번 틱에 신규 후보로 올렸다. 선행 구현(빌더·주입·스크린)은 이 틱에서 완료했고, 이 항목만 남았다. 패널 panel_prod200_v6o_mh.npz 는 컨테이너 /app/app/models/wf 에 이미 생성됨(재생성 금지). ⚠ 피처 5종은 패널 행의 50% 가 결측 → 0 대체로 들어간다(비영률 77.7~99.6% 로 스크린 확인). 종목상수 위험: 이 5열은 시점가변(보고 접수일 기준)이라 해당 없음."
     }
   ],
-  "updated": "2026-11-24T00:24:05+09:00"
+  "updated": "2026-11-24T19:14:17+09:00"
 }
