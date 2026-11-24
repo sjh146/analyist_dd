@@ -107,24 +107,27 @@ def build_map(cur) -> int:
                 "WHERE sector NOT IN ('ETF','ETN') AND stock_name IS NOT NULL")
     rows = cur.fetchall()
     compiled = [(name, re.compile(pat)) for name, pat in THEME_RULES]
+
     cur.execute("DELETE FROM stock_themes")
-    assigned = 0
+    payload = []
     theme_names = set()
     for code, name, sector in rows:
         hits = [(t, 1.0) for t, rx in compiled if rx.search(name or "")]
         if not hits and sector in SECTOR_MAP:
             hits = [(SECTOR_MAP[sector], 0.6)]
         for theme, conf in hits:
-            cur.execute("INSERT INTO stock_themes (stock_code, theme, confidence, source) "
+            payload.append((code, theme, conf, "name" if conf >= 1.0 else "sector"))
+            theme_names.add(theme)
+    if payload:
+        cur.executemany("INSERT INTO stock_themes (stock_code, theme, confidence, source) "
                         "VALUES (%s, %s, %s, %s) ON CONFLICT (stock_code, theme) DO UPDATE "
                         "SET confidence = EXCLUDED.confidence, updated_at = now()",
-                        (code, theme, conf, "name" if conf >= 1.0 else "sector"))
-            theme_names.add(theme)
-            assigned += 1
-    for theme in sorted(theme_names):
-        cur.execute("INSERT INTO themes (name, source) VALUES (%s, %s) "
-                    "ON CONFLICT (name) DO NOTHING", (theme, "rule"))
-    return assigned
+                        payload)
+    if theme_names:
+        cur.executemany("INSERT INTO themes (name, source) VALUES (%s, %s) "
+                        "ON CONFLICT (name) DO NOTHING",
+                        [(theme, "rule") for theme in sorted(theme_names)])
+    return len(payload)
 
 
 def build_daily(cur, days: int) -> int:
