@@ -251,6 +251,19 @@ CONFIGS = [
      "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
      "desc": "게이트 ON + 라벨 스무딩 + depth1·lr0.05 (rank 없음) — 추론 계약 무변경 배포 가능 후보"},
 
+    {"id": "CG473_blend_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "blend_linear": True, "linear_C": 0.1, "blend_w": 0.5,
+     "desc": "CG472 사전등록 arm — GBDT 앙상블 + 로지스틱(C=0.1) 랭크평균(w_lin 0.5)·대조군 CO_smooth_d1_h5 와 같은 recipe"},
+    {"id": "CG473_blend_w3_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "blend_linear": True, "linear_C": 0.1, "blend_w": 0.3,
+     "desc": "CG472 민감도 — 블렌드 w_lin 0.3(GBDT 우세)"},
+    {"id": "CG473_blend_w7_h5", "kind": "smooth", "horizon": 5, "q": 0.30, "select": "top30",
+     "core_only": True, "recipe": {"lr": 0.05, "depth": 1, "n_estimators": 2000},
+     "blend_linear": True, "linear_C": 0.1, "blend_w": 0.7,
+     "desc": "CG472 민감도 — 블렌드 w_lin 0.7(로지스틱 우세)"},
+
 
 
 
@@ -2173,6 +2186,69 @@ def main():
 
     _EnsGBDT = ml.EnsembleModel
 
+    def _rank01(v):
+        """평가집합 안에서의 백분위 순위(0~1). 라벨을 쓰지 않으므로 누수 없음."""
+        v = np.asarray(v, dtype=float).reshape(-1)
+        n = len(v)
+        if n <= 1:
+            return np.zeros(n, dtype=float)
+        order = np.argsort(v, kind="mergesort")
+        r = np.empty(n, dtype=float)
+        r[order] = np.arange(n, dtype=float)
+        return r / float(n - 1)
+
+    class _BlendModel:
+        """GBDT 앙상블 + 표준화 로지스틱의 **랭크평균 블렌드**(CG473).
+
+        왜 랭크평균인가: 두 학습기의 확률 스케일이 다르다(GBDT 각 모델 확률 vs 로지스틱 확률).
+        원확률을 그대로 평균하면 스케일 큰 쪽에 가중이 쏠리므로 평가집합 안에서 순위로 바꿔
+        평균한다. 순위는 라벨과 무관하므로 누수가 아니다. 가중은 _ens_cfg['blend_w'](로지스틱 몫,
+        기본 0.5). GBDT 쪽은 __init__ 에서 만들어 두어 apply_hyperparams(recipe)가 그대로 걸린다.
+        """
+
+        def __init__(self, model_dir="models"):
+            self.model_dir = model_dir
+            self.model_names = ["gbdt"]
+            self.models = [_EnsGBDT(model_dir=model_dir)]
+            self.val_weights = {}
+            self.linear = None
+
+        def train(self, X_train, y_train, X_val=None, y_val=None, feature_names=None,
+                  sample_weight=None):
+            from sklearn.linear_model import LogisticRegression
+            from sklearn.pipeline import make_pipeline
+            from sklearn.preprocessing import StandardScaler
+            self.models[0].train(X_train, y_train, X_val, y_val,
+                                 feature_names=feature_names, sample_weight=sample_weight)
+            C = float(_ens_cfg.get("linear_C") or 0.1)
+            clf = make_pipeline(StandardScaler(),
+                                LogisticRegression(C=C, max_iter=3000, solver="lbfgs"))
+            kw = {}
+            if sample_weight is not None:
+                kw["logisticregression__sample_weight"] = np.asarray(sample_weight, dtype=float)
+            clf.fit(X_train, y_train, **kw)
+            self.linear = clf
+            try:
+                _pg = np.asarray(self.models[0].predict(X_train), dtype=float).reshape(-1)
+                _pl = np.asarray(clf.predict_proba(X_train), dtype=float)[:, 1]
+                _rho = float(np.corrcoef(_pg, _pl)[0, 1]) if len(_pg) > 2 else float("nan")
+                _w = _ens_cfg.get("blend_w")
+                _w = 0.5 if _w is None else float(_w)
+                ml.log(f"    [blend] 학습행 {X_train.shape[0]}x{X_train.shape[1]} · "
+                       f"train p 상관(GBDT vs 로지스틱) {_rho:.3f} · w_lin {_w:.2f} · C {C}")
+            except Exception as _e:
+                ml.log(f"    [blend] 진단 실패 {type(_e).__name__}: {_e}")
+            return self
+
+        def predict(self, X):
+            if self.linear is None:
+                return np.asarray(self.models[0].predict(X), dtype=float).reshape(-1)
+            _pg = np.asarray(self.models[0].predict(X), dtype=float).reshape(-1)
+            _pl = np.asarray(self.linear.predict_proba(X), dtype=float)[:, 1]
+            _w = _ens_cfg.get("blend_w")
+            _w = 0.5 if _w is None else float(_w)
+            return (1.0 - _w) * _rank01(_pg) + _w * _rank01(_pl)
+
     out_path = args.out
 
     for _p in (out_path, args.summary_out):
@@ -2626,8 +2702,14 @@ def main():
                 _ens_cfg["equal_weights"] = bool((cfg.get("ens") or {}).get("equal_weights"))
                 _ens_cfg["linear"] = bool(cfg.get("linear"))
                 _ens_cfg["linear_C"] = cfg.get("linear_C")
+                _ens_cfg["blend_w"] = cfg.get("blend_w")
 
-                ml.EnsembleModel = _LinearModel if cfg.get("linear") else _EnsGBDT
+                if cfg.get("blend_linear"):
+                    ml.EnsembleModel = _BlendModel
+                elif cfg.get("linear"):
+                    ml.EnsembleModel = _LinearModel
+                else:
+                    ml.EnsembleModel = _EnsGBDT
                 aucs = []
                 probs = []
                 probs_all = []

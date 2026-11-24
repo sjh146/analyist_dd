@@ -1,20 +1,20 @@
 {
-  "ts": "2026-11-23T22:40:36+09:00",
+  "ts": "2026-11-24T22:49:36+09:00",
   "goal": "최종 목표: 순손익(₩) — 리서처 데이터 → 엔지니어 AUC → 트레이더 돈",
   "trader": {
     "role": "trader",
     "north": "실현 순손익(₩)",
     "source": "/mnt/c/Users/jhshi/analyist_dd/trader-agent/journal/trade_journal.sqlite3",
-    "realized_krw": -36586,
-    "trades": 24,
-    "wins": 6,
-    "win_rate": 25.0,
-    "expectancy_krw": -1524,
-    "avg_return_pct": -2.23,
+    "realized_krw": -36472,
+    "trades": 27,
+    "wins": 8,
+    "win_rate": 29.6,
+    "expectancy_krw": -1351,
+    "avg_return_pct": -1.97,
     "open_positions": 0,
-    "days_since_entry": 0.5,
+    "days_since_entry": 0.4,
     "alerts": [
-      "순손익 마이너스 -36,586원 — 기대값 -1,524원/건"
+      "순손익 마이너스 -36,472원 — 기대값 -1,351원/건"
     ],
     "error": null
   },
@@ -32,9 +32,9 @@
     "baseline": 0.5406,
     "baseline_name": "LS_quant_q30_h5 (h5·분위0.3·top30)",
     "delta": 0.0113,
-    "last_verdict": "후보 생성·게이트 거부",
-    "no_improve_cycles": 22,
-    "no_improve_streak": 22,
+    "last_verdict": "진행 — 완전일 +1 적재",
+    "no_improve_cycles": 23,
+    "no_improve_streak": 23,
     "last_improve": null,
     "best_excluded": {
       "mean": 0.587,
@@ -53,8 +53,8 @@
         "horizon": 5
       },
       "arms_comparable": 50,
-      "arms_incomparable": 330,
-      "arms_unclassified": 12,
+      "arms_incomparable": 331,
+      "arms_unclassified": 13,
       "panels_comparable": [
         "panel_420_asofpatch.npz"
       ],
@@ -70,29 +70,34 @@
     },
     "source": "/home/jhshi/analyist_dd/data/reports/model_engineer_ledger.jsonl + /app/app/models/champion/auc.txt",
     "alerts": [
-      "로버스트 AUC 가 22사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
+      "로버스트 AUC 가 23사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
     ],
-    "measured_cycles": 22,
-    "invalid_cycles": 377
+    "measured_cycles": 23,
+    "invalid_cycles": 388
   },
   "researcher": {
     "role": "researcher",
     "north": "모델 학습 데이터의 품질·커버리지",
-    "sample": "dq_20261123-204754.json",
-    "status": "ok",
-    "warns": [],
+    "sample": "dq_20261124-224731.json",
+    "status": "warn",
+    "warns": [
+      "계기판 실명: 모델 창(120일) 커버리지 행 0/209 — 착시 게이트 0 는 '착시 없음'이 아니라 '판정 인구 없음'(전 창 착시 40)"
+    ],
     "breaches": [],
-    "alive_features": 190.0,
-    "alive_xsec_features": 166.0,
-    "dead_features": 12.0,
-    "stock_constant_ratio": 0.3894736842105263,
-    "news_freshness_hours": 0.2662858327777778,
-    "rows_delivered": 3057608.0,
+    "alive_features": 192.0,
+    "alive_xsec_features": 169.0,
+    "dead_features": 17.0,
+    "stock_constant_ratio": 0.4114583333333333,
+    "news_freshness_hours": 0.020502646111111113,
+    "rows_delivered": 2962912.0,
     "source": "/home/jhshi/analyist_dd/data/reports/dq_snapshots/dq_*.json",
-    "alerts": []
+    "alerts": [
+      "DQ 경고: 계기판 실명: 모델 창(120일) 커버리지 행 0/209 — 착시 게이트 0 는 '착시 없음'이 아니라 '판정 인구 없음'(전 창 착시 40)"
+    ]
   },
   "needs_human": [
-    "[trader] 순손익 마이너스 -36,586원 — 기대값 -1,524원/건",
-    "[engineer] 로버스트 AUC 가 22사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)"
+    "[trader] 순손익 마이너스 -36,472원 — 기대값 -1,351원/건",
+    "[engineer] 로버스트 AUC 가 23사이클 연속 기준선 (0.5406) 대비 +0.02 미달 — 새 레버 필요 (사람 승인 대상)",
+    "[researcher] DQ 경고: 계기판 실명: 모델 창(120일) 커버리지 행 0/209 — 착시 게이트 0 는 '착시 없음'이 아니라 '판정 인구 없음'(전 창 착시 40)"
   ]
 }
