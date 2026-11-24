@@ -1363,6 +1363,11 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "data/reports/feature_coverage.json")
+    if kind == "minute_cover":
+        out = _arg(command or "", "--json") or _arg(command or "", "--out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "data/reports/minute_cover_latest.json")
 
     if kind and not quiet:
         log(f"경고: 알 수 없는 metric {kind!r} — 요약 경로 없음(판정불가로 기록)")
@@ -2124,6 +2129,73 @@ def parse_feature_coverage(path, mtime_floor) -> dict:
     }
 
 
+def parse_minute_cover(path, mtime_floor) -> dict:
+    """패널 분봉 일일 커버리지(`data_axis_readiness.py --json`)를 파싱한다.
+
+    왜(실측 2026-11-24 22:12): CG466(패널 200종목 분봉 매일 적재)이 rc=0 으로 4.8분 완주했는데
+    metric 'minute_cover' 의 경로·파서가 구동기에 없어 원장에 `판정불가(parser 없음)`으로만 남았다.
+    측정은 있는데 결론이 사라지는 형태 → 경로·파서를 배선한다. 이 항목은 데이터 준비라 AUC 문턱이
+    아니라 **커버리지 문턱**(≥0.75 · 완전일 ≥20)으로 판정한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json 미지정)"}
+    if not os.path.exists(path):
+        return {"error": f"요약 파일 없음({path})"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    axes = {a.get("axis"): a for a in (d.get("axes") or []) if isinstance(a, dict)}
+    intra = axes.get("intraday") or {}
+    tracks = intra.get("tracks") or {}
+    t = tracks.get("minute_close_bars") or {}
+    if not t:
+        return {"error": "intraday.minute_close_bars 트랙 없음(측정 자체가 비었다)", "summary_mtime": mt}
+    return {
+        "metric": "minute_cover",
+        "panel_universe": d.get("panel_universe"),
+        "n_dates": t.get("n_dates"),
+        "panel_cover_frac": t.get("panel_cover_frac"),
+        "median_bars_per_day": t.get("median_bars_per_day"),
+        "n_codes": t.get("n_codes"),
+        "span": t.get("span"),
+        "eta_n_dates": t.get("eta_n_dates"),
+        "thresholds": intra.get("thresholds") or {},
+        "kis_minute_bars": tracks.get("minute_bars") or {},
+        "summary_mtime": mt,
+    }
+
+
+def judge_minute_cover(item, parsed) -> tuple:
+    """분봉 커버리지 판정 — success ①최근일 커버 ≥0.75(그날 소실 방지) ②완전일 20 도달 시 CG450 승격."""
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    cover = parsed.get("panel_cover_frac")
+    nd = parsed.get("n_dates")
+    th = parsed.get("thresholds") or {}
+    min_cover = float(th.get("panel_cover_frac") or 0.75)
+    min_dates = int(th.get("n_dates") or 20)
+    kis = parsed.get("kis_minute_bars") or {}
+    detail = (f"minute_close_bars {parsed.get('span')} · 완전일 {nd}/{min_dates} · 커버 {cover}"
+              f"(문턱 {min_cover}) · 봉/일 {parsed.get('median_bars_per_day')} · "
+              f"종목 {parsed.get('n_codes')} · 20일 도달 추정 {parsed.get('eta_n_dates')} · "
+              f"KIS minute_bars 커버 {kis.get('panel_cover_frac')}({kis.get('n_dates')}일)")
+    if cover is None or nd is None:
+        return "판정불가", f"커버/완전일 값 없음 — {detail}", None
+    if float(cover) < min_cover:
+        return ("커버리지 미달 — 그날 영구 소실 위험",
+                f"{detail}. 롤링 창(≈10거래일) 밖으로 밀리면 백필 불가(11-10~12 실측).", None)
+    if int(nd) >= min_dates:
+        return ("완전일 20 도달 — CG450 착수 가능",
+                f"{detail}. CG450 을 pending 으로 승격하고 이 항목은 done 으로 닫아라.", None)
+    return ("진행 — 완전일 +1 적재", f"{detail}. 남은 완전일 {min_dates - int(nd)}개.", None)
+
+
 def judge_feature_coverage(item, parsed) -> tuple:
     """커버리지 재측정 판정 — 신선 빌드(from_cache=False)면 갱신 성공, 캐시면 위조 위험으로 무효."""
     if parsed.get("error"):
@@ -2597,6 +2669,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_anchor_paired_delta(spath, mtime_floor)
     if kind == "feature_coverage":
         return parse_feature_coverage(spath, mtime_floor)
+    if kind == "minute_cover":
+        return parse_minute_cover(spath, mtime_floor)
     if kind == "robust_seed_range":
 
         return parse_robust_seed_range(spath, mtime_floor)
@@ -5448,6 +5522,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_anchor_paired_delta(item, parsed)
     if kind == "feature_coverage":
         return judge_feature_coverage(item, parsed)
+    if kind == "minute_cover":
+        return judge_minute_cover(item, parsed)
     if kind == "robust_seed_range":
 
         return judge_robust_seed_range(item, parsed)
@@ -6290,6 +6366,8 @@ def execute(item, force=False):
                                         f"{len(it['attempts'])}/{RETRY_MAX} ({resume})")
                 else:
                     it["status"] = st
+                if st == "done" and it.get("repeat") == "daily":
+                    _rearm_daily(it, rec["ts"])
                 it["result"] = {"verdict": verdict, "detail": detail, "delta": delta,
                                 "per_exp": per or None, "rc": rc}
         save_backlog(b)
@@ -6298,6 +6376,47 @@ def execute(item, force=False):
             f"{item['id']} 상태를 확인하라(반쪽 상태: 원장 O / 백로그 pending)")
     log(f"종료 rc={rc} 경과 {rec['elapsed_min']}분 → 판정: {verdict} {detail}")
     return 0
+
+
+def _same_summary(rec, mt, tol=1.0) -> bool:
+    """이미 **같은 요약 파일**을 기록한 원장 항목인가 — 재판정 기록의 오복구를 막는다.
+
+    실측(2026-11-24 22:15 tick): CG466 원장 기록 ts=22:12:48 · 요약 mtime=22:13:56 → 60초 창을
+    벗어나 recover_unrecorded 가 **같은 결과를 두 번째 원장 기록으로** 남겼고, 그 경로가 다시
+    status=done 으로 덮어써 repeat=daily 재무장(11-25 19:30)까지 지웠다. parsed.summary_mtime 을
+    비교하면 시각 창 추정 없이 '같은 요약'을 정확히 안다.
+    """
+    try:
+        sm = (rec.get("parsed") or {}).get("summary_mtime")
+        return sm is not None and abs(float(sm) - mt) <= tol
+    except (TypeError, ValueError):
+        return False
+
+
+def _rearm_daily(it, ts) -> None:
+    """`repeat: daily` 항목은 done 으로 닫지 않고 다음 날 같은 시각으로 재무장한다.
+
+    왜(실측 2026-11-24 22:1x): CG466(패널 200종목 분봉 매일 적재)은 크론 승인(CG451) 전까지
+    백로그 항목이 그 역할을 대신한다. 그런데 구동기는 rc=0 이면 status=done 으로 닫아 **다음 날
+    실행 대상에서 사라진다** → 완전일 20 도달(실측 10/20 · 추정 2026-12-07)이 영원히 안 온다.
+    Naver 분봉 이력은 롤링 ~10거래일이라 하루 빠지면 그날이 영구 소실된다(11-10~12 실측 0행).
+    """
+    at = str(it.get("repeat_at") or "19:30")
+    try:
+        hh, mm = (int(x) for x in at.split(":"))
+    except (TypeError, ValueError):
+        hh, mm = 19, 30
+    try:
+        base = datetime.fromisoformat(str(ts))
+    except (TypeError, ValueError):
+        base = now_kst()
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=KST)
+    nxt = (base + timedelta(days=1)).replace(hour=hh, minute=mm, second=0, microsecond=0)
+    it["status"] = "pending"
+    it["not_before"] = nxt.isoformat()
+    it["rearmed"] = {"ts": now_kst().isoformat(timespec="seconds"), "next": nxt.isoformat(),
+                     "note": "repeat=daily — 다음 날 같은 시각 재실행(완전일 누적용)"}
 
 
 def _duplicate_running(item_id):
@@ -7112,6 +7231,8 @@ def recover_unrecorded(backlog, max_age_h=12, dry_run=False):
             continue
         if any(r.get("id") == it.get("id") and _ledger_ts(r) >= mt - 60 for r in led):
             continue
+        if any(r.get("id") == it.get("id") and _same_summary(r, mt) for r in led):
+            continue
         parsed = parse_by_metric(it, spath, 0.0)
         if parsed.get("error"):
             continue
@@ -7138,6 +7259,8 @@ def recover_unrecorded(backlog, max_age_h=12, dry_run=False):
             rec["delta"] = delta
         append_ledger(rec)
         it["status"] = "done"
+        if it.get("repeat") == "daily":
+            _rearm_daily(it, rec["ts"])
         it["outcome"] = detail
         it["finished_at"] = rec["ts"]
         attempts = _attempts_list(it)
