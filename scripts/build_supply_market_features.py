@@ -73,6 +73,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import psycopg2  # noqa: E402
+from psycopg2.extras import execute_values  # noqa: E402
 
 PG = dict(host=os.environ.get("POSTGRES_HOST", "127.0.0.1"),
           port=int(os.environ.get("POSTGRES_PORT", "5434")),
@@ -123,8 +124,8 @@ def log(msg):
 
 def load_market_data(cur, since, limit_stocks=0):
     """시세 격자 로드(종목·거래일) — 모든 피처의 기준 격자이자 분모."""
-    q = (f"SELECT stock_code, trade_date, open_price, high_price, low_price, "
-         f"close_price, volume FROM market_data WHERE trade_date >= %s "
+    q = (f"SELECT stock_code, trade_date, close_price::float8, volume "
+         f"FROM market_data WHERE trade_date >= %s "
          f"AND {MARKET_DATA_VALID}")
     params = [since]
     if limit_stocks:
@@ -133,8 +134,6 @@ def load_market_data(cur, since, limit_stocks=0):
     cur.execute(q + " ORDER BY stock_code, trade_date", params)
     cols = [d[0] for d in cur.description]
     df = pd.DataFrame(cur.fetchall(), columns=cols)
-    for c in ("open_price", "high_price", "low_price", "close_price", "volume"):
-        df[c] = pd.to_numeric(df[c], errors="coerce")
     return df
 
 
@@ -177,13 +176,11 @@ def market_level_features(df):
 def supply_features(cur, grid, since):
     """foreign_institutional → net_buy(당일) + 5거래일 누적 SUM."""
     cur.execute(
-        "SELECT stock_code, trade_date, foreign_net_buy, institution_net_buy "
+        "SELECT stock_code, trade_date, foreign_net_buy::float8, institution_net_buy::float8 "
         "FROM foreign_institutional WHERE trade_date >= %s", (since,))
     fi = pd.DataFrame(cur.fetchall(),
                       columns=["stock_code", "trade_date", "foreign_net_buy",
                                "institution_net_buy"])
-    for c in ("foreign_net_buy", "institution_net_buy"):
-        fi[c] = pd.to_numeric(fi[c], errors="coerce")
     g = fi.groupby("stock_code", sort=False)
     fi["foreign_net_buy_5d"] = g["foreign_net_buy"].rolling(WIN_5D, min_periods=1).sum().reset_index(level=0, drop=True)
     fi["institution_net_buy_5d"] = g["institution_net_buy"].rolling(WIN_5D, min_periods=1).sum().reset_index(level=0, drop=True)
@@ -198,29 +195,29 @@ def ownership_features(cur, grid):
     내는 실측 버그가 있어(재현: 소규모 정렬 프레임에서 확인), 종목별 searchsorted 로
     직접 as-of 조인한다(ownership 225행이라 비용 무시 가능).
     """
-    cur.execute("SELECT stock_code, trade_date, foreign_ownership_pct, "
-                "institution_ownership_pct, listed_shares FROM ownership")
+    cur.execute("SELECT stock_code, trade_date, foreign_ownership_pct::float8, "
+                "institution_ownership_pct::float8, listed_shares::float8 FROM ownership")
     ow = pd.DataFrame(cur.fetchall(), columns=[
         "stock_code", "trade_date", "foreign_ownership_pct",
         "institution_ownership_pct", "listed_shares"])
-    for c in ("foreign_ownership_pct", "institution_ownership_pct", "listed_shares"):
-        ow[c] = pd.to_numeric(ow[c], errors="coerce")
     ow = ow.sort_values(["stock_code", "trade_date"])
+    ow["trade_date"] = pd.to_datetime(ow["trade_date"])
 
     cols = ("foreign_ownership_pct", "institution_ownership_pct", "listed_shares")
     arr = {c: np.full(len(grid), np.nan) for c in cols}
     codes = grid.index.get_level_values("stock_code").to_numpy()
     dates = pd.to_datetime(grid.index.get_level_values("trade_date")).to_numpy()
     for code, g in ow.groupby("stock_code", sort=False):
-        mask = codes == code
-        if not mask.any():
+        lo = np.searchsorted(codes, code, side="left")
+        hi = np.searchsorted(codes, code, side="right")
+        if lo == hi:
             continue
-        od = pd.to_datetime(g["trade_date"]).to_numpy()
-        idx = np.searchsorted(od, dates[mask], side="right") - 1  # 최신 행 <= D
+        od = g["trade_date"].to_numpy()
+        idx = np.searchsorted(od, dates[lo:hi], side="right") - 1  # 최신 행 <= D
         safe = np.where(idx >= 0, idx, 0)
         for c in cols:
             vals = g[c].to_numpy(dtype=float)
-            arr[c][mask] = np.where(idx >= 0, vals[safe], np.nan)
+            arr[c][lo:hi] = np.where(idx >= 0, vals[safe], np.nan)
     out = pd.DataFrame(arr, index=grid.index)
     # 개인 = 100 - 외국인 - 기관. 기관 pct 는 원천에서 전부 NULL(실측)이라 COALESCE 0
     # (파이프라인 feature_pipeline.py:605 와 동일 정의 — 개인 지분의 상한 근사).
@@ -234,13 +231,11 @@ def ownership_features(cur, grid):
 
 def short_features(cur, grid, since):
     """krx_short_selling → 공매도 비율 / 잔고 비율 / days_to_cover."""
-    cur.execute("SELECT stock_code, trade_date, short_volume, total_volume, "
-                "balance_quantity FROM krx_short_selling WHERE trade_date >= %s",
+    cur.execute("SELECT stock_code, trade_date, short_volume::float8, total_volume::float8, "
+                "balance_quantity::float8 FROM krx_short_selling WHERE trade_date >= %s",
                 (since,))
     ss = pd.DataFrame(cur.fetchall(), columns=[
         "stock_code", "trade_date", "short_volume", "total_volume", "balance_quantity"])
-    for c in ("short_volume", "total_volume", "balance_quantity"):
-        ss[c] = pd.to_numeric(ss[c], errors="coerce")
     ss["short_selling_ratio"] = np.where(
         ss["total_volume"] > 0, ss["short_volume"] / ss["total_volume"], np.nan)
     return ss.drop_duplicates(["stock_code", "trade_date"], keep="first").set_index(
@@ -256,25 +251,25 @@ def krx_trading_value(cur):
 
 def financial_momentum(cur, grid):
     """financial_statements → momentum_ni/op (report_date <= D 최신 2개 보고서 변화율)."""
-    cur.execute("SELECT stock_code, report_date, operating_profit, net_income "
-                "FROM financial_statements")
+    cur.execute("SELECT stock_code, report_date, operating_profit::float8, "
+                "net_income::float8 FROM financial_statements")
     fin = pd.DataFrame(cur.fetchall(), columns=[
         "stock_code", "report_date", "operating_profit", "net_income"])
-    for c in ("operating_profit", "net_income"):
-        fin[c] = pd.to_numeric(fin[c], errors="coerce")
     fin = fin.sort_values(["stock_code", "report_date"])
+    fin["report_date"] = pd.to_datetime(fin["report_date"])
 
     out = {c: np.full(len(grid), np.nan) for c in ("momentum_ni", "momentum_op")}
     codes = grid.index.get_level_values("stock_code").to_numpy()
     dates = pd.to_datetime(grid.index.get_level_values("trade_date")).to_numpy()
     for code, g in fin.groupby("stock_code", sort=False):
-        mask = codes == code
-        if not mask.any():
+        lo = np.searchsorted(codes, code, side="left")
+        hi = np.searchsorted(codes, code, side="right")
+        if lo == hi:
             continue
-        rep = pd.to_datetime(g["report_date"]).to_numpy()
+        rep = g["report_date"].to_numpy()
         for feat, col in (("momentum_ni", "net_income"), ("momentum_op", "operating_profit")):
             vals = g[col].to_numpy()
-            idx = np.searchsorted(rep, dates[mask], side="right") - 1  # 최신 <= D
+            idx = np.searchsorted(rep, dates[lo:hi], side="right") - 1  # 최신 <= D
             prev = idx - 1
             ok = (idx >= 0) & (prev >= 0)
             if not ok.any():
@@ -285,7 +280,7 @@ def financial_momentum(cur, grid):
             # RuntimeWarning 이 나온다(결과는 mask 로 NaN 처리되어 안전). 경고 노이즈 제거.
             with np.errstate(divide="ignore", invalid="ignore"):
                 change = np.where((ok & (p > 0) & ~np.isnan(l)), (l - p) / p * 100.0, np.nan)
-            out[feat][mask] = change
+            out[feat][lo:hi] = change
     return pd.DataFrame(out, index=grid.index)
 
 
@@ -303,6 +298,9 @@ def news_impact(cur, grid):
         return pd.Series(np.nan, index=grid.index)
     ne = ne.sort_values(["stock_code", "last_article_at"])
     nx = nx.sort_values(["stock_code", "created_at"])
+    ne["last_article_at"] = pd.to_datetime(ne["last_article_at"])
+    nx["created_at"] = pd.to_datetime(nx["created_at"])
+    nx_by_code = {c: g for c, g in nx.groupby("stock_code", sort=False)}
 
     h24 = np.timedelta64(24, "h")
     d7 = np.timedelta64(7, "D")
@@ -313,22 +311,23 @@ def news_impact(cur, grid):
     dates = pd.to_datetime(grid.index.get_level_values("trade_date")).to_numpy(
         dtype="datetime64[ns]")
     for code, g in ne.groupby("stock_code", sort=False):
-        mask = codes == code
-        if not mask.any():
+        lo = np.searchsorted(codes, code, side="left")
+        hi = np.searchsorted(codes, code, side="right")
+        if lo == hi:
             continue
-        t = g["last_article_at"].to_numpy(dtype="datetime64[ns]")
+        t = g["last_article_at"].to_numpy()
         cnt = g["article_count"].fillna(0).to_numpy(dtype=float)
         imp = g["total_importance"].fillna(0).to_numpy(dtype=float)
-        nxg = nx[nx["stock_code"] == code]
-        if nxg.empty:
+        nxg = nx_by_code.get(code)
+        if nxg is None or nxg.empty:
             e_t = np.array([], dtype="datetime64[ns]")
             e_nov = e_imp = np.array([], dtype=float)
         else:
-            e_t = nxg["created_at"].to_numpy(dtype="datetime64[ns]")
+            e_t = nxg["created_at"].to_numpy()
             e_nov = nxg["novelty"].fillna(0).to_numpy(dtype=float)
             e_imp = nxg["importance"].fillna(0).to_numpy(dtype=float)
 
-        for j in np.where(mask)[0]:
+        for j in range(lo, hi):
             anchor = dates[j] + day_end
             i_hi = np.searchsorted(t, anchor, side="right")
             i_lo = np.searchsorted(t, anchor - h24, side="right")
@@ -530,23 +529,23 @@ def main():
         ALTER TABLE feature_coverage ADD COLUMN IF NOT EXISTS null_ratio DOUBLE PRECISION;
         ALTER TABLE feature_coverage ADD COLUMN IF NOT EXISTS stock_unique_median DOUBLE PRECISION;
         ALTER TABLE feature_coverage ADD COLUMN IF NOT EXISTS cross_section_constant_ratio DOUBLE PRECISION""")
-    for r in cov_rows:
-        cur.execute("""
-            INSERT INTO feature_coverage (feature_name, nonzero_ratio, std, window_days,
-                computed_at, nonzero_ratio_naive, nonzero_ratio_honest, null_ratio,
-                stock_unique_median, cross_section_constant_ratio)
-            VALUES (%(feature_name)s, %(nonzero_ratio)s, %(std)s, %(window_days)s,
-                %(computed_at)s, %(nonzero_ratio_naive)s, %(nonzero_ratio_honest)s,
-                %(null_ratio)s, %(stock_unique_median)s, %(cross_section_constant_ratio)s)
-            ON CONFLICT (feature_name) DO UPDATE SET
-                nonzero_ratio = EXCLUDED.nonzero_ratio, std = EXCLUDED.std,
-                window_days = EXCLUDED.window_days, computed_at = EXCLUDED.computed_at,
-                nonzero_ratio_naive = EXCLUDED.nonzero_ratio_naive,
-                nonzero_ratio_honest = EXCLUDED.nonzero_ratio_honest,
-                null_ratio = EXCLUDED.null_ratio,
-                stock_unique_median = EXCLUDED.stock_unique_median,
-                cross_section_constant_ratio = EXCLUDED.cross_section_constant_ratio
-        """, r)
+    execute_values(cur, """
+        INSERT INTO feature_coverage (feature_name, nonzero_ratio, std, window_days,
+            computed_at, nonzero_ratio_naive, nonzero_ratio_honest, null_ratio,
+            stock_unique_median, cross_section_constant_ratio)
+        VALUES %s
+        ON CONFLICT (feature_name) DO UPDATE SET
+            nonzero_ratio = EXCLUDED.nonzero_ratio, std = EXCLUDED.std,
+            window_days = EXCLUDED.window_days, computed_at = EXCLUDED.computed_at,
+            nonzero_ratio_naive = EXCLUDED.nonzero_ratio_naive,
+            nonzero_ratio_honest = EXCLUDED.nonzero_ratio_honest,
+            null_ratio = EXCLUDED.null_ratio,
+            stock_unique_median = EXCLUDED.stock_unique_median,
+            cross_section_constant_ratio = EXCLUDED.cross_section_constant_ratio
+    """, [(r["feature_name"], r["nonzero_ratio"], r["std"], r["window_days"],
+           r["computed_at"], r["nonzero_ratio_naive"], r["nonzero_ratio_honest"],
+           r["null_ratio"], r["stock_unique_median"],
+           r["cross_section_constant_ratio"]) for r in cov_rows])
     conn.commit()
     log(f"적재 완료: 삭제 {deleted}행 → 삽입 {persisted}행 (테이블 총계 {table_total}) / feature_coverage 19행 갱신 "
         f"(computed_at={computed_at.isoformat()})")
