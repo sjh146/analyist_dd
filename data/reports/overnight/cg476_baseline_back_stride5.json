@@ -1,0 +1,566 @@
+{
+  "metric_name": "baseline_ranking_money",
+  "dump": "/app/reports/overnight/cg474_champ_preds.jsonl",
+  "exit": "close_h",
+  "horizon": 5,
+  "ks": [
+    3,
+    5,
+    10
+  ],
+  "fee_roundtrip_pct": 0.21,
+  "rows": 3064,
+  "codes": 200,
+  "date_range": [
+    "2026-04-29",
+    "2026-11-04"
+  ],
+  "pool": {
+    "stat": {
+      "n": 26,
+      "mean": -1.7631,
+      "median": -0.3731,
+      "sd": 7.7641,
+      "t": -1.16,
+      "pos_pct": 34.6,
+      "worst": -14.067,
+      "best": 24.542
+    },
+    "halves": {
+      "front": {
+        "n": 13,
+        "mean": -2.6543,
+        "median": -5.3897,
+        "sd": 10.1418,
+        "t": -0.94,
+        "pos_pct": 23.1,
+        "worst": -14.067,
+        "best": 24.542
+      },
+      "back": {
+        "n": 13,
+        "mean": -0.8719,
+        "median": -0.3243,
+        "sd": 4.5835,
+        "t": -0.69,
+        "pos_pct": 46.2,
+        "worst": -8.9276,
+        "best": 5.7547
+      },
+      "stable": "neither",
+      "split_session": "(4, '2026-08-05')"
+    }
+  },
+  "baselines": {
+    "model": {
+      "n_rows": 3064,
+      "n_rows_priced": 3064,
+      "dropped_price": 0,
+      "filtered_out": 1738,
+      "k": {
+        "3": {
+          "arm": {
+            "n": 26,
+            "mean": -1.6557,
+            "median": -1.9199,
+            "sd": 9.4804,
+            "t": -0.89,
+            "pos_pct": 30.8,
+            "worst": -21.2131,
+            "best": 19.03
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -2.346,
+              "median": -3.4742,
+              "sd": 12.4757,
+              "t": -0.68,
+              "pos_pct": 30.8,
+              "worst": -21.2131,
+              "best": 19.03
+            },
+            "back": {
+              "n": 13,
+              "mean": -0.9654,
+              "median": -0.8362,
+              "sd": 5.529,
+              "t": -0.63,
+              "pos_pct": 30.8,
+              "worst": -9.827,
+              "best": 8.1261
+            },
+            "stable": "neither",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": -0.7182,
+            "sd": 5.6776,
+            "t": 0.1,
+            "pos_pct": 46.2,
+            "worst": -7.8026,
+            "best": 13.2985,
+            "n_dates": 26,
+            "delta_mean": 0.1075,
+            "pos": 12,
+            "neg": 14,
+            "ties": 0,
+            "folds": {
+              "3": "2/5",
+              "4": "7/11",
+              "5": "3/10"
+            }
+          }
+        },
+        "5": {
+          "arm": {
+            "n": 26,
+            "mean": -1.3616,
+            "median": -1.9646,
+            "sd": 8.0024,
+            "t": -0.87,
+            "pos_pct": 34.6,
+            "worst": -18.4836,
+            "best": 17.0818
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -2.584,
+              "median": -3.8741,
+              "sd": 10.2227,
+              "t": -0.91,
+              "pos_pct": 23.1,
+              "worst": -18.4836,
+              "best": 17.0818
+            },
+            "back": {
+              "n": 13,
+              "mean": -0.1392,
+              "median": -1.2818,
+              "sd": 5.0667,
+              "t": -0.1,
+              "pos_pct": 46.2,
+              "worst": -6.8227,
+              "best": 6.3601
+            },
+            "stable": "neither",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": 0.4368,
+            "sd": 4.4309,
+            "t": 0.46,
+            "pos_pct": 53.8,
+            "worst": -7.4602,
+            "best": 11.0916,
+            "n_dates": 26,
+            "delta_mean": 0.4015,
+            "pos": 14,
+            "neg": 12,
+            "ties": 0,
+            "folds": {
+              "3": "2/5",
+              "4": "8/11",
+              "5": "4/10"
+            }
+          }
+        },
+        "10": {
+          "arm": {
+            "n": 26,
+            "mean": -1.5576,
+            "median": -2.5711,
+            "sd": 8.3335,
+            "t": -0.95,
+            "pos_pct": 38.5,
+            "worst": -20.2645,
+            "best": 17.854
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -3.2324,
+              "median": -5.2863,
+              "sd": 10.2379,
+              "t": -1.14,
+              "pos_pct": 30.8,
+              "worst": -20.2645,
+              "best": 17.854
+            },
+            "back": {
+              "n": 13,
+              "mean": 0.1172,
+              "median": -2.5711,
+              "sd": 5.8129,
+              "t": 0.07,
+              "pos_pct": 46.2,
+              "worst": -7.1368,
+              "best": 10.5056
+            },
+            "stable": "unstable",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": -0.2255,
+            "sd": 3.9524,
+            "t": 0.27,
+            "pos_pct": 46.2,
+            "worst": -6.6881,
+            "best": 9.0169,
+            "n_dates": 26,
+            "delta_mean": 0.2056,
+            "pos": 12,
+            "neg": 14,
+            "ties": 0,
+            "folds": {
+              "3": "1/5",
+              "4": "7/11",
+              "5": "4/10"
+            }
+          }
+        }
+      }
+    },
+    "lowvol20": {
+      "n_rows": 3060,
+      "n_rows_priced": 3060,
+      "dropped_price": 0,
+      "filtered_out": 1738,
+      "k": {
+        "3": {
+          "arm": {
+            "n": 26,
+            "mean": 0.4381,
+            "median": 0.7499,
+            "sd": 4.4421,
+            "t": 0.5,
+            "pos_pct": 57.7,
+            "worst": -11.8968,
+            "best": 12.0909
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -0.1039,
+              "median": 0.6955,
+              "sd": 5.6022,
+              "t": -0.07,
+              "pos_pct": 53.8,
+              "worst": -11.8968,
+              "best": 12.0909
+            },
+            "back": {
+              "n": 13,
+              "mean": 0.9801,
+              "median": 1.1489,
+              "sd": 3.0146,
+              "t": 1.17,
+              "pos_pct": 61.5,
+              "worst": -3.2534,
+              "best": 8.3031
+            },
+            "stable": "unstable",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": 2.3813,
+            "sd": 7.7679,
+            "t": 1.44,
+            "pos_pct": 69.2,
+            "worst": -23.7219,
+            "best": 17.4806,
+            "n_dates": 26,
+            "delta_mean": 2.2012,
+            "pos": 18,
+            "neg": 8,
+            "ties": 0,
+            "folds": {
+              "3": "4/5",
+              "4": "7/11",
+              "5": "7/10"
+            }
+          }
+        },
+        "5": {
+          "arm": {
+            "n": 26,
+            "mean": 0.0642,
+            "median": 0.5554,
+            "sd": 5.1431,
+            "t": 0.06,
+            "pos_pct": 53.8,
+            "worst": -12.5903,
+            "best": 9.0403
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -0.2757,
+              "median": -0.1431,
+              "sd": 6.2526,
+              "t": -0.16,
+              "pos_pct": 46.2,
+              "worst": -12.5903,
+              "best": 9.0403
+            },
+            "back": {
+              "n": 13,
+              "mean": 0.4041,
+              "median": 0.5554,
+              "sd": 3.97,
+              "t": 0.37,
+              "pos_pct": 61.5,
+              "worst": -6.3524,
+              "best": 7.7858
+            },
+            "stable": "unstable",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": 2.8627,
+            "sd": 6.7583,
+            "t": 1.38,
+            "pos_pct": 69.2,
+            "worst": -18.5437,
+            "best": 14.43,
+            "n_dates": 26,
+            "delta_mean": 1.8273,
+            "pos": 18,
+            "neg": 8,
+            "ties": 0,
+            "folds": {
+              "3": "4/5",
+              "4": "8/11",
+              "5": "6/10"
+            }
+          }
+        },
+        "10": {
+          "arm": {
+            "n": 26,
+            "mean": -0.9453,
+            "median": -0.612,
+            "sd": 4.505,
+            "t": -1.07,
+            "pos_pct": 42.3,
+            "worst": -12.4586,
+            "best": 6.6352
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -1.5822,
+              "median": -1.5508,
+              "sd": 5.4323,
+              "t": -1.05,
+              "pos_pct": 38.5,
+              "worst": -12.4586,
+              "best": 6.6352
+            },
+            "back": {
+              "n": 13,
+              "mean": -0.3084,
+              "median": -0.612,
+              "sd": 3.4487,
+              "t": -0.32,
+              "pos_pct": 46.2,
+              "worst": -5.9493,
+              "best": 5.5817
+            },
+            "stable": "neither",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": 1.1803,
+            "sd": 6.4571,
+            "t": 0.65,
+            "pos_pct": 61.5,
+            "worst": -21.0443,
+            "best": 12.0249,
+            "n_dates": 26,
+            "delta_mean": 0.8178,
+            "pos": 16,
+            "neg": 10,
+            "ties": 0,
+            "folds": {
+              "3": "3/5",
+              "4": "7/11",
+              "5": "6/10"
+            }
+          }
+        }
+      }
+    },
+    "rand": {
+      "n_rows": 3064,
+      "n_rows_priced": 3064,
+      "dropped_price": 0,
+      "filtered_out": 1738,
+      "k": {
+        "3": {
+          "arm": {
+            "n": 26,
+            "mean": -0.4726,
+            "median": -1.7885,
+            "sd": 12.4086,
+            "t": -0.19,
+            "pos_pct": 42.3,
+            "worst": -20.4916,
+            "best": 37.8525
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -0.8049,
+              "median": -1.8612,
+              "sd": 14.9638,
+              "t": -0.19,
+              "pos_pct": 30.8,
+              "worst": -20.4916,
+              "best": 37.8525
+            },
+            "back": {
+              "n": 13,
+              "mean": -0.1402,
+              "median": 0.0588,
+              "sd": 9.8299,
+              "t": -0.05,
+              "pos_pct": 53.8,
+              "worst": -16.5437,
+              "best": 18.3435
+            },
+            "stable": "neither",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": 0.139,
+            "sd": 6.86,
+            "t": 0.96,
+            "pos_pct": 50.0,
+            "worst": -9.5135,
+            "best": 14.3271,
+            "n_dates": 26,
+            "delta_mean": 1.2906,
+            "pos": 13,
+            "neg": 13,
+            "ties": 0,
+            "folds": {
+              "3": "4/5",
+              "4": "5/11",
+              "5": "4/10"
+            }
+          }
+        },
+        "5": {
+          "arm": {
+            "n": 26,
+            "mean": -0.1913,
+            "median": -0.1313,
+            "sd": 10.5187,
+            "t": -0.09,
+            "pos_pct": 46.2,
+            "worst": -15.4988,
+            "best": 33.7355
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -0.5254,
+              "median": -1.9449,
+              "sd": 12.7868,
+              "t": -0.15,
+              "pos_pct": 46.2,
+              "worst": -15.4988,
+              "best": 33.7355
+            },
+            "back": {
+              "n": 13,
+              "mean": 0.1428,
+              "median": -0.1313,
+              "sd": 8.1708,
+              "t": 0.06,
+              "pos_pct": 46.2,
+              "worst": -13.2159,
+              "best": 16.5188
+            },
+            "stable": "unstable",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": 0.7929,
+            "sd": 5.1131,
+            "t": 1.57,
+            "pos_pct": 57.7,
+            "worst": -8.8879,
+            "best": 14.2751,
+            "n_dates": 26,
+            "delta_mean": 1.5719,
+            "pos": 15,
+            "neg": 11,
+            "ties": 0,
+            "folds": {
+              "3": "3/5",
+              "4": "7/11",
+              "5": "5/10"
+            }
+          }
+        },
+        "10": {
+          "arm": {
+            "n": 26,
+            "mean": -1.3532,
+            "median": -3.0312,
+            "sd": 9.829,
+            "t": -0.7,
+            "pos_pct": 38.5,
+            "worst": -15.343,
+            "best": 32.674
+          },
+          "halves": {
+            "front": {
+              "n": 13,
+              "mean": -2.335,
+              "median": -4.7555,
+              "sd": 12.7761,
+              "t": -0.66,
+              "pos_pct": 30.8,
+              "worst": -15.343,
+              "best": 32.674
+            },
+            "back": {
+              "n": 13,
+              "mean": -0.3714,
+              "median": -1.2961,
+              "sd": 5.996,
+              "t": -0.22,
+              "pos_pct": 46.2,
+              "worst": -10.2281,
+              "best": 10.445
+            },
+            "stable": "neither",
+            "split_session": "(4, '2026-08-05')"
+          },
+          "paired_vs_pool": {
+            "median": -0.3701,
+            "sd": 3.8385,
+            "t": 0.54,
+            "pos_pct": 42.3,
+            "worst": -5.9001,
+            "best": 8.2261,
+            "n_dates": 26,
+            "delta_mean": 0.4099,
+            "pos": 11,
+            "neg": 15,
+            "ties": 0,
+            "folds": {
+              "3": "2/5",
+              "4": "4/11",
+              "5": "5/10"
+            }
+          }
+        }
+      }
+    }
+  }
+}

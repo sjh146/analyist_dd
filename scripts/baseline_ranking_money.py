@@ -146,11 +146,30 @@ def evaluate(name, rows, series, a, ks, rt_pct, bpool, exp_off):
     return res, ba
 
 
+def _apply_window(rows, a):
+    df_ = str(a.date_from) if a.date_from else None
+    dt_ = str(a.date_to) if a.date_to else None
+    out = [r for r in rows
+           if (df_ is None or r["date"] >= df_) and (dt_ is None or r["date"] <= dt_)]
+    sessions = sorted({r["date"] for r in out})
+    stride = max(1, int(a.stride or 1))
+    keep = {d for i, d in enumerate(sessions) if i % stride == 0}
+    out = [r for r in out if r["date"] in keep]
+    return out, {"date_from": df_ or (sessions[0] if sessions else None),
+                 "date_to": dt_ or (sessions[-1] if sessions else None),
+                 "stride": stride, "n_sessions": len(keep),
+                 "n_sessions_all": len(sessions)}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="기준 랭킹(비ML) 돈 지표 스크리닝")
     ap.add_argument("--dump", required=True, help="champion_robust_eval --dump-preds jsonl")
     ap.add_argument("--baselines", default="model,mom20,mom60,rev5,lowvol20,rand")
     ap.add_argument("--k", default="3,5,10")
+    ap.add_argument("--stride", type=int, default=1,
+                    help="세션 표본 간격(STRIDE_H: h=5 면 5 권장 — 중첩 t 낙관 보정)")
+    ap.add_argument("--date-from", default=None, help="세션 시작일 YYYY-MM-DD(포함)")
+    ap.add_argument("--date-to", default=None, help="세션 종료일 YYYY-MM-DD(포함)")
     ap.add_argument("--exit", choices=F.EXITS, default="close_h")
     ap.add_argument("--horizon", type=int, default=5)
     ap.add_argument("--exclude-limit-up", action="store_true", default=True)
@@ -178,6 +197,12 @@ def main(argv=None) -> int:
     if not rows:
         print(f"[FAIL] dump 비어 있음 {a.dump}", file=sys.stderr)
         return 2
+    rows, win = _apply_window(rows, a)
+    if not rows:
+        print("[FAIL] 창/stride 필터 후 행 0", file=sys.stderr)
+        return 2
+    print(f"창 필터: {win['date_from']}~{win['date_to']} stride={win['stride']} "
+          f"세션 {win['n_sessions']} · 행 {len(rows)}")
     exps = sorted({r["exp"] for r in rows})
     # 기본: exp 블록을 (fold,date) 세션으로 **풀링**(생산 프로토콜과 동일 단위).
     # --split-exps: 블록을 별도 세션으로(30종목/세션) — k 의미가 달라져 참조 수치와 비교 불가.

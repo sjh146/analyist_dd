@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T03:12:20+09:00",
+ "updated_at": "2026-11-25T03:14:44+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -26347,6 +26347,80 @@
        -2.705,
        -2.58
       ]
+     },
+     "baseline_rankings_same_rows": {
+      "note": "같은 255세션·같은 행에서 비ML 랭킹도 같은 프로토콜로 채점(scripts/baseline_ranking_money.py)",
+      "model": {
+       "k3": [
+        -0.592,
+        -0.503,
+        -1.35
+       ],
+       "k5": [
+        -0.227,
+        -0.137,
+        -0.44
+       ],
+       "k10": [
+        -0.171,
+        -0.082,
+        -0.35
+       ]
+      },
+      "lowvol20": {
+       "k3": [
+        0.803,
+        0.892,
+        2.25,
+        "both_positive +1.25/+0.36"
+       ],
+       "k5": [
+        0.801,
+        0.891,
+        2.41,
+        "both_positive +1.55/+0.06"
+       ],
+       "k10": [
+        0.437,
+        0.526,
+        1.7,
+        "unstable +1.65/-0.76"
+       ]
+      },
+      "mom20": {
+       "k5": [
+        -1.087,
+        -0.998,
+        -1.95
+       ]
+      },
+      "mom60": {
+       "k3": [
+        0.712,
+        0.801,
+        1.01
+       ]
+      },
+      "rev5": {
+       "k5": [
+        -0.077,
+        0.012,
+        0.03
+       ]
+      },
+      "rand": {
+       "k3": [
+        0.356,
+        0.445,
+        1.02
+       ],
+       "k5": [
+        0.36,
+        0.449,
+        1.37
+       ]
+      },
+      "rand_bias_warning": "무작위 k 가 풀평균을 +0.45%p(전구간·stride1)·+1.3~1.6%p(최근 절반·stride5) 상회 → 풀 널 자체가 하향 편향이다. 따라서 Δ(pool) 절대값은 신호가 아니고, rand 기준 Δ 로 읽어야 한다."
      }
     },
     "artifacts": [
@@ -26372,14 +26446,66 @@
    "metric": "money_pair",
    "title": "[돈·승인] 배포 챔피언 기준선 재검토 — 같은 프로토콜에서 단순 core48 arm 이 챔피언보다 +1.03%p/세션 우수",
    "hypothesis": "지금 배포된 챔피언(2026-10-02 champ-0.5513)은 173피처·단일분할 승격 산물인데, CG474 에서 같은 세션·같은 청산·같은 체결필터로 재니 최근 5폴드 학습의 단순 core48 arm(CO_smooth_d1_h5, 48피처·depth1)보다 1.03%p/세션 열등했다(그리고 무작위 풀평균도 못 이겼다). 즉 '더 많은 피처'가 돈을 만든다는 가정 자체가 반증됐을 수 있다.",
-   "evidence": "CG474 실측(2026-11-25 03:1x): 255세션·30,053행·fillable k5 챔피언 −0.4469 vs core48 +0.5819, 짝Δ −1.0288(t −2.82, block5 t −2.03, 폴드승 0/5) · OOS-only 22세션 Δ −2.819(t −3.19). 폴드 AUC 챔피언 0.5207±0.0308 vs core48 0.5487±0.0115. 전방 성적표 교차: 실계좌 경로도 순기대 −0.3431%p(t −1.72·113세션/1771거래)·앞 −0.3129/뒤 −0.3727(neither).",
+   "evidence": "CG474 실측(2026-11-25 03:1x): 255세션·30,053행·fillable k5 챔피언 −0.4469 vs core48 +0.5819, 짝Δ −1.0288(t −2.82, block5 t −2.03, 폴드승 0/5) · OOS-only 22세션 Δ −2.819(t −3.19). ⚠ 비중첩(stride 5·55세션)에서는 Δ −1.044(t −1.39) 로 유의성 미달 — 방향·크기는 일관, 유의성은 중첩 보정에 의존. ⚠ core48 자신도 +0.582(t 1.69·분할 +1.42/−0.25 unstable·stride5 +0.603 t 1.39) 으로 단독 엣지 미확정. ⚠ 무모델 저변동(lowvol20) 랭킹이 같은 행에서 k5 +0.801(Δ(pool) +0.891·t 2.41·분할 both_positive)로 둘 다 이겼다. 폴드 AUC 챔피언 0.5207±0.0308 vs core48 0.5487±0.0115. 전방 성적표 교차: 순기대 −0.3431%p(t −1.72·113세션/1771거래)·앞 −0.3129/뒤 −0.3727(neither).",
    "setup_needed": "리뷰보드 승인 + 사람 필수(챔피언 최종 교체는 실매매 반영 항목). 승인 시 내가 실행할 절차: ① CO_smooth_d1_h5 recipe 로 최신 패널(panel_prod200_v6o, end-date 고정) 재학습 → ② `python3 scripts/champion_promote.py --candidate <dir> --dry-run --require-expectancy` 로 게이트 통과 확인 ③ 통과 시에만 사람이 champion/ 교체 승인(교체·롤백은 log_champion_swap.py 로 원장 기록) ④ 교체 후 3거래일 전방 성적표로 실측 확인. 승인이 없으면 배포는 현행 유지(내가 임의 교체하지 않는다).",
    "counterfactual": "현행 배포 챔피언(champ-20261002T024420-0.5513) 무교체 유지",
    "success": "사전 등록: ① 승인 후보가 dry-run 게이트(순기대>0·표본 최소·분할 both_positive·챔피언 대비 +0.1%p)를 통과하면 교체 승인 요청 ② 미통과면 'core48 도 돈 엣지 없음'으로 축 종결하고 새 원천(데이터 축)으로 이동. 이 루프에서는 승격하지 않는다.",
    "expected": "게이트는 순기대 기준이라 core48(+0.582%p/세션·255세션)도 통과할 가능성이 있다 — 다만 그 수치는 stride 중첩·표본 22~255세션 구간에 따라 t 가 1~3 사이로 흔들린다. 거절되면 그것도 기록한다.",
    "est_minutes": 90,
    "created_at": "2026-11-25T03:12:20+09:00",
-   "note": "2026-11-25 03:1x 엔지니어 자율(CG474 판정 후속). 승격이 아니라 **기준선 재검토 요청**이다 — 스킬 규칙: AUC·조정 축이 닫혔고 남은 판단거리는 돈이며, 챔피언 교체는 사람 필수."
+   "note": "2026-11-25 03:1x 엔지니어 자율(CG474 판정 후속). 승격이 아니라 **기준선 재검토 요청**이다 — 스킬 규칙: AUC·조정 축이 닫혔고 남은 판단거리는 돈이며, 챔피언 교체는 사람 필수. | 2026-11-25 03:3x 갱신: stride5·비ML 바닥 실측을 반영 — 교체 요청의 근거는 'core48 이 좋다'가 아니라 '챔피언은 무작위 바스켓도 못 이기고 비ML 저변동보다도 나쁘다'이다. core48 우위는 유의성 미달."
+  },
+  {
+   "id": "CG476",
+   "status": "done",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "baseline_ranking_money",
+   "title": "[돈·바닥] 무모델 랭킹 vs 챔피언 같은 행 비교 — 20일 저변동이 챔피언을 +0.89%p/세션 이겼고, 동시에 풀 널이 하향 편향임을 드러냈다",
+   "hypothesis": "모델 비교만 하면 '모델끼리 누가 나은가'만 알 수 있다. 비ML 랭킹(모멘텀·반전·저변동)을 같은 행·같은 체결필터·같은 수수료로 채점하면 '모델이 값어치가 있는가'의 바닥이 생긴다.",
+   "evidence": "scripts/baseline_ranking_money.py · dump=cg474_champ_preds.jsonl(30,053행·200종목·2025-10-22~2026-11-05) · exit close_h h5 · fee 0.21%p",
+   "counterfactual": "rand(무작위 k) — 계측기 자체검증. 기대 Δ(pool)=0 이어야 한다",
+   "success": "사전 등록: lowvol20 이 ① rand 대비 Δ ≥ +0.5%p ② t ≥ 2 ③ 분할 both_positive 를 만족하면 신호(단일 런이므로 스크리닝). 미달이면 '비ML 바닥과 구분 불가'로 기록.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --k 3,5,10 --horizon 5 --json-out /app/reports/overnight/cg474_baseline_money.json'",
+   "est_minutes": 3,
+   "result": {
+    "verdict": "스크리닝 신호(단, rand 편향 경고 포함) — 비ML 저변동이 모델을 이겼다",
+    "detail": "255세션 pooled(exp 블록 공유). model: k3 −0.592(Δ(pool) −0.503·t −1.35) · k5 −0.227(−0.137·t −0.44) · k10 −0.171(−0.082). lowvol20: k3 +0.803(Δ +0.892·t 2.25·분할 +1.25/+0.36) · k5 +0.801(Δ +0.891·t 2.41·분할 +1.55/+0.06 both_positive·양세션 57.3%) · k10 +0.437(t 1.70). mom20 k5 −1.087(Δ −0.998·t −1.95) · mom60 k3 +0.712(t 1.01) · rev5 ≈0 · rand k3 +0.356(Δ +0.445·t 1.02) · k5 +0.360(+0.449·t 1.37). → 저변동 k5 는 챔피언보다 +1.03%p/세션, 사전 스크리닝 문턱(arm>0·Δ≥+0.1·t≥2·분할 both_positive)을 통과한 첫 사례. 단 rand 도 +0.45%p 로 풀 널을 상회 → 풀 널은 하향 편향이며, lowvol 의 진짜 초과는 rand 기준 +0.44%p 수준으로 줄어든다.",
+    "robustness": "stride 5(51세션): lowvol20 k3 +0.887(Δ(pool) +0.918·t 1.10·분할 +1.63/+0.17) · k5 +0.574(Δ +0.604·t 0.73) · model k5 −0.391(Δ −0.361·t −0.50) → 방향 유지·유의성 없음. stride 5 + 최근 절반(2026-04-29~, 26세션): lowvol20 k3 +0.438(Δ +2.201·t 1.44) · k5 +0.064(Δ +1.827·t 1.38) 이지만 **rand 도 k3 Δ +1.291(t 0.96)·k5 +1.572(t 1.57)** → 이 구간 Δ(pool) 은 계측기 편향이 지배. 결론: lowvol20 신호는 '미확정' — rand 기준 Δ 와 비중첩 표본으로 재측정해야 판정 가능(CG477).",
+    "caveat": "단일 패널(prod200·200종목)·단일 기간. 스크립트 자체 문서도 '스크리닝이며 승격 근거 아님'을 명시한다. 승격·교체는 하지 않았다.",
+    "artifacts": [
+     "reports/overnight/cg474_baseline_money.json",
+     "reports/overnight/cg474_baseline_stride5.json",
+     "reports/overnight/cg474_baseline_back_stride5.json",
+     "data/reports/overnight/cg476_*.json(호스트 사본)"
+    ],
+    "rc": 0
+   },
+   "created_at": "2026-11-25T03:14:44+09:00",
+   "finished_at": "2026-11-25T03:14:44+09:00",
+   "note": "2026-11-25 03:3x 엔지니어 자율(CG474 후속·같은 255세션 재사용). 측정 스크립트에 --stride/--date-from/--date-to 를 추가했다(기본값 stride=1·창 없음 = 기존 동작 비트 동일). ⚠ rand 기준 Δ 가 풀 널보다 정직한 비교다 — 이후 돈 verdict 는 rand 를 바닥으로 쓴다."
+  },
+  {
+   "id": "CG477",
+   "status": "pending",
+   "priority": 1,
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "baseline_ranking_money",
+   "title": "[돈·바닥 강건성] lowvol20 의 초과가 rand 바닥 대비 진짜인가 — 편향 보정 MDE(reps 20)·비중첩 stride 5·기간 분할로 재측정",
+   "hypothesis": "CG476 에서 lowvol20 k5 가 Δ(pool) +0.891(t 2.41)로 스크리닝 문턱을 통과했지만, 같은 런의 rand 바닥이 Δ(pool) +0.449 로 풀 널 자체가 하향 편향이었다. rand 를 바닥으로 세우면 저변동의 초과는 +0.44%p 수준으로 줄고, 최근 절반에서는 rand 가 +1.29~1.57%p 로 더 크다 → '저변동 엣지'가 계측기 편향의 그림자인지 아닌지가 판정 대상이다.",
+   "evidence": "CG476(2026-11-25 03:3x): model k5 −0.227 · lowvol20 k5 +0.801 · rand k5 +0.360 (전구간 stride1) · rand k5 Δ(pool) +1.572 (최근 절반 stride5). baseline_ranking_money.py --rand-reps 지원 확인.",
+   "counterfactual": "rand(무작위 k·reps 20 평균±sd) — 풀 널 대신 이것이 바닥",
+   "success": "사전 등록(변경 금지): ① lowvol20 − rand ≥ +0.5%p/세션 AND |t| ≥ 2 AND 분할 both_positive(rand 기준) → 신호(스크리닝 통과) ② 미달이면 '비ML 저변동도 계측기 편향 위의 착시'로 축을 닫고 데이터 축(수집 복구·인트라데이)으로 복귀 ③ rc≠0/요약 미갱신 = 실행실패. 승격·교체는 하지 않는다.",
+   "command": "cd /home/jhshi/analyist_dd && docker exec stock_xgboost_ml sh -c 'cd /app && timeout 1200 python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --baselines model,lowvol20,mom20,rev5,rand --k 3,5,10 --stride 1 --horizon 5 --rand-reps 20 --json-out /app/reports/overnight/cg476_rand_mde_full.json' && docker exec stock_xgboost_ml sh -c 'cd /app && timeout 1200 python3 scripts/baseline_ranking_money.py --dump /app/reports/overnight/cg474_champ_preds.jsonl --baselines model,lowvol20,rand --k 3,5,10 --stride 5 --date-from 2026-04-29 --horizon 5 --rand-reps 20 --json-out /app/reports/overnight/cg476_rand_mde_back.json'",
+   "expected": "전구간 stride1 에서 lowvol−rand ≈ +0.4%p → 사전문턱 +0.5 미달 가능성이 높다(예상: 노이즈 결론). 최근 절반은 rand 가 더 커서 신호가 뒤집힐 수 있다.",
+   "cost": "2회 실행 · 각 2~3분(DB 가격 시리즈 로드 포함)",
+   "est_minutes": 12,
+   "created_at": "2026-11-25T03:14:44+09:00",
+   "note": "2026-11-25 03:4x 엔지니어 자율(CG476 후속). 이 항목이 끝나면 '돈 축'의 결론이 완성된다: 모델·core48·비ML 모두 rand 바닥 대비 유의한 초과를 못 내면, 남은 레버는 모델 조정이 아니라 **수집 데이터 복구**(KRX-02·KRX-01·XR51)와 새 원천뿐이다."
   }
  ],
  "updated": "2026-11-24T20:20:00+09:00"
