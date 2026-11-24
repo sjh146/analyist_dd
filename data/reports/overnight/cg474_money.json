@@ -1,0 +1,879 @@
+{
+  "metric_name": "fillable_topk_expectancy",
+  "exit": "close_h",
+  "entry": "next_open",
+  "horizon": 5,
+  "ks": [
+    3,
+    5,
+    10
+  ],
+  "arm_tag": "champ",
+  "control_tag": "CO_smooth_d1_h5",
+  "fee_roundtrip_pct": 0.21,
+  "stride": 1,
+  "stride_warning": "h=5 인데 stride=1 — 보유창 중첩으로 t 가 낙관적이다. --stride 5 로 병기하라(STRIDE_H)",
+  "rows": {
+    "arm": 30015,
+    "control": 30015,
+    "arm_dropped_price": 38,
+    "control_dropped_price": 38,
+    "bad_lines": 0
+  },
+  "pair": {
+    "mode": "fold_date",
+    "same_fold_structure": true,
+    "arm_folds": 5,
+    "control_folds": 5,
+    "date_overlap": 255,
+    "note": "폴드→날짜집합 동일 → (fold,date) 짝"
+  },
+  "conditions": {
+    "fillable": {
+      "filtered_out": {
+        "arm": 16227,
+        "control": 16227
+      },
+      "k": {
+        "3": {
+          "arm": {
+            "n": 255,
+            "mean": -0.7058,
+            "median": -1.0041,
+            "sd": 8.1918,
+            "t": -1.38,
+            "pos_pct": 41.2,
+            "worst": -27.8841,
+            "best": 38.2082
+          },
+          "control": {
+            "n": 255,
+            "mean": 0.3208,
+            "median": -0.3121,
+            "sd": 5.7542,
+            "t": 0.89,
+            "pos_pct": 48.2,
+            "worst": -18.7893,
+            "best": 17.099
+          },
+          "arm_halves": {
+            "front": {
+              "n": 127,
+              "mean": 0.5237,
+              "median": -0.1112,
+              "sd": 6.9146,
+              "t": 0.85,
+              "pos_pct": 47.2,
+              "worst": -19.5294,
+              "best": 25.6633
+            },
+            "back": {
+              "n": 128,
+              "mean": -1.9256,
+              "median": -1.9138,
+              "sd": 9.1524,
+              "t": -2.38,
+              "pos_pct": 35.2,
+              "worst": -27.8841,
+              "best": 38.2082
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "control_halves": {
+            "front": {
+              "n": 127,
+              "mean": 1.1695,
+              "median": 1.3448,
+              "sd": 6.1606,
+              "t": 2.14,
+              "pos_pct": 55.1,
+              "worst": -18.7893,
+              "best": 17.099
+            },
+            "back": {
+              "n": 128,
+              "mean": -0.5212,
+              "median": -0.8909,
+              "sd": 5.2089,
+              "t": -1.13,
+              "pos_pct": 41.4,
+              "worst": -12.4157,
+              "best": 14.0092
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "paired": {
+            "median": -0.81,
+            "sd": 7.3475,
+            "t": -2.23,
+            "pos_pct": 43.9,
+            "worst": -22.6725,
+            "best": 32.3604,
+            "n_dates": 255,
+            "delta_mean": -1.0266,
+            "pos": 112,
+            "neg": 143,
+            "ties": 0,
+            "folds": {
+              "1": "24/51",
+              "2": "24/51",
+              "3": "22/51",
+              "4": "22/51",
+              "5": "20/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.6315,
+              "t": -1.63,
+              "p_one_sided": 0.9465
+            },
+            "expected_pairs": 255
+          }
+        },
+        "5": {
+          "arm": {
+            "n": 255,
+            "mean": -0.4469,
+            "median": -1.1031,
+            "sd": 7.3798,
+            "t": -0.97,
+            "pos_pct": 41.6,
+            "worst": -20.077,
+            "best": 34.3184
+          },
+          "control": {
+            "n": 255,
+            "mean": 0.5819,
+            "median": 0.1904,
+            "sd": 5.5009,
+            "t": 1.69,
+            "pos_pct": 51.8,
+            "worst": -18.5585,
+            "best": 20.0738
+          },
+          "arm_halves": {
+            "front": {
+              "n": 127,
+              "mean": 0.7853,
+              "median": 0.1665,
+              "sd": 6.6321,
+              "t": 1.33,
+              "pos_pct": 52.0,
+              "worst": -19.6981,
+              "best": 28.3227
+            },
+            "back": {
+              "n": 128,
+              "mean": -1.6695,
+              "median": -2.4498,
+              "sd": 7.8905,
+              "t": -2.39,
+              "pos_pct": 31.2,
+              "worst": -20.077,
+              "best": 34.3184
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "control_halves": {
+            "front": {
+              "n": 127,
+              "mean": 1.4226,
+              "median": 1.5575,
+              "sd": 5.7158,
+              "t": 2.8,
+              "pos_pct": 60.6,
+              "worst": -18.5585,
+              "best": 20.0738
+            },
+            "back": {
+              "n": 128,
+              "mean": -0.2522,
+              "median": -0.5696,
+              "sd": 5.1672,
+              "t": -0.55,
+              "pos_pct": 43.0,
+              "worst": -13.2058,
+              "best": 17.2796
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "paired": {
+            "median": -1.2676,
+            "sd": 5.8167,
+            "t": -2.82,
+            "pos_pct": 40.0,
+            "worst": -17.1984,
+            "best": 24.8325,
+            "n_dates": 255,
+            "delta_mean": -1.0288,
+            "pos": 102,
+            "neg": 153,
+            "ties": 0,
+            "folds": {
+              "1": "20/51",
+              "2": "25/51",
+              "3": "16/51",
+              "4": "21/51",
+              "5": "20/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.5069,
+              "t": -2.03,
+              "p_one_sided": 0.9748
+            },
+            "expected_pairs": 255
+          }
+        },
+        "10": {
+          "arm": {
+            "n": 255,
+            "mean": -0.3709,
+            "median": -1.1633,
+            "sd": 6.7138,
+            "t": -0.88,
+            "pos_pct": 43.5,
+            "worst": -20.2008,
+            "best": 24.6432
+          },
+          "control": {
+            "n": 255,
+            "mean": 0.3103,
+            "median": -0.0504,
+            "sd": 5.2731,
+            "t": 0.94,
+            "pos_pct": 49.4,
+            "worst": -18.788,
+            "best": 17.9043
+          },
+          "arm_halves": {
+            "front": {
+              "n": 127,
+              "mean": 0.5155,
+              "median": 0.0735,
+              "sd": 5.3293,
+              "t": 1.09,
+              "pos_pct": 52.0,
+              "worst": -15.6906,
+              "best": 17.8297
+            },
+            "back": {
+              "n": 128,
+              "mean": -1.2504,
+              "median": -2.1702,
+              "sd": 7.7721,
+              "t": -1.82,
+              "pos_pct": 35.2,
+              "worst": -20.2008,
+              "best": 24.6432
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "control_halves": {
+            "front": {
+              "n": 127,
+              "mean": 1.2375,
+              "median": 1.7239,
+              "sd": 5.087,
+              "t": 2.74,
+              "pos_pct": 60.6,
+              "worst": -18.788,
+              "best": 14.8774
+            },
+            "back": {
+              "n": 128,
+              "mean": -0.6096,
+              "median": -0.9476,
+              "sd": 5.3128,
+              "t": -1.3,
+              "pos_pct": 38.3,
+              "worst": -14.1198,
+              "best": 17.9043
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "paired": {
+            "median": -1.0459,
+            "sd": 4.621,
+            "t": -2.35,
+            "pos_pct": 39.2,
+            "worst": -14.9724,
+            "best": 16.713,
+            "n_dates": 255,
+            "delta_mean": -0.6812,
+            "pos": 100,
+            "neg": 155,
+            "ties": 0,
+            "folds": {
+              "1": "20/51",
+              "2": "21/51",
+              "3": "18/51",
+              "4": "22/51",
+              "5": "19/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.4364,
+              "t": -1.56,
+              "p_one_sided": 0.9377
+            },
+            "expected_pairs": 255
+          }
+        }
+      },
+      "baseline_pool": {
+        "desc": "세션별 풀 평균(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓 기대값",
+        "stat": {
+          "n": 255,
+          "mean": -0.2975,
+          "median": 0.0017,
+          "sd": 6.2674,
+          "t": -0.76,
+          "pos_pct": 50.2,
+          "worst": -18.7888,
+          "best": 28.3907
+        },
+        "halves": {
+          "front": {
+            "n": 127,
+            "mean": 1.2749,
+            "median": 1.161,
+            "sd": 4.4334,
+            "t": 3.24,
+            "pos_pct": 61.4,
+            "worst": -18.6061,
+            "best": 10.2382
+          },
+          "back": {
+            "n": 128,
+            "mean": -1.8576,
+            "median": -0.7195,
+            "sd": 7.3577,
+            "t": -2.86,
+            "pos_pct": 39.1,
+            "worst": -18.7888,
+            "best": 28.3907
+          },
+          "stable": "unstable",
+          "split_session": "(3, '2026-04-28')"
+        },
+        "paired_by_k": {
+          "3": {
+            "median": -1.3249,
+            "sd": 5.6523,
+            "t": -1.15,
+            "pos_pct": 40.0,
+            "worst": -13.6194,
+            "best": 19.9293,
+            "n_dates": 255,
+            "delta_mean": -0.4083,
+            "pos": 102,
+            "neg": 153,
+            "ties": 0,
+            "folds": {
+              "1": "16/51",
+              "2": "17/51",
+              "3": "28/51",
+              "4": "30/51",
+              "5": "11/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.4352,
+              "t": -0.94,
+              "p_one_sided": 0.8275
+            }
+          },
+          "5": {
+            "median": -0.3842,
+            "sd": 4.7756,
+            "t": -0.5,
+            "pos_pct": 47.5,
+            "worst": -10.6382,
+            "best": 20.9156,
+            "n_dates": 255,
+            "delta_mean": -0.1494,
+            "pos": 121,
+            "neg": 134,
+            "ties": 0,
+            "folds": {
+              "1": "19/51",
+              "2": "25/51",
+              "3": "27/51",
+              "4": "31/51",
+              "5": "19/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.3714,
+              "t": -0.4,
+              "p_one_sided": 0.6587
+            }
+          },
+          "10": {
+            "median": -0.5556,
+            "sd": 3.5649,
+            "t": -0.33,
+            "pos_pct": 43.5,
+            "worst": -8.5166,
+            "best": 9.8722,
+            "n_dates": 255,
+            "delta_mean": -0.0734,
+            "pos": 111,
+            "neg": 144,
+            "ties": 0,
+            "folds": {
+              "1": "17/51",
+              "2": "18/51",
+              "3": "26/51",
+              "4": "35/51",
+              "5": "15/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.3183,
+              "t": -0.23,
+              "p_one_sided": 0.5935
+            }
+          }
+        }
+      }
+    },
+    "unfiltered": {
+      "filtered_out": {
+        "arm": 0,
+        "control": 0
+      },
+      "k": {
+        "3": {
+          "arm": {
+            "n": 255,
+            "mean": -0.3988,
+            "median": -1.4309,
+            "sd": 9.5928,
+            "t": -0.66,
+            "pos_pct": 43.9,
+            "worst": -27.8841,
+            "best": 68.5898
+          },
+          "control": {
+            "n": 255,
+            "mean": 0.4571,
+            "median": 0.3143,
+            "sd": 4.5168,
+            "t": 1.62,
+            "pos_pct": 54.1,
+            "worst": -14.2887,
+            "best": 13.497
+          },
+          "arm_halves": {
+            "front": {
+              "n": 127,
+              "mean": 0.1832,
+              "median": -0.1258,
+              "sd": 6.1359,
+              "t": 0.34,
+              "pos_pct": 48.8,
+              "worst": -12.7854,
+              "best": 22.2187
+            },
+            "back": {
+              "n": 128,
+              "mean": -0.9763,
+              "median": -2.4874,
+              "sd": 12.0837,
+              "t": -0.91,
+              "pos_pct": 39.1,
+              "worst": -27.8841,
+              "best": 68.5898
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "control_halves": {
+            "front": {
+              "n": 127,
+              "mean": 0.7961,
+              "median": 0.5544,
+              "sd": 4.9151,
+              "t": 1.83,
+              "pos_pct": 55.1,
+              "worst": -14.2887,
+              "best": 13.497
+            },
+            "back": {
+              "n": 128,
+              "mean": 0.1208,
+              "median": 0.1935,
+              "sd": 4.0752,
+              "t": 0.34,
+              "pos_pct": 53.1,
+              "worst": -10.0489,
+              "best": 10.7936
+            },
+            "stable": "both_positive",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "paired": {
+            "median": -0.8491,
+            "sd": 9.2793,
+            "t": -1.47,
+            "pos_pct": 43.1,
+            "worst": -27.1282,
+            "best": 68.8303,
+            "n_dates": 255,
+            "delta_mean": -0.8559,
+            "pos": 110,
+            "neg": 145,
+            "ties": 0,
+            "folds": {
+              "1": "18/51",
+              "2": "25/51",
+              "3": "28/51",
+              "4": "24/51",
+              "5": "15/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.7781,
+              "t": -1.1,
+              "p_one_sided": 0.8718
+            },
+            "expected_pairs": 255
+          }
+        },
+        "5": {
+          "arm": {
+            "n": 255,
+            "mean": -0.0532,
+            "median": -0.5015,
+            "sd": 7.3706,
+            "t": -0.12,
+            "pos_pct": 46.3,
+            "worst": -21.9215,
+            "best": 39.1208
+          },
+          "control": {
+            "n": 255,
+            "mean": 0.451,
+            "median": 0.1162,
+            "sd": 4.1937,
+            "t": 1.72,
+            "pos_pct": 51.0,
+            "worst": -12.0936,
+            "best": 13.1751
+          },
+          "arm_halves": {
+            "front": {
+              "n": 127,
+              "mean": 0.5294,
+              "median": 0.2182,
+              "sd": 5.5853,
+              "t": 1.07,
+              "pos_pct": 52.0,
+              "worst": -16.6058,
+              "best": 23.3934
+            },
+            "back": {
+              "n": 128,
+              "mean": -0.6313,
+              "median": -0.9518,
+              "sd": 8.7764,
+              "t": -0.81,
+              "pos_pct": 40.6,
+              "worst": -21.9215,
+              "best": 39.1208
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "control_halves": {
+            "front": {
+              "n": 127,
+              "mean": 0.8757,
+              "median": 0.7036,
+              "sd": 4.4621,
+              "t": 2.21,
+              "pos_pct": 60.6,
+              "worst": -12.0936,
+              "best": 10.6479
+            },
+            "back": {
+              "n": 128,
+              "mean": 0.0296,
+              "median": -0.4401,
+              "sd": 3.8809,
+              "t": 0.09,
+              "pos_pct": 41.4,
+              "worst": -8.8828,
+              "best": 13.1751
+            },
+            "stable": "both_positive",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "paired": {
+            "median": -0.5154,
+            "sd": 6.6845,
+            "t": -1.2,
+            "pos_pct": 45.1,
+            "worst": -17.3603,
+            "best": 39.2025,
+            "n_dates": 255,
+            "delta_mean": -0.5042,
+            "pos": 115,
+            "neg": 140,
+            "ties": 0,
+            "folds": {
+              "1": "20/51",
+              "2": "25/51",
+              "3": "24/51",
+              "4": "26/51",
+              "5": "20/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.5898,
+              "t": -0.85,
+              "p_one_sided": 0.8155
+            },
+            "expected_pairs": 255
+          }
+        },
+        "10": {
+          "arm": {
+            "n": 255,
+            "mean": 0.0987,
+            "median": -0.1759,
+            "sd": 5.9062,
+            "t": 0.27,
+            "pos_pct": 49.0,
+            "worst": -16.7457,
+            "best": 25.0701
+          },
+          "control": {
+            "n": 255,
+            "mean": 0.4801,
+            "median": 0.2149,
+            "sd": 3.7178,
+            "t": 2.06,
+            "pos_pct": 51.8,
+            "worst": -10.7846,
+            "best": 11.7005
+          },
+          "arm_halves": {
+            "front": {
+              "n": 127,
+              "mean": 0.5211,
+              "median": 0.5151,
+              "sd": 4.6361,
+              "t": 1.27,
+              "pos_pct": 55.1,
+              "worst": -16.7457,
+              "best": 13.4311
+            },
+            "back": {
+              "n": 128,
+              "mean": -0.3203,
+              "median": -1.2615,
+              "sd": 6.9345,
+              "t": -0.52,
+              "pos_pct": 43.0,
+              "worst": -16.7192,
+              "best": 25.0701
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "control_halves": {
+            "front": {
+              "n": 127,
+              "mean": 1.0007,
+              "median": 1.0693,
+              "sd": 3.8816,
+              "t": 2.91,
+              "pos_pct": 60.6,
+              "worst": -10.7846,
+              "best": 8.9736
+            },
+            "back": {
+              "n": 128,
+              "mean": -0.0363,
+              "median": -0.7113,
+              "sd": 3.4866,
+              "t": -0.12,
+              "pos_pct": 43.0,
+              "worst": -7.9575,
+              "best": 11.7005
+            },
+            "stable": "unstable",
+            "split_session": "(3, '2026-04-28')"
+          },
+          "paired": {
+            "median": -0.7531,
+            "sd": 4.937,
+            "t": -1.23,
+            "pos_pct": 42.4,
+            "worst": -13.7171,
+            "best": 20.5047,
+            "n_dates": 255,
+            "delta_mean": -0.3814,
+            "pos": 108,
+            "neg": 147,
+            "ties": 0,
+            "folds": {
+              "1": "19/51",
+              "2": "24/51",
+              "3": "18/51",
+              "4": "26/51",
+              "5": "21/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.4825,
+              "t": -0.79,
+              "p_one_sided": 0.7907
+            },
+            "expected_pairs": 255
+          }
+        }
+      },
+      "baseline_pool": {
+        "desc": "세션별 풀 평균(필터 통과 종목 동일비중) − 수수료 = 무작위 k 바스켓 기대값",
+        "stat": {
+          "n": 255,
+          "mean": -0.0927,
+          "median": 0.3041,
+          "sd": 4.6447,
+          "t": -0.32,
+          "pos_pct": 52.5,
+          "worst": -16.999,
+          "best": 19.591
+        },
+        "halves": {
+          "front": {
+            "n": 127,
+            "mean": 1.0205,
+            "median": 1.1925,
+            "sd": 3.5783,
+            "t": 3.21,
+            "pos_pct": 63.8,
+            "worst": -16.999,
+            "best": 8.998
+          },
+          "back": {
+            "n": 128,
+            "mean": -1.1972,
+            "median": -0.7261,
+            "sd": 5.2891,
+            "t": -2.56,
+            "pos_pct": 41.4,
+            "worst": -12.7179,
+            "best": 19.591
+          },
+          "stable": "unstable",
+          "split_session": "(3, '2026-04-28')"
+        },
+        "paired_by_k": {
+          "3": {
+            "median": -1.6609,
+            "sd": 8.4217,
+            "t": -0.58,
+            "pos_pct": 39.2,
+            "worst": -17.3294,
+            "best": 73.0249,
+            "n_dates": 255,
+            "delta_mean": -0.3062,
+            "pos": 100,
+            "neg": 155,
+            "ties": 0,
+            "folds": {
+              "1": "16/51",
+              "2": "19/51",
+              "3": "21/51",
+              "4": "27/51",
+              "5": "17/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.6596,
+              "t": -0.46,
+              "p_one_sided": 0.7083
+            }
+          },
+          "5": {
+            "median": -0.8867,
+            "sd": 5.7994,
+            "t": 0.11,
+            "pos_pct": 43.9,
+            "worst": -11.048,
+            "best": 43.5559,
+            "n_dates": 255,
+            "delta_mean": 0.0395,
+            "pos": 112,
+            "neg": 143,
+            "ties": 0,
+            "folds": {
+              "1": "16/51",
+              "2": "21/51",
+              "3": "29/51",
+              "4": "26/51",
+              "5": "20/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.4481,
+              "t": 0.09,
+              "p_one_sided": 0.4858
+            }
+          },
+          "10": {
+            "median": -0.3582,
+            "sd": 3.7506,
+            "t": 0.81,
+            "pos_pct": 46.3,
+            "worst": -8.0719,
+            "best": 21.7772,
+            "n_dates": 255,
+            "delta_mean": 0.1914,
+            "pos": 118,
+            "neg": 137,
+            "ties": 0,
+            "folds": {
+              "1": "17/51",
+              "2": "19/51",
+              "3": "29/51",
+              "4": "32/51",
+              "5": "21/51"
+            },
+            "overlap_boot": {
+              "block": 5,
+              "n_boot": 4000,
+              "se": 0.3183,
+              "t": 0.6,
+              "p_one_sided": 0.2903
+            }
+          }
+        }
+      }
+    }
+  },
+  "pool_median_fillable": 53,
+  "n_sessions_fillable": 255
+}

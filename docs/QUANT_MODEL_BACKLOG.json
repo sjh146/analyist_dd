@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T02:41:58+09:00",
+ "updated_at": "2026-11-25T03:12:20+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -26281,7 +26281,7 @@
   },
   {
    "id": "CG474",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 1,
    "kind": "measurement_integrity",
    "owner": "engineer",
@@ -26289,13 +26289,97 @@
    "metric": "money_pair",
    "title": "[돈 지표·정합성] 배포 챔피언 vs 단순 core48 arm — 같은 세션·같은 청산·같은 체결필터로 순기대를 나란히 잰다",
    "hypothesis": "배포 챔피언의 돈 지표는 순기대 -0.3431%p/세션(t -1.72·113세션·1771거래)인데, CG473 덤프의 **단순 core48 GBDT arm**(CO_smooth_d1_h5)은 같은 패널·같은 라벨에서 k5 순기대 +0.582%p/세션(풀 -0.297 → Δ+0.879, 블록 t 2.73)이다. 두 수치는 프로토콜(창·청산·필터)이 달라 직접 비교가 무효다 → 같은 255세션·같은 익일시가 진입·같은 h5 청산·같은 체결필터로 나란히 재면 '173피처 챔피언이 48피처 단순 arm 보다 돈을 덜 버는가'가 처음으로 판정 가능해진다.",
-   "command": null,
+   "command": "cd /home/jhshi/analyist_dd && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 python -u scripts/cg474_champ_dump.py' && docker exec stock_xgboost_ml sh -c 'cd /app && python3 scripts/fillable_topk_expectancy.py --arm-jsonl reports/overnight/cg474_champ_preds.jsonl --arm-tag champ --control-jsonl reports/overnight/cg473_preds.jsonl --control-tag CO_smooth_d1_h5 --k 3,5,10 --stride 1 --overlap-block 5 --entry next_open --exit close_h --horizon 5 --json-out reports/overnight/cg474_money.json'",
    "counterfactual": "CO_smooth_d1_h5 (cg473_preds.jsonl · 같은 세션·같은 필터·같은 청산)",
    "success": "사전 등록(변경 금지): ① 챔피언 순기대 − core48 순기대 ≤ −0.5%p/세션 AND 블록(5) t ≤ −2 → '챔피언이 단순 arm 보다 나쁘다'로 기록하고 기준선 재검토를 리뷰보드에 올린다 ② |Δ| < 0.5 또는 |t| < 2 → 차이 없음(현행 유지) ③ 챔피언 우위면 크기를 기록하고 축을 닫는다. 승격·교체는 이 루프에서 하지 않는다.",
    "setup_needed": "아직 없다: 챔피언 예측을 **같은 패널·같은 OOS 날짜(2025-10-22~2026-11-05)** 로 덤프한 jsonl 이 필요하다(cg112_champ_all.jsonl 은 다른 창·다른 패널이라 짝 비교 불가). 구현 경로: champion_robust_eval 또는 app/inference 경로로 panel_prod200_v6o 의 OOS 255날짜를 예측해 {exp:'champ',fold,date,code,y_true,y_pred,fwd_ret} 를 쓰고, fillable_topk_expectancy --arm-tag champ --control-tag CO_smooth_d1_h5 --stride 1 --overlap-block 5 --entry next_open 로 채점한다.",
    "est_minutes": 45,
    "created_at": "2026-11-25T02:41:58+09:00",
-   "note": "2026-11-25 03:0x 엔지니어 자율(CG473 후속·데이터 축 대기 중). 모델계열·조정·ex-ante 게이트 축이 모두 닫혀 남은 판단거리는 '돈' 인데, 지금 비교되는 두 숫자(챔피언 -0.3431 vs core48 +0.582)가 서로 다른 프로토콜이라 아무 결론도 못 낸다. ⚠ command 는 덤프 경로가 확정되면 채운다(그 전 pending 승격 금지)."
+   "note": "2026-11-25 03:0x 엔지니어 자율(CG473 후속·데이터 축 대기 중). 모델계열·조정·ex-ante 게이트 축이 모두 닫혀 남은 판단거리는 '돈' 인데, 지금 비교되는 두 숫자(챔피언 -0.3431 vs core48 +0.582)가 서로 다른 프로토콜이라 아무 결론도 못 낸다. ⚠ command 는 덤프 경로가 확정되면 채운다(그 전 pending 승격 금지). | 2026-11-25 03:1x 자율 완료: 챔피언 고정모델 덤프(scripts/cg474_champ_dump.py, 173피처 전량 패널 보유·3모델 균등평균=배포 동작) + 같은 프로토콜 채점. 사전등록 ①(Δ≤−0.5 AND block t≤−2) 충족 → 기준선 재검토를 CG475(승인)로 올린다. 승격·교체는 하지 않았다.",
+   "result": {
+    "verdict": "신호(사전기준 ① 충족) — 챔피언이 단순 core48 arm 보다 나쁘다",
+    "detail": "같은 패널(panel_prod200_v6o)·같은 폴드 테스트행(30,053행·255세션)·같은 익일시가 진입·같은 h5 청산·같은 체결필터(당일등락<25%·거래대금≥10억·상한가 제외)·수수료 왕복 0.21%p. fillable k5: 챔피언 −0.4469 vs core48(CO_smooth_d1_h5) +0.5819 → 짝Δ −1.0288%p/세션 (iid t −2.82 · overlap block5 t −2.03 · 폴드승 0/5[20·25·16·21·20 of 51]) · k3 Δ −1.0266(t −2.23) · k10 Δ −0.6812(t −2.35). 챔피언 top-k vs 같은 세션 풀평균: k5 Δ −0.149(t −0.50)·k10 Δ −0.073(t −0.33) → 챔피언은 무작위 바스켓도 못 이긴다. 앞/뒤 절반(챔피언) +0.785/−1.670 unstable(대조 +1.423/−0.252). OOS-only(2026-10-03~11-05·22세션, 챔피언 학습컷 이후만): k5 Δ −2.819(t −3.19)·k3 Δ −3.647(t −2.91)·k10 Δ −2.705(t −2.58), 챔피언 양세션 13.6%. 폴드 AUC(참고): 챔피언 0.5207±0.0308[0.4853·0.5032·0.5343·0.5737·0.5069] vs CG473 대조 CO_smooth_d1_h5 0.5487±0.0115.",
+    "caveat": "챔피언 덤프는 walk-forward 재학습이 아니라 **고정 배포 모델(2026-10-02 학습)의 역사 재생**이다 → fold1~4 테스트 날짜가 학습창 안(사실상 in-sample)이라 챔피언에 유리하게 편향된다. 그런데도 열등하므로 결론은 보수적이다. 판정의 청정 근거는 OOS-only 22세션(같은 방향·더 큰 Δ).",
+    "money": {
+     "entry": "next_open",
+     "exit": "close_h",
+     "horizon": 5,
+     "fee_roundtrip_pct": 0.21,
+     "sessions": 255,
+     "pool_mean": -0.2975,
+     "k5": {
+      "arm": -0.4469,
+      "control": 0.5819,
+      "delta": -1.0288,
+      "t_paired": -2.82,
+      "t_block5": -2.03,
+      "fold_win_rate": 0.0,
+      "arm_pos_sessions_pct": 41.6
+     },
+     "k3": {
+      "delta": -1.0266,
+      "t_paired": -2.23
+     },
+     "k10": {
+      "delta": -0.6812,
+      "t_paired": -2.35
+     },
+     "arm_minus_pool": {
+      "k5": [
+       -0.1494,
+       -0.5
+      ],
+      "k10": [
+       -0.0734,
+       -0.33
+      ]
+     },
+     "oos_only_22_sessions": {
+      "k5": [
+       -2.819,
+       -3.19
+      ],
+      "k3": [
+       -3.647,
+       -2.91
+      ],
+      "k10": [
+       -2.705,
+       -2.58
+      ]
+     }
+    },
+    "artifacts": [
+     "reports/overnight/cg474_champ_preds.jsonl(컨테이너, 30,053행)",
+     "reports/overnight/cg474_champ_dump_summary.json",
+     "reports/overnight/cg474_money.json",
+     "reports/overnight/cg474_money_oos.json",
+     "data/reports/overnight/cg474_money.json(호스트 사본)",
+     "scripts/cg474_champ_dump.py(재현: 덤프 1분)"
+    ],
+    "rc": 0
+   },
+   "finished_at": "2026-11-25T03:12:20+09:00",
+   "updated_at": "2026-11-25T03:12:20+09:00"
+  },
+  {
+   "id": "CG475",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "promotion_review",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "money_pair",
+   "title": "[돈·승인] 배포 챔피언 기준선 재검토 — 같은 프로토콜에서 단순 core48 arm 이 챔피언보다 +1.03%p/세션 우수",
+   "hypothesis": "지금 배포된 챔피언(2026-10-02 champ-0.5513)은 173피처·단일분할 승격 산물인데, CG474 에서 같은 세션·같은 청산·같은 체결필터로 재니 최근 5폴드 학습의 단순 core48 arm(CO_smooth_d1_h5, 48피처·depth1)보다 1.03%p/세션 열등했다(그리고 무작위 풀평균도 못 이겼다). 즉 '더 많은 피처'가 돈을 만든다는 가정 자체가 반증됐을 수 있다.",
+   "evidence": "CG474 실측(2026-11-25 03:1x): 255세션·30,053행·fillable k5 챔피언 −0.4469 vs core48 +0.5819, 짝Δ −1.0288(t −2.82, block5 t −2.03, 폴드승 0/5) · OOS-only 22세션 Δ −2.819(t −3.19). 폴드 AUC 챔피언 0.5207±0.0308 vs core48 0.5487±0.0115. 전방 성적표 교차: 실계좌 경로도 순기대 −0.3431%p(t −1.72·113세션/1771거래)·앞 −0.3129/뒤 −0.3727(neither).",
+   "setup_needed": "리뷰보드 승인 + 사람 필수(챔피언 최종 교체는 실매매 반영 항목). 승인 시 내가 실행할 절차: ① CO_smooth_d1_h5 recipe 로 최신 패널(panel_prod200_v6o, end-date 고정) 재학습 → ② `python3 scripts/champion_promote.py --candidate <dir> --dry-run --require-expectancy` 로 게이트 통과 확인 ③ 통과 시에만 사람이 champion/ 교체 승인(교체·롤백은 log_champion_swap.py 로 원장 기록) ④ 교체 후 3거래일 전방 성적표로 실측 확인. 승인이 없으면 배포는 현행 유지(내가 임의 교체하지 않는다).",
+   "counterfactual": "현행 배포 챔피언(champ-20261002T024420-0.5513) 무교체 유지",
+   "success": "사전 등록: ① 승인 후보가 dry-run 게이트(순기대>0·표본 최소·분할 both_positive·챔피언 대비 +0.1%p)를 통과하면 교체 승인 요청 ② 미통과면 'core48 도 돈 엣지 없음'으로 축 종결하고 새 원천(데이터 축)으로 이동. 이 루프에서는 승격하지 않는다.",
+   "expected": "게이트는 순기대 기준이라 core48(+0.582%p/세션·255세션)도 통과할 가능성이 있다 — 다만 그 수치는 stride 중첩·표본 22~255세션 구간에 따라 t 가 1~3 사이로 흔들린다. 거절되면 그것도 기록한다.",
+   "est_minutes": 90,
+   "created_at": "2026-11-25T03:12:20+09:00",
+   "note": "2026-11-25 03:1x 엔지니어 자율(CG474 판정 후속). 승격이 아니라 **기준선 재검토 요청**이다 — 스킬 규칙: AUC·조정 축이 닫혔고 남은 판단거리는 돈이며, 챔피언 교체는 사람 필수."
   }
  ],
  "updated": "2026-11-24T20:20:00+09:00"

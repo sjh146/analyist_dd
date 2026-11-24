@@ -1,0 +1,62 @@
+{
+  "tag": "champ",
+  "panel": "/app/app/models/wf/panel_prod200_v6o.npz",
+  "panel_rows": 61640,
+  "panel_dates": [
+    "2025-08-04",
+    "2026-11-17"
+  ],
+  "panel_codes": 200,
+  "horizon": 5,
+  "q": 0.3,
+  "folds": {
+    "fold1": {
+      "cut": "2025-10-21",
+      "test_to": "2026-01-05",
+      "test_rows": 6018,
+      "auc": 0.48531860936521337,
+      "pred_mean": 0.4315933749776172
+    },
+    "fold2": {
+      "cut": "2026-01-05",
+      "test_to": "2026-03-23",
+      "test_rows": 6022,
+      "auc": 0.5032362793304876,
+      "pred_mean": 0.4287138009787364
+    },
+    "fold3": {
+      "cut": "2026-03-23",
+      "test_to": "2026-06-08",
+      "test_rows": 5900,
+      "auc": 0.5343300201091641,
+      "pred_mean": 0.43457176002703723
+    },
+    "fold4": {
+      "cut": "2026-06-08",
+      "test_to": "2026-08-20",
+      "test_rows": 6040,
+      "auc": 0.5736566378667602,
+      "pred_mean": 0.46517321044638404
+    },
+    "fold5": {
+      "cut": "2026-08-20",
+      "test_to": "2026-11-05",
+      "test_rows": 6073,
+      "auc": 0.5068920511755977,
+      "pred_mean": 0.44189213682832934
+    }
+  },
+  "label": "smooth(q=0.30,h=5)",
+  "n_dump_rows": 30053,
+  "fold_auc_mean": 0.5206867195694447,
+  "fold_auc_std": 0.03078202674967864,
+  "feat_total": 173,
+  "feat_present": 173,
+  "feat_missing": [],
+  "model_names": [
+    "xgboost",
+    "lightgbm",
+    "catboost"
+  ],
+  "out": "/app/reports/overnight/cg474_champ_preds.jsonl"
+}
