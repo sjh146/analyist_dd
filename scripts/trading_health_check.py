@@ -93,6 +93,45 @@ def last_cycle() -> dict:
     return {"lines": lines[-8:], "reason_counts": sorted(reasons.items(), key=lambda kv: -kv[1])[:6]}
 
 
+def last_trading_day(today: datetime.date | None = None) -> str:
+    day = today or datetime.date.today()
+    holidays = set()
+    path = os.path.join(REPO, "data/krx_holidays.json")
+    if os.path.exists(path):
+        try:
+            holidays = set(json.load(open(path, encoding="utf-8")))
+        except Exception:
+            holidays = set()
+    while day.weekday() >= 5 or day.isoformat() in holidays:
+        day -= datetime.timedelta(days=1)
+    return day.isoformat()
+
+
+def expected_data_day(now: datetime.datetime | None = None) -> str:
+    now = now or datetime.datetime.now()
+    today = now.date()
+    if today.weekday() < 5 and now.hour < 19:
+        return last_trading_day(today - datetime.timedelta(days=1))
+    return last_trading_day(today)
+
+
+def supervisor_state() -> dict:
+    path = os.path.join(REPO, "reports/supervisor_latest.json")
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:100]}
+    age_min = None
+    try:
+        at = datetime.datetime.fromisoformat(data.get("at"))
+        age_min = round((datetime.datetime.now(at.tzinfo) - at).total_seconds() / 60, 1)
+    except Exception as exc:
+        data["_age_error"] = str(exc)[:80]
+        age_min = None
+    return {"ok": data.get("verdict") == "OK", "verdict": data.get("verdict"),
+            "age_min": age_min, "critical": data.get("critical")}
+
+
 def db_freshness() -> dict:
     try:
         env = {}
@@ -102,7 +141,7 @@ def db_freshness() -> dict:
                 env[key.strip()] = val.strip()
         sql = (
             "select 'stock_prices', max(trade_date)::text from stock_prices "
-            "union all select 'minute_bars', max(trade_date)::text from minute_bars "
+            "union all select 'minute_close_bars', max(trade_date)::text from minute_close_bars "
             "union all select 'event_features', max(trade_date)::text from event_features "
             "union all select 'disclosures', max(rcept_dt)::text from disclosures;"
         )
@@ -124,7 +163,13 @@ def main() -> int:
         "last_cycle": last_cycle(),
         "health": {name: http_ok(url) for name, url in GATES},
         "data": db_freshness(),
+        "supervisor": supervisor_state(),
     }
+    expect = expected_data_day()
+    stale = {name: value for name, value in report["data"].items()
+             if isinstance(value, str) and value < expect}
+    report["data_expected"] = expect
+    report["data_stale"] = stale
     entries = report["loop"].get("entries")
     total = report["feed"].get("total") or 0
     blocked = bool(total) and entries == 0
@@ -132,6 +177,10 @@ def main() -> int:
     bad = [name for name, res in report["health"].items() if not res.get("ok")]
     if bad:
         report["verdict"] += "|HEALTH_FAIL:" + ",".join(bad)
+    if report["data_stale"]:
+        report["verdict"] += "|DATA_STALE:" + ",".join(sorted(report["data_stale"]))
+    if not report["supervisor"].get("ok"):
+        report["verdict"] += "|SUPERVISOR_FAIL"
     os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
     json.dump(report, open(OUT_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
     summary = (
