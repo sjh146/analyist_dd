@@ -24,3 +24,11 @@ def test_group_failures_are_counted() -> None:
     src = PIPE.read_text(encoding="utf-8")
     for group in ("group:sns_features", "group:advanced_features", "group:market_data"):
         assert group in src, group
+
+
+def test_sentiment_uses_sns_source() -> None:
+    src = PIPE.read_text(encoding="utf-8")
+    body = src.split("def _get_stock_sentiment")[1].split("def _get_economic_events")[0]
+    assert "sns_post_features" in body
+    assert "stock_sentiment" in body
+    assert body.index("sns_post_features") < body.index("stock_sentiment")

@@ -1123,13 +1123,40 @@ class FeaturePipeline:
         return features
 
     def _get_stock_sentiment(self, stock_code: str, date: str) -> Dict:
-        """Query stock_sentiment table for real sentiment data."""
+        """SNS 원천(sns_post_features) 우선, 없으면 stock_sentiment 로 폴백.
+
+        WHY(2026-11-24): stock_sentiment 는 8일치(252종목)뿐이라 과거 패널의 감성
+        피처가 전부 0 이었다. sns_post_features 는 495종목·244일치가 있어 그쪽을
+        원천으로 쓴다. 둘 다 없으면 0.0 이 아니라 결측으로 집계된다(_note_miss).
+        """
         result = {
             "sentiment_avg_db": 0.0,
             "sentiment_momentum": 0.0,
         }
         if self.pg_conn is None:
             return result
+        try:
+            cur = self.pg_conn.cursor()
+            cur.execute("""
+                SELECT
+                    avg(sentiment_score) FILTER (WHERE trade_date = %s::date) AS today_score,
+                    avg(sentiment_score) FILTER (WHERE trade_date < %s::date) AS prev_score,
+                    sum(post_count) FILTER (WHERE trade_date = %s::date) AS posts
+                FROM sns_post_features
+                WHERE stock_code = %s
+                  AND trade_date <= %s::date
+                  AND trade_date > (%s::date - INTERVAL '10 days')
+            """, (date, date, date, stock_code, date, date))
+            row = cur.fetchone()
+            cur.close()
+            if row and row[0] is not None:
+                result["sentiment_avg_db"] = float(row[0])
+                if row[1] is not None:
+                    result["sentiment_momentum"] = float(row[0]) - float(row[1])
+                return result
+        except Exception as exc:
+            _note_miss("group:sentiment_sns", exc)
+            self.pg_conn.rollback()
         try:
             cur = self.pg_conn.cursor()
             cur.execute("""
