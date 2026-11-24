@@ -1,5 +1,6 @@
 {
   "base_url": "https://CHANGE-ME.trycloudflare.com",
+  "ack_url": "",
   "customer_id": "pilot1",
   "token": "PUT-TOKEN-HERE",
   "channel": "stable",

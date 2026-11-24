@@ -4,6 +4,8 @@
 - 최초 1회 clone(--depth 1), 이후 fetch+reset(전체 이력 없이 최신만)
 - deploy/latest.json 무결성(meta.sha256)과 날짜(오늘, KST)를 검사
 - 검사 실패 시 피드 파일을 건드리지 않고 종료코드 1 (거래 금지)
+- 성공 시 config.ack_url 로 수신 확인(ack) POST, 실패해도 동기화는 성공(경고만)
+- 마지막 동기화 결과를 feed_out 옆 sync_status.json 에 기록
 
 사용:
   python3 sync_feed.py --config C:\\TraderAgent\\config.json
@@ -16,10 +18,13 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
 
 PRESERVE = {"config_live.json", "config.json", "version.json", "kill_switch.txt",
@@ -120,6 +125,42 @@ def verify_and_install(cfg: dict, allow_stale: bool) -> dict:
     return {"ok": True, "out": out_path, **state}
 
 
+def send_ack(cfg: dict, state: dict, commit: str, timeout: float = 20.0) -> dict:
+    """config.ack_url 로 수신 확인 POST (relay POST /v1/ack 규격: Bearer token + JSON 본문)."""
+    url = str(cfg.get("ack_url") or "")
+    if not url:
+        return {"sent": False, "reason": "ack_url 미설정"}
+    body = {
+        "customer_id": str(cfg.get("customer_id") or ""),
+        "feed_generated_at": str(state.get("generated_at") or ""),
+        "version": str(cfg.get("version") or ""),
+        "commit": commit,
+        "synced_at": now_kst().isoformat(timespec="seconds"),
+        "hostname": socket.gethostname(),
+    }
+    token = str(cfg.get("token") or "")
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    req = urllib.request.Request(url, data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+                                 method="POST", headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        reply = json.loads(resp.read().decode("utf-8"))
+    return {"sent": True, "status": resp.status, "reply": reply}
+
+
+def write_sync_status(feed_out: str, payload: dict) -> str:
+    path = os.path.join(os.path.dirname(os.path.abspath(feed_out)), "sync_status.json")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+    return path
+
+
 def read_text(path: str) -> str:
     try:
         with open(path, encoding="utf-8") as fh:
@@ -193,12 +234,24 @@ def main(argv=None) -> int:
     try:
         info = {"skipped_git": True} if args.skip_git else sync_repo(cfg)
         out = verify_and_install(cfg, args.allow_stale)
+        commit = str(info.get("head") or out.get("head") or "")
+        try:
+            ack = send_ack(cfg, out, commit)
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            print("ack 실패(무시): {0}".format(exc), file=sys.stderr)
+            ack = {"sent": False, "error": str(exc)}
+        out["ack"] = ack
         if not args.no_code and cfg.get("install_code", True) and cfg.get("app_dir"):
             out.update(install_code(cfg))
+        out.update(info)
+        write_sync_status(cfg["feed_out"], {
+            "ok": True, "error": None, "generated_at": out.get("generated_at"),
+            "synced_at": now_kst().isoformat(timespec="seconds"), "commit": commit, "ack": ack})
     except SystemExit as exc:
+        write_sync_status(cfg["feed_out"], {"ok": False, "error": str(exc),
+                                            "synced_at": now_kst().isoformat(timespec="seconds")})
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 1
-    out.update(info)
     print(json.dumps(out, ensure_ascii=False))
     return 0
 

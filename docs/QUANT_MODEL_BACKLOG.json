@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T20:07:32+09:00",
+  "updated_at": "2026-11-24T22:18:15+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25810,20 +25810,51 @@
       "affects_model": false,
       "metric": "minute_cover",
       "hypothesis": "CG450(인트라데이 데이터 축)의 유일한 선행은 패널 200종목의 '완전일 20거래일'인데, Naver minute_close_bars 는 롤링 창만 제공한다. 실측(2026-11-24 20:1x): 패널 커버 11-13~11-23 = 0.86~0.99(7 완전일) vs 11-10/11/12 = 0.115/0.115/0.135 — 후자는 백필을 돌려도 '전 전 창 빈 응답(0행)'이었다. 즉 매일 채우지 않으면 그날이 영구 소실되고 20일 조건은 영원히 도달하지 못한다.",
-      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && D=$(date +%F) && python3 scripts/minute_cover_codes.py --date $D --include-panel --out reports/minute_codes_$D.txt && timeout 1200 env POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=${POSTGRES_HOST_PORT:-5434} python3 scripts/naver_minute_backfill.py --from $(date -d '3 days ago' +%F) --to $(date -d '1 day' +%F) --codes-file reports/minute_codes_$D.txt --sleep 0.7",
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && D=$(date +%F) && python3 scripts/minute_cover_codes.py --date $D --include-panel --out reports/minute_codes_$D.txt && timeout 1200 env POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=${POSTGRES_HOST_PORT:-5434} python3 scripts/naver_minute_backfill.py --from $(date -d '3 days ago' +%F) --to $(date -d '1 day' +%F) --codes-file reports/minute_codes_$D.txt --sleep 0.7 && python3 scripts/data_axis_readiness.py --json /home/jhshi/analyist_dd/data/reports/minute_cover_latest.json",
       "counterfactual": "현 상태(전날 18:55 일봉 크론 + 23:00 KIS 분봉 크론 = 패널 50종목·30봉) — 패널 200종목 완전일이 늘지 않아 CG450 이 12월에도 착수 불가",
       "success": "① 실행 후 최근 거래일의 패널 커버 ≥0.75(현 7 완전일 → +1) ② 완전일 20 도달 시 CG450 을 pending 으로 승격하고 이 항목은 done ③ 하루라도 0.75 미달이면 그날 소실로 기록(백필로 복구 불가 실측)",
-      "evidence": "2026-11-24 20:0x~20:1x 엔지니어 자율 실측: 11-23 백필 → 패널 커버 29→197(0.985)·44,117봉(1회 4분). 11-10~11-13 백필 → '전 창 빈 응답(0행)' 176/248 종목, 커버 변화 0.115→0.115. 즉 롤링 소실 확인. 일봉 수집 경로는 T-1 만 적재(KRX 18:55 크론·XR48 실측 08:22 발행)라 당일 분봉은 익일 백필이 마지막 기회다. | 2026-11-24 21:2x 재실행(호스트 DSN 수리 후): 11-23 패널 커버 245/248=0.988 · 신규 0행(이미 완전) · 11-24 는 market_data 최신일이 11-23 이라 trading_days() 에 없어 당일 백필 불가 → 익일(일봉 T-1 적재 후) 백필 대상. command 에 테이블 네트워크 호스트명 대신 POSTGRES_HOST=127.0.0.1:${POSTGRES_HOST_PORT} 를 넣어야 호스트에서 재현된다.",
+      "evidence": "2026-11-24 20:0x~20:1x 엔지니어 자율 실측: 11-23 백필 → 패널 커버 29→197(0.985)·44,117봉(1회 4분). 11-10~11-13 백필 → '전 창 빈 응답(0행)' 176/248 종목, 커버 변화 0.115→0.115. 즉 롤링 소실 확인. 일봉 수집 경로는 T-1 만 적재(KRX 18:55 크론·XR48 실측 08:22 발행)라 당일 분봉은 익일 백필이 마지막 기회다. | 2026-11-24 21:2x 재실행(호스트 DSN 수리 후): 11-23 패널 커버 245/248=0.988 · 신규 0행(이미 완전) · 11-24 는 market_data 최신일이 11-23 이라 trading_days() 에 없어 당일 백필 불가 → 익일(일봉 T-1 적재 후) 백필 대상. command 에 테이블 네트워크 호스트명 대신 POSTGRES_HOST=127.0.0.1:${POSTGRES_HOST_PORT} 를 넣어야 호스트에서 재현된다. | 2026-11-24 22:08~22:12 자율 실행(1회차·rc=0·4.8분): codes=248 · days=1(11-23) · rows_written=0 · codes_empty=3 → 11-23 은 이미 완전(전일 20:1x 백필분). 11-24 당일은 market_data 최신일이 11-23 이라 백필 대상이 아니다(익일 18:55 일봉 적재 후). 커버리지 실측(22:14 data_axis_readiness.py): minute_close_bars 이력 10일(11-10~11-23) · 커버 0.99 · 봉/일 331 · 완전일 20 도달 추정 2026-12-07. KIS minute_bars 트랙은 여전히 커버 0.135(19일·30봉) — 이 항목의 대상이 아니다.",
       "expected": "매일 1회 4~6분, 완전일 +1. 13거래일 후(≈2026-12-11) 20 완전일 도달 → CG450 착수.",
       "cost": "4~6분/일 · Naver 호출 248회/일(net_guard 간격 0.7s 준수)",
       "est_minutes": 8,
       "created_at": "2026-11-24T20:20:00+09:00",
-      "note": "2026-11-24 20:1x 엔지니어 자율(장외 틱·실행가능 pending 0건·규칙 4). 이 항목은 CG451(크론 수정 승인)의 수동 대체물이다 — 크론이 승인되면 이 항목은 done 으로 닫고 크론이 대신한다. ⚠ 접속 정보는 repo .env 참조(자격증명 하드코딩 금지). ⚠ 이 백필은 추가형 쓰기(ON CONFLICT upsert)이며 모델·피처를 건드리지 않는다."
+      "note": "2026-11-24 20:1x 엔지니어 자율(장외 틱·실행가능 pending 0건·규칙 4). 이 항목은 CG451(크론 수정 승인)의 수동 대체물이다 — 크론이 승인되면 이 항목은 done 으로 닫고 크론이 대신한다. ⚠ 접속 정보는 repo .env 참조(자격증명 하드코딩 금지). ⚠ 이 백필은 추가형 쓰기(ON CONFLICT upsert)이며 모델·피처를 건드리지 않는다. | 2026-11-24 22:1x 구동기 배선: metric 'minute_cover' 가 파서 없는 metric 이라 1회차가 `판정불가(parser 없음)`으로 원장에 남았다 → summary_path/parse_minute_cover/judge_minute_cover 배선(커버 ≥0.75 · 완전일 ≥20). command 끝에 `data_axis_readiness.py --json data/reports/minute_cover_latest.json` 를 붙여 매 실행이 요약을 새로 쓴다. | 22:2x repeat=daily 배선: 1회 실행 후 구동기가 done 으로 닫아 다음 날 수집이 사라지는 구멍을 막았다(재무장 = 다음 날 19:30, 일봉 18:55 적재 뒤). 완전일 10/20 · 20일 도달 추정 2026-12-07.",
+      "attempts": [
+        {
+          "ts": "2026-11-24T22:12:48+09:00",
+          "rc": 0,
+          "verdict": "판정불가",
+          "detail": "parser 없음 (metric='minute_cover')",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG466_20261124-220759.log",
+          "elapsed_min": 4.8
+        },
+        {
+          "at": "2026-11-24T22:15:20+09:00",
+          "recovered": true
+        }
+      ],
+      "result": {
+        "verdict": "진행 — 완전일 +1 적재",
+        "detail": "minute_close_bars 2026-11-10~2026-11-23 · 완전일 10/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 821 · 20일 도달 추정 2026-12-07 · KIS minute_bars 커버 0.135(19일). 남은 완전일 10개.",
+        "delta": null,
+        "per_exp": null,
+        "rc": 0
+      },
+      "repeat": "daily",
+      "repeat_at": "19:30",
+      "not_before": "2026-11-25T19:30:00+09:00",
+      "outcome": "minute_close_bars 2026-11-10~2026-11-23 · 완전일 10/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 821 · 20일 도달 추정 2026-12-07 · KIS minute_bars 커버 0.135(19일). 남은 완전일 10개.",
+      "finished_at": "2026-11-24T22:15:20+09:00",
+      "rearmed": {
+        "ts": "2026-11-24T22:30:00+09:00",
+        "next": "2026-11-25T19:30:00+09:00",
+        "note": "repeat=daily — 다음 날 19:30(일봉 18:55 적재 뒤) 재실행, 완전일 누적용"
+      }
     },
     {
       "id": "XR51",
       "title": "[리서처 R51] 커버리지 착시 게이트가 '판정 인구 0'으로 침묵 — feature_coverage 창을 모델 창(120거래일)으로 고정해야 한다 (R38 A안 집행)",
-      "status": "backlog",
+      "status": "needs_setup",
       "priority": 8,
       "from_research": "R51",
       "arm": null,
@@ -25836,7 +25867,32 @@
       "success": null,
       "expected": "미지",
       "cost": null,
-      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라."
+      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라.",
+      "promoted_from": "handoff",
+      "promoted_at": "2026-11-24T22:07:57+09:00"
+    },
+    {
+      "id": "KRX-02",
+      "status": "needs_setup",
+      "priority": 4,
+      "owner": "researcher",
+      "from_research": null,
+      "title": "[리서처] krx_short_selling 수집이 2026-11-18 부터 2,601→약 200행/일로 붕괴 — 공매도 비율 피처가 조용히 부분화",
+      "hypothesis": "공매도 잔고/비율 원천 수집이 2026-11-18 을 기점으로 종목 커버리지가 1/13 로 줄었다. 날짜는 최신(지연 <2거래일)이라 신선도 게이트는 통과하지만 **행수**가 무너져 short_selling_ratio·days_to_cover 계열 피처가 특정 시장/종목군만 반영한다. 수집기(krx-collector) 소유라 엔지니어가 고칠 수 없다.",
+      "evidence": "2026-11-24 22:3x 읽기 전용 실측(docker exec stock_postgres psql): krx_short_selling 일별 행수 11-02~11-17 은 2,599~2,601 로 일정하다가 11-18 200 · 11-19 200 · 11-20 201 · 11-23 198 로 급락(×0.077). 구동기 신선도 요약도 최근 7일 485.9/일 = 기준선 2,601.0/일의 ×0.187 로 표기(날짜 지연은 정상). 재현: docker exec stock_postgres sh -c 'psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -tAc \"select trade_date, count(*) from krx_short_selling where trade_date >= current_date - 30 group by 1 order by 1 desc\"'",
+      "success": "krx_short_selling 일별 행수가 2,500 이상으로 회복되고, supply_market_features 재빌드 후 short_selling_ratio 비영 커버리지가 11-17 이전 수준으로 돌아온다(현재 11-18 이후 부분 커버).",
+      "counterfactual": "현 상태(11-18 이후 ~200행/일) — 공매도 계열 피처가 특정 종목군에만 존재하고 결측은 0 으로 대체되어 '조용한 무정보'가 된다.",
+      "expected": "모델 AUC 직접 효과는 낮다(공매도 축은 CG323 에서 '모델 레버 아님'으로 종결). 그러나 결측 0 위장은 하류 국면·유동성 판단을 오염시키므로 데이터 위생상 복구 필요.",
+      "cost": "중(수집기 소유자 — 원인 규명 후 백필 4거래일)",
+      "command": "docker exec stock_postgres sh -c 'psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -tAc \"select trade_date, count(*) from krx_short_selling where trade_date >= current_date - 30 group by 1 order by 1 desc\"'  # 재현/검증용 읽기 전용 질의(모델 실험 아님)",
+      "metric": null,
+      "arm": null,
+      "baseline": null,
+      "note": "2026-11-24 22:3x 엔지니어 자율 발견(틱 신선도 요약의 '수집량 붕괴' 경고를 DB 로 확증). 수집기·원천 API 는 리서처 소유 → 엔지니어는 실측 증거만 남긴다. ⚠ 이 항목은 arm 실험이 아니므로 AUC 판정 대상이 아니다(구동기 자동 실행 대상도 아님 — needs_setup). 같은 계열 선례: KRX-01(krx_trading 정지).",
+      "created_at": "2026-11-24T22:35:00+09:00",
+      "updated_at": "2026-11-24T22:35:00+09:00",
+      "setup_needed": "수집기(krx-collector) 소유 권한 필요 — 2026-11-18 이후 일별 2,601→~200행 급락 원인 규명 + 백필.",
+      "approved_by": null
     }
   ],
   "updated": "2026-11-24T20:20:00+09:00"
