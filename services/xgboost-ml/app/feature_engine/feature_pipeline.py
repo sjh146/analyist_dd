@@ -797,6 +797,17 @@ class FeaturePipeline:
                 if row and row[0]:
                     features["institution_ownership_pct"] = float(row[0])
                 cur.close()
+                if not features["institution_ownership_pct"]:
+                    cur = self.pg_conn.cursor()
+                    cur.execute("""
+                        SELECT inst_pct FROM institutional_ownership
+                        WHERE stock_code = %s AND as_of <= %s
+                        ORDER BY as_of DESC LIMIT 1
+                    """, (stock_code, date))
+                    fallback = cur.fetchone()
+                    cur.close()
+                    if fallback and fallback[0]:
+                        features["institution_ownership_pct"] = float(fallback[0])
             except Exception as exc:
                 _note_miss("institution_ownership_pct", exc)
                 self.pg_conn.rollback()
