@@ -2,10 +2,10 @@
 
 Scoring engine (0–100, per docs/단타스크리너_PLAN.md §4):
 
-    kalman_trend  30  : noise-free slope normalised cross-section + low-noise bonus
-    model         30  : (champion_prob − 0.5) × 2 × 30, 0 when unavailable
-    volume_surge  20  : min(volume_surge / 3.0, 1.0) × 20
-    vol_fit       20  : low residual noise & not-too-chaotic annualised vol
+    kalman_trend  25  : noise-free slope normalised cross-section + low-noise bonus
+    model          0  : model_prob is informational only, no score contribution
+    volume_surge  30  : min(volume_surge / 3.0, 1.0) × 30
+    vol_fit       45  : low residual noise & not-too-chaotic annualised vol
 
 All pure functions — no DB access — so they can be unit-tested with fixtures.
 """
@@ -29,9 +29,9 @@ indexed by stock_code, or None if the model is unavailable."""
 # Default scoring handles (kept in one place for tests/CLI parity).
 WEIGHTS = {
     "kalman_trend": 25.0,
-    "model": 25.0,
-    "volume_surge": 20.0,
-    "vol_fit": 30.0,
+    "model": 0.0,
+    "volume_surge": 30.0,
+    "vol_fit": 45.0,
 }
 
 
@@ -174,7 +174,7 @@ def score_candidates(kf: pd.DataFrame,
             noise_bonus = (1.0 - _clamp(float(noise) / resid_ref, 0.0, 1.0)) * 12.5
         kalman_pts = _clamp(momentum_pts + accel_pts + noise_bonus, 0.0, 25.0)
 
-        # 2) model pts
+        # 2) model pts — weight 0: model_prob is informational only
         model_pts = 0.0
         prob = None
         if probs is not None and r["stock_code"] in probs.index:
@@ -205,7 +205,7 @@ def score_candidates(kf: pd.DataFrame,
         if prob is None:
             parts.append("모델미가용")
         else:
-            parts.append(f"모델 {prob:.2f}")
+            parts.append(f"모델참고 {prob:.2f}")
         parts.append(f"칼만추세 {r['kalman_trend'] * 1000:.1f}‰")
         parts.append(f"기울기 {r['kalman_slope'] * 1000:.1f}‰")
         if not (surge is None or (isinstance(surge, float) and np.isnan(surge))):

@@ -24,6 +24,7 @@ force_app("xgboost-ml")
 from day_trading_engine import (FixtureProvider, rank_candidates, run_screener,
                                 score_candidates)
 from day_trading_engine.providers import StockInfo
+from day_trading_engine.scoring import WEIGHTS
 from app.feature_engine.kalman_smoother import KalmanSmoother
 
 
@@ -124,6 +125,10 @@ class TestScoring:
         out = score_candidates(df, probs=probs)
         assert 0 <= out.iloc[0]["score"] <= 100
         assert out.iloc[0]["model_prob"] == pytest.approx(0.8)
+        assert "모델참고" in out.iloc[0]["reason"]
+
+    def test_weights_sum_to_100(self):
+        assert sum(WEIGHTS.values()) == pytest.approx(100.0)
 
     def test_clean_slope_ranks_higher(self):
         base = self._kf_frame()
@@ -143,11 +148,12 @@ class TestScoring:
         high = score_candidates(self._kf_frame(volume_surge=[4.0])).iloc[0]["score"]
         assert high > low
 
-    def test_model_prob_monotonicity(self):
+    def test_model_prob_does_not_affect_score(self):
         base = self._kf_frame(stock_code=["A"])
-        p_low = score_candidates(base.copy(), probs=pd.Series({"A": 0.55})).iloc[0]
-        p_high = score_candidates(base.copy(), probs=pd.Series({"A": 0.85})).iloc[0]
-        assert p_high["score"] > p_low["score"]
+        no_probs = score_candidates(base.copy())
+        with_probs = score_candidates(base.copy(), probs=pd.Series({"A": 0.85}))
+        assert with_probs.iloc[0]["score"] == pytest.approx(no_probs.iloc[0]["score"])
+        assert with_probs.iloc[0]["model_prob"] == pytest.approx(0.85)
 
     def test_no_model_flag_in_reason(self):
         df = self._kf_frame(stock_code=["A"])
@@ -215,7 +221,7 @@ class TestPipelineFixture:
         assert out.iloc[0]["stock_name"] == "예시주A"
         assert out.iloc[0]["sector"] == "테크"
 
-    def test_fake_predictor_drives_ranking(self):
+    def test_fake_predictor_model_prob_kept_ranking_by_kalman(self):
         n = 25
         levels_a = 5000.0 * np.exp(np.arange(n) * 0.02)   # strong geometric uptrend
         levels_b = 5000.0 * np.exp(np.arange(n) * 0.001)  # flat
