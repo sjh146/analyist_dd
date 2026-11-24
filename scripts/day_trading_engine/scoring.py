@@ -28,10 +28,10 @@ indexed by stock_code, or None if the model is unavailable."""
 
 # Default scoring handles (kept in one place for tests/CLI parity).
 WEIGHTS = {
-    "kalman_trend": 30.0,
-    "model": 30.0,
+    "kalman_trend": 25.0,
+    "model": 25.0,
     "volume_surge": 20.0,
-    "vol_fit": 20.0,
+    "vol_fit": 30.0,
 }
 
 
@@ -165,14 +165,14 @@ def score_candidates(kf: pd.DataFrame,
     rows = []
     for idx, (_, r) in enumerate(kf.iterrows()):
         # 1) kalman trend pts — momentum(z_trend) 10 + slope tiebreak 5 + noise bonus 15.
-        momentum_pts = (_clamp(z_trend[idx], -1.0, 1.0) * 0.5 + 0.5) * 10.0
-        accel_pts = (_clamp(z_slope[idx], -1.0, 1.0) * 0.5 + 0.5) * 5.0
+        momentum_pts = (_clamp(z_trend[idx], -1.0, 1.0) * 0.5 + 0.5) * 8.5
+        accel_pts = (_clamp(z_slope[idx], -1.0, 1.0) * 0.5 + 0.5) * 4.0
         noise = r["noise_resid_std"]
         if noise is None or (isinstance(noise, float) and np.isnan(noise)):
             noise_bonus = 0.0
         else:
-            noise_bonus = (1.0 - _clamp(float(noise) / resid_ref, 0.0, 1.0)) * 15.0
-        kalman_pts = _clamp(momentum_pts + accel_pts + noise_bonus, 0.0, 30.0)
+            noise_bonus = (1.0 - _clamp(float(noise) / resid_ref, 0.0, 1.0)) * 12.5
+        kalman_pts = _clamp(momentum_pts + accel_pts + noise_bonus, 0.0, 25.0)
 
         # 2) model pts
         model_pts = 0.0
@@ -194,8 +194,8 @@ def score_candidates(kf: pd.DataFrame,
             vol_fit_pts = 0.0
         else:
             v = float(v_ann)
-            # target-band peak around 40–80% ann.; penalise both extremes.
-            fit = np.exp(-0.5 * ((v - 0.6) / 0.35) ** 2) if v > 0 else 0.0
+            # 변동성 큰 종목 선호(2026-11-24): 목표대 0.60 → 0.70, 폭 0.35 → 0.40
+            fit = np.exp(-0.5 * ((v - 0.70) / 0.40) ** 2) if v > 0 else 0.0
             vol_fit_pts = fit * WEIGHTS["vol_fit"]
 
         score = _clamp(kalman_pts + model_pts + vol_pts + vol_fit_pts, 0.0, 100.0)
