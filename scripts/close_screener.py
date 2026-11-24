@@ -94,27 +94,43 @@ def resolve_trade_date(pg_conn, date_str_or_None):
     return str(row[0])
 
 
-def load_price_history(pg_conn, trade_date_str, lookback=7):
+def load_price_history(pg_conn, trade_date_str, lookback=7, codes=None):
     """종목별 최근 lookback 거래일 OHLCV 로드 (쿼리 1회).
 
+    codes: 종목 코드 리스트 — 주어지면 LATERAL 조인으로 해당 종목만 조회한다.
     반환 컬럼: [stock_code(str), trade_date(datetime.date), open_price, high_price,
                low_price, close_price, volume, trading_value] (모두 float).
     """
     cur = pg_conn.cursor()
-    cur.execute("""
-        SELECT stock_code, trade_date,
-               open_price::float8, high_price::float8, low_price::float8,
-               close_price::float8, volume::float8, trading_value::float8
-        FROM (
-            SELECT stock_code, trade_date, open_price, high_price, low_price,
-                   close_price, volume, trading_value,
-                   ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY trade_date DESC) AS rn
-            FROM market_data
-            WHERE trade_date <= %s
-        ) t
-        WHERE rn <= %s
-        ORDER BY stock_code, trade_date
-    """, (trade_date_str, lookback))
+    if codes:
+        cur.execute("""
+            SELECT u.stock_code, md.trade_date,
+                   md.open_price::float8, md.high_price::float8, md.low_price::float8,
+                   md.close_price::float8, md.volume::float8, md.trading_value::float8
+            FROM unnest(%s::text[]) AS u(stock_code)
+            CROSS JOIN LATERAL (
+                SELECT trade_date, open_price, high_price, low_price, close_price, volume, trading_value
+                FROM market_data
+                WHERE stock_code = u.stock_code AND trade_date <= %s
+                ORDER BY trade_date DESC LIMIT %s
+            ) md
+            ORDER BY u.stock_code, md.trade_date
+        """, (list(codes), trade_date_str, lookback))
+    else:
+        cur.execute("""
+            SELECT stock_code, trade_date,
+                   open_price::float8, high_price::float8, low_price::float8,
+                   close_price::float8, volume::float8, trading_value::float8
+            FROM (
+                SELECT stock_code, trade_date, open_price, high_price, low_price,
+                       close_price, volume, trading_value,
+                       ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY trade_date DESC) AS rn
+                FROM market_data
+                WHERE trade_date <= %s
+            ) t
+            WHERE rn <= %s
+            ORDER BY stock_code, trade_date
+        """, (trade_date_str, lookback))
     rows = cur.fetchall()
     cur.close()
     df = pd.DataFrame(rows, columns=[
@@ -201,23 +217,24 @@ def compute_indicators(df, lookback=7):
     추가 컬럼: volume_surge, close_strength, ret_3d, ret_5d, day_change.
     윈도우 내 행 수가 lookback 미만인 종목은 제외.
     """
+    df = df.sort_values(["stock_code", "trade_date"])
     out = []
     for code, grp in df.groupby("stock_code"):
-        grp = grp.sort_values("trade_date")
         if len(grp) < lookback:
             continue
-        g = grp.iloc[-1]      # r6 = 당일
-        prev = grp.iloc[-6:-1]  # v1..v5 (직전 5거래일)
-        # iloc[-6]=r1(5거래일 전), iloc[-4]=r3(3거래일 전), iloc[-2]=r5(전일)
-        c1 = float(grp.iloc[-6]["close_price"])  # r1
-        c3 = float(grp.iloc[-4]["close_price"])  # r3
-        c5 = float(grp.iloc[-2]["close_price"])  # r5
-        c6 = float(g["close_price"])
-        v6 = float(g["volume"])
-        h6 = float(g["high_price"])
-        l6 = float(g["low_price"])
+        arr = grp[["close_price", "volume", "high_price", "low_price",
+                   "open_price", "trading_value"]].to_numpy(dtype="float64")
+        c6 = float(arr[-1][0])
+        v6 = float(arr[-1][1])
+        h6 = float(arr[-1][2])
+        l6 = float(arr[-1][3])
+        c1 = float(arr[-6][0])
+        c3 = float(arr[-4][0])
+        c5 = float(arr[-2][0])
+        open_price = float(arr[-1][4])
+        trading_value = float(arr[-1][5])
 
-        mean_prev_vol = float(prev["volume"].mean())
+        mean_prev_vol = float(arr[-6:-1, 1].mean())
         if mean_prev_vol and mean_prev_vol > 0:
             volume_surge = v6 / mean_prev_vol
         else:
@@ -234,13 +251,13 @@ def compute_indicators(df, lookback=7):
 
         out.append({
             "stock_code": code,
-            "trade_date": g["trade_date"],
-            "open_price": float(g["open_price"]),
+            "trade_date": grp["trade_date"].iloc[-1],
+            "open_price": open_price,
             "high_price": h6,
             "low_price": l6,
             "close_price": c6,
             "volume": v6,
-            "trading_value": float(g["trading_value"]),
+            "trading_value": trading_value,
             "volume_surge": volume_surge,
             "close_strength": close_strength,
             "ret_3d": ret_3d,
@@ -485,9 +502,10 @@ def main():
         logger.info(f"시그널 기준일: {trade_date}")
 
         stocks = get_kosdaq_stocks(pg)
+        universe_codes = sorted({code for code, _, _, _ in stocks})
         logger.info(f"KOSDAQ 유니버스: {len(stocks)} 종목")
 
-        price_df = load_price_history(pg, trade_date, lookback=7)
+        price_df = load_price_history(pg, trade_date, lookback=7, codes=universe_codes)
         logger.info(f"가격 이력 로드: {len(price_df)} 행")
 
         # 유니버스(KOSDAQ) 외 종목 제외 — market_data에는 KOSPI도 있음
@@ -498,7 +516,8 @@ def main():
         ind_df = compute_indicators(price_df, lookback=7)
         logger.info(f"지표 계산 완료: {len(ind_df)} 종목")
 
-        ind_df, stale_codes = drop_stale_codes(ind_df, price_df, trade_date)
+        stats = {}
+        ind_df, stale_codes = drop_stale_codes(ind_df, price_df, date.fromisoformat(trade_date))
         if stale_codes:
             logger.info("데이터 나이 게이트: %d종목 제외 → %d종목",
                         len(stale_codes), len(ind_df))
@@ -512,7 +531,6 @@ def main():
         ind_df["stock_name"] = ind_df["stock_code"].map(lambda c: stock_meta.get(c, ("", ""))[0])
         ind_df["sector"] = ind_df["stock_code"].map(lambda c: stock_meta.get(c, ("", ""))[1])
 
-        stats = {}
         filtered = filter_candidates(
             ind_df, min_trading_value=args.min_trading_value, min_price=args.min_price,
             max_day_change=args.max_day_change, stats=stats,
