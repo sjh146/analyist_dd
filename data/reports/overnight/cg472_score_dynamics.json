@@ -1,0 +1,75 @@
+{
+  "config": {
+    "horizon": 5,
+    "lag": 5,
+    "topk": 10,
+    "model_version": null,
+    "max_day_chg": 25.0,
+    "limit_up_pct": 29.9,
+    "min_value": 1000000000.0,
+    "fee_rt_pct": 0.21
+  },
+  "n_dates": 7,
+  "rows": 20997,
+  "level": {
+    "k": 10,
+    "fee_roundtrip_pct": 0.21,
+    "n_dates": 6,
+    "rows": 20997,
+    "kept": 4691,
+    "no_filter_data": 4618,
+    "kept_ratio": 0.2234,
+    "topk_net_mean_pct": -8.8886,
+    "pool_net_mean_pct": -6.9648,
+    "delta_mean_pct": -1.9238,
+    "delta_sd_pct": 2.7117,
+    "delta_t": -1.7378,
+    "split_half_pct": [
+      -3.7961,
+      -0.0515
+    ],
+    "topk_pos_dates": 2,
+    "date_deltas_pct": [
+      -1.2583,
+      -4.1114,
+      -6.0186,
+      0.5177,
+      -1.7087,
+      1.0366
+    ]
+  },
+  "dyn": {
+    "k": 10,
+    "fee_roundtrip_pct": 0.21,
+    "n_dates": 6,
+    "rows": 20997,
+    "kept": 4691,
+    "no_filter_data": 4618,
+    "kept_ratio": 0.2234,
+    "topk_net_mean_pct": -7.0065,
+    "pool_net_mean_pct": -6.9648,
+    "delta_mean_pct": -0.0418,
+    "delta_sd_pct": 1.6676,
+    "delta_t": -0.0613,
+    "split_half_pct": [
+      -0.8816,
+      0.7981
+    ],
+    "topk_pos_dates": 2,
+    "date_deltas_pct": [
+      -1.2583,
+      -0.0652,
+      -1.3213,
+      3.0697,
+      -1.0199,
+      0.3445
+    ]
+  },
+  "dyn_minus_level_pct": 1.882,
+  "verdict": "표본부족 — 판정불가",
+  "why": {
+    "n_dates": 7,
+    "reason": "n_dates<10"
+  },
+  "note": "r = 종가_{i+h}/종가_i − 1 · 체결성 필터(당일등락<25%·거래대금≥10억·자료없음 제외) · 수수료 왕복 0.21%p 차감 · 널=같은 세션 풀평균 · 순위키: level=confidence, dyn=confidence_i − confidence_{i−lag}. 단일 런·짝 비교."
+}

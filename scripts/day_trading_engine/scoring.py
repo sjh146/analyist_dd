@@ -2,10 +2,10 @@
 
 Scoring engine (0–100, per docs/단타스크리너_PLAN.md §4):
 
-    kalman_trend  25  : noise-free slope normalised cross-section + low-noise bonus
+    kalman_trend  40  : noise-free slope normalised cross-section + low-noise bonus
     model          0  : model_prob is informational only, no score contribution
-    volume_surge  30  : min(volume_surge / 3.0, 1.0) × 30
-    vol_fit       45  : low residual noise & not-too-chaotic annualised vol
+    volume_surge  45  : min(volume_surge / 3.0, 1.0) × 45
+    vol_fit       15  : low residual noise & not-too-chaotic annualised vol
 
 All pure functions — no DB access — so they can be unit-tested with fixtures.
 """
@@ -28,10 +28,10 @@ indexed by stock_code, or None if the model is unavailable."""
 
 # Default scoring handles (kept in one place for tests/CLI parity).
 WEIGHTS = {
-    "kalman_trend": 25.0,
+    "kalman_trend": 40.0,
     "model": 0.0,
-    "volume_surge": 30.0,
-    "vol_fit": 45.0,
+    "volume_surge": 45.0,
+    "vol_fit": 15.0,
 }
 
 

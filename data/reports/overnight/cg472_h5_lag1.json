@@ -1,0 +1,90 @@
+{
+  "config": {
+    "horizon": 5,
+    "lag": 1,
+    "topk": 10,
+    "model_version": null,
+    "max_day_chg": 25.0,
+    "limit_up_pct": 29.9,
+    "min_value": 1000000000.0,
+    "fee_rt_pct": 0.21
+  },
+  "n_dates": 12,
+  "rows": 40215,
+  "level": {
+    "k": 10,
+    "fee_roundtrip_pct": 0.21,
+    "n_dates": 11,
+    "rows": 40215,
+    "kept": 8776,
+    "no_filter_data": 9297,
+    "kept_ratio": 0.2182,
+    "topk_net_mean_pct": -6.9724,
+    "pool_net_mean_pct": -5.1864,
+    "delta_mean_pct": -1.7861,
+    "delta_sd_pct": 3.1363,
+    "delta_t": -1.8888,
+    "split_half_pct": [
+      -2.3116,
+      -1.3481
+    ],
+    "topk_pos_dates": 5,
+    "date_deltas_pct": [
+      1.4644,
+      -7.9458,
+      -1.2163,
+      -4.05,
+      0.1898,
+      -5.9263,
+      0.5829,
+      1.022,
+      -3.1162,
+      -1.7087,
+      1.0575
+    ]
+  },
+  "dyn": {
+    "k": 10,
+    "fee_roundtrip_pct": 0.21,
+    "n_dates": 11,
+    "rows": 40215,
+    "kept": 8776,
+    "no_filter_data": 9297,
+    "kept_ratio": 0.2182,
+    "topk_net_mean_pct": -2.6585,
+    "pool_net_mean_pct": -5.1864,
+    "delta_mean_pct": 2.5279,
+    "delta_sd_pct": 12.0975,
+    "delta_t": 0.693,
+    "split_half_pct": [
+      5.9029,
+      -0.2847
+    ],
+    "topk_pos_dates": 5,
+    "date_deltas_pct": [
+      1.4644,
+      -5.6152,
+      -0.5638,
+      -2.9523,
+      37.1814,
+      -3.0238,
+      2.3883,
+      1.723,
+      -6.333,
+      6.4825,
+      -2.9451
+    ]
+  },
+  "dyn_minus_level_pct": 4.314,
+  "verdict": "노이즈",
+  "why": {
+    "delta": 2.5279,
+    "t": 0.693,
+    "split": [
+      5.9029,
+      -0.2847
+    ],
+    "both_positive": false
+  },
+  "note": "r = 종가_{i+h}/종가_i − 1 · 체결성 필터(당일등락<25%·거래대금≥10억·자료없음 제외) · 수수료 왕복 0.21%p 차감 · 널=같은 세션 풀평균 · 순위키: level=confidence, dyn=confidence_i − confidence_{i−lag}. 단일 런·짝 비교."
+}
