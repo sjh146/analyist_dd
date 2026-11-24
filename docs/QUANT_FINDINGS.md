@@ -749,3 +749,9 @@
 - 엔지니어 백로그: `XR49` (command·대조군 기입 필요)
 - [수리·재측정 2026-11-24 01:06] 원인 2건: (1) 호스트 실행 시 sys.path 후보가 '/app'·cwd 뿐 → `ModuleNotFoundError: No module named 'app'`(R49 rc=1) → `_app_roots()` 에 repo/services/xgboost-ml 추가, (2) `--ignore-cache` 신선 재빌드에도 캐시 낡음 가드가 걸려 exit 3 → 가드를 캐시 경로에만 적용. `--ignore-cache --stocks 60 --days 120` rc=0 실측: 196행 computed_at 11-24 01:06, stale5 137→**6**, dq_feature_non_model_window_rows 71→**0**, 창 가짓수 3→**1**, 생존 178/죽은 24. 잔여 6행 = rank_*(스크리너 `compute_cross_sectional_ranks` 경로 산출 — 이 스크립트로 갱신 불가) → XR49 로 핸드오프. 표본 주의: 60종목 표본으로 갱신해 죽은 피처 12→24(희소 피처 표본 의존).
 - [반복 방지 2026-11-24 01:20] `--skip-if-fresh-hours 20` 추가: 같은 창(window_days) 측정의 90%↑가 N시간 내에 이미 갱신됐으면 재빌드를 생략(exit 0, json `skipped:true`). 이유 — check_target(<=0)이 rank_* 6행 때문에 0 이 되지 않아 매 틱 25분 빌드를 반복하면 DB 부하만 쌓인다. 실측 skip 판정 196/202행 → 1초 완료(빌드 25분 대체). 회귀 8/8 PASS.
+
+## [리서처 R51] 커버리지 착시 게이트가 '판정 인구 0'으로 침묵 — feature_coverage 창을 모델 창(120거래일)으로 고정해야 한다 (R38 A안 집행)  (2026-11-24 21:21)
+- 결과: feature_coverage 209행이 창 30일(166)·525일(24)·42일(19)이고 120일 행이 0개 → dq_feature_coverage_illusion_count_model_window=0 이 '착시 없음'으로 읽히지만 전 창 착시는 40. 커버리지 게이트를 근거로 피처를 채택/기각할 때 '어느 창의 값인가'를 반드시 함께 봐야 한다.
+- 판정: 판정불가(계기판 실명) — 승인 대기(R51)
+- 근거: [실측 2026-11-24 21:1x · read-only SQL] `SELECT window_days, count(*) FROM feature_coverage GROUP BY 1` → 30일 166행(computed_at 11-23 20:17, 패널 리빌드) · 525일 24행(11-24 19:10, event 빌더) · 42일 19행(11-24 20:15, supply 빌더). 120일 행 **0**. 같은 시각 Prometheus: illusion_count_model_window 0 / illusion_count 40 / illusion_at_120d_count 0 / non_model_window_rows 209 / feature_count 209 / window_variants 3. 11-13 21:11 전량 재계산 때는 120일 202행(착시 26)이었으므로, 이후 패널 리빌드가 30일 창으로 덮어써 인구가 사라졌다.
+- 엔지니어 백로그: `XR51` (command·대조군 기입 필요)

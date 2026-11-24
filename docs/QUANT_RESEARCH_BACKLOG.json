@@ -2239,12 +2239,29 @@
       "command": "cd /home/jhshi/analyist_dd && PROJ_DIR=/home/jhshi/analyist_dd /usr/bin/python3 scripts/t49_close_signal_age_probe.py",
       "metric": "close 피드 후보 중 signal_date 나이가 4일을 넘는 건수(후보 단위)",
       "check": "cd /home/jhshi/analyist_dd && PROJ_DIR=/home/jhshi/analyist_dd /usr/bin/python3 scripts/t49_close_signal_age_probe.py",
-      "check_target": {"op": "<=", "value": 0, "unit": "낡은 signal_date 후보 수(0 이면 전 후보가 소비자 신선도 게이트 통과)"},
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "낡은 signal_date 후보 수(0 이면 전 후보가 소비자 신선도 게이트 통과)"
+      },
       "recurring": true,
       "evidence": "트레이더 사이클 환류: 2026-11-23 14:40 발행본 close 후보 20건 중 3건의 signal_date 가 2026-01-27 · 2026-02-03 · 2026-08-31 (각 300·293·84일 낡음). 소비자 후보별 신선도 게이트(close 4일)에서 이 3건은 발행 즉시 차단된다. 스크리너 단위 lag 프로브(feed_signal_lag=3.0일)는 다수값만 봐서 이런 소수 이상치를 못 잡는다. 재현: python3 -c \"import json,collections;d=json.load(open('data/feed/screener_latest.json'));print(collections.Counter(c.get('signal_date') for c in d['candidates']['close']['items']))\"",
       "success": null,
       "cost": null,
-      "note": "[2026-11-24 21:1x 리서처 배선] 재현·판정을 `scripts/t49_close_signal_age_probe.py`(읽기 전용)로 고정 — 후보 **단위**로 signal_date 나이를 세어 4일 초과 건수를 check_value 로 낸다(스크리너 lag 프로브는 다수값만 봐서 소수 이상치를 놓친다). 오늘 실측 = close 후보 20건 전부 2026-11-23 · 낡음 0건 → **현재 증상 없음**(close 스크리너 데이터 나이 게이트 b2ef127 이후). recurring 으로 두어 재발을 잡는다. close 는 비라이브라 돈 영향은 0 이지만 재활성화 전 계약 위반은 막아야 한다."
+      "note": "[2026-11-24 21:1x 리서처 배선] 재현·판정을 `scripts/t49_close_signal_age_probe.py`(읽기 전용)로 고정 — 후보 **단위**로 signal_date 나이를 세어 4일 초과 건수를 check_value 로 낸다(스크리너 lag 프로브는 다수값만 봐서 소수 이상치를 놓친다). 오늘 실측 = close 후보 20건 전부 2026-11-23 · 낡음 0건 → **현재 증상 없음**(close 스크리너 데이터 나이 게이트 b2ef127 이후). recurring 으로 두어 재발을 잡는다. close 는 비라이브라 돈 영향은 0 이지만 재활성화 전 계약 위반은 막아야 한다.",
+      "attempts": [
+        {
+          "ts": "2026-11-24T21:19:52+09:00",
+          "rc": 0,
+          "detail": "T49: 0 <= 0 → 충족"
+        }
+      ],
+      "result": {
+        "detail": "T49: 0 <= 0 → 충족",
+        "check_value": 0.0,
+        "rc": 0,
+        "log": "data/reports/res_cycle/logs/res_T49_20261124-211952.log"
+      }
     },
     {
       "id": "R47",
@@ -2274,7 +2291,12 @@
       "priority": 4,
       "kind": "investigate",
       "recurring": true,
-      "slot_hours": [0, 2, 4, 6],
+      "slot_hours": [
+        0,
+        2,
+        4,
+        6
+      ],
       "affects_model": true,
       "hypothesis": "market_data 가 항상 하루 뒤지는 이유는 로더 버그가 아니라 소스 발행 시각이다. 18:55 `krx_daily.sh` 는 `end = today-1` 로 자르므로 11-23 저녁의 최신 봉은 11-20 이다(실측). 같은 시각 API 에 당일(11-23)을 물으면 0행이므로 당일봉은 소스에 없다. 남은 질문: **직전 거래일 봉이 07:30 이전에 발행되는가**. 그렇다면 08:40 피드 발행 전에 T-1 봉을 적재하는 로더 1회를 추가해 신호를 하루 신선하게 만들 수 있다(현재 아침 피드는 T-2 종가로 스크리닝).",
       "evidence": "[실측 2026-11-23 21:1x] ① `SELECT max(trade_date) FROM market_data` = 2026-11-20 (당일 11-23 은 거래일인데 0행). ② 직접 프로브: KRX data-dbg `stk_bydd_trd?basDd=20261123` → OutBlock_1 **0행**(21:16), `basDd=20261120` → **935행**(KOSPI) / KOSDAQ 1836행. ③ 같은 시각 `data.krx.co.kr`(운영 호스트)는 404(이 키 미승인) → dbg 호스트가 유일 경로. ④ 18:55 러너 로그도 구간 2026-11-16~2026-11-22 = 어제까지로 잘려 있다(`target_range`: `end >= today → today-1`). ⑤ 결론(현재까지): 당일봉 미발행은 **소스 한계 확정**, T-1 아침 가용성은 **미판정** — 04·06 틱에서 이 프로브를 돌려 판정한다. [실측 2026-11-24 21:1x] ⑥ **개장 전 판정이 한 번도 실행되지 않았다**: 이 항목은 recurring(prio 4)인데 `researcher_cycle.pick_item` 의 회전 양보가 「더 오래 굶은 후보」에게 순서를 넘긴다 → 00·02·04·06 틱을 R49·R50(00:48·02:54) · R27(04:48) · R41(06:47) 이 가져가 **R48 실행 0건**이었다(원장 실측). 수리 = `slot_hours` 지원(시각창 항목은 양보 제외, 쿨다운은 유지) · 회귀 5건. ⑦ 21:1x 직접 프로브(.env 로드): `basDd=20261123` → KOSPI 935 / KOSDAQ 1836 = **세션 당일 21:16 에는 0행, 다음날 21:1x 에는 있음** → 봉은 세션 종료 후 그날 밤~다음날 사이에 올라온다. 교차 시각은 00·02·04·06 슬롯이 이분한다.",
@@ -2370,6 +2392,29 @@
         "rc": 0,
         "log": "data/reports/res_cycle/logs/res_R50_20261124-024756.log"
       }
+    },
+    {
+      "id": "R51",
+      "title": "커버리지 착시 게이트가 '판정 인구 0'으로 침묵 — feature_coverage 창을 모델 창(120거래일)으로 고정해야 한다 (R38 A안 집행)",
+      "status": "needs_approval",
+      "priority": 5,
+      "kind": "collect",
+      "recurring": true,
+      "affects_model": true,
+      "hypothesis": "R38 의 A안('기록은 모델 창 120거래일 고정')은 문턱·정의 변경이라 2026-10-07 부터 승인 대기였다. 미집행 상태에서 2026-11-24 20:1x 실측은 창이 30일(166행)·525일(24)·42일(19)로 갈려 **모델 창 행이 0개**다. 그 결과 `dq_feature_coverage_illusion_count_model_window`=0(ok)·`dq_feature_illusion_at_120d_count`=0 이 '착시 없음'으로 읽히지만, 같은 시각 전 창 착시는 40 이다. 즉 게이트가 '통과'가 아니라 '실명'이다.",
+      "evidence": "[실측 2026-11-24 21:1x · read-only SQL] `SELECT window_days, count(*) FROM feature_coverage GROUP BY 1` → 30일 166행(computed_at 11-23 20:17, 패널 리빌드) · 525일 24행(11-24 19:10, event 빌더) · 42일 19행(11-24 20:15, supply 빌더). 120일 행 **0**. 같은 시각 Prometheus: illusion_count_model_window 0 / illusion_count 40 / illusion_at_120d_count 0 / non_model_window_rows 209 / feature_count 209 / window_variants 3. 11-13 21:11 전량 재계산 때는 120일 202행(착시 26)이었으므로, 이후 패널 리빌드가 30일 창으로 덮어써 인구가 사라졌다.",
+      "command": null,
+      "metric": "모델 창(120거래일) feature_coverage 행수",
+      "check": "cd /home/jhshi/analyist_dd && docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(*) FROM feature_coverage WHERE window_days = 120\"",
+      "check_target": {
+        "op": ">",
+        "value": 0,
+        "unit": "모델 창(120일) 행수(0 이면 착시 게이트가 판정 인구 없이 ok 로 침묵한다)"
+      },
+      "needs": [
+        "리뷰보드 승인: feature_coverage 에 window_days=120 고정 기록(R38 A안) + writer 4종(build_supply_market_features·build_financial_ratio_features·build_macro_features·build_event_features)의 창 기록 통일"
+      ],
+      "note": "[2026-11-24 배선] 계기판 실명을 침묵시키지 않도록 dq_snapshot 에 '비모델창 행수 >= 피처 행수 → 경고(판정불가)' 가드를 넣었다(5b41d02 · 회귀 3건). 이 항목은 그 가드를 **없애는** 근본 수리(정의 변경)라 승인 대기다. 승인 전까지 매 틱 warn 1건(rc=2)이 뜨는 것이 정상 상태다."
     }
   ]
 }
