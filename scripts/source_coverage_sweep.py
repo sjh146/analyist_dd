@@ -63,9 +63,9 @@ CLOSED_NOTE = {
     "stock_sentiment": "이력 3일 — 신설",
     "news_event_extraction": "이력 4일 — 신설",
     "news_analysis": "이력 4일(700행) — news_events 파생",
+    "major_holders": "CG465 A/B 무효(2026-11-24): AUC 짝Δ −0.0028(1/5) · 순기대 Δ≤|0.20|(t≤1.12)",
 }
 UNDER_TEST = {
-    "major_holders": "CG465 피처 주입 A/B 진행 중(2026-11-24 등록)",
 }
 CODE_PREF = ["stock_code", "code", "short_code", "ticker", "std_id", "isin"]
 DATE_PREF = ["trade_date", "date", "event_date", "asof_date", "rcept_dt", "posted_at",

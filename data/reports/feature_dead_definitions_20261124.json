@@ -1,0 +1,226 @@
+{
+ "n_rows": 209,
+ "dead_naive": 17,
+ "alive_naive": 192,
+ "dead_honest": 41,
+ "alive_honest": 168,
+ "sparse_only": 24,
+ "null_99": 5,
+ "window_variants": 3,
+ "newest": "2026-11-24",
+ "oldest": "2026-11-23",
+ "windows": [
+  {
+   "window_days": 30,
+   "rows": 166,
+   "oldest": "2026-11-23",
+   "newest": "2026-11-23"
+  },
+  {
+   "window_days": 42,
+   "rows": 19,
+   "oldest": "2026-11-24",
+   "newest": "2026-11-24"
+  },
+  {
+   "window_days": 525,
+   "rows": 24,
+   "oldest": "2026-11-24",
+   "newest": "2026-11-24"
+  }
+ ],
+ "sparse_features": [
+  {
+   "feature": "event_recall_5d",
+   "nonzero_naive": 0.0,
+   "nonzero_honest": 0.0,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_patent_5d",
+   "nonzero_naive": 0.0001,
+   "nonzero_honest": 0.0001,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_partnership_5d",
+   "nonzero_naive": 0.0001,
+   "nonzero_honest": 0.0001,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_regulation_5d",
+   "nonzero_naive": 0.0003,
+   "nonzero_honest": 0.0003,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_new_product_5d",
+   "nonzero_naive": 0.0005,
+   "nonzero_honest": 0.0005,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_option_grant_5d",
+   "nonzero_naive": 0.0005,
+   "nonzero_honest": 0.0005,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_rumor_5d",
+   "nonzero_naive": 0.0005,
+   "nonzero_honest": 0.0005,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_dividend_5d",
+   "nonzero_naive": 0.0007,
+   "nonzero_honest": 0.0007,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_debt_guarantee_5d",
+   "nonzero_naive": 0.0008,
+   "nonzero_honest": 0.0008,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_disaster_5d",
+   "nonzero_naive": 0.0009,
+   "nonzero_honest": 0.0009,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "sns_bot_filtered_count",
+   "nonzero_naive": 0.0016,
+   "nonzero_honest": 0.0016,
+   "null_ratio": 0.867,
+   "window_days": 30,
+   "computed_at": "2026-11-23"
+  },
+  {
+   "feature": "event_investment_5d",
+   "nonzero_naive": 0.0018,
+   "nonzero_honest": 0.0018,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_ir_5d",
+   "nonzero_naive": 0.003,
+   "nonzero_honest": 0.003,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "sentiment_volatility",
+   "nonzero_naive": 0.0032,
+   "nonzero_honest": 0.0032,
+   "null_ratio": 0.0,
+   "window_days": 30,
+   "computed_at": "2026-11-23"
+  },
+  {
+   "feature": "sentiment_trend",
+   "nonzero_naive": 0.0032,
+   "nonzero_honest": 0.0032,
+   "null_ratio": 0.0,
+   "window_days": 30,
+   "computed_at": "2026-11-23"
+  },
+  {
+   "feature": "negative_ratio",
+   "nonzero_naive": 0.0032,
+   "nonzero_honest": 0.0032,
+   "null_ratio": 0.0,
+   "window_days": 30,
+   "computed_at": "2026-11-23"
+  },
+  {
+   "feature": "event_litigation_5d",
+   "nonzero_naive": 0.0038,
+   "nonzero_honest": 0.0038,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_shareholder_meeting_5d",
+   "nonzero_naive": 0.0044,
+   "nonzero_honest": 0.0044,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "market_impact_score",
+   "nonzero_naive": 0.0045,
+   "nonzero_honest": 0.0045,
+   "null_ratio": 0.995,
+   "window_days": 42,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_macro_5d",
+   "nonzero_naive": 0.0063,
+   "nonzero_honest": 0.0063,
+   "null_ratio": 0.0,
+   "window_days": 30,
+   "computed_at": "2026-11-23"
+  },
+  {
+   "feature": "event_delisting_5d",
+   "nonzero_naive": 0.0072,
+   "nonzero_honest": 0.0072,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_mna_5d",
+   "nonzero_naive": 0.008,
+   "nonzero_honest": 0.008,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_capital_increase_5d",
+   "nonzero_naive": 0.009,
+   "nonzero_honest": 0.009,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  },
+  {
+   "feature": "event_cb_bw_5d",
+   "nonzero_naive": 0.0092,
+   "nonzero_honest": 0.0092,
+   "null_ratio": 0.0,
+   "window_days": 525,
+   "computed_at": "2026-11-24"
+  }
+ ]
+}

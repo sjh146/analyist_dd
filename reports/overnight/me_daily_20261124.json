@@ -1,0 +1,193 @@
+{
+ "report": "me_daily_20261124",
+ "generated_at": "2026-11-24T22:5x+09:00",
+ "role": "quant-model-engineer",
+ "champion": {
+  "auc_txt": 0.551318,
+  "robust_auc_json": {
+   "robust_auc": 0.5513,
+   "metric": "ensemble_auc",
+   "protocol": "ensemble_auc on candidate val split (n_rows=12629)",
+   "recorded_at": "2026-10-02T02:44:20",
+   "source": "app/models/champion/robust_auc.json"
+  },
+  "scoreboard": {
+   "robust": 0.5519,
+   "baseline": 0.5406,
+   "delta": 0.0113,
+   "no_improve_cycles": 23,
+   "note": "+0.02 사전문턱 미달 23사이클 연속"
+  }
+ },
+ "candidate_judgment": {
+  "candidate_dir": "app/models/champion_cand",
+  "retrained_at": "2026-11-24T11:45:13",
+  "n_rows": 11873,
+  "n_train": 9498,
+  "n_val": 2375,
+  "up_rate": 0.4037,
+  "n_features": 210,
+  "model_aucs": {
+   "xgboost": 0.4243,
+   "lightgbm": 0.4375,
+   "catboost": 0.5512
+  },
+  "ensemble_auc": 0.4848,
+  "ensemble_auc_deployed_substance": 0.4421,
+  "robust_oos": {
+   "fold_mean": 0.4612,
+   "fold_std": 0.02,
+   "folds": [
+    0.466,
+    0.4347,
+    0.483
+   ],
+   "folds_requested": 5,
+   "folds_evaluated": 3,
+   "stocks": 80,
+   "protocol": "5-fold 요청·3폴드 평가(h=5, 시장상대 중앙값, purge=h)"
+  },
+  "expectancy_pct": -0.1773,
+  "expectancy_t": -0.92,
+  "n_sessions": 113,
+  "n_trades": 1771,
+  "halves": {
+   "front_pct": -0.3638,
+   "back_pct": 0.0058,
+   "stable": "unstable",
+   "split_date": "2026-08-14"
+  },
+  "promote_flags": "--require-expectancy --min-expectancy-pct 0.0 --min-expectancy-sessions 40 --min-expectancy-trades 30",
+  "dry_run": {
+   "status": "kept_incumbent",
+   "reason": "candidate ensemble_auc 0.4848 < floor 0.53",
+   "live_score_gate": "blocked — 후보 신호 0건(문턱 0.55, 최대 0.4867)"
+  },
+  "decision": "승격 거부(챔피언 유지) — AUC 하한·로버스트 0.4612·순기대 -0.1773 세 축 모두 미달. 근거 파일 reports/ml_result.json"
+ },
+ "today_robust_measurement": {
+  "panel": "panel_prod200_v6o_mh.npz (221→226열, DART major_holders 5종 주입)",
+  "source": "CG465 요약(5폴드×5시드)",
+  "arms": {
+   "CG376_noroll_h5": {
+    "mean": 0.5475,
+    "std": 0.0098,
+    "folds": [
+     0.534,
+     0.5457,
+     0.5512,
+     0.5429,
+     0.5635
+    ],
+    "fold_win_rate": 1.0
+   },
+   "CG376_noroll_h5__ff": {
+    "mean": 0.5447,
+    "std": 0.0079,
+    "folds": [
+     0.5336,
+     0.5429,
+     0.545,
+     0.5436,
+     0.5584
+    ],
+    "fold_win_rate": 1.0
+   }
+  },
+  "paired_delta": -0.0028,
+  "vs_registered_baseline": {
+   "baseline": 0.5406,
+   "delta": 0.0069,
+   "verdict": "사전문턱 +0.02 미달 — 노이즈"
+  },
+  "caveat": "유니버스·패널이 등록 기준선과 달라 직접 비교 금지(스킬 교훈: 조정 축 신호는 유니버스에서 부호가 뒤집힌다)"
+ },
+ "cg465_closure": {
+  "axis": "DART 대량보유(major_holders) 5종 피처",
+  "auc": {
+   "arm": 0.5447,
+   "control": 0.5475,
+   "delta": -0.0028,
+   "paired_fold_win": "1/5",
+   "fold_deltas": [
+    -0.0004,
+    -0.0028,
+    -0.0062,
+    0.0007,
+    -0.0051
+   ]
+  },
+  "money": {
+   "tool": "fillable_topk_expectancy",
+   "exit": "close_h",
+   "horizon": 5,
+   "filter": "당일등락 <25% · 거래대금 ≥10억 · 수수료 왕복 0.21%p 차감",
+   "n_sessions": 255,
+   "k3": {
+    "arm": 0.905,
+    "ctl": 0.869,
+    "delta": 0.036,
+    "t": 0.13
+   },
+   "k5": {
+    "arm": 0.741,
+    "ctl": 0.94,
+    "delta": -0.198,
+    "t": -1.12
+   },
+   "k10": {
+    "arm": 0.809,
+    "ctl": 0.767,
+    "delta": 0.042,
+    "t": 0.37
+   }
+  },
+  "verdict": "노이즈 — 축 종결(major_holders UNDER_TEST→CLOSED)",
+  "side_finding": {
+   "claim": "같은 런 대조군의 top-k vs 풀평균이 k10 +0.861(t3.2)·k5 +0.793(t2.2)",
+   "refutation": "--stride 5(비중첩) 재측정 k10 +0.663(t1.11)·k5 +0.495(t0.65) → 중첩이 만든 t 팽창",
+   "action": "돈 축 후보로 등록하지 않는다(기존 교훈 재확인)"
+  },
+  "files": [
+   "services/xgboost-ml/reports/overnight/cg465_money.json",
+   "services/xgboost-ml/reports/overnight/cg465_money_stride5.json"
+  ]
+ },
+ "feature_death_definitions": {
+  "why": "스코어보드(죽은 12/살아 190) vs 계약검사 FEAT-1(죽은 40/202) 불일치 원인 규명",
+  "measured_at": "2026-11-24T22:4x",
+  "n_rows": 209,
+  "A_complete_dead_nonzero_eq_0": 17,
+  "B_sparse_dead_honest_lt_1pct": 41,
+  "C_difference_sparse_only": 24,
+  "null_ratio_99": 5,
+  "windows": {
+   "30일": 166,
+   "42일": 19,
+   "525일": 24,
+   "120일": 0
+  },
+  "decision": "판정 기준 = B(희소사망, honest<1%) — 계약 문턱 45가 이 정의로 설정됨. A(완전사망)는 정보용 병기.",
+  "caveat": "인구 혼재(창 3종·표본 30~60종목) → 죽은 수는 빌드 순서·표본에 따라 흔들린다(R49: 60종목 표본으로 12→24). R51(창 120일 고정) 승인 전 인구 비교 금지.",
+  "tool": "scripts/feature_dead_definitions_audit.py",
+  "json": "data/reports/feature_dead_definitions_20261124.json"
+ },
+ "leak_signals": {
+  "source": "http://127.0.0.1:9187/metrics",
+  "dq_feature_stock_constant_ratio": 0.4115,
+  "warn": 0.45,
+  "dq_feature_market_level_count": 23,
+  "dq_feature_null_ratio_high_count": 1,
+  "dq_feature_alive_xsec_count": 169,
+  "dq_feature_feature_count": 209,
+  "dq_feature_coverage_illusion_max": 0.9955,
+  "dq_feature_illusion_at_120d_count": 0,
+  "dq_feature_non_model_window_rows": 209,
+  "judgment": "단일 피처 AUC>0.75 신호 없음(직전 panel_feature_screen 기준 최고 0.5534). 착시 게이트는 판정 인구 0(120일 창 0행)으로 침묵 — 리서처 R51 승인 대기."
+ },
+ "next": [
+  "CG464(panel_prod200_v7) not_before 2026-12-14 — 그 전까지 장기 학습 금지",
+  "CG466 분봉 완전일 20일 도달 추정 2026-12-07 (CG450 선행)",
+  "CG463(폴드 짝 t 병기)은 리뷰보드 승인 대기 — 승인 시 판정기 수정"
+ ]
+}
