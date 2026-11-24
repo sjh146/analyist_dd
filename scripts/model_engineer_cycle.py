@@ -5670,6 +5670,35 @@ def failure_cause(rc, started=None, log_path=None):
     return f"종료코드 {rc}"
 
 
+def rc_verdict_from_log(log_path, tail_lines=40):
+    """rc 가 **판정을 인코딩**하는 항목(백로그 `rc_is_verdict: true`)에서 로그의 마지막 JSON verdict 를 뽑는다.
+
+    왜(실측 2026-11-24 XR48): 리서처 probe 스크립트는 '가설 채택 → rc 0 / 기각 → rc 1 / 표본부족 → rc 3'
+    으로 종료코드에 결론을 싣는다. 구동기는 rc!=0 을 기계적으로 '실행실패(측정값 없음)'로 기록해
+    **완주한 33-probe 측정(07:30_이후_발행)이 원장에서 사라졌다**. 예외 흔적도 없는데 실패로 닫히면
+    축 종결 근거가 없어져 같은 리서치를 다시 시키게 된다. rc_is_verdict 항목만 이 경로를 탄다
+    (일반 항목은 그대로 rc!=0 = 실행실패 — 부분 출력 JSON 을 성공으로 오독하지 않는다).
+    """
+    if not log_path or not os.path.exists(log_path):
+        return None
+    try:
+        with open(log_path, encoding="utf-8", errors="replace") as f:
+            lines = [ln.strip() for ln in f.readlines()[-tail_lines:] if ln.strip()]
+    except OSError as e:
+        log(f"경고: 로그 읽기 실패({type(e).__name__}: {e}) — rc_is_verdict 채택 불가")
+        return None
+    for line in reversed(lines):
+        if not line.startswith("{"):
+            continue
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            d = None
+        if isinstance(d, dict) and d.get("verdict"):
+            return d
+    return None
+
+
 def backlog_status_after(rc, cause, gate_rc5, n_attempts):
     """사이클 종료 후 백로그 status 결정(순수 함수 — 자체점검 `_backlog_status_test.py`).
 
@@ -6152,6 +6181,7 @@ def execute(item, force=False):
         proc = subprocess.run(eff_command, shell=True, stdout=lf,
                               stderr=subprocess.STDOUT, cwd=PROJ)
     rc = proc.returncode
+    rc_for_status = rc
     cause = ""
 
 
@@ -6166,12 +6196,23 @@ def execute(item, force=False):
 
     if rc != 0 and not gate_rc5:
 
-
-        cause = failure_cause(rc, started, run_log)
-        parsed = {"error": "실행 실패 — 측정값 없음", "rc": rc, "cause": cause,
-                  "summary_mtime": os.path.getmtime(spath) if os.path.exists(spath) else None}
-        verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
-        per: dict = {}
+        _rv = rc_verdict_from_log(run_log) if (item.get("rc_is_verdict") and rc == 1) else None
+        if _rv is not None:
+            parsed = {"rc": rc, "verdict_raw": _rv.get("verdict"), "rc_is_verdict": True,
+                      "summary_mtime": os.path.getmtime(spath) if os.path.exists(spath or "") else None}
+            verdict = str(_rv["verdict"])
+            _side = [f"{k}={v}" for k, v in _rv.items() if k != "verdict"][:8]
+            detail = f"rc={rc} 는 판정 인코딩(측정 유효·실행실패 아님) — 로그 JSON 채택 · " + " · ".join(_side)
+            delta = _rv.get("delta") if isinstance(_rv.get("delta"), (int, float)) else None
+            per = {}
+            rc_for_status = 0
+        else:
+            cause = failure_cause(rc, started, run_log)
+            parsed = {"error": "실행 실패 — 측정값 없음", "rc": rc, "cause": cause,
+                      "summary_mtime": os.path.getmtime(spath) if os.path.exists(spath) else None}
+            verdict, detail, delta = "실행실패", f"측정값 없음 — {cause}", None
+            per: dict = {}
+            rc_for_status = rc
     else:
 
 
@@ -6242,7 +6283,7 @@ def execute(item, force=False):
 
 
 
-                st, resume = backlog_status_after(rc, cause, gate_rc5, len(it["attempts"]))
+                st, resume = backlog_status_after(rc_for_status, cause, gate_rc5, len(it["attempts"]))
                 if st == "pending":
                     it["status"] = "pending"
                     it["retry_note"] = (f"{rec['ts']} rc={rc} 소실 → 재시도 "
