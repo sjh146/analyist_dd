@@ -236,7 +236,7 @@ class TestOutput:
         })
 
     def test_build_output_rows(self):
-        rows = close_screener.build_output_rows(self._ranked_df())
+        rows = close_screener.build_output_rows(self._ranked_df(), "2026-08-19")
         assert len(rows) == 1
         r = rows[0]
         assert list(r.keys()) == close_screener.OUTPUT_COLUMNS
@@ -253,11 +253,17 @@ class TestOutput:
     def test_missing_short_ratio_empty_string(self):
         df = self._ranked_df()
         df["short_ratio"] = np.nan
-        rows = close_screener.build_output_rows(df)
+        rows = close_screener.build_output_rows(df, "2026-08-19")
         assert rows[0]["short_ratio"] == ""
 
+    def test_signal_date_follows_resolved_date_not_stock_last_row(self):
+        df = self._ranked_df()
+        df["trade_date"] = [date(2026, 1, 27)]
+        rows = close_screener.build_output_rows(df, "2026-11-20")
+        assert rows[0]["signal_date"] == "2026-11-20"
+
     def test_write_csv_roundtrip(self, tmp_path):
-        rows = close_screener.build_output_rows(self._ranked_df())
+        rows = close_screener.build_output_rows(self._ranked_df(), "2026-08-19")
         path = tmp_path / "sub" / "out.csv"
         close_screener.write_csv(rows, str(path))
         assert path.exists()

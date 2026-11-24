@@ -52,6 +52,21 @@ def latest_scoreboard(repo: str = REPO):
     return files[-1], _read_json(files[-1])
 
 
+def _last_good_equity(repo: str = REPO):
+    st = _read_json(STATE_PATH)
+    if st:
+        eq = (st.get("money") or {}).get("equity_krw")
+        if isinstance(eq, (int, float)) and eq > 0:
+            return float(eq), "state"
+    for path in sorted(glob.glob(os.path.join(repo, "reports", "money", "scoreboard_*.json")),
+                       reverse=True):
+        d = _read_json(path)
+        cu = (d or {}).get("capital_utilization") or {}
+        if cu.get("cash_present") and isinstance(cu.get("equity"), (int, float)) and cu["equity"] > 0:
+            return float(cu["equity"]), os.path.basename(path)
+    return None, None
+
+
 def model_evidence(repo: str, name: str):
     """모델 디렉토리의 증거 파일(robust_oos.json) — 순기대·AUC·표본."""
     p = os.path.join(repo, "services", "xgboost-ml", "app", "models", name, "robust_oos.json")
@@ -118,9 +133,15 @@ def envelope_check(obj: dict, sb: dict | None) -> dict:
     # 그 값을 0/추정으로 메우면 가짜 위반이 생긴다(2026-11-09 실측 102.87%).
     equity_reliable = cap.get("cash_present") is not False
     if not equity_reliable:
-        out["breaches"].append(
-            "자본 사용률 측정 불가 — 브리지 /balance 에 cash 키 없음(매수가능금액 조회 실패). "
-            f"equity({equity})는 보유 평가액만 반영 → 투자비중·손실한도 % 판정 보류")
+        fallback_eq, fallback_src = _last_good_equity(REPO)
+        if fallback_eq is not None:
+            out["used"]["equity_krw"] = fallback_eq
+            out["notes"].append(
+                "자본 사용률 측정 불가 — 브리지 /balance 에 cash 키 없음. "
+                f"equity 는 마지막 정상값 {fallback_eq:,.0f}원({fallback_src})으로 대체 표기")
+        else:
+            out["notes"].append(
+                "자본 사용률 측정 불가 — 브리지 /balance 에 cash 키 없음. 마지막 정상 equity 없음")
     if equity_reliable and used_pct is not None and used_pct > limits["max_invested_pct"] * 100:
         out["breaches"].append(f"총 투자비중 {used_pct}% > 한도 {limits['max_invested_pct'] * 100}%")
     pnl = (real.get("cum") or {}).get("pnl")

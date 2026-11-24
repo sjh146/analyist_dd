@@ -395,8 +395,8 @@ def rank_candidates(df, top_n=20):
     return out
 
 
-def build_output_rows(df):
-    """출력용 dict 리스트 (컬럼 순서 고정)."""
+def build_output_rows(df, signal_date):
+    """출력용 dict 리스트 (컬럼 순서 고정). signal_date 는 계산 시점의 기준 거래일."""
     rows = []
     for _, r in df.iterrows():
         short_ratio = r.get("short_ratio")
@@ -409,7 +409,7 @@ def build_output_rows(df):
             "stock_code": r["stock_code"],
             "stock_name": r.get("stock_name", ""),
             "sector": r.get("sector", ""),
-            "signal_date": str(r["trade_date"]),
+            "signal_date": signal_date,
             "close_price": round(float(r["close_price"]), 2),
             "score": round(float(r["score"]), 1),
             "volume_surge": round(float(r["volume_surge"]), 2),
@@ -528,7 +528,7 @@ def main():
 
         scored = score_candidates(filtered, regime=regime)
         ranked = rank_candidates(scored, top_n=args.top_n)
-        rows = build_output_rows(ranked)
+        rows = build_output_rows(ranked, trade_date)
 
         if not rows:
             logger.warning("후보 없음 — 빈 결과 처리")

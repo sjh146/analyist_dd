@@ -95,6 +95,38 @@ def test_state_build_reads_scoreboard_and_flags_breaches(tmp_path, monkeypatch):
     assert state["goal_metric"].startswith("fillable_oos")
 
 
+def test_envelope_cash_missing_falls_back_from_state_and_warns_only(tmp_path, monkeypatch):
+    st = tmp_path / "objective_state.json"
+    st.write_text(json.dumps({"updated": "2026-11-22T00:00:00",
+                              "money": {"equity_krw": 245576.0}}), encoding="utf-8")
+    monkeypatch.setattr(st_mod, "STATE_PATH", str(st))
+    monkeypatch.setattr(st_mod, "REPO", str(tmp_path))
+    sb = {"capital_utilization": {"equity": None, "used_pct_now": None,
+                                  "cash_present": False, "peak": {}},
+          "realized": {"cum": {}}}
+    env = st_mod.envelope_check(_valid_obj(), sb)
+    assert "측정 불가" not in " ".join(env["breaches"])
+    assert env["used"]["equity_krw"] == 245576.0
+    assert env["used"]["invested_pct_now"] is None
+    assert any("마지막 정상값" in n for n in env["notes"])
+
+
+def test_envelope_cash_missing_falls_back_from_scoreboard_snapshot(tmp_path, monkeypatch):
+    money = tmp_path / "reports" / "money"
+    money.mkdir(parents=True)
+    (money / "scoreboard_2026-11-23.json").write_text(
+        json.dumps({"capital_utilization": {"cash_present": False, "equity": None}}), encoding="utf-8")
+    (money / "scoreboard_2026-11-21.json").write_text(
+        json.dumps({"capital_utilization": {"cash_present": True, "equity": 245576.0}}), encoding="utf-8")
+    monkeypatch.setattr(st_mod, "STATE_PATH", str(tmp_path / "없음.json"))
+    monkeypatch.setattr(st_mod, "REPO", str(tmp_path))
+    sb = {"capital_utilization": {"equity": None, "cash_present": False},
+          "realized": {"cum": {}}}
+    env = st_mod.envelope_check(_valid_obj(), sb)
+    assert "측정 불가" not in " ".join(env["breaches"])
+    assert env["used"]["equity_krw"] == 245576.0
+
+
 def test_state_detects_envelope_overrun(tmp_path):
     sb = {"capital_utilization": {"equity": 500000, "used_pct_now": 45.0, "peak": {"concurrent": 3}},
           "realized": {"cum": {"closed": 3, "pnl": -20000.0}, "fees_unbooked_flag": True},
