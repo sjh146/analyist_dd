@@ -1361,6 +1361,9 @@ class FeaturePipeline:
             "event_litigation_5d", "event_delisting_5d", "event_recall_5d",
             "event_treasury_5d", "event_exec_change_5d", "event_partnership_5d",
             "event_macro_5d", "event_market_liquidity_5d", "event_disaster_5d",
+            "event_shareholder_meeting_5d", "event_ir_5d", "event_dividend_5d",
+            "event_debt_guarantee_5d", "event_option_grant_5d", "event_investment_5d",
+            "event_rumor_5d",
             "theme_exposure_5d",
 
 

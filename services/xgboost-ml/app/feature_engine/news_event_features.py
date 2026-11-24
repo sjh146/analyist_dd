@@ -56,6 +56,13 @@ class NewsEventFeatures:
         "거시경제": "macro",
         "시장지수·유동성": "market_liquidity",
         "자연재해": "disaster",
+        "주주총회": "shareholder_meeting",
+        "IR": "ir",
+        "배당": "dividend",
+        "채무보증": "debt_guarantee",
+        "스톡옵션": "option_grant",
+        "타법인투자": "investment",
+        "풍문·조회공시": "rumor",
     }
 
     # Recent window (hours) for the surge numerator.
@@ -254,6 +261,8 @@ class NewsEventFeatures:
         "capital_increase", "cb_bw", "contract", "delisting", "disaster",
         "exec_change", "litigation", "mna", "new_product", "partnership",
         "patent", "realized", "recall", "regulation", "stake_change", "treasury",
+        "shareholder_meeting", "ir", "dividend", "debt_guarantee",
+        "option_grant", "investment", "rumor",
     ]
 
     def _get_event_counts_5d(self, stock_code: str, db_conn, date=None) -> Dict:
