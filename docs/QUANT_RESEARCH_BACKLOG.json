@@ -655,13 +655,18 @@
           "ts": "2026-11-23T04:48:12+09:00",
           "rc": 0,
           "detail": "T17: 1 >= 1 → 충족"
+        },
+        {
+          "ts": "2026-11-24T15:35:57+09:00",
+          "rc": 0,
+          "detail": "T17: 1 >= 1 → 충족"
         }
       ],
       "result": {
         "detail": "T17: 1 >= 1 → 충족",
         "check_value": 1.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_T17_20261123-044812.log"
+        "log": "data/reports/res_cycle/logs/res_T17_20261124-153556.log"
       }
     },
     {
@@ -1395,13 +1400,18 @@
           "ts": "2026-11-23T00:47:26+09:00",
           "rc": 0,
           "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-24T04:48:03+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R27: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R27_20261123-004725.log"
+        "log": "data/reports/res_cycle/logs/res_R27_20261124-044803.log"
       },
       "note": " || **[2026-10-09 21:1x 스캔 — 자기신고 미배선 러너 목록]** 크론이 실제로 돌리는데 dq_runner_claim 행을 만들지 않는 수집 경로 3개(배선조차 없음, R23 텍스트 휴리스틱에도 걸린다): ① `kis_backfill_range.py`(kis_backfill.sh) — record_claim 문자열 0 ② `run_close_job.py`(close_job.sh) — 컨테이너 내부라 dq_claim.py 모듈 부재(R28 유형 → phase 로그 브리지 필요) ③ `run_swing_job.py`(swing_pipeline.sh 도 동일, claim 브리지 0). 다음 사이클: ②③은 full_pipeline_dd.sh 의 `scripts/yf_claim_from_phase_log.py` 를 그대로 재사용, ①은 러너 내부 배선(크론 파일 무수정)."
     },
@@ -2013,13 +2023,18 @@
           "ts": "2026-11-23T02:47:59+09:00",
           "rc": 0,
           "detail": "R41: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-24T06:47:27+09:00",
+          "rc": 0,
+          "detail": "R41: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R41: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R41_20261123-024754.log"
+        "log": "data/reports/res_cycle/logs/res_R41_20261124-064723.log"
       },
       "notes": " [2026-11-20 21:2x 수리 — 부분 스냅샷 가드, 자율] 실측: 리서처 틱 R41 command(`--today`)는 18:47 에 도는데 일봉 적재(daily_bars.sh)는 18:55 에 끝난다 → `--today` 는 'DB 최신 날짜'를 쓰므로 18:47 에는 **전일 세션(11-19)이 yfinance 스윕분만 든 상태**로 잡혀 기존 정상 기록을 덮었다(11-19: scored 3832→3722 · trade_value_sum 17.99조→null · breadth 64.7→70.9 · adr 2.24→2.72). 19:40 원장 크론(Hermes job 10212cee483b)이 재기록해 53분 뒤 복구 — 그 사이 엔지니어 틱·피드가 그 값을 읽는다. 수리는 시각 하드코딩이 아니라 **내용 판정**: `_looks_partial(new, prev)` = 봉수가 기존×0.98 미만이거나 거래대금 있는 기록을 0/null 로 덮으려 하면 skip(+`--force` 로만 강제). 상향·동일 재실행은 통과하므로 멱등 계약 유지. 회귀 8건 `tests/test_market_pattern_ledger_partial_guard.py`(기존 커버리지 검사 20건 포함 28 통과). 실경로 검증 2종: ① 정상 데이터로 `--today` → changed sessions [] (오탐 없음, 64세션 불변) ② 실 DB + 18:47 로그값(scored 3722·tv null)을 주입 → `[guard] 부분 스냅샷 … 차단` 후 11-19 기록 3832·17.99조 보존."
     },
@@ -2136,13 +2151,18 @@
           "ts": "2026-11-23T06:47:46+09:00",
           "rc": 0,
           "detail": "R44: 0 <= 1 → 충족"
+        },
+        {
+          "ts": "2026-11-24T16:48:22+09:00",
+          "rc": 0,
+          "detail": "R44: 0 <= 1 → 충족"
         }
       ],
       "result": {
         "detail": "R44: 0 <= 1 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R44_20261123-064728.log"
+        "log": "data/reports/res_cycle/logs/res_R44_20261124-164805.log"
       },
       "approved_by": "2026-11-21",
       "note": "[11-21 사용자 승인] sns_post_features 일일 배선 승인 — writer 는 있는데 스케줄이 없어 5거래일 동결."
