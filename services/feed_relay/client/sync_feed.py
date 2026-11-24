@@ -125,7 +125,7 @@ def verify_and_install(cfg: dict, allow_stale: bool) -> dict:
     return {"ok": True, "out": out_path, **state}
 
 
-def send_ack(cfg: dict, state: dict, commit: str, timeout: float = 20.0) -> dict:
+def send_ack(cfg: dict, state: dict, commit: str, timeout: float = 35.0) -> dict:
     """config.ack_url 로 수신 확인 POST (relay POST /v1/ack 규격: Bearer token + JSON 본문)."""
     url = str(cfg.get("ack_url") or "")
     if not url:

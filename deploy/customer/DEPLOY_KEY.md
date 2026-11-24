@@ -84,3 +84,16 @@ gh api -X DELETE repos/sjh146/trader-feed/keys/<id>
 - 실측 검증(2026-11-24): 읽기 전용 deploy key로 `git clone` 성공, `git push` 거부 확인.
 - 저장소가 비공개이므로 매일 게시(08:40) 이후에만 고객이 새 피드를 받습니다.
 - 고객이 5명을 넘으면 계정 초대(collaborator) 방식이 관리상 유리할 수 있습니다.
+
+## 수신 확인(ack) 설정
+
+고객 `config.json` 에 아래를 넣으면 매일 08:45 동기화 후 수신 확인이 우리 쪽에 기록됩니다.
+
+```json
+"ack_url": "https://dduckbeagy-wsl.tail7dae99.ts.net/v1/ack",
+"token": "<add_customer.py 가 발급한 토큰>"
+```
+
+- ack 는 **동기화 성공 후** 전송되며, 실패해도 거래에는 영향을 주지 않습니다(경고만).
+- 우리 서버 쪽 판정: 평일 08:58 `scripts/feed_ack_check.py` → 미확인 고객이 있으면 rc=1.
+- 이 주소는 Tailscale Funnel 고정 주소입니다(터널 재시작에도 변하지 않음). relay 프로세스와 funnel 은 `service_supervisor.py` 가 5분 주기로 점검·복구합니다.

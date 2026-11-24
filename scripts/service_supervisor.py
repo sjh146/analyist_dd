@@ -69,10 +69,45 @@ def restart_newsgate(env: dict) -> dict:
     return spawn("newsgate", ["/usr/bin/python3", "scripts/news_gate_server.py"], env)
 
 
+def restart_relay(env: dict) -> dict:
+    return spawn("feed_relay", ["/usr/bin/python3", "services/feed_relay/server.py",
+                                "--root", os.path.join(REPO, "data/feed_relay"),
+                                "--host", "127.0.0.1", "--port", "8095"], env)
+
+
 def restart_feedserver(env: dict) -> dict:
     return spawn("feed_server", ["/usr/bin/python3", "scripts/feed_server.py",
                                  "--host", "0.0.0.0", "--port", "8090",
                                  "--dir", os.path.join(REPO, "data/feed")], env)
+
+
+def tailscale_state() -> dict:
+    if not os.path.exists("/sys/class/net/tailscale0"):
+        return {"ok": False, "reason": "tailscale0 인터페이스 없음"}
+    try:
+        out = subprocess.run(["tailscale", "funnel", "status"], capture_output=True,
+                             text=True, timeout=25)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"ok": False, "reason": "funnel status 실패: {0}".format(exc)}
+    stdout = out.stdout or ""
+    if "127.0.0.1:8095" not in stdout and "localhost:8095" not in stdout:
+        return {"ok": False, "reason": "funnel 이 8095 를 프록시하지 않음"}
+    return {"ok": True, "reason": ""}
+
+
+def restore_tailscale_funnel() -> dict:
+    started = []
+    if not os.path.exists("/sys/class/net/tailscale0"):
+        subprocess.run(["nohup", "tailscaled", "--state=/var/lib/tailscale/tailscaled.state",
+                        "--socket=/var/run/tailscale/tailscaled.sock"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+        started.append("tailscaled")
+        time.sleep(6)
+    res = subprocess.run(["tailscale", "funnel", "--bg", "--https=443",
+                          "http://127.0.0.1:8095"], capture_output=True, text=True, timeout=60)
+    started.append("funnel rc={0}".format(res.returncode))
+    return {"ok": res.returncode == 0, "did": started,
+            "stderr": (res.stderr or res.stdout or "").strip()[:120]}
 
 
 def docker_state(container: str) -> dict:
@@ -114,12 +149,26 @@ def main() -> int:
         time.sleep(3)
         checks["feedserver"] = probe("http://127.0.0.1:8090/screener_latest.json")
 
+    checks["feed_relay"] = probe("http://127.0.0.1:8095/health")
+    if not checks["feed_relay"].get("ok"):
+        result = restart_relay(env)
+        actions.append("feed_relay 재기동 {0}".format(result))
+        time.sleep(3)
+        checks["feed_relay"] = probe("http://127.0.0.1:8095/health")
+
+    checks["tailscale_funnel"] = tailscale_state()
+    if not checks["tailscale_funnel"].get("ok"):
+        result = restore_tailscale_funnel()
+        actions.append("tailscale funnel 복구 {0}".format(result))
+        time.sleep(3)
+        checks["tailscale_funnel"] = tailscale_state()
+
     checks["bridge"] = probe("http://127.0.0.1:8100/health")
     checks["postgres"] = docker_state("stock_postgres")
     checks["redis"] = docker_state("stock_redis")
     checks["disk"] = disk()
 
-    critical = [name for name in ("newsgate", "feedserver", "bridge", "postgres", "redis", "disk")
+    critical = [name for name in ("newsgate", "feedserver", "feed_relay", "tailscale_funnel", "bridge", "postgres", "redis", "disk")
                 if not checks[name].get("ok")]
     report = {"at": kst(), "checks": checks, "actions": actions,
               "critical": critical, "verdict": "OK" if not critical else "ALERT:" + ",".join(critical)}
