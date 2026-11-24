@@ -32,6 +32,7 @@ import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
+from statistics import median
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import psycopg2  # noqa: E402
@@ -150,21 +151,25 @@ def compute_coverage_rows(cur, since):
     n, dmin, dmax, disc_pos = cur.fetchone()
     window_days = int((dmax - dmin).days)
     computed_at = datetime.now(timezone.utc)
+    cur.execute("SELECT " + ", ".join(f"count(*) FILTER (WHERE {c} <> 0), stddev_pop({c})"
+                                      for c in COLS) + " FROM _ev_cov_grid")
+    stat_row = cur.fetchone()
+    cur.execute("SELECT " + ", ".join(f"count(DISTINCT {c})" for c in COLS)
+                + " FROM _ev_cov_grid GROUP BY stock_code")
+    by_stock = cur.fetchall()
+    cur.execute("SELECT " + ", ".join(f"count(DISTINCT {c})" for c in COLS)
+                + " FROM _ev_cov_grid GROUP BY trade_date")
+    by_date = cur.fetchall()
     rows = []
-    for c in COLS:
-        cur.execute(f"SELECT count(*) FILTER (WHERE {c} <> 0), stddev_pop({c}) FROM _ev_cov_grid")
-        nz, std = cur.fetchone()
-        cur.execute(f"""SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY u) FROM
-            (SELECT count(DISTINCT {c}) u FROM _ev_cov_grid GROUP BY stock_code) s""")
-        uniq_med = cur.fetchone()[0]
-        cur.execute(f"""SELECT avg(CASE WHEN k <= 1 THEN 1.0 ELSE 0.0 END) FROM
-            (SELECT count(DISTINCT {c}) k FROM _ev_cov_grid GROUP BY trade_date) d""")
-        xsec = cur.fetchone()[0]
+    for j, c in enumerate(COLS):
+        nz, std = stat_row[2 * j], stat_row[2 * j + 1]
+        uniq_med = median([t[j] for t in by_stock]) if by_stock else 0.0
+        xsec = sum(1 for t in by_date if t[j] <= 1) / len(by_date) if by_date else 0.0
         ratio = round(float(nz) / n, 6) if n else 0.0
         rows.append(dict(feature_name=c, nonzero_ratio=ratio, std=round(float(std or 0), 6),
                          window_days=window_days, computed_at=computed_at,
                          nonzero_ratio_naive=ratio, nonzero_ratio_honest=ratio, null_ratio=0.0,
-                         stock_unique_median=round(float(uniq_med or 0), 4),
+                         stock_unique_median=round(float(uniq_med), 4),
                          cross_section_constant_ratio=round(float(xsec or 0), 4)))
     cur.execute("DROP TABLE IF EXISTS _ev_cov_grid")
     return rows, n, disc_pos, window_days
