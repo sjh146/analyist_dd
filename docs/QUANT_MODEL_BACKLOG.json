@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T07:55:00+09:00",
+  "updated_at": "2026-11-24T15:40:00+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25320,7 +25320,7 @@
     {
       "id": "XR48",
       "title": "[리서처 R48] KRX OpenAPI 는 당일봉을 안 준다 — 직전 거래일 봉이 '아침 몇 시'부터 발행되는지 시각별 실측 (07:30 로더 가능성 판정)",
-      "status": "pending",
+      "status": "done",
       "priority": 8,
       "from_research": "R48",
       "arm": null,
@@ -25329,16 +25329,33 @@
       "command": "docker exec stock_xgboost_ml sh -c 'cd /app && timeout 390 python3 -u scripts/r48_publish_window_report.py --jsonl /app/reports/overnight/r48_publish_probe.jsonl'",
       "metric": "krx_t1_publish_time",
       "hypothesis": "market_data 가 항상 하루 뒤지는 이유는 로더 버그가 아니라 소스 발행 시각이다. 18:55 `krx_daily.sh` 는 `end = today-1` 로 자르므로 11-23 저녁의 최신 봉은 11-20 이다(실측). 같은 시각 API 에 당일(11-23)을 물으면 0행이므로 당일봉은 소스에 없다. 남은 질문: **직전 거래일 봉이 07:30 이전에 발행되는가**. 그렇다면 08:40 피드 발행 전에 T-1 봉을 적재하는 로더 1회를 추가해 신호를 하루 신선하게 만들 수 있다(현재 아침 피드는 T-2 종가로 스크리닝).",
-      "evidence": "리서처 R48 결과: [조사]R48: 500 >= 2 → 충족 | 증거: {\"probed_at\": \"2026-11-23\", \"target_session\": \"2026-11-20\", \"min_rows\": 500, \"markets\": {\"KOSPI\": 935, \"KOSDAQ\": 1836}} | R48 직전거래일(2026-11-20) 봉 가용 마켓수 2 (문턱 마켓당 500행)",
+      "evidence": "리서처 R48 결과: [조사]R48: 500 >= 2 → 충족 | 증거: {\"probed_at\": \"2026-11-23\", \"target_session\": \"2026-11-20\", \"min_rows\": 500, \"markets\": {\"KOSPI\": 935, \"KOSDAQ\": 1836}} | R48 직전거래일(2026-11-20) 봉 가용 마켓수 2 (문턱 마켓당 500행) | [판정 2026-11-24 15:36 실측 — rc=1 은 '불가' verdict(스크립트 계약 exit 0=가용/1=불가/3=표본부족)이므로 실행실패가 아니다] 33 probe · 관심세션 2026-11-23 · 최초가용 2026-11-24T08:22:34+09:00(KOSPI 935/KOSDAQ 1836) · 문턱 07:30 · 표본문턱포함=True · 차단 0 · verdict=07:30_이후_발행 → 사전등록 success 규칙대로 '현행 18:55 구조가 최선' 축 종결(로더·크론 변경 없음).",
       "success": "사전 등록(변경 금지): probe JSONL 의 관심세션(마지막 target_session)에서 최초 가용(두 마켓 ≥500행) 시각 ≤ 07:30 → verdict '07:30_로더_가능' = 가설 채택(그때 07:30 T-1 로더 추가는 수집기·크론 변경이라 사용자 승인 항목으로 올린다). 최초 가용 > 07:30 또는 07:30 이후까지 미발행 → '현행 18:55 구조가 최선' 으로 축 종결(로더 변경 없음). 표본부족(rc=3)은 판정 불가 — 재수집.",
       "expected": "미지",
       "cost": null,
-      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라. | 2026-11-23T23:14 엔지니어 셋업 구현(장외 틱·규칙 4): ① 표본 수집기 scripts/r48_publish_sampler.py — krx_daily.fetch_day 재사용(net_guard 간격·차단 시 즉시 중단), 15분 간격·23:13~11-24 08:40, 호출 2회/15분(마켓 1콜씩)이라 CPU·IP 부담 없음 → 컨테이너 내 detached(pid 118)로 기동. DB 쓰기 0. ② 판정기 scripts/r48_publish_window_report.py — 자정을 넘기면 target_session 이 바뀌므로 '마지막 target_session' 행만 판정에 쓰도록 구현(안 그러면 23:12 probe 가 '이미 발행'으로 잡혀 오독). 실측 23:12: target=2026-11-20 → KOSPI 935·KOSDAQ 1,836행(당일 11-23 은 여전히 미발행, 리서처 관측 재현). 산출 /app/reports/overnight/r48_publish_probe.jsonl(호스트 services/xgboost-ml/reports/overnight/). | 2026-11-24T00:12 엔지니어: 구동기 자기모순 경고(est_minutes=1 · 컨테이너 timeout 없음) 수리 — 판정기 실행에 `timeout 300` 을 넣었다(실측 실행시간 <10초, 여유 30배). 표본 수집기는 00:1x 기준 생존(container pid 13, `--until 2026-11-24T08:40`) 확인. 판정기 규약상 표본이 07:30 을 덮지 못하면 rc=3 표본부족(오판 아님)이므로, 매 틱 ①수집기 생존 ②probe 최신 시각을 함께 확인하라.",
+      "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 준비가 끝났는지 먼저 확인하라. | 2026-11-23T23:14 엔지니어 셋업 구현(장외 틱·규칙 4): ① 표본 수집기 scripts/r48_publish_sampler.py — krx_daily.fetch_day 재사용(net_guard 간격·차단 시 즉시 중단), 15분 간격·23:13~11-24 08:40, 호출 2회/15분(마켓 1콜씩)이라 CPU·IP 부담 없음 → 컨테이너 내 detached(pid 118)로 기동. DB 쓰기 0. ② 판정기 scripts/r48_publish_window_report.py — 자정을 넘기면 target_session 이 바뀌므로 '마지막 target_session' 행만 판정에 쓰도록 구현(안 그러면 23:12 probe 가 '이미 발행'으로 잡혀 오독). 실측 23:12: target=2026-11-20 → KOSPI 935·KOSDAQ 1,836행(당일 11-23 은 여전히 미발행, 리서처 관측 재현). 산출 /app/reports/overnight/r48_publish_probe.jsonl(호스트 services/xgboost-ml/reports/overnight/). | 2026-11-24T00:12 엔지니어: 구동기 자기모순 경고(est_minutes=1 · 컨테이너 timeout 없음) 수리 — 판정기 실행에 `timeout 300` 을 넣었다(실측 실행시간 <10초, 여유 30배). 표본 수집기는 00:1x 기준 생존(container pid 13, `--until 2026-11-24T08:40`) 확인. 판정기 규약상 표본이 07:30 을 덮지 못하면 rc=3 표본부족(오판 아님)이므로, 매 틱 ①수집기 생존 ②probe 최신 시각을 함께 확인하라. | 2026-11-24 15:35 장마감 틱: 드라이버가 rc=1 을 실행실패로 기록했으나 실측 verdict 는 확정 판정이다 — rc!=0 을 '실행실패'로 뭉뚱그리는 판정 경로는 별건(측정정합성)으로 다룬다.",
       "promoted_from": "handoff",
       "promoted_at": "2026-11-23T23:07:39+09:00",
       "not_before": "2026-11-24T08:50:00+09:00",
       "est_minutes": 1,
-      "updated_at": "2026-11-24T00:12:59+09:00"
+      "updated_at": "2026-11-24T00:12:59+09:00",
+      "attempts": [
+        {
+          "ts": "2026-11-24T15:36:55+09:00",
+          "rc": 1,
+          "verdict": "실행실패",
+          "detail": "측정값 없음 — 종료코드 1(로그 꼬리에서 예외 줄 미발견)",
+          "log": "data/reports/me_cycle/logs/me_cycle_XR48_20261124-153655.log",
+          "elapsed_min": 0.0
+        }
+      ],
+      "result": {
+        "verdict": "실행실패",
+        "detail": "측정값 없음 — 종료코드 1(로그 꼬리에서 예외 줄 미발견)",
+        "delta": null,
+        "per_exp": null,
+        "rc": 1
+      }
     },
     {
       "id": "CG454",
