@@ -2062,7 +2062,13 @@ def main():
                               universe_seed=args.universe_seed, **uni)
     base_names = [n for n in names if n in df.columns]
     all_dates = sorted(df["date"].astype(str).unique())
-    ml.log(f"panel rows={len(df)} dates={len(all_dates)} ({all_dates[0]} ~ {all_dates[-1]})")
+    n_codes_eff = int(df["stock_code"].nunique()) if len(df) else 0
+    ml.log(f"panel rows={len(df)} dates={len(all_dates)} ({all_dates[0]} ~ {all_dates[-1]}) "
+           f"codes={n_codes_eff}")
+    if args.limit and n_codes_eff != args.limit:
+        ml.log(f"⚠ --limit {args.limit} 무시됨 — 완성 패널(npz) 재사용 경로는 종목을 자르지 않는다"
+               f"(실제 {n_codes_eff}종목). 폭 실험은 codes_limit/codes_slice 또는 다른 패널 파일을 써라. "
+               f"(실측 2026-11-25: 같은 패널에서 --limit 50/100/200 이 비트동일 0.5475 로 나왔다)")
 
     import train_curated as tc
     tc.select_curated_features = lambda n, a=False: list(n)
@@ -2810,6 +2816,8 @@ def main():
     if ok:
         with open(args.summary_out, "w") as f:
             json.dump({"finished_at": ml.now_iso(), "config": vars(args),
+                       "effective_n_codes": n_codes_eff,
+                       "effective_n_dates": len(all_dates),
                        "best": ok[0], "results": results}, f,
                       ensure_ascii=False, indent=2)
         print(f"\nbest: {ok[0]['exp']} ({ok[0]['desc']}) AUC {ok[0]['auc_mean']:.4f}")

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T22:41:43+09:00",
+  "updated_at": "2026-11-25T00:34:05+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25848,7 +25848,7 @@
       "from_research": null,
       "title": "[리서처] krx_short_selling 수집이 2026-11-18 부터 2,601→약 200행/일로 붕괴 — 공매도 비율 피처가 조용히 부분화",
       "hypothesis": "공매도 잔고/비율 원천 수집이 2026-11-18 을 기점으로 종목 커버리지가 1/13 로 줄었다. 날짜는 최신(지연 <2거래일)이라 신선도 게이트는 통과하지만 **행수**가 무너져 short_selling_ratio·days_to_cover 계열 피처가 특정 시장/종목군만 반영한다. 수집기(krx-collector) 소유라 엔지니어가 고칠 수 없다.",
-      "evidence": "2026-11-24 22:3x 읽기 전용 실측(docker exec stock_postgres psql): krx_short_selling 일별 행수 11-02~11-17 은 2,599~2,601 로 일정하다가 11-18 200 · 11-19 200 · 11-20 201 · 11-23 198 로 급락(×0.077). 구동기 신선도 요약도 최근 7일 485.9/일 = 기준선 2,601.0/일의 ×0.187 로 표기(날짜 지연은 정상). 재현: docker exec stock_postgres sh -c 'psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -tAc \"select trade_date, count(*) from krx_short_selling where trade_date >= current_date - 30 group by 1 order by 1 desc\"'",
+      "evidence": "2026-11-24 22:3x 읽기 전용 실측(docker exec stock_postgres psql): krx_short_selling 일별 행수 11-02~11-17 은 2,599~2,601 로 일정하다가 11-18 200 · 11-19 200 · 11-20 201 · 11-23 198 로 급락(×0.077). 구동기 신선도 요약도 최근 7일 485.9/일 = 기준선 2,601.0/일의 ×0.187 로 표기(날짜 지연은 정상). 재현: docker exec stock_postgres sh -c 'psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -tAc \"select trade_date, count(*) from krx_short_selling where trade_date >= current_date - 30 group by 1 order by 1 desc\"' | 2026-11-25 00:3x 엔지니어 자율 진단(읽기 전용 실측): 붕괴 원인은 KIS 경로의 종목 수 제한이다 — /home/jhshi/cron/kis_short_program.sh 가 `--limit ${KIS_SHORT_LIMIT:-200}` 로 하루 200종목만 수집하고, 그 200종목이 생산 패널(panel_prod200_v6o, 200종목)과 **15/200=0.075 만 겹친다**(2026-11-23 실측). 즉 최근 거래일 공매도 피처는 패널의 92.5%가 결측이고, data_axis_readiness 의 panel_cover_frac 0.995 는 161일 전 이력(2,628종목) 평균이라 결손을 가린다(XR51 커버리지 착시와 동형). 19:30 크론 로그: `완료 199종목 / 적재 15486행 / 호출 200` 이지만 DB에는 그날 198행만 남는다 — 이력 행은 중복 upsert 로 무시되고 신규일 1행/종목만 들어간다. 전체 유니버스(2,628종목)로 돌리면 종목당 3.5초 직렬 호출이라 약 2.5시간이 걸린다(11-17 이전 실측 패턴). 수정은 크론 1줄(승인 대상): sed -i 's/KIS_SHORT_LIMIT:-200/KIS_SHORT_LIMIT:-0/' /home/jhshi/cron/kis_short_program.sh → 단 공매도 축은 미배선 원천 스윕에서 CLOSED(edge 0)로 판정됐으므로 모델 기대 이득은 0 이고, 가치는 '피처 무결성·조용한 부분화 방지'다.",
       "success": "krx_short_selling 일별 행수가 2,500 이상으로 회복되고, supply_market_features 재빌드 후 short_selling_ratio 비영 커버리지가 11-17 이전 수준으로 돌아온다(현재 11-18 이후 부분 커버).",
       "counterfactual": "현 상태(11-18 이후 ~200행/일) — 공매도 계열 피처가 특정 종목군에만 존재하고 결측은 0 으로 대체되어 '조용한 무정보'가 된다.",
       "expected": "모델 AUC 직접 효과는 낮다(공매도 축은 CG323 에서 '모델 레버 아님'으로 종결). 그러나 결측 0 위장은 하류 국면·유동성 판단을 오염시키므로 데이터 위생상 복구 필요.",
@@ -25859,7 +25859,7 @@
       "baseline": null,
       "note": "2026-11-24 22:3x 엔지니어 자율 발견(틱 신선도 요약의 '수집량 붕괴' 경고를 DB 로 확증). 수집기·원천 API 는 리서처 소유 → 엔지니어는 실측 증거만 남긴다. ⚠ 이 항목은 arm 실험이 아니므로 AUC 판정 대상이 아니다(구동기 자동 실행 대상도 아님 — needs_setup). 같은 계열 선례: KRX-01(krx_trading 정지).",
       "created_at": "2026-11-24T22:35:00+09:00",
-      "updated_at": "2026-11-24T22:35:00+09:00",
+      "updated_at": "2026-11-25T00:16:04+09:00",
       "setup_needed": "수집기(krx-collector) 소유 권한 필요 — 2026-11-18 이후 일별 2,601→~200행 급락 원인 규명 + 백필.",
       "approved_by": null
     },
@@ -25920,6 +25920,83 @@
       "note": "2026-11-24 23:3x 엔지니어 자율(장외 틱·규칙 4). ⚠ 수집기 입력(유니버스) 교체라 '수집기 소유 파일'에 해당 → 승인 항목으로 올린다(스테이징 파일·검증은 완료). 교체는 되돌릴 수 있다(백업 파일). ⚠ 대안: 500종목으로 늘리면 커버는 같아지지만 콜 7,000·6.6시간이라 야간 창(개장 전)을 넘겨 기각.",
       "created_at": "2026-11-24T23:36:00+09:00",
       "setup_needed": "승인 필요(수집기 입력 교체): cron/kis_minute.sh 가 읽는 data/minute_universe.json 을 panel∪top100(300종목)으로 교체. 스테이징 완료(data/minute_universe_panel300.json, 패널 200/200 포함·콜 수 불변). 승인 시 command 한 줄로 교체·검증."
+    },
+    {
+      "id": "CG470",
+      "title": "[측정정합성] 유니버스 폭 사다리 — 같은 arm·같은 패널·같은 폴드/시드에서 limit 50/100/200 (등록 기준선 0.5406 은 50종목 표본인데 생산은 200종목)",
+      "status": "done",
+      "priority": 1,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "wf_sweep_summary",
+      "summary_out": "services/xgboost-ml/reports/overnight/cg470_l200_summary.json",
+      "registered_baseline_value": 0.5406,
+      "paired_reference": "CG376_noroll_h5@50",
+      "hypothesis": "등록 기준선 0.5406(panel_420_asofpatch·49종목)과 최근 23사이클의 헤드라인 0.5519·0.5475(panel_prod200 계열·limit 50)는 모두 50종목 표본에서 측정됐다. 생산 패널은 200종목이므로 판정 표본과 배포 인구가 다르다. 같은 런 안에서 폭만 50→100→200 으로 늘리면 '폭 효과'가 분리되고, 폭이 클수록 AUC 가 유의하게 낮다면 +0.02 문턱은 50종목 특이 눈금이 되어 승격 판단 전체가 무효화된다.",
+      "command": "cd /home/jhshi/analyist_dd && bash scripts/cg470_breadth_ladder.sh",
+      "counterfactual": "CG376_noroll_h5 @ limit 50 (같은 명령·같은 패널의 50종목 arm) — 등록 기준선 눈금의 대조",
+      "success": "① 3개 폭 모두 5폴드×5시드 완주(rc=0) ② 짝 Δ(limit200−limit50) 부호·크기와 폴드별 부호 일관성 보고 ③ |Δ| ≥ 0.02 면 '등록 눈금은 50종목 특이' 로 기록하고 기준선 이관(CG131) 근거로 승격 ④ |Δ| < 0.02 면 폭 효과 없음으로 닫고 데이터 축(신규 원천)만 남는다고 보고",
+      "evidence": "선행 실측: panel_200liq_fresh limit200 에서 같은 arm 계열이 0.5095~0.5106(CG188·CG189·CG192·CG193), panel_prod200 limit200 WF 계열 0.5127~0.5302(CG10), panel_150u limit150 LS_quant 0.514(U1) — 모두 50종목 값(0.5302~0.5475)보다 낮다. 다만 같은 패널·같은 폴드/시드에서 폭만 바꾼 짝 비교는 없다(그래서 이 항목).",
+      "expected": "폭이 커질수록 AUC 하락(추정 −0.02~−0.04). 하락이 확인되면 스코어보드 기준선·문턱을 생산 폭(200)으로 재정의해야 한다(리뷰보드 승인).",
+      "cost": "3회 직렬 · 50종목 ~3분 + 100종목 ~6분 + 200종목 ~13분 (CG465 2arm/50종목 5.8분 실측 기준 외삽)",
+      "est_minutes": 35,
+      "created_at": "2026-11-25T00:11:25+09:00",
+      "note": "2026-11-25 00:2x 엔지니어 자율(장외 틱·실행가능 pending 0건·규칙 4). 이 실험은 승격이 아니라 측정 정합성 수리다 — 결과가 어느 쪽이든 승격 없이 기록하고, 기준선 이관은 CG131(리뷰보드 승인)로 올린다. ⚠ 판정은 같은 런 안의 짝 Δ(같은 폴드·같은 시드)만 쓴다 — 폭이 다르면 인구가 달라 레벨 비교는 보조 지표다. | 2026-11-25 00:30 판정: 무효. 조치 — ① wf_label_sweep 에 `--limit 무시됨` 경고 + summary 에 effective_n_codes/effective_n_dates 기록 추가(커밋) ② 폭 실험은 codes_limit/codes_slice 로만 가능하다고 명시 ③ 후속 CG471(같은 패널 재앵커)로 질문을 바꿔 등록.",
+      "attempts": [
+        {
+          "ts": "2026-11-25T00:30:43+09:00",
+          "rc": 0,
+          "verdict": "기준선없음",
+          "detail": "대조군 CG376_noroll_h5 0.5475 만 측정됨(비교할 가설군 없음)",
+          "log": "data/reports/me_cycle/logs/me_cycle_CG470_20261125-001129.log",
+          "elapsed_min": 19.2
+        }
+      ],
+      "result": {
+        "verdict": "무효(플래그 no-op)",
+        "delta": 0.0,
+        "detail": "3회 비트동일 → Δ=0.0000. 원인은 limit 이 npz 재사용 분기에서 쓰이지 않는 것. 부수 확인: 같은 패널·같은 설정 재실행이 비트동일(결정성 OK)·현행 arm 은 이미 200종목(생산 폭)에서 측정되고 있었다.",
+        "per_exp": {
+          "CG376_noroll_h5": {
+            "mean": 0.5475,
+            "std": 0.0098,
+            "folds": [
+              0.534,
+              0.5457,
+              0.5512,
+              0.5429,
+              0.5635
+            ],
+            "fold_win_rate": 1.0
+          }
+        }
+      },
+      "finished_at": "2026-11-25T00:34:05+09:00",
+      "outcome": "무효(설계 전제 오류) — `--limit` 은 완성 패널(npz) 재사용 경로에서 **무시된다**(scripts/wf_wave.py build_panel L298~ 재사용 분기: limit 미사용). limit 50/100/200 3회 실행이 비트동일: AUC 0.5475±0.0098 · folds [0.534,0.5457,0.5512,0.5429,0.5635] · rows 36,417 · codes 200(로그 실측). 따라서 '폭 효과'는 이 플래그로 측정 불가."
+    },
+    {
+      "id": "CG471",
+      "title": "[측정정합성] 같은 패널 재앵커 — 등록 기준선 arm(LS_quant_q30_h5)을 200종목 청정 패널·같은 폴드/시드에서 다시 재고, 최근 arm 과 짝 Δ 를 낸다",
+      "status": "pending",
+      "priority": 1,
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "metric": "wf_sweep_summary",
+      "summary_out": "services/xgboost-ml/reports/overnight/cg471_summary.json",
+      "registered_baseline_value": 0.5406,
+      "paired_reference": "LS_quant_q30_h5",
+      "hypothesis": "등록 기준선 0.5406 은 누수 패널(panel_420_asofpatch, 49종목)에서 잰 값이고, 최근 판정은 청정 패널(prod200 계열, 200종목)에서 잰 값이다. CG470 실측으로 '--limit 는 npz 재사용 경로에서 무시된다'가 확인돼 두 값의 인구가 다르다는 사실이 확정됐다. 같은 패널·같은 폴드·같은 시드에서 등록 arm 과 최근 최고 arm 을 나란히 재면, 지난 23사이클의 Δ0.0113 이 '패널 교체 효과'인지 '실제 모델 차이'인지 처음으로 분리된다.",
+      "command": "cd /home/jhshi/analyist_dd && docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --days 420 --folds 5 --seeds 5 --only LS_quant_q30_h5,CG376_noroll_h5,CO_rank_smooth_d1_h5 --out /app/reports/overnight/cg471.jsonl --summary-out /app/reports/overnight/cg471_summary.json'",
+      "counterfactual": "LS_quant_q30_h5 (등록 기준선 arm, 같은 런) — 등록값 0.5406 은 다른 패널 값이라 대조는 이 런 안의 짝 Δ 로만 한다",
+      "success": "① 3arm 5폴드×5시드 완주 ② LS_quant_q30_h5 의 같은 패널 레벨과 CG376_noroll_h5·CO_rank_smooth_d1_h5 의 짝 Δ(폴드별 부호 포함) 보고 ③ |짝 Δ| ≥ 0.02 면 '청정 패널에서 등록 arm 대비 실제 개선' 후보로 기록(승격 아님·CG131 근거) ④ <0.02 면 노이즈로 닫고 기준선 이관 판단만 남긴다",
+      "evidence": "CG87(panel_prod200·limit50→실제200): LS_quant 0.5302±0.0168 vs CO_smooth_d1 0.5355±0.0143 → Δ+0.0053. CG376(prod200_v6): noroll 0.5475±0.0098. CG470: --limit no-op 확인(3회 비트동일).",
+      "expected": "Δ(최근 arm − 등록 arm) +0.01~+0.02 대. 0.02 미만이면 '패널 교체 효과'가 대부분이라고 기록.",
+      "cost": "3 arm × 5폴드 × 5시드 ≈ 18분(1arm 5폴드/5시드 실측 6분)",
+      "est_minutes": 25,
+      "created_at": "2026-11-25T00:34:05+09:00",
+      "note": "2026-11-25 00:3x 엔지니어 자율(CG470 무효 판정 후속). 승격 아님 — 스코어보드 기준선 이관(CG131)의 증거 산출이다. ⚠ 같은 런 짝 Δ 만 판정에 쓴다."
     }
   ],
   "updated": "2026-11-24T20:20:00+09:00"
