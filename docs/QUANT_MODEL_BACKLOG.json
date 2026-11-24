@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-24T22:28:40+09:00",
+  "updated_at": "2026-11-24T22:41:43+09:00",
   "owner": "quant-model-engineer",
   "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
   "rules": [
@@ -25862,6 +25862,22 @@
       "updated_at": "2026-11-24T22:35:00+09:00",
       "setup_needed": "수집기(krx-collector) 소유 권한 필요 — 2026-11-18 이후 일별 2,601→~200행 급락 원인 규명 + 백필.",
       "approved_by": null
+    },
+    {
+      "id": "CG467",
+      "title": "[데이터 축·종결] event_* 5일 카운트 계열 18종이 '희소사망' — 고아 빌더(event_rolling) 부활 대신 축 종결",
+      "status": "closed_rejected",
+      "priority": 2,
+      "kind": "measurement_integrity",
+      "owner": "engineer",
+      "affects_model": false,
+      "created_at": "2026-11-24T22:41:43+09:00",
+      "command": null,
+      "counterfactual": "부활 가정: event_rolling_features 빌더(11-18 이후 정지·크론 없음)를 재가동해 event_* 5d 를 패널에 배선",
+      "success": "판정 기준 아님(축 종결 기록). 재개 조건: event 원천의 종목 커버리지가 패널 200종목 중 ≥150 으로 올라가거나 honest nonzero ≥1% 를 넘는 피처가 5종 이상 생기면 새 가설로 재등록",
+      "hypothesis": "event_* 5d 카운트는 원천(공시 이벤트)이 종목·일자 단위로 희소해 횡단면 선별에 쓸 수 없다. CG448 은 패널이 event_rolling 집계 8종을 쓰지 않아 돈 영향 0 임을 이미 실측했다.",
+      "evidence": "2026-11-24 22:5x 실측(scripts/feature_dead_definitions_audit.py): B 정의(희소사망 honest<1%) 41종 중 **18종이 event_* 5d**(event_recall 0.000 · patent/partnership 0.0001 · regulation 0.0003 · new_product/option_grant/rumor 0.0005 … cb_bw 0.0092), 전부 525일 창. 나머지 6종은 SNS 4종(sentiment_volatility/trend·negative_ratio 0.0032 · sns_bot_filtered 0.0016) + market_impact_score 0.0045. A 정의(완전사망 17)는 525일 창에서 0건이라 '정확히 0' 으로는 안 잡히고 1% 문턱에서만 잡힌다 — 원천이 0 이 아니라 '희소'다.",
+      "note": "2026-11-24 23:0x 엔지니어 자율 판정(리서처가 'event_rolling_features 고아 빌더 — 엔지니어 판단 항목'으로 넘긴 건에 대한 답). 판단: ① 부활하지 않는다 — CG448(패널 미사용·돈 영향 0) + 이번 실측(18/18 희소사망)이 같은 방향 ② 죽은 피처를 '부활'시키는 것 자체가 성과가 아님(스킬: 부활 ≠ 성능) ③ 재개 조건은 success 칸에 수치로 고정. 5d 카운트 형태가 아니라 '종목·일 밀도/지시자' 형태가 필요하다는 것은 새 데이터 축 가설이며, 원천 커버리지가 차기 리서처 수집(R17/R44)으로 올라간 뒤 재등록한다."
     }
   ],
   "updated": "2026-11-24T20:20:00+09:00"
