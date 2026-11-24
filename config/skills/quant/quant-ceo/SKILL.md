@@ -50,6 +50,10 @@ analyist_dd 의 **궁극 목표(돈을 버는 것)** 를 향해 나아가고 있
      정본은 2026-11-09 사용자 지시로 종목 1/3·총 100% 이고 `config/objective.json` envelope 와 일치한다 —
      봉투 위반을 주장하기 전에 `python3 -c "import sys;sys.path.insert(0,'scripts');import risk_limits as r;print(r.LIMITS, r.LIMITS_META['source'])"` 로 실행값과 출처를 먼저 확인하라.
      `LIMITS_META['loaded']` 가 False 면 폴백(10%/30%)으로 판정하게 되므로 그 보고는 '측정 불가'로 쓴다.
+   - **함정 — 한도 정본이 둘로 갈라진다**: 2026-11-24 실측, 목표 사본 `config/objective.json` 은 일 3건·종목 1/3·3칸인데 실행 Config 는 일 50건(상승장 100)·종목 1/4·동시 4칸이었다(11-23 3→10, 11-24 10→50 확대). 비용 산수는 **실행값**으로 한다 — 0엣지에서 건수는 확정 비용에 선형이라 상한 소진 시 왕복 0.21%p × 72,271원/건 × 50건 = 7,590원/일(자본 3.1%/일). 기계 판정은 `python3 scripts/audit_safety.py` 의 `limit_mismatch` 경보다. 불일치가 남아 있는 동안 노출·한도 판정은 '측정 불가'로 쓰고 봉투 위반을 주장하지 않는다.
+   - **함정 — 라이브 repo 경로 분리로 한도가 조용히 폴백**: 2026-11-24 라이브 repo 가 `C:\Users\jhshi\trader-agent` 로 이동하고 옛 경로 `C:\Users\jhshi\analyist_dd\trader-agent` 는 junction 이 됐다. WSL 에서 그 디렉터리의 `os.listdir` 이 `[]` 를 돌려주므로(파일 단위 읽기는 됨) `trader_core` import 가 실패하고 `risk_limits` 가 폴백(10%/30%)으로 판정했다. `scripts/risk_limits.py` 에 Windows python 2차 경로를 넣어 회복했다(`via=win_python`). 한도가 10%/30% 로 보이면 `LIMITS_META['via']`·`loaded` 를 먼저 확인한다.
+   - **함정 — 엔진 세대가 섞인 표본**: 11-23~24 에 청산(trail ATR)·슬롯(4칸·1/4)·건수(50)·사이클(300s→30s)이 3회 바뀌었다. 판정 표본은 **마지막 엔진 변경 이후 체결만** 센다 — 세대가 섞이면 반분할 부호 갈림을 엣지로 오독한다.
+   - **함정 — 사람이 상한을 확대한 뒤의 재상정**: 상한이 3→10→50 으로 열렸다면 '신규 진입 0' 승인 요청은 사실상 거부된 것이다. 같은 문구를 다시 올리지 말고 세션별 체결 건수·비용을 실측 보고로 바꾼다.
    - **함정 — 킬은 강제력이 없다**: `ceo_priority.json` 을 읽는 실행 코드가 0개라 킬을 기록해도 다음 날
      주문이 나간다(실측 2일 연속). 같은 킬을 반복 기록하는 것은 결정이 아니라 기록 습관이다 — 강제력
      배선은 trader-agent 영역이므로 escalations 로 올리고, 레버는 '돈이 실제로 움직이는가'의 판정으로 잡는다.

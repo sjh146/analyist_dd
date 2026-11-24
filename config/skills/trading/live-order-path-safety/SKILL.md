@@ -84,7 +84,10 @@ records what happened → risk gates read the journal".
   different ceilings: with a total-cost-basis cap of 30% of equity at ~10% per position, "3 of one + 2 of another"
   is 50% and does not fit — the extra slot exists only if per-position size drops (~6% at five names). Tell the
   owner which of the two they are choosing (more names at smaller size, vs more exposure); raising the code count
-  alone silently changes per-name size, raising exposure alone changes risk. Compute both from the live caps and
+  alone silently changes per-name size, raising exposure alone changes risk. Changing the code count also means
+  changing the equal-weight denominator (`max_position_pct = 1/N`) and the sizing/slot tests **in the same commit**:
+  the suite pins the old fraction and a bare cap change turns it red with no behaviour change, which then reads
+  like a regression. Compute both from the live caps and
   say the numbers instead of implementing the larger one quietly. Read those caps out of the file on
   every pass — the owner retunes them, and a copy carried in a skill or runbook goes stale (a doc
   claiming "20 % per stock, 10 concurrent codes" coexisted with a live config of 1/3 per stock and 3
@@ -95,7 +98,22 @@ records what happened → risk gates read the journal".
   `cp feed.json /tmp/before` → run the producer → compare `before[k] == after[k]` for every old key, dict-diffing
   on mismatch. Report that comparison as the evidence; a new key beside identical old keys is the shape that lets
   a feed change ship mid-session without stopping the running strategies.
-- **An unvalidated capability is not a delivered capability.** If the path cannot be exercised end to end before
+- **A candidate's "today" is only as fresh as its own last bar — date the signal and gate the bar's age.**
+  A producer that stamps `signal_date` as the reference trading date while reading a stock's *last available*
+  bar will publish months-old prices as today's signal, and every consumer-side freshness check passes because
+  the payload is new (measured: three names whose data ended in Jan–Aug were published as same-day candidates).
+  Two guards, both at the producer: (1) the stamp is the **reference trade date**, not the stock's own last row;
+  (2) drop candidates whose last bar is older than N days (e.g. 5) from the reference date and log the count
+  plus the codes. Otherwise the trader fills at a stale price that no risk gate can detect.
+- **A published artefact is delivered only if a scheduled step pushes it to the repo the consumer pulls.**
+  The feed can exist locally with the right counts while the remote branch still carries yesterday's — or only
+  a code release (measured: local publish succeeded, remote head was a code commit from the previous night, and
+  the publish lived behind a CI path nobody exercised). So: (1) clone/symlink the *consumer's* repo and add the
+  publish call to the scheduler's own wrapper, not only to CI; (2) open the wrapper — a trailing `exec` of the
+  first step silently makes later steps unreachable; (3) verify from the **remote**: `git fetch` then
+  `git log origin/<branch> -1` plus the artefact's `sha256sum`, and hand the consumer that exact hash+size to
+  compare. A code repo is usually the wrong target for data — check `git ls-files <data path>` before telling the
+  owner which repo to clone. If the path cannot be exercised end to end before
   the next session (no candidates, no restart yet), say so plainly and name the one remaining step plus who must
   do it — rather than reporting the feature as available.
 - **A derived export is still real data: find its generator before deleting anything untracked.** An untracked
@@ -105,6 +123,31 @@ records what happened → risk gates read the journal".
   deleted, regenerate day by day with that generator and **reconcile the totals against the journal** (the journal
   is the source of truth, e.g. a day's realised P&L must reproduce), and state that a regenerated file matches in
   substance but may not be byte-identical to the original.
+- **Turning a dormant strategy path on takes four gates, and the last one silently locks the path out.** In order:
+  (1) the consumer's `screeners` list, (2) the per-path slot cap, (3) the per-path **capital** cap, (4) the per-path
+  **entry threshold**. Then count, from the *published payload*, how many candidates actually pass gate 4 — the
+  answer is not the candidate count. Measured: 20/20 swing candidates carried `edge_score` 1 while the global
+  `min_edge_score` was 4, so opening slots and capital produced exactly zero entries and the log looked like a
+  quiet market. A per-path threshold must be **absolute**: if the global value gets a regime bonus added
+  (`+2` under `risk_off`), the effective bar rises above every candidate the path will ever see. Resolve the
+  override verbatim (no bear/regime bonus, no bull relief) and keep the global rule untouched for paths that
+  do not override.
+- **Two independent daily entry caps exist; the effective limit is the min, so raise both or neither.** The engine
+  enforces `daily_max_trades` (plus a bull-expansion bonus) while the runner enforces its own `r2_max_entries_per_day`
+  (a hard entry gate evaluated before the engine). Measured live: engine 50 (+50 in `risk_on`) but runner 10, so
+  the day's real ceiling was 10 and the "50–100 entries" setting never applied. When quoting a daily limit, load
+  both layers (`Config.from_file` for the engine, the runner config for R2), print both numbers and state which
+  one binds. Per-profile `max_entries_per_day` in the profile table is usually **not** wired to any gate — grep
+  for its consumers before counting it as a cap.
+- **A capital split between paths is arithmetic the config must state explicitly.** `max_invested_pct_by_screener`
+  (`{path: fraction}`, sum ≤ 1) caps each path's cost basis at `equity × fraction − (journal cost of open
+  positions on that path + plans already made this cycle)`, applied **after** the risk-off size scaling and as a
+  `min()` with the per-stock and global caps; remaining ≤ 0 must block with a reason naming the path cap rather
+  than planning a 0-share order. An empty dict must reproduce the old sizing bit-for-bit — pin that with a test
+  before enabling, because the regression is silent (positions just get smaller). Also raise the *global* code cap
+  to at least the sum of the per-path slots, or the global cap binds first and the split never materialises
+  (`swing 2 + daytrading 3` needs `max_open_positions ≥ 5`). Verify from a loaded config object, not the JSON file:
+  print each path's budget, slots and per-name size for the account's actual equity.
 
 ## Data-integrity guards (price and time)
 
@@ -221,6 +264,27 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
   with tests: market up ⇒ wide trail/TP, market down ⇒ base values, and a position that never armed behaves as before.
   Unconditional longer holds already measured negative expectancy on this book; widening must not become the default for
   the days the premise is wrong.
+- **A fixed-percent trail is a bug on high-ATR names; scale it and keep `arm ≥ trail`.** A 1% tick trail on
+  names with 5–7% ATR exits on noise: measured, a position that peaked +1.45% closed at +0.13% and then ran to
+  +2.1%. Read the candidate's ATR from the trade's own record (`algo_json.candidate.atr_pct`) and use
+  `trail = max(base, 0.35 × ATR%)` capped (e.g. 6%), then set `arm = max(arm, trail)` so the wide trail cannot
+  trigger below entry. Fall back to the base value when ATR is absent (fail-open) and pin both branches with tests.
+- **A day-scoped risk relaxation belongs in a dated override file, not in the code defaults.** Editing
+  `min_edge_score` / spread caps in place leaves the aggressive value in the repo after the day that justified
+  it. Put the temporary values in a file with `valid_until` (applied only while today ≤ that date, unknown keys
+  ignored) and restore the conservative defaults, with tests for today-applies / expired-ignored / unknown-key
+  ignored. Restart the loop to load it, and verify from the running process's own log line (the effective
+  threshold in a skip reason), not from the file you edited.
+- **Relocating the live code directory moves the order path: the scheduled tasks are the dependency that goes stale.**
+  A move that leaves task actions pointing at the old path produces a loop that never starts — with every config
+  file, journal and log looking correct at the new location. Order: end the supervisor tasks first (a watchdog
+  restarts the loop otherwise), kill any surviving python processes (a running process holds the directory and
+  the move fails), move the tree, rewrite every task's `Actions.Execute`/`Arguments` (`Set-ScheduledTask`) for
+  both the launcher and its supervisor, then prove it from the new path with the app's own status command
+  (`run_market_loop.py status --config <cfg>`) and, if a bridge is involved, the `cwd=` line in the bridge's
+  own log. While verifying, read the status header's `screeners` value too: a default-looking list means the
+  status call ran without `--config` and did not load the live settings. Finish by grepping the repo for the
+  old absolute path and fixing the diagnostic scripts that hardcode it.
 - **Queue live-path defects as protected tasks, not as auto-merge candidates.** File the finding with
   its measured evidence (row, prices, timestamps) and mark it protected so the autonomous loop produces
   a proposal plus a human-review request rather than editing the order path unattended.

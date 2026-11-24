@@ -1,7 +1,7 @@
 # 단타 스크리너 파이프라인 지연 단축 (측정→적용→비트 동일 검증)
 
-실측: `scripts/daytrading_screener.py` 전체 8.17s → **2.65s** (후보 20건의 코드·점수 완전 동일).
-장중 재발행 체인(브리지 랭킹 조회 2회 + 스크리너 + 발행) 약 3.6s.
+실측 2건: `scripts/daytrading_screener.py` 8.17s → **2.65s**, `scripts/close_screener.py` 500s+ → **2.89s**
+(둘 다 후보 20건의 코드·점수·순서 완전 동일). 장중 재발행 체인(브리지 랭킹 조회 2회 + 스크리너 + 발행) 약 3.6s.
 
 ## 측정 절차 (최적화 전에 반드시)
 
@@ -49,6 +49,28 @@ ORDER BY m.stock_code, m.trade_date
 `predict(X)` 한 번으로 줄이되, **행 순서·인덱스가 어긋나면 Series 매핑이 조용히 틀어지므로** 길이 검사를 한 뒤
 불일치·예외 시 기존 행별 루프로 폴백한다(동작 보존이 우선).
 
+## 4) 종목별 파이썬 루프 내부도 벡터화한다
+
+`for code, grp in df.groupby(...)` 는 남겨도 되지만 그 안에서 `grp.iloc[-1]["col"]`·`g["col"]` 로 스칼라를
+꺼내면 종목당 수십 번의 Series 생성이 붙는다. 루프 앞에서 한 번 `df.sort_values(["stock_code","trade_date"])`
+하고 그룹별로 `grp[[...]].to_numpy(dtype="float64")` 한 번을 뜬 뒤 인덱스 슬라이스(`arr[-6:]`, `arr[-6:-1,1].mean()`)로
+쓰면 같은 결과에 오버헤드가 사라진다(500s → 2.89s 사례의 두 번째 몫).
+
+## 5) 옛 경로가 너무 느려 기준선을 못 만들 때의 등가성 증명
+
+전체 실행이 타임아웃 나는 최적화는 "전/후 CSV 동일" 을 만들 수 없다. 그때는 **쿼리 수준 등가성**을 먼저 증명한다:
+
+```python
+codes = <최신 거래일 상위 200 종목>
+old = pd.read_sql(<ROW_NUMBER 질의 + stock_code = ANY(%s)>, conn, params=(codes,))
+new = pd.read_sql(<LATERAL 질의 + unnest(%s::text[])>, conn, params=(codes,))
+print(len(old), len(new), old.reset_index(drop=True).equals(new.reset_index(drop=True)))
+```
+
+실측 1,400행 완전 일치 → 그 다음 새 경로로 산출한 후보 20건의 코드·점수·상위 순서를 비교하고, 회귀 테스트
+(`--date` 고정 + 판정 함수 단위 테스트)를 붙인다. 옛 질의는 표본에 `stock_code = ANY(codes)` 를 추가해 제한한다
+(안 하면 등가성 검사 자체가 분 단위로 느려진다).
+
 ## 함정
 
 - `_feature_value(row, ...)` 처럼 `row.index` 를 쓰는 헬퍼에 `dict` 를 넘기면 AttributeError 로 배치 경로가
@@ -56,3 +78,6 @@ ORDER BY m.stock_code, m.trade_date
 - 내부 정렬용 파생 컬럼(`_rank_score` 등)을 만들면 **출력 직전에 drop** 한다. 안 지우면 산출 JSON 에 섞여
   소비자/테스트가 새 키를 본다.
 - 가점을 `score` 자체에 더하면 트레이더의 R1 문턱 의미가 바뀐다 → 정렬 전용 컬럼으로만 쓴다(공개 score 불변).
+- **위임받은 에이전트의 실행시간 보고를 그대로 쓰지 마라**: 내가 먼저 잰 값(500s+)과 보고값(2.66s)이 100배 이상
+  벌어지면 측정 대상이 다르거나 측정 전후 코드가 다르다. 같은 명령을 내가 `time` 으로 재실행하고, 등가성 증거
+  (쿼리 비교·CSV 비교·테스트 수)까지 함께 확인한 뒤에만 채택한다.

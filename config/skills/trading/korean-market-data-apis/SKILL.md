@@ -148,6 +148,12 @@ description: "Use when wiring KIS/KRX/Naver market-data APIs."
 
 - 상세: `references/krx-openapi.md` — 4. KRX OpenAPI (진단 — 레포에 따라 미사용일 수 있음)
 
+- **공매도 "잔고"와 기관 보유비율은 국내 오픈API에 없다** — KIS 는 공매도 *체결* TR(`FHPST04830000`)만,
+  KRX OpenAPI 서비스 목록에는 공매도 서비스 자체가 없다(후보 경로 전부 404). 잔고 피처를 요청받으면
+  코드를 고치기 전에 원천 부재를 1콜 프로브로 확인하고, 체결 데이터 프록시(`short_ratio_5d`·누적비중·trend)와
+  DART `majorstock.json`(5%룰 보고 → 기관 지분 하한 추정)으로 대체한 뒤 **프록시임을 이름·보고에 명시**한다.
+  레시피·정규식·실측치는 `references/short-balance-and-ownership.md`.
+
 - 상세: `references/call-policy.md` — 13. 호출 정책은 프로세스 밖에서 강제하라 (IP 차단 회피의 핵심)
 
 ## 12. ECOS (한국은행 경제통계) — 금리·물가·스프레드

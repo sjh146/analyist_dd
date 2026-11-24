@@ -15,11 +15,10 @@ description: "Use when editing code in the analyist_dd stack."
 
 - **리포 지배 구조를 기억으로 단정하지 마라 — 사본마다 실측한다.** 실측 한 줄:
   `cd <사본>/trader-agent && git rev-parse --show-toplevel && (ls -d .git >/dev/null 2>&1 || echo no-nested-git) && git remote -v && git branch --show-current`.
-  실측 예: Windows 사본(`C:/Users/<user>/analyist_dd/trader-agent`)은 **중첩 리포(`trader-agent.git`, `main`)** 이고
-  라이브 루프가 실행하는 코드이며, WSL 사본의 `trader-agent/` 는 **`.git` 없는 스냅샷**(상위 analyist_dd 에 포함)이라
-  그쪽에서 import·pytest 하면 옛 코드가 잡힌다(신규 심볼이 `ImportError` 나면 그 사본이 낡은 것이다).
-  트레이더 동작을 바꾸는 커밋은 **라이브가 실행하는 사본**에서 하고, 아니면 `scripts/sync_trader_agent.py` 로 동기화한다
-  (→ `references/portability-and-sync.md`). 경로는 `pwd`·`ls <그 리포 고유 파일>` 로 확인한다.
+  실측 예: 라이브 트레이더는 **analyist_dd 밖의 독립 리포**(`C:/Users/<user>/trader-agent`, `trader-agent.git`, `main`)이고,
+  analyist_dd 는 그 디렉터리를 **추적하지 않으며 `.gitignore` 로 막아 둔다**(WSL 작업본에도 `trader-agent/` 가 없다).
+  그러므로 analyist_dd 안에서 `trader-agent/` 가 보이면 그건 **누군가 다시 만든 낡은 사본**이다 — import·pytest 하면 옛 코드가 잡힌다.
+  트레이더 동작을 바꾸는 커밋은 라이브 리포에서만 한다. 경로는 `pwd`·`git rev-parse --show-toplevel`·`ls <그 리포 고유 파일>` 로 확인한다.
 - `scripts/ask_claude.sh`·`scripts/protected_paths.py` 는 **WSL 작업본에만** 있고 trader-agent 에는 `docs/` 조차 없다 → 위임 스펙 파일은
   그 리포 안에 만들어야 하고 필요하면 `mkdir -p docs` 를 먼저 한다.
 - **`cd` 실패는 조용히 다른 리포에서 실행된다**: `cd <A> ; cmd1 ; cmd2` 처럼 `&&` 없이 나열하면 `cd` 가 실패해도 계속 돌아
@@ -29,6 +28,23 @@ description: "Use when editing code in the analyist_dd stack."
   **덮어써야** 한다. 그대로 쓰면 `could not translate host name "postgres"` 또는 `connection ... 5432 failed`
   로 **후보/행 0건**이 되고, 증상은 스크립트 결함처럼 보인다(실측 2026-11-17). 호출 전 `docker port stock_postgres`
   로 노출 포트를 확인하고, 이 값을 크론 래퍼 안에서 export 한다.
+
+## 리포 분리·실행 디렉터리 이동 (라이브 Windows 경로)
+
+- **분리 전에 “유실 없는가”를 파일 목록 차이로 증명하라.** `git ls-files <dir> | sed 's#^<dir>/##' | sort` 과
+  라이브 리포 `git ls-files | sort` 의 `comm -23` 이 **0줄**이면 사본에만 있는 파일이 없다. 그 다음 순서:
+  `git rm -r --cached <dir>` → 작업 사본 삭제 → `.gitignore` 에 추가 → 커밋. 커밋 diff 의 `-` 줄수가 사본 전체 크기와 맞는지 확인한다.
+- **라이브 실행 디렉터리를 옮기려면 순서가 전부다**: ① 감독자·루프·브리지 정지(`schtasks /end` + `Stop-Process`)
+  ② 잔여 프로세스 0 확인(`Get-CimInstance Win32_Process | ? CommandLine -like '*<dir>*'`) ③ `Move-Item`
+  ④ 예약작업 재지정 ⑤ 재기동·검증. ③ 전에 ② 를 빼먹으면 파일 잠금으로 복사만 되고 원본이 남아 두 사본이 갈라진다.
+- **예약작업은 이름만 보고 “돌아간다” 고 판단하지 말고 실행 경로를 실측한다**:
+  `Get-ScheduledTask -TaskName <t> | % { $_.Actions[0].Execute + ' ' + $_.Actions[0].Arguments }` 로 확인하고,
+  재지정은 `Set-ScheduledTask -TaskName <t> -Action (New-ScheduledTaskAction -Execute <bat> [-Argument '...'])` 로 한다
+  (bat 은 Execute 로, ps1 은 `powershell.exe -File "<절대경로>"` 로 들어간다).
+- **이동 후 검증 3종**: ① 새 경로에서 러너 자기점검(`python run_market_loop.py status` — 저널·상태·손익이 나와야 한다)
+  ② 원격 새 클론에서 테스트 스위트(독립성 증명) ③ 옛 경로 `grep -rl` 로 남은 절대경로 확인 후 수정(코드·bat·ps1 만; 주석·로그 제외).
+- **브리지는 크레온 로그인 전이면 스스로 정지한다**(감독자 로그 `Creon not running - waiting for the Creon login`).
+  이걸 이동 실패로 오보하지 말고 **사람 단계**로 보고한다(장 시작 전 로그인).
 
 ## 피드 계약 변경 (그 피드는 실주문 경로가 소비한다)
 
@@ -46,6 +62,37 @@ description: "Use when editing code in the analyist_dd stack."
    매번 SQL 오류).
 
 - 상세: `references/live-order-path.md` — 실주문 경로 변경 (`trader_core/engine.py`·`config.py`·한도)
+
+## 스크리너 경로를 새로 켜거나 자본을 나눌 때 (전역 게이트 감사)
+
+- **경로를 켠다는 것은 config 의 `screeners` 배열에 넣는 일이 아니다.** 트레이더 게이트는 대부분
+  **전역값**이라, 그 경로의 피드 분포와 맞지 않으면 후보가 0건으로 조용히 막힌다. 켜기 전에 5종을
+  경로별로 실측한다: ① 엣지 문턱(`min_edge_score` + `risk_off_edge_bonus` 가 합산되는지) ② 동시보유
+  슬롯(`max_open_positions_by_screener`) ③ 전역 동시보유(`max_open_positions` — 경로 슬롯 합이 더 크면
+  전역이 실질 상한이다, 예: swing 2 + daytrading 3 = 5 > 전역 4) ④ 보유·청산 프로파일(`trader_core/profiles.py`)
+  ⑤ **하루 진입 상한 — 두 곳에 있고 실효값은 min 이다**: 러너 `r2_max_entries_per_day`(루프 게이트 `apply_r2`)
+  와 엔진 `daily_max_trades`(+상승장 `bull_extra_entries`). 한쪽만 올리면 낮은 쪽이 계속 막고, R2 가 더 낮으면
+  확장분은 통째로 무효다(실측: 엔진을 50 으로 올려 둔 상태에서 실제 상한은 R2 10 이었다 — 사용자가 "하루 몇 건이냐"
+  고 물어서야 발견). 상한을 바꿀 때는 두 값을 같이 맞추고 보고서에 `min(R2, daily+확장)` 을 하나의 숫자로 적는다.
+  실측: swing 후보 20건의 `edge_score` 가 **전부 1** 인데 전역 문턱이 4(+risk_off 2)라 한 건도 진입할 수
+  없었다 — "경로 활성화 완료" 보고 직전에 **피드 필드 분포(min/median/max)와 게이트 값을 나란히 찍어** 확인한다.
+- **경로별 문턱은 전역 보너스를 더하지 않는 절대값으로 설계한다.** `min_edge_score_by_screener` 처럼
+  경로 맵을 두고, 맵에 있으면 `risk_off_edge_bonus` 를 적용하지 않는다(보너스가 남으면 1+2=3 이 되어
+  여전히 차단). 맵이 비면 기존 계산 그대로 = 회귀 안전.
+- **자본을 경로별로 나누려면 새 상한 필드가 필요하다.** 슬롯 상한만으로는 "몇 종목"만 정해지고 "얼마"는
+  정해지지 않는다 → `max_invested_pct_by_screener`(경로 원가 ≤ equity×cap, 잔여 0 이면 진입 차단,
+  빈 dict = 기존 동작)를 엔진 사이징 뒤 `min()` 캡으로 넣고, 보유 원가는 슬롯 게이트와 같은
+  `journal.open_trades(screener=)` 에서 읽어 단일 진실원을 유지한다. 사이징 모드(equal_weight·kelly)마다
+  따로 구현하지 말고 **한 번의 캡**으로 끝낸다.
+- **가중 재배분으로 점수 스케일이 바뀌면 경로별 소비 문턱을 다시 본다**(아래 '점수 가중치' 항목과 같은 이유) —
+  단타처럼 상위 점수가 70→95 로 올라가면 절대 문턱 기반 필터가 무력화된다.
+
+- **신호일 버그를 고치면 “낡은 가격이 신선한 신호로 둔갑”하는 부작용을 같이 막아라.** 종목별 마지막 거래일을
+  `signal_date` 로 쓰면 거래정지 종목의 몇 달 전 가격이 그 날짜로 발행되고, 이를 “계산 기준 거래일”로 통일하는 수정만
+  하면 **발행일이 오늘이 되면서 낡은 가격이 그대로 후보가 된다** — 트레이더는 그 가격으로 산다.
+  처방: 후보 필터 앞단에 **데이터 나이 게이트**(종목 마지막 거래일이 기준일 대비 N일(예 5일) 초과면 제외)를 두고,
+  판정을 순수 함수(`drop_stale_codes(ind_df, price_df, ref_date, max_gap)`)로 빼서 경계 케이스 회귀 테스트를 붙인다.
+  게이트를 인라인으로 두면 전체 실행(수 분) 없이는 검증할 수 없어 테스트가 불가능해진다.
 
 ## 실행 중인 잡을 멈춰야 할 때 (업데이트·회선 경합·오배포)
 
@@ -119,6 +166,9 @@ description: "Use when editing code in the analyist_dd stack."
   비영률은 **분모를 밝혀** 쓴다(전체 행 기준 = 패널 커버리지, 유효값 기준 = 조건부 밀도; 둘 다 기록).
   누수는 ① 미래 h일 라벨과의 상관(진짜 신호) ② 당일 수익률과의 동시상관(가격 파생 피처는 **정의상 1에 가깝다** —
   룩어헤드로 오독 금지) 로 나누고, 판정 보류·표본부족을 명시한다. 판정기 예: `scripts/feature_survival_report.py`.
+- **생존(3축)은 1단계일 뿐 — 돈 판정이 따로 필요하다.** 살아있는 피처도 비용을 못 넘으면 잡음이다.
+  피처별 rank-IC·t·상위10% **절대** 순수익을 내는 신호 레지스트리(표본<60일 보류·액면분할 이상치 제외)로 넘어가고,
+  규칙·산출물 계약·실행법은 `backtest-measurement-validity` 4h 및 그 `references/signal-registry.md` 를 따른다.
 
 ## 크론·배치 배선 검증 ("등록했다" != "돈다")
 
@@ -127,6 +177,9 @@ description: "Use when editing code in the analyist_dd stack."
   (2분 뒤 시각) → 대기 → `ls -la /tmp/cron_probe.log` 와 **산출물 mtime 변화**를 함께 확인 →
   `crontab -l | grep -v <임시 라인>` 으로 **반드시 제거**하고 잔존 0건을 확인한다.
   `--quiet` 옵션이 있으면 로그는 0바이트가 정상이므로 **파일 생성·산출물 mtime** 으로 판정한다.
+- **`/etc/cron.d` 는 파일명에 점(`.`)이 있으면 무시한다** — `analyist_dd.bak-20261124` 같은 백업 사본은 내용이
+  유효해도 실행되지 않는다. "오늘 도는 크론" 을 답할 때 파일 내용만 grep 해서 줄을 세면 같은 잡의 중복 실행으로
+  오보한다 → `ls /etc/cron.d` 로 실제 이름을 보고, 의심되면 `grep -c '<파일명>' /var/log/syslog` 가 0 인지로 판정한다.
 - 배치 래퍼는 환경을 스스로 만든다: `set -a; . ./.env; set +a` 후 호스트에서 필요한 값
   (`POSTGRES_HOST=127.0.0.1`, `POSTGRES_PORT` = `docker port` 노출값)을 **덮어쓴다**. 크론 로그 첫 줄에
   실행 여부·건수를 남겨 나중에 로그만 보고 판정할 수 있게 한다.
@@ -211,6 +264,40 @@ description: "Use when editing code in the analyist_dd stack."
    비교를 약화시키거나 기대값을 지우는 방식은 금지.
 5. **정책을 뒤집으면 고정 테스트도 같은 커밋에서 다시 쓴다** — 문턱·호출형태를 못 박은 테스트가 남아 있으면
    다음 실행에서 옛 정책이 되살아난 것처럼 보인다.
+6. **수 분짜리 스크립트를 검증 삼아 foreground 로 돌리지 마라** — 1,800종목 지표 계산처럼 전체 실행이 8분 넘는
+   스크리너는 500~600초 제한에 잘려 **통과도 실패도 아닌 상태**(출력 끝부분 없음)로 끝난다.
+   검증은 ① 판정 로직을 순수 함수로 빼서 단위 테스트 ② 통합 실행이 필요하면 `background=True`+`notify`
+   ③ 산출물은 파일(`--output`)로 받어 확인한다. 잘린 실행을 근거로 "버그 없음/있음"을 말하지 않는다.
+
+## 위임 결과 검수 (cc-delegate / pstack)
+
+- **위임은 비싸고 느리다 — 예산을 알고 보낸다.** 1건 ≈ **10~12분 · 40~57턴 · $2~4.5**
+  (`~/.hermes/logs/cc_delegate_*.log` 의 `num_turns`·`duration_ms`·`total_cost_usd`). 한 줄·설정·문서 수정은 직접 하고,
+  `CC_TIMEOUT` 은 1800~2400 으로 준다. 지시에 "스스로 통합 검증까지"를 넣으면 그 실행이 시간을 먹어 **rc=124 로 잘린다** →
+  위임에는 짧은 단위 검증만 요구하고 시간 드는 실행은 내가 `background=True`+notify 로 돌린다.
+
+- **위임 보고의 "완료"는 검수의 시작이지 끝이 아니다.** 커밋 직전에 `git status --porcelain` + `git diff --stat` 를
+  **리포 전체**로 찍어 지시 범위 밖 파일이 바뀌었는지 본다. 다만 **범위 밖 변경을 곧바로 위임 탓으로 물하지 마라 —
+  같은 워킹트리에 동시에 쓰는 것이 있다.** 자동 개선 루프·크론이 같은 몇 분 안에 다른 파일을 고치고 스스로 커밋한다
+  (`git log -3 --format='%h %an %ad %s'` 로 author·시각 확인, 커밋 메시지 문체가 루프의 것인지 본다). 실측: 위임 산출물로
+  보였던 스크립트 수정이 실제로는 자동 루프가 자기 이름으로 커밋한 것이었고, 같은 워크트리에서 `git checkout -- <파일>`
+  로 되돌렸다면 남의 작업을 지운 셈이 된다. 판정 순서: ① 그 파일이 최근 커밋에 들어갔나 ② 파일 mtime과 위임 시작·종료 시각
+  ③ 그래도 불명확하면 되돌리지 말고 그대로 두고 커밋 목록에서만 뺖다.
+  범위 밖 변경은 `git checkout -- <파일>` 로 되돌리고, 커밋은 `git add <지정 파일 목록>` 으로만 하며 **`git add -A .`/`git add .` 금지**
+  (파이프라인이 계속 쓰는 `data/reports/*` 수십 개가 함께 스테이징된다).
+- **성능·무결성 주장은 직접 다시 잰다.** 위임 보고의 전/후 시간은 측정 범위가 달라 과대·과소로 나온다(실측: "9.4초→2.66초"
+  라는 보고가 있었지만 내 이전 실행은 500초 제한에 잘려 있었고, 직접 잰 값은 2.89초). 판정은 ① 내가 직접 `time` 을 찍은 실행
+  ② 산출물 동일성 ③ **원천 수준 등가성**(예: 변경된 SQL 두 버전을 200종목 표본에 각각 돌려 DataFrame `equals`) 3종으로 한다.
+  상위 20행 CSV 비교만으로는 하위 로직 변경을 못 잡는다.
+- **공유 포트에서 인증 실패(401)가 나면 코드보다 '그 포트를 누가 잡고 있나'를 먼저 본다.** 이전 테스트가 띄운
+  서버가 같은 포트에 다른 `--root` 로 남아 있으면 토큰이 맞아도 401 이 나고 코드 결함처럼 보인다 → `ss -ltnp | grep <port>`
+  로 pid·cmdline 을 확인하고 자기 테스트 서버는 별도 포트로 띄운 뒤 끝나면 죽인다(운영 프로세스는 건드리지 않는다).
+
+5. **점수 가중치를 바꾸면 스케일이 바뀌므로 소비자의 절대 문턱을 먼저 확인하라.** 가중 재배분(예: 모델 25→0,
+   변동성 30→45)은 같은 종목 점수를 70 → 95 로 올린다. 소비자가 `score >= 60` 같은 절대값으로 거르면 게이트가
+   사실상 꺼진다 → 발행기(`feed_export` 는 score 정렬만) 뿐 아니라 **트레이더 config 의 `min_score`·`min_edge_score`**
+   를 직접 확인한다(실측: `min_score=0.0` 이고 진입 게이트는 `edge_score` 별도 필드라 스케일 변화 무해).
+   `score_kind`(composite/calibrated_prob/screener)별로 소비 규약이 다르므로 바꾸는 전략 키의 kind 를 먼저 본다.
 
 ## 마무리 규약
 
