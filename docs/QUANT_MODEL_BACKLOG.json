@@ -25878,6 +25878,48 @@
       "hypothesis": "event_* 5d 카운트는 원천(공시 이벤트)이 종목·일자 단위로 희소해 횡단면 선별에 쓸 수 없다. CG448 은 패널이 event_rolling 집계 8종을 쓰지 않아 돈 영향 0 임을 이미 실측했다.",
       "evidence": "2026-11-24 22:5x 실측(scripts/feature_dead_definitions_audit.py): B 정의(희소사망 honest<1%) 41종 중 **18종이 event_* 5d**(event_recall 0.000 · patent/partnership 0.0001 · regulation 0.0003 · new_product/option_grant/rumor 0.0005 … cb_bw 0.0092), 전부 525일 창. 나머지 6종은 SNS 4종(sentiment_volatility/trend·negative_ratio 0.0032 · sns_bot_filtered 0.0016) + market_impact_score 0.0045. A 정의(완전사망 17)는 525일 창에서 0건이라 '정확히 0' 으로는 안 잡히고 1% 문턱에서만 잡힌다 — 원천이 0 이 아니라 '희소'다.",
       "note": "2026-11-24 23:0x 엔지니어 자율 판정(리서처가 'event_rolling_features 고아 빌더 — 엔지니어 판단 항목'으로 넘긴 건에 대한 답). 판단: ① 부활하지 않는다 — CG448(패널 미사용·돈 영향 0) + 이번 실측(18/18 희소사망)이 같은 방향 ② 죽은 피처를 '부활'시키는 것 자체가 성과가 아님(스킬: 부활 ≠ 성능) ③ 재개 조건은 success 칸에 수치로 고정. 5d 카운트 형태가 아니라 '종목·일 밀도/지시자' 형태가 필요하다는 것은 새 데이터 축 가설이며, 원천 커버리지가 차기 리서처 수집(R17/R44)으로 올라간 뒤 재등록한다."
+    },
+    {
+      "id": "CG468",
+      "priority": 1,
+      "status": "done",
+      "kind": "measurement",
+      "owner": "engineer",
+      "affects_model": false,
+      "title": "[측정정합성] 데이터 축 준비도가 '전 이력 중앙값'으로 봉을 판정해 수리 후에도 '수집기 미수리'로 오탐 — 최신일·전구간일 기준으로 전환",
+      "hypothesis": "준비도 게이트의 봉 판정은 '지금 수집기가 전 구간을 주는가'(recency)인데 지표는 전 이력 중앙값이라, 수리 후에도 수리 전 날짜가 다수인 동안 계속 미수리로 뜬다. 또 이력 판정이 봉 품질과 무관한 n_dates 라 30봉일로도 '20일'을 채운다 → 계획(착수일·레버 유무)이 틀린다.",
+      "evidence": "실측 2026-11-24 23:1x: minute_bars 최신일 391봉/종목(5,083행=13종목×391, 23:00 크론 진행 중 · 로그 '[13/300] 391행 저장')인데 전 이력 중앙값 30.0(19일이 30봉) → 게이트는 '봉 30<300'으로 표시. 또 n_dates 20 중 전구간(≥300봉) 일수는 1일뿐이었다.",
+      "command": "python3 scripts/data_axis_readiness.py --json data/reports/minute_cover_latest.json",
+      "counterfactual": "종전 판정(전 이력 중앙값·전체 날짜수) — minute_bars 봉=30 이력=20일 로 표시되어 '수집기 미수리 + 이력 충분'이라는 정반대 두 오해를 동시에 만들었다",
+      "success": "① 봉 판정이 최신일 기준(bars_last_date)으로 바뀌고 이력 판정이 전구간일수(n_full_dates)로 바뀐다 ② 출력이 실측과 일치한다 ③ CG466 파서가 읽는 minute_close_bars.n_dates 키는 의미·값 불변",
+      "result": {
+        "verdict": "수리 완료 — 판정 기준 전환·검증",
+        "detail": "종전: minute_bars 봉=30.0 이력=20일 → '수집기 미수리'로 오탐. 수리 후: 최신일봉=391.0 전구간일=1/20일 커버=0.135 · minute_close_bars 최신일봉=379.0 전구간일=8/10일 커버=0.99. 즉 KIS 트랙의 남은 블로커는 '봉'이 아니라 '전구간 이력 1일 + 패널 커버 0.135'다.",
+        "rc": 0
+      },
+      "note": "2026-11-24 23:1x 엔지니어 자율(장외 틱·실행가능 pending 0건·규칙 4). 키 추가만 하고 기존 키(median_bars_per_day·n_dates)는 보존 — 구동기 parse_minute_cover/judge_minute_cover 무영향.",
+      "created_at": "2026-11-24T23:20:00+09:00",
+      "updated_at": "2026-11-24T23:35:00+09:00"
+    },
+    {
+      "id": "CG469",
+      "priority": 1,
+      "status": "needs_setup",
+      "kind": "data_prep",
+      "owner": "engineer",
+      "affects_model": false,
+      "title": "[데이터 축·수집] KIS 분봉 유니버스(top300 거래대금)가 패널과 27/200 만 겹친다 — 이력 20일을 채워도 커버 게이트를 영원히 못 넘는다",
+      "hypothesis": "CG449 는 KIS 분봉의 블로커를 '봉 부족'으로 봤고 XR26 수리로 그것은 오늘 풀렸다(최신일 391봉). 그런데 수집 종목 집합(/home/jhshi/cron/kis_minute.sh → data/minute_universe.json = 최근 20거래일 거래대금 상위 300)의 패널 교집합이 27종목(0.135)이다 — 패널 200종목 중 173종목은 분봉이 한 번도 적재된 적이 없다. 따라서 20전구간일을 기다려도 커버 0.75 는 도달 불가(=축이 아니라 종목집합이 막고 있다). 유니버스를 '패널 200 ∪ 현행 상위100'으로 바꾸면 콜 수는 그대로(300종목×14페이지≈4,200콜)면서 커버가 1.0 이 된다.",
+      "evidence": "실측 2026-11-24 23:2x: panel_prod200_v6o_mh 유니크 200종목 · data/minute_universe.json 300종목 · 교집합 27(0.135) · 패널 중 미수집 173(000120,000590,000760,001065,001070,001420,…) · minute_bars 전구간일 1/20 · 최신일봉 391. 스테이징 파일 생성·검증: data/minute_universe_panel300.json = 300종목(패널 200 전부 포함 + 비패널 100) · 시장 라벨은 stocks 테이블에서 200/200 확보.",
+      "command": "cd /home/jhshi/analyist_dd && cp data/minute_universe.json data/minute_universe.json.bak-20261124 && cp data/minute_universe_panel300.json data/minute_universe.json && python3 -c \"import json;a=set(json.load(open('data/minute_universe.json')));b=set(json.load(open('/tmp/panel_codes.json')));print(len(a),len(a&b))\"",
+      "counterfactual": "현행 유니버스(거래대금 상위 300) — 패널 커버 0.135 고정, 20전구간일 도달해도 착수 불가",
+      "success": "① 파일 교체 후 첫 수집일(다음 23:00)에 minute_bars 패널 커버 ≥0.75 ② 전구간일이 매 거래일 +1 ③ 20전구간일 도달(≈2026-12-22) 시 CG197 을 pending 으로 승격",
+      "expected": "콜 수·소요시간 불변(300종목 유지). 패널 커버 0.135→1.0. 비패널 173종목은 분봉 수집 대상에서 제외된다(그 종목들의 기존 적재분은 보존).",
+      "cost": "파일 교체 0분 · 이후 수집은 기존과 동일(23:00~03:00)",
+      "est_minutes": 1,
+      "note": "2026-11-24 23:3x 엔지니어 자율(장외 틱·규칙 4). ⚠ 수집기 입력(유니버스) 교체라 '수집기 소유 파일'에 해당 → 승인 항목으로 올린다(스테이징 파일·검증은 완료). 교체는 되돌릴 수 있다(백업 파일). ⚠ 대안: 500종목으로 늘리면 커버는 같아지지만 콜 7,000·6.6시간이라 야간 창(개장 전)을 넘겨 기각.",
+      "created_at": "2026-11-24T23:36:00+09:00",
+      "setup_needed": "승인 필요(수집기 입력 교체): cron/kis_minute.sh 가 읽는 data/minute_universe.json 을 panel∪top100(300종목)으로 교체. 스테이징 완료(data/minute_universe_panel300.json, 패널 200/200 포함·콜 수 불변). 승인 시 command 한 줄로 교체·검증."
     }
   ],
   "updated": "2026-11-24T20:20:00+09:00"
