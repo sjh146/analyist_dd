@@ -71,10 +71,9 @@ def build(conf, closes, tvals, seq, h, lag, max_day_chg, limit_up_pct, min_value
         days = seq.get(code)
         if not days:
             continue
-        try:
-            i = days.index(pdate)
-        except ValueError:
+        if pdate not in days:
             continue
+        i = days.index(pdate)
         if i + h >= len(days) or i - lag < 0:
             continue
         c0, c1 = closes[code].get(days[i]), closes[code].get(days[i + h])
