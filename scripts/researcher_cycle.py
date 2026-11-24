@@ -159,6 +159,9 @@ def eval_check(item):
     if not nums:
         return None, f"check 출력에 수치 없음: {(p.stdout or '').strip()[:80]}", None
     val = float(nums[-1])
+    tail = [ln.strip() for ln in (p.stdout or "").splitlines() if ln.strip()]
+    if tail and re.fullmatch(r"[-+]?\d+(?:\.\d+)?", tail[-1]):
+        val = float(tail[-1])
     # ⚠ check_target.value 가 수치가 아니면(예: "opnd_yn == 'Y'" 같은 서술 문자열) 종전에는 float() 이
     #   ValueError 로 **스크립트를 통째로 죽였다** — 명령은 실행됐는데 원장 기록 전에 프로세스가 사라져
     #   '기록 없이 죽었다'(R24 실측 2026-10-01 15:35)가 되고 그 틱의 판정이 통째로 소실된다.
