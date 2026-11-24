@@ -150,3 +150,6 @@ deploy/jenkins/.env
 *.oc
 *.stderr
 *.stderr.*
+
+# trader-agent 는 별도 저장소(github.com/sjh146/trader-agent)로 분리됨
+trader-agent/
