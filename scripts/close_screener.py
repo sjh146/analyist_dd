@@ -20,7 +20,7 @@ import logging
 import os
 import re
 import sys
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 import numpy as np
 import pandas as pd
@@ -66,6 +66,9 @@ def get_kosdaq_stocks(pg_conn):
     rows = cur.fetchall()
     cur.close()
     return rows
+
+
+MAX_DATA_GAP_DAYS = 5
 
 
 def resolve_trade_date(pg_conn, date_str_or_None):
@@ -383,6 +386,18 @@ def filter_candidates(df, min_trading_value=300_000_000, min_price=1000,
     return df[mask].copy()
 
 
+def drop_stale_codes(ind_df, price_df, trade_date, max_gap_days=None):
+    gap = MAX_DATA_GAP_DAYS if max_gap_days is None else int(max_gap_days)
+    if gap <= 0 or price_df is None or price_df.empty:
+        return ind_df, set()
+    last_seen = price_df.groupby("stock_code")["trade_date"].max()
+    cutoff = trade_date - timedelta(days=gap)
+    stale = set(last_seen[last_seen < cutoff].index)
+    if not stale:
+        return ind_df, set()
+    return ind_df[~ind_df["stock_code"].isin(stale)], stale
+
+
 def rank_candidates(df, top_n=20):
     """score 내림차순 정렬 + rank 1..n + top_n 절단."""
     if len(df) == 0:
@@ -482,6 +497,12 @@ def main():
 
         ind_df = compute_indicators(price_df, lookback=7)
         logger.info(f"지표 계산 완료: {len(ind_df)} 종목")
+
+        ind_df, stale_codes = drop_stale_codes(ind_df, price_df, trade_date)
+        if stale_codes:
+            logger.info("데이터 나이 게이트: %d종목 제외 → %d종목",
+                        len(stale_codes), len(ind_df))
+        stats["excluded_stale_data"] = len(stale_codes)
 
         short_df = load_short_ratios(pg, trade_date, lookback_days=5)
         ind_df = ind_df.merge(short_df, on="stock_code", how="left")
