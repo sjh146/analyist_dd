@@ -28,10 +28,11 @@ indexed by stock_code, or None if the model is unavailable."""
 
 # Default scoring handles (kept in one place for tests/CLI parity).
 WEIGHTS = {
-    "kalman_trend": 40.0,
+    "kalman_trend": 35.0,
     "model": 0.0,
-    "volume_surge": 45.0,
-    "vol_fit": 15.0,
+    "volume_surge": 40.0,
+    "vol_fit": 10.0,
+    "attention": 15.0,
 }
 
 
@@ -162,6 +163,14 @@ def score_candidates(kf: pd.DataFrame,
     f2 = resid[np.isfinite(resid)]
     resid_ref = float(f2.mean()) + float(f2.std()) if f2.size > 1 else 0.01
 
+    tv_all = kf["trading_value"].to_numpy(dtype=float) if "trading_value" in kf else np.array([])
+    _liquidity_pct = {}
+    if tv_all.size:
+        finite = np.isfinite(tv_all) & (tv_all > 0)
+        if finite.any():
+            ranks = pd.Series(tv_all).where(finite).rank(pct=True)
+            _liquidity_pct = {c: float(v) for c, v in zip(kf["stock_code"], ranks.fillna(0.0))}
+
     rows = []
     for idx, (_, r) in enumerate(kf.iterrows()):
         # 1) kalman trend pts — momentum(z_trend) 10 + slope tiebreak 5 + noise bonus 15.
@@ -172,7 +181,9 @@ def score_candidates(kf: pd.DataFrame,
             noise_bonus = 0.0
         else:
             noise_bonus = (1.0 - _clamp(float(noise) / resid_ref, 0.0, 1.0)) * 12.5
-        kalman_pts = _clamp(momentum_pts + accel_pts + noise_bonus, 0.0, 25.0)
+        _k_scale = WEIGHTS["kalman_trend"] / 25.0
+        kalman_pts = _clamp((momentum_pts + accel_pts + noise_bonus) * _k_scale,
+                            0.0, WEIGHTS["kalman_trend"])
 
         # 2) model pts — weight 0: model_prob is informational only
         model_pts = 0.0
@@ -198,7 +209,12 @@ def score_candidates(kf: pd.DataFrame,
             fit = np.exp(-0.5 * ((v - 0.70) / 0.40) ** 2) if v > 0 else 0.0
             vol_fit_pts = fit * WEIGHTS["vol_fit"]
 
-        score = _clamp(kalman_pts + model_pts + vol_pts + vol_fit_pts, 0.0, 100.0)
+        tv = r.get("trading_value")
+        if tv is None or (isinstance(tv, float) and np.isnan(tv)) or tv <= 0:
+            attn_pts = 0.0
+        else:
+            attn_pts = _liquidity_pct.get(r["stock_code"], 0.0) * WEIGHTS["attention"]
+        score = _clamp(kalman_pts + model_pts + vol_pts + vol_fit_pts + attn_pts, 0.0, 100.0)
 
         # reason string (deterministic)
         parts = []
@@ -237,7 +253,7 @@ def score_candidates(kf: pd.DataFrame,
 
 
 def filter_candidates(candidates: pd.DataFrame,
-                      min_trading_value: float = 300_000_000,
+                      min_trading_value: float = 5_000_000_000,
                       min_price: float = 1000) -> pd.DataFrame:
     """Hard filters: liquidity, min price and valid indicators."""
     required = ["kalman_slope", "kalman_trend", "volume_surge", "volatility_ann",
@@ -254,7 +270,7 @@ def filter_candidates(candidates: pd.DataFrame,
 
 
 def prefilter_liquid(last_rows: pd.DataFrame,
-                     min_trading_value: float = 300_000_000,
+                     min_trading_value: float = 5_000_000_000,
                      min_price: float = 1000) -> pd.DataFrame:
     """칼만 계산 전 **유동성·가격 사전 필터** (2026-11-18 지연 최적화).
 

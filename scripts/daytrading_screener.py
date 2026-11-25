@@ -361,7 +361,7 @@ def main():
     ap.add_argument("--json-out", type=str, default=None,
                     help="피드 소스 JSON 경로(spec_daytrading_feed.md §2 — "
                          "reports/daytrading_latest.json 로 두면 feed_export 가 발행)")
-    ap.add_argument("--min-trading-value", type=float, default=300_000_000, help="최소 거래대금 (기본 3억)")
+    ap.add_argument("--min-trading-value", type=float, default=5_000_000_000, help="최소 거래대금 (기본 50억)")
     ap.add_argument("--min-price", type=float, default=1000, help="최소 종가 (기본 1000원)")
     ap.add_argument("--lookback", type=int, default=20, help="칼만 평활화 룩백 거래일 (기본 20)")
     ap.add_argument("--rank-band-file", dest="rank_band_file", default=None,

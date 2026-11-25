@@ -199,7 +199,7 @@ class TestPipelineFixture:
         df = self._multi_stock_frame()
         prov = FixtureProvider(df, signal_date="2026-07-25")
         out = run_screener(prov, top_n=5, lookback=20, min_history=10,
-                           min_price=1000)
+                           min_price=1000, min_trading_value=1)
         # Low-price stock B filtered; A kept.
         assert set(out["stock_code"]) == {"000001"}
         assert out.iloc[0]["rank"] == 1
@@ -208,7 +208,7 @@ class TestPipelineFixture:
         low = _ohlcv_frame("000099", np.linspace(100, 300, 25), np.full(25, 2e6))
         prov = FixtureProvider(low, signal_date="2026-07-25")
         out = run_screener(prov, top_n=5, lookback=20, min_history=10,
-                           min_price=1000)
+                           min_price=1000, min_trading_value=1)
         assert out.empty
 
     def test_explicit_meta_and_sector_mapping(self):
@@ -217,7 +217,7 @@ class TestPipelineFixture:
                 StockInfo("000002", "예시주B", "금융")]
         prov = FixtureProvider(df, meta=meta, signal_date="2026-07-25")
         out = run_screener(prov, top_n=5, lookback=20, min_history=10,
-                           min_price=1000)
+                           min_price=1000, min_trading_value=1)
         assert out.iloc[0]["stock_name"] == "예시주A"
         assert out.iloc[0]["sector"] == "테크"
 
@@ -236,6 +236,16 @@ class TestPipelineFixture:
                 return pd.Series({"A": 0.9, "B": 0.51}, dtype=float)
 
         out = run_screener(prov, top_n=5, lookback=20, min_history=10,
-                           min_price=1000, predictor=FakePredictor())
+                           min_price=1000, min_trading_value=1, predictor=FakePredictor())
         assert out.iloc[0]["stock_code"] == "A"
         assert out.iloc[0]["model_prob"] == pytest.approx(0.9)
+
+
+class LiquidityFloorTest:
+    def test_default_floor_drops_illiquid_names(self):
+        from day_trading_engine.pipeline import run_screener
+        from day_trading_engine import FixtureProvider
+        thin = _ohlcv_frame("000098", np.linspace(2000, 2100, 25), np.full(25, 5e4))
+        prov = FixtureProvider(thin, signal_date="2026-07-25")
+        out = run_screener(prov, top_n=5, lookback=20, min_history=10, min_price=1000)
+        assert out.empty
