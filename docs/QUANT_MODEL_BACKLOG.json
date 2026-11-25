@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T20:32:09+09:00",
+ "updated_at": "2026-11-25T21:16:52+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -26966,7 +26966,7 @@
    "metric": "factor_signals",
    "title": "[팩터·상시] 팩터 5전략 신호 경로 일일 점검 — 게이트일 여부를 먼저 판정해 '신호 0' 오알람을 막는다",
    "hypothesis": "신호 0 은 대개 게이트 밖(설계)이고, 진짜 실패는 유니버스 붕괴(<500) 또는 게이트일 신호 0 이다.",
-   "command": "docker exec stock_job_runner sh -c 'cd /app && python /opt/scripts/factor_signal_probe.py'",
+   "command": "docker exec stock_job_runner sh -c 'cd /app && timeout 300 python /opt/scripts/factor_signal_probe.py'",
    "counterfactual": "게이트 밖 날의 신호 0 은 정상 — 같은 날 유니버스 크기(768~837)를 대조로 본다",
    "success": "판정이 '게이트 밖 — 정상' 또는 '게이트일 ≥3전략 신호>0' 이고, '유니버스 공백'·'게이트일인데 신호 부족' 이 아니다",
    "est_minutes": 3,
@@ -26979,9 +26979,9 @@
    "owner": "engineer",
    "affects_model": true,
    "priority": 2,
-   "status": "pending",
+   "status": "done",
    "not_before": "2026-11-25T20:32:09+09:00",
-   "metric": "fillable_topk_vs_pool",
+   "metric": "fillable_horizon_paired",
    "title": "[돈·분해4] 챔피언 vs 재학습 앙상블 격차의 보유기간 dose-response(h1/h3/h5/h10) — CG484 단방향(t<2)의 원인 분해",
    "hypothesis": "CG484 는 h5 고정에서 재학습 앙상블이 챔피언보다 +0.70~+1.00%p(3/3 k)였지만 t<2 였다. 전방 성적표는 h1 champ topk +0.451%p(t0.56) vs h5 -0.664%p(t-0.61) 로 부호가 뒤집힌다. 격차가 짧은 보유(1~3일)에서 커지면 '보유기간'이 원인이고, 전 호라이즌 평평하면 잡음이다.",
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 1800 python -u scripts/fillable_topk_horizon_sweep.py --arm-jsonl /app/reports/overnight/cg483_arms.jsonl --arm-tag LS_quant_q30_h5 --control-jsonl /app/reports/overnight/cg474_champ_preds.jsonl --control-tag champ --k 3,5,10 --horizons 1,3,5,10 --primary 5 --json-out /app/reports/overnight/cg486_money_horizon.json'",
@@ -26990,7 +26990,63 @@
    "est_minutes": 10,
    "created_at": "2026-11-25T20:32:09+09:00",
    "note": "학습 없음 — 기존 덤프 2개 재사용(짝 비교). 판정기는 fillable_topk_vs_pool 그대로(새 판정기 금지). 장중 금지·직렬화 준수.",
-   "baseline": "cg474_champ_preds.jsonl(4.3MB, 11-25 03:10) · cg483_arms.jsonl(11-25 16:2x)"
+   "baseline": "cg474_champ_preds.jsonl(4.3MB, 11-25 03:10) · cg483_arms.jsonl(11-25 16:2x)",
+   "attempts": [
+    {
+     "ts": "2026-11-25T21:08:46+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm LS_quant_q30_h5 · 널=세션 풀 평균(무작위 k 기대) · exit close_h h5 · 수수료 왕복 0.21%p · 세션 255 · k=3 arm +0.779%p/세션 · 풀평균 -0.429 · Δ(arm−풀) +1.208(t 3.21) · 양세션 53.3% · 분할 unstable [+2.546/-0.974] ✗ · k=5 arm +0.700%p/세션 · 풀평균 -0.429 · Δ(arm−풀) +1.129(t 3.49) · 양세션 52.9% · 분할 unstable [+2.284/-0.871] ✗ · 풀평균 t -1.21 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG486_20261125-210815.log",
+     "elapsed_min": 0.5
+    },
+    {
+     "ts": "2026-11-25T21:16:52+09:00",
+     "rc": 0,
+     "verdict": "노이즈(재판정)",
+     "detail": "챔피언 대조 판정(사전등록 = 대조군 대비 Δ≥+0.5%p & t≥2, h1 또는 h3, 표본 n≥40). 중첩(stride1, n255): h3k3 Δ+0.888(t2.25)·h5k3 +1.371(2.63)·h10k3 +2.654(3.82) 로 통과처럼 보였으나 보유창 중첩(stride<h)으로 t 부풀림. 비중첩(stride=h) 재측정: h1k3 Δ+0.051(t0.22)·k5 -0.018·k10 +0.024 (격차 0) · h3k3 +1.158(t1.63, n85)·k5 +0.226(0.37)·k10 +0.078(0.16) · h5 +0.697~+1.001(t0.67~1.53, n55) · h10 +2.27~+2.52(t1.26~2.48, n30, ⚠표본<40). → 판정 노이즈: 비중첩 h1/h3 에서 t<2(문턱 미충족). 방향은 단조 증가(h1≈0 → h3 +1.2 → h5 +0.8 → h10 +2.4)라 '보유기간 2주 이상'에서만 재학습 이득이 보이지만 트레이더 보유(≤5일) 밖이고 n=30 이라 결론 불가. 부수 실측: 배포 챔피언은 h10 에서 풀 −1.7~-2.1%p/세션(가장 나쁨) — 보유가 길수록 챔피언이 더 나쁘다(청산규칙 근거로 트레이더에 전달할 값). 측정기 수리: sweep JSON horizon_table 에 arm−control 짝 Δ/t/n 이 없어 판정기가 풀 널로 오판했음 → 표에 추가 + 신규 판정기 judge_fillable_horizon_paired(metric=fillable_horizon_paired, 중첩·표본<40 은 통과 인정 안 함) 배선.",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG486_20261125-210815.log",
+     "evidence": [
+      "services/xgboost-ml/reports/overnight/cg486_stride_1.json",
+      "services/xgboost-ml/reports/overnight/cg486_stride_auto.json"
+     ]
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "챔피언 대조 판정(사전등록 = 대조군 대비 Δ≥+0.5%p & t≥2, h1 또는 h3, 표본 n≥40). 중첩(stride1, n255): h3k3 Δ+0.888(t2.25)·h5k3 +1.371(2.63)·h10k3 +2.654(3.82) 로 통과처럼 보였으나 보유창 중첩(stride<h)으로 t 부풀림. 비중첩(stride=h) 재측정: h1k3 Δ+0.051(t0.22)·k5 -0.018·k10 +0.024 (격차 0) · h3k3 +1.158(t1.63, n85)·k5 +0.226(0.37)·k10 +0.078(0.16) · h5 +0.697~+1.001(t0.67~1.53, n55) · h10 +2.27~+2.52(t1.26~2.48, n30, ⚠표본<40). → 판정 노이즈: 비중첩 h1/h3 에서 t<2(문턱 미충족). 방향은 단조 증가(h1≈0 → h3 +1.2 → h5 +0.8 → h10 +2.4)라 '보유기간 2주 이상'에서만 재학습 이득이 보이지만 트레이더 보유(≤5일) 밖이고 n=30 이라 결론 불가. 부수 실측: 배포 챔피언은 h10 에서 풀 −1.7~-2.1%p/세션(가장 나쁨) — 보유가 길수록 챔피언이 더 나쁘다(청산규칙 근거로 트레이더에 전달할 값). 측정기 수리: sweep JSON horizon_table 에 arm−control 짝 Δ/t/n 이 없어 판정기가 풀 널로 오판했음 → 표에 추가 + 신규 판정기 judge_fillable_horizon_paired(metric=fillable_horizon_paired, 중첩·표본<40 은 통과 인정 안 함) 배선.",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0,
+    "note": "자동 판정(풀 널)은 오판이었다 — 사전등록 문턱은 대조군(챔피언) 대비였다. 수동 재판정 2026-11-25 21:2x."
+   },
+   "judge_thresholds": {
+    "delta": 0.5,
+    "t": 2.0,
+    "horizons": [
+     1,
+     3
+    ],
+    "min_n": 40
+   }
+  },
+  {
+   "id": "CG487",
+   "kind": "money",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 2,
+   "status": "pending",
+   "metric": "fillable_topk_vs_pool",
+   "title": "[돈·단기] 배포 챔피언 top-k 가 h1(비중첩)에서 세션 풀평균을 넘는가 — 보유기간 축 종결(CG486) 후 챔피언 자체의 단기 엣지 확인",
+   "hypothesis": "CG486 실측: 챔피언은 h10 에서 풀 −1.7~-2.1%p/세션으로 보유가 길수록 나빠지고, 재학습 대비 격차도 h1 에서 0 이다. 즉 챔피언의 엣지가 있다면 짧은 보유(h1)에 몰려 있어야 한다. h1 에서도 풀평균을 못 넘으면 챔피언은 어떤 보유기간에서도 베타 초과가 없다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg474_champ_preds.jsonl --arm-tag champ --control-jsonl /app/reports/overnight/cg474_champ_preds.jsonl --control-tag champ --k 3,5,10 --exit close_h --horizon 1 --json-out /app/reports/overnight/cg487_champ_h1_pool.json'",
+   "counterfactual": "세션 풀 평균(무작위 k 기대) — arm 태그=대조 태그라 판정기가 널(풀) 비교로 자동 대체한다",
+   "success": "k=3 과 k=5 둘 다 arm 순기대>0 & Δ(arm−풀)≥+0.1%p & t≥2 & 분할 both_positive → 챔피언 단기 엣지 있음(피드/전략에 근거 제공, 승격 아님) · 미달 → \"챔피언은 어떤 보유기간에서도 베타 초과 없음\"으로 축 종결",
+   "est_minutes": 5,
+   "created_at": "2026-11-25T21:16:52+09:00",
+   "note": "학습 없음 — 기존 덤프 재사용. h1 은 비중첩(stride1=h1)이라 t 가 부풀지 않는다. 장중 금지·직렬화 준수.",
+   "baseline": "cg474_champ_preds.jsonl(4.3MB, 11-25 03:10)"
   }
  ],
  "updated": "2026-11-24T20:20:00+09:00"

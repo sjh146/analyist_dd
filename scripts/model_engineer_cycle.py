@@ -2769,7 +2769,7 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
     if kind == "topk_precision":
         return parse_topk_precision(spath, mtime_floor)
     if kind in ("fillable_topk_expectancy", "fillable_topk_vs_pool", "fillable_topk_spread",
-                "fillable_gate_bands"):
+                "fillable_gate_bands", "fillable_horizon_paired"):
 
         return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "money_anchor_repeat":
@@ -3441,6 +3441,7 @@ def parse_fillable_topk_expectancy(path, mtime_floor) -> dict:
         "rows": d.get("rows"), "n_sessions_fillable": d.get("n_sessions_fillable"),
         "pool_median_fillable": d.get("pool_median_fillable"),
         "conditions": conds, "summary_mtime": mt,
+        "horizon_table": d.get("horizon_table"), "primary_horizon": d.get("primary_horizon"),
 
         "row_tag": d.get("row_tag"), "quintile5": d.get("quintile5"),
     }
@@ -3936,6 +3937,74 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
     if ok_all:
         return "신호있음", detail + " → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)", first
     return "노이즈", detail + " → 사전등록 미충족(베타 초과 미검출)", first
+
+
+def judge_fillable_horizon_paired(item, parsed) -> tuple:
+    """청산 호라이즌 스윕 판정 — **대조군 대비** 짝 Δ 가 어느 보유기간에서 사는가.
+
+    WHY(실측 2026-11-25 CG486): 스윕 요약을 `fillable_topk_vs_pool` 로 판정하면 널이 '세션 풀평균'
+    이라 arm−대조군(챔피언) 대비 문턱을 못 본다 → 같은 런을 두 기준으로 반대로 읽는다
+    (풀 대비 t 3.2~4.8 vs 챔피언 대비 비중첩 t<2). 이 판정기는 item 의 `success` 에 적힌
+    '대조군 대비 Δ≥+0.5%p & t≥2' 를 그대로 옮긴다(문턱은 item 필드 `judge_thresholds` 로 덮어쓸 수 있다).
+
+    중첩(stride < h) 표본은 t 가 부풀려지므로 통과로 인정하지 않고, 통과 셀에도 ⚠ 를 남긴다.
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    table = parsed.get("horizon_table")
+    if not isinstance(table, dict) or not table:
+        return "판정불가", ("horizon_table 없음 — fillable_topk_horizon_sweep 의 --json-out 을 "
+                            "지목했는지 확인(단일 horizon 파일에는 표가 없다)"), None
+    th = item.get("judge_thresholds") or {}
+    d_min = float(th.get("delta", 0.5))
+    t_min = float(th.get("t", 2.0))
+    min_n = int(th.get("min_n", 40))
+    only_h = {str(x) for x in (th.get("horizons") or [])}
+    stride = parsed.get("stride") or 1
+    rows, passes, overlap_hits = [], [], []
+    for h in sorted(table, key=lambda x: int(x)):
+        r = table[h] or {}
+        dk = r.get("arm_minus_control") or {}
+        tk = r.get("arm_minus_control_t") or {}
+        nk = r.get("arm_minus_control_n") or {}
+        cells = []
+        for k in sorted(dk, key=lambda x: int(x)):
+            d, t, n = dk.get(k), tk.get(k), nk.get(k)
+            if not isinstance(d, (int, float)) or not isinstance(t, (int, float)):
+                continue
+            ov = False
+            try:
+                row_stride = int(r.get("stride", stride))
+                ov = row_stride < int(h)
+            except (TypeError, ValueError):
+                ov = False
+            ok = (d >= d_min and t >= t_min and not ov
+                  and (not only_h or str(h) in only_h)
+                  and isinstance(n, (int, float)) and n >= min_n)
+            if ok:
+                passes.append((h, k, d, t, n))
+            if ov and d >= d_min and t >= t_min:
+                overlap_hits.append(f"h{h}k{k}")
+            small = isinstance(n, (int, float)) and n < min_n
+            cells.append(f"k{k} Δ{d:+.3f}(t {t}, n{n})" + ("" if not ov else "⚠중첩")
+                         + ("" if not small else "⚠표본<{}".format(min_n))
+                         + ("" if not ok else " ✓"))
+        if cells:
+            rows.append(f"h{h}: " + " ".join(cells))
+    if not rows:
+        return "판정불가", "horizon_table 에 arm−control 짝 통계가 없다", None
+    detail = (f"arm {parsed.get('arm_tag')} vs 대조군 {parsed.get('control_tag')} · stride {stride} · "
+              f"수수료 왕복 {parsed.get('fee_roundtrip_pct')}%p · " + " · ".join(rows)
+              + f" · 사전문턱(대조군 대비 Δ≥+{d_min}%p & t≥{t_min}, 비중첩만 인정)")
+    if overlap_hits:
+        detail += f" · ⚠중첩 통과 후보(인정 안 함): {','.join(overlap_hits)}"
+    if passes:
+        first = max(passes, key=lambda x: x[2])
+        return ("신호있음",
+                detail + f" → 통과 {len(passes)}셀(최대 h{first[0]}k{first[1]} Δ{first[2]:+.3f})"
+                         " — 판정은 통과했지만 승격 아님(돈 게이트·표본 조건 별도)",
+                round(float(first[2]), 4))
+    return "노이즈", detail + " → 대조군 대비 사전문턱 미충족(보유기간 축 종결 근거)", None
 
 
 def judge_fillable_gate_bands(item, parsed) -> tuple:
@@ -5807,6 +5876,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_fillable_topk_expectancy(item, parsed)
     if kind == "fillable_topk_vs_pool":
         return judge_fillable_topk_vs_pool(item, parsed)
+    if kind == "fillable_horizon_paired":
+        return judge_fillable_horizon_paired(item, parsed)
     if kind == "fillable_gate_bands":
         return judge_fillable_gate_bands(item, parsed)
     if kind == "fillable_topk_spread":

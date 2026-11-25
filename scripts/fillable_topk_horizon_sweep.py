@@ -11,6 +11,11 @@ WHY(실측 2026-10-04 CG96): CG96 은 exit=close_h **h5** 에서 모델 top-k �
 `fillable_topk_expectancy.py` 와 **동일 스키마**이므로 기존 판정기(`fillable_topk_vs_pool`)가 그대로
 읽고, 전체 호라이즌 표는 `horizon_table` 키로 함께 실린다(사전등록 문턱·판정기는 바꾸지 않는다).
 
+`horizon_table` 에는 arm−대조군 **짝** Δ(`arm_minus_control` · `_t` · `_n`)와 호라이즌별 `stride` 도
+싣는다. WHY(실측 2026-11-25 CG486): arm−pool 만 실으면 '대조군 대비 Δ' 를 사전등록한 실험이 풀 널
+판정기로 떨어져 같은 런을 반대로 읽는다(풀 대비 t 3.2~4.8 = 신호 / 챔피언 대비 비중첩 t<2 = 노이즈).
+`--stride auto` 는 horizon 과 같은 간격(=비중첩)으로 재서 t 부풀림을 없앤다.
+
 사용(컨테이너 안에서)
   docker exec stock_xgboost_ml sh -c 'cd /app && python scripts/fillable_topk_horizon_sweep.py \
       --arm-jsonl /app/reports/overnight/cg95_q05_all.jsonl --arm-tag cg92_q05 \
@@ -43,6 +48,9 @@ def main(argv=None) -> int:
     ap.add_argument("--k", default="3,5,10,20,30")
     ap.add_argument("--horizons", default="1,3,5,10", help="close_h 청산 호라이즌 목록(쉼표)")
     ap.add_argument("--primary", type=int, default=5, help="기존 판정기가 읽을 기준 호라이즌")
+    ap.add_argument("--stride", default="1",
+                    help="날짜 서브샘플 간격. 'auto' 면 horizon 과 같게(=비중첩). "
+                         "h>1 에서 stride=1 은 보유창 중첩으로 t 가 낙관적이다(경고 문구 참조)")
     ap.add_argument("--json-out", required=True)
     a = ap.parse_args(argv)
     hs = [int(x) for x in str(a.horizons).split(",") if x.strip()]
@@ -51,9 +59,11 @@ def main(argv=None) -> int:
     blocks = {}
     for h in hs:
         out_h = os.path.join(tmp, f"h{h}.json")
+        stride = h if str(a.stride).strip().lower() == "auto" else int(a.stride)
         rc = fte.main(["--arm-jsonl", a.arm_jsonl, "--arm-tag", a.arm_tag or "",
                        "--control-jsonl", a.control_jsonl, "--control-tag", a.control_tag or "",
                        "--k", a.k, "--exit", "close_h", "--horizon", str(h),
+                       "--stride", str(stride),
                        "--json-out", out_h])
         if rc != 0:
             print(f"[FAIL] horizon {h} rc={rc}", file=sys.stderr)
@@ -73,11 +83,16 @@ def main(argv=None) -> int:
         ks = f.get("k") or {}
         table[str(h)] = {
             "n_sessions": blocks[h].get("n_sessions_fillable"),
+            "stride": blocks[h].get("stride", 1),
             "pool_mean": (pool.get("stat") or {}).get("mean"),
             "pool_t": (pool.get("stat") or {}).get("t"),
             "arm_mean": {k: (ks[k].get("arm") or {}).get("mean") for k in ks},
+            "control_mean": {k: (ks[k].get("control") or {}).get("mean") for k in ks},
             "arm_minus_pool": {k: (pk[k] or {}).get("delta_mean") for k in pk},
             "arm_minus_pool_t": {k: (pk[k] or {}).get("t") for k in pk},
+            "arm_minus_control": {k: (ks[k].get("paired") or {}).get("delta_mean") for k in ks},
+            "arm_minus_control_t": {k: (ks[k].get("paired") or {}).get("t") for k in ks},
+            "arm_minus_control_n": {k: (ks[k].get("paired") or {}).get("n_dates") for k in ks},
         }
     merged["horizon_table"] = table
     merged["primary_horizon"] = a.primary
