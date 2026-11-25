@@ -16,6 +16,38 @@ from app.config import Config, kst_now
 logger = logging.getLogger(__name__)
 
 
+def approx_trading_value(row):
+    """거래대금(원)을 정한다 — 원천에 있으면 그 값, 없으면 close x volume 근사.
+
+    이 수집기는 종목 마스터 전체(ETF 포함)를 돌므로, 공식 경로(KRX OpenAPI 일별매매정보·
+    KIS)가 채우지 않는 ETF 행을 실제로 새로 만든다. 종전에는 trading_value 컬럼을
+    INSERT 목록에서 빼 NULL 로 남겼고, 그 결과 시장 거래대금 합계가 30~40% 과소집계됐다
+    (R45 실측 2026-11-20: 1,157행 NULL · 17.99조 vs close*volume 28.21조).
+    근사식과 한계는 Naver 경로(scripts/naver_daily_backfill.py)와 동일하며, 공식 값이
+    있는 행은 ON CONFLICT DO NOTHING 이라 덮어쓰지 않는다. NaN 은 0 으로 채우지 않고
+    NULL 로 남긴다(계약 #2).
+    """
+    direct = _as_float(row.get("trading_value"))
+    if direct is not None and direct > 0:
+        return direct
+    close = _as_float(row.get("close") or row.get("종가"))
+    volume = _as_float(row.get("volume") or row.get("거래량"))
+    if close is None or volume is None or close <= 0 or volume <= 0:
+        return None
+    return round(close * volume, 4)
+
+
+def _as_float(value):
+    """숫자로 바꿀 수 없으면 None — 결측/문자열은 예외 대신 로그 후 None(0 아님)."""
+    if value is None:
+        return None
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        logger.debug("거래대금 계산: 비숫자 값 %r 무시", value)
+        return None
+    return None if pd.isna(out) else out
+
 def _row_date(value):
     """trade_date 후보(pandas Timestamp/datetime/date/str) → date. 실패/결측 시 None."""
     if value is None:
@@ -125,7 +157,9 @@ class PostgresStorage:
                         high_price = EXCLUDED.high_price,
                         low_price = EXCLUDED.low_price,
                         close_price = EXCLUDED.close_price,
-                        volume = EXCLUDED.volume
+                        volume = EXCLUDED.volume,
+                        trading_value = COALESCE(market_data.trading_value,
+                                                 EXCLUDED.trading_value)
         """ if overwrite else """
                     ON CONFLICT (stock_code, trade_date) DO NOTHING
         """
@@ -152,8 +186,8 @@ class PostgresStorage:
                     """
                     INSERT INTO market_data
                         (stock_code, trade_date, open_price, high_price,
-                         low_price, close_price, volume)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                         low_price, close_price, volume, trading_value)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """ + conflict_clause,
                     (
                         stock_code,
@@ -163,6 +197,7 @@ class PostgresStorage:
                         row.get("low") or row.get("저가"),
                         row.get("close") or row.get("종가"),
                         int(row.get("volume") or row.get("거래량") or 0),
+                        approx_trading_value(row),
                     ),
                 )
                 if cur.rowcount:
