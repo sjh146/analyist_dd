@@ -1,0 +1,37 @@
+{
+ "theme_momentum": {
+  "nonzero_pct": 10.483,
+  "source": "theme_daily + stock_themes (7일 창, 당일 제외)",
+  "spread_5d_pct": 0.841,
+  "t": 2.5,
+  "days": 47
+ },
+ "sns_momentum_score": {
+  "nonzero_pct": 99.896,
+  "source": "sns_post_features 패치",
+  "spread_5d_pct": 0.0,
+  "t": 0.0,
+  "days": 0
+ },
+ "kalman_sentiment": {
+  "nonzero_pct": 99.181,
+  "source": "sns_post_features 패치",
+  "spread_5d_pct": 0.0,
+  "t": 0.0,
+  "days": 0
+ },
+ "sns_post_count": {
+  "nonzero_pct": 100.0,
+  "source": "sns_post_features 패치",
+  "spread_5d_pct": 0.0,
+  "t": 0.0,
+  "days": 0
+ },
+ "sns_author_quality_score": {
+  "nonzero_pct": 98.183,
+  "source": "sns_post_features 패치",
+  "spread_5d_pct": 0.0,
+  "t": 0.0,
+  "days": 0
+ }
+}
