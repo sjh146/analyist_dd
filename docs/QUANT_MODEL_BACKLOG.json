@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T21:16:52+09:00",
+ "updated_at": "2026-11-25T21:18:10+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -27036,7 +27036,7 @@
    "owner": "engineer",
    "affects_model": false,
    "priority": 2,
-   "status": "pending",
+   "status": "done",
    "metric": "fillable_topk_vs_pool",
    "title": "[돈·단기] 배포 챔피언 top-k 가 h1(비중첩)에서 세션 풀평균을 넘는가 — 보유기간 축 종결(CG486) 후 챔피언 자체의 단기 엣지 확인",
    "hypothesis": "CG486 실측: 챔피언은 h10 에서 풀 −1.7~-2.1%p/세션으로 보유가 길수록 나빠지고, 재학습 대비 격차도 h1 에서 0 이다. 즉 챔피언의 엣지가 있다면 짧은 보유(h1)에 몰려 있어야 한다. h1 에서도 풀평균을 못 넘으면 챔피언은 어떤 보유기간에서도 베타 초과가 없다.",
@@ -27046,7 +27046,24 @@
    "est_minutes": 5,
    "created_at": "2026-11-25T21:16:52+09:00",
    "note": "학습 없음 — 기존 덤프 재사용. h1 은 비중첩(stride1=h1)이라 t 가 부풀지 않는다. 장중 금지·직렬화 준수.",
-   "baseline": "cg474_champ_preds.jsonl(4.3MB, 11-25 03:10)"
+   "baseline": "cg474_champ_preds.jsonl(4.3MB, 11-25 03:10)",
+   "attempts": [
+    {
+     "ts": "2026-11-25T21:18:10+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm champ · 널=세션 풀 평균(무작위 k 기대) · exit close_h h1 · 수수료 왕복 0.21%p · 세션 255 · k=3 arm -0.203%p/세션 · 풀평균 -0.258 · Δ(arm−풀) +0.055(t 0.29) · 양세션 45.9% · 분할 neither [-0.038/-0.367] ✗ · k=5 arm -0.116%p/세션 · 풀평균 -0.258 · Δ(arm−풀) +0.142(t 1.0) · 양세션 49.0% · 분할 unstable [+0.047/-0.277] ✗ · 풀평균 t -1.35 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG487_20261125-211804.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm champ · 널=세션 풀 평균(무작위 k 기대) · exit close_h h1 · 수수료 왕복 0.21%p · 세션 255 · k=3 arm -0.203%p/세션 · 풀평균 -0.258 · Δ(arm−풀) +0.055(t 0.29) · 양세션 45.9% · 분할 neither [-0.038/-0.367] ✗ · k=5 arm -0.116%p/세션 · 풀평균 -0.258 · Δ(arm−풀) +0.142(t 1.0) · 양세션 49.0% · 분할 unstable [+0.047/-0.277] ✗ · 풀평균 t -1.35 · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족(베타 초과 미검출)",
+    "delta": 0.0547,
+    "per_exp": null,
+    "rc": 0
+   }
   }
  ],
  "updated": "2026-11-24T20:20:00+09:00"
