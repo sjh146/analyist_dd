@@ -106,6 +106,8 @@ def build_output_rows(df):
             "noise_resid_std": round(float(r["noise_resid_std"]), 4),
             "volume_surge": round(float(r["volume_surge"]), 2),
             "volatility_ann": round(float(r["volatility_ann"]), 3),
+            "trading_value": (None if pd.isna(r.get("trading_value")) else float(r["trading_value"])),
+            "volume": (None if pd.isna(r.get("volume")) else float(r["volume"])),
             "model_prob": prob_str,
             "reason": r["reason"],
         })
@@ -144,6 +146,7 @@ def build_json_payload(rows, generated_at=None):
             "model_prob": None if prob is None else round(prob, 4),
             "slope_permille": round(float(r["kalman_slope"]), 3),
             "volume_ratio": round(float(r["volume_surge"]), 2),
+            "trading_value": (None if r.get("trading_value") is None else float(r["trading_value"])),
         })
     return {
         "generated_at": (generated_at or datetime.now(KST)).isoformat(timespec="seconds"),
