@@ -130,6 +130,17 @@ def main(argv=None) -> int:
     ys = [delta[k] for k in keys]
     reg = ols(xs, ys)
     blk = boot_intercept(xs, ys, a.block_boot or a.horizon)
+
+    overlap = bool(a.stride < a.horizon)
+    if overlap:
+        _keep_ns = F.stride_keys(krows, a.horizon) or set()
+        keys_ns = [k for k in keys if k in _keep_ns]
+    else:
+        keys_ns = list(keys)
+    xs_ns = [pool[k] for k in keys_ns]
+    ys_ns = [delta[k] for k in keys_ns]
+    reg_ns = ols(xs_ns, ys_ns)
+    blk_ns = boot_intercept(xs_ns, ys_ns, max(a.block_boot or 0, a.horizon))
     up = [delta[k] for k in keys if pool[k] > 0]
     dn = [delta[k] for k in keys if pool[k] <= 0]
 
@@ -173,12 +184,27 @@ def main(argv=None) -> int:
         },
         "threshold": ("intercept ≥ +0.1%p/세션 & t ≥ 2(블록t>iid t 중 보수적) & 분할 both_positive "
                       "→ 선택 알파 / 미달 → 베타 조건부 초과"),
+        "overlap_corrected": overlap,
+        "regression_nonoverlap": {
+            "stride": a.horizon, "n_sessions": len(keys_ns),
+            "regression": reg_ns, "block_boot": blk_ns,
+            "halves": F.halves({k: delta[k] for k in keys_ns}),
+        },
     }
     t_use = (blk or {}).get("t") if blk and blk.get("t") is not None else (reg or {}).get("t_intercept")
     out["t_used"] = t_use
     ok = bool(reg) and reg.get("intercept") is not None and reg["intercept"] >= 0.1 \
         and (t_use or 0) >= 2 and (out["halves"] or {}).get("stable") == "both_positive"
-    out["verdict"] = "선택 알파 있음" if ok else "베타 조건부 초과 — 선택 알파 미검출"
+    if overlap:
+        t_ns = (blk_ns or {}).get("t") if blk_ns and blk_ns.get("t") is not None else (reg_ns or {}).get("t_intercept")
+        out["t_used"] = t_ns
+        ok = bool(reg_ns) and reg_ns.get("intercept") is not None and reg_ns["intercept"] >= 0.1 \
+            and (t_ns or 0) >= 2 \
+            and (out["regression_nonoverlap"]["halves"] or {}).get("stable") == "both_positive"
+        out["verdict"] = ("선택 알파 있음(비중첩 판정)" if ok
+                          else "베타 조건부 초과 — 선택 알파 미검출(중첩 표본 → 비중첩 재판정)")
+    else:
+        out["verdict"] = "선택 알파 있음" if ok else "베타 조건부 초과 — 선택 알파 미검출"
 
     with open(a.json_out, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=1)
@@ -195,6 +221,11 @@ def main(argv=None) -> int:
           f"(t {out['by_regime']['pool_positive'].get('t')}, n {out['by_regime']['pool_positive'].get('n')}) · "
           f"하락장 {out['by_regime']['pool_nonpositive'].get('mean')}%p "
           f"(t {out['by_regime']['pool_nonpositive'].get('t')}, n {out['by_regime']['pool_nonpositive'].get('n')})")
+    if overlap:
+        rn = out["regression_nonoverlap"]
+        print(f"  ⚠ 중첩 표본(stride {a.stride} < h{a.horizon}) → 비중첩 재판정(세션 {rn['n_sessions']}) "
+              f"intercept {rn['regression']['intercept']:+.4f} (t {out['t_used']}) "
+              f"CI95 {(rn['block_boot'] or {}).get('ci95')}")
     h = out["halves"]
     if h:
         print(f"  분할 {h['stable']} [{h['front']['mean']:+.3f}/{h['back']['mean']:+.3f}]")

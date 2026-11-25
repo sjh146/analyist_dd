@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T22:31:33+09:00",
+ "updated_at": "2026-11-25T23:10:47+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -27095,11 +27095,17 @@
      "detail": "arm LS_quant_q30_h5 h5 k3 stride 1 · 세션 255 · Δ+1.208%p(t 3.21) · Δ = +1.0415 + -0.3873·pool (t_a iid 2.96 · t_b -6.23 · R² 0.133) · 블록t(겹침보정) 2.1(CI95 [0.0666, 2.0494]) · 분할 [+1.411/+1.005] both_positive · 사전문턱: intercept ≥+0.1%p & t≥2 & 분할 both_positive",
      "log": "data/reports/me_cycle/logs/me_cycle_CG488_20261125-222221.log",
      "elapsed_min": 0.1
+    },
+    {
+     "at": "2026-11-25T23:10:47+09:00",
+     "verdict": "철회",
+     "by": "CG491",
+     "note": "비중첩 재판정에서 t 0.82"
     }
    ],
    "result": {
-    "verdict": "신호있음 — 선택 알파(베타 아님)",
-    "detail": "arm LS_quant_q30_h5 h5 k3 stride 1 · 세션 255 · Δ+1.208%p(t 3.21) · Δ = +1.0415 + -0.3873·pool (t_a iid 2.96 · t_b -6.23 · R² 0.133) · 블록t(겹침보정) 2.1(CI95 [0.0666, 2.0494]) · 분할 [+1.411/+1.005] both_positive · 사전문턱: intercept ≥+0.1%p & t≥2 & 분할 both_positive",
+    "verdict": "철회 — 비중첩 재판정에서 노이즈(중첩 표본이 t 를 부풀렸다)",
+    "detail": "arm LS_quant_q30_h5 h5 k3 stride 1 · 세션 255 · Δ+1.208%p(t 3.21) · Δ = +1.0415 + -0.3873·pool (t_a iid 2.96 · t_b -6.23 · R² 0.133) · 블록t(겹침보정) 2.1(CI95 [0.0666, 2.0494]) · 분할 [+1.411/+1.005] both_positive · 사전문턱: intercept ≥+0.1%p & t≥2 & 분할 both_positive || 정정(2026-11-25 23:1x, CG491): 같은 arm·같은 대조를 비중첩(stride 5, 55세션)으로 재판정하면 intercept +0.5769 · 블록t 0.82 · CI95 [-0.7397, 1.9729] → 사전문턱(t≥2) 미달. stride1 의 t 2.10 은 h5 보유창 중첩이 만든 값이었다(CG486 과 동일 방향). '선택 알파 있음' 판정 철회.",
     "delta": 1.0415,
     "per_exp": null,
     "rc": 0
@@ -27135,6 +27141,35 @@
     "per_exp": null,
     "rc": 0
    }
+  },
+  {
+   "id": "CG491",
+   "status": "done",
+   "priority": 1,
+   "metric": "beta_attribution",
+   "kind": "measurement",
+   "owner": "engineer",
+   "affects_model": false,
+   "title": "[측정정합성] CG488 선택 알파 판정의 중첩 편향 제거 — 비중첩(stride=h) 재판정 + 판정기 겹침 가드",
+   "why": "CG488 은 h5 라벨을 stride1(255세션)로 채점해 intercept t 2.10 으로 '선택 알파'를 냈다. 같은 파일의 docstring 이 경고하듯 h5 는 세션 간 보유창이 겹쳐 t 가 sqrt(5)배 낙관적이다(CG486 실측 stride1 t3.21 → 비중첩 0.67). 중첩 표본 신호를 대조군으로 승격하면 다음 실험이 전부 오염된다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 600 python -u scripts/cg281_beta_attribution.py --arm-jsonl /app/reports/overnight/cg483_arms.jsonl --arm-tag LS_quant_q30_h5 --k 3 --horizon 5 --stride 5 --regime-window 20 --block-boot 5 --json-out /app/reports/overnight/cg491_beta_stride5_k3.json'",
+   "counterfactual": "같은 arm·같은 풀평균 대조, 채점 간격만 stride1(중첩) vs stride5(비중첩)",
+   "success": "사전등록: 비중첩(55세션)에서 intercept ≥ +0.1%p AND 블록t ≥ 2 AND 분할 both_positive → CG488 신호 유지 · 미달 → CG488 신호 철회하고 재학습 앙상블 h5 초과 축을 종결(CG488 사전등록의 미달 조건과 동일).",
+   "est_minutes": 6,
+   "result": {
+    "verdict": "노이즈 — CG488 신호 철회(중첩 편향)",
+    "detail": "k3 stride5 55세션: intercept +0.5769(블록t 0.82·CI95 [-0.7397,1.9729])·slope -0.3966(t -3.27)·R² 0.1675·Δ평균 +0.636%p·분할 both_positive [+1.270/+0.025]·국면 상승장 -0.229(t -0.18,n29)/하락장 +1.600(t 1.59,n26). k5 stride5: intercept +0.5726(t 0.88·CI95 [-0.625,1.9534])·Δ +0.615%p → k3·k5 모두 t<2 = 사전문턱 미달. 부수 수리: scripts/cg281_beta_attribution.py 에 겹침 가드 추가(stride<h 이면 공용 F.stride_keys 로 비중첩 부분표본을 만들어 그 회귀로만 판정, regression_nonoverlap 로 기록). 검증: stride1 재실행이 stride5 와 동일(+0.5769·t 0.82·n55)하고 판정이 '노이즈'로 뒤집힘.",
+    "delta": 0.5769,
+    "per_exp": null,
+    "rc": 0
+   },
+   "attempts": [
+    {
+     "at": "2026-11-25T23:10:47+09:00",
+     "rc": 0
+    }
+   ],
+   "cost": 0
   }
  ],
  "updated": "2026-11-24T20:20:00+09:00"
