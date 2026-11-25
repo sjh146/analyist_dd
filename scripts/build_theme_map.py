@@ -78,10 +78,40 @@ SECTOR_MAP = {
 }
 
 
+_ENV_PATH = "/home/jhshi/analyist_dd/.env"
+
+
+def _load_env(path: str = _ENV_PATH) -> None:
+    if not os.path.exists(path):
+        return
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+
+
+def _pg_host() -> str:
+    host = os.environ.get("POSTGRES_HOST") or "127.0.0.1"
+    if host == "postgres" and not os.path.exists("/.dockerenv"):
+        return "127.0.0.1"
+    return host
+
+
+def _pg_port() -> int:
+    port = int(os.environ.get("POSTGRES_PORT", "5434"))
+    if port == 5432 and not os.path.exists("/.dockerenv"):
+        return 5434
+    return port
+
+
 def connect():
+    _load_env()
     return psycopg2.connect(
-        host=os.environ.get("POSTGRES_HOST", "127.0.0.1"),
-        port=int(os.environ.get("POSTGRES_PORT", "5434")),
+        host=_pg_host(),
+        port=_pg_port(),
         dbname=os.environ.get("POSTGRES_DB", "stock_trading"),
         user=os.environ.get("POSTGRES_USER", "stock_user"),
         password=os.environ.get("POSTGRES_PASSWORD", ""),
