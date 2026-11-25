@@ -22,8 +22,8 @@ PANEL = "/app/app/models/wf/panel_prod200_idn.npz"
 OUT = "/app/reports"
 
 
-def load_panel():
-    d = np.load(PANEL, allow_pickle=True)
+def load_panel(path=None):
+    d = np.load(path or PANEL, allow_pickle=True)
     X = np.asarray(d["X"], dtype=np.float32)
     names = [str(x) for x in d["feature_names"]]
     dates = np.array([str(x) for x in d["dates"]])
@@ -95,6 +95,7 @@ def fit_predict(Xtr, ytr, Xte, seed=42):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", default="A")
+    ap.add_argument("--panel", default=PANEL)
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--dates-per-fold", type=int, default=10)
     ap.add_argument("--horizon", type=int, default=5)
@@ -102,7 +103,7 @@ def main() -> int:
     ap.add_argument("--dead-json", default="/app/reports/dead_features.json")
     args = ap.parse_args()
 
-    X, names, dates, codes, price = load_panel()
+    X, names, dates, codes, price = load_panel(args.panel)
     y, uniq_dates = make_labels(dates, codes, price, args.horizon)
     keep = ~np.isnan(y)
     X, y, dates, codes = X[keep], y[keep], dates[keep], codes[keep]
