@@ -89,9 +89,18 @@ records what happened → risk gates read the journal".
   the suite pins the old fraction and a bare cap change turns it red with no behaviour change, which then reads
   like a regression. Compute both from the live caps and
   say the numbers instead of implementing the larger one quietly. Read those caps out of the file on
-  every pass — the owner retunes them, and a copy carried in a skill or runbook goes stale (a doc
-  claiming "20 % per stock, 10 concurrent codes" coexisted with a live config of 1/3 per stock and 3
-  codes, which changes both the sizing decision and whether an order counts as a breach).
+ every pass — the owner retunes them, and a copy carried in a skill or runbook goes stale (a doc
+ claiming "20 % per stock, 10 concurrent codes" coexisted with a live config of 1/3 per stock and 3
+ codes, which changes both the sizing decision and whether an order counts as a breach).
+ **The live config has more than one writer.** Another agent session can commit a risk cut into it
+ mid-session, and its message may cite an owner approval you were not part of (measured: a 5-entry
+ config became 2 entries / 30 % exposure / 2 slots between two of your own reads, justified by a
+ measured −1,212 KRW per-trade expectancy). Before writing caps back, run
+ `git log --oneline -5 -- <config>` and diff; if the newer commit is a documented risk reduction, do
+ not silently revert it — restate both value sets and ask, and offer the middle option that keeps the
+ cut but relaxes only the filter that would starve data collection (a high entry-edge floor is the
+ usual one: it cuts candidate count to a third while doing nothing for per-trade risk). Restoring
+ your own older numbers over another session's approved cut is a money decision, not a merge.
 - **Prove an untouched live path is untouched, byte for byte.** When a change to a shared producer must not
   disturb a strategy that is already trading: back the published artifact up, regenerate with the change, and
   compare each pre-existing key's **parsed value for deep equality** (not "looks the same"):
@@ -116,6 +125,22 @@ records what happened → risk gates read the journal".
   owner which repo to clone. If the path cannot be exercised end to end before
   the next session (no candidates, no restart yet), say so plainly and name the one remaining step plus who must
   do it — rather than reporting the feature as available.
+- **A published artefact the serving process cannot read is not delivered — and the failure looks like a dead
+  service, not a permission.** A feed published by a root cron lands `root:root 0600`; the server that serves it
+  runs as another user, fails every read, and resets the connection (`curl` → `000`, `Invoke-WebRequest` →
+  "connection closed") while the process is alive and the port is LISTENing. Judge delivery by the **consumer's
+  own port** (`curl --noproxy '*' 127.0.0.1:<port>/<path>` → HTTP 200 plus a byte count), never by process liveness
+  or the file's mtime, and make every publish path end with `chmod 644 <artefact>` so the next scheduled run cannot
+  re-break it. Symptom to recognise: "the trader stopped getting candidates" with a healthy-looking stack.
+- **A producer run without its output flag is a no-op, and every gate's input must be published.** Re-running a
+  screener in the foreground without its output flag (`--json-out <path>`) writes nothing: the source artifact keeps
+  its old mtime and the publisher re-emits *yesterday's* candidates, so a correct patch looks like a patch that did
+  not apply. Verify a producer change by the artifact, never the exit code — file mtime moved **and** the new key is
+  present in the parsed payload. When one payload has two serializers (CSV rows and the feed-source JSON), the field
+  must be added to both: patching only the CSV builder leaves the feed unchanged with every test green. Publish the
+  number the gate itself uses (`trading_value` beside a liquidity floor) or the gate cannot be audited downstream,
+  and the audit then reports a phantom violation ("all candidates below the threshold") for a payload that merely
+  lacks the field.
 - **A derived export is still real data: find its generator before deleting anything untracked.** An untracked
   directory (`?? data/` in `git status`) is not evidence of test residue — one held the per-day fills export the
   bookkeeping chain publishes from the journal. Grep for the writer first (`grep -rn "<dir>" tools/ scripts/`);
@@ -139,6 +164,12 @@ records what happened → risk gates read the journal".
   both layers (`Config.from_file` for the engine, the runner config for R2), print both numbers and state which
   one binds. Per-profile `max_entries_per_day` in the profile table is usually **not** wired to any gate — grep
   for its consumers before counting it as a cap.
+  The used-count is **derived from today's journal/broker fills, not from the loop's state file**: rewriting
+  `loop_state.json` → `daily.entries` leaves the ceiling exactly where it was (the gate keeps reading "entries
+  today N >= max M" from the journal), so the only ways to run a same-day test window are to raise the caps for
+  the test entries — and restore them immediately, reporting the deviation — or to wait for the next session.
+  Prove which one you are bound by from the running process's own skip reason (`daily trade count N >= max M`
+  vs `r2: entries today N >= max M`), never from the state file you edited.
 - **A capital split between paths is arithmetic the config must state explicitly.** `max_invested_pct_by_screener`
   (`{path: fraction}`, sum ≤ 1) caps each path's cost basis at `equity × fraction − (journal cost of open
   positions on that path + plans already made this cycle)`, applied **after** the risk-off size scaling and as a
@@ -178,13 +209,27 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
   same pass, then read the loop's own last-cycle time before reporting state.
 - **Retries: only the "request never went out" class may be repeated.** Retry a transport-level
   failure that the broker itself labels as re-requestable, bounded with backoff; never blanket-retry
-  a real remote rejection, because that is how one order becomes two.
+  a real remote rejection, because that is how one order becomes two. A plain client-side **timeout**
+  belongs to neither class — the request may have reached the broker and filled — so read the working
+  orders and positions before reporting a failure or resubmitting (opening-minute timeouts measured as
+  `order failed` while the fills were live at the broker).
 
 - 상세: `references/before-going-live.md` — Before going live
 
 - 상세: `references/overnight-carry.md` — Overnight carry and the next open
 
+- 상세: `references/live-path-self-audit.md` — 불변식 자동 감사 루프(브로커↔저널 불일치, 손절 미집행, 미체결 주문제존, 유동성 위반)와 일일 개선 큐 설계
+
 ## Editing the live order path itself
+
+- **An algorithm change is not done until it has traded once in the session, as intended.** The owner's standing rule:
+  "알고리즘 변경했으면 의도한 대로 잘 매매되는지 장중에 테스트해봐야 해". So every change ships with a live
+  observation plan written before the restart — the concrete line to look for (order price vs the cycle quote,
+  cancel of an unfilled order after N s, the gate reason naming the new filter) and the number that proves it
+  (entry price within one tick of `current`, not the feed's `close_price`). A green unit suite plus a config that
+  loads is evidence about the code, not about the order path. When the day's entry budget is already spent, either
+  wait for the next session or declare a bounded test window (raise the cap by the number of test entries, then put
+  it back) and report that deviation explicitly — never quietly exceed the owner's daily limit.
 
 - **Adding a gate to a live engine has three invariants the tests already pin.** (1) The passing
   decision's gate list is often fixed by a test (measured: exactly six gates on a pass), so a new gate
@@ -198,6 +243,14 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
   Deploy: kill only the loop pid and let the supervisor relaunch (measured: a new child within one
   second, no manual start), then prove it from the new pid's own start banner plus the first cycle line
   (e.g. `REGIME risk_off: ... 확장 비활성`) — not from the file you edited.
+- **A loop that outlives its session keeps the config it loaded at start; outside the supervisor's window
+  nothing will restart it into the new file.** A watchdog that only (re)launches inside a time window
+  (e.g. 08:30–15:35) leaves a live loop running after the close, idling on yesterday's thresholds — and
+  because it is healthy, the next morning's start is a no-op and the changed config never takes effect.
+  After any post-close config edit: confirm the supervisor's own log line reads `outside … - loop not
+  started`, stop the surviving loop, and verify from the process list that no `run --loop` process remains,
+  so the next session starts fresh with the file on disk. When quoting limits the same day, print them from
+  a freshly loaded config object, not from the running process — the process is the stale one.
 - **Locate the class that owns the call site before inserting a helper.** Inserting at the module's
   first `def` (or any positional guess) can land the method in a *different* class in the same file;
   the call site then faults and, because the new gate is fail-closed, **every entry is refused** —
@@ -264,11 +317,33 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
   with tests: market up ⇒ wide trail/TP, market down ⇒ base values, and a position that never armed behaves as before.
   Unconditional longer holds already measured negative expectancy on this book; widening must not become the default for
   the days the premise is wrong.
+- **A raised scoring weight can be inert against a hardcoded clamp.** Measured: a component's weight was
+  raised to 40 in the weights block while the same component's clamp still capped it at 25, so the new
+  weight was unreachable and the ranking never changed — while the constant printed as applied. Whenever a
+  weight or a threshold moves, grep the module for a numeric bound on that same component (`min(`/`max(`,
+  `clamp`, a `*_CAP` constant) and raise it in the same commit; then prove the effective value from a
+  scored row (the component's contribution, not the constant). A "the tuning had no effect" impression is
+  usually this, not noise.
 - **A fixed-percent trail is a bug on high-ATR names; scale it and keep `arm ≥ trail`.** A 1% tick trail on
   names with 5–7% ATR exits on noise: measured, a position that peaked +1.45% closed at +0.13% and then ran to
   +2.1%. Read the candidate's ATR from the trade's own record (`algo_json.candidate.atr_pct`) and use
   `trail = max(base, 0.35 × ATR%)` capped (e.g. 6%), then set `arm = max(arm, trail)` so the wide trail cannot
   trigger below entry. Fall back to the base value when ATR is absent (fail-open) and pin both branches with tests.
+- **An engine with two exit paths needs the exit change in both, and the slow one is the one that costs money.**
+  The same knob is often resolved twice: a fast tick watcher and the periodic monitor each compute their own
+  trail/stop from the profile. A fix applied to the tick path runs only while ticks arrive, so the slower path
+  still exits on the old fixed percentage and the journal shows the old reason on exactly the positions the fix
+  was meant to protect (measured: ATR scaling landed in the tick watcher alone; the monitor kept closing
+  high-ATR names at the flat 0.8 % trail). Grep for every reader of the knob before declaring the change done,
+  call the same helper from both, and prove it from the exit reason line of a position closed by the *slower*
+  path — not from the file you edited or from the fast path's log.
+- **An entry filter needs both bounds; the chase cap does not stop a falling knife.** A book whose only same-day bound
+  is an upper one (`max_entry_day_change_pct` = +15%) still buys names already down 8–9% on the day — measured: an
+  entry filled mid-crash several percent below the previous close and stopped out below that. Add a floor
+  (`min_entry_day_change_pct`, e.g. −1%, 0 = disabled) computed from the same quote (`current − diff` is the previous
+  close), scoped to the paths it should govern, fail-open when the quote carries no `diff`, and pin three cases:
+  below-floor blocks with its own gate name, a mild dip passes, 0 disables. Quote the floor with the rest of the
+  path's parameters — the owner reads it as strategy, not as plumbing.
 - **A day-scoped risk relaxation belongs in a dated override file, not in the code defaults.** Editing
   `min_edge_score` / spread caps in place leaves the aggressive value in the repo after the day that justified
   it. Put the temporary values in a file with `valid_until` (applied only while today ≤ that date, unknown keys
@@ -289,6 +364,54 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
   its measured evidence (row, prices, timestamps) and mark it protected so the autonomous loop produces
   a proposal plus a human-review request rather than editing the order path unattended.
 
+## Order pricing, unfilled orders and holdings outside the feed
+
+Four defects that look like "the strategy is bad" but are order-path mechanics, measured on one live book:
+
+- **Never price an entry from the published feed's close; use the live quote.** The candidate's `close_price`
+  is the *previous session's* close. A limit at that price fills only when the market trades back through it,
+  i.e. exactly on the names that are falling — measured: entries filled 3–5 min after the signal at a price the
+  stock had already left, then stopped out below it. The user's own words for this are "왜 시장가보다 비싸게 사서
+  싸게 파는거야": treat that as an order-pricing bug report, not a market-comment. Resolve the order price from the
+  cycle's quote (`current`, falling back to `price`), keep the limit type, and re-check `stop_pct`/TP sizing with
+  the same price so the gates and the order share one number.
+- **An unfilled entry order must be cancelled on a timer, not left working all session.** A limit that misses is
+  logged `FILL NOT CONFIRMED (working: nothing filled)` and, with no intraday cancel, can fill hours later at a
+  price nobody chose. Cancel working buys after a short bound (order of a minute) and journal the cancel; a
+  fill that arrives after the bound is a position with no plan behind it. Verify from the broker's own
+  `/orders` list (`filled_qty`, `cancelable_qty`), not from the placement response.
+- **The cycle's quote set must be candidates ∪ journal open codes.** Quotes are usually gathered from the current
+  candidate list only; any holding that has dropped out of the feed (adopted at reconcile, or a path whose feed
+  was cleared by a gate) then reads `no current quote; holding` in the monitor and **its stop can never fire**
+  (measured: a name ran to −6 % against a −1 % stop while the log repeated that line every cycle). Union the open
+  codes into the quote request each cycle — chunk to the same constant — and prove it by exiting an off-feed name.
+- **Exit orders are usually market orders, so the trigger price is not the fill — measure the book before changing the order type.**
+  Measured on one book: trailing/stop exits filled 0.35–0.82 % worse than the trigger the journal recorded, and the
+  trigger was then written into the journal as if it were the fill. Swapping market exits for limit exits to "fix"
+  this is a trade you cannot evaluate yet and a stuck limit sell blocks the exit (sellable quantity 0, no retry).
+  Two steps in this order: (1) record the book at trigger time (`current`, `bid1`, `offer1`, spread) inside the
+  trade's own record so the counterfactual is measurable from real quotes, then (2) only if the numbers justify it,
+  move to a marketable limit at the best bid **with** a watchdog that cancels and re-sends market if it does not
+  fill within a bounded time. Never leave a limit sell working with no fallback, and never report the trigger price
+  as the exit price.
+- **Close the trigger-vs-fill gap by correcting the journal, not by explaining it in a report.** When market
+  exits keep filling worse than the trigger, run a post-close tool that overwrites **today's closed rows'**
+  `entry_price`/`exit_price` with the broker's per-code averages (print before→after per row), then add an audit
+  check that flags any row where journal exit deviates from the broker average sell by more than ~0.3 % —
+  escalate the whole class to a scheduled job (e.g. 15:45) so tomorrow's stats start clean. A journal that
+  overstates P&L corrupts every expectancy/win-rate judgement made from it (measured: 4 of 5 exits off by
+  0.35–3.0 %, roughly 3,000 KRW of phantom profit). The same correction applies to reconciled/adopted rows.
+- **Fill the path-attribution column on adopted rows too.** Any column used for per-path slots/attribution
+  (`screener`, profile name, strategy) must be explicitly set when a row is adopted from the broker; leaving it
+  empty drops that row out of every per-path statistic while the total still looks right (measured: two adopted
+  trades carried `""`). Set a distinct value (`"reconcile"`) and cross-check that the per-path sums equal the total.
+- **Closing a thin-book position by hand: cross the spread deliberately and say so.** On an illiquid name a
+  market order can sit unfilled for minutes (no bid), and a limit placed far below the last price fills but at a
+  self-inflicted loss (measured: 1,840 against a 1,853 last → 15주 ≈ 195원 of pure slippage). Place the limit at
+  or just inside the best bid, watch one fill, and report the difference from the last price as the operator's
+  own slippage — never as the strategy's. The cancel call also needs **both** `order_no` and `code`; an
+  `order_no`-only request is refused and the still-working order keeps the sellable quantity at 0.
+
 ## Reporting to the owner
 
 Lead with what is running (process + health output) and what changed, then the measured numbers with
@@ -306,6 +429,12 @@ Read the current and the day's high for each exited code, compute the missed/avo
 report it per name with the exit rule that fired — then fix only the rule that actually cost money (a
 90-minute time exit cutting a winner, not the stop). Conceding a whole day of exits because the index
 recovered is how the wrong rule gets loosened.
+
+**Per-stock returns are quoted net of fees and tax, every time.** The owner's standing ask is "수수료·세금까지 합쳐서
+종목별 수익률": commission on both sides plus the sell-side tax, with the components shown
+(`수수료 / 세금 / 순손익 / 순수익률`) and the rates named, not a gross price change. Compute cost basis × mark in one
+program read; when the journal's `fees` column is 0 every journal-derived figure is gross, so label it gross or
+convert — never present gross as the net number.
 
 **Reading the live journal from the other OS: copy first, query second.** A WAL-mode sqlite file owned by
 the running Windows process answers `sqlite3.OperationalError: disk I/O error` to a WSL reader (drvfs

@@ -128,6 +128,49 @@ and therefore the only legitimate price source for a journal correction.
   (`<trader-agent>/journal/trade_journal.sqlite3`); passing the directory raises
   `unable to open database file`.
 
+### Why the gap exists: market exits journal the trigger, not the fill
+
+An exit signal that goes out as a **market order** (price=None) fills at the bid at execution time, while
+the journal records the trigger price it was decided on. Measured one session: four exits off by
+0.35–0.82% and one by 3.0%, all in the loss direction — the journal overstated realised P&L by ~1,800원
+on a 244k account. A late-entry case ran the other way (broker 3,288 vs journal 3,305), so the check must
+be two-sided, not "journal is always optimistic".
+
+Consequences worth stating to the owner when quoting a day's result:
+- Report **broker** `/daily_pnl` as the day's number; the journal is a second opinion that gets corrected.
+- Attribution shifts: the same trades re-priced turned -200원 into -1,594원 for one code, i.e. the loss
+  was in the fill, not the entry.
+
+### Fix it as a batch, every day (don't hand-correct one row at a time)
+
+`tools/sync_exit_prices.py` (Windows interpreter) reads `GET /daily_pnl` and rewrites today's closed rows
+to broker `avg_buy_price` / `avg_sell_price` when they differ by more than ~0.3%, recomputing pnl. It is
+idempotent — a second run reports `수정 0` — so schedule it (15:45, after the close, before any report is
+derived) rather than remembering to do it. Rules that made it safe:
+- Only **closed** rows of the **current** day; never touch open rows or another date.
+- 0.3% threshold (below that is rounding) and skip rows whose broker qty is 0 or missing.
+- Print a before/after table; the diff is the evidence that the day's headline number changed.
+- **Schedule it from the WSL side as a thin wrapper that calls the Windows interpreter**, because the tool
+  must run on Windows but the scheduler lives in the distro: a shell script containing
+  `/mnt/c/Windows/System32/cmd.exe /c "C:\...\python.exe C:\...\tools\sync_exit_prices.py"` plus a
+  timestamped log line, registered in the user crontab (`45 15 * * 1-5 <script>`). Register with
+  `crontab -` (no root needed), then run **the script itself** — not the python line — once to prove the
+  interop path resolves outside an interactive shell; a second run reporting `수정 0` is the idempotency
+  check. Tool output that must be read on the Windows side still goes through the Windows interpreter:
+  copying the live sqlite to WSL stays the read-only path, never the write path.
+
+Pair it with an audit kind so a mismatch surfaces on its own instead of waiting for a human to notice:
+compare journal `exit_price` vs broker `avg_sell_price` per code, flag > 0.3%, and treat it like any other
+violation (`journal_fill_mismatch`). A run that goes `OK` after the sync is the proof the two stores agree.
+
+### Measure before switching market→limit on exits
+
+Market exits are correct for stops (guaranteed out) but cost 0.35–0.8% on tp/trailing. Do **not** flip
+them to limit to "fix slippage": a resting sell leaves the position open with `sellable_qty` 0, i.e. an
+exit that cannot be re-issued. First record the exit-time quote (`bid1`, `offer1`, spread) alongside the
+exit row for a session; only with those numbers can you show what a limit would have filled at. Until
+then the honest report is "applied and measured, change pending evidence".
+
 ## Manual (out-of-band) full exit
 
 The loop closes a position only on stop / take-profit, so "sell this now" has no in-system path.
@@ -193,8 +236,11 @@ the gap stays unexplained for as long as nobody asks.
   (loss-limit %, position-weight %). Use `equity`, and sanity-check the field by comparing it with the
   loop's own `loop_state.json -> daily.start_equity` — same order of magnitude means you read the right key.
 - Hand-traded leftovers enter the journal only via reconcile as `entry_reason='reconcile: adopted from
-  broker'` with an empty `screener` and `algo_json={}` — that signature is how a manual position is
-  identified later. It then obeys the default stop/tp (7 %), so its exit line exists even though no
+  broker'` with `order_type='reconciled'`, `screener='reconcile'` and `algo_json={}` — that signature is how a
+  manual position is identified later. **Give adopted rows a screener label (`reconcile`), never an empty
+  string**: per-path statistics filter on the `screener` column, so an empty value silently drops those trades
+  from every path's scoreboard while still counting them in the day's P&L (the two reports then disagree and
+  the cause is invisible). Identify manual positions by `order_type`/`entry_reason`, not by an empty column. It then obeys the default stop/tp (7 %), so its exit line exists even though no
   signal produced it.
 - Say the number plainly and ask the owner whether it was a withdrawal or manual trading; never model
   it as strategy P&L, and never 'explain' it by picking a quote price.

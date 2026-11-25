@@ -203,7 +203,8 @@ description: Use when training or promoting the analyist_dd model.
 ## 실측 교훈 (반복 금지) — 누적 로그는 `references/lessons-log.md`
 
 수십 사이클의 실측 교훈(날짜별 · 반복 금지 목록)은 `references/lessons-log.md`(2026-09 이전) 와
-`references/lessons-2026-10.md`(2026-10~, lessons-log 가 100k 상한에 도달해 분리) 에 모아 두었다.
+`references/lessons-2026-10.md`(2026-10~, lessons-log 가 100k 상한에 도달해 분리),
+`references/lessons-2026-11.md`·`references/lessons-2026-11b.md`(2026-11~, 같은 이유로 분할) 에 모아 두었다.
 **새 교훈은 최신 교훈 파일 끝에 날짜 섹션으로 추가**하고 SKILL.md 는 늘리지 말라(SKILL.md 는 100k char 상한이 있다).
 이 역할의 실무 규칙(최우선 규칙 · 자율 권한 · 판정 하드규칙 · 보고 형식 · 장외 루프 · 위임 · 금지)은 SKILL.md 에 그대로 있다.
 

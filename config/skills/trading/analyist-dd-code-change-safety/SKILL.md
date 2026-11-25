@@ -94,6 +94,24 @@ description: "Use when editing code in the analyist_dd stack."
   판정을 순수 함수(`drop_stale_codes(ind_df, price_df, ref_date, max_gap)`)로 빼서 경계 케이스 회귀 테스트를 붙인다.
   게이트를 인라인으로 두면 전체 실행(수 분) 없이는 검증할 수 없어 테스트가 불가능해진다.
 
+## 실계좌 한도·노출을 좁힐 때 (위험 축소 롤아웃)
+
+1. **값은 `config_live.json` 에서 고친다** — 엔진 기본값(`trader_core/config.py`)을 건드리면 다른 경로·테스트가
+   같이 움직인다. 손대는 키: `daily_max_trades`, `r2_max_entries_per_day`(둘 중 **작은 값**이 실효 상한),
+   `max_open_positions`, `max_open_positions_by_screener`, `max_invested_pct_by_screener`,
+   `min_edge_score_by_screener`.
+2. **패치 스크립트에서 before/after 를 찍을 때 `dict()` 얕은 복사는 중첩 dict 까지 같이 바꾼다** — before 와
+   after 가 같은 값으로 출력돼 "변경 없음"처럼 보인다(실측). `copy.deepcopy` 를 쓰거나 원문을 파일에서 다시
+   읽어 비교하고, 적용 후에는 `cat config_live.json` 으로 실제 값을 확인한다.
+3. **장중에 바꾸지 마라 — 보유 포지션을 관리 중인 루프를 재시작하는 리스크다.** 순서: 패치 → `pytest` 회귀 →
+   **마감(15:30) 이후 1회 실행 크론**으로 루프를 종료 → 감독자(`supervise_loop.ps1`)가 새 설정으로 재기동.
+   종료 직전 미체결 주문이 0인지 확인한다.
+4. **재기동 검증은 ① pid 교체 ② 커맨드라인의 `--config config_live.json` 인자** 두 가지로 한다. 감독자가 다른
+   인자로 띄우면 새 설정이 무시되고 옛 값으로 돌며, 그 실패는 로그에만 남는다 → 검증 결과를 로컬 파일에
+   남기고 실패 시 "감독자 확인 필요"를 출력하게 만든다.
+5. **원복 명령을 같은 커밋 메시지에 적는다**(`cp /tmp/config_live.json.bak-* config_live.json`). 축소는 즉시
+   되돌릴 수 있어야 하고, 축소 근거(누적 실현·승률·기대값·월 환산 손실률)도 커밋 메시지에 남긴다.
+
 ## 실행 중인 잡을 멈춰야 할 때 (업데이트·회선 경합·오배포)
 
 - 크론이 띄운 파이프라인은 **root 소유**라 일반 사용자 `kill` 이 `Operation not permitted` 로 실패한다 →
@@ -298,6 +316,10 @@ description: "Use when editing code in the analyist_dd stack."
    사실상 꺼진다 → 발행기(`feed_export` 는 score 정렬만) 뿐 아니라 **트레이더 config 의 `min_score`·`min_edge_score`**
    를 직접 확인한다(실측: `min_score=0.0` 이고 진입 게이트는 `edge_score` 별도 필드라 스케일 변화 무해).
    `score_kind`(composite/calibrated_prob/screener)별로 소비 규약이 다르므로 바꾸는 전략 키의 kind 를 먼저 본다.
+   **가중치 표는 실제 가중치가 아니다 — 항별 자체 클램프가 두 번째 상한이다.** 표에 `{"kalman":40,"vol":15}` 를
+   선언해도 그 항이 점수를 옛 상한(25)으로 자르면 선언한 몫에 영원히 닿지 못하고 만점도 안 나온다(실측: 합성 최고점
+   85, 표대로면 100). 가중치를 옮길 때는 항 함수의 하드코딩 클램프·분모를 grep 해 함께 스케일링하고,
+   `sum(WEIGHTS) == 100` 과 **합성 최고 후보가 선언 최대치에 도달하는지**를 테스트로 고정한다.
 
 ## 마무리 규약
 

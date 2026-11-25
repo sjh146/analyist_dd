@@ -72,6 +72,29 @@ State to the owner: the exit frees the concurrent slots mid-session (the later e
 again), the loop's monitor just logs "no open positions" so no halt or restart is needed, and the fees for
 these rows stay unresolved per §5 — the reported figure is gross.
 
+## 2c. Repair the row from the broker's executed-basis averages (both sides)
+
+A live session's rows carry the *trigger* prices; the broker carries the fills. Repair both legs from the
+broker's own per-code executed-basis query (`daily_pnl`: `avg_buy_price`, `avg_sell_price`, `sell_qty`),
+which is the only source that survives a market order, a partial fill and a timeout alike:
+
+- **Fix the entry price too, not just the exit.** The everyday case is an entry filled a few tenths off the
+  plan price, but a mis-recorded *entry* is what flips the sign of a trade: measured, a row journalled
+  `9,880 → 9,980 (+200)` was really `10,636 → 9,839 (−1,594)` — a 1,800 KRW error on one trade, larger than
+  the whole day's other P&L. Compare both legs (`(broker − journal) / journal ≥ ~0.3 %`) and rewrite
+  `price`, `exit_price` and `pnl = (exit − entry) × qty` together; correcting only the exit leaves a wrong
+  P&L that looks internally consistent.
+- **Run it at a fixed slot after the close** (15:45 here), as its own scheduled step — never inside the live
+  cycle: the broker's executed-basis row is only final once the session's sells are done, and a mid-session
+  repair races the fills still arriving. Verify by re-running: the second pass must report `fixed 0`.
+- **Audit the gap intraday, repair after the close.** A read-only check comparing each today-closed journal
+  row's `exit_price` against the broker's `avg_sell_price` (0.3 % threshold, one finding per code) turns
+  "our numbers feel optimistic" into a number: the same check caught four codes at −1.41 %, +3.04 %,
+  −0.35 %, −0.82 % on one session. Report the mismatch as fee/tax-free slippage, separate from the strategy's
+  own result, and keep the fix in the after-close slot.
+- **Prices are not fees.** This pass rewrites prices only; the fee column stays at 0, so the repaired P&L is
+  still gross. Say gross when you quote it (§5).
+
 ## 3. Verify before restarting
 
 Re-run the performance/self-tuning step in read-only mode to see corrected statistics, check the
@@ -130,6 +153,17 @@ bought is refused all day. Hang the pass off the loop's day-close path, with the
   real holding's own exit levels. Report the verdict honestly to the owner — "entered and filled" and
   "order placed, fill unconfirmed" are different claims, and the submit response supports neither.
   Where the broker offers real-time execution events, they replace this polling.
+- **A transport timeout is not an order rejection, and it manufactures broker-only positions.** When the
+  client's per-request timeout expires during the opening minutes (a COM-backed broker terminal is slowest
+  right after the auction), the engine logs BOTH `order failed: ... bridge request failed: timed out` and
+  `FILL NOT CONFIRMED (unconfirmed: broker state unavailable)` for orders that are in fact live or already
+  filled. Measured: three entries in one window left **5 broker positions against 3 journal rows**; the
+  monitor keeps sizing exits from the broker list, so those names are managed but unattributed until the
+  day-close adopt. Rules: (1) never resubmit on the strength of that log line — read `positions` + working
+  orders first; (2) do not restart the loop mid-session to "fix" it (a restart re-derives plans and can
+  duplicate entries); (3) if the timeouts repeat, raise the per-request timeout (e.g. 5 s → 8 s) and take
+  the restart in the lunch break, where re-deriving costs nothing; (4) in the status report quote the
+  broker's position list and call the journal count a lagging figure, not the book.
 - Order identifiers: an order-number field taken from the submit response is often 0/wrong. Key order
   identity off the broker's open-order list, not off that field.
 - Duplicate submits on retry: idempotency is not guaranteed. Check quantity at the broker rather than
