@@ -14,6 +14,7 @@ echo "[feed_publish] screener_stats 종료코드=${PIPESTATUS[0]}"
 # ② 피드 발행 (계약 v1.1: score_kind·valid_until·ml_* 포함)
 /usr/bin/python3 scripts/feed_export.py
 RC=$?
+chmod 644 /home/jhshi/analyist_dd/data/feed/screener_latest.json 2>/dev/null
 echo "[feed_publish] feed_export rc=$RC"
 
 # ③ GitHub 배포 저장소(trader-feed)로 게시 — 고객 PC 가 이것을 pull 한다.

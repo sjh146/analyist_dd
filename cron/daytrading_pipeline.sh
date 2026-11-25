@@ -111,6 +111,7 @@ if [ "${n:-0}" -eq 0 ]; then
   if printf '%s' "$REGIME_ARG" | grep -q ' on$'; then
     log "WARN 후보 0건 + 게이트 차단 — 피드의 단타 목록을 비워 stale 진입을 막는다"
     "$PY" scripts/feed_clear_daytrading.py $DRY >> "$LOG" 2>&1 || log "WARN clear 실패"
+chmod 644 data/feed/screener_latest.json 2>/dev/null
     exit 0
   fi
   log "FAIL 후보 0건 — 발행 중단(기존 피드 유지)"
@@ -121,7 +122,7 @@ cp -f "$CONT_HOST" "$SRC" || { log "FAIL 원천 복사 실패"; exit 1; }
 log "원천 갱신: $SRC (items=$n)"
 
 # 3) 발행
-"$PY" scripts/feed_export.py --daytrading "$SRC" $DRY >> "$LOG" 2>&1
+chmod 644 data/feed/screener_latest.json 2>/dev/null; "$PY" scripts/feed_export.py --daytrading "$SRC" $DRY >> "$LOG" 2>&1
 rc=$?
 if [ "$rc" -ne 0 ]; then
   log "FAIL feed_export rc=$rc — 기존 피드 유지"
