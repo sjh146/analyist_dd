@@ -208,8 +208,15 @@ def judge(records, sessions, tol=TOLERANCE, now=None):
             if not rec_tv:
                 defects.append((session, "거래대금", f"원장 0/null vs DB {tv / 1e12:.3f}조"))
             elif float(rec_tv) < tv * (1 - tol):
+                # 원장 < DB 는 원장이 낡은 것이거나, 그 뒤 DB 의 NULL 이 채워진 것이다.
+                # R41 이 지켜야 하는 사고는 'DB 가 원장보다 적어지는' 데이터 손실이므로
+                # 이 방향(원장 ≤ DB)은 결함이 아니라 추적용 줄로 남긴다.
+                lines.append(f"  · 원장 낡음 {session} — 원장 {float(rec_tv) / 1e12:.3f}조 < "
+                             f"DB {tv / 1e12:.3f}조 (DB 가 더 완전; 손실 아님)")
+            elif tv < float(rec_tv) * (1 - tol):
                 defects.append((session, "거래대금",
-                                f"원장 {float(rec_tv) / 1e12:.3f}조 < DB {tv / 1e12:.3f}조 ×0.9"))
+                                f"원장 {float(rec_tv) / 1e12:.3f}조 > DB {tv / 1e12:.3f}조 ×0.9 "
+                                f"— DB 쪽 거래대금 손실"))
         if n:
             tv_disp = f"{float(rec_tv) / 1e12:.3f}" if rec_tv else "null"
             lines.append(f"R41: {session} scored={scored} db_volume_gt0={n} ratio={ratio:.3f} "
@@ -250,7 +257,7 @@ def main(argv=None):
     base = next((l for l in reversed(lines) if l.startswith("R41: ")), None)
     print(base or "R41: 비교 가능한 세션이 없음")
     for l in lines:
-        if l.startswith("  · 유예"):
+        if l.startswith("  · 유예") or l.startswith("  · 원장 낡음"):
             print(l)
     for session, kind, why in defects[:10]:
         print(f"  ✗ [{kind}] {session} — {why}")

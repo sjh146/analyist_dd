@@ -90,6 +90,23 @@ def test_just_below_tolerance_is_defect(tmp_path):
     assert chk.main(["--ledger", p]) == 1
 
 
+def test_stale_ledger_below_db_is_not_a_defect(tmp_path, monkeypatch, capsys):
+    # 원장 < DB 는 DB 쪽 NULL 보충 등으로 DB 가 더 완전해진 경우다 — 손실이 아니다.
+    p = _write(tmp_path, [{"session": "2026-11-13", "scored": 3828, "trade_value_sum": 28.99e12}])
+    monkeypatch.setattr(chk, "db_sessions", lambda limit=30: _db(("2026-11-13", 3828, 35.31e12)))
+    rc = chk.main(["--ledger", p])
+    out = capsys.readouterr().out
+    assert rc == 0 and "원장 낡음" in out
+
+
+def test_db_lower_than_ledger_is_data_loss_defect(tmp_path, monkeypatch, capsys):
+    p = _write(tmp_path, [{"session": "2026-11-13", "scored": 3828, "trade_value_sum": 37.18e12}])
+    monkeypatch.setattr(chk, "db_sessions", lambda limit=30: _db(("2026-11-13", 3828, 30.0e12)))
+    rc = chk.main(["--ledger", p])
+    out = capsys.readouterr().out
+    assert rc == 1 and "거래대금" in out and "손실" in out
+
+
 def test_last_record_wins_when_duplicated(tmp_path):
     # 원장은 세션별 덮어쓰기 — 뒤에 나온 줄이 이긴다
     p = _write(tmp_path, [{"session": "2026-11-13", "scored": 819, "trade_value_sum": 0},
