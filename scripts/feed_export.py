@@ -369,7 +369,8 @@ def build_items(screener, payload, prev_closes, publish_dt=None, universe=None,
         if row.get("rank") is not None:
             item["rank"] = int(_num(row.get("rank")) or 0)
         for extra in ("sector", "volume_surge", "close_strength", "ret_3d_pct",
-                      "ret_5d_pct", "day_change_pct", "expected_return", "confidence"):
+                      "ret_5d_pct", "day_change_pct", "expected_return", "confidence",
+                      "trading_value"):
             if row.get(extra) not in (None, ""):
                 item[extra] = row[extra]
         # 모델 메타: 소비자가 사이징·청산에 쓸 수 있게 1급 필드로 올린다.
