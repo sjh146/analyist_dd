@@ -58,19 +58,31 @@ _MAP = (("max_daily_trades", "daily_max_trades"),
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+_LIVE_CFG = "config_live.json"
+
+
 def _candidates(candidates):
-    """기본 후보 순서: 환경변수 → Windows 라이브 사본 → 리포 내 사본 (빈 값 제거)."""
+    """기본 후보 순서: 환경변수 → Windows 라이브 repo → 옛 junction 경로 (빈 값 제거).
+
+    WHY (2026-11-25 실측): 11-24 저장소 분리 후 옛 경로는 junction 이라 Config() 가
+    실행 파일(config_live.json)을 못 읽고 **dataclass 기본값**을 돌려줬다(당시 50,
+    지금 20) — 계기판·감사가 '실행값'이라며 기본값을 인용했다. 새 라이브 repo 를 먼저 본다.
+    """
     if candidates is not None:
         return [c for c in candidates if c]
     return [p for p in (
         os.environ.get("TRADER_AGENT_DIR"),
+        "/mnt/c/Users/jhshi/trader-agent",
         "/mnt/c/Users/jhshi/analyist_dd/trader-agent",
     ) if p]
 
 
 def _load_config(cand):
-    """cand 사본에서 Config() 를 읽어 매핑 4값을 돌려준다. 실패 시 None.
+    """cand 사본에서 Config 를 읽어 매핑 4값을 돌려준다. 실패 시 None.
 
+    WHY: 실행값은 ``config_live.json`` 이다. ``Config()`` 는 dataclass 기본값이라
+    파일에 없는 한도를 '실행값'으로 오독한다(2026-11-25 실측: 기본 20 vs 실제 2).
+    파일이 있으면 ``Config.from_file`` 로 읽고, 없을 때만 기본값으로 내려간다.
     sys.path·sys.modules 는 검사 후 원상복구한다(다른 후보·이후 import 오염 금지).
     """
     saved_path = list(sys.path)
@@ -81,7 +93,10 @@ def _load_config(cand):
             if k == "trader_core" or k.startswith("trader_core."):
                 del sys.modules[k]
         sys.path.insert(0, cand)
-        cfg = importlib.import_module("trader_core.config").Config()
+        mod = importlib.import_module("trader_core.config")
+        cfg_path = os.path.join(cand, _LIVE_CFG)
+        cfg = (mod.Config.from_file(cfg_path) if os.path.exists(cfg_path)
+               else mod.Config())
         values = {limit_key: getattr(cfg, field) for limit_key, field in _MAP}
         if any(v is None for v in values.values()):
             return None
@@ -119,10 +134,12 @@ def _load_config_via_windows(cand, timeout=60):
     wpy_wsl = _to_wsl_path(_WPY)
     if not wp or not wpy_wsl or not os.path.exists(wpy_wsl):
         return None
-    code = ("import sys,json;sys.path.insert(0,r'%s');"
-            "from trader_core.config import Config;c=Config();"
+    code = ("import sys,os,json;sys.path.insert(0,r'%s');"
+            "from trader_core.config import Config;"
+            "p=os.path.join(r'%s','%s');"
+            "c=Config.from_file(p) if os.path.exists(p) else Config();"
             "print(json.dumps([c.daily_max_trades,c.max_position_pct,"
-            "c.max_open_positions,c.max_invested_pct]))" % wp)
+            "c.max_open_positions,c.max_invested_pct]))" % (wp, wp, _LIVE_CFG))
     try:
         out = subprocess.run([wpy_wsl, "-c", code], capture_output=True, text=True,
                              timeout=timeout, cwd=_to_wsl_path(wp) or None)
