@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T22:30:57+09:00",
+ "updated_at": "2026-11-25T22:31:33+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -12,22 +12,6 @@
   "07. 백로그 `command` 의 플래그는 **스크립트 파서에서 실재를 확인**한 뒤 등록하라 — champion_robust_eval 은 --out 만 받는다(--json-out 없음). 2026-11-17 CG306 이 이 오타로 rc=2 두 번, CG310 에도 같은 오타가 남아 있었다. 등록 시 `--help` 대조 1줄이면 막을 수 있다."
  ],
  "items": [
-  {
-   "id": "CG490",
-   "status": "needs_setup",
-   "priority": 1,
-   "metric": "engineer_manual",
-   "title": "[승격 게이트·빈틈] champion_promote 는 live_score_gate 를 스스로 보지 않고, 순기대 t·robust AUC 하한도 검사하지 않는다 — robust 0.4691 후보가 would_promote(진단)",
-   "why": "2026-11-25 22:3x 실측(dry-run 진단, 상태변경 없음). 같은 후보(champion_cand, val 0.5199·다중폴드 robust_auc 0.4691·순기대 +0.0722%p t 0.32·live_score_gate ok=false 신호 0건)로: ① champion_promote 는 live_score_gate 를 인자로도 받지 않는다 — summary 에 ok=false 를 찍으면서 status 는 AUC 만으로 결정된다(차단은 full_pipeline_dd.sh 의 사전 게이트에서만). ② objective.json acceptance 의 min_expectancy_t 하한이 promote-flags 에 없어 t 0.32 flicker 가 통과. ③ min_robust_auc(0.5) 는 선언만(CG135) — 0.4691(동전던지기 이하)이 통과. 재현: --min-auc 0.45 로 완화하면 status=would_promote, 0.53(현행)이면 kept_incumbent.",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 python -m app.training.champion_promote --candidate app/models/champion_cand --champion app/models/champion --dry-run --require-expectancy --min-expectancy-pct 0.0 --min-expectancy-sessions 40 --min-expectancy-trades 30 --min-improvement -0.05 --min-auc 0.45 --summary-out /tmp/gate_diag.json'",
-   "counterfactual": "같은 후보·같은 증거로 --min-auc 0.53(현행 바닥) → kept_incumbent(candidate 0.5199<0.53). 즉 통과 여부를 가르는 것은 돈 증거가 아니라 AUC 바닥값 하나다",
-   "success": "승인 후: ① champion_promote 가 live_score_gate 를 자체 판정(blocked=차단, 측정실패=비차단) ② objective.json acceptance.min_expectancy_t·min_robust_auc 가 promote-flags 로 실제 전달되어 위 진단 명령이 kept_incumbent 를 반환 ③ 회귀: scripts/_promote_gate_summary_test.py + 신규 3케이스(신호0건·t문턱·robust문턱) PASS ④ full_pipeline_dd.sh 는 플래그 중복 없이 동일 판정",
-   "est_minutes": 45,
-   "expected": "게이트 문턱 변경(리뷰보드 승인 대상) — 코드 수정은 champion_promote.py(승격 게이트 본체, protected_paths) 1파일 + objective.json 1키",
-   "cost": "없음(측정은 이미 완료)",
-   "note": "왜 승인인가: 승격 게이트 문턱·계약 변경은 리뷰보드 승인 항목(헌장 §3). 지금은 AUC 바닥 0.53 이 마지막 방어선인데, 그 바닥은 '단일분할 AUC'라 하드룰 #1(단일분할 금지)과 정면 충돌한다 — 즉 현행 게이트는 금지된 지표로만 막고 있다. 승인 없이는 코드를 고치지 않는다.",
-   "evidence": "reports/overnight/me_daily_20261125.json · data/reports/me_cycle/logs(CG488/CG489) · champion_cand/robust_oos.json(0.4691·+0.0722%p t0.32) · champion/robust_oos.json(0.4742·-0.3431%p t-1.72)"
-  },
   {
    "id": "CG421",
    "kind": "measurement",
@@ -13830,7 +13814,8 @@
    "cost": "구현 1~2시간 + 회귀 테스트(강제/은퇴 어느 쪽이든)",
    "ready_patch": "data/reports/cg135_promote_flags_floor_wiring.patch",
    "verify_cmd": "python3 scripts/_cg135_wiring_verify.py",
-   "ready_note": "2026-10-08 적용준비 완료(오프라인 검증 14/14 PASS · `git apply --check -p1` rc=0). objective.py 는 protected_paths 라 이 역할이 적용할 수 없다 — 승인 즉시 git apply 한 줄. 패치 내용: promote_flags 가 ① promote_require_robust=true 일 때 --min-robust-auc (acceptance.min_robust_auc=0.5) ② promote_require_expectancy_t=true(신규 키) 일 때 --min-expectancy-t(acceptance.min_expectancy_t, 기본 2.0)를 내보낸다. 두 플래그 모두 champion_promote 에서 이미 지원(기본 None = 프로덕션 비트 동일)이고 게이트가 false 인 현행 objective.json 에서는 **출력이 종전과 완전히 동일**(검증 ③)하다. 적용 절차: ① git apply -p1 <패치> ② config/objective.json gates 에 promote_require_robust=true(+키 min_robust_auc 0.5) 및/또는 promote_require_expectancy_t=true(+min_expectancy_t 2.0) 선언 ③ python3 scripts/objective.py promote-flags 로 실제 출력 확인."
+   "ready_note": "2026-10-08 적용준비 완료(오프라인 검증 14/14 PASS · `git apply --check -p1` rc=0). objective.py 는 protected_paths 라 이 역할이 적용할 수 없다 — 승인 즉시 git apply 한 줄. 패치 내용: promote_flags 가 ① promote_require_robust=true 일 때 --min-robust-auc (acceptance.min_robust_auc=0.5) ② promote_require_expectancy_t=true(신규 키) 일 때 --min-expectancy-t(acceptance.min_expectancy_t, 기본 2.0)를 내보낸다. 두 플래그 모두 champion_promote 에서 이미 지원(기본 None = 프로덕션 비트 동일)이고 게이트가 false 인 현행 objective.json 에서는 **출력이 종전과 완전히 동일**(검증 ③)하다. 적용 절차: ① git apply -p1 <패치> ② config/objective.json gates 에 promote_require_robust=true(+키 min_robust_auc 0.5) 및/또는 promote_require_expectancy_t=true(+min_expectancy_t 2.0) 선언 ③ python3 scripts/objective.py promote-flags 로 실제 출력 확인.",
+   "evidence_20261125": "2026-11-25 22:3x 재현(진단, 상태변경 없음): 오늘 챌린저 champion_cand(val 0.5199 · 다중폴드 robust_auc **0.4691**±0.0441 · 순기대 +0.0722%p **t 0.32** · 세션 113 · 거래 1,771 · 분할 both_positive)로 `champion_promote --dry-run --require-expectancy --min-improvement -0.05 --min-auc 0.45` → **status=would_promote**. 같은 후보·같은 증거에서 `--min-auc 0.53`(현행 바닥)이면 kept_incumbent — 즉 통과를 가르는 것은 돈 증거가 아니라 단일분할 AUC 바닥이다. min_robust_auc=0.5·min_expectancy_t 는 여전히 promote-flags 에 없어(재확인) robust 0.4691·t 0.32 가 검사되지 않는다. ⓘ 정정: champion_promote 는 live_score 토큰을 **apply 모드에서만** 본다(champion_promote.py:489 `if not live_gate['ok']` → blocked_live_score, dry-run 은 :480 에서 먼저 반환) — 오늘 후보는 신호 0건(최대 0.4679)이라 apply 였다면 라이브 게이트가 막았을 것이고, 위험한 잔여 경로는 '신호 ≥1건 + t 0.3 + robust 0.469' 조합이다. 증거: reports/overnight/me_daily_20261125.json"
   },
   {
    "id": "CG136",

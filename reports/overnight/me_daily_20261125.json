@@ -1,0 +1,187 @@
+{
+ "generated_at": "2026-11-25T22:30:10+09:00",
+ "kind": "engineer_daily",
+ "date": "2026-11-25",
+ "champion": {
+  "auc_txt": 0.551318,
+  "baseline_source": "champion/robust_auc.json (2026-10-02 기록, 단일분할 ensemble)",
+  "robust_oos_json": {
+   "robust_auc": 0.4742,
+   "expectancy_pct": -0.3431,
+   "expectancy_t": -1.72,
+   "n_sessions": 113,
+   "n_trades": 1771,
+   "halves": "neither",
+   "label_kind": "rel",
+   "horizon": 5,
+   "created_at": "2026-11-23T12:23:49"
+  },
+  "note": "챔피언 자체가 승격 프로토콜(robust_oos, h5 rel)에서 0.4742·순기대 -0.343%p — 게이트 기준선(0.5513)과 같은 지표가 아니다"
+ },
+ "challenger_today": {
+  "dir": "app/models/champion_cand",
+  "trained_at": "2026-11-25T11:54:13",
+  "single_split_ensemble_auc": 0.5199,
+  "model_aucs": {
+   "xgboost": 0.5042,
+   "lightgbm": 0.4948,
+   "catboost": 0.512
+  },
+  "robust_oos": {
+   "robust_auc": 0.4691,
+   "fold_std": 0.0441,
+   "folds_evaluated": 3,
+   "folds_requested": 5,
+   "expectancy_pct": 0.0722,
+   "expectancy_t": 0.32,
+   "n_sessions": 113,
+   "n_trades": 1771,
+   "halves": {
+    "front_pct": 0.1319,
+    "back_pct": 0.0134,
+    "stable": "both_positive"
+   }
+  },
+  "label_kind": "h1_direction",
+  "n_features": 210,
+  "verdict": "kept_incumbent — candidate ensemble_auc 0.5199 < floor 0.53 (다중폴드 0.4691, 순기대 t 0.32)",
+  "live_score_gate": {
+   "ok": false,
+   "max_prob": 0.4679542015419953,
+   "signals_over_0.55": 0,
+   "champion_signals": 28
+  }
+ },
+ "challenger_cg437_recheck": {
+  "dir": "app/models/cand_cg437",
+  "dry_run_auc_only": {
+   "status": "would_promote",
+   "candidate_auc": 0.579,
+   "champion_baseline": 0.5513
+  },
+  "dry_run_require_expectancy": {
+   "status": "kept_incumbent",
+   "reason": "돈 증거 없음(<후보>/robust_oos.json 의 expectancy_pct)"
+  },
+  "known_prior_measurement": {
+   "robust_auc": 0.5008,
+   "expectancy_pct": -0.153,
+   "source": "ledger CG453 (2026-11-23)"
+  },
+  "note": "AUC-only 경로는 다중폴드 0.5008·순기대 음수 후보를 would_promote 로 통과시킨다 — 승격은 --require-expectancy 없이 실행 금지"
+ },
+ "gate_diagnostic": {
+  "what": "승격 게이트의 잔여 빈틈을 오늘 챌린저로 재현(dry-run 진단, 상태변경 없음) — 2026-11-20 위임 리뷰(claude_review_promote_gate_hole)의 A1~A3/B1 을 오늘 수치로 재확인",
+  "findings": [
+   "① min_robust_auc(0.5)·min_expectancy_t 는 promote-flags 에 없어 검사되지 않는다(CG135 재확인) — 후보 robust_auc 0.4691(동전던지기 이하)·순기대 t 0.32 가 통과.",
+   "② 통과를 가르는 마지막 방어선이 --min-auc 0.53, 즉 **단일분할** AUC 다 — 하드룰 #1(단일분할 금지)과 정면 충돌하는 지표로만 막고 있다(CG170 과 동일 뿌리).",
+   "③ 정정(내 1차 진단 정정): champion_promote 는 live_score 토큰을 apply 모드에서만 본다(champion_promote.py:489 `if not live_gate['ok']` → blocked_live_score). dry-run 은 :480 에서 먼저 반환하므로 'dry-run would_promote' 는 승격 성공의 증거가 아니다. 따라서 잔여 위험 경로는 '문턱 초과 신호 ≥1건 + t 0.3 + robust 0.469' 조합이다(오늘 후보는 신호 0건이라 apply 였어도 차단)."
+  ],
+  "repro": "docker exec stock_xgboost_ml sh -c 'cd /app && python -m app.training.champion_promote --candidate app/models/champion_cand --champion app/models/champion --dry-run --require-expectancy --min-expectancy-pct 0.0 --min-expectancy-sessions 40 --min-expectancy-trades 30 --min-improvement -0.05 --min-auc 0.45 --summary-out /tmp/cc_diag.json'",
+  "observed": {
+   "status": "would_promote",
+   "candidate_auc": 0.5199,
+   "robust_auc": 0.4691,
+   "expectancy_t": 0.32
+  },
+  "contrast": {
+   "min_auc_0.53": "kept_incumbent (candidate ensemble_auc 0.5199 < floor 0.53)"
+  },
+  "handling": "신규 백로그 항목(CG490)은 CG135 와 중복이라 등록 취소 — CG135.evidence_20261125 에 실측 부착. 원장에 재현 기록."
+ },
+ "dq_feature": {
+  "source": "http://127.0.0.1:9187/metrics",
+  "feature_count": 209,
+  "alive_xsec_count": 169,
+  "stock_constant_ratio": 0.4103,
+  "market_level_count": 26,
+  "null_ratio_high_count": 1,
+  "coverage_illusion_max": 0.9952,
+  "illusion_at_120d_count": 0,
+  "oldest_age_days": 1.71,
+  "judgment": "누수 게이트 위반 아님(단일피처 |AUC-0.5|>0.25 스크린은 당일 재실행 안 함) · 종목상수 비율 0.4103 은 기준선 0.38 대비 +0.03(패널 교체 여파), 시장레벨 26"
+ },
+ "robust_auc_status": {
+  "scoreboard": {
+   "robust_auc": 0.5519,
+   "baseline": 0.5406,
+   "delta": 0.0113,
+   "cycles_below_threshold": 23,
+   "threshold": 0.02
+  },
+  "latest_multifold_run": {
+   "exp": "LS_quant_q30_h5,CG483_xgb_h5",
+   "panel": "panel_prod200_v6o.npz",
+   "folds": 5,
+   "seeds": 3,
+   "finished_at": "2026-11-25T07:27:42+00:00",
+   "note": "오늘 07:27 실행 — 패널 v6o_mh(11-24 10:12) 변경분은 CG465 에서 5폴드×5시드로 이미 측정(Δ-0.0028, 폴드승률 1/5) → 추가 스윕 불요(금요일 아님)"
+  }
+ },
+ "money_axis": {
+  "cg488": {
+   "verdict": "신호있음 — 선택 알파(베타 아님)",
+   "delta_pct": 1.208,
+   "t_iid": 3.21,
+   "intercept": 1.0415,
+   "slope": -0.3873,
+   "block_t": 2.1,
+   "halves": "both_positive",
+   "sessions": 255
+  },
+  "cg489": {
+   "verdict": "노이즈 — 검정력 부족(게이트 미확정)",
+   "gate": "trailing_pool d20",
+   "off_sessions": 46,
+   "on_sessions": 109,
+   "off": {
+    "k3": {
+     "arm_pct": 1.549,
+     "t": 1.68
+    },
+    "k5": {
+     "arm_pct": 2.101,
+     "t": 2.34
+    }
+   },
+   "on": {
+    "k3": {
+     "arm_pct": -0.478,
+     "t": -0.82
+    },
+    "k5": {
+     "arm_pct": -0.806,
+     "t": -1.41
+    }
+   },
+   "note": "사전등록(k3·k5 동시 t>=2) 미달 → 국면 게이트 축은 사전등록대로 닫힌다"
+  }
+ },
+ "data_readiness": {
+  "minute_close_bars": {
+   "n_full_dates": 11,
+   "target": 20,
+   "panel_cover_frac": 0.99,
+   "eta": "2026-12-09"
+  },
+  "kis_minute_bars": {
+   "panel_cover_frac": 0.135,
+   "n_full_dates": 1
+  },
+  "panel_v7": {
+   "status": "미빌드",
+   "blocking": "CG443 요구 '새 세션 >=+15' → 새 세션 2개(11-24·11-25)뿐, 착수 시점 아님(≈12-10)"
+  }
+ },
+ "no_heavy_training": "리뷰보드 11-24 배정(밤사이 pending 은 not_before·장기 학습 금지) 준수 — 이번 런은 읽기전용 측정만",
+ "delegation": {
+  "target": "reports/claude_review_promote_gate_hole_20261120.md (2026-11-20, 확신도 높음)",
+  "verified_by_me": [
+   "champion_promote.py:480 dry-run 선반환",
+   "champion_promote.py:489 apply 모드 live_gate 차단",
+   "objective.py promote-flags 에 --min-robust-auc/--min-expectancy-t 없음(실행 확인)"
+  ],
+  "adopted": "A1~A3·B1~B2 채택(파일:라인 직접 확인). '비-dry-run 승격 금지' 규칙 유지 근거로 씀",
+  "rejected": "없음(확신도 낮음 항목 없음)"
+ }
+}
