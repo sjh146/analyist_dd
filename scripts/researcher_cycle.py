@@ -446,6 +446,36 @@ def execute(item, force=False):
 
 
 # ── 틱 ──────────────────────────────────────────────────────────────────────
+def latest_rc_by_id(led):
+    """원장(append 순서)에서 항목별 **마지막 회차 rc** 를 뽑는다.
+
+    백로그 `result` 는 경합·손편집으로 낡을 수 있다(실측 2026-11-25 R48: 원장 마지막 회차 rc=0 인데
+    result 는 00:47 rc=1 에 멈춤). 원장은 회차마다 append 되므로 최신성의 기준으로 삼는다.
+    """
+    out = {}
+    for r in led or []:
+        if isinstance(r, dict) and r.get("id"):
+            out[r["id"]] = r.get("rc")
+    return out
+
+
+def item_should_flag_failure(item, latest_rc):
+    """보고에서 '✗ 실패' 줄을 찍어야 하는가 — 원장 최신 회차 rc 를 우선한다.
+
+    · status=failed → 항상 찍는다(진짜 실패)
+    · recurring 은 status=pending 유지가 설계지만 rc≠0 은 조용해지면 안 된다 → 최신 회차 rc≠0 이면 찍는다
+    · 원장에 회차가 없으면(첫 실행 전) 백로그 result.rc 로 폴백한다 — 정보를 잃지 않는다
+    """
+    if item.get("status") == "failed":
+        return True
+    if not item.get("recurring"):
+        return False
+    if item.get("id") in latest_rc:
+        return latest_rc[item["id"]] not in (None, 0)
+    res = item.get("result") if isinstance(item.get("result"), dict) else {}
+    return res.get("rc") not in (None, 0)
+
+
 def north_star(role):
     """목표 사슬 스코어보드에서 내 북극성 한 줄을 가져온다.
 
@@ -803,6 +833,7 @@ def tick(force=False):
                   key=lambda x: x.get("priority", 99))
     print(f"=== pending {len(pend)}건: {', '.join(i['id'] for i in pend) or '없음'}")
     # 승인/사람 단계는 **백로그에서 자동으로 끌어올린다** — 보고에서 빠뜨리지 않기 위한 장치다.
+    latest = latest_rc_by_id(led)
     for i in sorted(b["items"], key=lambda x: x.get("priority", 99)):
         if i.get("status") in ("pending", "needs_approval", "partial", "failed"):
             for s in approval_asks(i):
@@ -812,7 +843,7 @@ def tick(force=False):
             res = i.get("result") if isinstance(i.get("result"), dict) else {}
             # 상시 감시(recurring)는 크래시에도 status=pending 을 유지한다(감시가 일시 오류로
             # 영구히 죽지 않게). 대신 실패가 조용해지지 않도록 여기서 rc≠0 을 직접 크게 찍는다.
-            if i.get("status") == "failed" or (i.get("recurring") and res.get("rc") not in (None, 0)):
+            if item_should_flag_failure(i, latest):
                 print(f"  ✗ [{i['id']}] 실패 — 로그 확인 필요: {res.get('log', '-')}")
     # (2026-09-30 수리) 결과를 보고했다고 이 틱을 끝내지 않는다 — 종전 `return 0` 은 시작 기회를
     # 삼켜, 회전 항목의 실효 실행 간격이 '시작 틱 → 보고 틱 → 시작 틱' = 4시간이 됐다. 그러면
