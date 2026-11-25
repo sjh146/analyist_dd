@@ -89,6 +89,13 @@ def write_files(repo: str, feed: dict, meta: dict) -> list[str]:
 
 
 def same_payload(repo: str, feed: dict, meta: dict) -> bool:
+    """작업트리 파일이 새 페이로드와 같고 **HEAD 에도 반영돼 있는가**.
+
+    WHY(2026-11-25): 이전 실행이 파일만 쓰고 커밋에 실패하면(실측: cron 이 root 로 돌아 git 의
+    'dubious ownership' 거부 → 08:40·20:30 발행이 rc=1) 작업트리는 최신, HEAD 는 옛 상태로 남는다.
+    그 상태에서 같은 페이로드가 다시 오면 파일 비교만으로는 '변경 없음'이 되어 **영원히 커밋되지 않고**
+    고객 PC 는 낡은 피드를 계속 pull 한다(실측 17시간 지연). 그래서 미커밋 변경이 있으면 '같다'가 아니다.
+    """
     path = os.path.join(repo, "deploy", "latest.json")
     try:
         with open(path, encoding="utf-8") as fh:
@@ -97,8 +104,13 @@ def same_payload(repo: str, feed: dict, meta: dict) -> bool:
             old_meta = json.load(fh)
     except (OSError, ValueError):
         return False
-    return (old.get("generated_at") == feed.get("generated_at")
-            and old_meta.get("content_sha256") == meta.get("content_sha256"))
+    if not (old.get("generated_at") == feed.get("generated_at")
+            and old_meta.get("content_sha256") == meta.get("content_sha256")):
+        return False
+    probe = git(repo, "status", "--porcelain", "--", *DEPLOY_FILES)
+    if probe.returncode != 0 or probe.stdout.strip():
+        return False
+    return True
 
 
 def publish(repo: str, feed: dict, meta: dict, remote: str, branch: str,

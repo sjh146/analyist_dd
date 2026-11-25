@@ -73,6 +73,32 @@ def test_publish_then_sync(tmp_path, feed_repo):
     assert sync.main(["--config", str(cfg_path)]) == 0
 
 
+def test_publish_retries_when_previous_commit_failed(tmp_path, feed_repo):
+    """이전 실행이 파일만 쓰고 커밋에 실패한 상태를 '변경 없음'으로 오판하지 않는다.
+
+    실측(2026-11-25): 크론이 root 로 돌아 git 이 'dubious ownership' 으로 커밋을 거부 → 작업트리는
+    최신, HEAD 는 17시간 전. 파일만 비교하던 same_payload 가 True 를 돌려줘 재실행도 커밋 없이 끝났다.
+    """
+    publish = _load("pub_feed_dirty", "scripts/publish_feed_github.py")
+    src = tmp_path / "screener_latest.json"
+    src.write_text(json.dumps({
+        "generated_at": publish.now_kst().isoformat(timespec="seconds"),
+        "candidates": {"daytrading": {"items": [{"stock_code": "005930"}]}},
+    }), encoding="utf-8")
+    feed, meta = publish.prepare_payload(str(src), 18.0, False)
+    publish.write_files(str(feed_repo["work"]), feed, meta)
+    assert _git(feed_repo["work"], "status", "--porcelain").strip(), "미커밋 변경이 있어야 한다"
+
+    result = publish.publish(str(feed_repo["work"]), feed, meta, "origin", "main", False, "feed: retry")
+    assert result.get("unchanged") is not True
+    assert result["committed"] is True and result["pushed"] is True
+    tracked = _git(feed_repo["work"], "show", "--name-only", "--format=", "HEAD")
+    assert "deploy/latest.json" in tracked
+
+    again = publish.publish(str(feed_repo["work"]), feed, meta, "origin", "main", False, "feed: retry")
+    assert again.get("unchanged") is True
+
+
 def test_sync_rejects_tampered_feed(tmp_path, feed_repo):
     publish = _load("pub_feed2", "scripts/publish_feed_github.py")
     sync = _load("sync_feed2", "services/feed_relay/client/sync_feed.py")
