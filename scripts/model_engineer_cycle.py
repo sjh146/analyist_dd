@@ -1374,6 +1374,22 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "data/reports/minute_cover_latest.json")
 
+    if kind == "gate_arm_expectancy":
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        if not quiet:
+            log("경고: gate_arm_expectancy 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
+
+    if kind == "beta_attribution":
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        if not quiet:
+            log("경고: beta_attribution 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
+
     if kind == "baseline_ranking_money":
         out = _arg(command or "", "--json-out")
         if out:
@@ -2789,6 +2805,10 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
             if item.get("null_out") else None)
     if kind == "vol_beta_decomp":
         return parse_vol_beta_decomp(spath, mtime_floor)
+    if kind == "beta_attribution":
+        return parse_beta_attribution(spath, mtime_floor)
+    if kind == "gate_arm_expectancy":
+        return parse_fillable_topk_expectancy(spath, mtime_floor)
     if kind == "h5_time_profile":
         return parse_h5_time_profile(spath, mtime_floor)
     if kind == "capital_path_compare":
@@ -4299,6 +4319,119 @@ def judge_vol_beta_decomp(item, parsed) -> tuple:
         return ("신호있음 — 변동성 아님(선택 실력)", detail +
                 " · 사전문턱: 매칭 Δ ≥ 원 Δ의 70% & t≥2 → 변동성 교란 기각", round(mm, 4))
     return "노이즈", detail + " · 사전문턱(≤1/2 붕괴 or ≥70% 유지+t≥2) 미충족", round(mm, 4)
+
+
+def parse_beta_attribution(path, mtime_floor=0.0) -> dict:
+    """세션별 Δ(top-k − 풀평균)를 풀수익에 회귀한 선택 알파/베타 분해(CG488 = CG281 스크립트).
+
+    스키마(scripts/cg281_beta_attribution.py): {"metric_name":"beta_attribution","arm_tag","k",
+    "horizon","n_sessions","pool":{..},"delta":{..},"halves":{front,back,stable},
+    "regression_delta_on_pool":{n,intercept,slope,t_intercept,t_slope,r2},
+    "by_regime":{pool_positive,pool_nonpositive},"by_trailing_regime":{trail_positive,trail_nonpositive}}
+
+    판정 축은 **intercept**(선택 알파)다 — slope(고베타 노출)는 초과의 원인 후보일 뿐이다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    if not isinstance(d.get("regression_delta_on_pool"), dict):
+        return {"error": "회귀 결과 없음(세션 부족 또는 계측 실패)", "summary_mtime": mt}
+    d["summary_mtime"] = mt
+    return d
+
+
+def judge_beta_attribution(item, parsed) -> tuple:
+    """CG488 판정 — 사전 등록: intercept ≥ +0.1%p/세션 & t(intercept) ≥ 2 & Δ 분할 both_positive.
+
+    실패하면 '베타 조건부 초과'로 기록하고 이 축(재학습 앙상블 h5 초과)을 종결한다.
+    왜 halves 를 함께 보나: CG486 실측에서 Δ 자체가 앞 +2.55 / 뒤 −0.97 로 부호가 뒤집혔다 —
+    intercept 가 우연히 양수여도 절반 부호가 갈리면 배포 근거가 되지 못한다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    reg = parsed.get("regression_delta_on_pool") or {}
+    blk = parsed.get("regression_block_boot") or {}
+    dl = parsed.get("delta") or {}
+    hal = parsed.get("halves") or {}
+    fr, bk = (hal.get("front") or {}), (hal.get("back") or {})
+    ic, tic = reg.get("intercept"), reg.get("t_intercept")
+    t_use = blk.get("t") if isinstance(blk.get("t"), (int, float)) else tic
+    a, t = dl.get("mean"), dl.get("t")
+    both = hal.get("stable") == "both_positive"
+    detail = (f"arm {parsed.get('arm_tag')} h{parsed.get('horizon')} k{parsed.get('k')} "
+              f"stride {parsed.get('stride', 1)} · 세션 {parsed.get('n_sessions')} · Δ{a:+.3f}%p(t {t}) · "
+              f"Δ = {ic:+.4f} + {reg.get('slope'):+.4f}·pool (t_a iid {tic} · t_b {reg.get('t_slope')}"
+              f" · R² {reg.get('r2')}) · 블록t(겹침보정) {blk.get('t')}(CI95 {blk.get('ci95')}) · "
+              f"분할 [{fr.get('mean'):+.3f}/{bk.get('mean'):+.3f}] {hal.get('stable')}")
+    if not isinstance(ic, (int, float)) or not isinstance(a, (int, float)):
+        return "판정불가", detail + " · intercept/Δ 없음", None
+    ok = ic >= 0.1 and isinstance(t_use, (int, float)) and t_use >= 2 and both
+    if ok:
+        return ("신호있음 — 선택 알파(베타 아님)", detail +
+                " · 사전문턱: intercept ≥+0.1%p & t≥2 & 분할 both_positive", round(ic, 4))
+    why = []
+    if ic < 0.1:
+        why.append(f"intercept {ic:+.3f} < +0.1")
+    if not isinstance(t_use, (int, float)) or t_use < 2:
+        why.append(f"t {t_use} < 2")
+    if not both:
+        why.append(f"분할 {hal.get('stable')}")
+    return ("노이즈 — 베타 조건부 초과(선택 알파 미검출)", detail +
+            " · 미달 사유: " + ", ".join(why) + " · 사전문턱 미충족", round(ic, 4))
+
+
+def judge_gate_arm(item, parsed) -> tuple:
+    """CG489 판정 — 모델 arm 의 **절대 순기대**를 트레일링 국면 대역별로 가른다.
+
+    사전 등록(변경 금지): OFF 대역(트레일링 20세션 풀 ≤0, 즉 하락 후)에서 k=3 **과** k=5 가
+    모두 ① arm 절대 순기대 > 0 ② iid t ≥ 2 ③ arm 분할 both_positive ④ 세션 ≥ 40 을 만족할 때만
+    '신호있음'(게이트 후보, 승격 아님). 둘 중 하나만 통과하면 '노이즈 — 검정력 부족'으로 기록한다.
+
+    왜 둘 다 요구하나: k 를 골라 잡으면 다중비교로 1종오류가 커진다(CG486 에서 k=3 만 t>3 이던
+    전례). 그리고 Δ(arm−풀)가 아니라 **절대** 순기대가 축이다 — 수수료 0.21%p 를 낸 뒤 실제로
+    돈이 남는지가 질문이기 때문이다(CG445 교훈).
+    """
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    g = (((parsed.get("conditions") or {}).get("fillable") or {}).get("gate") or {})
+    bands = g.get("bands") or {}
+    off = bands.get("off") or {}
+    on = bands.get("on") or {}
+    rows, crit_ok = [], []
+    for kk in ("3", "5"):
+        e = (off.get("k") or {}).get(kk) or {}
+        arm = e.get("arm") or {}
+        hal = e.get("arm_halves") or {}
+        n, mu, t = arm.get("n"), arm.get("mean"), arm.get("t")
+        both = hal.get("stable") == "both_positive"
+        ok = (isinstance(mu, (int, float)) and mu > 0 and isinstance(t, (int, float)) and t >= 2
+              and both and (n or 0) >= 40)
+        crit_ok.append(ok)
+        rows.append(f"k{kk} arm {mu:+.3f}%p(t {t}, n{n}) 분할[{hal.get('stable')}]"
+                    if isinstance(mu, (int, float)) else f"k{kk} 결측")
+    onb = []
+    for kk in ("3", "5"):
+        arm = ((on.get("k") or {}).get(kk) or {}).get("arm") or {}
+        if isinstance(arm.get("mean"), (int, float)):
+            onb.append(f"k{kk} {arm['mean']:+.3f}%p(t {arm.get('t')})")
+    detail = (f"게이트 {g.get('rule')} d{g.get('days')} · OFF {off.get('n_sessions')}세션 "
+              f"풀 {(off.get('pool') or {}).get('mean')}%p · " + " · ".join(rows) +
+              (f" · ON {on.get('n_sessions')}세션 arm " + " / ".join(onb) if onb else ""))
+    if all(crit_ok):
+        return ("신호있음 — 하락 후 진입 게이트(절대 순기대 양수)", detail +
+                " · 사전문턱: k3·k5 모두 arm>0 & t≥2 & both_positive & n≥40", None)
+    return ("노이즈 — 검정력 부족(게이트 미확정)", detail +
+            " · 사전문턱(k3·k5 동시 충족) 미달", None)
 
 
 def parse_h5_time_profile(path, mtime_floor=0.0) -> dict:
@@ -5824,6 +5957,10 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_hold_horizon_curve(item, parsed)
     if kind == "vol_beta_decomp":
         return judge_vol_beta_decomp(item, parsed)
+    if kind == "beta_attribution":
+        return judge_beta_attribution(item, parsed)
+    if kind == "gate_arm_expectancy":
+        return judge_gate_arm(item, parsed)
     if kind == "h5_time_profile":
         return judge_h5_time_profile(item, parsed)
     if kind == "capital_path_compare":

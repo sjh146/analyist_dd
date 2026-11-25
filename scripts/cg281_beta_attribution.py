@@ -17,10 +17,48 @@ fillable_topk_expectancy 와 **같은 함수**를 재사용한다(필터·수수
 import argparse
 import json
 import math
+import random
 import sys
 from collections import defaultdict
 
 import fillable_topk_expectancy as F
+
+
+def boot_intercept(xs, ys, block, n_boot=4000, seed=20261123):
+    """이동블록 부트스트랩으로 회귀 intercept 의 SE·t 를 다시 잡는다.
+
+    WHY(2026-11-25 CG488): h5 라벨은 세션마다 5일 보유창이 겹쳐 iid 가정 t 가 sqrt(h) 배 부풀려진다
+    (CG486 실측: stride1 Δ t 3.21 → 비중첩 t 0.67). 점추정은 그대로 두고 **검정만** 교체하려면
+    블록 길이 h 의 이동블록 부트스트랩이 필요하다(F.overlap_robust 와 같은 원리, 여기선 OLS 절편).
+    """
+    n = len(xs)
+    if n < 8:
+        return None
+    L = max(2, min(int(block or 1), n))
+    point = (ols(xs, ys) or {}).get("intercept")
+    if point is None:
+        return None
+    rnd = random.Random(seed)
+    est = []
+    for _ in range(n_boot):
+        bx, by = [], []
+        while len(bx) < n:
+            s = rnd.randrange(n)
+            for j in range(L):
+                i = (s + j) % n
+                bx.append(xs[i])
+                by.append(ys[i])
+        r = ols(bx, by)
+        if r:
+            est.append(r["intercept"])
+    if len(est) < 100:
+        return None
+    mu = sum(est) / len(est)
+    se = math.sqrt(sum((e - mu) ** 2 for e in est) / (len(est) - 1))
+    srt = sorted(est)
+    return {"block": L, "n_boot": len(est), "se": round(se, 4),
+            "t": round(point / se, 2) if se > 0 else None,
+            "ci95": [round(srt[int(0.025 * len(srt))], 4), round(srt[int(0.975 * len(srt))], 4)]}
 
 
 def ols(xs, ys):
@@ -55,6 +93,10 @@ def main(argv=None) -> int:
     ap.add_argument("--horizon", type=int, default=5)
     ap.add_argument("--regime-window", type=int, default=20,
                     help="트레일링 국면 창(세션 수) — t 이전 w 세션 풀평균의 부호로 국면 판정(진입 시점 정보만)")
+    ap.add_argument("--stride", type=int, default=1,
+                    help="세션 채점 간격 — h5 처럼 보유창이 겹치는 라벨은 --stride 5 로 비중첩 채점")
+    ap.add_argument("--block-boot", type=int, default=0,
+                    help="이동블록 부트스트랩 길이(0=자동: horizon). 겹침 반영한 intercept t 를 함께 낸다")
     ap.add_argument("--json-out", required=True)
     a = ap.parse_args(argv)
 
@@ -75,6 +117,9 @@ def main(argv=None) -> int:
     series = F.price_series(conn, codes, d0, d1)
     erows, drop = F.enrich(rows, series, a.horizon, "close_h")
     krows, filt_out = F.apply_filters(erows, filt, True)
+    keep = F.stride_keys(krows, a.stride)
+    if keep is not None:
+        krows = [r for r in krows if (r["fold"], r["date"]) in keep]
 
     top = F.baskets(krows, [a.k], rt_pct)[a.k]
     pool = F.pool_series(krows, rt_pct)
@@ -84,6 +129,7 @@ def main(argv=None) -> int:
     xs = [pool[k] for k in keys]
     ys = [delta[k] for k in keys]
     reg = ols(xs, ys)
+    blk = boot_intercept(xs, ys, a.block_boot or a.horizon)
     up = [delta[k] for k in keys if pool[k] > 0]
     dn = [delta[k] for k in keys if pool[k] <= 0]
 
@@ -113,20 +159,25 @@ def main(argv=None) -> int:
         "rows": {"used": len(krows), "dropped_price": drop, "filtered_out": filt_out,
                  "bad_lines": bad},
         "n_sessions": len(keys),
+        "stride": a.stride,
         "pool": F.stat(xs),
         "delta": F.stat(ys),
         "halves": F.halves(delta),
         "regression_delta_on_pool": reg,
+        "regression_block_boot": blk,
         "by_regime": {"pool_positive": F.stat(up), "pool_nonpositive": F.stat(dn)},
         "by_trailing_regime": {
             "window": a.regime_window,
             "trail_positive": F.stat(t_up), "trail_nonpositive": F.stat(t_dn),
             "note": "트레일링 국면은 진입 시점에 알 수 있는 정보만 사용(거래 가능 후보)",
         },
-        "threshold": "intercept ≥ +0.1%p/세션 & t(intercept) ≥ 2 → 선택 알파 / 미달 → 베타 조건부 초과",
+        "threshold": ("intercept ≥ +0.1%p/세션 & t ≥ 2(블록t>iid t 중 보수적) & 분할 both_positive "
+                      "→ 선택 알파 / 미달 → 베타 조건부 초과"),
     }
+    t_use = (blk or {}).get("t") if blk and blk.get("t") is not None else (reg or {}).get("t_intercept")
+    out["t_used"] = t_use
     ok = bool(reg) and reg.get("intercept") is not None and reg["intercept"] >= 0.1 \
-        and (reg.get("t_intercept") or 0) >= 2
+        and (t_use or 0) >= 2 and (out["halves"] or {}).get("stable") == "both_positive"
     out["verdict"] = "선택 알파 있음" if ok else "베타 조건부 초과 — 선택 알파 미검출"
 
     with open(a.json_out, "w", encoding="utf-8") as f:
@@ -137,6 +188,9 @@ def main(argv=None) -> int:
     if reg:
         print(f"  회귀 Δ = {reg['intercept']:+.4f} + {reg['slope']:+.4f}·pool "
               f"(t_a {reg['t_intercept']} · t_b {reg['t_slope']} · R² {reg['r2']})")
+    if blk:
+        print(f"  블록t(겹침보정, L={blk['block']}) intercept t {blk['t']} · CI95 {blk['ci95']} "
+              f"→ 판정에 쓴 t {out['t_used']}")
     print(f"  국면별 Δ: 상승장 {out['by_regime']['pool_positive'].get('mean')}%p "
           f"(t {out['by_regime']['pool_positive'].get('t')}, n {out['by_regime']['pool_positive'].get('n')}) · "
           f"하락장 {out['by_regime']['pool_nonpositive'].get('mean')}%p "
