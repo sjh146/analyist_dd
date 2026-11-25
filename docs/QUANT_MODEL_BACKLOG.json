@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-26T01:08:28+09:00",
+ "updated_at": "2026-11-26T02:14:17+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -23218,8 +23218,8 @@
    "expected": "미지 — 유일하게 미측정인 데이터 클래스. 단 h1 반전 신호는 일봉 return_1d 와 부호가 겹쳐 중복 위험 있음(정보있음 판정 시 증분 A/B 필수).",
    "cost": "스크린 10초(쿼리 범위 수리 후)",
    "est_minutes": 5,
-   "not_before": "2026-11-26T20:00:00+09:00",
-   "note": "not_before 는 표본 조건이다 — 21완전일(11-23~11-26 적립)이 되어야 h1 n_dates 20 이 성립한다. 그 전 실행은 같은 16날짜를 다시 재는 무정보 실행(CG129 가 그 사례). h5 는 25완전일 필요 → 이 항목이 h1 로 판정하고, h5 는 별도 후속. | 2026-11-21 19:1x 엔지니어: 스크린 스크립트의 전량 market_data(3.2M행) 적재가 timeout 900s 의 원인이었다 → 분봉 종목·±45일 창으로 쿼리 범위를 자르고 진행률 stderr flush 추가(실측 9.5s). | 2026-11-26 01:08 조기 실행됨(수동 --start, not_before 20:00 무시) → h1 n_dates 18<20 판정불가. '판정불가'는 종결 사유가 아니다(스킬 하드룰 ⑤) — 상태를 pending 으로 되돌려 **20:00 이후 같은 명령으로 재측정**한다. 문턱(|IC|≥0.03 & |t|≥2 & n_dates≥20)은 그대로.",
+   "not_before": "2026-11-27T20:00:00+09:00",
+   "note": "not_before 는 표본 조건이다 — 21완전일(11-23~11-26 적립)이 되어야 h1 n_dates 20 이 성립한다. 그 전 실행은 같은 16날짜를 다시 재는 무정보 실행(CG129 가 그 사례). h5 는 25완전일 필요 → 이 항목이 h1 로 판정하고, h5 는 별도 후속. | 2026-11-21 19:1x 엔지니어: 스크린 스크립트의 전량 market_data(3.2M행) 적재가 timeout 900s 의 원인이었다 → 분봉 종목·±45일 창으로 쿼리 범위를 자르고 진행률 stderr flush 추가(실측 9.5s). | 2026-11-26 01:08 조기 실행됨(수동 --start, not_before 20:00 무시) → h1 n_dates 18<20 판정불가. '판정불가'는 종결 사유가 아니다(스킬 하드룰 ⑤) — 상태를 pending 으로 되돌려 **20:00 이후 같은 명령으로 재측정**한다. 문턱(|IC|≥0.03 & |t|≥2 & n_dates≥20)은 그대로. | 2026-11-26 02:2x 엔지니어 재산정(자율): 요구 완전일 수를 다시 계산했다 — 이 스크립트의 h1 라벨은 market_data 일봉 '다음 거래일' 종가를 쓰므로 n_dates = 완전일수 − 1(일봉 최신일 == 마지막 완전일 때) 이다. 실측 2026-11-26 01:08: 완전일 19(마지막 11-25)·h1 n_dates 18. 11-26 20:00 시점에는 KIS 분봉 크론이 23:00 이라 11-26 완전일이 아직 없어 완전일 19·일봉만 11-26 → n_dates 19 (여전히 <20, 또 판정불가). 완전일 20(11-26 포함) + 일봉 11-27 이 동시에 성립하는 시점은 11-27 20:00 → 그때 n_dates 20. 따라서 not_before 를 11-27 20:00 으로 하루 미룬다(문턱·명령 불변).",
    "attempts": [
     {
      "ts": "2026-11-26T01:08:28+09:00",
@@ -27187,6 +27187,45 @@
     }
    ],
    "cost": 0
+  },
+  {
+   "id": "CG495",
+   "title": "[머니·스펙 견고성] CG420 신호(+2.62%p·t2.61)가 k 선택에 좌우되는가 — 같은 덤프에서 k=3/5/10 재측정",
+   "status": "done",
+   "kind": "experiment",
+   "owner": "engineer",
+   "priority": 2,
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "summary_out": "/app/reports/overnight/cg495_k5_h5.json",
+   "est_minutes": 6,
+   "arm": "cg409_nogate",
+   "counterfactual": "CG420 k=5 실측: arm +1.683%p vs 풀평균 −0.939 → Δ+2.622 (t 2.61), 완전필터 ON·익일시가 진입·close_h h5·stride 5·세션 125",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 600 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg411_dump.jsonl --arm-tag cg409_nogate --control-jsonl /app/reports/overnight/cg411_null.jsonl --control-tag cg409_hashnull --k 5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg495_k5_h5.json'",
+   "hypothesis": "AUC 축이 23사이클 무개선으로 닫힌 상태에서 유일한 양(+) 돈 축은 CG420 의 '모델 top-k 가 세션 풀평균을 이기는가'(Δ+2.62%p·t2.61)다. 이 값이 k=5 한 점에서만 성립하는 스펙 인공물이면 실매매 근거가 못 된다.",
+   "evidence": "CG420(2026-11-2x): 완전필터 ON 125세션·풀 중앙값 48종목·수수료 왕복 0.21%p·익일시가 진입. k=5 arm +1.683 vs 풀 −0.939 → Δ+2.622(t 2.61·분할 both_positive +1.861/+1.519). 대조(해시 널) Δ+3.222(t 2.40).",
+   "success": "k=3·5·10 모두 Δ(top-k − 풀평균) > 0 이고 최소 두 k 에서 t ≥ 2 → 스펙 견고(신호 유지). 한 k 라도 부호가 뒤집히면 그 k 구간에서 신호 소멸로 기록.",
+   "expected": "k 가 커지면 희석되어 Δ가 단조 감소하되 부호는 유지될 것.",
+   "cost": "덤프 재사용 · 1회 20초×3",
+   "created_at": "2026-11-26T02:25:00+09:00",
+   "result": {
+    "verdict": "신호있음",
+    "detail": "arm cg409_nogate vs 대조군 cg409_hashnull · exit close_h h5 · stride 5 · 수수료 왕복 0.21%p · 세션 125 · 풀 중앙값 48 · k=5 arm +1.683%p/세션 · 대조 -1.538 · Δ+3.222(t 2.4) · 양세션 51.9% · 분할 both_positive [+1.861/+1.519] · 참고(체결성 필터 OFF): k=5 arm +1.183%p · Δ+1.464 · 널(풀) 대비 k=5 Δ+2.622%p(t 2.61) pos/neg 18/9 · 널 대비 절반 [+4.43/+0.95] · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인) | k 스윕(같은 덤프·같은 플래그): k=3 Δ(풀평균 대비)+2.473(t 1.97·양세션 55.6%) · k=5 +2.622(t 2.61·51.9%) · k=10 +1.970(t 2.24·48.1%) — 해시 널 대비 Δ +3.788/+3.222/+3.014(t 3.0/2.4/2.55). 부호 일관·크기 단조 감소 → k 인공물 아님. k=3 만 t<2 라 '전 구간 유의' 표기는 금지. h=1 재측정은 도구 제약으로 세션 0(판정불가, 미보고).",
+    "delta": 3.2216,
+    "per_exp": null,
+    "rc": 0
+   },
+   "attempts": [
+    {
+     "ts": "2026-11-26T02:14:17+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "arm cg409_nogate vs 대조군 cg409_hashnull · exit close_h h5 · stride 5 · 수수료 왕복 0.21%p · 세션 125 · 풀 중앙값 48 · k=5 arm +1.683%p/세션 · 대조 -1.538 · Δ+3.222(t 2.4) · 양세션 51.9% · 분할 both_positive [+1.861/+1.519] · 참고(체결성 필터 OFF): k=5 arm +1.183%p · Δ+1.464 · 널(풀) 대비 k=5 Δ+2.622%p(t 2.61) pos/neg 18/9 · 널 대비 절반 [+4.43/+0.95] · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인)",
+     "log": "",
+     "elapsed_min": null,
+     "ingested": true
+    }
+   ]
   }
  ],
  "updated": "2026-11-24T20:20:00+09:00"
