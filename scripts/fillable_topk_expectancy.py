@@ -404,9 +404,11 @@ def paired_stats(arm_by_key, ctl_by_key, rt_pct=None):
     keys = sorted(set(arm_by_key) & set(ctl_by_key))
     diffs, pos, neg, ties = [], 0, 0, 0
     per_fold = defaultdict(lambda: [0, 0])
+    per_sess = defaultdict(list)
     for k in keys:
         d = arm_by_key[k] - ctl_by_key[k]
         diffs.append(d)
+        per_sess[k[1] if isinstance(k, tuple) else k].append(d)
         if d > 0:
             pos += 1
         elif d < 0:
@@ -423,6 +425,8 @@ def paired_stats(arm_by_key, ctl_by_key, rt_pct=None):
     s["delta_mean"] = s.pop("mean")
     s["pos"], s["neg"], s["ties"] = pos, neg, ties
     s["folds"] = {str(f): f"{a}/{b}" for f, (a, b) in sorted(per_fold.items())}
+    s["session_deltas"] = {str(dd): round(sum(vs) / len(vs), 4)
+                           for dd, vs in sorted(per_sess.items(), key=lambda kv: str(kv[0]))}
     if OVERLAP_BLOCK:
         ov = overlap_robust(diffs, OVERLAP_BLOCK)
         if ov:

@@ -3728,6 +3728,62 @@ def judge_money_anchor_repeat(item, parsed) -> tuple:
     return "노이즈", detail + " → 사전등록 미충족(단일 앵커 돈 지표는 승격 근거로 쓰지 않는다)", first
 
 
+def _binom_p_two_sided(pos, neg, verbose=False):
+    """부호검정(양측 이항) p — pos/neg 만 있는 요약에서도 꼬리 편향을 잡기 위한 최소 통계(CG499).
+
+    WHY(2026-11-26 CG496): 누적 히스토그램만으로 '앞/뒤 절반 양수'를 통과한 Δ+2.622(t2.61)가,
+    세션 27개 중 상위 3개를 빼면 t 1.69 였다 — 평균 하나로 '신호있음'을 찍는 판정이 소수 세션에
+    지배당한다. 부호검정은 크기를 무시하고 방향만 보므로 꼬리 왜곡에 둔감한 대조 지표다.
+    """
+    try:
+        pos, neg = int(pos), int(neg)
+    except (TypeError, ValueError):
+        return None
+    n = pos + neg
+    if n < 8:
+        return None
+    k = min(pos, neg)
+    tail = sum(math.comb(n, i) for i in range(0, k + 1)) / (2.0 ** n)
+    return min(1.0, 2.0 * tail)
+
+
+def _tail_robustness_note(paired):
+    """세션 꼬리 강건성 문구 — (문구, 경고여부, 계산가능여부). CG499.
+
+    반환 문구는 기존 판정 문구 뒤에 덧붙기만 한다(문턱·판정 클래스 불변).
+    session_deltas 가 없는 구 스키마 요약은 '미실시'로 명시하고 경고하지 않는다
+    (기존 판정 비트 동일 — 회귀 테스트가 이 경로를 지킨다).
+    """
+    if not isinstance(paired, dict) or not paired:
+        return "", False, False
+    bits, warn, have = [], False, False
+    sd = paired.get("session_deltas")
+    has_sessions = isinstance(sd, dict) and len(sd) >= 8
+    p = _binom_p_two_sided(paired.get("pos"), paired.get("neg"))
+    if p is not None:
+        bits.append(f"부호검정 p={p:.3f}({paired.get('pos')}/{paired.get('neg')})")
+        have = True
+        if has_sessions and p > 0.10:
+            warn = True
+    if has_sessions:
+        vals = [float(v) for v in sd.values() if isinstance(v, (int, float))]
+        if len(vals) >= 8:
+            kept = sorted(vals, reverse=True)[3:]
+            mu = statistics.fmean(kept)
+            sdp = statistics.stdev(kept) if len(kept) > 1 else 0.0
+            t_rm = mu / (sdp / math.sqrt(len(kept))) if sdp > 0 else 0.0
+            bits.append(f"상위3세션 제거 Δ{mu:+.3f}(t {t_rm:.2f})")
+            have = True
+            if t_rm < 2:
+                warn = True
+    if not has_sessions:
+        bits.append("상위3세션 제거 미실시(세션별 Δ 없음 — 구 스키마 요약)")
+        have = True
+    if not have:
+        return " · 꼬리검사 미실시(요약에 session_deltas 없음 — 구 스키마)", False, False
+    return " · " + " · ".join(bits), warn, True
+
+
 def judge_fillable_topk_expectancy(item, parsed) -> tuple:
     """돈 지표 짝 판정 — 사전 등록(CG95): k=3 **과** k=5 둘 다
 
@@ -3849,14 +3905,16 @@ def judge_fillable_topk_expectancy(item, parsed) -> tuple:
                         f"— t·Δ 는 겹친 창의 재사용으로 부풀려짐")
     except (TypeError, ValueError):
         _overlap = ""
+    _tail_first = ((fill.get(str(ks[0])) or {}).get("paired")) if ks else None
+    _tail, _tail_warn, _ = _tail_robustness_note(_tail_first)
     detail = (f"arm {parsed.get('arm_tag')} vs 대조군 {parsed.get('control_tag')} · "
               f"exit {parsed.get('exit')} h{parsed.get('horizon')} · stride {_stride} · 수수료 왕복 "
               f"{parsed.get('fee_roundtrip_pct')}%p · 세션 {parsed.get('n_sessions_fillable')} · "
               f"풀 중앙값 {parsed.get('pool_median_fillable')} · " + " · ".join(parts)
-              + ref + pool_rel + _overlap
+              + ref + pool_rel + _overlap + _tail
               + " · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive")
     if ok_all:
-        return "신호있음", detail + " → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인)", first
+        return ("신호있음" + (" ⚠꼬리검사 미달" if _tail_warn else "")), detail + " → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인)", first
     return "노이즈", detail + " → 사전등록 미충족", first
 
 
@@ -3948,14 +4006,15 @@ def judge_fillable_topk_vs_pool(item, parsed) -> tuple:
             _bparts.append(f"k={k} 하위 {_ba['mean']:+.3f}%p · Δ(풀대비) {_pv['delta_mean']:+.3f}"
                            f"(t {_pv.get('t')} · pos/neg {_pv.get('pos')}/{_pv.get('neg')})")
     _bot = (" · 하위k: " + " · ".join(_bparts)) if _bparts else ""
+    _tail, _tail_warn, _ = _tail_robustness_note(paired_by_k.get(ks_list[0]) if ks_list else None)
     detail = (f"arm {parsed.get('arm_tag')} · 널=세션 풀 평균(무작위 k 기대) · exit "
               f"{parsed.get('exit')} h{parsed.get('horizon')} · 수수료 왕복 "
               f"{parsed.get('fee_roundtrip_pct')}%p · 세션 {parsed.get('n_sessions_fillable')} · "
               + " · ".join(parts)
               + f" · 풀평균 t {bp.get('t')} · 사전문턱: arm>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive"
-              + _bot)
+              + _bot + _tail)
     if ok_all:
-        return "신호있음", detail + " → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)", first
+        return ("신호있음" + (" ⚠꼬리검사 미달" if _tail_warn else "")), detail + " → 모델이 시장 베타를 넘는 돈 엣지(승격은 별도 절차)", first
     return "노이즈", detail + " → 사전등록 미충족(베타 초과 미검출)", first
 
 
