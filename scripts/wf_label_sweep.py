@@ -652,6 +652,10 @@ CONFIGS = [
 
 
 
+    {"id": "CG483_xgb_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
+     "ens": {"skip": ["lightgbm", "catboost"]},
+     "desc": "CG483 — 173피처 풀·top30 동일, xgboost 단일(앙상블 평균 제거) · 대조군 LS_quant_q30_h5(3종 가중평균)"},
+
     {"id": "F3_base_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "folds": 3,
      "desc": "기준 설정을 3폴드(최소 학습창 약 3배)로 측정 — 프로토콜 민감도"},
