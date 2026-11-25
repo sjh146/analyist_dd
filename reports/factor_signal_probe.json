@@ -1,0 +1,81 @@
+{
+  "generated_at": "2026-11-25T11:29:10.807806+00:00",
+  "asof": "2026-11-25",
+  "n_stocks": 4355,
+  "universe_size": 768,
+  "strategies": {
+    "lowvol_factor": {
+      "is_rebalance_day": false,
+      "rebalance_interval_days": 63,
+      "n_signals": 0,
+      "n_buys": 0,
+      "n_sells": 0,
+      "top_buys": [],
+      "error": null
+    },
+    "momentum_factor": {
+      "is_rebalance_day": false,
+      "rebalance_interval_days": 63,
+      "n_signals": 0,
+      "n_buys": 0,
+      "n_sells": 0,
+      "top_buys": [],
+      "error": null
+    },
+    "multifactor": {
+      "is_rebalance_day": false,
+      "rebalance_interval_days": 21,
+      "n_signals": 0,
+      "n_buys": 0,
+      "n_sells": 0,
+      "top_buys": [],
+      "error": null
+    },
+    "quality_factor": {
+      "is_rebalance_day": false,
+      "rebalance_interval_days": 63,
+      "n_signals": 0,
+      "n_buys": 0,
+      "n_sells": 0,
+      "top_buys": [],
+      "error": null
+    },
+    "value_factor": {
+      "is_rebalance_day": false,
+      "rebalance_interval_days": 63,
+      "n_signals": 0,
+      "n_buys": 0,
+      "n_sells": 0,
+      "top_buys": [],
+      "error": null
+    }
+  },
+  "interval_audit": {
+    "lowvol_factor": {
+      "strategy": 63,
+      "backtest": 21,
+      "match": false
+    },
+    "momentum_factor": {
+      "strategy": 63,
+      "backtest": 21,
+      "match": false
+    },
+    "multifactor": {
+      "strategy": 21,
+      "backtest": 63,
+      "match": false
+    },
+    "quality_factor": {
+      "strategy": 63,
+      "backtest": 63,
+      "match": true
+    },
+    "value_factor": {
+      "strategy": 63,
+      "backtest": 63,
+      "match": true
+    }
+  },
+  "n_interval_mismatch": 3
+}

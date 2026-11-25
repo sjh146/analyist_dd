@@ -1363,6 +1363,11 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "data/reports/feature_coverage.json")
+    if kind == "factor_signals":
+        out = _arg(command or "", "--out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        return os.path.join(PROJ, "reports/factor_signal_probe.json")
     if kind == "minute_cover":
         out = _arg(command or "", "--json") or _arg(command or "", "--out")
         if out:
@@ -2204,6 +2209,80 @@ def judge_minute_cover(item, parsed) -> tuple:
     return ("진행 — 완전일 +1 적재", f"{detail}. 남은 완전일 {min_dates - int(nd)}개.", None)
 
 
+def parse_factor_signals(path, mtime_floor) -> dict:
+    """팩터 5전략 실시간 신호 측정(`scripts/factor_signal_probe.py --out`)을 파싱한다.
+
+    왜(2026-11-25 FAC-01): 구동기에 metric 'factor_signals' 의 경로·파서가 없어 rc=0 완주가
+    원장에 `판정불가(parser 없음)`으로만 남았다. 게다가 FAC-01 이 근거로 삼은 signals 포맷은
+    현행 run_factor_job 이 쓰지 않는 유령 지표였다(현행은 metrics/window/periods 만 기록).
+    그래서 측정기(`factor_signal_probe.py`)를 신설하고 여기에 배선한다 — 판정 기준은
+    **리밸런싱 게이트일 여부**다: 게이트 밖(n_days%interval≠0)에서 신호 0은 설계상 정상이고,
+    게이트일에 신호가 없을 때만 실패다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": f"요약 파일 없음({path})"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    st = d.get("strategies") or {}
+    if not st:
+        return {"error": "strategies 비어 있음(측정 자체가 비었다)", "summary_mtime": mt}
+    gate_open = [n for n, v in st.items() if isinstance(v, dict) and v.get("is_rebalance_day")]
+    n_sig_pos = sum(1 for v in st.values() if isinstance(v, dict) and int(v.get("n_buys") or 0) > 0)
+    return {
+        "metric": "factor_signals",
+        "asof": d.get("asof"),
+        "n_stocks": d.get("n_stocks"),
+        "universe_size": d.get("universe_size"),
+        "n_strategies": len(st),
+        "n_signal_positive": n_sig_pos,
+        "n_gate_open": len(gate_open),
+        "gate_open": gate_open,
+        "per_strategy": {n: {"gate": v.get("is_rebalance_day"), "buys": v.get("n_buys"),
+                             "sells": v.get("n_sells"), "err": v.get("error")}
+                         for n, v in st.items() if isinstance(v, dict)},
+        "n_interval_mismatch": d.get("n_interval_mismatch"),
+        "interval_audit": d.get("interval_audit") or {},
+        "summary_mtime": mt,
+    }
+
+
+def judge_factor_signals(item, parsed) -> tuple:
+    """팩터 신호 판정 — 게이트일 ≥3전략 신호>0 이면 정상, 게이트 밖 0은 '측정일 오류'로 기록."""
+    if parsed.get("error"):
+        return "판정불가", f"요약 없음/미갱신 — {parsed['error']}", None
+    uni = parsed.get("universe_size")
+    npos = int(parsed.get("n_signal_positive") or 0)
+    nopen = int(parsed.get("n_gate_open") or 0)
+    per = parsed.get("per_strategy") or {}
+    mism = [(n, a.get("strategy"), a.get("backtest"))
+            for n, a in (parsed.get("interval_audit") or {}).items() if not a.get("match")]
+    detail = (f"asof {parsed.get('asof')} · 전체 {parsed.get('n_stocks')}종목 중 유니버스 {uni} · "
+              f"게이트 열린 전략 {nopen}/{parsed.get('n_strategies')} · 신호>0 전략 {npos}"
+              f"(게이트 열림: {parsed.get('gate_open')})")
+    if mism:
+        detail += (" · ⚠ 리밸런싱 간격 불일치(전략 vs 백테스트): "
+                   + ", ".join(f"{n} {a}≠{b}" for n, a, b in mism)
+                   + " → 그 전략의 기간수익은 보유기간과 어긋나 돈 지표로 쓸 수 없다")
+    if not uni:
+        return ("유니버스 공백 — 진짜 실패", f"{detail}. filter_universe 가 전 종목 탈락.", None)
+    if nopen == 0:
+        return ("게이트 밖 — 신호 0은 정상(측정일 오류로 오알람 금지)",
+                f"{detail}. 리밸런싱 게이트(63/21일) 밖이면 analyze()가 빈 리스트를 반환하는 설계다"
+                f" → 신호 수를 보려면 게이트일로 다시 재라.", None)
+    if npos >= 3:
+        return ("신호 정상 — 게이트일 ≥3전략 신호>0", f"{detail}.", None)
+    return ("게이트일인데 신호 부족", f"{detail}. 게이트가 열렸는데 신호>0 전략이 {npos}개뿐 — 팩터 결측/유니버스 필터 확인.", None)
+
+
 def judge_feature_coverage(item, parsed) -> tuple:
     """커버리지 재측정 판정 — 신선 빌드(from_cache=False)면 갱신 성공, 캐시면 위조 위험으로 무효."""
     if parsed.get("error"):
@@ -2679,6 +2758,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_feature_coverage(spath, mtime_floor)
     if kind == "minute_cover":
         return parse_minute_cover(spath, mtime_floor)
+    if kind == "factor_signals":
+        return parse_factor_signals(spath, mtime_floor)
     if kind == "robust_seed_range":
 
         return parse_robust_seed_range(spath, mtime_floor)
@@ -5712,6 +5793,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_feature_coverage(item, parsed)
     if kind == "minute_cover":
         return judge_minute_cover(item, parsed)
+    if kind == "factor_signals":
+        return judge_factor_signals(item, parsed)
     if kind == "robust_seed_range":
 
         return judge_robust_seed_range(item, parsed)
