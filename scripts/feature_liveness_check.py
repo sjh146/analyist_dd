@@ -27,6 +27,13 @@ def kst() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
 
 
+def _atomic_write(path: str, payload: dict) -> None:
+    tmp = path + ".tmp.{0}".format(os.getpid())
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
+
+
 def dotenv() -> dict:
     env = {}
     path = os.path.join(REPO, ".env")
@@ -59,8 +66,17 @@ def coverage_rows() -> list[tuple]:
     return rows
 
 
-def classify_feature(nonzero: float, const: float) -> str:
-    """판정 우선순위: dead(nonzero<0.0005) → sparse(<0.01) → constant(const>0.99) → alive."""
+STRUCTURAL_UNAVAILABLE = {
+    "etf_flow_5d": "per-stock ETF 자금 원천 없음(비ETF 종목엔 의미 없음)",
+    "margin_balance_change": "종목별 신용잔고 원천 없음(공개 API 미제공)",
+    "credit_balance_change": "종목별 신용잔고 원천 없음(공개 API 미제공)",
+}
+
+
+def classify_feature(nonzero: float, const: float, name: str = "") -> str:
+    """판정 우선순위: unavailable(원천 부재) → dead(nonzero<0.0005) → sparse(<0.01) → constant(const>0.99) → alive."""
+    if name in STRUCTURAL_UNAVAILABLE:
+        return "unavailable"
     if nonzero < 0.0005:
         return "dead"
     if nonzero < 0.01:
@@ -76,13 +92,14 @@ def main() -> int:
         print("feature_coverage 조회 실패")
         return 2
 
-    buckets = {"alive": [], "sparse": [], "constant": [], "dead": []}
+    buckets = {"alive": [], "sparse": [], "constant": [], "dead": [], "unavailable": []}
     for name, nz, const, _ in rows:
-        buckets[classify_feature(nz, const)].append(name)
+        buckets[classify_feature(nz, const, name)].append(name)
     alive = buckets["alive"]
     sparse = buckets["sparse"]
     constant = buckets["constant"]
     dead = buckets["dead"]
+    unavailable = buckets["unavailable"]
 
     now = kst()
     today = now.date().isoformat()
@@ -103,28 +120,40 @@ def main() -> int:
             prev_dead = set()
     new_dead = sorted(set(dead) - prev_dead) if prev_dead else []
 
+    miss_path = os.path.join(REPO, "data", "state", "feature_miss_report.json")
+    miss_stale_days = None
+    miss_report = {}
+    if os.path.exists(miss_path):
+        miss_stale_days = round((now.timestamp() - os.path.getmtime(miss_path)) / 86400.0, 1)
+        try:
+            miss_report = json.load(open(miss_path, encoding="utf-8"))
+        except Exception:
+            miss_report = {}
+
     report = {
         "at": now.isoformat(timespec="seconds"),
         "snapshot": snap,
         "stale_snapshot": stale_snapshot,
         "counts": {"total": len(rows), "alive": len(alive), "sparse": len(sparse),
-                   "constant": len(constant), "dead": len(dead)},
+                   "constant": len(constant), "dead": len(dead), "unavailable": len(unavailable)},
         "dead": dead,
         "sparse": sparse,
         "constant": constant,
+        "unavailable": {n: STRUCTURAL_UNAVAILABLE[n] for n in unavailable},
         "new_dead": new_dead,
+        "miss_report_age_days": miss_stale_days,
+        "miss_report": miss_report,
         "verdict": "OK" if not stale_snapshot and not new_dead else "WARN",
     }
-    json.dump(report, open(os.path.join(REPORTS, "feature_liveness_{0}.json".format(today.replace("-", ""))),
-                           "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    json.dump(report, open(LATEST, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    json.dump(report, open(prev_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    daily_path = os.path.join(REPORTS, "feature_liveness_{0}.json".format(today.replace("-", "")))
+    for path in (daily_path, LATEST, prev_path):
+        _atomic_write(path, report)
 
-    line = ("[{0}] {1} | total={2} alive={3} sparse={4} constant={5} dead={6} new_dead={7} "
-            "snapshot={8}{9}".format(
+    line = ("[{0}] {1} | total={2} alive={3} sparse={4} constant={5} dead={6} unavailable={7} "
+            "new_dead={8} snapshot={9}{10} miss_age={11}d".format(
                 report["at"], report["verdict"], len(rows), len(alive), len(sparse),
-                len(constant), len(dead), len(new_dead), snap[:19],
-                " STALE" if stale_snapshot else ""))
+                len(constant), len(dead), len(unavailable), len(new_dead), snap[:19],
+                " STALE" if stale_snapshot else "", "?" if miss_stale_days is None else miss_stale_days))
     with open(os.path.join(REPORTS, "feature_liveness.log"), "a", encoding="utf-8") as fh:
         fh.write(line + "\n")
         if new_dead:

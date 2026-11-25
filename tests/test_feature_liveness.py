@@ -38,3 +38,24 @@ def test_alive_typical():
 
 def test_dead_wins_over_constant():
     assert mod.classify_feature(0.0, 0.999) == "dead"
+
+
+def test_structural_unavailable_beats_constant():
+    assert mod.classify_feature(0.0, 1.0, "credit_balance_change") == "unavailable"
+
+
+def test_structural_set_documented():
+    for name in ("etf_flow_5d", "margin_balance_change", "credit_balance_change"):
+        assert name in mod.STRUCTURAL_UNAVAILABLE
+
+
+def test_unknown_name_still_dead():
+    assert mod.classify_feature(0.0, 1.0, "some_other_feature") == "dead"
+
+
+def test_atomic_write_replaces_existing(tmp_path):
+    target = tmp_path / "r.json"
+    target.write_text('{"old": 1}', encoding="utf-8")
+    mod._atomic_write(str(target), {"new": 2})
+    assert '"new": 2' in target.read_text(encoding="utf-8")
+    assert not list(tmp_path.glob("r.json.tmp.*"))
