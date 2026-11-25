@@ -6923,6 +6923,28 @@ def _duplicate_running(item_id):
     return pid if _pid_alive(pid) else None
 
 
+def _not_before_blocks(item):
+    """(막는가, not_before 문자열). next_item 과 --start 가 **같은 규칙**을 쓰게 한다.
+
+    실측(2026-11-26 01:11): next_item 은 not_before 를 존중해 CG464(not_before 2026-12-14,
+    '새 세션 ≥+15' 를 위한 패널)를 건너뛰는데, 수동 `--start CG464` 경로에는 가드가 없어
+    미래 항목이 6시간짜리 빌드로 즉시 기동됐다(01:12 로그: 200/52,155 페어 · ETA 373분).
+    구동기 규칙 위반은 아니지만 **산출물이 목적에 못 미치는 낭비**다 — 12-14 이전 빌드는
+    세션이 2개만 늘어 CG443 의 '새 세션 ≥+15' 를 채우지 못하고, 다음 재개 때 페어수가 달라져
+    체크포인트가 폐기된다(스킬 교훈: 재개 보증은 데이터가 변하지 않았을 때만 성립).
+    """
+    nb = (item or {}).get("not_before")
+    if not nb:
+        return False, ""
+    try:
+        t = datetime.fromisoformat(str(nb))
+    except ValueError:
+        return False, str(nb)
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=KST)
+    return (now_kst() < t), str(nb)
+
+
 def start_background(item_id, force=False):
     """nohup 으로 자기 자신을 띄우고 즉시 반환(크론 틱을 붙잡지 않는다)."""
     os.makedirs(RUNTIME, exist_ok=True)
@@ -6930,6 +6952,15 @@ def start_background(item_id, force=False):
     if dup:
         log(f"시작 보류: {item_id} 가 이미 실행 중(pid={dup}) — 중복 기동 금지"
             f"(--force 로도 같은 항목은 두 번 띄우지 않는다)")
+        return 3
+    try:
+        _items = (load_backlog() or {}).get("items") or []
+    except Exception:
+        _items = []
+    _nb_blocked, _nb = _not_before_blocks(next((i for i in _items if i.get("id") == item_id), None))
+    if _nb_blocked and not force:
+        log(f"시작 보류: {item_id} — not_before({_nb}) 이전이다. 미래 항목을 지금 돌리면 "
+            f"산출물이 목적에 못 미치고 체크포인트도 다음 빌드에서 폐기된다(강제: --force)")
         return 3
     cmd = [sys.executable, os.path.abspath(__file__), "--run", item_id]
     if force:

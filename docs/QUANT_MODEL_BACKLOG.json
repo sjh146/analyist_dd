@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T23:10:47+09:00",
+ "updated_at": "2026-11-26T01:08:28+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -23204,7 +23204,7 @@
   {
    "id": "CG388",
    "title": "인트라데이 스크린 확정 판정 — 분봉 완전일 21일(≈2026-11-26) 도달 후 재측정 (CG129 후속)",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "metric": "intraday_screen",
    "intraday_test": "feature_ic",
@@ -23219,7 +23219,24 @@
    "cost": "스크린 10초(쿼리 범위 수리 후)",
    "est_minutes": 5,
    "not_before": "2026-11-26T20:00:00+09:00",
-   "note": "not_before 는 표본 조건이다 — 21완전일(11-23~11-26 적립)이 되어야 h1 n_dates 20 이 성립한다. 그 전 실행은 같은 16날짜를 다시 재는 무정보 실행(CG129 가 그 사례). h5 는 25완전일 필요 → 이 항목이 h1 로 판정하고, h5 는 별도 후속. | 2026-11-21 19:1x 엔지니어: 스크린 스크립트의 전량 market_data(3.2M행) 적재가 timeout 900s 의 원인이었다 → 분봉 종목·±45일 창으로 쿼리 범위를 자르고 진행률 stderr flush 추가(실측 9.5s)."
+   "note": "not_before 는 표본 조건이다 — 21완전일(11-23~11-26 적립)이 되어야 h1 n_dates 20 이 성립한다. 그 전 실행은 같은 16날짜를 다시 재는 무정보 실행(CG129 가 그 사례). h5 는 25완전일 필요 → 이 항목이 h1 로 판정하고, h5 는 별도 후속. | 2026-11-21 19:1x 엔지니어: 스크린 스크립트의 전량 market_data(3.2M행) 적재가 timeout 900s 의 원인이었다 → 분봉 종목·±45일 창으로 쿼리 범위를 자르고 진행률 stderr flush 추가(실측 9.5s).",
+   "attempts": [
+    {
+     "ts": "2026-11-26T01:08:28+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "h1: n_dates 18 · 최강 gap (IC -0.1234 · t -1.71 · AUC 0.4482) | h5: n_dates 15 · 최강 gap (IC -0.085 · t -1.55 · AUC 0.4771) · 사전문턱 |IC|>=0.03 & |t|>=2.0 & n_dates>=20 → 표본 부족(n_dates 18 < 20) — 문턱을 낮추지 않는다",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG388_20261126-010821.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "판정불가",
+    "detail": "h1: n_dates 18 · 최강 gap (IC -0.1234 · t -1.71 · AUC 0.4482) | h5: n_dates 15 · 최강 gap (IC -0.085 · t -1.55 · AUC 0.4771) · 사전문턱 |IC|>=0.03 & |t|>=2.0 & n_dates>=20 → 표본 부족(n_dates 18 < 20) — 문턱을 낮추지 않는다",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG389",
@@ -25712,14 +25729,14 @@
    "affects_model": false,
    "created_at": "2026-11-24T19:09:45+09:00",
    "not_before": "2026-12-14T23:00:00+09:00",
-   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 18300 python -u scripts/wf_wave.py --days 420 --limit 200 --universe prod --panel /app/app/models/wf/panel_prod200_v7.npz --end-date 2026-12-14'",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 36300 python -u scripts/wf_wave.py --days 420 --limit 200 --universe prod --panel /app/app/models/wf/panel_prod200_v7.npz --end-date 2026-12-14'",
    "counterfactual": "현행 최신 패널 panel_prod200_v6o.npz(2026-11-22 빌드) — 마지막 거래일 2026-11-23 이후 세션이 없어 CG443 의 '새 세션 ≥+15' 조건을 채우지 못한다",
    "success": "① rc=0 · panel_prod200_v7.npz 생성(행수 ≥ panel_prod200_v6o 대비 증가) ② sidecar 의 마지막 거래일 = 2026-12-14 ③ 체크포인트 재개 로그 확인(구간 고정으로 재개 가능) ④ 생성 직후 scripts/panel_feature_screen.py 로 누수 게이트(단일피처 |AUC−0.5|>0.25 0개·종목상수 비율) 통과",
    "hypothesis": "CG443(유일한 양(+) 돈 축 확증)과 CG450(인트라데이 데이터 축)이 둘 다 '더 새로운 패널'을 선행으로 요구하는데 v7 은 아직 없다. 패널 없이 12-05 에 도달하면 그 밤도 '선행 누락'으로 소진된다. 실측 근거: CG10 이 같은 형태(200종목·420일) 빌드를 161.3분에 완주(ledger 2026-10-03).",
-   "est_minutes": 200,
+   "est_minutes": 400,
    "metric": "panel_build",
    "summary_out": "/app/app/models/wf/panel_prod200_v7.npz",
-   "note": "2026-11-24 19:1x 엔지니어 자율(장외 틱·pending 실행가능 0건·규칙 4). 날짜 산술 실측: 마지막 거래일 2026-11-23 → 12-14 까지 평일 14거래일(11/24~12/14, 공휴일 미반영)이라 '새 세션 ≥+15'는 12-14 이후에나 성립한다. 그래서 CG443 의 not_before(12-05)를 그대로 두면 그 자체 기준을 못 채우므로, 빌드를 12-14 23:00 이후로 잡아 평일 20:00 재생성 창(rc=137 원인)을 피하고 3시간 빌드가 02시 전후에 끝나게 했다. 컨테이너 timeout 14400s 는 실측 161분의 1.5배. | 2026-11-24 19:2x 구동기 자기모순 수리: 컨테이너 timeout 14400→18300s(est 200분×91.5). 실측 근거 CG10 161.3분."
+   "note": "2026-11-24 19:1x 엔지니어 자율(장외 틱·pending 실행가능 0건·규칙 4). 날짜 산술 실측: 마지막 거래일 2026-11-23 → 12-14 까지 평일 14거래일(11/24~12/14, 공휴일 미반영)이라 '새 세션 ≥+15'는 12-14 이후에나 성립한다. 그래서 CG443 의 not_before(12-05)를 그대로 두면 그 자체 기준을 못 채우므로, 빌드를 12-14 23:00 이후로 잡아 평일 20:00 재생성 창(rc=137 원인)을 피하고 3시간 빌드가 02시 전후에 끝나게 했다. 컨테이너 timeout 14400s 는 실측 161분의 1.5배. | 2026-11-24 19:2x 구동기 자기모순 수리: 컨테이너 timeout 14400→18300s(est 200분×91.5). 실측 근거 CG10 161.3분. | 2026-11-26 01:1x 수동 --start 사고 실측: 12-14 이전에 기동됐다(구동기 --start 에 not_before 가드가 없었다). 01:11:12 로그 200/52,155 페어 · **2.32 pair/s · ETA 373분**(=6.2h) — est 200분은 과소였다(같은 형태 CG10 161분은 v6 대비 페어수가 적었다). 01:20 에 중단(부분 체크포인트 733KB 기록됨 · 12-14 재빌드 시 페어수가 달라져 폐기 예정). est_minutes 200→400·컨테이너 timeout 18300→36300s 로 정정. 재발 방지: scripts/model_engineer_cycle.py 의 start_background 에 not_before 가드 추가(_start_not_before_test.py 10/10 PASS)."
   },
   {
    "id": "CG465",
