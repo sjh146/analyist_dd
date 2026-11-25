@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-25T20:30:11+09:00",
+ "updated_at": "2026-11-25T20:32:09+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -26972,6 +26972,25 @@
    "est_minutes": 3,
    "created_at": "2026-11-25T20:30:11+09:00",
    "note": "판정기·경로는 구동기에 배선됨(2026-11-25). 측정 ~10초, 읽기 전용. 리밸런싱 간격 불일치(FAC-02)도 detail 에 함께 찍힌다."
+  },
+  {
+   "id": "CG486",
+   "kind": "money",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 2,
+   "status": "pending",
+   "not_before": "2026-11-25T20:32:09+09:00",
+   "metric": "fillable_topk_vs_pool",
+   "title": "[돈·분해4] 챔피언 vs 재학습 앙상블 격차의 보유기간 dose-response(h1/h3/h5/h10) — CG484 단방향(t<2)의 원인 분해",
+   "hypothesis": "CG484 는 h5 고정에서 재학습 앙상블이 챔피언보다 +0.70~+1.00%p(3/3 k)였지만 t<2 였다. 전방 성적표는 h1 champ topk +0.451%p(t0.56) vs h5 -0.664%p(t-0.61) 로 부호가 뒤집힌다. 격차가 짧은 보유(1~3일)에서 커지면 '보유기간'이 원인이고, 전 호라이즌 평평하면 잡음이다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 1800 python -u scripts/fillable_topk_horizon_sweep.py --arm-jsonl /app/reports/overnight/cg483_arms.jsonl --arm-tag LS_quant_q30_h5 --control-jsonl /app/reports/overnight/cg474_champ_preds.jsonl --control-tag champ --k 3,5,10 --horizons 1,3,5,10 --primary 5 --json-out /app/reports/overnight/cg486_money_horizon.json'",
+   "counterfactual": "배포 챔피언 아티팩트(h5 학습, cg474_champ_preds · exp='champ') — 같은 날짜·같은 k, 보유기간만 변화",
+   "success": "① rc=0 · 짝 교집합 n_dates>=40 ② h1 또는 h3 에서 Δ>=+0.5%p AND block t>=2 → '보유기간이 원인'으로 기록하고 트레이더에 청산규칙 실측 요청(피드 계약은 내 권한 밖) ③ 모든 h 에서 Δ<+0.5%p 또는 t<2 → 노이즈로 CG484 계열 축 종결",
+   "est_minutes": 10,
+   "created_at": "2026-11-25T20:32:09+09:00",
+   "note": "학습 없음 — 기존 덤프 2개 재사용(짝 비교). 판정기는 fillable_topk_vs_pool 그대로(새 판정기 금지). 장중 금지·직렬화 준수.",
+   "baseline": "cg474_champ_preds.jsonl(4.3MB, 11-25 03:10) · cg483_arms.jsonl(11-25 16:2x)"
   }
  ],
  "updated": "2026-11-24T20:20:00+09:00"
