@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-26T23:09:38+09:00",
+ "updated_at": "2026-11-27T00:22:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -27801,17 +27801,17 @@
   {
    "id": "XR55",
    "title": "[리서처 R55] 2026-11-23 분봉이 0행(수집 전량 실패) — 그 세션의 분봉 기반 피처/측정은 NaN·부분값이다",
-   "status": "pending",
+   "status": "done",
    "priority": 6,
    "from_research": "R55",
    "arm": null,
-   "counterfactual": "현행: 11-23 세션을 다른 세션과 같은 표본으로 학습·평가에 포함(분봉 피처는 NaN 또는 직전값)",
+   "counterfactual": "현행: 11-23 을 다른 세션과 같은 표본으로 포함(분봉 피처 0.0) ↔ 대조: 같은 패널에서 11-23 행 제외",
    "baseline": null,
-   "command": "",
+   "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -t -A -F'|' -c \"select trade_date,count(*) from minute_bars where trade_date>='2026-11-09' group by 1 order by 1;\" && docker exec -e PYTHONPATH=/app stock_xgboost_ml python /app/scripts/patch_panel_intraday.py --in /tmp/xr55_smoke.npz --out /tmp/xr55_out.npz --report /tmp/xr55_rep.json",
    "metric": "intraday/minute 기반 피처의 세션 커버리지",
    "hypothesis": "`minute_bars` 11-23 = 0행(수집기 전량 실패, 원천이 당일분만 제공해 복구 불가). `patch_panel_intraday`·`intraday_feature_screen`·`KisMinuteProvider` 가 이 표를 읽으므로, 11-23 세션의 분봉 기반 피처는 NaN/부분값이고 walk-forward 폴드에 그 세션이 들어가면 표본이 조용히 오염된다.",
    "evidence": "리서처 R55: minute_bars 일자별 11-23 0행 · 11-24/11-25 117,300행(300종목×391봉) · 11-09~11-20 9,000행(XR26 30봉 절단). 크론 로그 2026-11-23 23:15 EGW00103 ×27 → ok=0 fail=300. 수리(수집기 exit code·즉시 중단·결손 감시)는 완료(ef4493f) — 남은 질문은 **모델 쪽 처리**다.",
-   "success": "11-23 이 포함된 폴드에서 분봉 피처 결측률과 그 세션 제외/포함의 성능 차이를 수치로 제시(어느 쪽이든 근거만 있으면 된다)",
+   "success": "11-23 이 학습 표본에 0-fill 로 들어가는지와 그 날짜가 리포트에 드러나는지 수치로 확인(오염 0 이면 그것도 근거)",
    "expected": "미지",
    "cost": null,
    "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 축은 이미 결손 확정(복구 불가)이므로 '다시 수집' 실험은 만들지 마라.",
@@ -27820,8 +27820,24 @@
    "est_minutes": null,
    "not_before": null,
    "setup_done": null,
-   "attempts": [],
-   "result": null
+   "attempts": [
+    {
+     "ts": "2026-11-27T00:22:00+09:00",
+     "rc": 0,
+     "verdict": "측정 완료 — 현 표본 오염 0, v7 조건부 위험",
+     "detail": "minute_bars 실측(00:20): 11-23 0행 · 11-24/25 117,300행(300×391) · 11-26 35,581행(부분) · 11-09~11-20 9,000행/일. 최신 패널(panel_prod200_v6o_mh, 11-24 빌드) 최종 거래일 11-17 이고 l30_/id_ 인트라데이 열 0개 → 11-23 은 현 학습 표본에 없다(오염 0). 위험은 v7(CG464)이 11-17→11-26 창을 덮을 때 0-fill 로 들어오는 경우뿐 → patch_panel_intraday.py 에 날짜별 커버리지 계측 배선(합성 검증 11-20=1.0 · 11-23=0.0 · dates_zero_bars=['2026-11-23']).",
+     "log": "data/reports/me_cycle/logs/me_cycle_FAC-03_20261127-000743.log",
+     "elapsed_min": 2.0
+    }
+   ],
+   "result": {
+    "verdict": "측정 완료 — 현 표본 오염 0(11-23 미포함), v7 빌드 시 0-fill 위험",
+    "detail": "11-23 minute_bars 0행; 최신 패널 최종일 11-17·인트라데이 열 없음 → 포함 자체가 없음. patch_panel_intraday.py 에 date_coverage.dates_zero_bars 계측 추가(v7 에서 이 목록이 비어있지 않으면 그 세션을 학습 창에서 제외).",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "done_at": "2026-11-27T00:22:00+09:00"
   },
   {
    "id": "CG511",
@@ -27886,6 +27902,24 @@
    "success": "사전등록(변경 금지): 짝 Δ 의 블록 부트스트랩(block 5) t ≤ −2 **그리고** CI95 상한 < −0.2 를 함께 요구. 미달이면 verdict='watch' 로 내리고 상태파일에 '점추정만 넘음'을 남긴다. 회귀 테스트로 두 경계를 잠근다.",
    "command": "",
    "note": "2026-11-26 실측(25 OOS 세션 2026-10-02~11-09): 짝 Δ 평균 −0.4884%p · sd 2.4629 · iid t −0.992 · 블록t −0.996 · CI95 [−1.4389, +0.4584] · p_one_sided 0.1703 · 반쪽 −0.4618/−0.5129 → '점추정만 문턱 초과 — 실행 근거 아님'. 현재는 감시기가 rollback_paired_test.json 을 주석(paired_test)으로만 읽는다. 문턱 변경이라 리뷰보드 승인 대상. 구현 위치: scripts/champion_rollback_monitor.py verdict() · tools: scripts/rollback_paired_test.py · tests/test_rollback_monitor.py."
+  },
+  {
+   "id": "CG514",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 7,
+   "status": "backlog",
+   "metric": "cross_sectional_auc_mean",
+   "title": "[측정정합성] 인트라데이 열이 붙은 패널에서 '봉 0행 세션(11-23)' 포함/제외 짝 AUC 비교 — 0-fill 이 학습을 희석하는가",
+   "hypothesis": "봉이 전혀 없는 세션은 인트라데이 열이 전 종목 0.0(횡단면 상수)이라 그 날 학습행은 인트라데이 신호에 대해 무정보이고 라벨 잡음만 더한다. 제외가 폴드 평균 AUC를 올리면 희석, 변화 없으면 무해 — 어느 쪽이든 수치로 남긴다.",
+   "counterfactual": "같은 패널·같은 폴드에서 11-23 행 포함 ↔ 제외(A/B)",
+   "command": "(선행 CG464) patch_panel_intraday.py 로 v7 인트라데이 열 부착 → wf_label_sweep 5폴드×5시드 2arm(포함/제외)",
+   "success": "폴드 평균 Δ AUC(제외−포함)·폴드 승률 보고. |Δ|<0.02 면 노이즈로 종결",
+   "expected": "미지",
+   "cost": "30~60분",
+   "created_at": "2026-11-27T00:22:00+09:00",
+   "note": "XR55 후속. CG464(v7 빌드, not_before 12-14) 선행 필요."
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"

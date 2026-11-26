@@ -147,6 +147,16 @@ def main() -> int:
             "min": float(col.min()) if nz else 0.0,
             "max": float(col.max()) if nz else 0.0,
         }
+    per_date: dict[str, list[int]] = {}
+    for i in range(take):
+        d = dates[i]
+        slot = per_date.setdefault(d, [0, 0])
+        slot[0] += 1
+        if bars.get((codes[i], d)):
+            slot[1] += 1
+    date_cov = {d: round(ok / max(1, tot), 4) for d, (tot, ok) in sorted(per_date.items())}
+    zero_fill_dates = [d for d, r in date_cov.items() if r == 0.0]
+
     summary = {
         "src": args.src, "dst": args.dst, "table": args.table,
         "feature_family": "close_only(idc_ · 종가+누적거래량)" if close_only else "ohlcv(id_ · OHLCV+거래대금)",
@@ -156,6 +166,13 @@ def main() -> int:
         "n_features_before": len(names), "n_features_after": len(names_out),
         "minute_bars_rows_loaded": sum(len(v) for v in bars.values()),
         "columns": cell_report,
+        "date_coverage": {
+            "n_panel_dates": len(date_cov),
+            "dates_zero_bars": zero_fill_dates,
+            "dates_cov_lt50": [d for d, r in date_cov.items() if r < 0.5],
+            "min_coverage": min(date_cov.values()) if date_cov else None,
+            "per_date": {d: r for d, r in date_cov.items() if r < 0.95},
+        },
         "elapsed_sec": round(time.time() - t0, 1),
         "note": "0.0 = 결측(봉 없음). 커버리지가 낮으면 열을 붙여도 top30 선별에 진입하지 않는다"
                 "(희석계수=비영²·CG67/CG76 실측).",
