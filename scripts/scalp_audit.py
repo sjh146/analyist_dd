@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -19,6 +20,7 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 
 KST = timezone(timedelta(hours=9))
+LOGGER = logging.getLogger("scalp_audit")
 REPO = "/home/jhshi/analyist_dd"
 TRADER = r"C:\Users\jhshi\trader-agent"
 BRIDGE = "http://127.0.0.1:8100"
@@ -47,7 +49,8 @@ def _journal_copy() -> sqlite3.Connection | None:
             if os.path.exists(src + suffix):
                 shutil.copy2(src + suffix, dst + suffix)
         return sqlite3.connect(dst)
-    except Exception:
+    except Exception as exc:
+        LOGGER.warning("journal copy failed: %s", exc)
         return None
 
 
@@ -82,11 +85,12 @@ def _seen(path: str) -> set:
     seen = set()
     if os.path.exists(path):
         with open(path, encoding="utf-8") as fh:
-            for line in fh:
+            for lineno, line in enumerate(fh, 1):
                 try:
                     seen.add(json.loads(line).get("fp"))
-                except ValueError:
-                    continue
+                except ValueError as exc:
+                    LOGGER.warning("%s:%s unparseable findings line skipped: %s",
+                                   path, lineno, exc)
     return seen
 
 
@@ -106,9 +110,11 @@ def audit() -> dict:
         state["bridge"] = {"ok": False}
 
     positions, orders, quotes = [], [], {}
+    positions_known = False
     if state.get("bridge", {}).get("ok"):
         try:
             positions = _get(BRIDGE + "/positions").get("positions", []) or []
+            positions_known = True
         except Exception as exc:
             add("positions_unreadable", str(exc)[:120])
         try:
@@ -152,10 +158,15 @@ def audit() -> dict:
 
     broker_codes = {str(p.get("code")) for p in positions if p.get("code")}
     journal_codes = {str(r["code"]) for r in journal_open}
-    for code in sorted(broker_codes - journal_codes):
-        add("broker_without_journal", code)
-    for code in sorted(journal_codes - broker_codes):
-        add("journal_without_broker", code)
+    if positions_known:
+        for code in sorted(broker_codes - journal_codes):
+            add("broker_without_journal", code)
+        for code in sorted(journal_codes - broker_codes):
+            add("journal_without_broker", code)
+        state["reconcile"] = "checked"
+    else:
+        state["reconcile"] = "unverified: broker positions unreadable"
+    state["positions_known"] = positions_known
 
     for row in journal_open:
         code = str(row["code"])
