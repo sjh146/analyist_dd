@@ -71,6 +71,9 @@ def main() -> int:
     ap.add_argument("--target", type=float, default=1.5)
     ap.add_argument("--stop", type=float, default=-1.0)
     ap.add_argument("--cost", type=float, default=0.21)
+    ap.add_argument("--stop-mode", choices=("close", "low"), default="close",
+                    help="low: 장중 저가가 손절선을 터치하면 -stop%%로 청산(보수적)")
+    ap.add_argument("--importance", action="store_true", help="마지막 폴드 피처 중요도 상위 12개 출력")
     ap.add_argument("--topk", type=int, default=3)
     ap.add_argument("--folds", type=int, default=6)
     ap.add_argument("--dates-per-fold", type=int, default=10)
@@ -103,8 +106,16 @@ def main() -> int:
             continue
         up = (h / o - 1.0) * 100.0
         dn = (c / o - 1.0) * 100.0
+        low_ret = (l / o - 1.0) * 100.0
         hit[i] = 1 if up >= args.target else 0
-        payoff[i] = args.target if up >= args.target else max(args.stop, dn)
+        if up >= args.target and args.stop_mode == "low" and low_ret <= args.stop:
+            payoff[i] = args.stop
+        elif up >= args.target:
+            payoff[i] = args.target
+        elif args.stop_mode == "low" and low_ret <= args.stop:
+            payoff[i] = args.stop
+        else:
+            payoff[i] = max(args.stop, dn)
         valid[i] = True
 
     X, dates, codes, hit, payoff = X[valid], dates[valid], codes[valid], hit[valid], payoff[valid]
@@ -144,6 +155,10 @@ def main() -> int:
             hits.append(float(np.mean(hit[te][m][order])))
         if day_pay:
             nets.extend(day_pay)
+        if args.importance:
+            imp = clf.feature_importances_
+            top = np.argsort(-imp)[:12]
+            print("  중요도:", ", ".join(f"{names[j]}:{imp[j]:.3f}" for j in top))
         print(f"fold {f+1} test {int(te.sum())} auc {aucs[-1]:.4f} · top{args.topk} 순기대 "
               f"{np.mean(day_pay):+.3f}% · 적중 {np.mean(hits[-len(day_pay):]):.3f}")
 

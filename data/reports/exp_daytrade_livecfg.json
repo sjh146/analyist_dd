@@ -1,0 +1,13 @@
+{
+ "target_pct": 3.0,
+ "stop_pct": -1.0,
+ "cost_pct": 0.21,
+ "topk": 3,
+ "base_hit_rate": 0.2816,
+ "base_net_pct": -0.453,
+ "auc_mean": 0.7236,
+ "picked_net_pct": -0.721,
+ "picked_net_t": -6.93,
+ "picked_hit_rate": 0.633,
+ "days": 60
+}
