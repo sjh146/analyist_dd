@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T00:22:00+09:00",
+ "updated_at": "2026-11-27T01:11:23+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -26107,7 +26107,7 @@
    "metric": null,
    "arm": null,
    "baseline": null,
-   "note": "2026-11-24 22:3x 엔지니어 자율 발견(틱 신선도 요약의 '수집량 붕괴' 경고를 DB 로 확증). 수집기·원천 API 는 리서처 소유 → 엔지니어는 실측 증거만 남긴다. ⚠ 이 항목은 arm 실험이 아니므로 AUC 판정 대상이 아니다(구동기 자동 실행 대상도 아님 — needs_setup). 같은 계열 선례: KRX-01(krx_trading 정지).",
+   "note": "2026-11-24 22:3x 엔지니어 자율 발견(틱 신선도 요약의 '수집량 붕괴' 경고를 DB 로 확증). 수집기·원천 API 는 리서처 소유 → 엔지니어는 실측 증거만 남긴다. ⚠ 이 항목은 arm 실험이 아니므로 AUC 판정 대상이 아니다(구동기 자동 실행 대상도 아님 — needs_setup). 같은 계열 선례: KRX-01(krx_trading 정지). | 2026-11-27 01:2x 엔지니어 실측(CG516): short_ratio 의 h5 횡단면 IC 평균 -0.0217(t -1.63, 100날짜) = 노이즈 → 이 붕괴는 모델 AUC 레버가 아니다. 백필은 데이터 정합성 목적(우선순위 하향 근거).",
    "created_at": "2026-11-24T22:35:00+09:00",
    "updated_at": "2026-11-26T00:14:05+09:00",
    "setup_needed": "수집기(krx-collector) 소유 권한 필요 — 2026-11-18 이후 일별 2,601→~200행 급락 원인 규명 + 백필.",
@@ -27162,7 +27162,7 @@
    "owner": "engineer",
    "affects_model": false,
    "priority": 2,
-   "status": "needs_setup",
+   "status": "done",
    "metric": "factor_signals",
    "title": "[팩터·프로토콜] 백테스트 보유기간(REBALANCE_DAYS)과 전략 게이트(rebalance_interval_days)가 3/5 전략에서 어긋난다 — 그 전략의 기간수익은 돈 지표로 쓸 수 없다",
    "hypothesis": "real_factor_backtest 는 리밸런싱 날짜를 전략 자체 간격으로 만들고(rebalance_dates→strategy.rebalance_interval_days) 기간수익은 REBALANCE_DAYS[name] 일 뒤 가격으로 계산한다. 두 값이 다르면 보유구간에 구멍/중첩이 생겨 total_return 이 왜곡된다.",
@@ -27173,7 +27173,15 @@
    "setup_needed": "수정 대상이 services/backtester/scripts/real_factor_backtest.py(REBALANCE_DAYS 사용부) 와 services/strategy-agents/app/strategies/*(게이트 간격) 로 **엔지니어 소유가 아닌 파일**이다 → 소유 역할(리서처/트레이더)에 핸드오프: ① momentum·lowvol 게이트를 21일로(책 규칙: 가격 팩터 월간) ② multifactor 게이트를 63일로 ③ run_backtest 는 전략 게이트 간격을 단일 진실원으로 쓰도록 REBALANCE_DAYS 제거. 수정 후 위 command 로 interval_audit 5/5 확인.",
    "est_minutes": 5,
    "created_at": "2026-11-25T20:30:11+09:00",
-   "note": "2026-11-25 엔지니어 자율 등록. FAC-01 재측정 중 발견. affects_model=false(모델 AUC 축 아님) — 팩터 신호 교체(A-2) 판정의 선행 조건이다."
+   "note": "2026-11-25 엔지니어 자율 등록. FAC-01 재측정 중 발견. affects_model=false(모델 AUC 축 아님) — 팩터 신호 교체(A-2) 판정의 선행 조건이다.",
+   "outcome": "asof 2026-11-26 · 전체 4355종목 중 유니버스 765 · 게이트 열린 전략 0/5 · 신호>0 전략 0(게이트 열림: []) · ⚠ 리밸런싱 간격 불일치(전략 vs 백테스트): lowvol_factor 63≠21, momentum_factor 63≠21, multifactor 21≠63 → 그 전략의 기간수익은 보유기간과 어긋나 돈 지표로 쓸 수 없다. 리밸런싱 게이트(63/21일) 밖이면 analyze()가 빈 리스트를 반환하는 설계다 → 신호 수를 보려면 게이트일로 다시 재라.",
+   "finished_at": "2026-11-27T01:07:51+09:00",
+   "attempts": [
+    {
+     "at": "2026-11-27T01:07:51+09:00",
+     "recovered": true
+    }
+   ]
   },
   {
    "id": "FAC-03",
@@ -27182,7 +27190,7 @@
    "affects_model": false,
    "priority": 3,
    "status": "pending",
-   "not_before": "2026-11-26T20:00:00+09:00",
+   "not_before": "2026-11-28T19:30:00+09:00",
    "metric": "factor_signals",
    "title": "[팩터·상시] 팩터 5전략 신호 경로 일일 점검 — 게이트일 여부를 먼저 판정해 '신호 0' 오알람을 막는다",
    "hypothesis": "신호 0 은 대개 게이트 밖(설계)이고, 진짜 실패는 유니버스 붕괴(<500) 또는 게이트일 신호 0 이다.",
@@ -27192,7 +27200,29 @@
    "est_minutes": 3,
    "created_at": "2026-11-25T20:30:11+09:00",
    "note": "판정기·경로는 구동기에 배선됨(2026-11-25). 측정 ~10초, 읽기 전용. 리밸런싱 간격 불일치(FAC-02)도 detail 에 함께 찍힌다. repeat=daily 배선(2026-11-27): 상시 점검인데 repeat 플래그가 없어 첫 실행 후 done 으로 닫혀 다음 밤 점검이 사라질 상태였다.",
-   "repeat": "daily"
+   "repeat": "daily",
+   "attempts": [
+    {
+     "ts": "2026-11-27T01:08:34+09:00",
+     "rc": 0,
+     "verdict": "게이트 밖 — 신호 0은 정상(측정일 오류로 오알람 금지)",
+     "detail": "asof 2026-11-26 · 전체 4355종목 중 유니버스 765 · 게이트 열린 전략 0/5 · 신호>0 전략 0(게이트 열림: []) · ⚠ 리밸런싱 간격 불일치(전략 vs 백테스트): lowvol_factor 63≠21, momentum_factor 63≠21, multifactor 21≠63 → 그 전략의 기간수익은 보유기간과 어긋나 돈 지표로 쓸 수 없다. 리밸런싱 게이트(63/21일) 밖이면 analyze()가 빈 리스트를 반환하는 설계다 → 신호 수를 보려면 게이트일로 다시 재라.",
+     "log": "data/reports/me_cycle/logs/me_cycle_FAC-03_20261127-010828.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "rearmed": {
+    "ts": "2026-11-27T01:08:34+09:00",
+    "next": "2026-11-28T19:30:00+09:00",
+    "note": "repeat=daily — 다음 날 같은 시각 재실행(완전일 누적용)"
+   },
+   "result": {
+    "verdict": "게이트 밖 — 신호 0은 정상(측정일 오류로 오알람 금지)",
+    "detail": "asof 2026-11-26 · 전체 4355종목 중 유니버스 765 · 게이트 열린 전략 0/5 · 신호>0 전략 0(게이트 열림: []) · ⚠ 리밸런싱 간격 불일치(전략 vs 백테스트): lowvol_factor 63≠21, momentum_factor 63≠21, multifactor 21≠63 → 그 전략의 기간수익은 보유기간과 어긋나 돈 지표로 쓸 수 없다. 리밸런싱 게이트(63/21일) 밖이면 analyze()가 빈 리스트를 반환하는 설계다 → 신호 수를 보려면 게이트일로 다시 재라.",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
   },
   {
    "id": "CG486",
@@ -27939,6 +27969,22 @@
    "cost": "30분",
    "created_at": "2026-11-27T00:28:00+09:00",
    "note": "실측(2026-11-27 00:25): 11-26 minute_bars = 94종목×391봉(36,363행) 이고 cron_kis_minute.log 는 [94/473] 진행 중(00:11 기준, 45초/종목) → 04:5x 완료 예상. 11-24/25 는 117,300행(300종목) 완료. FAC-03 교훈(측정일 판정) 적용 사례."
+  },
+  {
+   "id": "CG516",
+   "status": "done",
+   "priority": 2,
+   "title": "[데이터 축·사전검증] 공매도 원천을 패널에 넣기 전에 — krx_short_selling 이 횡단면 정보를 담고 있는가 (재빌드 수백분·백필 승인 전 go/no-go)",
+   "metric": "factor_ic_screen",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=1 timeout 900 python -u scripts/short_selling_screen.py'",
+   "counterfactual": "일봉 유도 피처(모멘텀·변동성, 같은 행) 대비 IC 비교 + 판정 문턱 |IC|>=0.03·|t|>=2 (패널 스크린 실측: 시간가변 최고군 |AUC-0.5|≈0.05, IC t<1.3)",
+   "success": "사전등록(변경 금지): |평균 IC| >= 0.03 AND |t(비중첩)| >= 2 AND n_dates >= 40 → '정보있음'(패널 편입 실험 승격) · 미달 → '노이즈'(공매도 축을 데이터 축 후보에서 제외, 백필 승인 요청 안 함)",
+   "est_minutes": 10,
+   "ts": "2026-11-27T01:2x+09:00",
+   "result": {
+    "verdict": "노이즈",
+    "detail": "공매도 비율(krx_short_selling.short_ratio, as-of 1거래일 지연·h5·패널 200종목) 날짜별 Spearman IC 100날짜: 평균 IC -0.0217(일별 t -1.63) · 비중첩(stride5) 20날짜 -0.0090(t -0.30) · 앞/뒤 절반 -0.0154/-0.0280(부호일치, 둘 다 음) · 양(+)날짜 42% · 십분위 bottom-top 스프레드 +0.078%p(수수료 0.21 차감 후, t 0.19) · 변동 범위 -0.342~+0.287 → 사전문턱(|IC|>=0.03·|t|>=2) 미달 = 노이즈. balance_quantity 는 전량 NULL → 잔고 기반 신호는 원천에 없음. 함의: KRX-02 수집 붕괴(11-18 이후 143.6행/일)는 데이터 정합성 문제일 뿐 모델 AUC 레버가 아니다 — 백필 승인 요청 근거로 쓰지 않는다."
+   }
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
