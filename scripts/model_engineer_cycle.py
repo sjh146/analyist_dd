@@ -6941,6 +6941,9 @@ def execute(item, force=False):
 
 
 
+        _mo = _multi_out_warning(item)
+        if _mo and verdict != "실행실패":
+            detail = f"{detail} · ⚠ 다중 산출 루프 — {_mo}"
         if verdict != "실행실패":
             _mm = _panel_snapshot_mismatch(run_log)
             if _mm:
@@ -6995,6 +6998,24 @@ def execute(item, force=False):
             f"{item['id']} 상태를 확인하라(반쪽 상태: 원장 O / 백로그 pending)")
     log(f"종료 rc={rc} 경과 {rec['elapsed_min']}분 → 판정: {verdict} {detail}")
     return 0
+
+
+def _multi_out_warning(item) -> str | None:
+    """한 실행이 JSON 을 **여러 개** 쓰는 셸 루프인지 — 파서는 마지막 파일 하나만 읽는다.
+
+    WHY(2026-11-26 실측 CG502): `for D in 2026-05-04 ...; do ... --json-out cg502_off_$D.json; done`
+    은 5개 오프셋을 재는 실험인데, 구동기 파서는 **마지막 파일**(offset 2026-05-11)만 판정에 썼다.
+    우연히 그 오프셋이 대표값과 같은 방향이어서 판정이 맞았지만, 판정 문구는 '5개 중 1개'라는
+    사실을 말하지 않아 '5개 모두 확인'으로 오독된다. 집계 자동화 전까지 최소한 이 사실을 남긴다.
+    """
+    cmd = str((item or {}).get("command") or "")
+    if "for " not in cmd or "do" not in cmd:
+        return None
+    m = re.search(r"--json-out\s+(\S*\$\S*)", cmd)
+    if not m:
+        return None
+    return (f"산출 파일이 루프 변수({m.group(1)})로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. "
+            "오프셋/조건별 집계를 따로 확인하라")
 
 
 def _same_summary(rec, mt, tol=1.0) -> bool:

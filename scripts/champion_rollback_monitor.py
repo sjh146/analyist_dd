@@ -32,6 +32,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS = os.path.join(REPO, "services", "xgboost-ml", "app", "models")
 SWAPS = os.path.join(REPO, "data", "reports", "champion_swaps.jsonl")
 STATE = os.path.join(REPO, "data", "state", "rollback_monitor.json")
+REFRESH = os.path.join(REPO, "data", "reports", "rollback_evidence.json")
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 from objective import load as load_objective  # noqa: E402
 
@@ -111,6 +112,36 @@ def _too_old(ev: dict, max_age_days: int) -> bool:
     return (dt.datetime.now() - t).days > max_age_days
 
 
+def _refresh_evidence(path: str | None = None):
+    d = _read_json(path or REFRESH)
+    if not isinstance(d, dict) or not (d.get("models") or {}):
+        return None
+    return d
+
+
+def _evidence_pair(prev_dir: str, max_age_days: int):
+    """(챔피언 증거, 백업 증거, 출처, 재측정 파일) — **같은 출처로 짝을 맞춘다**.
+
+    WHY(2026-11-26 실측): 모델 디렉토리의 robust_oos.json 은 승격 시점에 한 번 쓰이고 다시
+    갱신되지 않아 챔피언(2026-10-02) 증거가 14일이 지나면 영구히 stale 이 된다 → 자동 원복 게이트가
+    매일 '판정 불가'로 침묵했다(7일 연속 stale_evidence). 재측정 파일은 챔피언과 직전 챔피언을
+    **같은 표본·같은 topk·같은 수수료**로 잰 짝이므로 이것만 비교에 쓴다. 한쪽만 있으면
+    프로토콜이 섞이므로 쓰지 않고 종전(모델 디렉토리) 경로로 폴백한다 — 조용한 혼합 금지.
+    """
+    r = _refresh_evidence()
+    if r:
+        models = r.get("models") or {}
+        c, p = models.get("champion"), models.get(prev_dir)
+        ok = (isinstance(c, dict) and isinstance(p, dict)
+              and c.get("expectancy_pct") is not None and p.get("expectancy_pct") is not None)
+        if ok and not _too_old(r, max_age_days):
+            ca = r.get("created_at")
+            c = dict(c, created_at=ca)
+            p = dict(p, created_at=ca)
+            return c, p, "refresh", r
+    return _evidence("champion"), _evidence(prev_dir), "model_files", None
+
+
 def verdict(obj: dict, swap=None, repo: str = REPO) -> dict:
     rb = obj["goal"].get("rollback", {})
     monitor_sessions = int(rb.get("monitor_sessions", 5))
@@ -123,7 +154,11 @@ def verdict(obj: dict, swap=None, repo: str = REPO) -> dict:
         return out
     prev_dir = str(swap.get("prev_dir") or "")
     out.update({"swap_ts": swap.get("ts"), "prev_dir": prev_dir})
-    champ_ev, prev_ev = _evidence("champion"), _evidence(prev_dir)
+    champ_ev, prev_ev, src, refresh = _evidence_pair(prev_dir, max_age_days)
+    out["evidence_source"] = src
+    if refresh:
+        out["evidence_sample"] = refresh.get("sample") or {}
+        out["evidence_created_at"] = refresh.get("created_at")
     if champ_ev is None or prev_ev is None:
         out.update({"verdict": "no_evidence",
                     "detail": "챔피언 또는 백업의 돈 증거(expectancy_pct)가 없다 — 판정 불가"})

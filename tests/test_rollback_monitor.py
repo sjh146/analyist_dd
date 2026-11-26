@@ -86,3 +86,66 @@ def test_repo_objective_has_rollback_config():
     assert rb["monitor_sessions"] >= 1 and rb["degrade_pct"] < 0
     # auto_rollback 은 '정책'이라 값이 바뀔 수 있다(2026-10-04 켬) — 타입·존재만 잠근다.
     assert isinstance(obj["gates"].get("auto_rollback"), bool)
+
+
+
+
+def _write_refresh(tmp_path, champ=0.40, prev=0.10, age_days=0, drop_prev=False):
+    import datetime as _dt
+    models = {"champion": {"expectancy_pct": champ, "n_sessions": 25}}
+    if not drop_prev:
+        models["champion_prev_x"] = {"expectancy_pct": prev, "n_sessions": 25}
+    d = {"created_at": (_dt.datetime.now() - _dt.timedelta(days=age_days)).isoformat(timespec="seconds"),
+         "sample": {"n_rows": 2251, "n_sessions": 113, "topk": 3, "exit": "next_open"},
+         "models": models}
+    p = tmp_path / "rollback_evidence.json"
+    p.write_text(json.dumps(d), encoding="utf-8")
+    return str(p)
+
+
+def _patch_common(monkeypatch, sessions=7):
+    monkeypatch.setattr(rbm, "last_swap", lambda path=None: {"ts": "2026-10-03T00:00:00", "prev_dir": "champion_prev_x"})
+    monkeypatch.setattr(rbm, "trading_sessions_since", lambda ts, repo=None: sessions)
+
+
+def test_refresh_evidence_used_when_pair_fresh(monkeypatch, tmp_path):
+    monkeypatch.setattr(rbm, "REFRESH", _write_refresh(tmp_path, champ=0.40, prev=0.10))
+    _patch_common(monkeypatch)
+    monkeypatch.setattr(rbm, "_evidence", lambda n: None)
+    v = rbm.verdict(_obj())
+    assert v["verdict"] == "ok" and v["evidence_source"] == "refresh", v
+
+
+def test_refresh_evidence_drives_rollback(monkeypatch, tmp_path):
+    monkeypatch.setattr(rbm, "REFRESH", _write_refresh(tmp_path, champ=-0.6, prev=0.1))
+    _patch_common(monkeypatch)
+    monkeypatch.setattr(rbm, "_evidence", lambda n: None)
+    v = rbm.verdict(_obj())
+    assert v["verdict"] == "rollback" and v["degrade"] == -0.7, v
+
+
+def test_refresh_stale_falls_back_to_model_files(monkeypatch, tmp_path):
+    monkeypatch.setattr(rbm, "REFRESH", _write_refresh(tmp_path, champ=0.40, prev=0.10, age_days=30))
+    _patch_common(monkeypatch)
+    monkeypatch.setattr(rbm, "_evidence", lambda n: _ev(0.1 if n == "champion" else 0.5))
+    v = rbm.verdict(_obj())
+    assert v["evidence_source"] == "model_files" and v["verdict"] == "rollback", v
+
+
+def test_refresh_partial_pair_is_not_used(monkeypatch, tmp_path):
+    monkeypatch.setattr(rbm, "REFRESH", _write_refresh(tmp_path, champ=0.40, prev=0.10, drop_prev=True))
+    _patch_common(monkeypatch)
+    monkeypatch.setattr(rbm, "_evidence", lambda n: _ev(0.1 if n == "champion" else 0.5))
+    v = rbm.verdict(_obj())
+    assert v["evidence_source"] == "model_files" and v["verdict"] == "rollback", v
+
+
+def test_refresh_normalizer_reads_oos_block():
+    import rollback_evidence_refresh as rer
+    raw = {"sample": {"topk": 3}, "models": {
+        "champion": {"train_end": "2026-10-01", "oos": {"avg_pct": -0.7684, "n_sessions": 25, "t_stat": -2.05}},
+        "champion_prev_x": {"train_end": "2026-10-01", "oos": {"avg_pct": -0.298, "n_sessions": 25, "t_stat": -0.8}}}}
+    out = rer.normalize(raw, "champion_prev_x")
+    assert out["models"]["champion"]["expectancy_pct"] == -0.7684, out
+    assert out["models"]["champion_prev_x"]["n_sessions"] == 25, out
+    assert out["prev_dir"] == "champion_prev_x", out
