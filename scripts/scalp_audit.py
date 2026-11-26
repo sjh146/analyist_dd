@@ -77,6 +77,13 @@ def _today_entries(conn: sqlite3.Connection) -> list[dict]:
              "ts": r[4], "exit_price": r[5]} for r in rows]
 
 
+def _num0(value) -> float:
+    try:
+        return float(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _fingerprint(kind: str, detail: str) -> str:
     return hashlib.sha256((kind + "|" + detail).encode("utf-8")).hexdigest()[:16]
 
@@ -92,6 +99,31 @@ def _seen(path: str) -> set:
                     LOGGER.warning("%s:%s unparseable findings line skipped: %s",
                                    path, lineno, exc)
     return seen
+
+
+def parse_exit_blocks(lines: list[str]) -> dict:
+    """runner.log 줄들에서 'exit failed <code>' 반복을 센다."""
+    blocked: dict = {}
+    for line in lines:
+        if "exit failed" not in line:
+            continue
+        parts = line.split("exit failed", 1)[1].strip().split()
+        if not parts:
+            continue
+        code = parts[0].rstrip(":")
+        blocked[code] = blocked.get(code, 0) + 1
+    return {c: n for c, n in blocked.items() if n >= 3}
+
+
+def halt_with_positions(loop_state: dict, positions: list) -> str:
+    """halt 상태에서 포지션을 들고 있으면 사유 문자열, 아니면 빈 문자열."""
+    if not (loop_state.get("loop") or {}).get("halt"):
+        return ""
+    if not positions:
+        return ""
+    codes = ",".join(str(p.get("code")) for p in positions[:4])
+    reason = str((loop_state.get("loop") or {}).get("halt_reason"))[:60]
+    return "halt 중인데 보유 {0}건({1}) — 청산이 멈출 수 있음: {2}".format(len(positions), codes, reason)
 
 
 def audit() -> dict:
@@ -128,6 +160,31 @@ def audit() -> dict:
             except Exception as exc:
                 add("quotes_unreadable", str(exc)[:120])
 
+    loop_state_path = "/mnt/c/Users/jhshi/trader-agent/loop_state.json"
+    if positions_known and positions:
+        try:
+            with open(loop_state_path, encoding="utf-8") as fh:
+                loop_state = json.load(fh)
+            detail = halt_with_positions(loop_state, positions)
+            if detail:
+                add("halt_with_position", detail, severity="critical")
+        except Exception:
+            pass
+
+    runner_log = "/mnt/c/Users/jhshi/trader-agent/runner.log"
+    try:
+        with open(runner_log, encoding="utf-8", errors="replace") as fh:
+            tail_lines = fh.readlines()[-400:]
+        heavy = parse_exit_blocks(tail_lines)
+        if heavy:
+            worst = max(heavy.items(), key=lambda kv: kv[1])
+            add("exit_blocked_repeat",
+                "청산 실패 반복: {0} (최근 400줄) — {1} {2}회".format(
+                    ", ".join("{0}:{1}".format(c, n) for c, n in sorted(heavy.items())[:4]),
+                    worst[0], worst[1]))
+    except Exception:
+        pass
+
     try:
         feed = _get(FEED)
         state["feed_generated_at"] = feed.get("generated_at")
@@ -144,6 +201,21 @@ def audit() -> dict:
                 "{0}건 < {1:,.0f}원: {2}".format(len(thin), MIN_LIQUIDITY, ",".join(thin[:8])))
     except Exception as exc:
         add("feed_unreadable", str(exc)[:120])
+
+    broker_realized = {}
+    try:
+        pnl = _get(BRIDGE + "/daily_pnl").get("daily_pnl", {}) or {}
+        for it in pnl.get("items") or []:
+            code = str(it.get("code") or "")
+            sell_qty = int(_num0(it.get("sell_qty")))
+            avg_sell = _num0(it.get("avg_sell_price"))
+            avg_buy = _num0(it.get("avg_buy_price"))
+            if code and sell_qty > 0:
+                broker_realized[code] = {"qty": sell_qty, "avg_sell": avg_sell,
+                                         "avg_buy": avg_buy}
+        state["broker_realized_codes"] = len(broker_realized)
+    except Exception as exc:
+        add("daily_pnl_unreadable", str(exc)[:120], severity="medium")
 
     conn = _journal_copy()
     journal_open, today = [], []
@@ -189,6 +261,20 @@ def audit() -> dict:
             add("zero_qty_entry", str(row["code"]))
         if row["price"] and row["price"] <= 0:
             add("bad_entry_price", "{0} {1}".format(row["code"], row["price"]))
+
+    for row in today:
+        code = str(row["code"])
+        if row["exit_price"] is None or code not in broker_realized:
+            continue
+        avg_sell = broker_realized[code]["avg_sell"]
+        if not avg_sell:
+            continue
+        jp = float(row["exit_price"])
+        gap = (avg_sell - jp) / jp * 100.0
+        if abs(gap) >= 0.3:
+            add("journal_fill_mismatch",
+                "{0} 저널청산 {1:,.0f} vs 브로커평균매도 {2:,.0f} ({3:+.2f}%)".format(
+                    code, jp, avg_sell, gap))
 
     for order in orders:
         code = str(order.get("code"))
