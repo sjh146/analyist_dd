@@ -458,7 +458,8 @@
     "op": "<=",
     "value": 60
    },
-   "hypothesis": "loop_sup 은 브리지가 없으면 루프를 기동하지 않고, 루프 프로세스가 장중에 죽어도 아무도 재기동·경보하지 않는다. 오늘은 10:57 루프 사망 + 13:17부터 Creon 부재 + 틱 크론 4회 중 3회 공급자 실패(11:25 timeout, 13:25·15:25 provider)로 4h33m 공백이 장 마감까지 보고되지 않았다. 감시 주체(루프)와 보고 주체(틱 크론)가 같은 실패 축에 있으면 공백이 조용해진다 → 독립 경보(loop_stale>60분 && 보유>0 → 즉시 알림/킬스위치 검토) 필요."
+   "hypothesis": "loop_sup 은 브리지가 없으면 루프를 기동하지 않고, 루프 프로세스가 장중에 죽어도 아무도 재기동·경보하지 않는다. 오늘은 10:57 루프 사망 + 13:17부터 Creon 부재 + 틱 크론 4회 중 3회 공급자 실패(11:25 timeout, 13:25·15:25 provider)로 4h33m 공백이 장 마감까지 보고되지 않았다. 감시 주체(루프)와 보고 주체(틱 크론)가 같은 실패 축에 있으면 공백이 조용해진다 → 독립 경보(loop_stale>60분 && 보유>0 → 즉시 알림/킬스위치 검토) 필요.",
+   "evidence": "2026-11-26 재현(13:25 틱): 루프 pid 8608 이 08:30:29 기동 → runner.log 마지막 12:15:51 'cycle done (halted) in 2.0s; sleeping 30s' 뒤 0줄 · loop.err.log 0B(traceback 없음) → 외부 종료 추정. loop_sup.log 12:16:16 'bridge not connected - loop not started (waiting for HTS login + bridge)' = 사망을 감지했지만 브리지 부재로 미기동 → 13:26까지 갱신 지연 70.1분 · 보유 069510 1주 무감시(entry 24,203 · hwm 24,250). Windows python 프로세스 0개 · /health HTTP 000 · Creon coStarter/DibServer 0개. 재기동 경로가 '브리지 존재'에 의존해 사람 Creon 로그인 전까지 복구 불가."
   },
   {
    "id": "T47",
