@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-26T00:49:00+09:00",
+  "updated_at": "2026-11-26T15:45:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -1095,7 +1095,7 @@
         "detail": "R25: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R25_20261124-224738.log"
+        "log": "data/reports/res_cycle/logs/res_R25_20261126-024716.log"
       },
       "recurring": true,
       "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT CASE WHEN EXTRACT(isodow FROM CURRENT_DATE) >= 6 THEN 0 WHEN (SELECT COALESCE(MAX(rcept_dt), DATE '1900-01-01') FROM disclosures) >= CURRENT_DATE - 7 THEN 0 ELSE 1 END\"",
@@ -1238,6 +1238,11 @@
         },
         {
           "ts": "2026-11-24T22:47:39+09:00",
+          "rc": 0,
+          "detail": "R25: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-26T02:47:16+09:00",
           "rc": 0,
           "detail": "R25: 0 <= 0 → 충족"
         }
@@ -1415,13 +1420,18 @@
           "ts": "2026-11-24T04:48:03+09:00",
           "rc": 0,
           "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-26T06:47:22+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R27: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R27_20261125-044732.log"
+        "log": "data/reports/res_cycle/logs/res_R27_20261126-064722.log"
       },
       "note": " || **[2026-10-09 21:1x 스캔 — 자기신고 미배선 러너 목록]** 크론이 실제로 돌리는데 dq_runner_claim 행을 만들지 않는 수집 경로 3개(배선조차 없음, R23 텍스트 휴리스틱에도 걸린다): ① `kis_backfill_range.py`(kis_backfill.sh) — record_claim 문자열 0 ② `run_close_job.py`(close_job.sh) — 컨테이너 내부라 dq_claim.py 모듈 부재(R28 유형 → phase 로그 브리지 필요) ③ `run_swing_job.py`(swing_pipeline.sh 도 동일, claim 브리지 0). 다음 사이클: ②③은 full_pipeline_dd.sh 의 `scripts/yf_claim_from_phase_log.py` 를 그대로 재사용, ①은 러너 내부 배선(크론 파일 무수정)."
     },
@@ -1839,13 +1849,18 @@
           "ts": "2026-11-25T02:48:02+09:00",
           "rc": 0,
           "detail": "R35: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-26T04:47:38+09:00",
+          "rc": 0,
+          "detail": "R35: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R35: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R35_20261125-024800.log"
+        "log": "data/reports/res_cycle/logs/res_R35_20261126-044735.log"
       }
     },
     {
@@ -2491,6 +2506,19 @@
       ],
       "recommendation": "(C) 로 두고 (A) 는 KRX API 승인 대기 목록에만 올린다 — 시장레벨 피처라 모델 기여가 없고 대체원은 레벨 불연속을 만든다.",
       "command": ""
+    },
+    {
+      "id": "R54",
+      "title": "krx_short_selling 종목별 잔고가 2026-11-18 부터 2,601 → ~200행/일로 절단 — pykrx 응답 축소 원인 규명",
+      "status": "backlog",
+      "priority": 2,
+      "kind": "investigate",
+      "affects_model": true,
+      "hypothesis": "종목별 공매도 잔고 경로(pykrx get_shorting_balance_by_ticker)가 11-18 부 이전까지는 거래일마다 2,599~2,601행(전 종목)을 냈는데 11-18 부터 196~202행으로 떨어졌다. 값 자체가 0/결측으로 바뀐 게 아니라 **행이 사라진** 계단형 변화이므로, 원천 응답이 축소됐거나(페이지/파라미터 개편) 파서가 일부만 통과시키는 것으로 본다. R53(krx_trading 이 09-23 이후 동결)과 같은 pykrx/KRX 개편 계열일 가능성.",
+      "evidence": "실측 2026-11-26 15:40(DB 직접 조회, krx_short_selling 일별 행수): 11-10 2599 · 11-11 2599 · 11-12 2600 · 11-13 2600 · 11-16 2601 · 11-17 2601 → 11-18 **202** · 11-19 201 · 11-20 202 · 11-23 200 · 11-24 **196** (5거래일 연속, 기준선 2,601 대비 ×0.077) · distinct 종목수 11-17 2,601 → 11-24 196 · 최신일 11-24(당일 11-26 기준 2거래일 지연). 모델엔지니어 틱도 'krx_short_selling 최근7일 143.0행/일 = 기준선 2,601의 ×0.055'로 같은 붕괴를 관측.",
+      "command": "",
+      "setup_needed": [],
+      "note": "프로브(읽기 전용): ① pykrx get_shorting_balance_by_ticker('20261117','KOSPI') vs ('20261118','KOSPI') 를 직접 호출해 원천 행수·컬럼을 비교(컬렉터 파서 우회) ② 200 근처면 페이지/limit 파라미터 개편 의심 → 상위 2,600행이 나오는 인자 탐색 ③ 원천이 정상인데 파서가 자르면 short_selling_collector.py 의 컬럼 alias 검사(_BALANCE_COLUMN_ALIASES)가 11-18 부 개편 컬럼명에서 조용히 skip 하는지 로그로 확인. 판정은 '원천 행수' vs '적재 행수' 두 값을 같은 실행에서 찍어 비교."
     }
   ]
 }
