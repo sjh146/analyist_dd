@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T03:25:24+09:00",
+ "updated_at": "2026-11-27T04:20:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28065,6 +28065,22 @@
    "est_minutes": 0,
    "created_at": "2026-11-27T03:10:41+09:00",
    "note": "2026-11-27 03:2x 엔지니어 자율 신설. 기준선 값(BASELINE_ROBUST=0.5406) 교체는 별건(CG131)이며 이 항목은 '판정 방식'만 바꾼다."
+  },
+  {
+   "id": "CG520",
+   "title": "[돈 지표·배포 패널] CG518 이 AUC 로만 남긴 배포가능 arm(CO_smooth_d1_h5)을 배포 패널에서 돈으로 재라 — 체결성 필터·수수료 0.21%p 반영 순기대가 같은 런 대조군·세션 풀평균을 넘는가",
+   "status": "pending",
+   "kind": "experiment",
+   "owner": "engineer",
+   "priority": 1,
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "est_minutes": 20,
+   "counterfactual": "LS_quant_q30_h5 (같은 런·같은 폴드·같은 시드·같은 패널) + 세션 풀평균(무작위 k 기대). 참고: CG518 같은 런 AUC 짝Δ CO_smooth_d1_h5 +0.0030(양(+) 2/5) · CO_core30_h5 −0.0107(1/5)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 1 --only LS_quant_q30_h5,CO_smooth_d1_h5 --dump-preds /app/reports/overnight/cg520_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg520_wf.jsonl --summary-out /app/reports/overnight/cg520_summary.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg520_preds.jsonl --arm-tag CO_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg520_preds.jsonl --control-tag LS_quant_q30_h5 --k 3,5,10 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg520_money.json'",
+   "success": "사전 등록(변경 금지): ① 배포가능 arm(CO_smooth_d1_h5) Δ(arm−풀평균) ≥ +0.5%p/세션 ② 블록 t ≥ 2(블록=horizon) ③ 분할표본(앞/뒤) both_positive ④ Δ(arm−같은 런 대조군 LS_quant_q30_h5) > 0 — ①~④ 전부면 '배포가능 arm 돈 엣지 후보'(승격은 별도 절차) 로 기록. ① 또는 ② 실패면 AUC 짝Δ +0.0030 은 돈으로 환산되지 않음 → 조정 축(라벨 스무딩·depth1)을 돈 기준으로 종결.",
+   "hypothesis": "CG518 은 배포 패널(prod200_v6o)에서 세 arm 의 AUC 만 쟀고(AUC 단독은 개선 판정 근거가 아니다), CG498 의 돈 측정은 다른 패널(cg387)에서 나온 값이라 패널 드리프트(중앙 0.0241) 때문에 그대로 옮길 수 없다. 배포 계약을 건드리지 않는 유일한 후보(CO_smooth_d1_h5)를 배포 패널 그대로 돈으로 재야 '배포 후보 유지/종결'을 결정할 수 있다.",
+   "note": "2026-11-27 04:1x 엔지니어 자율 — 규칙 4(즉시 실행가능 pending 0건: CG388 19:30·CG466 19:30·FAC-03 11-28·CG512 12-08·CG464 12-14 전부 not_before 대기). 플래그 실재 확인: wf_label_sweep --dump-preds/--dump-all-codes/--summary-out, fillable_topk_expectancy --arm-tag/--control-tag/--entry/--exit/--json-out (--help 대조). dump 는 exp=cfg id 이므로 arm-tag 에 설정명을 그대로 쓴다."
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
