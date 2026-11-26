@@ -961,6 +961,8 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if os.path.exists(host_p):
             return host_p
         return _container_path_to_host(p)
+    if kind == "promote_dryrun_reason_present":
+        return SCORECARD
     if kind == "score_deciles":
 
         out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
@@ -2450,6 +2452,58 @@ def parse_champion_promote_dryrun(path, mtime_floor) -> dict:
     }
 
 
+def parse_promote_dryrun_reason(path, mtime_floor) -> dict:
+    """승격 dry-run 레코드의 '판정 근거 완비' 를 채점한다(CG507).
+
+    왜(실측 2026-11-26): 일일 판정 크론이 trader_ledger 에 남긴 validation.promote_dryrun 이
+    `status=kept_incumbent · candidate_auc=0.5199` 만 남기고 reason·champion_baseline·
+    baseline_source 를 전부 null 로 비웠다. 트레이더 계약2 검증은 원장 문자열에 'dry-run' 이
+    있는지만 스캔하는 '형식 충족' 판정이라 그대로 통과한다 → **근거 없는 승격 판정이 정상으로
+    보이는 경로**다. 레코드만으로는 왜 거부됐는지·무엇과 비교했는지 검증할 수 없으므로,
+    이 metric 은 성능이 아니라 계약(근거 완비)을 판정한다.
+
+    소스는 성적표 JSON(SCORECARD)의 promote_dryrun 이다 — 소비측 수리(complete/missing)를
+    그대로 쓰고, 여기서 한 번 더 자체 계산해 두 값이 어긋나면 둘 다 싣는다.
+    """
+    if not path or not os.path.exists(path):
+        return {"error": "요약 파일 없음"}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과를 새 결과로 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    pd = d.get("promote_dryrun")
+    if not isinstance(pd, dict) or not pd.get("status"):
+        return {"error": "promote_dryrun 레코드 없음(성적표에 판정 기록 미포함)", "summary_mtime": mt}
+    status = pd.get("status")
+    reason = pd.get("reason")
+    base = pd.get("champion_baseline")
+    need_base = status != "promoted"
+    missing = []
+    if reason in (None, "", "None"):
+        missing.append("reason")
+    if need_base and base in (None, "", "None"):
+        missing.append("champion_baseline")
+    if need_base and pd.get("baseline_source") in (None, "", "None"):
+        missing.append("baseline_source")
+    return {
+        "metric_name": "promote_dryrun_reason_present",
+        "record_id": pd.get("record_id"), "record_ts": pd.get("record_ts"),
+        "status": status, "candidate_auc": pd.get("candidate_auc"),
+        "reason": reason, "reason_present": "reason" not in missing,
+        "champion_baseline": base,
+        "baseline_source": pd.get("baseline_source"),
+        "baseline_present": "champion_baseline" not in missing,
+        "complete": not missing, "missing": missing,
+        "consumer_complete": pd.get("complete"), "consumer_missing": pd.get("missing"),
+        "summary_mtime": mt,
+    }
+
+
 def parse_champion_scorecard(path, mtime_floor) -> dict:
     """배포 챔피언 검증 성적표(scripts/champion_scorecard.py --out)를 파싱한다(MT49).
 
@@ -2505,6 +2559,27 @@ def judge_champion_scorecard(item, parsed) -> tuple:
     parts.append(f"돈 지표 순기대 {mn.get('expectancy_pct')}%p(t {mn.get('expectancy_t')}) · 세션 {mn.get('n_sessions')}")
     complete = bool(fs.get("mean") is not None and pd.get("status") and (parsed.get("purge") or {}).get("policy"))
     return ("계약 충족" if complete else "계약 미비"), " · ".join(parts), None
+
+
+def judge_promote_dryrun_reason(item, parsed) -> tuple:
+    """승격 dry-run 레코드의 근거 완비 판정 — 성능이 아니라 **계약** 판정이다."""
+    if parsed.get("error"):
+        return "판정불가", parsed["error"], None
+    parts = [f"기록 {parsed.get('record_id')} @{parsed.get('record_ts')}",
+             f"status={parsed.get('status')}", f"후보 AUC {parsed.get('candidate_auc')}"]
+    if parsed.get("reason_present"):
+        parts.append(f"reason '{str(parsed.get('reason'))[:90]}'")
+    else:
+        parts.append("reason 없음")
+    if parsed.get("champion_baseline") is not None:
+        parts.append(f"기준선 {parsed.get('champion_baseline')}"
+                     f"({parsed.get('baseline_source')})")
+    else:
+        parts.append("champion_baseline 없음")
+    if parsed.get("complete"):
+        return "계약 충족", " · ".join(parts), None
+    parts.append(f"미비 필드 {parsed.get('missing')}")
+    return "계약 미비", " · ".join(parts), None
 
 
 def judge_promote_dryrun(item, parsed) -> tuple:
@@ -2834,6 +2909,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_regime_ic_screen(spath, mtime_floor)
     if kind == "champion_scorecard":
         return parse_champion_scorecard(spath, mtime_floor)
+    if kind == "promote_dryrun_reason_present":
+        return parse_promote_dryrun_reason(spath, mtime_floor)
     if kind == "intraday_screen":
         return parse_intraday_screen(spath, mtime_floor)
     if kind == "sns_money_control":
@@ -6100,6 +6177,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_regime_ic_screen(item, parsed)
     if kind == "champion_scorecard":
         return judge_champion_scorecard(item, parsed)
+    if kind == "promote_dryrun_reason_present":
+        return judge_promote_dryrun_reason(item, parsed)
     if kind == "intraday_screen":
         return judge_intraday_screen(item, parsed)
     if kind == "sns_money_control":
