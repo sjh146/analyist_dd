@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T01:11:23+09:00",
+ "updated_at": "2026-11-27T02:15:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -27985,6 +27985,24 @@
     "verdict": "노이즈",
     "detail": "공매도 비율(krx_short_selling.short_ratio, as-of 1거래일 지연·h5·패널 200종목) 날짜별 Spearman IC 100날짜: 평균 IC -0.0217(일별 t -1.63) · 비중첩(stride5) 20날짜 -0.0090(t -0.30) · 앞/뒤 절반 -0.0154/-0.0280(부호일치, 둘 다 음) · 양(+)날짜 42% · 십분위 bottom-top 스프레드 +0.078%p(수수료 0.21 차감 후, t 0.19) · 변동 범위 -0.342~+0.287 → 사전문턱(|IC|>=0.03·|t|>=2) 미달 = 노이즈. balance_quantity 는 전량 NULL → 잔고 기반 신호는 원천에 없음. 함의: KRX-02 수집 붕괴(11-18 이후 143.6행/일)는 데이터 정합성 문제일 뿐 모델 AUC 레버가 아니다 — 백필 승인 요청 근거로 쓰지 않는다."
    }
+  },
+  {
+   "id": "CG517",
+   "status": "needs_setup",
+   "priority": 2,
+   "kind": "핸드오프",
+   "owner": "트레이더",
+   "affects_model": false,
+   "handoff_from": "engineer",
+   "metric": "factor_signals",
+   "title": "[핸드오프→트레이더] 팩터 5전략 리밸런싱 간격이 백테스트와 교차 — momentum·lowvol 은 라이브 63 vs 백테스트 21, multifactor 는 21 vs 63 (그 전략들의 기간수익은 돈 지표로 쓸 수 없다)",
+   "hypothesis": "FAC-03(2026-11-27 01:08, asof 2026-11-26) interval_audit 실측: momentum_factor 63≠21 · lowvol_factor 63≠21 · multifactor 21≠63 (match 2/5). 원인은 코드 기본값이다 — services/strategy-agents/app/strategies/factor_strategy_base.py:32 가 rebalance_interval_days 기본 63 이고 momentum_strategy.py:23·lowvol_strategy.py:23 이 이를 상속(가격 팩터인데 63), multifactor_strategy.py:33 은 21 로 오버라이드(재무 복합인데 21). 백테스트 기준표는 services/backtester/scripts/real_factor_backtest.py:38-40 에 '책 규칙: 재무 팩터 분기(63거래일), 가격 팩터 월간(21거래일) — 하드코딩, 튜닝 금지'로 63/63/63/21/21 이 박혀 있다. 즉 라이브가 기준표와 교차돼 있어 백테스트 기간수익 ≠ 라이브 규칙이다.",
+   "setup_needed": "트레이더/전략 소유 파일 수정(각 1줄): momentum_strategy.py·lowvol_strategy.py 에 rebalance_interval_days=21 설정, multifactor_strategy.py 의 21 → 63 (또는 전략 config 로 주입). 어느 쪽이 진실원인지는 전략 소유자 판단 — 백테스트 주석이 '책 규칙·튜닝 금지'라 기준표를 진실원으로 볼 근거가 강하다. 수정 후 엔지니어 검증: docker exec stock_job_runner sh -c 'cd /app && timeout 600 python /opt/scripts/factor_signal_probe.py --asof 2026-11-27' → n_interval_mismatch == 0.",
+   "why_matters": "간격이 어긋난 전략의 '기간수익'은 보유기간이 달라 백테스트와 비교 불가 → 팩터 5전략의 돈 지표가 전부 무효다. 게다가 게이트가 63일이면 신호가 3개월에 한 번만 나므로 '신호 0'이 정상인지 고장인지도 구분되지 않는다(현재 게이트 열린 전략 0/5).",
+   "est_minutes": 0,
+   "created_at": "2026-11-27T02:15:00+09:00",
+   "updated_at": "2026-11-27T02:15:00+09:00",
+   "note": "2026-11-27 02:1x 엔지니어 자율(장외 틱·FAC-03 판정 후속). FAC-03 은 게이트 밖(게이트 열린 전략 0/5)이라 신호 0을 오알람으로 쓰지 않았고, 대신 interval_audit 불일치를 근본원인까지 특정해 핸드오프로 고정한다. 코드 수정은 전략/트레이더 소유라 이 역할에서 하지 않는다(헌장: 다른 역할 소유 파일 수정 금지)."
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
