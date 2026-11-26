@@ -59,9 +59,9 @@ def load_env() -> None:
 SUITES = [
     {"name": "root-tests", "dir": "tests", "python": HOST_PY, "timeout": 900},
     {"name": "api-gateway", "dir": "services/api-gateway/tests", "python": HOST_PY, "timeout": 600},
-    {"name": "trader-core", "dir": "C:/Users/jhshi/trader-agent/trader_core/tests", "python": WIN_PY, "timeout": 900},
-    {"name": "trader-runner", "dir": "C:/Users/jhshi/trader-agent/runner/tests", "python": WIN_PY, "timeout": 600},
-    {"name": "trader-bridge", "dir": "C:/Users/jhshi/trader-agent/bridge/tests", "python": WIN_PY, "timeout": 600},
+    {"name": "trader-core", "dir": "/mnt/c/Users/jhshi/trader-agent/trader_core/tests", "python": WIN_PY, "timeout": 900},
+    {"name": "trader-runner", "dir": "/mnt/c/Users/jhshi/trader-agent/runner/tests", "python": WIN_PY, "timeout": 600},
+    {"name": "trader-bridge", "dir": "/mnt/c/Users/jhshi/trader-agent/bridge/tests", "python": WIN_PY, "timeout": 600},
 ]
 
 
@@ -81,18 +81,17 @@ def parse_summary(stdout: str) -> dict:
 
 
 def run_suite(suite: dict) -> dict:
-    base = suite.get("cwd", PROJ)
     d = suite["dir"] if os.path.isabs(suite["dir"]) else os.path.join(PROJ, suite["dir"])
     if not os.path.isdir(d):
         return {"name": suite["name"], "suite_skipped": "디렉터리 없음"}
-    py_files = [f for f in os.listdir(d) if f.endswith(".py")] if os.path.isdir(d) else []
+    py_files = [f for f in os.listdir(d) if f.endswith(".py")]
     if not py_files:
         return {"name": suite["name"], "suite_skipped": "테스트 파일 없음"}
-    cmd = [suite["python"], "-m", "pytest", "-q", "--timeout=120" if False else "-p", "no:cacheprovider", d]
+    test_arg = d.replace("/mnt/c/", "C:/") if suite["python"].startswith("/mnt/c/") else d
+    cmd = [suite["python"], "-m", "pytest", "-q", "-p", "no:cacheprovider", test_arg]
     t0 = time.time()
     try:
-        cmd = cmd[:5] + [suite["dir"]] if len(cmd) > 5 else cmd
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=suite["timeout"], cwd=base)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=suite["timeout"], cwd=PROJ)
         out = (r.stdout or "") + (r.stderr or "")
         summary = parse_summary(out)
         return {
