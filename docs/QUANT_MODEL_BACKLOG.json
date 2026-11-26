@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T02:15:00+09:00",
+ "updated_at": "2026-11-27T03:10:41+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28003,6 +28003,53 @@
    "created_at": "2026-11-27T02:15:00+09:00",
    "updated_at": "2026-11-27T02:15:00+09:00",
    "note": "2026-11-27 02:1x 엔지니어 자율(장외 틱·FAC-03 판정 후속). FAC-03 은 게이트 밖(게이트 열린 전략 0/5)이라 신호 0을 오알람으로 쓰지 않았고, 대신 interval_audit 불일치를 근본원인까지 특정해 핸드오프로 고정한다. 코드 수정은 전략/트레이더 소유라 이 역할에서 하지 않는다(헌장: 다른 역할 소유 파일 수정 금지)."
+  },
+  {
+   "id": "CG518",
+   "status": "pending",
+   "priority": 1,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "baseline_protocol_gap",
+   "panel": "panel_prod200_v6o.npz (200종목 · 314거래일 · d420)",
+   "arm_list": [
+    "LS_quant_q30_h5",
+    "CO_core30_h5",
+    "CO_smooth_d1_h5",
+    "CO_rank_smooth_d1_h5"
+   ],
+   "paired_reference": "LS_quant_q30_h5",
+   "registered_baseline_value": 0.5406,
+   "title": "[기준선·패널정합] 배포 패널(prod200_v6o)에서 기준선 arm + 후보 3종을 같은 런으로 짝 비교 — 등록 기준선 0.5406 의 패널 격차를 분리한다",
+   "hypothesis": "등록 기준선 0.5406 은 panel_420_asofpatch(49종목·281거래일) 값이고 현재 배포 패널은 prod200_v6o(200종목)다. 같은 arm 도 패널이 바뀌면 폴드평균이 움직인다(감사 실측: 같은 arm 33개 중 18개가 이동폭 ≥ +0.02, 중앙 0.0241, 최대 0.1283; 기준선 arm 자체 0.5100~0.5557 = 0.0447). 따라서 '절대값 vs 0.5406' 비교는 모델 품질이 아니라 패널 선택을 잰다. 같은 런·같은 시드로 4 arm 을 재면 짝 Δ 만이 남는다.",
+   "evidence": "scripts/panel_drift_audit.py (2026-11-27 03:2x) → data/reports/panel_drift_audit.json: 원장 459행·측정 사이클 96·다패널 arm 33 · 드리프트 max 0.1283 median 0.0241 · 문턱(+0.02) 이상 18/33 · 폴드평균 SE median 0.0113 · 측정 사이클이 18개 패널에 분산(기준선 패널 28건). 예: TR_rank_h5 는 asofpatch 0.5495 vs prod200 0.5267 로 기준선 arm 대비 부호가 뒤집힌다(+0.0082 → −0.0035). prod200_v6o 는 배포가능 후보 CO_smooth_d1_h5 0.5487 이 측정된 패널이다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 3 --only LS_quant_q30_h5,CO_core30_h5,CO_smooth_d1_h5,CO_rank_smooth_d1_h5 --out /app/reports/overnight/cg518_samepanel.jsonl --summary-out /app/reports/overnight/cg518_samepanel_summary.json'",
+   "counterfactual": "LS_quant_q30_h5 (등록 기준선 arm — 같은 런·같은 폴드·같은 시드) · 짝 Δ 로만 판정",
+   "success": "사전등록(변경 금지): 최고 후보의 같은 런 폴드 짝 Δ 평균 ≥ +0.02 AND 양(+) 폴드 ≥ 4/5 → '신호있음'. 0.02 미만은 '노이즈'(패널 드리프트 중앙 0.0241 이 문턱과 같은 크기이므로 절대값으로는 해상 불가). 짝 Δ ≤ −0.02 → '악화'.",
+   "expected": "같은 런 짝 Δ 는 전 후보가 |Δ|<0.02 로 노이즈일 가능성이 높다(과거 조정 축 상한 +0.011). 그 경우 판정 근거는 '조정 축 종결 + 기준선 이관(CG131) 승인'이다.",
+   "cost": "4 arm × 5폴드 × 3시드 = 60 cell (CG260 4arm 25cell 16.9분 실측 → 15~40분)",
+   "est_minutes": 15,
+   "created_at": "2026-11-27T03:10:41+09:00",
+   "note": "2026-11-27 03:2x 엔지니어 자율 신설. metric='baseline_protocol_gap' 파서는 per_exp 를 만들지 않는다 — 원장 per_exp 에 다른 패널 값이 섞이면 스코어보드가 '돌파'로 오독한다(parse_baseline_protocol_gap docstring, 2026-11-14 실측). CPU 경쟁 시 155s/cell 까지 늘어난 전례가 있어 timeout 5400(90분).",
+   "attempts": []
+  },
+  {
+   "id": "CG519",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "측정정합성",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "scoreboard_protocol",
+   "title": "[측정정합성·승인] 스코어보드 북극성 판정을 '절대값 vs 고정 0.5406' 에서 '같은 런 짝 Δ' 로 전환 + comparability 태그에 패널 추가",
+   "hypothesis": "사전문턱 +0.02 는 '같은 패널·같은 도구' 짝 비교에서만 의미가 있다. 감사 실측으로 같은 arm 의 패널 간 이동폭이 중앙 0.0241(문턱과 동일 크기), 기준선 arm 자체가 0.0447 이므로, 서로 다른 패널에서 잰 절대값을 고정 기준선과 비교하면 개선/무개선 카운터가 패널 선택에 지배된다. 무개선 23사이클은 '모델이 안 늘었다'와 '패널이 달랐다'를 구분하지 못한다.",
+   "evidence": "data/reports/panel_drift_audit.json (2026-11-27 03:2x): 다패널 arm 33 · spread median 0.0241 max 0.1283 · +0.02 이상 18/33 · 측정 사이클 96 이 18개 패널에 분산(panel_420_asofpatch 28 · panel_150u 20 · panel_prod200 18 · panel_200liq_fresh 9 …) · 폴드평균 SE median 0.0113 · quant_scoreboard.py:282-286 도 '패널(창)은 필터하지 않고 각주로만 남긴다'고 명시하고, 무개선 카운터(같은 파일 306-324)는 arm 의 절대 mean 으로 계산한다.",
+   "setup_needed": "리뷰보드 승인 필요(스코어보드 기준선·프로토콜 변경). 승인 시: ① arm_comparability 에 panel/universe 태그를 추가해 기준선 패널과 다른 arm 은 '대조 불가'로 제외 ② 북극성 헤드라인을 '기준선 패널에서의 같은 런 짝 Δ' 로 전환(없으면 baseline_gap 만 표기) ③ 무개선 카운터를 짝 Δ 기준으로 재정의하고 과거 23사이클은 '패널혼합' 각주로 보존.",
+   "expected": "승인 후 무개선 카운터는 '측정 불가'가 아니라 '같은 패널에서 짝 Δ < +0.02 인 사이클 수'가 되어 승격·레버 판단의 근거가 정합해진다.",
+   "est_minutes": 0,
+   "created_at": "2026-11-27T03:10:41+09:00",
+   "note": "2026-11-27 03:2x 엔지니어 자율 신설. 기준선 값(BASELINE_ROBUST=0.5406) 교체는 별건(CG131)이며 이 항목은 '판정 방식'만 바꾼다."
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
