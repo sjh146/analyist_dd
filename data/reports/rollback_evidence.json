@@ -1,6 +1,6 @@
 {
- "created_at": "2026-11-26T13:58:58",
- "normalized_at": "2026-11-26T23:01:10",
+ "created_at": "2026-11-26T14:26:08",
+ "normalized_at": "2026-11-26T23:26:09",
  "source": "scripts/_expectancy_is_oos_split.py (동일 trades 표본 · OOS=모델 train_end 이후)",
  "prev_dir": "champion_prev_20261002-024420",
  "sample": {
@@ -42,5 +42,5 @@
    "train_end": "2026-10-01"
   }
  },
- "raw_source": "/home/jhshi/analyist_dd/services/xgboost-ml/reports/overnight/rollback_evidence_raw.json"
+ "raw_source": "/app/reports/overnight/rollback_evidence_raw.json"
 }

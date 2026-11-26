@@ -127,7 +127,8 @@ def main(argv=None) -> int:
 
     spec = [["champion", "app/models/champion"], [prev_dir, f"app/models/{prev_dir}"]]
     inner = ("cd /app && OMP_NUM_THREADS=2 timeout %d python -u scripts/_expectancy_is_oos_split.py "
-             "--models '%s' --json-out %s" % (a.timeout, json.dumps(spec), RAW_CT))
+             "--models '%s' --dump-sessions --json-out %s"
+             % (a.timeout, json.dumps(spec), RAW_CT))
     cmd = ["docker", "exec", CONTAINER, "sh", "-c", inner]
     print("[i] 측정:", " ".join(cmd))
     started = dt.datetime.now().timestamp()
@@ -144,6 +145,7 @@ def main(argv=None) -> int:
             print("[x] 산출 파일이 갱신되지 않았다 — 증거로 쓰지 않는다", file=sys.stderr)
             return 1
         print("[i] 그래도 산출 파일이 실행 시작 이후 갱신됨 → 채택(종료코드는 생산기 특성)")
+    raw = json.load(open(RAW_HOST, encoding="utf-8"))
     return _finish(raw, prev_dir, a.dry_run)
 
 

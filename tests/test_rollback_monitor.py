@@ -149,3 +149,25 @@ def test_refresh_normalizer_reads_oos_block():
     assert out["models"]["champion"]["expectancy_pct"] == -0.7684, out
     assert out["models"]["champion_prev_x"]["n_sessions"] == 25, out
     assert out["prev_dir"] == "champion_prev_x", out
+
+
+def test_paired_test_note_attached_when_prev_matches(monkeypatch, tmp_path):
+    path = tmp_path / "paired.json"
+    path.write_text(json.dumps({"prev_dir": "champion_prev_x", "n_sessions": 25, "mean": -0.49,
+                                "boot": {"t": -1.0, "ci95": [-1.44, 0.46]},
+                                "executable": False, "verdict": "실행 근거 아님"}), encoding="utf-8")
+    monkeypatch.setattr(rbm, "PAIRED", str(path))
+    monkeypatch.setattr(rbm, "REFRESH", _write_refresh(tmp_path, champ=-0.6, prev=0.1))
+    _patch_common(monkeypatch)
+    v = rbm.verdict(_obj())
+    assert v["verdict"] == "rollback" and v["paired_test"]["executable"] is False, v
+
+
+def test_paired_test_note_ignored_for_other_prev(monkeypatch, tmp_path):
+    path = tmp_path / "paired.json"
+    path.write_text(json.dumps({"prev_dir": "champion_prev_other", "n_sessions": 25}), encoding="utf-8")
+    monkeypatch.setattr(rbm, "PAIRED", str(path))
+    monkeypatch.setattr(rbm, "REFRESH", _write_refresh(tmp_path, champ=-0.6, prev=0.1))
+    _patch_common(monkeypatch)
+    v = rbm.verdict(_obj())
+    assert "paired_test" not in v, v

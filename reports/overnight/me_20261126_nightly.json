@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-26T23:06:16",
+ "generated_at": "2026-11-26T23:26:51",
  "cycle": "2026-11-26 야간 (cron quant-model-engineer-daily, 22:25~23:05)",
  "protocol": "확장창 워크포워드 다중폴드 판정 · 돈 지표는 체결성 필터(당일등락<25%)+수수료 왕복 0.21%p · 널=세션 풀평균",
  "snapshot": {
@@ -161,7 +161,29 @@
     "fee": 0.21
    },
    "caveat": "두 arm 모두 |t|<2 · 중앙값은 챔피언이 더 좋다(−0.74 vs −0.84) · 반쪽 모두 음수(전 −0.849/후 −0.555) · 원복 대상(prev)도 음수(−0.208) → '롤백해도 돈이 플러스가 되지 않는다'",
-   "wiring": "cron/호출자 없음(2026-11-20 Claude 리뷰 확인 + 오늘 재확인: /etc/cron.d·crontab·스크립트 호출 0) → 게이트는 선언만 true"
+   "wiring": "cron/호출자 없음(2026-11-20 Claude 리뷰 확인 + 오늘 재확인: /etc/cron.d·crontab·스크립트 호출 0) → 게이트는 선언만 true",
+   "paired_test": {
+    "n_sessions": 25,
+    "mean_delta": -0.4884,
+    "sd": 2.4629,
+    "t_iid": -0.992,
+    "block_boot": {
+     "block": 5,
+     "t": -0.996,
+     "ci95": [
+      -1.4389,
+      0.4584
+     ],
+     "p_one_sided": 0.1703
+    },
+    "halves": {
+     "front": -0.4618,
+     "back": -0.5129
+    },
+    "verdict": "점추정만 문턱 초과 — 실행 근거 아님",
+    "executable": false
+   },
+   "decision": "챔피언 유지 — 롤백 미실행. 짝 Δ −0.49%p 는 CI95 [−1.44,+0.46] 로 0 을 포함(t −1.00, p 0.17). 실행 근거는 '블록t ≤ −2 & CI 상한 < −0.2' 인데 둘 다 미달."
   }
  ],
  "dq": {
@@ -179,6 +201,10 @@
   "scripts/champion_rollback_monitor.py: 재측정 증거(rollback_evidence.json) 짝 비교 경로 추가 — 같은 출처·같은 표본일 때만 사용, 아니면 종전 경로 폴백(프로토콜 혼합 금지)",
   "scripts/rollback_evidence_refresh.py(신규): champion vs 직전 챔피언 OOS 기대 재측정 → 계약 파일. 생산기 '산출 후 미종료' 함정 처리(--from-raw 포함)",
   "scripts/model_engineer_cycle.py: 다중 산출 루프 경고(_multi_out_warning) — 파서가 마지막 파일만 읽는다는 사실을 원장·백로그에 남긴다",
-  "tests: test_rollback_monitor.py(+5) · test_cycle_multi_out_guard.py(신규 4) — 17 passed"
- ]
+  "tests: test_rollback_monitor.py(+5) · test_cycle_multi_out_guard.py(신규 4) — 17 passed",
+  "scripts/_expectancy_is_oos_split.py: --dump-sessions(세션별 순기대 기록, 기본 미기록=비트 동일)",
+  "scripts/rollback_paired_test.py(신규): 짝(동일 세션) Δ 의 iid·블록 부트스트랩 t·CI95 → 실행 가능성 판정(사전등록 3조건)",
+  "scripts/champion_rollback_monitor.py: paired_test 주석(판정·문턱 불변) — '점추정만 넘음'을 상태 파일에 남긴다"
+ ],
+ "tests": "19 passed (test_rollback_monitor 15 + test_cycle_multi_out_guard 4)"
 }

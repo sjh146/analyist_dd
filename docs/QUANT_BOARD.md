@@ -193,12 +193,14 @@ cd /home/jhshi/analyist_dd
 **되돌림 게이트 — 왜 8주간 침묵했고, 지금 판정이 나왔나**
 - 원인은 임계값이 아니라 **생산자 부재**였다: 감시기는 `<모델>/robust_oos.json`(승격 시점 1회 기록)만 읽는데, 마지막 스왑이 2026-10-02 이라 11-09 이후 매일 `stale_evidence`(14일 초과) → `auto_rollback: true` 인데 판정 자체를 못 했다(보드 11-26 15:35 확인, 11-20 Claude 리뷰 '스케줄조차 없음'과 별개 결함).
 - 수리: `scripts/rollback_evidence_refresh.py`(신규)가 챔피언·직전 챔피언을 **같은 표본·같은 topk·같은 수수료**로 재측정해 `data/reports/rollback_evidence.json` 을 만들고, 감시기는 **그 짝이 있을 때만** 비교한다(한쪽만 있으면 종전 경로 폴백 — 프로토콜 혼합 금지). 함정: 생산기 `_expectancy_is_oos_split.py` 는 산출을 쓴 뒤에도 종료하지 않아(그래프 드라이버 스레드) docker exec 이 30분 timeout 까지 CPU 를 잡았다 → 산출 mtime 이 실행 시작 이후면 채택 + `--from-raw` 재사용.
-- **판정은 rollback 이지만 실행하지 않았다**: ① 두 arm 모두 |t|<2 ② 중앙값은 챔피언이 더 좋다(−0.74 vs −0.84) ③ 원복 대상(prev)도 음수(−0.208)·반쪽 전부 음수 → **롤백해도 순기대가 플러스가 되지 않는다**(승격은 실매매 반영이라 사람 단계). 게이트 호출자(cron)도 여전히 없다.
+- **판정은 rollback 이지만 실행하지 않았다 — 짝 검정으로 확인**: 동일 25세션 짝 Δ(챔피언−직전) = 평균 **−0.4884%p** · sd 2.4629 · iid t −0.992 · **블록 부트스트랩(block 5) t −0.996 · CI95 [−1.44, +0.46]** · p(one-sided) 0.17 · 반쪽 −0.4618/−0.5129. 사전등록 실행조건('블록t ≤ −2 & CI 상한 < −0.2') 둘 다 미달 → **실행 근거 아님**. 부수 사실: 두 arm 모두 |t|<2 · 중앙값은 챔피언이 더 좋다(−0.74 vs −0.84) · 원복 대상도 음수(−0.208) → **롤백해도 순기대가 플러스가 되지 않는다**. 게이트 호출자(cron)도 여전히 없다(grep 0).
+- **재현성**: 같은 명령 2회 실행에서 챔피언 전체 기대 −0.3431%p(113세션) · prev −0.2179%p 로 소수점까지 동일 (결정적). 즉 '−0.3431' 은 robust_oos.json 값과 같은 표본·같은 정의다.
+- **남은 승인 항목**: 짝 유의성 조건을 감시기 규칙에 넣는 것은 **문턱 변경**이라 리뷰보드 승인 대상 → `CG513`(needs_setup)로 등록. 지금은 감시기가 `rollback_paired_test.json` 을 **주석으로만** 읽어 상태 파일에 `executable:false` 를 남긴다.
 - 부작용 확인: `data/state/rollback_monitor.json` 소비자 0건(grep) → 트레이더·피드에 영향 없음.
 
 **DQ/누수 신호**: 살아있는 횡단면 180 · 시장레벨 18 · 종목상수 0.4242(기준선 0.38) · 모델창 밖 행 209(판정인구 0 — R51/XR51) · 착시(모델창) 0 → **신규 누수 신호 없음**. 리서처 오늘 통과 피처 0건 → 신규 피처 제안 없음.
 
-**코드**: ① `champion_rollback_monitor.py` 짝 증거 경로 ② `rollback_evidence_refresh.py` 신규 ③ `model_engineer_cycle.py` 다중 산출 루프 경고(`_multi_out_warning` — CG502 처럼 `for`+`$D` 로 JSON 을 여러 개 쓰는 항목에서 파서가 **마지막 파일만** 읽는다는 사실을 원장·백로그에 남긴다). 테스트 17 passed.
+**코드**: ① `champion_rollback_monitor.py` 짝 증거 경로 + `paired_test` 주석 ② `rollback_evidence_refresh.py` 신규 ③ `rollback_paired_test.py` 신규(짝 Δ 의 iid·블록t·CI95 — 사전등록 3조건으로 '실행 가능성'을 가른다) ④ `_expectancy_is_oos_split.py --dump-sessions`(기본 미기록 = 비트 동일) ⑤ `model_engineer_cycle.py` 다중 산출 루프 경고(`_multi_out_warning` — CG502 처럼 `for`+`$D` 로 JSON 을 여러 개 쓰는 항목에서 파서가 **마지막 파일만** 읽는다는 사실을 원장·백로그에 남긴다). 테스트 **19 passed** · lint 내 파일 0건.
 
 **백로그**: CG502·CG510·CG404 결과 보강(구동기 파서가 마지막 구간만 읽은 부분을 원자료에서 재집계) · **XR51 → closed_rejected**(R51 중복 · R51 은 승인 대기) · 신규 없음.
 

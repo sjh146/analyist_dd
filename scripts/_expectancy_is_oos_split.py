@@ -11,6 +11,9 @@
   여기서는 같은 표본을 모델별 train_end 로 잘라 in-sample / OOS 순기대를 따로 낸다.
   판정선 없음(측정 전용). 게이트·기준선·문턱을 바꾸지 않고, 읽기 전용(SELECT)이다.
 
+주의: `mma.read_train_window` 는 `(start, end)` 튜플을 돌려준다(2026-11-12 첫 실행에서 튜플에 .get() 을
+불러 AttributeError 로 죽었다 — 피처 빌드 9분 소모 후). 세션별 순기대는 `--dump-sessions` 로만 기록한다.
+
 재현:
   docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 python -u scripts/_expectancy_is_oos_split.py'
 """
@@ -84,6 +87,8 @@ def main(argv=None) -> int:
                                        '["champion_cand","app/models/champion_cand"]]')
     ap.add_argument("--topk", type=int, default=3)
     ap.add_argument("--max-day-chg", type=float, default=25.0)
+    ap.add_argument("--dump-sessions", action="store_true",
+                    help="모델별 세션 순기대를 날짜 키로 함께 기록 — 짝(paired) 검정용. 기본은 미기록(비트 동일)")
     ap.add_argument("--json-out", default="/app/reports/overnight/expectancy_is_oos_split.json")
     args = ap.parse_args(argv)
 
@@ -117,8 +122,6 @@ def main(argv=None) -> int:
 
     for label, d, _ens, names in models:
         tw = mma.read_train_window(d) or {}
-        # read_train_window 는 cre._meta_range 를 그대로 돌려준다 → (start, end) 튜플.
-        #   실측(2026-11-12 첫 실행): 튜플에 .get() 을 불러 AttributeError 로 죽었다(피처 빌드 9분 소모 후).
         if isinstance(tw, (tuple, list)):
             tw = {"data_start": tw[0] if len(tw) > 0 else None,
                   "data_end": tw[1] if len(tw) > 1 else None}
@@ -143,6 +146,9 @@ def main(argv=None) -> int:
             "oos": _stats([per_session[i] for i in out_idx], [dates_s[i] for i in out_idx]),
             "n_rows_scored": int(len(tt)),
         }
+        if getattr(args, "dump_sessions", False):
+            rec["sessions"] = {dates_s[i]: round(float(per_session[i]), 4)
+                               for i in range(len(dates_s))}
         out["models"][label] = rec
         print(f"[r] {label}: 학습경계={train_end}({boundary_src}) 전체 {rec['all'].get('avg_pct')}%p "
               f"(세션 {rec['all'].get('n_sessions')}) | in-sample {rec['in_sample'].get('avg_pct')}%p "

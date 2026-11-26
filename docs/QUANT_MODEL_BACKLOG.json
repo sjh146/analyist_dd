@@ -27874,6 +27874,18 @@
    "reported": false,
    "attempts": [],
    "expected": "n_dates 15~18 에서 |t| < 2 면 '8날짜 잡음'으로 축 종결, t ≥ 2 음(−)이면 실매매 h5 경로 경고."
+  },
+  {
+   "id": "CG513",
+   "status": "needs_setup",
+   "priority": 2,
+   "affects_model": false,
+   "title": "[측정정합성·승인] 되돌림 판정에 짝 유의성 조건을 넣는다 — 점추정(차 ≤ −0.2%p)만으로는 25세션에서 실행 근거가 아니다",
+   "created_at": "2026-11-26T23:27:42",
+   "counterfactual": "현행 champion_rollback_monitor 규칙(점추정 차 ≤ degrade_pct −0.2) · 실측: 차 −0.4884%p 로 문턱 초과 판정(rollback)",
+   "success": "사전등록(변경 금지): 짝 Δ 의 블록 부트스트랩(block 5) t ≤ −2 **그리고** CI95 상한 < −0.2 를 함께 요구. 미달이면 verdict='watch' 로 내리고 상태파일에 '점추정만 넘음'을 남긴다. 회귀 테스트로 두 경계를 잠근다.",
+   "command": "",
+   "note": "2026-11-26 실측(25 OOS 세션 2026-10-02~11-09): 짝 Δ 평균 −0.4884%p · sd 2.4629 · iid t −0.992 · 블록t −0.996 · CI95 [−1.4389, +0.4584] · p_one_sided 0.1703 · 반쪽 −0.4618/−0.5129 → '점추정만 문턱 초과 — 실행 근거 아님'. 현재는 감시기가 rollback_paired_test.json 을 주석(paired_test)으로만 읽는다. 문턱 변경이라 리뷰보드 승인 대상. 구현 위치: scripts/champion_rollback_monitor.py verdict() · tools: scripts/rollback_paired_test.py · tests/test_rollback_monitor.py."
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"

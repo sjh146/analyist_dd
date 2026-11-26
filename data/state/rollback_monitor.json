@@ -15,8 +15,19 @@
     "fee_round_trip_pct": 0.21,
     "fillable_filter": "day_change_pct < 25.0"
   },
-  "evidence_created_at": "2026-11-26T13:58:58",
+  "evidence_created_at": "2026-11-26T14:26:08",
   "sessions_since": 37,
+  "paired_test": {
+    "n_sessions": 25,
+    "mean": -0.4884,
+    "t_block": -0.996,
+    "ci95": [
+      -1.4389,
+      0.4584
+    ],
+    "executable": false,
+    "verdict": "점추정만 문턱 초과 — 실행 근거 아님"
+  },
   "champion_pct": -0.6962,
   "prev_pct": -0.2078,
   "champion_auc": null,
@@ -24,6 +35,6 @@
   "degrade": -0.4884,
   "verdict": "rollback",
   "detail": "승격 챔피언 순기대 -0.696%p < 백업 -0.208%p (차 -0.488 ≤ -0.2) → 원복",
-  "updated": "2026-11-26T23:02:24",
+  "updated": "2026-11-26T23:26:50",
   "auto_rollback_gate": true
 }

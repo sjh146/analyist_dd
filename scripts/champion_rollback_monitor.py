@@ -33,6 +33,7 @@ MODELS = os.path.join(REPO, "services", "xgboost-ml", "app", "models")
 SWAPS = os.path.join(REPO, "data", "reports", "champion_swaps.jsonl")
 STATE = os.path.join(REPO, "data", "state", "rollback_monitor.json")
 REFRESH = os.path.join(REPO, "data", "reports", "rollback_evidence.json")
+PAIRED = os.path.join(REPO, "data", "reports", "rollback_paired_test.json")
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 from objective import load as load_objective  # noqa: E402
 
@@ -142,6 +143,22 @@ def _evidence_pair(prev_dir: str, max_age_days: int):
     return _evidence("champion"), _evidence(prev_dir), "model_files", None
 
 
+def _paired_note(prev_dir: str):
+    """짝 검정 결과를 **주석으로만** 붙인다(판정·문턱 불변).
+
+    WHY(2026-11-26 실측): 점추정 규칙으로 rollback 이 나왔는데 짝 검정은 t −1.00 · CI95
+    [−1.44, +0.46] 로 실행 근거가 아니었다. 판정을 바꾸는 것은 문턱 변경(승인 대상)이지만,
+    '점추정만 넘었다'는 사실을 상태 파일에 남기지 않으면 다음 세션이 rollback 을 확정으로 읽는다.
+    """
+    d = _read_json(PAIRED)
+    if not isinstance(d, dict) or d.get("prev_dir") != prev_dir:
+        return None
+    return {"n_sessions": d.get("n_sessions"), "mean": d.get("mean"),
+            "t_block": (d.get("boot") or {}).get("t"),
+            "ci95": (d.get("boot") or {}).get("ci95"),
+            "executable": d.get("executable"), "verdict": d.get("verdict")}
+
+
 def verdict(obj: dict, swap=None, repo: str = REPO) -> dict:
     rb = obj["goal"].get("rollback", {})
     monitor_sessions = int(rb.get("monitor_sessions", 5))
@@ -175,6 +192,9 @@ def verdict(obj: dict, swap=None, repo: str = REPO) -> dict:
         return out
     champ_exp = float(champ_ev["expectancy_pct"])
     prev_exp = float(prev_ev["expectancy_pct"])
+    _pn = _paired_note(prev_dir)
+    if _pn:
+        out["paired_test"] = _pn
     out.update({"champion_pct": champ_exp, "prev_pct": prev_exp,
                 "champion_auc": champ_ev.get("robust_auc"), "prev_auc": prev_ev.get("robust_auc"),
                 "degrade": round(champ_exp - prev_exp, 4)})
