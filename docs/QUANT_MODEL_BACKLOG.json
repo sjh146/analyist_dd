@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T04:20:00+09:00",
+ "updated_at": "2026-11-27T05:14:57+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28069,7 +28069,7 @@
   {
    "id": "CG520",
    "title": "[돈 지표·배포 패널] CG518 이 AUC 로만 남긴 배포가능 arm(CO_smooth_d1_h5)을 배포 패널에서 돈으로 재라 — 체결성 필터·수수료 0.21%p 반영 순기대가 같은 런 대조군·세션 풀평균을 넘는가",
-   "status": "pending",
+   "status": "done",
    "kind": "experiment",
    "owner": "engineer",
    "priority": 1,
@@ -28080,7 +28080,78 @@
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 1 --only LS_quant_q30_h5,CO_smooth_d1_h5 --dump-preds /app/reports/overnight/cg520_preds.jsonl --dump-all-codes --out /app/reports/overnight/cg520_wf.jsonl --summary-out /app/reports/overnight/cg520_summary.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg520_preds.jsonl --arm-tag CO_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg520_preds.jsonl --control-tag LS_quant_q30_h5 --k 3,5,10 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg520_money.json'",
    "success": "사전 등록(변경 금지): ① 배포가능 arm(CO_smooth_d1_h5) Δ(arm−풀평균) ≥ +0.5%p/세션 ② 블록 t ≥ 2(블록=horizon) ③ 분할표본(앞/뒤) both_positive ④ Δ(arm−같은 런 대조군 LS_quant_q30_h5) > 0 — ①~④ 전부면 '배포가능 arm 돈 엣지 후보'(승격은 별도 절차) 로 기록. ① 또는 ② 실패면 AUC 짝Δ +0.0030 은 돈으로 환산되지 않음 → 조정 축(라벨 스무딩·depth1)을 돈 기준으로 종결.",
    "hypothesis": "CG518 은 배포 패널(prod200_v6o)에서 세 arm 의 AUC 만 쟀고(AUC 단독은 개선 판정 근거가 아니다), CG498 의 돈 측정은 다른 패널(cg387)에서 나온 값이라 패널 드리프트(중앙 0.0241) 때문에 그대로 옮길 수 없다. 배포 계약을 건드리지 않는 유일한 후보(CO_smooth_d1_h5)를 배포 패널 그대로 돈으로 재야 '배포 후보 유지/종결'을 결정할 수 있다.",
-   "note": "2026-11-27 04:1x 엔지니어 자율 — 규칙 4(즉시 실행가능 pending 0건: CG388 19:30·CG466 19:30·FAC-03 11-28·CG512 12-08·CG464 12-14 전부 not_before 대기). 플래그 실재 확인: wf_label_sweep --dump-preds/--dump-all-codes/--summary-out, fillable_topk_expectancy --arm-tag/--control-tag/--entry/--exit/--json-out (--help 대조). dump 는 exp=cfg id 이므로 arm-tag 에 설정명을 그대로 쓴다."
+   "note": "2026-11-27 04:1x 엔지니어 자율 — 규칙 4(즉시 실행가능 pending 0건: CG388 19:30·CG466 19:30·FAC-03 11-28·CG512 12-08·CG464 12-14 전부 not_before 대기). 플래그 실재 확인: wf_label_sweep --dump-preds/--dump-all-codes/--summary-out, fillable_topk_expectancy --arm-tag/--control-tag/--entry/--exit/--json-out (--help 대조). dump 는 exp=cfg id 이므로 arm-tag 에 설정명을 그대로 쓴다. | 2026-11-27 05:11 후속 CG521(같은 예측 덤프·stride 1·255세션): 짝Δ k=5 +1.195→−0.046(t −0.16)·k=3 +1.234→−0.109(t −0.30), 대조군 k=5 −0.245→+0.459%p → stride 5 표본 아티팩트로 확정. '노이즈' 판정 유지, 조정 축(스무딩·depth1) 돈 기준 종결.",
+   "attempts": [
+    {
+     "ts": "2026-11-27T05:08:51+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm CO_smooth_d1_h5 vs 대조군 LS_quant_q30_h5 · exit close_h h5 · stride 5 · 수수료 왕복 0.21%p · 세션 255 · 풀 중앙값 75 · k=3 arm +0.701%p/세션 · 대조 -0.532 · Δ+1.234(t 1.53) · 양세션 49.1% · 분할 both_positive [+1.212/+0.209] ✗ · k=5 arm +0.950%p/세션 · 대조 -0.245 · Δ+1.195(t 2.42) · 양세션 54.5% · 분할 both_positive [+0.887/+1.011] · 참고(체결성 필터 OFF): k=3 arm +0.535%p · Δ+1.085 · 널(풀) 대비 k=3 Δ+1.095%p(t 1.37) pos/neg 33/22 · 널 대비 절반 [+1.08/+1.11] · 부호검정 p=0.281(32/23) · 상위3세션 제거 Δ+0.323(t 0.49) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG520_20261127-050742.log",
+     "elapsed_min": 1.2
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm CO_smooth_d1_h5 vs 대조군 LS_quant_q30_h5 · exit close_h h5 · stride 5 · 수수료 왕복 0.21%p · 세션 255 · 풀 중앙값 75 · k=3 arm +0.701%p/세션 · 대조 -0.532 · Δ+1.234(t 1.53) · 양세션 49.1% · 분할 both_positive [+1.212/+0.209] ✗ · k=5 arm +0.950%p/세션 · 대조 -0.245 · Δ+1.195(t 2.42) · 양세션 54.5% · 분할 both_positive [+0.887/+1.011] · 참고(체결성 필터 OFF): k=3 arm +0.535%p · Δ+1.085 · 널(풀) 대비 k=3 Δ+1.095%p(t 1.37) pos/neg 33/22 · 널 대비 절반 [+1.08/+1.11] · 부호검정 p=0.281(32/23) · 상위3세션 제거 Δ+0.323(t 0.49) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+    "delta": 1.2338,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG521",
+   "title": "[돈 지표·후속] CG520 의 k=5 통과·k=3 미달을 표본으로 분리 — 같은 예측 덤프를 stride=1(세션 255 전수)로 다시 재서 k=3·k=5 가 함께 통과하는지 본다(모델 재학습 없음)",
+   "status": "done",
+   "priority": 2,
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "est_minutes": 12,
+   "hypothesis": "CG520(stride 5, 55세션)에서 CO_smooth_d1_h5 는 k=5 에서 arm 순기대 +0.950%p/세션·짝Δ +1.195(t 2.42, 블록부트 t 2.81 p 0.0015)·분할 both_positive 로 4조건을 모두 넘겼는데 k=3 은 짝 t 1.53(블록부트 1.88)로 미달해 판정이 '노이즈'로 닫혔다. k=3 은 상위3세션 제거 시 Δ+0.323(t 0.49)로 급락 → 55세션 표본이 5일 라벨 중첩 때문에 실효 표본이 작을 수 있다. 같은 예측 덤프로 stride 만 1 로 바꾸면 모델·시드 잡음 없이 '표본 크기'만 바뀐 대조가 된다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 1800 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg520_preds.jsonl --arm-tag CO_smooth_d1_h5 --control-jsonl /app/reports/overnight/cg520_preds.jsonl --control-tag LS_quant_q30_h5 --k 3,5,10 --sides top --primary-side top --exit close_h --horizon 5 --stride 1 --entry next_open --json-out /app/reports/overnight/cg521_money.json'",
+   "counterfactual": "CG520 같은 런 stride 5(세션 55): k=3 arm +0.701%p · 짝Δ +1.234(t 1.53·부트 1.88·상위3세션 제거 +0.323) / k=5 arm +0.950%p · 짝Δ +1.195(t 2.42·부트 2.81) / 대조 LS_quant_q30_h5 k=5 −0.245%p · 풀(무작위 k) −0.393%p",
+   "success": "사전 등록(변경 금지): k=3 과 k=5 **둘 다** ① arm 순기대 > 0 ② 짝Δ(arm−LS_quant_q30_h5) ≥ +0.1%p/세션 ③ 블록부트(block=5) t ≥ 2 ④ 분할표본 앞/뒤 both_positive ⑤ 상위3세션 제거 후 짝Δ > 0 — ①~⑤ 전부면 '배포가능 arm 돈 엣지 후보'(승격 아님, 챔피언 교체는 별도 절차)로 기록하고 다음 단계로 전방(paper) 검증을 설계. k=3 이 ③⑤ 에서 또 미달하면 라벨 스무딩·depth1 조정 축을 **돈 기준으로 종결**하고 데이터 축(CG450/CG517)으로 이동.",
+   "note": "2026-11-27 05:1x 엔지니어 자율 — CG520 후속(구동기 판정 '노이즈'는 CG95 게이트가 k=3·k=5 둘 다 요구하는데 k=3 짝 t 1.53 이라 미달한 결과다. 항목 자체 사전등록 ①~④는 k=5 에서 충족했다는 사실을 원장과 함께 남긴다). 예측 덤프를 재사용하므로 학습 없음(CPU 경쟁 없음) · stride 만 변경 = 표본크기 단일 변인.",
+   "expected": "세션 55→255 로 4.6배. k=3·k=5 의 짝 t 가 함께 오르면 표본 부족이 원인이었고, k=5 만 유지되면 k 의존(소수 종목 베팅) 신호라 배포 불가로 본다.",
+   "created_at": "2026-11-27T05:13:00+09:00",
+   "reported": false,
+   "attempts": [
+    {
+     "ts": "2026-11-27T05:11:38+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm CO_smooth_d1_h5 vs 대조군 LS_quant_q30_h5 · exit close_h h5 · stride 1 · 수수료 왕복 0.21%p · 세션 255 · 풀 중앙값 75 · k=3 arm +0.318%p/세션 · 대조 +0.427 · Δ-0.109(t -0.3) · 양세션 47.1% · 분할 unstable [+1.231/-0.588] ✗ · k=5 arm +0.413%p/세션 · 대조 +0.459 · Δ-0.046(t -0.16) · 양세션 52.5% · 분할 unstable [+1.200/-0.367] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.335%p · Δ-0.331 · 널(풀) 대비 k=3 Δ+0.924%p(t 2.73) pos/neg 140/115 · 널 대비 절반 [+0.47/+1.38] · ⚠중첩표본(stride 1 < h5) — t·Δ 는 겹친 창의 재사용으로 부풀려짐 · 부호검정 p=0.900(128/125) · 상위3세션 제거 Δ-0.313(t -0.91) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG521_20261127-051132.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm CO_smooth_d1_h5 vs 대조군 LS_quant_q30_h5 · exit close_h h5 · stride 1 · 수수료 왕복 0.21%p · 세션 255 · 풀 중앙값 75 · k=3 arm +0.318%p/세션 · 대조 +0.427 · Δ-0.109(t -0.3) · 양세션 47.1% · 분할 unstable [+1.231/-0.588] ✗ · k=5 arm +0.413%p/세션 · 대조 +0.459 · Δ-0.046(t -0.16) · 양세션 52.5% · 분할 unstable [+1.200/-0.367] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.335%p · Δ-0.331 · 널(풀) 대비 k=3 Δ+0.924%p(t 2.73) pos/neg 140/115 · 널 대비 절반 [+0.47/+1.38] · ⚠중첩표본(stride 1 < h5) — t·Δ 는 겹친 창의 재사용으로 부풀려짐 · 부호검정 p=0.900(128/125) · 상위3세션 제거 Δ-0.313(t -0.91) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+    "delta": -0.1086,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG522",
+   "title": "[측정정합성] 패널 절대 기대(+0.41~+0.95%p/세션)가 실 전방(−0.34%p)과 반대인 이유 — panel_prod200_v6o 의 200종목 유니버스가 '전 구간 데이터'로 골라졌는지(생존·미래정보 편향) 코드로 확정",
+   "status": "backlog",
+   "priority": 2,
+   "kind": "측정정합성",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "panel_universe_audit",
+   "est_minutes": 30,
+   "hypothesis": "CG521 실측(전 세션 255, stride 1): 패널 안에서 두 모델의 k=5 순기대는 +0.413%p(arm)·+0.459%p(대조군)이고 세션 풀평균은 −0.393%p, 즉 '모델 선택'의 몫은 Δ≈0 인데 '패널 종목 풀'의 몫은 +0.85%p 로 크다. 반면 실 전방 챔피언은 −0.343%p(t −1.72, 113세션)다. 패널 유니버스(유동성 200종목)가 빌드 시점의 전 구간(또는 미래) 정보로 선택됐다면, 패널 절대 기대는 미래정보 편향만큼 낙관적이고 '패널에서 +0.9%p'는 배포 근거가 될 수 없다. 이 격차의 출처를 코드로 확정해야 CG520/521 류 절대값을 해석할 수 있다.",
+   "command": "cd /home/jhshi/analyist_dd && grep -rn 'panel_prod200_v6\\b\\|prod200_v6' scripts/ services/xgboost-ml/scripts/ --include='*.py' --include='*.sh' | grep -i 'universe\\|codes\\|liquid\\|market_cap\\|build_panel' | head -40",
+   "counterfactual": "패널 절대 기대: k=5 arm +0.413%p · 대조군 +0.459%p · 같은 세션 풀평균 −0.393%p (CG521 stride 1, 255세션) ↔ 실 전방 챔피언 −0.343%p(t −1.72, 113세션/1771거래, age 3.7d)",
+   "success": "사전 등록(변경 금지): ① 유니버스 선택 코드의 조회 SQL·기준(유동성·시총·거래대금)과 '선택 시점'(패널 시작 전 고정 vs 전 구간 집계)을 파일:라인으로 인용 ② 전 구간 집계·상장폐지 제외 중 하나라도 확인되면 '패널 절대 기대는 생존편향 포함'으로 기록하고, 이후 모든 패널 돈 지표는 Δ(vs 같은 세션 풀·vs 대조군)만 인용(절대 %p 금지) ③ 선택이 시점정합(as-of)임이 확인되면 반대 결론(절대값 인용 가능)으로 기록. 어느 쪽이든 다음 사이클 판정 근거를 바꾼다.",
+   "note": "2026-11-27 05:2x 엔지니어 자율 — CG521 후속. 코드·로그 조사만(학습 없음). backlog 로 두는 이유: 즉시 실행가능 pending 이 생기면 뒤로 밀려도 손해가 없다.",
+   "created_at": "2026-11-27T05:22:00+09:00",
+   "reported": false
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
