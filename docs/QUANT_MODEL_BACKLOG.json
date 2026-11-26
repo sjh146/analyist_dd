@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-26T19:08:44+09:00",
+ "updated_at": "2026-11-26T21:19:12+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -25998,23 +25998,31 @@
     {
      "at": "2026-11-25T18:07:08+09:00",
      "recovered": true
+    },
+    {
+     "ts": "2026-11-26T21:18:25+09:00",
+     "rc": 0,
+     "verdict": "진행 — 완전일 +1 적재",
+     "detail": "minute_close_bars 2026-11-10~2026-11-25 · 완전일 12/20 · 커버 0.99(문턱 0.75) · 봉/일 330.0 · 종목 851 · 20일 도달 추정 2026-12-08 · KIS minute_bars 커버 0.135(21일). 남은 완전일 8개.",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG466_20261126-210743.log",
+     "elapsed_min": 10.7
     }
    ],
    "result": {
     "verdict": "진행 — 완전일 +1 적재",
-    "detail": "minute_close_bars 2026-11-10~2026-11-24 · 완전일 11/20 · 커버 0.99(문턱 0.75) · 봉/일 330.0 · 종목 821 · 20일 도달 추정 2026-12-10 · KIS minute_bars 커버 0.135(20일). 남은 완전일 9개.",
+    "detail": "minute_close_bars 2026-11-10~2026-11-25 · 완전일 12/20 · 커버 0.99(문턱 0.75) · 봉/일 330.0 · 종목 851 · 20일 도달 추정 2026-12-08 · KIS minute_bars 커버 0.135(21일). 남은 완전일 8개.",
     "delta": null,
     "per_exp": null,
     "rc": 0
    },
    "repeat": "daily",
    "repeat_at": "19:30",
-   "not_before": "2026-11-26T19:30:00+09:00",
+   "not_before": "2026-11-27T19:30:00+09:00",
    "outcome": "minute_close_bars 2026-11-10~2026-11-24 · 완전일 11/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 837 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 0.135(20일). 남은 완전일 9개.",
    "finished_at": "2026-11-25T18:07:08+09:00",
    "rearmed": {
-    "ts": "2026-11-25T18:07:08+09:00",
-    "next": "2026-11-26T19:30:00+09:00",
+    "ts": "2026-11-26T21:18:25+09:00",
+    "next": "2026-11-27T19:30:00+09:00",
     "note": "repeat=daily — 다음 날 같은 시각 재실행(완전일 누적용)"
    }
   },
@@ -27604,7 +27612,7 @@
    "id": "CG509",
    "priority": 2,
    "title": "[AUC·국면] 배포 챔피언의 **학습 이후 구간**(2026-10-02~11-16) OOS 를 처음으로 잰다 — 지금까지 모든 폴드는 학습 이전이었다 (CG350 구현 후속)",
-   "status": "pending",
+   "status": "done",
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 1800 python3 -u scripts/champion_robust_eval.py --folds 6 --dates-per-fold 8 --stocks 80 --horizon 5 --asof-date 2026-11-25 --allow-partial-post-train --out /app/reports/overnight/cg509_posttrain.json'",
    "counterfactual": "같은 명령에서 --allow-partial-post-train 만 제거(현행 프로토콜: 학습 종료일 가로지르는 창을 버림 → 채점 창 3개가 전부 학습 이전 2026-01~06)",
    "success": "측정 성립: 채점 폴드 ≥2 · 채점 행 ≥300 · 절단 창(2026-10-02~11-16)이 폴드 목록에 포함. AUC 값 자체는 문턱이 아니다(단일 측정으로 승격 금지).",
@@ -27617,7 +27625,71 @@
     "auc",
     "regime",
     "measurement"
-   ]
+   ],
+   "attempts": [
+    {
+     "ts": "2026-11-26T19:29:26+09:00",
+     "rc": 0,
+     "verdict": "기준선 실측",
+     "detail": "워크포워드 견고 AUC 0.4840±0.0214 (시간창 4개 [0.4574, 0.4901, 0.4734, 0.5152]) · 풀링 0.4847 · 날짜별평균 0.484 · 행 2419",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG509_20261126-191844.log",
+     "elapsed_min": 10.7
+    }
+   ],
+   "result": {
+    "verdict": "기준선 실측",
+    "detail": "워크포워드 견고 AUC 0.4840±0.0214 (시간창 4개 [0.4574, 0.4901, 0.4734, 0.5152]) · 풀링 0.4847 · 날짜별평균 0.484 · 행 2419",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG510",
+   "priority": 2,
+   "title": "[측정정합성·후속] CG509 의 4폴드 평균 0.4840 은 3/4 이 **학습 이전** 창이다 — post_train 모드로 학습 이후 전 구간(37거래일)만 재측정하고 해상 한계(MDE)를 함께 기록",
+   "status": "pending",
+   "kind": "experiment",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "champion_robust_eval",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 2700 python3 -u scripts/champion_robust_eval.py --window-mode post_train --folds 3 --dates-per-fold 7 --stocks 200 --horizon 5 --asof-date 2026-11-25 --out /app/reports/overnight/cg510_posttrain_only.json'",
+   "counterfactual": "CG509(chunks 모드·--allow-partial-post-train): 채점 창 4개 중 3개가 2026-01-23~06-15(학습 시작 2026-07-03 이전 역외삽)이고 학습 이후는 부분 절단창 1개(2026-10-02~11-09, 8날짜)뿐 — 4폴드 평균 0.4840 을 '학습 이후 성능'으로 읽으면 오독이다",
+   "success": "① window_mode=post_train · 채점 창 3개 전부 학습 종료(2026-10-01) 이후 ② 채점 날짜 ≥16 · 행 ≥2,000 ③ 요약의 windows 목록에 2026-10-01 이전 창 0개 ④ MDE(날짜별 AUC std / sqrt(독립 세션수))를 요약에 명기 — 문턱 +0.02 를 해상할 수 있는지 문장으로 판정",
+   "hypothesis": "학습 이후 구간은 37거래일(2026-10-02~11-25)뿐이라 비중첩 h5 세션은 7~8개가 상한이다. 그 사실을 수치로 못 박지 않으면 이후 사이클이 'post-train AUC +0.02' 를 목표로 표본 없는 실험을 반복한다. 측정 자체가 목적이고 AUC 값은 승격 근거가 아니다.",
+   "evidence": "CG509 실측(2026-11-26 19:29): 4폴드 0.4840±0.0214 · 창 [0.4574, 0.4901, 0.4734, 0.5152] · 날짜별 std 0.0352/0.1044/0.1055/0.1105 · 학습 종료 = 2026-10-01(champion training-result data_end). 즉 0.4840 의 3/4 은 학습 이전 역외삽, 학습 이후 단독값은 0.5152(8날짜, SE≈0.039).",
+   "expected": "학습 이후 단독 AUC 는 0.50~0.52 대에 머물고 SE 0.02~0.04 → 사전문턱 +0.02 해상 불가. 그러면 'post-train AUC' 축을 닫고 판단을 돈 지표(CG502·CG443)로 넘긴다.",
+   "cost": "21날짜×200종목 ≈ 17분(실측 0.25s/종목-날짜, CG509 2,560 종목-날짜/10.7분 기준)",
+   "est_minutes": 25,
+   "not_before": "2026-11-26T22:00:00+09:00",
+   "created_at": "2026-11-26T20:15:00+09:00",
+   "note": "2026-11-26 20:1x 엔지니어 자율(CG509 판정 후속·규칙 1). CG509 는 '측정 성립'을 성공 기준으로 잡았기 때문에 verdict 는 기준선 실측으로 옳지만, 제목이 주장한 '학습 이후 구간' 표본은 실제로 8날짜 하나였다. not_before 22:00 은 CG502(21:05 착수·est 15분)와 겹치지 않게 잡은 직렬화 값이다. 생성 후 반드시 요약 JSON 의 windows[].window 를 눈으로 확인하라 — chunks 모드로 떨어지면 같은 오독이 재발한다.",
+   "reported": false
+  },
+  {
+   "id": "XR55",
+   "title": "[리서처 R55] 2026-11-23 분봉이 0행(수집 전량 실패) — 그 세션의 분봉 기반 피처/측정은 NaN·부분값이다",
+   "status": "pending",
+   "priority": 6,
+   "from_research": "R55",
+   "arm": null,
+   "counterfactual": "현행: 11-23 세션을 다른 세션과 같은 표본으로 학습·평가에 포함(분봉 피처는 NaN 또는 직전값)",
+   "baseline": null,
+   "command": "",
+   "metric": "intraday/minute 기반 피처의 세션 커버리지",
+   "hypothesis": "`minute_bars` 11-23 = 0행(수집기 전량 실패, 원천이 당일분만 제공해 복구 불가). `patch_panel_intraday`·`intraday_feature_screen`·`KisMinuteProvider` 가 이 표를 읽으므로, 11-23 세션의 분봉 기반 피처는 NaN/부분값이고 walk-forward 폴드에 그 세션이 들어가면 표본이 조용히 오염된다.",
+   "evidence": "리서처 R55: minute_bars 일자별 11-23 0행 · 11-24/11-25 117,300행(300종목×391봉) · 11-09~11-20 9,000행(XR26 30봉 절단). 크론 로그 2026-11-23 23:15 EGW00103 ×27 → ok=0 fail=300. 수리(수집기 exit code·즉시 중단·결손 감시)는 완료(ef4493f) — 남은 질문은 **모델 쪽 처리**다.",
+   "success": "11-23 이 포함된 폴드에서 분봉 피처 결측률과 그 세션 제외/포함의 성능 차이를 수치로 제시(어느 쪽이든 근거만 있으면 된다)",
+   "expected": "미지",
+   "cost": null,
+   "note": "리서처가 넘긴 항목 — command·arm·counterfactual 을 엔지니어가 채워야 실행된다. 데이터 축은 이미 결손 확정(복구 불가)이므로 '다시 수집' 실험은 만들지 마라.",
+   "promoted_from": "handoff",
+   "promoted_at": "2026-11-26T21:19:12+09:00",
+   "est_minutes": null,
+   "not_before": null,
+   "setup_done": null,
+   "attempts": [],
+   "result": null
   }
  ],
  "updated": "2026-11-26T17:30:00+09:00"

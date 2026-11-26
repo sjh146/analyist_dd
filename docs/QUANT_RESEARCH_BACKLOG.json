@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-26T21:15:57+09:00",
+ "updated_at": "2026-11-26T21:18:31+09:00",
  "owner": "quant-researcher",
  "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
  "rules": [
@@ -2525,15 +2525,20 @@
   {
    "id": "R54",
    "title": "krx_short_selling 종목별 잔고가 2026-11-18 부터 2,601 → ~200행/일로 절단 — pykrx 응답 축소 원인 규명",
-   "status": "backlog",
+   "status": "done",
    "priority": 2,
    "kind": "investigate",
    "affects_model": true,
    "hypothesis": "종목별 공매도 잔고 경로(pykrx get_shorting_balance_by_ticker)가 11-18 부 이전까지는 거래일마다 2,599~2,601행(전 종목)을 냈는데 11-18 부터 196~202행으로 떨어졌다. 값 자체가 0/결측으로 바뀐 게 아니라 **행이 사라진** 계단형 변화이므로, 원천 응답이 축소됐거나(페이지/파라미터 개편) 파서가 일부만 통과시키는 것으로 본다. R53(krx_trading 이 09-23 이후 동결)과 같은 pykrx/KRX 개편 계열일 가능성.",
-   "evidence": "실측 2026-11-26 15:40(DB 직접 조회, krx_short_selling 일별 행수): 11-10 2599 · 11-11 2599 · 11-12 2600 · 11-13 2600 · 11-16 2601 · 11-17 2601 → 11-18 **202** · 11-19 201 · 11-20 202 · 11-23 200 · 11-24 **196** (5거래일 연속, 기준선 2,601 대비 ×0.077) · distinct 종목수 11-17 2,601 → 11-24 196 · 최신일 11-24(당일 11-26 기준 2거래일 지연). 모델엔지니어 틱도 'krx_short_selling 최근7일 143.0행/일 = 기준선 2,601의 ×0.055'로 같은 붕괴를 관측.",
+   "evidence": "실측 2026-11-26 15:40(DB 직접 조회, krx_short_selling 일별 행수): 11-10 2599 · 11-11 2599 · 11-12 2600 · 11-13 2600 · 11-16 2601 · 11-17 2601 → 11-18 **202** · 11-19 201 · 11-20 202 · 11-23 200 · 11-24 **196** (5거래일 연속, 기준선 2,601 대비 ×0.077) · distinct 종목수 11-17 2,601 → 11-24 196 · 최신일 11-24(당일 11-26 기준 2거래일 지연). 모델엔지니어 틱도 'krx_short_selling 최근7일 143.0행/일 = 기준선 2,601의 ×0.055'로 같은 붕괴를 관측. || 정정 실측 2026-11-26 21:2x — ① `/home/jhshi/cron/kis_short_program.sh` 는 `scripts/kis_short_selling_backfill.py --limit ${KIS_SHORT_LIMIT:-200}` 으로 **매일 유동성 상위 200종목만** 호출한다(universe() = 최근 95일 평균 거래대금 내림차순 상위 limit). ② 같은 실행의 자기신고 note 는 `targets=200 ok=200 skip=0 fail=0` — 원천 오류·skip 0, 즉 **원천은 정상**이다. ③ 11-18 의 202종목은 11-17(2,601종목)의 부분집합(교집합 201)이고, 행수는 202/201/202/201/201/200 으로 **limit 과 일치**한다. ④ 11-17까지의 2,601행은 전 종목 스윕 실행분이다. → 계단형 절단은 pykrx 응답 축소가 아니라 우리 크론의 일일 상한이며, 원천 대조 프로브(①②③)는 불필요했다.",
    "command": "",
    "setup_needed": [],
-   "note": "프로브(읽기 전용): ① pykrx get_shorting_balance_by_ticker('20261117','KOSPI') vs ('20261118','KOSPI') 를 직접 호출해 원천 행수·컬럼을 비교(컬렉터 파서 우회) ② 200 근처면 페이지/limit 파라미터 개편 의심 → 상위 2,600행이 나오는 인자 탐색 ③ 원천이 정상인데 파서가 자르면 short_selling_collector.py 의 컬럼 alias 검사(_BALANCE_COLUMN_ALIASES)가 11-18 부 개편 컬럼명에서 조용히 skip 하는지 로그로 확인. 판정은 '원천 행수' vs '적재 행수' 두 값을 같은 실행에서 찍어 비교."
+   "note": "정정(2026-11-26): 원인은 원천이 아니라 수집 정책이다. 크론이 `--limit 200`(유동성 상위)으로 돌아 매일 200종목만 갱신하고, 나머지 2,429종목은 11-17 이후 값이 없다 → 종목 커버리지 ×0.077. 커버리지 확대는 크론 파일 수정이라 승인이 필요해 **R56(needs_approval)** 으로 분리했다. 이 항목의 교훈: 행수 급감을 원천 탓으로 돌리기 전에 **같은 실행의 targets/ok/fail 자기신고**를 먼저 읽어라.",
+   "result": {
+    "verdict": "원인 확정 — 원천 결함 아님(수집 정책)",
+    "check_value": 200.0,
+    "note": "일일 크론이 유동성 상위 200종목만 호출한다(코드가 아니라 크론 파라미터). 11-18 이전의 2,601행은 전 종목 스윕(--limit 0) 실행분이다."
+   }
   },
   {
    "id": "R55",
@@ -2554,6 +2559,29 @@
    "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/minute_bar_gap_check.py",
    "notes": "수리(자율, 2026-11-26): ① services/kis-collector/kis_app/main.py `exit_code()` — bars==0 이고 fail>0 이면 rc=2(전량 실패를 종료코드로 노출, 부분 실패는 0 유지). ② minute_collector 가 CREDENTIAL_ERROR_CODES(EGW00103/00102) 에서 즉시 중단(한도 오류와 같은 계열 — 300종목을 헛돌지 않는다). ③ claim note 에 auth_failed 추가. ④ 신규 scripts/minute_bar_gap_check.py — 결손(0행)·부분(종목당 200봉 미만) 세션을 수치로 센다. 기준선 이전 세션은 '복구 불가'로 표에만 남긴다(고칠 수 없는 문턱 금지 규칙). 11-23 분봉은 원천이 당일분만 주므로 복구 불가 — 이 손실은 확정.",
    "provenance": "researcher 2026-11-26 21:15 nightly"
+  },
+  {
+   "id": "R56",
+   "title": "공매도 수집이 매일 유동성 상위 200종목만 갱신(2,629종목 중 ×0.076) — 일일 상한 상향 승인 필요",
+   "status": "needs_approval",
+   "priority": 3,
+   "kind": "collect",
+   "recurring": false,
+   "affects_model": true,
+   "hypothesis": "R54 정정으로 확정: `krx_short_selling` 의 종목 커버리지는 원천이 아니라 크론 파라미터(--limit 200)가 정한다. 호출 규율(3.0s+지터)상 2,629종목 전량은 1회 약 2.3시간이고, 호출 상한(--max-calls 600)에 걸리면 점진 재개가 필요하다.",
+   "evidence": "실측 2026-11-26 21:2x: krx_short_selling 최신일 11-25 200종목 / market_data 같은 날 3,839종목 = ×0.052(전 종목 스윕일 11-17 은 2,601/3,839 = ×0.68). 같은 실행 자기신고 targets=200 ok=200 fail=0. 크론 `KIS_SHORT_LIMIT` 기본 200, 러너 `--max-calls` 기본 600, 종목당 1콜(구간 1회 응답).",
+   "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT count(DISTINCT s.stock_code) FROM krx_short_selling s WHERE s.trade_date = (SELECT MAX(trade_date) FROM krx_short_selling)\"",
+   "check_target": {
+    "op": ">=",
+    "value": 2000,
+    "unit": "최신 거래일 공매도 보유 종목 수(현재 200)"
+   },
+   "command": "",
+   "setup_needed": [
+    "사람/리뷰보드 승인: /home/jhshi/cron/kis_short_program.sh 의 KIS_SHORT_LIMIT 기본값 상향(200 → 2600) + 필요 시 실행 시각 분산 또는 주 1회 전 종목 스윕으로 분리"
+   ],
+   "notes": "승인 없이 크론 파일을 고칠 수 없다(역할 경계). 승인 시 예상 소요: 2,629콜 × 3.2s ≈ 2.3시간(23:00 시작이면 01:20 종료, 분봉 수집과 시간대가 겹치므로 순차 배치 권장). 대안(권고): 일일은 200 유지 + 주 1회(금 23:00 이후) 전 종목 스윕.",
+   "provenance": "researcher 2026-11-26 21:2x (R54 정정)"
   }
  ]
 }

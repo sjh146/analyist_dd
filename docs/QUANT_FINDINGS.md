@@ -766,3 +766,14 @@
 - 결과: `data/feed/screener_latest.json` generated_at 2026-11-25T01:04:26 · 60건 전부 signal_date=2026-11-23, DB 최신 거래일은 11-24 → 소비 시점 T-2.
 - 판정: 승인 대기 — 발행 전 재생성 경로(권고: 00:30 스윙 스크리너 1회)가 기존 크론/발행 계약에 닿는다.
 - 근거: 20:30 발행이 `swing_universe_2026-11-23.json` 사용 · 08:35 는 단타 스크리너만 재실행 · 08:40 publish_feed 는 재계산 없음. 검증 예정: 08:35 이후 signal_date 분포(16:47 틱).
+
+## [리서처 R55] KIS 분봉이 전량 실패해도 exit 0 · 자기신고도 없었다 — 11-23 분봉 영구 결손  (2026-11-26 21:2x)
+- 결과: `cron_kis_minute.log` 2026-11-23 23:15 — AppKey 거부(EGW00103) ×27 → `{'ok':0,'fail':300,'bars':0}` → 로그는 "KIS 수집 완료"로 정상 종료, `dq_runner_claim` 에 그 실행 행 없음. `minute_bars` 일자별: 11-23 **0행**, 11-24·11-25 **117,300행**(300종목×391봉), 11-09~11-20 은 **9,000행**(300×30봉 = XR26 30봉 절단 잔재).
+- 판정: 결함(수리 완료) — 원천이 당일분만 주므로 11-23 분봉은 복구 불가.
+- 근거: ① 일봉 검사(`data_gap.py`, R35)는 `market_data` 만 봐서 분봉 경로는 시야 밖 — 어떤 DQ 메트릭도 울리지 않았다. ② 소비자 `KisMinuteProvider`(daytrading 30분 가격·intraday features)가 그 세션에 빈 값을 쓴다. ③ 수리: `main.exit_code()`(bars==0 & fail>0 → rc=2) · `minute_collector` 가 CREDENTIAL_ERROR_CODES 에서 즉시 중단 + `auth_failed` 노출 · claim note 에 기록. ④ 신규 `scripts/minute_bar_gap_check.py` 실측: 판정 2세션 정상 · 결함 **0**(기준선 2026-11-24, 그 이전은 복구 불가라 판정 제외 — 고칠 수 없는 문턱 금지).
+- 회귀: `tests/test_kis_minute.py` 21 passed(exit_code 3케이스 + 자격증명 거부 시 1종목 중단), 커밋 ef4493f.
+
+## [리서처 R54 정정] 공매도 행수 2,601 → 200 은 원천 축소가 아니라 우리 크론의 `--limit 200`  (2026-11-26 21:2x)
+- 결과: `krx_short_selling` 최신일 200종목 / `market_data` 3,839종목 = ×0.052. 11-18 의 202종목은 11-17(2,601)의 부분집합(교집합 201).
+- 판정: 원인 확정(R54 done) — 커버리지 확대는 크론 파일 수정이라 승인 항목 **R56** 으로 분리(권고: 일일 200 유지 + 주 1회 전 종목 스윕).
+- 근거: ① `/home/jhshi/cron/kis_short_program.sh` = `--limit ${KIS_SHORT_LIMIT:-200}` · `universe()` = 최근 95일 평균 거래대금 상위 limit. ② 같은 실행 자기신고 `targets=200 ok=200 skip=0 fail=0` — 원천 정상. ③ 2,601행일(11-17 등)은 `--limit 0` 전 종목 스윕 실행분. → 원천 대조 프로브는 불필요했고, 행수 급감은 **자기신고 targets 를 먼저 읽으면** 즉시 판별된다.
