@@ -8132,8 +8132,9 @@ def status():
 
 
 
+            _v = r.get("verdict") or (r.get("parsed") or {}).get("verdict") or "?"
             print(f"  {r.get('ts', '?')} {r.get('id', '?')} rc={r.get('rc', '?')} "
-                  f"{r.get('verdict', '?')} {r.get('elapsed_min', '?')}분 "
+                  f"{_v} {r.get('elapsed_min', '?')}분 "
                   f"reported={r.get('reported')}")
     print(f"가드: 장중={market_hours()} load1={load1():.2f} 컨테이너={container_up()}")
     return 0

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-26T17:10:13+09:00",
+ "updated_at": "2026-11-26T18:14:32+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -27567,6 +27567,32 @@
    "setup_needed": "① (완료·자율) 성적표 소비측 수리 — champion_scorecard.last_promote_dryrun 이 근거 없는 레코드를 '최신 승격 판정'으로 실어 reason=null 을 내보내던 결함. 이제 complete=false + missing=['reason','champion_baseline'] 을 명시한다(scripts/_promote_dryrun_incomplete_test.py 11/11 PASS). ② (승인 필요·크론) 일일 판정 크론(866357026fdc, 22:25 평일)이 원장 parsed 에 reason·champion_baseline 을 필수로 쓰도록 프롬프트 1줄 추가 — 크론 수정은 사용자 승인 대상. 승인 시 내가 추가할 문구: '원장 append 시 parsed 에 reason(게이트 사유 원문)과 champion_baseline(0.5513)·champion_baseline_source 를 반드시 채운다'. ③ (트레이더 소유) trader_cycle.verify_model_handoff 계약2 가 promote_dryrun 의 complete=false/missing 을 gap 으로 계상하도록 변경 — 다른 역할 파일이라 핸드오프.",
    "resolution_note": "2026-11-26 16:2x 엔지니어 자율(틱): 실행은 rc=0 이었지만 verdict '판정불가(parser 없음)' — 구동기가 done 으로 닫은 것은 잘못이라 needs_setup 으로 정정. 실측: CG_DAILY_1125 parsed 에 reason·champion_baseline 키 자체가 없고, 성적표가 그 레코드를 최신으로 골라 null 을 실었다(트레이더 검증은 존재만 봐 통과). 소비측 수리 완료, 생산측·검증측은 승인/핸드오프 대기.",
    "updated": "2026-11-26T17:30:00+09:00"
+  },
+  {
+   "id": "CG508",
+   "title": "[데이터 축·진단] 수집 붕괴 2건이 모델 입력에 도달하는가 — 배포 챔피언 입력 0/173, 후보 패널은 둘 다 포함",
+   "status": "done",
+   "kind": "data_health",
+   "owner": "engineer",
+   "affects_model": false,
+   "priority": 2,
+   "metric": "source_collapse_reach",
+   "hypothesis": "KRX-01(krx_trading 40거래일 정지)·KRX-02(공매도 200행/일 붕괴)가 '피처가 죽었다'는 경보로 끝나면, 그것이 실제 라이브 점수를 오염시키는지/후보 학습만 오염시키는지 구분되지 않는다. 도달 경로를 피처 단위로 확인해야 데이터 축 우선순위가 정해진다.",
+   "evidence": "실측 2026-11-26 18:2x (읽기 전용): ① krx_total_trading_value — supply_market_features 11-12~11-25 10거래일 전부 비영 0행(예: 11-25 0/3,727), 원천 krx_trading 은 09-23 이후 정지(KRX-01) ② krx_short_selling 일별 행수 11-17 2,601 → 11-18 202 · 11-19 201 · 11-20 202 · 11-23 200 · 11-24 196 (×0.077, KRX-02) ③ 배포 챔피언(app/models/champion, 09-23 산출) feature_names.json 173피처에 두 컬럼 **부재** · 부스터가 실제 사용한 피처 61개(총 gain 349.5, 최상위 positive_ratio 4.71%·return_1d 2.05%·target_ma_10 2.03%)에도 없음 → 라이브 점수 오염 0 ④ 후보 학습 패널(panel_420_asofpatch_evfix 210 · panel_420_tv 214 등)에는 두 컬럼이 **모두 포함** → 후보 학습에만 노출",
+   "command": "docker exec stock_postgres sh -c 'psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -tAc \"select trade_date, count(*) filter (where krx_total_trading_value<>0), count(*) from supply_market_features where trade_date >= current_date - 14 group by 1 order by 1 desc\"' && docker exec stock_xgboost_ml sh -c 'cd /app && python -u -c \"import json,pickle;d=pickle.load(open(\\\"app/models/champion/xgboost_model.pkl\\\",\\\"rb\\\"));print(len(json.load(open(\\\"app/models/champion/feature_names.json\\\"))), len(d[\\\"model\\\"].get_score(importance_type=\\\"gain\\\")))\"'",
+   "counterfactual": "현행 가정: '수집 붕괴 = 모델 성능 저하'. 실측은 그 경로가 배포 챔피언에는 없음을 보인다(0/173).",
+   "success": "두 컬럼의 도달 여부를 피처 목록 수준에서 확정하고, 상수 컬럼은 트리 분기가 불가능하므로 별도 A/B 를 만들지 않는다고 근거를 남긴다.",
+   "expected": "데이터 붕괴 수리는 라이브 성능이 아니라 ① 후보 학습의 부분 커버 컬럼(short_selling_ratio) 잡음 ② DQ 신선도 경보 정확도 때문에 필요하다 — 우선순위를 '라이브 긴급'에서 '후보 학습 위생'으로 조정.",
+   "cost": "읽기 전용 5분",
+   "est_minutes": 5,
+   "result": {
+    "verdict": "도달 0 — 라이브 오염 없음, 후보 학습만 노출",
+    "detail": "배포 챔피언(09-23·173피처·사용 61)에 두 붕괴 컬럼 부재 → 라이브 점수 오염 0. 후보 패널(210·214피처)은 둘 다 포함하나 krx_total_trading_value 는 전행 상수라 트리 분기 불가(효과 0), short_selling_ratio 는 11-18 이후 7% 커버로 부분화되어 잡음만 유입. 따라서 KRX-01/02 는 '라이브 긴급'이 아니라 '후보 학습 위생 + DQ 신선도' 항목으로 우선순위를 낮춘다(수리 자체는 여전히 필요).",
+    "rc": 0
+   },
+   "note": "2026-11-26 18:2x 엔지니어 자율(장외 틱·규칙 4 — 실행가능 pending 0건). arm 실험이 아니므로 AUC 판정 대상 아님. ⚠ 패널의 '피처 수 210' 은 정보량을 과대표기한다(panel_feature_screen 실측 무정보 126/210) — 이 진단은 그 과대표기의 원천 2건을 지목한 것.",
+   "created_at": "2026-11-26T18:14:32+09:00",
+   "updated": "2026-11-26T18:14:32+09:00"
   }
  ],
  "updated": "2026-11-26T17:30:00+09:00"
