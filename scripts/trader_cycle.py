@@ -719,6 +719,30 @@ def feed_price_dev_pct() -> float | None:
 BRIDGE_RESTART_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] started bridge")
 
 
+DAY_ROLLOVER_RE = re.compile(r"^day rollover -> (\d{4}-\d{2}-\d{2})")
+
+
+def bridge_timeouts_intraday() -> float | None:
+    """오늘(마지막 `day rollover` 이후) 브리지 요청 실패 줄 수를 센다.
+
+    WHY: T62 의 지표 이름은 '장중 타임아웃 건수'인데, 처음 check 는 견적 1회 지연(초)만 읽어
+    브리지가 죽어 있으면 0.0019초로 **충족** 판정됐다(2026-11-26 11:25, rc=7 = 연결 거부).
+    로그 전체 누적도 아니다 — runner.log 는 append-only 이고 하루 경계가 `day rollover -> date` 다.
+    """
+    try:
+        with open(RUNNER_LOG, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return None
+    today = now_kst().strftime("%Y-%m-%d")
+    start = 0
+    for i, line in enumerate(lines):
+        m = DAY_ROLLOVER_RE.match(line.strip())
+        if m and m.group(1) == today:
+            start = i
+    return float(sum(1 for line in lines[start:] if "bridge request failed" in line))
+
+
 def bridge_churn_peak_per_hour(window_h: float = 24.0) -> float | None:
     """최근 `window_h` 시간 안에서 **시간당 브리지 재기동 최대치**를 센다.
 
@@ -783,6 +807,15 @@ def probe(name: str) -> float | None:
         return feed_signal_lag_days()
     if name == "feed_price_dev":
         return feed_price_dev_pct()
+    if name == "bridge_timeouts":
+        return bridge_timeouts_intraday()
+    if name == "unmonitored":
+        held = m.get("open_positions")
+        if held is None:
+            return None
+        if not held:
+            return 0.0
+        return 0.0 if m.get("bridge_connected") else float(held)
     return None
 
 
@@ -797,6 +830,8 @@ PROBES = {
     "bridge_churn": "최근 24시간 안 시간당 브리지 재기동 최대치(회). 4 초과면 감독 churn",
     "feed_signal_lag": "피드 후보 signal_date 중 가장 낡은 전략의 경과일(일). 4 초과면 발행물이 낡은 데이터",
     "feed_price_dev": "피드 close_price 와 최신 종가의 최대 절대편차(%). 1 초과면 지정가가 시장과 벌어짐",
+    "bridge_timeouts": "오늘(마지막 day rollover 이후) 브리지 요청 실패 줄 수. 장중 5 초과면 견적·주문 응답 유실 위험",
+    "unmonitored": "브리지 단절 상태에서 청산 경로가 없는 보유 종목 수(0 이어야 정상)",
 }
 
 

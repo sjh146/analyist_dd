@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-26T09:28:00+09:00",
+ "updated_at": "2026-11-26T11:29:22+09:00",
  "owner": "quant-trader",
  "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
  "rules": [
@@ -800,12 +800,56 @@
    "title": "[실행경로] 브리지 견적 배치 지연(0.38~5.35s) > 클라이언트 5.0s 타임아웃 — 장중 타임아웃 126건·견적실패 100회, 069510 주문 응답 유실로 저널 없는 유령 포지션 발생",
    "hypothesis": "루프가 20종목 배치로 /quotes 를 부르는데 Creon COM 응답이 0.38~5.35초로 흔들려 bridge_client timeout=5.0초를 넘긴다. 타임아웃 시 루프는 'order failed'로 기록하지만 주문은 이미 브로커에 도달해 체결된다(응답만 유실) → 저널 행 없는 브로커 포지션이 생기고, 같은 구간 monitor 는 'no current quote; holding' 으로 청산 판단을 못 한다.",
    "evidence": "2026-11-26 실측(09:00~09:33): runner.log 'bridge request failed' 126건·'no current quote' 100건(당일 구간 라인 56252 이후). 09:05:47 'order failed 069510: bridge request failed: timed out' 인데 브리지 /positions = 069510 에스텍 1주 avg 24,203 (eval -0.02) → 저널 trades 에 069510 행 0건. 같은 시각 /quotes 직접 호출은 200(1종목 0.056초, 20종목 0.38/2.40/5.35초 반복 측정). bridge_client.py:85 timeout 기본 5.0초. bridge.log 2026-11-26 에 브리지 기동 2회(03:00:23 pid12364 / 04:09:12 pid15836) 기록.",
-   "command": "grep -c 'bridge request failed' /mnt/c/Users/jhshi/trader-agent/runner.log; /mnt/c/Windows/System32/curl.exe -s -o /dev/null -w '%{time_total}s\\n' --max-time 30 'http://127.0.0.1:8100/quotes?codes=357880,290690,441270,214150,357780,107640,044490,019210,025980,127120,440110,023160,243840,102710,085910,086390,047770,323990,445680,115180'",
+   "command": "python3 scripts/trader_cycle.py --probe bridge_timeouts",
    "success": "장중 타임아웃 0건(개장~15:30) + 견적 실패 0회 + 주문 응답 유실 시 브로커 재조회로 저널 행 확정(유령 포지션 0)",
-   "note": "수정은 라이브 trader-agent(터미널 세션 소유)에서만 — 이 틱은 측정·등록만. 제안: 배치 크기 20→5~8 분할, timeout 5→10초, 주문 응답 타임아웃 시 /positions·/orders 즉시 재확인 후 저널 기록.",
+   "note": "측정 교체(2026-11-26 11:2x): 종전 command 는 견적 20종목 지연(초) 1개만 읽어 브리지가 **죽은 상태에서도 0.0019초 = 충족**으로 통과했다(rc=7 연결거부, 11:25 판정). 지표 이름(장중 타임아웃 건수)에 맞게 오늘 day-rollover 이후 실패 줄 수로 바꿨다 — 실측 104. 수정은 라이브 trader-agent(터미널 세션 소유)에서만.",
    "created_by": "trader(tick 09:25)",
    "from_trader": true,
-   "created_at": "2026-11-26T09:28:00+09:00"
+   "created_at": "2026-11-26T09:28:00+09:00",
+   "result": {
+    "ts": "2026-11-26T11:29:22+09:00",
+    "value": 104.0,
+    "check": "104.0 <= 5.0",
+    "verdict": "미달",
+    "rc": 0,
+    "stdout_tail": "bridge_timeouts: 104.0",
+    "stderr_tail": ""
+   },
+   "check": {
+    "op": "<=",
+    "value": 5.0
+   }
+  },
+  {
+   "id": "T63",
+   "kind": "bug",
+   "owner": "trader",
+   "affects_model": false,
+   "priority": 1,
+   "status": "pending",
+   "metric": "unmonitored_positions",
+   "title": "[실행경로] 보유 종목이 있는데 브리지·Creon 이 전면 종료 → 90분 시한 청산 실패·루프 자기차단, 포지션 무감시",
+   "hypothesis": "브리지가 장중에 사라지면 monitor 청산이 견적을 못 받아 실패하고, check 3연속 실패로 루프가 HALT 로 스스로 멈춘다. 청산 시한(90분)을 넘긴 포지션이 그대로 남아 사람이 Creon 에 로그인할 때까지 무감시가 된다. 이번엔 타임아웃·견적 실패가 먼저 쌓여 90분 시한 청산 자체가 7회 실패했다.",
+   "evidence": "2026-11-26 실측: bridge_sup.log 10:47:19 \"Creon not running - stopping the bridge\" → 10:47:50 \"waiting for the Creon login\" (현재 Creon 프로세스 0개, 8100 연결거부). runner.log 오늘 `exit failed` 7회(069510 \"market order has no recent reference quote\"), `max_hold_90m` 15회. loop_state 11:25 halt=true 실패3 phase=halted. 저널 open 행 = 069510 에스텍 1주 @24,203 (09:05:47 주문 타임아웃 후 10:12 브로커 adopt) → 청산 경로 없음. 오늘 브리지 실패 104줄.",
+   "command": "python3 scripts/trader_cycle.py --probe unmonitored",
+   "check": {
+    "op": "==",
+    "value": 0.0
+   },
+   "success": "보유가 있는 동안 브리지 단절이 생기면 청산 경로를 잃지 않는다(무감시 0분) — 브리지 우선 복구·스테일 포지션 강제 청산 경로",
+   "note": "이 틱은 측정만. 사람 단계 = Creon 재로그인(대행 불가). 루프 HALT 는 연결성 halt 라 브리지가 살아나면 코드상 자동 해제된다(runner/loop.py _auto_resume_halt). 구조 수정(브리지 죽어도 시한 청산·알림)은 터미널 세션 소유.",
+   "created_by": "trader(tick 11:25)",
+   "from_trader": true,
+   "created_at": "2026-11-26T11:29:22+09:00",
+   "result": {
+    "ts": "2026-11-26T11:29:22+09:00",
+    "value": 1.0,
+    "check": "1.0 == 0.0",
+    "verdict": "미달",
+    "rc": 0,
+    "stdout_tail": "unmonitored: 1.0",
+    "stderr_tail": ""
+   }
   }
  ]
 }
