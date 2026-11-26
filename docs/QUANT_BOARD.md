@@ -202,6 +202,8 @@ cd /home/jhshi/analyist_dd
 
 **코드**: ① `champion_rollback_monitor.py` 짝 증거 경로 + `paired_test` 주석 ② `rollback_evidence_refresh.py` 신규 ③ `rollback_paired_test.py` 신규(짝 Δ 의 iid·블록t·CI95 — 사전등록 3조건으로 '실행 가능성'을 가른다) ④ `_expectancy_is_oos_split.py --dump-sessions`(기본 미기록 = 비트 동일) ⑤ `model_engineer_cycle.py` 다중 산출 루프 경고(`_multi_out_warning` — CG502 처럼 `for`+`$D` 로 JSON 을 여러 개 쓰는 항목에서 파서가 **마지막 파일만** 읽는다는 사실을 원장·백로그에 남긴다). 테스트 **19 passed** · lint 내 파일 0건.
 
+**위임**: `ask_claude.sh review`(되돌림 증거 경로 4파일) **실패 — 600s 타임아웃·출력 파일 미생성** → 채택 0건, 기록만 남김(내일 재시도).
+
 **백로그**: CG502·CG510·CG404 결과 보강(구동기 파서가 마지막 구간만 읽은 부분을 원자료에서 재집계) · **XR51 → closed_rejected**(R51 중복 · R51 은 승인 대기) · 신규 없음.
 
 ### ▶ 2026-11-26 15:35 장마감 틱 (리서처→엔지니어→트레이더 — 실측)
