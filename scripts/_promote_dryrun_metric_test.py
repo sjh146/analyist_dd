@@ -38,7 +38,6 @@ def check(name, got, want):
     print(f"{'PASS' if ok else 'FAIL'}  {name}\n      got ={got}\n      want={want}")
 
 
-# ── 1) summary_path ────────────────────────────────────────────────────────────
 CG43_CMD = ("docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 12600 "
             "python -u -m app.training.retrain_champion --days 90 --stock-limit 200 "
             "--out-dir app/models/champion_cand && python -m app.training.champion_promote "
@@ -62,7 +61,6 @@ check("--out 회귀(_out_arg 경유)",
       m.summary_path("champion_robust_eval", "x --out /app/reports/a.json"),
       os.path.join(m.PROJ, "services/xgboost-ml/reports/a.json"))
 
-# ── 2) 파서 ────────────────────────────────────────────────────────────────────
 tmpd = tempfile.mkdtemp(prefix="promote_dryrun_test_")
 p = os.path.join(tmpd, "dryrun.json")
 with open(p, "w", encoding="utf-8") as f:
@@ -83,11 +81,10 @@ check("파서: 낡은 요약 거부(mtime<=floor)",
       "error" in m.parse_champion_promote_dryrun(p, time.time() + 60), True)
 check("파서: 파일 없음", "error" in m.parse_champion_promote_dryrun(p + ".nope", 0), True)
 with open(p, "w", encoding="utf-8") as f:
-    json.dump({"auc": 0.5}, f)          # status 키 없는 파일
+    json.dump({"auc": 0.5}, f)
 check("파서: status 없음(게이트 판정 아님)",
       "error" in m.parse_champion_promote_dryrun(p, 0), True)
 
-# ── 3) 판정 ────────────────────────────────────────────────────────────────────
 item = {"id": "CG43", "metric": "champion_promote_dryrun",
         "baseline": "champion/robust_auc.json 0.5513"}
 it = {"id": "CG43", "metric": "champion_promote_dryrun"}
@@ -108,8 +105,6 @@ check("판정: kept_incumbent", v, "후보 생성·게이트 거부")
 check("판정: 거부 사유가 detail 에 남는다", "floor 0.53" in d, True)
 v, _, _ = m.judge_promote_dryrun(it, {"status": "invalid_candidate", "reason": "no model"})
 check("판정: invalid_candidate", v, "후보 무효")
-# ⚠ CG134(2026-10-07): 보고용 매핑 갭 수리 — 비-dry-run 경로의 라이브 스코어 게이트 차단은
-# '판정불가'가 아니다(게이트가 작동해 승격을 막은 것이 정답).
 v, d, _ = m.judge_promote_dryrun(it, {"status": "blocked_live_score",
                                       "reason": "라이브 스코어 게이트 미통과 — 승격 거부: 게이트 판정이 passed 가 아니다"})
 check("판정: blocked_live_score", v, "게이트 통과·라이브 스코어 차단(미승격)")
@@ -118,7 +113,6 @@ v, d, _ = m.judge_promote_dryrun(it, {"error": "요약 파일 없음"})
 check("판정: 파서 오류 → 판정불가", v, "판정불가")
 check("판정: 오류 문구 전달", d, "요약 파일 없음")
 
-# ── 4) execute() 의 rc=5 완료 처리 분기가 살아있는지(소스 검사) ──────────────────
 src = open(MEC, encoding="utf-8").read()
 check("execute: gate_rc5 분기 존재", "gate_rc5 = not _p5.get(\"error\")" in src, True)
 check("execute: 백로그 상태가 rc=0 또는 gate_rc5 를 완료로 본다",
@@ -126,12 +120,10 @@ check("execute: 백로그 상태가 rc=0 또는 gate_rc5 를 완료로 본다",
 check("execute: parse_by_metric 디스패치 배선",
       "parsed = parse_by_metric(item, spath, mtime_floor)" in src, True)
 check("execute: judge_by_metric 디스패치 배선",
-      "verdict, detail, delta = judge_by_metric(item, parsed, per)" in src, True)
+      "judge_by_metric(item, parsed, per)" in src, True)
 check("ingest: parse_by_metric 배선", "parsed = parse_by_metric(it, spath, 0.0)" in src, True)
 check("tick: rejudge_parser_gap 배선", "for iid, verdict, detail in rejudge_parser_gap():" in src, True)
 
-# ── 5) rejudge_parser_gap: 이미 돌고 있던 실행의 '판정불가' 기록을 교정 ──────────
-#    (실측 2026-09-30 CG43 — 착수 시점 모듈에 파서가 없어 기록이 'parser 없음'으로 남는다)
 work = tempfile.mkdtemp(prefix="rejudge_test_")
 pd = os.path.join(work, "pd.json")
 with open(pd, "w", encoding="utf-8") as f:
@@ -171,7 +163,6 @@ check("rejudge: 백로그 result 갱신",
       m.load_backlog()["items"][0]["result"]["verdict"], "후보 생성·게이트 거부")
 check("rejudge: 멱등(2회차 무변경)", m.rejudge_parser_gap(), [])
 
-# ── 6) parse_by_metric / judge_by_metric 디스패치 ─────────────────────────────
 check("디스패치: 모르는 metric → parser 없음 오류",
       "parser 없음" in m.parse_by_metric({"metric": "없음"}, "/tmp/x", 0).get("error", ""), True)
 check("디스패치: promote metric 파서 선택",

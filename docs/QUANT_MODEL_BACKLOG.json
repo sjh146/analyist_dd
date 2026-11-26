@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-26T09:28:09+09:00",
+ "updated_at": "2026-11-26T16:25:00+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -27533,7 +27533,7 @@
   {
    "id": "CG507",
    "title": "[검증성적표] 승격 dry-run 레코드 CG_DAILY_1125 에 판정 근거가 비어 있다 (reason=null·champion_baseline=null·record_id 만 남음) — 트레이더 계약2 검증이 '형식 충족'으로 통과",
-   "status": "pending",
+   "status": "needs_setup",
    "kind": "bug",
    "owner": "engineer",
    "priority": 2,
@@ -27546,7 +27546,27 @@
    "command": "python3 -c \"import json;d=[json.loads(l) for l in open('data/reports/trader_ledger.jsonl')];print(d[-1]['validation']['promote_dryrun'])\"",
    "success": "일일 배치에서도 reason·champion_baseline 이 채워지고, 트레이더 검증이 null 사유를 미비로 계상(현재 model_gaps=[] 로 통과)",
    "created_by": "trader(tick 09:25)",
-   "from_trader": true
+   "from_trader": true,
+   "attempts": [
+    {
+     "ts": "2026-11-26T16:07:34+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='promote_dryrun_reason_present')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG507_20261126-160734.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "result": {
+    "verdict": "판정불가",
+    "detail": "parser 없음 (metric='promote_dryrun_reason_present')",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "setup_needed": "① (완료·자율) 성적표 소비측 수리 — champion_scorecard.last_promote_dryrun 이 근거 없는 레코드를 '최신 승격 판정'으로 실어 reason=null 을 내보내던 결함. 이제 complete=false + missing=['reason','champion_baseline'] 을 명시한다(scripts/_promote_dryrun_incomplete_test.py 11/11 PASS). ② (승인 필요·크론) 일일 판정 크론(866357026fdc, 22:25 평일)이 원장 parsed 에 reason·champion_baseline 을 필수로 쓰도록 프롬프트 1줄 추가 — 크론 수정은 사용자 승인 대상. 승인 시 내가 추가할 문구: '원장 append 시 parsed 에 reason(게이트 사유 원문)과 champion_baseline(0.5513)·champion_baseline_source 를 반드시 채운다'. ③ (트레이더 소유) trader_cycle.verify_model_handoff 계약2 가 promote_dryrun 의 complete=false/missing 을 gap 으로 계상하도록 변경 — 다른 역할 파일이라 핸드오프.",
+   "resolution_note": "2026-11-26 16:2x 엔지니어 자율(틱): 실행은 rc=0 이었지만 verdict '판정불가(parser 없음)' — 구동기가 done 으로 닫은 것은 잘못이라 needs_setup 으로 정정. 실측: CG_DAILY_1125 parsed 에 reason·champion_baseline 키 자체가 없고, 성적표가 그 레코드를 최신으로 골라 null 을 실었다(트레이더 검증은 존재만 봐 통과). 소비측 수리 완료, 생산측·검증측은 승인/핸드오프 대기.",
+   "updated": "2026-11-26T16:25:00+09:00"
   }
  ],
  "updated": "2026-11-26T07:10:43+09:00"

@@ -113,17 +113,43 @@ def best_fold_stats(ledger, model_dir_rel):
     return max(cands, key=lambda s: str(s.get("measured_at") or ""))
 
 
+def _promote_evidence_missing(p):
+    """승격 판정 레코드에서 **근거 필드**가 비어 있는 키 목록(비었으면 빈 리스트)."""
+    miss = []
+    if not p.get("reason"):
+        miss.append("reason")
+    if p.get("champion_baseline") is None and not p.get("champion_baseline_source"):
+        miss.append("champion_baseline")
+    return miss
+
+
 def last_promote_dryrun(ledger):
+    """마지막 승격 판정 — 근거(reason·기준선)가 빈 기록은 '미비'로 **명시**한다.
+
+    왜(실측 2026-11-26 CG507): 일일 판정 배치가 원장에 남긴 CG_DAILY_1125 의 parsed 는
+    {status: kept_incumbent, candidate_auc: 0.5199, ...} 로 reason·champion_baseline 키가
+    아예 없었는데, 이 함수가 'status + candidate_auc' 만 보고 최신으로 골라 성적표에
+    reason=null·champion_baseline=null 을 실었다 → 트레이더 계약2 검증(필드 존재만 확인)이
+    '형식 충족'으로 통과했다. 값을 만들어 채우지 않고(설계 원칙: 자기신고 금지),
+    complete=False + missing 목록을 남겨 소비자가 미비를 계약 위반으로 계상하게 한다.
+    """
     for r in reversed(ledger):
         p = r.get("parsed") or {}
         if not isinstance(p, dict):
             continue
-        if p.get("status") and ("candidate_auc" in p or "champion_baseline" in p):
-            return {"status": p.get("status"), "reason": p.get("reason"),
-                    "candidate_auc": p.get("candidate_auc"),
-                    "champion_baseline": p.get("champion_baseline"),
-                    "baseline_source": p.get("champion_baseline_source"),
-                    "record_id": r.get("id"), "record_ts": r.get("ts")}
+        if not (p.get("status") and ("candidate_auc" in p or "champion_baseline" in p)):
+            continue
+        miss = _promote_evidence_missing(p)
+        rec = {"status": p.get("status"), "reason": p.get("reason"),
+               "candidate_auc": p.get("candidate_auc"),
+               "champion_baseline": p.get("champion_baseline"),
+               "baseline_source": p.get("champion_baseline_source"),
+               "record_id": r.get("id"), "record_ts": r.get("ts"),
+               "metric": p.get("metric") or r.get("metric"),
+               "complete": not miss}
+        if miss:
+            rec["missing"] = miss
+        return rec
     return None
 
 
@@ -276,6 +302,8 @@ def main() -> int:
         print(f"  폴드 통계 없음: {fs.get('error')}")
     pd = rep["promote_dryrun"]
     print(f"  승격 dry-run: status={pd.get('status')} · 기록 {pd.get('record_id')} @{pd.get('record_ts')}")
+    if pd.get("complete") is False:
+        print(f"  ⚠ 승격 판정 근거 미비: missing={pd.get('missing')} — 계약 2 미충족으로 계상해야 한다")
     print(f"  purge: 정책 기록 + 관측 {rep['purge'].get('observed')}")
     mn = rep["money"]
     print(f"  돈 지표: 순기대 {mn.get('expectancy_pct')}%p (t {mn.get('expectancy_t')}) · "
