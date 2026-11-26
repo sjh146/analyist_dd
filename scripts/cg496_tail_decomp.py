@@ -19,6 +19,10 @@ WHY(2026-11-26 CG495 실측): k=3/5/10 부호는 일관(Δ+2.47/+2.62/+1.97)했�
       --control-jsonl /app/reports/overnight/cg411_null.jsonl --control-tag cg409_hashnull \
       --k 5 --stride 5 --exit close_h --horizon 5 --entry next_open \
       --json-out /app/reports/overnight/cg496_tail_decomp.json'
+
+표집 오프셋 재현(CG502 후속): `--date-from` 은 fillable_topk_expectancy 와 **같은 위치**(행 필터 →
+stride 선택)에서 적용해야 오프셋별 숫자가 맞는다. 날짜 정렬 후 [::stride] 로 고르므로 창 시작일이
+바뀌면 표본이 전량 교체되고(CG413 실측 ±1.3%p), 필터를 stride 뒤에 두면 같은 오프셋이 재현되지 않는다.
 """
 from __future__ import annotations
 
@@ -76,6 +80,10 @@ def main(argv=None) -> int:
     ap.add_argument("--exit", default="close_h")
     ap.add_argument("--entry", default="next_open")
     ap.add_argument("--horizon", type=int, default=5)
+    ap.add_argument("--date-from", default=None,
+                    help="창 시작(YYYY-MM-DD). fillable_topk_expectancy 와 동일하게 "
+                         "stride 선택 **이전**에 행을 잘라 표집 오프셋을 재현한다(CG502 후속).")
+    ap.add_argument("--date-to", default=None)
     ap.add_argument("--json-out", default=None)
     a = ap.parse_args(argv)
 
@@ -101,6 +109,15 @@ def main(argv=None) -> int:
                               min_value=1e9, min_price=None, max_price=None)
     fa, out_a = F.apply_filters(arm_e, filt, on=True)
     fc, out_c = F.apply_filters(ctl_e, filt, on=True)
+    if a.date_from or a.date_to:
+        lo = a.date_from or "0000-00-00"
+        hi = a.date_to or "9999-12-31"
+        fa = [r for r in fa if lo <= r["date"] <= hi]
+        fc = [r for r in fc if lo <= r["date"] <= hi]
+        if not fa or not fc:
+            print(f"[FAIL] 날짜창 필터 후 행 없음 arm={len(fa)} control={len(fc)} ({lo}~{hi})",
+                  file=sys.stderr)
+            return 2
 
     keep = F.stride_keys(fa, a.stride)
     basket = F.baskets(fa, [a.k], rt_pct)[a.k]
