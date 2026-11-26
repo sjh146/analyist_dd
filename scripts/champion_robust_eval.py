@@ -185,21 +185,37 @@ def _meta_range(model_dir: str) -> tuple[str | None, str | None]:
 
 
 def _split_oos(windows: list[list[str]], train_start: str,
-               train_end: str | None = None) -> tuple[list[list[str]], list[list[str]]]:
+               train_end: str | None = None,
+               clip_partial: bool = False) -> tuple[list[list[str]], list[list[str]]]:
     """(채점 가능한 창, 학습구간과 겹쳐 제외한 창).
 
     학습구간 [train_start, train_end] 과 **겹치지 않는** 창만 OOS 다:
     창 전체가 학습 시작 이전이거나, 창 시작이 학습 종료 이후여야 한다.
     (train_end 를 주지 않으면 '이전 창'만 인정 — 종료일을 모르면 미래 창을 안전하게 판정 불가)
-    """
-    def keep(w: list[str]) -> bool:
-        if not w:
-            return False
-        if w[-1] < train_start:
-            return True
-        return bool(train_end) and w[0] > train_end
 
-    return [w for w in windows if keep(w)], [w for w in windows if not keep(w)]
+    clip_partial(2026-11-26 CG350, 기본 OFF = 현행 비트 동일): 학습 종료일을 **가로지르는**
+    마지막 창을 버리는 대신, `train_end` 이후 날짜만 잘라 OOS 로 채점한다.
+    왜 필요한가(실측 CG349): 챔피언 앵커 2026-11-20 에서 유효 폴드가 1개(2026-01-20~04-20)만
+    남고, 정작 재학습 후보와 비교해야 할 학습 이후 구간(08-05~11-11)은 창이 학습구간과 겹친다는
+    이유로 통째 제외됐다 → '챔피언 vs 재학습 후보 같은 날짜창 짝 비교'가 측정 불가였다.
+    잘라낸 창은 길이가 짧으므로 호출자가 폴드 최소 길이를 확인해야 한다.
+    """
+    out_keep: list[list[str]] = []
+    out_ex: list[list[str]] = []
+    for w in windows:
+        if not w:
+            out_ex.append(w)
+            continue
+        if w[-1] < train_start or (train_end and w[0] > train_end):
+            out_keep.append(w)
+            continue
+        if clip_partial and train_end and w[0] >= train_start and w[0] <= train_end < w[-1]:
+            tail = [d for d in w if d > train_end]
+            if len(tail) >= 2:
+                out_keep.append(tail)
+                continue
+        out_ex.append(w)
+    return out_keep, out_ex
 
 
 def _make_labels(rets, kind: str = "rel", q: float | None = None) -> list:
@@ -275,6 +291,13 @@ def main() -> int:
                          "200거래일을 5창으로 쪼개면서 학습구간(2026-07-03~10-01)과 겹치는 3창을 "
                          "전부 버려, 남은 2창이 학습 **이전**(2026-01~05)이었다 → '최근 국면 성능'을 "
                          "0일 측정한 채 0.4587(역방향 외삽)을 기준선 재측정값으로 오독할 뻔했다.")
+    ap.add_argument("--allow-partial-post-train", dest="allow_partial_post_train",
+                    action="store_true",
+                    help="학습 종료일을 가로지르는 마지막 창을 '학습 이후 날짜만 남겨' OOS 로 채점한다"
+                         "(기본 OFF = 현행 비트 동일). 왜(CG349 실측 2026-11-24): 챔피언 앵커 "
+                         "2026-11-20 에서 유효 폴드가 1개뿐이고, 재학습 후보와 비교해야 할 학습 이후 "
+                         "구간(2026-08-05~11-11)은 겹침으로 통째 제외됐다 → 챔피언 vs 후보 같은 창 "
+                         "짝 비교가 측정 불가. 절단 창은 짧으므로 폴드 수·길이를 함께 기록하라.")
     ap.add_argument("--model-dir", default="app/models/champion")
     ap.add_argument("--asof-date", dest="asof_date", default=None,
                     help="창 앵커(YYYY-MM-DD) — 주면 표본 거래일 창을 그 날짜 기준으로 **고정**한다"
@@ -409,9 +432,11 @@ def main() -> int:
                     len(windows), windows[0][0] if windows else "-",
                     windows[-1][-1] if windows else "-", chunk)
     elif train_start:
-        windows, excluded = _split_oos(windows, train_start, train_end)
-        logger.info("학습구간 %s ~ %s — 겹치는 창 %d개 제외, OOS 창 %d개 채점",
-                    train_start, train_end or "?", len(excluded), len(windows))
+        windows, excluded = _split_oos(windows, train_start, train_end,
+                                       clip_partial=args.allow_partial_post_train)
+        logger.info("학습구간 %s ~ %s — 겹치는 창 %d개 제외, OOS 창 %d개 채점%s",
+                    train_start, train_end or "?", len(excluded), len(windows),
+                    " (부분창 절단 ON)" if args.allow_partial_post_train else "")
         for w in excluded:
             logger.info("  제외 창: %s ~ %s (학습구간과 겹침)", w[0] if w else "-", w[-1] if w else "-")
         if not windows:

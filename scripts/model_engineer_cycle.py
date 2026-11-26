@@ -7012,6 +7012,25 @@ def _same_summary(rec, mt, tol=1.0) -> bool:
         return False
 
 
+def _same_parsed(rec, parsed, tol=1e-9) -> bool:
+    """이미 **같은 결과 내용**을 기록한 원장 항목인가 — mtime 이 바뀌어도 내용이 같으면 오복구 금지.
+
+    왜(실측 2026-11-26 19:07 tick): `_same_summary` 는 요약 파일 mtime 만 비교한다. 그런데
+    CG507(promote dry-run 계약 점검)의 요약 JSON 은 `refresh_scorecard_if_stale()` 가 **매 틱
+    재생성**하므로 mtime 이 매번 앞으로 가고, 내용(record_ts=16:07:34·status=kept_incumbent)은
+    완전히 같다 → recover_unrecorded 가 16:07 기록과 **동일한 결과를 19:07 에 또 복구**했고,
+    그 경로가 `return 0` 으로 끝나 **그 틱의 pending 실행 기회를 통째로 날렸다**(pending 6건 대기 중).
+    mtime 이 아니라 파싱 결과(휘발성 summary_mtime 제외)를 비교해야 '새 결과'만 복구한다.
+    """
+    a = rec.get("parsed") or {}
+    b = parsed or {}
+    if not isinstance(a, dict) or not isinstance(b, dict) or not a or a.keys() != b.keys():
+        return False
+    a = {k: v for k, v in a.items() if k != "summary_mtime"}
+    b = {k: v for k, v in b.items() if k != "summary_mtime"}
+    return json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
+
+
 def _rearm_daily(it, ts) -> None:
     """`repeat: daily` 항목은 done 으로 닫지 않고 다음 날 같은 시각으로 재무장한다.
 
@@ -7885,6 +7904,8 @@ def recover_unrecorded(backlog, max_age_h=12, dry_run=False):
             continue
         parsed = parse_by_metric(it, spath, 0.0)
         if parsed.get("error"):
+            continue
+        if any(r.get("id") == it.get("id") and _same_parsed(r, parsed) for r in led):
             continue
         try:
             verdict, detail, delta = _judge3(judge_by_metric(it, parsed))
