@@ -58,9 +58,9 @@ def load_env() -> None:
 SUITES = [
     {"name": "root-tests", "dir": "tests", "python": HOST_PY, "timeout": 900},
     {"name": "api-gateway", "dir": "services/api-gateway/tests", "python": HOST_PY, "timeout": 600},
-    {"name": "trader-core", "dir": "trader-agent/trader_core/tests", "python": WIN_PY, "timeout": 900},
-    {"name": "trader-runner", "dir": "trader-agent/runner/tests", "python": WIN_PY, "timeout": 600},
-    {"name": "trader-bridge", "dir": "trader-agent/bridge/tests", "python": WIN_PY, "timeout": 600},
+    {"name": "trader-core", "dir": "/mnt/c/Users/jhshi/trader-agent/trader_core/tests", "python": WIN_PY, "timeout": 900},
+    {"name": "trader-runner", "dir": "/mnt/c/Users/jhshi/trader-agent/runner/tests", "python": WIN_PY, "timeout": 600},
+    {"name": "trader-bridge", "dir": "/mnt/c/Users/jhshi/trader-agent/bridge/tests", "python": WIN_PY, "timeout": 600},
 ]
 
 
