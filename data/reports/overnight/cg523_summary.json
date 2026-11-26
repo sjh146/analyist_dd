@@ -1,0 +1,118 @@
+{
+ "generated_at": "2026-11-27T07:15:44+09:00",
+ "config": {
+  "source": "ml_predictions ⨝ market_data",
+  "horizon": 5,
+  "exit": "close_h",
+  "fee_roundtrip_pct": 0.21,
+  "max_day_ret_pct": 25.0,
+  "min_rows_session": 200,
+  "dates": [
+   "2026-09-22",
+   "2026-11-19"
+  ],
+  "days": 17
+ },
+ "models": {
+  "live": {
+   "n_sessions": 17,
+   "deciles": [
+    {
+     "decile": 1,
+     "mean_pct": -2.065,
+     "t_stat": -2.32,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 6153
+    },
+    {
+     "decile": 2,
+     "mean_pct": -1.5645,
+     "t_stat": -1.63,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 6143
+    },
+    {
+     "decile": 3,
+     "mean_pct": -1.7325,
+     "t_stat": -1.93,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 6149
+    },
+    {
+     "decile": 4,
+     "mean_pct": -2.1292,
+     "t_stat": -3.05,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 6144
+    },
+    {
+     "decile": 5,
+     "mean_pct": -1.784,
+     "t_stat": -2.08,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 6144
+    },
+    {
+     "decile": 6,
+     "mean_pct": -2.1072,
+     "t_stat": -2.54,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 6148
+    },
+    {
+     "decile": 7,
+     "mean_pct": -1.6233,
+     "t_stat": -1.64,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 6147
+    },
+    {
+     "decile": 8,
+     "mean_pct": -1.487,
+     "t_stat": -1.67,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 6146
+    },
+    {
+     "decile": 9,
+     "mean_pct": -2.3955,
+     "t_stat": -3.05,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 6146
+    },
+    {
+     "decile": 10,
+     "mean_pct": -1.9233,
+     "t_stat": -2.46,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 6138
+    }
+   ],
+   "spearman_rho": -0.103,
+   "d10_minus_d1_pct": 0.1417,
+   "paired_d10_d1": {
+    "mean_pct": 0.1417,
+    "t_stat": 0.26,
+    "pos": 10,
+    "neg": 7,
+    "front_pct": -0.3012,
+    "back_pct": 0.5354
+   },
+   "pool_mean_pct": -1.8812,
+   "pool_t": -2.37,
+   "monotonic": false,
+   "n_rows_scored": 61458,
+   "n_rows_after_filter": 61458,
+   "n_skipped": {
+    "no_fwd": 15195,
+    "day_ret_gate": 164,
+    "small_session": 0
+   },
+   "avg_codes_per_session": 3615.2,
+   "topk_reference": {
+    "top5_mean_pct": -4.0549,
+    "top10_mean_pct": -4.2662
+   }
+  }
+ }
+}

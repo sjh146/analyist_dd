@@ -1,0 +1,56 @@
+{
+ "generated_at": "2026-11-27T07:14:47+09:00",
+ "question": "패널 절대 기대(+0.41~+0.95%p/세션)가 실 전방(−0.34%p)과 반대인 이유 — 유니버스가 전 구간(미래) 정보로 골라졌는가",
+ "verdict": "부분 확인 — 생존편향은 실재하나 크기가 작고(+0.15%p/5d), 관측된 격차의 주 원인은 ①기간효과(풀 +1.02%p → −0.76%p) ②유니버스 불일치(라이브 top5 ∩ 패널200 = 5.2%)다. → 패널 절대 %p 는 어떤 경우에도 인용 금지(사전등록 ② 충족).",
+ "code_evidence": [
+  "services/xgboost-ml/app/training/universe.py:41-59 — 적격 집합 = s.market IN (KOSPI,KOSDAQ) AND instrument_type='STOCK', 최근 60일 창에서 30거래일 이상 + ETF/ETN 이름 제외",
+  "services/xgboost-ml/app/training/universe.py:62-74 — 창 시작 = (UNIVERSE_ASOF_DATE|now) − 60일 → 선택 시점이 빌드일이므로 '그 시점 생존 종목'만 후보(생존편향)",
+  "services/xgboost-ml/app/training/universe.py:167-188 — 최신일 내림차순 + seed 셔플(recency)",
+  "scripts/train_curated.py:83-96 — curated 경로(UNIVERSE_SQL)는 since(기본 2026-04-01) 이후 AVG(trading_value) 로 정렬 가능하지만 기본 order='code'·min_value=0 → 유동성 선택 아님",
+  "scripts/wf_wave.py:231-258 — universe='prod' 면 select_training_universe(limit=200,min_days=30,seed)"
+ ],
+ "measurements": {
+  "panel": "panel_prod200_v6o.npz · 61,640행 · 314거래일(2025-08-04~2026-11-17) · 200종목",
+  "market_mix_today": {
+   "KOSDAQ": 138,
+   "KOSPI": 62
+  },
+  "reproducibility_overlap": {
+   "select_training_universe(recency,seed=0)_today": "75/200 (37.5%)",
+   "select_training_universe(liquidity)_today": "16/200",
+   "curated_KOSDAQ_code_order_today": "14/200",
+   "curated_all_market_min_value_1e8": "9/200"
+  },
+  "survivorship_inflation": {
+   "window": "2025-08-04~2026-08-03 (선택 창 이전 구간)",
+   "panel_199_codes_mean_fwd5_pct": 0.8132,
+   "all_market_mean_fwd5_pct": 0.6633,
+   "inflation_pctp_per_5d": 0.1499,
+   "note": "사라진(2026-07 이전 데이터 종료) 53종목의 평균 fwd5 +12.2% 는 상장폐지 직전 가격공백 오염으로 편향 추정에 쓰지 않았다."
+  },
+  "period_effect_panel_pool_equal_weight_fwd5": {
+   "2025-08-04~2026-11-05 (306세션)": 1.0242,
+   "2025-10-22~2026-11-05 (255세션)": 1.1347,
+   "2026-09-15~2026-11-05 (34세션)": -0.759,
+   "2025-08-04~2026-07-31 (242세션)": 1.0509,
+   "live_forward_h5_pool_pct": -1.6872
+  },
+  "panel_edge_persists": {
+   "source": "CG521 money(패널 200, stride1, 255세션)",
+   "arm_minus_pool_k5_full_pctp": 1.0192,
+   "arm_minus_pool_k5_recent34_pctp": 1.0785,
+   "recent34_t": 1.39,
+   "recent34_pos": "20/34"
+  },
+  "universe_mismatch": {
+   "live_predictions_avg_codes_per_session": 3909.4,
+   "champion_top5_in_panel200": "7/135 = 5.2% (2026-10-01~11-26)",
+   "live_cross_section_deciles": "17세션 · 3,615종목/일 · ρ −0.103 · D10−D1 +0.1417%p(t 0.26) · 풀 −1.8812%p · top10 −4.2662%p/5d"
+  }
+ },
+ "conclusion_for_protocol": [
+  "패널 돈 지표의 절대 %p 는 인용 금지 — 같은 런·같은 세션·같은 유니버스의 Δ만 인용한다.",
+  "패널 Δ(+1.02%p/5d)도 라이브 대리지표가 아니다: 라이브는 하루 3,615종목 횡단면을 채점하고 챔피언 상위5가 패널200에 드는 비율이 5.2%다.",
+  "라이브 횡단면에서는 순서 정보가 없다(ρ −0.10 · D10−D1 +0.14%p) → 다음 레버는 '점수 개선'이 아니라 '채점 대상 유니버스 정합'과 '라이브 유니버스 재학습'이다."
+ ]
+}

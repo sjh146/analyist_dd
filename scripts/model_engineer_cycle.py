@@ -6961,6 +6961,9 @@ def execute(item, force=False):
         "verdict": verdict, "detail": detail,
         "reported": False,
     }
+    author_err = bool(isinstance(parsed, dict) and parsed.get("error")
+                      and "parser 없음" in str(parsed.get("error")))
+
     if gate_rc5:
         rec["rc_note"] = "champion_promote rc=5 = 후보 무효(invalid_candidate) — 게이트 판정이므로 실행실패 아님"
     append_ledger(rec)
@@ -6982,6 +6985,11 @@ def execute(item, force=False):
 
 
                 st, resume = backlog_status_after(rc_for_status, cause, gate_rc5, len(it["attempts"]))
+                if author_err and st == "done":
+                    st, resume = "needs_setup", None
+                    it["retry_note"] = (f"{rec['ts']} metric={it.get('metric')!r} 에 구동기 파서가 없다 "
+                                        f"→ 판정불가로 닫았고 완료 처리하지 않았다. 항목 계약"
+                                        f"(metric/--json-out 스키마 또는 파서 추가)을 고쳐 pending 으로 올려라")
                 if st == "pending":
                     it["status"] = "pending"
                     it["retry_note"] = (f"{rec['ts']} rc={rc} 소실 → 재시도 "
