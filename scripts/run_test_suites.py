@@ -26,6 +26,7 @@ LATEST = os.path.join(OUT_DIR, "latest.json")
 HISTORY = os.path.join(OUT_DIR, "history.jsonl")
 HOST_PY = "/usr/bin/python3"
 WIN_PY = "/mnt/c/Users/jhshi/Python312-64/python.exe"
+WIN_TA = "C:/Users/jhshi/trader-agent"
 
 def load_env() -> None:
     """저장소 .env 를 스스로 읽는다 (2026-11-23).
@@ -58,9 +59,9 @@ def load_env() -> None:
 SUITES = [
     {"name": "root-tests", "dir": "tests", "python": HOST_PY, "timeout": 900},
     {"name": "api-gateway", "dir": "services/api-gateway/tests", "python": HOST_PY, "timeout": 600},
-    {"name": "trader-core", "dir": "/mnt/c/Users/jhshi/trader-agent/trader_core/tests", "python": WIN_PY, "timeout": 900},
-    {"name": "trader-runner", "dir": "/mnt/c/Users/jhshi/trader-agent/runner/tests", "python": WIN_PY, "timeout": 600},
-    {"name": "trader-bridge", "dir": "/mnt/c/Users/jhshi/trader-agent/bridge/tests", "python": WIN_PY, "timeout": 600},
+    {"name": "trader-core", "dir": "trader_core/tests", "cwd": WIN_TA, "python": WIN_PY, "timeout": 900},
+    {"name": "trader-runner", "dir": "runner/tests", "cwd": WIN_TA, "python": WIN_PY, "timeout": 600},
+    {"name": "trader-bridge", "dir": "bridge/tests", "cwd": WIN_TA, "python": WIN_PY, "timeout": 600},
 ]
 
 
@@ -80,7 +81,8 @@ def parse_summary(stdout: str) -> dict:
 
 
 def run_suite(suite: dict) -> dict:
-    d = os.path.join(PROJ, suite["dir"])
+    base = suite.get("cwd", PROJ)
+    d = suite["dir"] if os.path.isabs(suite["dir"]) else os.path.join(PROJ, suite["dir"])
     if not os.path.isdir(d):
         return {"name": suite["name"], "suite_skipped": "디렉터리 없음"}
     py_files = [f for f in os.listdir(d) if f.endswith(".py")] if os.path.isdir(d) else []
@@ -89,7 +91,8 @@ def run_suite(suite: dict) -> dict:
     cmd = [suite["python"], "-m", "pytest", "-q", "--timeout=120" if False else "-p", "no:cacheprovider", d]
     t0 = time.time()
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=suite["timeout"], cwd=PROJ)
+        cmd = cmd[:5] + [suite["dir"]] if len(cmd) > 5 else cmd
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=suite["timeout"], cwd=base)
         out = (r.stdout or "") + (r.stderr or "")
         summary = parse_summary(out)
         return {
