@@ -34,6 +34,15 @@ verified step.
 - **journal exit price vs the broker's own average fill** (see the repair section below): a closed row
   whose recorded exit differs from the broker's per-code average sell by more than ~0.3 % is a bookkeeping
   defect that inflates or deflates every expectancy number derived from the journal.
+- **halt state with open positions** (the loop's state file says `halt` while the broker reports holdings):
+  a halted loop can short-circuit before its monitor phase, so positions go unmanaged while every other probe
+  is clean. Treat the combination as a hard failure ("청산이 멈출 수 있음"), not a warning. Judge the halt from
+  the state file **and** from a running cycle: after auto-resume the file can still read halted until the next
+  cycle writes, and a halt that never clears looks identical to one that was never set unless you watch a cycle.
+- **repeated exit failures for one code** (parse the runner log tail for `exit failed <code>`; ≥3 hits is a
+  finding): one refusal is a transient quote read, several in a row is a position that cannot be closed and
+  needs the operator now. This shows up in the log hours before it shows up in P&L — and the log lines age out
+  of the tail, so the probe has to run on a short cadence to see it at all.
 - **zero-quantity or non-positive-price entries** in today's rows.
 
 ## Repair, not only report: bring the bookkeeping back to the broker's fills

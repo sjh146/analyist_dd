@@ -182,6 +182,13 @@ records what happened → risk gates read the journal".
 
 ## Data-integrity guards (price and time)
 
+- **An unreadable position response is not a flat book.** Any audit that diffs journal against broker must carry an
+  explicit `positions_known` flag and only judge a row "missing at the broker" when `/positions` actually answered.
+  On a read failure the state is `unverified` and the mismatch verdict is withheld — measured: a dropped broker link
+  produced a high-severity broker↔journal mismatch every 5 minutes for a name the broker still held, burying the one
+  real signal (the link was down). Apply the same rule to the daily-PnL read: report "unreadable", never 0, and let
+  the flat-book conclusion come from a successful read alone.
+
 The two inputs every risk gate depends on can lie, and neither failure raises an error by itself:
 
 - **Price: cross-check the exit price against the broker's own mark.** A position response usually
@@ -213,6 +220,14 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
   belongs to neither class — the request may have reached the broker and filled — so read the working
   orders and positions before reporting a failure or resubmitting (opening-minute timeouts measured as
   `order failed` while the fills were live at the broker).
+- **Resolve an order timeout into a journal row instead of leaving it as "order failed".** If the fill happened
+  and nothing is journaled, the position exists only at the broker: it inherits the **global** stop rather than
+  the path's (measured: a daytrading entry managed at the 7% global stop instead of its 1%), drops out of the
+  per-path slot and quote-set unions, and the audit reports broker-without-journal every cycle — measured as 70
+  minutes of unmanaged holding on a single name. Branch four ways from a fresh broker read: held ⇒ journal a
+  recovered entry priced at the broker's average, carrying the plan's own stop/tp and path attribution; working
+  order only ⇒ journal it pending(working); nothing at the broker ⇒ "order not accepted"; broker unreadable ⇒
+  "order result unknown". No branch may re-place the order inside the same cycle.
 
 - 상세: `references/before-going-live.md` — Before going live
 
@@ -385,6 +400,19 @@ Four defects that look like "the strategy is bad" but are order-path mechanics, 
   was cleared by a gate) then reads `no current quote; holding` in the monitor and **its stop can never fire**
   (measured: a name ran to −6 % against a −1 % stop while the log repeated that line every cycle). Union the open
   codes into the quote request each cycle — chunk to the same constant — and prove it by exiting an off-feed name.
+- **A connectivity/check halt must gate entries only, never the exit path.** A loop that returns before its monitor
+  phase while halted leaves open positions unmanaged: measured, the broker link dropped, the loop halted, and a
+  position sat **5.5 h past its 90-minute max-hold** with no exit attempt because every cycle short-circuited at the
+  halt check. Restructure so a halt **with open positions** still runs the monitor/liquidation path and says so in
+  its reason line; keep only the non-resumable halts (daily-loss limit, kill-switch file) as full stops. Verify the
+  behaviour from the next cycle's own phase/reason line, not from the state file — an auto-resume that never fires
+  looks identical to a cleared halt until you watch one cycle run.
+- **An order-pricing guard must be asymmetric by side: refusing a BUY on a stale quote is cheap, refusing a SELL is a
+  stuck position.** A "recent reference quote required" guard re-fetched its own quote, timed out on that second read
+  while the cycle's quote was healthy, and refused the same market exit on every cycle for hours. For sells only, fall
+  back to the quote the plan already carries from this cycle and journal which source produced the reference
+  (`live_quote` | `cycle_quote`); keep buys on the strict path, because an entry priced off a stale reference is the
+  defect the guard exists for while a delayed exit is the defect it creates.
 - **Exit orders are usually market orders, so the trigger price is not the fill — measure the book before changing the order type.**
   Measured on one book: trailing/stop exits filled 0.35–0.82 % worse than the trigger the journal recorded, and the
   trigger was then written into the journal as if it were the fill. Swapping market exits for limit exits to "fix"

@@ -43,6 +43,11 @@ non-zero `buy_qty` with no journal row is a **confirmed fill** — adopt it imme
 path. When reporting the day's trade count, count **broker fills + working orders**, never "journal rows",
 and state the discrepancy explicitly rather than quoting the counter.
 
+**Earliest detector: the loop narrates its own ghosts.** `runner.log` prints `monitor: <code>: holding
+(px ... vs entry ...)` for every position it is watching, including one it never journaled. Any code in
+those monitor lines with no open journal row is a timeout-fill ghost — check that before trusting a "no
+positions" status line, which is computed from the journal and will say zero while the loop manages one.
+
 **Check whether reconcile already did it before hand-writing the row.** The loop's post-close reconcile adopts a
 broker-only position *and* closes it in one pass, writing `order_type='reconciled'` with an `entry_reason` that
 records the timeout verbatim (measured: a −2,008원 position appeared as a closed row with the fill price, the
