@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-26T11:29:22+09:00",
+ "updated_at": "2026-11-26T15:31:34+09:00",
  "owner": "quant-trader",
  "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
  "rules": [
@@ -796,7 +796,7 @@
    "owner": "trader",
    "affects_model": false,
    "priority": 1,
-   "status": "pending",
+   "status": "failed",
    "metric": "bridge_timeout_count_intraday",
    "title": "[실행경로] 브리지 견적 배치 지연(0.38~5.35s) > 클라이언트 5.0s 타임아웃 — 장중 타임아웃 126건·견적실패 100회, 069510 주문 응답 유실로 저널 없는 유령 포지션 발생",
    "hypothesis": "루프가 20종목 배치로 /quotes 를 부르는데 Creon COM 응답이 0.38~5.35초로 흔들려 bridge_client timeout=5.0초를 넘긴다. 타임아웃 시 루프는 'order failed'로 기록하지만 주문은 이미 브로커에 도달해 체결된다(응답만 유실) → 저널 행 없는 브로커 포지션이 생기고, 같은 구간 monitor 는 'no current quote; holding' 으로 청산 판단을 못 한다.",
@@ -808,13 +808,12 @@
    "from_trader": true,
    "created_at": "2026-11-26T09:28:00+09:00",
    "result": {
-    "ts": "2026-11-26T11:29:22+09:00",
-    "value": 104.0,
-    "check": "104.0 <= 5.0",
+    "ts": "2026-11-26T15:31:34+09:00",
+    "value": 9.25,
+    "check": "9.25 <= 5.0",
     "verdict": "미달",
     "rc": 0,
-    "stdout_tail": "bridge_timeouts: 104.0",
-    "stderr_tail": ""
+    "stdout_tail": "2026-11-26 15:31 KST 브리지 /quotes 20종목 배치 = 9.25s(HTTP 200) > 클라이언트 timeout 5.0s. 같은 날 loop_state last_cycle: 'DECIDE aborted: bridge request failed: timed out', 'R4 balance fetch failed: timed out', 'pre-filter quote fetch failed ... skipping the price pre-filter this cycle' — 프리필터가 생략되면 R3 3% 밴드가 그 사이클 무력화된다."
    },
    "check": {
     "op": "<=",
@@ -851,6 +850,22 @@
     "stdout_tail": "unmonitored: 1.0",
     "stderr_tail": ""
    }
+  },
+  {
+   "id": "T64",
+   "kind": "bug",
+   "owner": "trader",
+   "affects_model": false,
+   "priority": 1,
+   "status": "pending",
+   "metric": "closed_trades_with_zero_fees",
+   "title": "[저널정합] 청산 쓰기경로가 fees=0 으로 기록 — T50 은 백필로 충족 판정됐고 라이브 경로는 여전히 0 (33건 미계상·순손익 낙관)",
+   "hypothesis": "청산(monitor/exit)이 journal.close_trade(fees=0) 로 끝나고 수수료는 사후 backfill_fees.py 로만 채워진다. T50 은 2026-11-20 백필값(106.6)으로 '충족' 판정됐지만 그 뒤 신규 청산은 다시 0 이다 → 계기판 순손익이 왕복비용만큼 낙관.",
+   "evidence": "2026-11-26 15:33 실측(저널 /tmp 복사·WAL 포함): 청산 37건 · fees>0 마지막 기록 2026-11-18 13:05 · fees=0 청산 33건 · 기록 fees 합 458.5원 vs 왕복 0.21% 가정 시 추정 9,014원(왕복 거래대금 4,292,384원) → 순손익 -37,004.5원은 추정 -45,560원으로 약 8.5천원 낙관.",
+   "command": "python3 tools/backfill_fees.py --help · 저널 fees=0 건수 집계(장 마감 후)",
+   "success": "신규 청산의 fees>0 비율 100%(5거래일) · 계기판 순손익과 브로커 실현손익 차이 < 1%",
+   "cost": "저",
+   "note": "수수료율·세율은 브로커 값만 쓴다(추정으로 저널 덮어쓰기 금지). 라이브 코드 수정은 터미널 세션 소유 — 여기서는 근거·측정만."
   }
  ]
 }
