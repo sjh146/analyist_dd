@@ -27921,6 +27921,24 @@
    "cost": "30~60분",
    "created_at": "2026-11-27T00:22:00+09:00",
    "note": "XR55 후속. CG464(v7 빌드, not_before 12-14) 선행 필요."
+  },
+  {
+   "id": "CG515",
+   "kind": "bug",
+   "owner": "engineer",
+   "affects_model": true,
+   "priority": 8,
+   "status": "backlog",
+   "metric": "minute_bar_date_coverage",
+   "title": "[수집·조용한 부분화] KIS 분봉 러너가 23:00 시작 → 약 05:00 완료(45초/종목×473) — 그 사이 최신 세션을 읽는 패널/측정은 부분 커버를 완전일로 오독한다",
+   "hypothesis": "최신 거래일의 minute_bars 커버리지는 시각에 따라 단조 증가한다(진행 중). 판독 없이 '커버리지 급감'으로 오알람하거나, 새벽 5시 이전에 패널을 빌드하면 그 세션의 인트라데이 피처가 종목 20%만 채워진 채 학습에 들어간다.",
+   "counterfactual": "현행: 최신 날짜 커버리지를 그대로 학습/판정에 사용 ↔ 대조: 커버리지 <95% 인 최신 날짜를 제외하거나 완료 후 빌드",
+   "command": "docker exec stock_postgres psql -U stock_user -d stock_trading -t -A -F'|' -c \"select trade_date,count(distinct stock_code),count(*) from minute_bars where trade_date>=current_date-7 group by 1 order by 1;\" ; tail -3 reports/cron_kis_minute.log",
+   "success": "최신 날짜 커버리지가 진행 중인지(로그 인덱스 증가) 완료인지(473/473)를 구분해 판정하고, 판정 불가면 '실행실패'가 아니라 '진행 중'으로 기록",
+   "expected": "가드 1개(최신 날짜 커버 <95% 면 그 날짜 제외 + 리포트에 partial_dates)",
+   "cost": "30분",
+   "created_at": "2026-11-27T00:28:00+09:00",
+   "note": "실측(2026-11-27 00:25): 11-26 minute_bars = 94종목×391봉(36,363행) 이고 cron_kis_minute.log 는 [94/473] 진행 중(00:11 기준, 45초/종목) → 04:5x 완료 예상. 11-24/25 는 117,300행(300종목) 완료. FAC-03 교훈(측정일 판정) 적용 사례."
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
