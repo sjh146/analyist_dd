@@ -412,3 +412,49 @@ class TestDaytradingProviderHook:
         self._run(tmp_path, monkeypatch, None, gap_created, kis_created)
         assert gap_created == [True]
         assert kis_created == []
+
+
+class TestTotalFailureExitCode:
+    """전량 실패(bars=0 · fail>0)는 종료코드로 드러나야 한다 (2026-11-23 실측).
+
+    23:15 AppKey 거부로 300종목 전부 실패했는데 프로세스가 0 으로 끝나 로그에
+    '수집 완료'만 남았고, 분봉 API 는 당일분만 주므로 그날 분봉이 영구 결손이 됐다.
+    """
+
+    def test_all_fail_no_bars_returns_2(self):
+        from kis_app.main import exit_code
+        assert exit_code({"minute": {"fail": 300, "bars": 0}}) == 2
+
+    def test_partial_fail_with_bars_returns_0(self):
+        from kis_app.main import exit_code
+        assert exit_code({"minute": {"fail": 3, "bars": 117300}}) == 0
+
+    def test_empty_results_returns_0(self):
+        from kis_app.main import exit_code
+        assert exit_code({}) == 0
+
+
+class TestCredentialFailureAborts:
+    """자격증명 거부는 전 종목 공통 오류 — 첫 종목에서 멈춰야 한다."""
+
+    def test_credential_error_stops_after_first_stock(self):
+        from kis_app.client.kis_client import KisApiError
+        calls = []
+
+        class Client:
+            def get_minute_chart(self, code, excd, ref, period_div="0", fid_cnt=30):
+                calls.append(code)
+                raise KisApiError("EGW00103", "유효하지 않은 AppKey입니다.")
+
+        class Storage:
+            def get_universe(self):
+                return [("000001", "KOSPI"), ("000002", "KOSPI"), ("000003", "KOSPI")]
+
+            def save_minute_bars(self, code, rows):
+                return len(rows)
+
+        summary = MinuteCollector(Client(), Storage()).collect("20261123")
+        assert calls == ["000001"]
+        assert summary["fail"] == 1
+        assert summary["auth_failed"] is True
+        assert summary["bars"] == 0

@@ -59,6 +59,20 @@ def build_client(config: Config) -> KisClient:
     )
 
 
+def exit_code(results):
+    """수집 결과 → 종료코드. 전량 실패(bars 0 · fail>0)는 조용한 성공이 아니다.
+
+    2026-11-23 실측: 23:15 AppKey 거부(EGW00103)로 300종목 전부 실패(bars=0)했는데
+    프로세스가 0 으로 끝나 크론 로그에 '수집 완료'만 남았다. 분봉 API 는 당일분만 주므로
+    그날 분봉은 영구 결손이 됐고, 아무 지표도 울리지 않았다(silver: 자기신고도 없음).
+    부분 실패(fail>0, bars>0)는 다음 크론이 이어받으므로 0 을 유지한다.
+    """
+    for summary in results.values():
+        if summary.get("fail") and not summary.get("bars"):
+            return 2
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="KIS 데이터 수집기 (일봉/분봉)")
     ap.add_argument("--job", choices=["daily", "minute", "all"], default="daily",
@@ -144,8 +158,10 @@ def main(argv=None):
             # 분봉은 수집기가 '원시 페이지 행수'를 노출하지 않는다 → source 는 비워 둔다
             # (추정값을 넣으면 gap·parse_failure 지표가 거짓말을 한다).
             claim_finish("kis_app.main:minute", claimed_rows=_s.get("bars", 0),
+                         source_rows=_s.get("source_rows"),
                          note=(f"ok={_s.get('ok')} no_data={_s.get('no_data')} "
-                               f"fail={_s.get('fail')} source=미분리"))
+                               f"fail={_s.get('fail')} auth_failed={_s.get('auth_failed')} "
+                               f"source=미분리"))
 
     print("\n" + "=" * 60)
     print(f"KIS 수집 완료 (job={args.job}, date={target}, "
@@ -155,7 +171,7 @@ def main(argv=None):
               f"no_data={s.get('no_data')} fail={s.get('fail')} "
               f"bars={s.get('bars', '-')}")
     print("=" * 60)
-    return 0
+    return exit_code(results)
 
 
 if __name__ == "__main__":
