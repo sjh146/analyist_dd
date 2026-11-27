@@ -57,7 +57,7 @@ def main() -> int:
     opens = {(str(c), d): float(o) for c, d, o in cur.fetchall()}
     cur.execute("""
         SELECT stock_code, trade_date::text, time, close_price
-        FROM minute_close_bars
+        FROM minute_bars_unified
         WHERE close_price > 0
         ORDER BY stock_code, trade_date, time
     """)
