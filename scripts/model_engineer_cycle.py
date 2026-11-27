@@ -491,6 +491,49 @@ def _iter_cmdlines():
         yield int(name), raw
 
 
+SWEEP_SCRIPTS = ("wf_label_sweep.py", "wf_wave.py", "train_curated.py")
+
+
+def sweep_pid_from_cmdlines(cmdlines, self_pids=()):
+    """컨테이너 안에서 **고아로** 도는 학습/스윕 (pid, script) 목록.  [순수 함수 — 테스트 대상]
+
+    왜 필요한가: docker exec 클라이언트(호스트 쪽 bash)가 세션 종료로 죽어도 **컨테이너 안
+    python 은 계속 돈다**(부모가 containerd-shim). 구동기는 pidfile·state.json 만 보므로
+    '실행 중: 없음' 이라고 보고하고 다음 사이클을 또 띄운다.
+    실측(2026-11-27 23:0x): wf_label_sweep 3개 동시 실행(143%+125%+100% CPU, 4코어) ·
+    그중 2개는 **같은 `--out/--summary-out`** 에 동시에 쓰고 있었다(늦게 끝난 3시드가 5시드
+    요약을 덮어쓸 구조) · 구동기 status 는 '실행 중: 없음' · load1 14.5.
+
+    자기매칭 방지: argv[0] 이 python 계열일 때만 인정한다(`sh -c 'docker exec ... wf_wave.py'`
+    래퍼나 로그 grep 은 제외).
+    """
+    out = []
+    for pid, raw in cmdlines:
+        if pid in self_pids:
+            continue
+        argv = [a for a in raw.split("\0") if a]
+        if not argv:
+            continue
+        head = argv[0].rsplit("/", 1)[-1]
+        if not head.startswith("python"):
+            continue
+        for tok in argv[1:]:
+            base = tok.rsplit("/", 1)[-1]
+            if base in SWEEP_SCRIPTS:
+                out.append((pid, base))
+                break
+    return out
+
+
+def orphan_sweeps():
+    """구동기 소유가 아닌(=pidfile·state 에 없는) 스윕 프로세스 목록."""
+    mine = {os.getpid(), os.getppid()}
+    pid = running_pid(exclude_self=False)
+    if pid:
+        mine.add(pid)
+    return sweep_pid_from_cmdlines(_iter_cmdlines(), self_pids=mine)
+
+
 def pipeline_pid_from_cmdlines(cmdlines, self_pids=()):
     """실행 중인 저녁 파이프라인 (pid, name). 없으면 (None, None).  [순수 함수 — 테스트 대상]
 
@@ -775,6 +818,11 @@ def guards(force=False, item=None) -> tuple:
     """(ok, 이유). 시작해도 되는가."""
     if running_pid():
         return False, "이미 사이클 실행 중"
+    _orph = orphan_sweeps()
+    if _orph:
+        _desc = ", ".join(f"{s} pid={p}" for p, s in _orph[:3])
+        return False, (f"구동기 밖 고아 스윕이 실행 중({_desc}) — CPU 직렬화 위반·같은 요약 파일 "
+                       f"동시쓰기 위험으로 시작하지 않음 · 다음 틱에서 재시도")
     pid, rel = peer_running()
     if pid:
         return False, f"다른 역할이 실행 중(pid={pid}, {rel}) — CPU 직렬화를 위해 대기"
@@ -8199,6 +8247,10 @@ def status():
         print(f"  ⚠ 판정불가 등록: {_w}")
     pid = running_pid()
     print(f"실행 중: {pid if pid else '없음'}")
+    _orph = orphan_sweeps()
+    if _orph:
+        print("⚠ 고아 스윕(구동기 밖): " + ", ".join(f"{s} pid={p}" for p, s in _orph)
+              + " — 새 사이클 시작 차단 대상")
     led = load_ledger(5)
     if led:
         print("최근 원장(5):")
