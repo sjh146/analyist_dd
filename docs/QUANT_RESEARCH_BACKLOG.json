@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-26T21:18:31+09:00",
+  "updated_at": "2026-11-27T21:40:00+09:00",
   "owner": "quant-researcher",
   "purpose": "장외 자율 데이터 수집·품질 백로그. 각 항목은 재현 명령과 DQ 기준(check)을 스스로 갖고, scripts/researcher_cycle.py 가 앞에서부터 실행한다.",
   "rules": [
@@ -665,13 +665,18 @@
           "ts": "2026-11-26T18:47:29+09:00",
           "rc": 0,
           "detail": "T17: 1 >= 1 → 충족"
+        },
+        {
+          "ts": "2026-11-27T20:47:48+09:00",
+          "rc": 0,
+          "detail": "T17: 1 >= 1 → 충족"
         }
       ],
       "result": {
         "detail": "T17: 1 >= 1 → 충족",
         "check_value": 1.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_T17_20261126-184729.log"
+        "log": "data/reports/res_cycle/logs/res_T17_20261127-204748.log"
       }
     },
     {
@@ -1440,13 +1445,18 @@
           "ts": "2026-11-26T06:47:22+09:00",
           "rc": 0,
           "detail": "R27: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-27T16:47:59+09:00",
+          "rc": 0,
+          "detail": "R27: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R27: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R27_20261126-064722.log"
+        "log": "data/reports/res_cycle/logs/res_R27_20261127-164759.log"
       },
       "note": " || **[2026-10-09 21:1x 스캔 — 자기신고 미배선 러너 목록]** 크론이 실제로 돌리는데 dq_runner_claim 행을 만들지 않는 수집 경로 3개(배선조차 없음, R23 텍스트 휴리스틱에도 걸린다): ① `kis_backfill_range.py`(kis_backfill.sh) — record_claim 문자열 0 ② `run_close_job.py`(close_job.sh) — 컨테이너 내부라 dq_claim.py 모듈 부재(R28 유형 → phase 로그 브리지 필요) ③ `run_swing_job.py`(swing_pipeline.sh 도 동일, claim 브리지 0). 다음 사이클: ②③은 full_pipeline_dd.sh 의 `scripts/yf_claim_from_phase_log.py` 를 그대로 재사용, ①은 러너 내부 배선(크론 파일 무수정)."
     },
@@ -1869,13 +1879,18 @@
           "ts": "2026-11-26T04:47:38+09:00",
           "rc": 0,
           "detail": "R35: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-27T15:35:53+09:00",
+          "rc": 0,
+          "detail": "R35: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R35: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R35_20261126-044735.log"
+        "log": "data/reports/res_cycle/logs/res_R35_20261127-153550.log"
       }
     },
     {
@@ -2083,13 +2098,18 @@
           "ts": "2026-11-26T16:47:59+09:00",
           "rc": 0,
           "detail": "R41: 0 <= 0 → 충족"
+        },
+        {
+          "ts": "2026-11-27T18:47:29+09:00",
+          "rc": 0,
+          "detail": "R41: 0 <= 0 → 충족"
         }
       ],
       "result": {
         "detail": "R41: 0 <= 0 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R41_20261126-164752.log"
+        "log": "data/reports/res_cycle/logs/res_R41_20261127-184722.log"
       },
       "notes": " [2026-11-20 21:2x 수리 — 부분 스냅샷 가드, 자율] 실측: 리서처 틱 R41 command(`--today`)는 18:47 에 도는데 일봉 적재(daily_bars.sh)는 18:55 에 끝난다 → `--today` 는 'DB 최신 날짜'를 쓰므로 18:47 에는 **전일 세션(11-19)이 yfinance 스윕분만 든 상태**로 잡혀 기존 정상 기록을 덮었다(11-19: scored 3832→3722 · trade_value_sum 17.99조→null · breadth 64.7→70.9 · adr 2.24→2.72). 19:40 원장 크론(Hermes job 10212cee483b)이 재기록해 53분 뒤 복구 — 그 사이 엔지니어 틱·피드가 그 값을 읽는다. 수리는 시각 하드코딩이 아니라 **내용 판정**: `_looks_partial(new, prev)` = 봉수가 기존×0.98 미만이거나 거래대금 있는 기록을 0/null 로 덮으려 하면 skip(+`--force` 로만 강제). 상향·동일 재실행은 통과하므로 멱등 계약 유지. 회귀 8건 `tests/test_market_pattern_ledger_partial_guard.py`(기존 커버리지 검사 20건 포함 28 통과). 실경로 검증 2종: ① 정상 데이터로 `--today` → changed sessions [] (오탐 없음, 64세션 불변) ② 실 DB + 18:47 로그값(scored 3722·tv null)을 주입 → `[guard] 부분 스냅샷 … 차단` 후 11-19 기록 3832·17.99조 보존."
     },
@@ -2226,13 +2246,18 @@
           "ts": "2026-11-26T20:48:48+09:00",
           "rc": 0,
           "detail": "R44: 0 <= 1 → 충족"
+        },
+        {
+          "ts": "2026-11-27T21:13:12+09:00",
+          "rc": 0,
+          "detail": "R44: 0 <= 1 → 충족"
         }
       ],
       "result": {
         "detail": "R44: 0 <= 1 → 충족",
         "check_value": 0.0,
         "rc": 0,
-        "log": "data/reports/res_cycle/logs/res_R44_20261126-204803.log"
+        "log": "data/reports/res_cycle/logs/res_R44_20261127-211157.log"
       },
       "approved_by": "2026-11-21",
       "note": "[11-21 사용자 승인] sns_post_features 일일 배선 승인 — writer 는 있는데 스케줄이 없어 5거래일 동결."
@@ -2615,6 +2640,50 @@
       ],
       "notes": "승인 없이 크론 파일을 고칠 수 없다(역할 경계). 승인 시 예상 소요: 2,629콜 × 3.2s ≈ 2.3시간(23:00 시작이면 01:20 종료, 분봉 수집과 시간대가 겹치므로 순차 배치 권장). 대안(권고): 일일은 200 유지 + 주 1회(금 23:00 이후) 전 종목 스윕.",
       "provenance": "researcher 2026-11-26 21:2x (R54 정정)"
+    },
+    {
+      "id": "R57",
+      "title": "뉴스 언급 체인(news_stock_mentions → news_mention_features)이 11-18 이후 동결 — 수집기·피처빌더 둘 다 스케줄 없음(파일럿 미배선, R44 와 동류)",
+      "status": "needs_approval",
+      "priority": 4,
+      "kind": "collect",
+      "recurring": false,
+      "affects_model": false,
+      "hypothesis": "`scripts/news_stock_collect.py`(Google News RSS, 파일럿)와 `scripts/news_mention_features.py`(as-of 격자)는 2026-11-18~19 일회 백필로만 돌았고 크론·파이프라인 어디에도 호출이 없다. 원천(news_analysis)은 살아 있으므로 죽은 것은 수집 배선이다. 같은 클래스의 결함을 R44(sns_features)에서 이미 한 번 겪었다 — writer 존재·스케줄 부재.",
+      "evidence": "실측 2026-11-27 21:1x(read-only SQL + grep + dry-run): ① news_stock_mentions 9,384행·193종목 · max(published_date)=2026-11-18, 11-19~11-27 신규 0행(11-14~11-18 은 62~713행/일이 정상 유입) ② news_mention_features 6,398행 · max(trade_date)=2026-11-18 ③ 원천 news_analysis 는 3,306행 · max(analyzed_at)=2026-11-27 21:11 로 신선(당일 파이프라인 가동) ④ user crontab·scripts/full_pipeline_dd.sh·cron/*.sh 어디에도 news_stock_collect/news_mention_features/patch_panel_news 호출 없음(grep 0건) ⑤ dry-run 재현: news_mention_features --from 2026-11-19 --to 2026-11-27 은 격자 1,158행을 '성공'으로 만들지만 사용 언급 9,349행이 **전부 11-18 이전** → 값이 감쇠만 할 뿐 수집 실패를 드러내지 않는다(자기신고 claimed>0·rc=0) ⑥ news_stock_collect dry-run 은 살아 있다: 종목 2 · 질의 2 → 본 기사 23 · 가드 통과 12 · rejected 11 (2026-11-27 21:15). ⑦ 소비 경로: scripts/rule_expectancy.py load_news 가 예외를 삼켜 빈 프레임으로 폴백 → 뉴스 조건이 조용히 사라진 실험 결론이 나온다. 모델 서빙 피처는 아님(feature_coverage 에 mention_* 없음, patch_panel_news 는 연구 하네스용).",
+      "check": "docker exec stock_postgres psql -U stock_user -d stock_trading -tAc \"SELECT (SELECT max(trade_date)::date FROM market_data) - max(published_date) FROM news_stock_mentions\"",
+      "check_target": {
+        "op": "<=",
+        "value": 2,
+        "unit": "최신 시세일 − 뉴스 언급 최신일(일). 2026-11-27 실측 8"
+      },
+      "command": "cd /home/jhshi/analyist_dd && set -a && . ./.env && set +a && export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 && /usr/bin/python3 scripts/news_stock_collect.py --codes-file reports/panel_codes.txt --from <D-9> --to <D> --max-queries 120 --sleep 6.0 && /usr/bin/python3 scripts/news_mention_features.py --from <D-9> --to <D>",
+      "setup_needed": [
+        "사람: 크론 파일 수정(역할 경계) — user crontab 에 평일 17:20 두 줄: `20 17 * * 1-5 /home/jhshi/cron/news_stock_collect.sh`(--sleep 6.0 --max-queries 120, 커서 회전) + `40 17 * * 1-5 /home/jhshi/cron/news_mention_features.sh`(당일 창). 두 러너 모두 멱등 upsert·커서 재개라 재실행 안전, 비용 200종목 기준 8~10분/일"
+      ],
+      "notes": "[2026-11-27 21:16~21:37 자율 수리 완료] ① 백필: news_stock_collect --from 2026-11-19 --to 2026-11-27 --sleep 4.0 = 질의 232 · 본 기사 6,179 · 가드 통과 3,777 · 삽입 3,773 · rejected 2,402 · 실패 창 0(종목 200). news_stock_mentions 9,384 → 13,458행 · max(published_date) 2026-11-18 → 2026-11-27. ② 피처 격자: news_mention_features --from 2026-11-19 --to 2026-11-27 = source 13,423 · claimed/persisted 1,164 · 194종목. 격자가 11-18~11-26 연속(주말 제외)으로 채워졌고 mention_7d 비영 143~170/194 · 평균 11.2~14.2 로 감쇠가 아니라 연속값이다(수리 전에는 옛 언급이 감쇠만 했다). ③ check 실측: (market_data 최신 11-26 − 언급 최신 11-27) = -1 → 충족. ⚠ 남은 일은 스케줄 하나다(크론 파일 수정 = 사람). 배선 파라미터 주의: 같은 실행에서 --sleep 4.0 인데도 Google News RSS 가 간헐 429(레이·에스에스알 등 6건)를 냈다 — 일일 증분은 --sleep 6.0 + 종목 60~80개 회전(커서) 또는 --max-queries 120 권장. net_guard 는 이 호스트(Google)를 아직 감시하지 않는다 — 겹쳐 돌리면 호출률이 배가 되는 구조는 동일하므로 배선 시 'google_news' 키 추가가 필요하다."
+    },
+    {
+      "id": "R58",
+      "title": "야간 파이프라인 phase 1-3(news)이 상주 news-analyzer 와 중복 기동해 매일 600초를 버리고 rc=124 로 'ok=True' 자기신고를 남긴다",
+      "status": "pending",
+      "priority": 7,
+      "kind": "investigate",
+      "recurring": false,
+      "affects_model": false,
+      "hypothesis": "phase 1-3 은 상주 서비스(stock_news_analyzer, 포트 9101 점유)와 같은 analyzer 를 컨테이너 안에서 다시 띄운다. 그래서 ① 메트릭 서버 포트 충돌 ② 기사 91건을 새로 모아 DeepSeek 1건씩 분석(수 초/건) ③ 600s 상한에 걸려 3건만 적재하고 SIGTERM. 실제 분석은 상주 서비스가 하므로 데이터는 신선하지만, 매일 10분의 파이프라인 시간을 버리고 실패(rc=124)를 'ok=True' 로 기록해 뉴스 경로의 진짜 실패를 가린다.",
+      "evidence": "실측 2026-11-27 21:1x: ① reports/full_pipeline_dd_20261127_2000.log:40~63 — 'Could not start metrics server on port 9101: Address already in use' → 'Collected 91 articles' → DeepSeek 호출 2건 후 `[phase_claim] pipeline_news news_analysis delta=3 ok=True` ② dq_runner_claim pipeline_news 최근 5회: rc=124(11-23, delta 12) · rc=124(11-24, delta 7) · rc=0(11-25, delta 9) · rc=0(11-26, delta 9) · rc=124(11-27, delta 3) = 5회 중 3회 타임아웃 ③ 같은 시각 news_analysis 는 3,306행 · max(analyzed_at)=2026-11-27 21:11 · 11-27 게시 172건 · 분석지연 0일 → 실제 적재는 상주 서비스가 하고 있다 ④ 부수 오류: full_pipeline_dd.sh:306 `/tmp/pipeline_phase_progress.txt: Permission denied`(다른 사용자 소유 파일) ⑤ 상한은 scripts/full_pipeline_dd.sh:305 의 600초.",
+      "check": "grep -c 'pipeline_news news_analysis delta=.* ok=True' /home/jhshi/analyist_dd/reports/full_pipeline_dd_$(date +%Y%m%d)_2000.log",
+      "check_target": {
+        "op": "<=",
+        "value": 0,
+        "unit": "당일 phase 가 남긴 delta 줄 수(rc=124 여도 ok=True 로 찍히면 1 이상)"
+      },
+      "command": "",
+      "setup_needed": [
+        "리뷰보드 승인: scripts/full_pipeline_dd.sh 는 공용 오케스트레이터(리서처 소유 아님) — phase 1-3 을 (A) 삭제하지 말고 상주 서비스 헬스체크(`docker exec stock_news_analyzer curl -s localhost:9101/health`)가 정상이면 건너뛰기, (B) 폴백일 때만 600s 유지. 권고=(A)"
+      ],
+      "notes": "삭제보다 조건부 스킵을 권한다 — 상주 서비스가 죽은 날 phase 1-3 이 유일한 분석 경로다. 또 rc=124 를 ok=True 로 찍는 자기신고 규약도 함께 손봐야 한다(실패가 성공으로 기록되는 유형)."
     }
   ]
 }
