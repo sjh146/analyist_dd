@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T17:15:46+09:00",
+ "updated_at": "2026-11-27T19:18:12+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28236,7 +28236,7 @@
    "command": "cd /home/jhshi/analyist_dd && timeout 1800 python3 scripts/cg523_live_universe_deciles.py --json-out data/reports/overnight/cg524_baselines.json --min-value-eok 50 --baselines return_5d,momentum_20d,volatility_20d",
    "success": "사전 등록(변경 금지): ① 각 랭킹의 D10−D1 과 세션별 짝 t, 그리고 같은 MDE80 을 한 표로 낸다. ② 챔피언 Δ(-0.3661%p)보다 +0.3%p 이상 큰 단순 신호가 하나라도 있고 그 |t| ≥ 1.0 이면 '대체 랭킹 후보 있음'. ③ 모든 단순 신호가 챔피언과 ±0.3%p 이내면 '랭킹 축 종결 — 어떤 횡단면 랭킹도 이 표본에서 인증 불가'로 닫고, 모델 축은 데이터 축(인트라데이 CG388/CG450)으로만 남긴다. 문턱 하향 금지.",
    "setup_needed": "cg523_live_universe_deciles.py 에 --baselines 모드 추가(같은 SQL 결과에서 종목별 5일 수익률·20일 모멘텀·20일 변동성을 그 시점까지의 값만으로 계산해 랭킹 3종을 만들고, 각각 top5/분위 Δ·t·MDE 를 같은 세션 집합에서 산출). look-ahead 금지: 랭킹 입력은 prediction_date 까지의 market_data 만 사용.",
-   "note": " | 2026-11-27 17:2x 엔지니어 자율 셋업 완료: --baselines 플래그(return_5d·momentum_20d·volatility_20d·reversal_1d)를 scripts/cg523_live_universe_deciles.py 에 구현(단순신호도 같은 표본·같은 10분위 프로토콜로 채점, models.<name> 으로 병기). 회귀: --baselines 없이 재실행한 live 블록이 기존 cg523_summary.json 과 비트 동일(ρ −0.103·D10−D1 +0.1417·pool −1.8812·분위 10개 동일). 사전 실행 1회(17세션·50억 필터, 판정 아님): 챔피언 ρ −0.3576·Δ −0.3661%p ↔ return_5d ρ 0.8545·Δ +0.8487(t 0.54) · momentum_20d ρ 0.1394·Δ +0.4332(t 0.30) · volatility_20d ρ −0.7091·Δ −4.2000(t −3.03). 해석 주의: 세션 17개·짝 SE 큼 → 단순신호 '신호' 판정도 불가(MDE 확인할 것). 다만 챔피언이 50억 유니버스에서 5일 반전보다 나쁘다는 방향은 일관. not_before 해제(셋업 완료) — 다음 틱이 착수해 원장에 자기 판정을 남긴다.",
+   "note": " | 2026-11-27 17:2x 엔지니어 자율 셋업 완료: --baselines 플래그(return_5d·momentum_20d·volatility_20d·reversal_1d)를 scripts/cg523_live_universe_deciles.py 에 구현(단순신호도 같은 표본·같은 10분위 프로토콜로 채점, models.<name> 으로 병기). 회귀: --baselines 없이 재실행한 live 블록이 기존 cg523_summary.json 과 비트 동일(ρ −0.103·D10−D1 +0.1417·pool −1.8812·분위 10개 동일). 사전 실행 1회(17세션·50억 필터, 판정 아님): 챔피언 ρ −0.3576·Δ −0.3661%p ↔ return_5d ρ 0.8545·Δ +0.8487(t 0.54) · momentum_20d ρ 0.1394·Δ +0.4332(t 0.30) · volatility_20d ρ −0.7091·Δ −4.2000(t −3.03). 해석 주의: 세션 17개·짝 SE 큼 → 단순신호 '신호' 판정도 불가(MDE 확인할 것). 다만 챔피언이 50억 유니버스에서 5일 반전보다 나쁘다는 방향은 일관. not_before 해제(셋업 완료) — 다음 틱이 착수해 원장에 자기 판정을 남긴다. | 2026-11-27 19:3x 재해석(CG527): 이 실행의 live 블록 MDE80 은 1.6469%p(0.3%p 검출에 513세션 필요) → verdict '노이즈'는 검정력 부족이며 축 종결 근거가 아니다. 사실상 '판정불가(저검정력)'.",
    "model_label": "live",
    "updated_at": "2026-11-27T17:13:39+09:00",
    "attempts": [
@@ -28279,7 +28279,7 @@
   },
   {
    "id": "CG526",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "돈 지표·청산정합",
    "owner": "engineer",
@@ -28295,7 +28295,97 @@
    "expected": "21세션·수 초(읽기 전용 SQL). 판정은 구동기 judge_score_deciles(ρ≥0.5·Δ≥0.3%p).",
    "created_at": "2026-11-27T17:15:46+09:00",
    "updated_at": "2026-11-27T17:15:46+09:00",
-   "note": "2026-11-27 17:2x 엔지니어 자율(CG524 판정 후속). 스크립트에 --exit next_open·--horizon 추가(기본 close_h 는 비트 동일 회귀 확인). 사전 실행 1회(판정 아님·낮은 검정력): 21세션·50억 · 챔피언 ρ −0.0424 · Δ −0.1011%p · 풀평균 +0.0150 ↔ return_5d ρ −0.6242·Δ −0.2121(t −0.46) · volatility_20d ρ 0.9273·Δ +0.4670(t 0.97). h1 에서도 챔피언 랭킹은 무작위 수준 — 다만 판정은 구동기 원장 기록으로 남긴다."
+   "note": "2026-11-27 17:2x 엔지니어 자율(CG524 판정 후속). 스크립트에 --exit next_open·--horizon 추가(기본 close_h 는 비트 동일 회귀 확인). 사전 실행 1회(판정 아님·낮은 검정력): 21세션·50억 · 챔피언 ρ −0.0424 · Δ −0.1011%p · 풀평균 +0.0150 ↔ return_5d ρ −0.6242·Δ −0.2121(t −0.46) · volatility_20d ρ 0.9273·Δ +0.4670(t 0.97). h1 에서도 챔피언 랭킹은 무작위 수준 — 다만 판정은 구동기 원장 기록으로 남긴다. | 2026-11-27 19:3x 재해석(CG527): live 블록 MDE80 0.317%p(필요 24세션) → 챔피언 랭킹 '노이즈' 판정은 검정력 충분으로 유지. 단 baseline(return_5d·vol_20d)은 MDE80 1.29~1.35%p 로 판정불가.",
+   "attempts": [
+    {
+     "ts": "2026-11-27T18:08:47+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "분위 ρ -0.0424 · D10−D1 -0.1011%p (D1 +0.0123 / D10 -0.0887) · 세션별 짝Δ -0.1011%p t -0.89 (양 9/음 12, 앞 0.0835/뒤 -0.2689) · 풀평균 0.015%p · 21세션/9986행 → 사전문턱(ρ≥0.5·Δ≥0.3%p) 미달: 랭킹 무효",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG526_20261127-180841.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "분위 ρ -0.0424 · D10−D1 -0.1011%p (D1 +0.0123 / D10 -0.0887) · 세션별 짝Δ -0.1011%p t -0.89 (양 9/음 12, 앞 0.0835/뒤 -0.2689) · 풀평균 0.015%p · 21세션/9986행 → 사전문턱(ρ≥0.5·Δ≥0.3%p) 미달: 랭킹 무효",
+    "delta": -0.1011,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG527",
+   "title": "[측정정합성] score_deciles 판정에 검정력(MDE) 조건을 넣는다 — MDE80>2×문턱이면 '노이즈'가 아니라 '판정불가(저검정력)'",
+   "status": "done",
+   "priority": 1,
+   "kind": "측정정합성",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "self_check",
+   "est_minutes": 20,
+   "hypothesis": "CG524/CG526 은 표본 17·21세션이라 MDE80 이 1.65~4.4%p(등록 문턱 0.3%p 의 5~15배)인데도 판정기가 '노이즈'(=랭킹 무효, 축 종결)로 닫았다. 검출 불가능한 표본으로 축을 닫으면 이후 어떤 재측정도 근거로 남지 않는다. 스크립트는 이미 power 블록을 요약 JSON 에 쓰고 있었으나 파서가 버렸다.",
+   "command": "cd /home/jhshi/analyist_dd && python3 scripts/_score_deciles_power_test.py",
+   "counterfactual": "종전 판정: 문턱 미달이면 무조건 '노이즈'",
+   "success": "회귀 7/7 PASS — MDE80 1.65%p(실측 CG524 값) → 판정불가(저검정력) · MDE80 0.20%p → 노이즈 · 경계 0.60/0.61 · 문턱 통과 → 신호 · power 없는 옛 요약 → 노이즈(하위호환)",
+   "result": {
+    "verdict": "수리 완료 — 검정력 조건 판정",
+    "detail": "parse_score_deciles 가 power 를 통과시키고 judge_score_deciles 가 MDE80>0.6%p(2×문턱)이면 '판정불가(저검정력)'로 기록한다(축 종결 금지·같은 명령으로 표본 누적 후 재측정). 회귀 scripts/_score_deciles_power_test.py 7/7 PASS · 실측 재해석: CG524(live 블록 h5, 17세션) MDE80 1.6469%p·0.3%p 검출 필요 513세션 → 판정불가(저검정력) · CG526(h1 next_open, 21세션) MDE80 0.317%p·필요 24세션 → 노이즈 판정 유지(검정력 충분)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   },
+   "note": "2026-11-27 19:2x 엔지니어 자율(CG524·CG526 후속). 판정 방식 변경이지 문턱 변경이 아니므로 리뷰보드 승인 대상이 아니다(문턱 0.3%p 그대로).",
+   "created_at": "2026-11-27T19:18:12+09:00",
+   "finished_at": "2026-11-27T19:18:12+09:00",
+   "reported": true,
+   "attempts": 0
+  },
+  {
+   "id": "CG528",
+   "title": "[돈 지표·검정력] 배포 유니버스 횡단면 신호를 340세션에서 채점 — 야간 보유(종가→익일시가)에 0.3%p 넘는 순서 정보가 있는가",
+   "status": "done",
+   "priority": 1,
+   "kind": "돈지표",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "self_check",
+   "est_minutes": 5,
+   "hypothesis": "모델 축(ml_predictions 34세션·공백 30일)은 표본 때문에 판정이 불가능했지만 시장 데이터는 952세션 있다. 배포 유니버스(50억 필터)에서 단순 횡단면 신호 5종을 같은 프로토콜로 340세션 채점하면 MDE80 이 0.30~1.0%p 로 내려가 '랭킹이 돈이 되는가'를 실제로 판정할 수 있다.",
+   "command": "cd /home/jhshi/analyist_dd && python3 scripts/cg528_universe_signal_power.py --json-out data/reports/overnight/cg528_h1_nextopen.json --since 2025-06-01 --min-value-eok 50 --horizon 1 --exit next_open --signals lowvol,volatility_20d,reversal_1d,return_5d,momentum_20d",
+   "counterfactual": "같은 세션 풀평균(널 기준선) + 10분위 D1/D10 · 수수료 왕복 0.21%p 차감 · 상한가 근처 제외",
+   "success": "사전 등록: D10−D1 짝Δ ≥ +0.3%p · 비중첩 t ≥ 2 · 앞/뒤 절반 부호 일치 (전부 충족 시 신호)",
+   "result": {
+    "verdict": "축 종결 — 야간 보유 창에 횡단면 순서 정보 없음(검정력 충분)",
+    "detail": "① 트레이더 실제 창(h1 next_open, 344세션, MDE80 0.30~0.35%p): lowvol Δ+0.03(t 0.32) · momentum_20d −0.17(t −1.45) · return_5d −0.15(t −1.19) · reversal −0.14(t −1.15) · vol_20d −0.03(t −0.32) → 5종 전부 |Δ|<0.2%p. 롱 전용 D10−풀: lowvol −0.14%p(저변동 우위 없음) · return_5d −0.14 · momentum −0.20. ② h5 종가청산(340세션, MDE80 1.01%p): lowvol Δ+1.27(t 3.53, 비중첩 t 1.82)이나 **전부 고변동 숏 레그** — D10−풀 +0.09%p 뿐이고 2025년 t −0.58 vs 2026년 t +4.15 로 2026 국면 특이(front −0.54/back +3.08). return_5d Δ−0.84(t −2.83, 2026 t −3.28) · momentum_20d 2025 +0.82(t 2.28) vs 2026 −0.65(부호 반전). → 개인 현물 롱 전용·익일시가 청산 구조에서 단순 랭킹은 수수료 0.21%p 를 넘지 못한다. 증거: data/reports/overnight/cg528_h1_nextopen.json · cg528_h5_close.json",
+    "delta": 0.0348,
+    "per_exp": null,
+    "rc": 0
+   },
+   "note": "2026-11-27 19:3x 엔지니어 자율(CG524·CG526 후속, CG527 수리 반영). 스크립트 scripts/cg528_universe_signal_power.py 신설 — market_data 전 종목 횡단면, 체결성 게이트·수수료 차감, 비중첩(stride=h) t 병기. 함정 실측: psycopg2 가 numeric 을 Decimal 로 주어 첫 실행이 TypeError(fwd − 0.21) — float 고정 후 정상. 판정 유보: h5 저변동 스프레드는 '고변동 회피'로는 deployable 이지만 롱 전용 초과수익이 +0.09%p/5d 라 수수료 미달.",
+   "created_at": "2026-11-27T19:18:12+09:00",
+   "finished_at": "2026-11-27T19:18:12+09:00",
+   "reported": true,
+   "attempts": 0
+  },
+  {
+   "id": "CG529",
+   "title": "[라벨·승인대기] 라벨을 실 청산창(당일 종가 → 익일 시가 h1)으로 재정의한 재학습 arm — 지금 모델은 h5 상승을 맞히도록 학습됐지만 실제로는 야간 보유로 청산한다",
+   "status": "needs_setup",
+   "priority": 1,
+   "kind": "라벨",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "champion_seed_family",
+   "est_minutes": 90,
+   "hypothesis": "CG528 실측으로 야간 창(h1 next_open)의 단순 랭킹 엣지 상한이 |0.2|%p(MDE80 0.30%p)임을 확인했다. 그런데 현 챔피언의 학습 라벨은 'h5 뒤 상승'(AUC 0.4742, 기준선 0.5406)이고 청산은 익일 09:00~09:10 이다 — 최적화 대상과 실행 창이 다르다. 라벨을 실행 창과 일치시키면 최소한 '틀린 목표를 잘 맞히는' 상태는 벗어난다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 5400 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 3 --only LBL_nextopen_h1 --out /app/reports/overnight/cg529_wf.jsonl --summary-out /app/reports/overnight/cg529_wf_summary.json'",
+   "counterfactual": "같은 패널·같은 폴드의 현행 라벨(h5 상승) arm",
+   "success": "사전 등록: 다중폴드 평균 ΔAUC ≥ +0.02 이고 체결성 필터 후 순기대 Δ ≥ +0.3%p/세션(같은 런 대조군) 이면 신호. 미달은 노이즈.",
+   "setup_needed": "리뷰보드 승인 필요(라벨 정의 변경). 승인 시: ① wf_label_sweep 에 LBL_nextopen_h1 라벨(당일 종가→익일 시가 1거래일) 추가 ② 같은 패널·폴드·시드로 대조군과 짝 비교 ③ 결과가 문턱 통과면 승격 후보로만 올린다(교체는 사람 필수).",
+   "note": "2026-11-27 19:4x 엔지니어 자율 신설(CG528 판정 후속). 근거: CG528 h1 next_open 344세션 MDE80 0.30~0.35%p(측정 가능) · CG526 챔피언 h1 Δ−0.10(t −0.89) · 현 챔피언 라벨 h5 vs 실제 청산 익일시가. 축 종결이 아니라 '목표-실행 불일치' 수리다.",
+   "created_at": "2026-11-27T19:18:12+09:00",
+   "attempts": 0
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"

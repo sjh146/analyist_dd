@@ -3064,6 +3064,7 @@ def parse_score_deciles(path, mtime_floor, label=None) -> dict:
         "paired_d10_d1": m.get("paired_d10_d1"),
         "pool_mean_pct": m.get("pool_mean_pct"), "pool_t": m.get("pool_t"),
         "monotonic": m.get("monotonic"),
+        "power": m.get("power"),
         "config": d.get("config"),
         "other_models": {k: {"spearman_rho": v.get("spearman_rho"),
                              "d10_minus_d1_pct": v.get("d10_minus_d1_pct")}
@@ -3075,7 +3076,11 @@ def parse_score_deciles(path, mtime_floor, label=None) -> dict:
 def judge_score_deciles(item, parsed) -> tuple:
     """사전 등록 문턱(백로그 success): ρ ≥ +0.5 이고 D10−D1 ≥ +0.3%p 면 '순서 정보 있음'.
 
-    둘 중 하나라도 미달이면 '노이즈'(=랭킹 무효 → 라벨·목적함수 축으로 이동). 판정 불가는 실행실패.
+    미달이면 **검정력부터 본다**(CG527, 2026-11-27 실측): 이 표본은 h5 중첩·세션 20여 개라
+    MDE80 이 4.6%p(등록 문턱 0.3%p 의 15배)였다. 그런 실행을 '노이즈'로 적으면 축이 영구
+    종결되는데, 실제로는 목표 효과를 원리적으로 검출할 수 없는 '판정불가(저검정력)'다.
+    규칙: MDE80 > 2 × 문턱(0.6%p) 이면 노이즈가 아니라 판정불가로 기록하고, 표본 누적 후
+    같은 명령으로 재측정한다. 판정 불가(측정값 없음)는 실행실패.
     """
     if parsed.get("error"):
         return "판정불가", f"측정값 없음 — {parsed['error']}", None
@@ -3085,14 +3090,24 @@ def judge_score_deciles(item, parsed) -> tuple:
     dec = parsed.get("deciles") or []
     d1 = dec[0]["mean_pct"] if dec else None
     d10 = dec[-1]["mean_pct"] if dec else None
+    power = (parsed.get("power") or {}).get("d10_minus_d1") or {}
+    mde = power.get("mde80_pct")
+    req = (power.get("required_sessions") or {}).get("0.3")
     detail = (f"분위 ρ {rho} · D10−D1 {delta}%p (D1 {d1:+.4f} / D10 {d10:+.4f}) · "
               f"세션별 짝Δ {p.get('mean_pct')}%p t {p.get('t_stat')} "
               f"(양 {p.get('pos')}/음 {p.get('neg')}, 앞 {p.get('front_pct')}/뒤 {p.get('back_pct')}) · "
               f"풀평균 {parsed.get('pool_mean_pct')}%p · {parsed.get('n_sessions')}세션/"
               f"{parsed.get('n_rows_after_filter')}행") if isinstance(delta, (int, float)) else "측정값 없음"
+    if mde is not None:
+        detail += f" · MDE80 {mde}%p(0.3%p 검출 필요 세션 {req})"
     ok = (rho is not None and rho >= 0.5 and delta is not None and delta >= 0.3)
     if ok:
         return "신호", detail + " → 사전문턱(ρ≥0.5·Δ≥0.3%p) 통과: 순서 정보 있음", delta
+    if isinstance(mde, (int, float)) and mde > 0.6:
+        return ("판정불가(저검정력)",
+                detail + f" → 문턱 미달이지만 MDE80>{0.6}%p: 이 표본은 0.3%p 를 검출할 수 없다 "
+                         f"→ '노이즈'로 확정하지 않는다(축 종결 금지). 표본 누적 후 같은 명령으로 재측정",
+                delta)
     return "노이즈", detail + " → 사전문턱(ρ≥0.5·Δ≥0.3%p) 미달: 랭킹 무효", delta
 
 
