@@ -95,13 +95,13 @@ run_screener() {  # $1 = 최소 거래대금, $2 = 추가 인자(대역 파일),
   echo "$n"
 }
 
-# 2026-11-23: 거래대금 하한 3억 → 10억(스프레드 넓은 박한 종목 배제, 실측 근거).
-# 개장 직후(09:10)는 당일 누적 거래대금이 작아 10억으로 0건이 나올 수 있으므로
-# 3억으로 한 번 더 시도한 뒤, 그래도 0건이면 기존처럼 대역 없이 재시도한다.
-n=$(run_screener "$MIN_VALUE_HI" "--rank-band-file $UNIV" "rank-band-10eok")
+# 2026-11-27: 기본 하한을 50억으로 되돌린다(사용자 지시 '유동성 높은 종목').
+# 기존에는 첫 시도가 10억이라 50억 정책이 사실상 적용되지 않았고, 실제로 27~45억 종목이
+# 후보로 발행돼 매수까지 이어졌다(117730). 50억에서 0건일 때만 10억으로 완화한다.
+n=$(run_screener "$MIN_VALUE_LO" "--rank-band-file $UNIV" "band-50eok")
 if [ "${n:-0}" -eq 0 ]; then
-  log "WARN 10억 하한에서 후보 0건 — 3억 하한으로 재시도"
-  n=$(run_screener "$MIN_VALUE_LO" "--rank-band-file $UNIV" "rank-band-3eok")
+  log "WARN 50억 하한에서 후보 0건 — 10억으로 완화 재시도"
+  n=$(run_screener "$MIN_VALUE_HI" "--rank-band-file $UNIV" "band-10eok")
 fi
 if [ "${n:-0}" -eq 0 ]; then
   log "WARN 대역 적용 후 후보 0건 — 대역 없이 재시도"
