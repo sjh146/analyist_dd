@@ -81,6 +81,10 @@ def main(argv=None):
                     help="수집 대상일 YYYYMMDD (기본: 오늘)")
     ap.add_argument("--limit", type=int, default=None,
                     help="점검용 — 첫 N 종목만 처리")
+    ap.add_argument("--deadline", default=None,
+                    help="분봉 수집 마감 시각(HH:MM). 도달하면 남은 종목을 건너뛰고 정상 종료")
+    ap.add_argument("--priority-file", default=None,
+                    help="우선 수집 종목 JSON(리스트 또는 {code: ...}) — 패널·당일 후보를 먼저")
     ap.add_argument("--universe-file", default=None,
                     help="수집 대상 종목 파일 (JSON 배열 또는 {코드: 시장} 객체). "
                          "전 종목 분봉은 하루 3~4만 콜이라 비현실적 — 우선순위 "
@@ -151,8 +155,22 @@ def main(argv=None):
         _claiming = claim_start is not None and not config.KIS_DRY_RUN
         if _claiming:
             claim_start("kis_app.main:minute", "minute_bars", note=f"date={target}")
+        _deadline = None
+        if getattr(args, "deadline", None):
+            _now = datetime.now()
+            _deadline = datetime.strptime(args.deadline, "%H:%M").replace(
+                year=_now.year, month=_now.month, day=_now.day)
+            if _deadline <= _now:
+                _deadline += timedelta(days=1)
+        _priority = None
+        if getattr(args, "priority_file", None):
+            import json as _json
+            with open(args.priority_file, encoding="utf-8") as _fh:
+                _payload = _json.load(_fh)
+            _priority = list(_payload) if isinstance(_payload, dict) else list(_payload or [])
         results["minute"] = MinuteCollector(client, storage).collect(
-            target, limit=args.limit, universe=universe)
+            target, limit=args.limit, universe=universe,
+            priority=_priority, deadline=_deadline)
         if _claiming:
             _s = results["minute"]
             # 분봉은 수집기가 '원시 페이지 행수'를 노출하지 않는다 → source 는 비워 둔다

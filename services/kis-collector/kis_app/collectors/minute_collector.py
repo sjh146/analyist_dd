@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from kis_app.utils import add_minutes, to_date, to_float, to_int
 from kis_app.collectors.daily_collector import market_to_excd
@@ -105,7 +106,7 @@ class MinuteCollector:
                                  b["time"]))
         return bars
 
-    def collect(self, target_date, limit=None, universe=None):
+    def collect(self, target_date, limit=None, universe=None, priority=None, deadline=None):
         """대상일(YYYYMMDD) 전 종목 분봉 수집. limit=N이면 첫 N 종목만.
 
         universe(=[(code, market)]) 를 주면 DB 유니버스 대신 그것을 쓴다
@@ -115,12 +116,22 @@ class MinuteCollector:
                "total": 처리 종목수, "bars": 저장 봉 수}
         """
         universe = list(universe) if universe is not None else self._storage.get_universe()
+        if priority:
+            # 우선 종목(패널·당일 후보)을 먼저 처리한다 — 야간 창이 잘려도 연구용 종목이 먼저 찬다.
+            prio = {str(c) for c in priority}
+            universe = sorted(universe, key=lambda pair: 0 if str(pair[0]) in prio else 1)
         if limit is not None:
             universe = universe[: int(limit)]
 
         summary = {"ok": 0, "no_data": 0, "fail": 0, "total": len(universe),
                    "bars": 0}
+        skipped = 0
         for idx, (code, market) in enumerate(universe, start=1):
+            if deadline is not None and datetime.now() >= deadline:
+                skipped = len(universe) - idx + 1
+                logger.warning("분봉 수집 마감(%s) 도달 — 남은 %d종목 건너뜀(다음 크론/가드가 이어받는다)",
+                               deadline.strftime("%H:%M"), skipped)
+                break
             try:
                 rows = self.collect_stock(code, market, target_date)
                 if rows:
@@ -151,5 +162,6 @@ class MinuteCollector:
                     break
         summary.setdefault("quota_hit", False)
         summary.setdefault("auth_failed", False)
+        summary["skipped"] = skipped
         logger.info("분봉 수집 완료: %s", summary)
         return summary
