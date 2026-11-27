@@ -506,10 +506,9 @@ def _detect_indent(path: str, default: int = 2) -> int:
     try:
         with open(path, encoding="utf-8") as f:
             for line in f:
-                if line.startswith("  "):
-                    return len(line) - len(line.lstrip(" "))
-                if line.strip().startswith('"'):
-                    return default
+                if line.lstrip().startswith('"'):
+                    n = len(line) - len(line.lstrip(" "))
+                    return n if n > 0 else default
     except OSError:
         pass
     return default
@@ -924,7 +923,13 @@ def handoff_report() -> dict:
 
 # ── 백로그 항목 실행 (자체 실행기 — 리서처/엔지니어의 실행기 가정에 의존하지 않는다) ──
 def _run_item(item: dict, force: bool = False) -> int:
-    """항목의 `command` 를 실행하고 마지막 수치를 `check` 와 비교해 상태·원장을 갱신한다."""
+    """항목의 `command` 를 실행하고 마지막 수치를 `check` 와 비교해 상태·원장을 갱신한다.
+
+    `metric="tests_green"` 의 stdout 마지막 수치는 **pytest 실행시간(초)** 이라
+    "2 failed, 21 passed in 1.08s" 가 "1.08 >= 0.0 충족" 으로 거짓 통과한다
+    (2026-11-27 T61 실측). 그래서 이 지표는 rc=0 이고 failed/error 가 0 일 때만 충족이고,
+    `check` 정의가 없는 항목은 기본값(">= 0")으로 통과시키지 않고 needs_setup(판정 불가)으로 남긴다.
+    """
     cmd = item.get("command")
     if not cmd:
         item["status"] = "needs_setup"
@@ -945,15 +950,34 @@ def _run_item(item: dict, force: bool = False) -> int:
     nums = re.findall(r"[-+]?\d+(?:\.\d+)?", out)
     val = float(nums[-1]) if nums else None
     chk = item.get("check") or {}
+    metric = item.get("metric")
     op, tgt = chk.get("op", ">="), float(chk.get("value", 0))
     met = None
-    if val is not None:
+    check_txt = None
+    if metric == "tests_green":
+        m_fail = re.search(r"(\d+)\s+(?:failed|error)", out)
+        n_fail = int(m_fail.group(1)) if m_fail else 0
+        val = float(n_fail)
+        met = None if rc == 124 else (rc == 0 and n_fail == 0)
+        check_txt = f"rc={rc} failed={n_fail}"
+    elif not chk:
+        val, met, check_txt = None, None, "check 정의 없음"
+    elif val is not None:
         met = {">=": val >= tgt, ">": val > tgt, "<=": val <= tgt, "<": val < tgt,
                "==": val == tgt}.get(op, False)
+        check_txt = f"{val} {op} {tgt}"
     verdict = "충족" if met else ("미달" if met is False else "수치 없음")
-    item["status"] = "done" if met else "failed"
+    if met is None:
+        if not chk and metric != "tests_green":
+            item["status"] = "needs_setup"
+        elif item.get("status") in ("done", "failed"):
+            pass
+        else:
+            item["status"] = "pending"
+    else:
+        item["status"] = "done" if met else "failed"
     item["result"] = {"ts": now_kst().isoformat(timespec="seconds"), "value": val,
-                      "check": f"{val} {op} {tgt}" if val is not None else None,
+                      "check": check_txt,
                       "verdict": verdict, "rc": rc, "stdout_tail": out[-400:],
                       "stderr_tail": err[-300:]}
     log(f"{item['id']} → {verdict} ({item['result']['check'] or 'n/a'})")

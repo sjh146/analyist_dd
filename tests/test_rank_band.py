@@ -23,9 +23,14 @@ from day_trading_engine import FixtureProvider, run_screener  # noqa: E402
 
 
 def _frame(code, closes, vols, values=None, start=date(2026, 7, 1)):
+    """일봉 픽스처. 기본 거래대금 60억은 run_screener 의 유동성 문턱(50억)을 넘긴다.
+
+    2026-11-27 이전 기본값 10억은 전 종목이 문턱에서 빠져 0행을 만들었고, 그 빈 df 의
+    [0] 접근이 IndexError 로 터졌다(테스트 로직이 아니라 픽스처가 낡은 문제).
+    """
     n = len(closes)
     if values is None:
-        values = [1e9] * n
+        values = [6e9] * n
     return pd.DataFrame({
         "stock_code": [code] * n,
         "trade_date": pd.date_range(start, periods=n, freq="D"),
@@ -51,7 +56,7 @@ def _run(**kw):
 
 def test_baseline_ranks_without_bands():
     base = _run()
-    # 실측 기준선: 000001(36.8) > 000002(23.5) > 000003(21.4)
+    # 실측 기준선(2026-11-27, 유동성 60억 픽스처): 000001(55.2) > 000002(39.4) > 000003(36.8)
     assert list(base["stock_code"])[0] == "000001"
 
 
