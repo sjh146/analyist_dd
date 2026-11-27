@@ -750,6 +750,15 @@ def main(argv=None):
     regime = _load_regime()
     if regime:
         feed["regime"] = regime
+    # 미장 오버나이트 참조값(2026-11-28): 나스닥·SOX 의 최근 세션 변화와 z점수.
+    # scripts/us_overnight_signal.py --write 가 만든 상태 파일을 그대로 싣는다.
+    # 소비 측(트레이더)은 아직 게이트로 쓰지 않고 algo_json 에 기록만 한다 — 효력 측정 전이다.
+    try:
+        with open("/home/jhshi/analyist_dd/data/state/us_overnight.json", encoding="utf-8") as fh:
+            us_ctx = json.load(fh)
+        feed["us_overnight"] = us_ctx
+    except Exception:
+        pass
     stats = None if args.no_stats else load_stats()
     if stats:
         feed["scoring_summary"] = {"screener_stats": stats}
