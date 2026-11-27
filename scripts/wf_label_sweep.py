@@ -1499,6 +1499,12 @@ CONFIGS = [
     {"id": "LBL_overnight_h1", "kind": "quantile", "horizon": 1, "q": 0.30, "select": "top30",
      "exit_at": "next_open",
      "desc": "CG529 arm — h1 종가→익일 시가 라벨(open(t+1)/close(t)−1) · 실 청산창과 목표 일치"},
+    {"id": "LBL_ovn_h1_s100", "kind": "quantile", "horizon": 1, "q": 0.30, "select": "top30",
+     "exit_at": "next_open", "seed_offset": 100,
+     "desc": "CG533 시드잡음 A — LBL_overnight_h1 과 동일, 시드 100~104"},
+    {"id": "LBL_ovn_h1_s200", "kind": "quantile", "horizon": 1, "q": 0.30, "select": "top30",
+     "exit_at": "next_open", "seed_offset": 200,
+     "desc": "CG533 시드잡음 B — LBL_overnight_h1 과 동일, 시드 200~204"},
 ]
 
 
