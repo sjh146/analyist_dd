@@ -28377,7 +28377,7 @@
    "owner": "engineer",
    "affects_model": true,
    "metric": "wf_sweep_summary",
-   "est_minutes": 180,
+   "est_minutes": 110,
    "arm": "LBL_overnight_h1",
    "counterfactual": "LBL_close_h1 — 같은 h1·같은 폴드에서 청산 규칙만 종가→익일시가로 바꾼 대조군",
    "pairs": [["LBL_overnight_h1", "LBL_close_h1"], ["LBL_overnight_h1", "LS_quant_q30_h5"]],
@@ -28386,7 +28386,7 @@
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 10800 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 3 --only LBL_overnight_h1,LBL_close_h1,LS_quant_q30_h5 --out /app/reports/overnight/cg529_wf.jsonl --summary-out /app/reports/overnight/cg529_wf_summary.json'",
    "success": "사전 등록(변경 금지): 1단계 AUC — 같은 런·같은 패널 5폴드×3시드 짝 ΔAUC(LBL_overnight_h1 − LBL_close_h1) ≥ +0.02 이고 폴드 짝승률 ≥ 4/5 이면 신호. 미달은 노이즈로 '라벨-청산정합' 축을 닫는다. 2단계(1단계 통과 시에만 별도 실행): 체결성 필터 후 순기대 Δ ≥ +0.3%p/세션(top30·수수료 왕복 0.21%p 차감).",
    "setup_needed": "구현 완료(2026-11-27 20:3x, 자율) — ① scripts/wf_wave.py make_labels 에 exit_at='next_open'(open(t+h)/close(t)−1) 추가, 기본 경로는 비트 동일 ② scripts/wf_label_sweep.py CONFIGS 에 LBL_close_h1·LBL_overnight_h1 등록 + cfg exit_at 배선 ③ 회귀 scripts/_make_labels_exit_at_test.py 8/8 PASS ④ 실패널(panel_prod200_v6o, 61,640행·200종목·314일) 라벨 양성률 0.287·flip 33.2% 확인. 리뷰보드 승인은 '생산 라벨 교체'에만 필요(실험 arm 은 자율 범위).",
-   "note": "2026-11-27 19:4x 엔지니어 자율 신설(CG528 판정 후속). 근거: CG528 h1 next_open 344세션 MDE80 0.30~0.35%p(측정 가능) · CG526 챔피언 h1 Δ−0.10(t −0.89) · 현 챔피언 라벨 h5 vs 실제 청산 익일시가. 축 종결이 아니라 '목표-실행 불일치' 수리다. | 2026-11-27 20:3x 구현·검증 완료로 pending 승격(구동기 구동 대기). metric 을 champion_seed_family→wf_sweep_summary 로 정정(전자는 --agg-out 필요·파서 불일치로 판정불가 경고가 났다). timeout 10800·est 180분은 TR3 실측 143s/cell × 45cell ≈ 107분에 여유를 둔 값 — 첫 실행 진행률로 재확인하라.",
+   "note": "2026-11-27 19:4x 엔지니어 자율 신설(CG528 판정 후속). 근거: CG528 h1 next_open 344세션 MDE80 0.30~0.35%p(측정 가능) · CG526 챔피언 h1 Δ−0.10(t −0.89) · 현 챔피언 라벨 h5 vs 실제 청산 익일시가. 축 종결이 아니라 '목표-실행 불일치' 수리다. | 2026-11-27 20:3x 구현·검증 완료로 pending 승격(구동기 구동 대기). metric 을 champion_seed_family→wf_sweep_summary 로 정정(전자는 --agg-out 필요·파서 불일치로 판정불가 경고가 났다). 2026-11-27 20:14 착수분은 **수동 중지**(파이프라인 Phase 2 챔피언 재학습과 4코어 경쟁, 실측 10s/cell→150s/cell 15배). est 110분 = 경쟁 실측 2.5분/cell × 45cell. 이 값이면 구동기 파이프라인 가드(est≥60 거부)가 저녁 파이프라인 중 착수를 막고, 파이프라인 종료 후 틱이 자동 착수한다. timeout 10800 은 최악 143s/cell × 45cell ≈ 107분 + 여유.",
    "created_at": "2026-11-27T19:18:12+09:00",
    "attempts": 0
   }
