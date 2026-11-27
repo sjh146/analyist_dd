@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T23:19:58+09:00",
+ "updated_at": "2026-11-28T01:15:25+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28489,7 +28489,7 @@
   {
    "id": "CG530",
    "title": "[누수 게이트·배포 패널] 종목상수 피처 군이 선별을 지배하는가 — panel_prod200_v6o 에서 full vs 시간가변-only vs 종목상수-only 3-arm 분해 (panel_420 결과의 배포 패널 재측정)",
-   "status": "pending",
+   "status": "done",
    "priority": 2,
    "kind": "피처",
    "owner": "engineer",
@@ -28516,7 +28516,124 @@
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 3 --only LS_quant_q30_h5,PO_timevary_h5,PO_const_h5 --out /app/reports/overnight/cg530_prod200_po.jsonl --summary-out /app/reports/overnight/cg530_prod200_po_summary.json'",
    "success": "사전 등록(변경 금지): 같은 런·같은 폴드 짝Δ 로만 판정. ① PO_const_h5 짝Δ(full 대비) ≥ +0.02 면 종목상수 지배 = 누수 게이트 위반 → 리서처 반려·축 종결. ② |짝Δ| < 0.02 면 무해 확정(게이트 통과 근거를 배포 패널로 승격). ③ 어느 쪽이든 폴드 std 와 폴드승률을 함께 보고. 판정은 폴드 평균만(단일 분할 금지).",
    "note": "2026-11-27 첫 시도 실측: 같은 명령이 postgres 병렬워커 경쟁으로 100s/cell 까지 느려져 45셀을 timeout 3600 안에 못 끝냈다(체크포인트 없음 → 전량 소실). timeout 7200 + 경쟁 없는 창(00시 이후)에서 실행하라. 개별 셀 소요는 유휴 5~15s, 경쟁 180s 로 12~36배 차이.",
-   "created_at": "2026-11-27T23:19:58+09:00"
+   "created_at": "2026-11-27T23:19:58+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-28T00:17:42+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "구간 짝 Δ 평균 -0.0092 (n=2구간 · 양(+) 0/2) [-0.0173, -0.0012]",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG530_20261128-000735.log",
+     "elapsed_min": 10.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "구간 짝 Δ 평균 -0.0092 (n=2구간 · 양(+) 0/2) [-0.0173, -0.0012]",
+    "delta": -0.0092,
+    "per_exp": {
+     "LS_quant_q30_h5": {
+      "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5331,
+       0.5457,
+       0.547,
+       0.5441,
+       0.5631
+      ],
+      "mean": 0.5466,
+      "std": 0.0096,
+      "min": 0.5331,
+      "max": 0.5631,
+      "fold_win_rate": 1.0
+     },
+     "PO_timevary_h5": {
+      "desc": "시간가변 피처만 — 종목-상수(최신 스냅샷) 제외",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.527,
+       0.5456,
+       0.547,
+       0.5441,
+       0.5631
+      ],
+      "mean": 0.5454,
+      "std": 0.0115,
+      "min": 0.527,
+      "max": 0.5631,
+      "fold_win_rate": 1.0
+     },
+     "PO_const_h5": {
+      "desc": "종목-상수 피처만 — 룩어헤드 의심군 단독 성능",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5136,
+       0.5601,
+       0.5556,
+       0.4826,
+       0.5345
+      ],
+      "mean": 0.5293,
+      "std": 0.0286,
+      "min": 0.4826,
+      "max": 0.5601,
+      "fold_win_rate": 0.8
+     }
+    },
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG531",
+   "title": "[머니·누수위생 후속] 시간가변-only(종목상수 48개 제거) arm 이 돈 지표에서도 full 과 동등한가 — CG530 의 AUC 동등(Δ-0.0012)을 체결성·수수료 기준으로 재측정",
+   "status": "done",
+   "kind": "돈 지표",
+   "owner": "engineer",
+   "priority": 1,
+   "affects_model": true,
+   "metric": "fillable_topk_expectancy",
+   "summary_out": null,
+   "est_minutes": 20,
+   "arm": "PO_timevary_h5",
+   "counterfactual": "LS_quant_q30_h5 (전체 피처 — 같은 런·같은 폴드·같은 덤프 파일)",
+   "pairs": [
+    [
+     "PO_timevary_h5",
+     "LS_quant_q30_h5"
+    ]
+   ],
+   "baseline": null,
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=2 timeout 2700 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --days 420 --folds 5 --seeds 3 --only LS_quant_q30_h5,PO_timevary_h5 --dump-preds /app/reports/overnight/cg531_po.jsonl --dump-all-codes --out /app/reports/overnight/cg531_wf.jsonl --summary-out /app/reports/overnight/cg531_wf_summary.json && OMP_NUM_THREADS=2 timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg531_po.jsonl --arm-tag PO_timevary_h5 --control-jsonl /app/reports/overnight/cg531_po.jsonl --control-tag LS_quant_q30_h5 --k 3,5 --sides top --primary-side top --exit close_h --horizon 5 --stride 5 --entry next_open --json-out /app/reports/overnight/cg531_money.json'",
+   "hypothesis": "CG530 실측(panel_prod200_v6o, 5폴드×3시드): 전체 0.5466±0.0096 · 시간가변-only 0.5454±0.0115(폴드승률 1.0) · 종목상수-only 0.5293±0.0286 → 짝Δ 시간가변 −0.0092(구간 2개 중 양(+) 0). 즉 AUC 는 상수 군을 빼도 동등하고, 상수 군 단독은 오히려 열등 → 선별 지배 없음(누수 게이트 통과). 그런데 CG530 은 AUC 만 쟀다. 이 역할의 최우선 규칙은 '실험은 돈 지표로 측정' 이므로, 시간가변-only 가 체결 가능 순기대에서도 동등하면 종목상수 48개(최신 스냅샷 = as-of 리스크군)를 배포 계약에서 제거할 근거가 생긴다. AUC 축 상한(+0.011)을 재확인하는 실험이 아니라 배포 위생 비용을 줄이는 실험이다.",
+   "success": "사전 등록(표준 게이트 그대로, 변경 금지): fillable_topk_expectancy 의 k=3·k=5 **둘 다** ① arm 순기대 > 0 ② 짝Δ(arm−full) ≥ +0.1%p/세션 ③ 짝 t ≥ 2 ④ 분할표본 앞/뒤 모두 양(+) → '신호있음'(상수 제거가 돈을 개선). |Δ| < 0.1%p 이고 |t| < 2 → '동등'(AUC 무손실·돈 무손실 = 상수 제거 가능 근거, 승격 아님). Δ ≤ −0.1%p → 상수 제거 기각. 체결성 필터(상한가 근처 제외·거래대금 10억)와 수수료 왕복 0.21%p 는 도구 기본값을 그대로 쓴다.",
+   "expected": "CG530 의 AUC Δ(-0.0012)가 돈 Δ도 ±0.1%p 이내임을 예상. 이득이 아니라 '리스크군 제거 무해' 판정이 목표다.",
+   "cost": "스윕 ~10분 + 돈 계산 ~2분 (est 20분)",
+   "created_at": "2026-11-28T01:09:29+09:00",
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm PO_timevary_h5 vs 대조군 LS_quant_q30_h5 · exit close_h h5 · stride 5 · 수수료 왕복 0.21%p · 세션 255 · 풀 중앙값 75 · k=3 arm -0.434%p/세션 · 대조 -0.051 · Δ-0.384(t -1.28) · 양세션 49.1% · 분할 unstable [+0.427/-1.265] ✗ · k=5 arm -0.182%p/세션 · 대조 +0.062 · Δ-0.244(t -0.92) · 양세션 45.5% · 분할 unstable [+0.597/-0.933] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.374%p · Δ+0.353 · 널(풀) 대비 k=3 Δ-0.041%p(t -0.05) pos/neg 29/26 · 널 대비 절반 [+0.29/-0.36] · 부호검정 p=0.629(7/10) · 상위3세션 제거 Δ-0.623(t -2.19) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+    "delta": -0.3838,
+    "per_exp": null,
+    "rc": 0
+   },
+   "finished_at": null,
+   "attempts": [
+    {
+     "ts": "2026-11-28T01:15:24+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm PO_timevary_h5 vs 대조군 LS_quant_q30_h5 · exit close_h h5 · stride 5 · 수수료 왕복 0.21%p · 세션 255 · 풀 중앙값 75 · k=3 arm -0.434%p/세션 · 대조 -0.051 · Δ-0.384(t -1.28) · 양세션 49.1% · 분할 unstable [+0.427/-1.265] ✗ · k=5 arm -0.182%p/세션 · 대조 +0.062 · Δ-0.244(t -0.92) · 양세션 45.5% · 분할 unstable [+0.597/-0.933] ✗ · 참고(체결성 필터 OFF): k=3 arm +0.374%p · Δ+0.353 · 널(풀) 대비 k=3 Δ-0.041%p(t -0.05) pos/neg 29/26 · 널 대비 절반 [+0.29/-0.36] · 부호검정 p=0.629(7/10) · 상위3세션 제거 Δ-0.623(t -2.19) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG531_20261128-010936.log",
+     "elapsed_min": 5.8
+    }
+   ],
+   "note": "2026-11-28 01:15 판정(노이즈 → 축 종결): 폴드 AUC 대조 LS_quant_q30_h5 [0.5331,0.5457,0.5470,0.5441,0.5631] 평균 0.5466±0.0096 vs arm PO_timevary_h5 [0.5270,0.5456,0.5470,0.5441,0.5631] 평균 0.5454±0.0115 → Δ-0.0012 · 폴드 승률 0/5 · **4/5 폴드 비트동일**. 돈(체결성 ON·수수료 0.21%p·255세션·풀중앙값 75): k=3 arm -0.434%p vs 대조 -0.051 Δ-0.384(t -1.28) 분할 unstable / k=5 arm -0.182 vs +0.062 Δ-0.244(t -0.92) · 널(풀평균) -0.393%p. → 종목상수 48개 제거는 AUC·돈 모두 중립~악화 → '종목상수 피처가 선별을 지배한다' 가설 기각. 피처 위생/종목상수 축은 여기서 종결(재실험 금지). 남은 레버는 데이터 축뿐: minute_close_bars 11/20완전일(ETA 2026-12-09) · panel_prod200_v7(2026-12-14).",
+   "verdict": "노이즈",
+   "axis_closed": true
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
