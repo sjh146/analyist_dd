@@ -1432,6 +1432,13 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         if out:
             return _container_path_to_host(out.strip("'\""))
         return os.path.join(PROJ, "data/reports/minute_cover_latest.json")
+    if kind == "tail_decomp":
+        out = _arg(command or "", "--json-out")
+        if out:
+            return _container_path_to_host(out.strip("'\""))
+        if not quiet:
+            log("경고: tail_decomp 인데 커맨드에 --json-out 이 없다 → 요약 없음(판정불가)")
+        return ""
 
     if kind == "gate_arm_expectancy":
         out = _arg(command or "", "--json-out")
@@ -2906,6 +2913,8 @@ def parse_by_metric(item, spath, mtime_floor=0.0) -> dict:
         return parse_feature_coverage(spath, mtime_floor)
     if kind == "minute_cover":
         return parse_minute_cover(spath, mtime_floor)
+    if kind == "tail_decomp":
+        return parse_tail_decomp(spath, mtime_floor, item=item)
     if kind == "factor_signals":
         return parse_factor_signals(spath, mtime_floor)
     if kind == "robust_seed_range":
@@ -3568,6 +3577,100 @@ def judge_topk_precision(item, parsed) -> tuple:
     if ok_all:
         return "신호있음", detail + " → k=3·5 둘 다 충족(실질성 있음)", first
     return "노이즈", detail + " → 사전등록 미충족", first
+
+
+def parse_tail_decomp(path, mtime_floor, item=None) -> dict:
+    """꼬리분해 요약(scripts/cg496_tail_decomp.py --json-out) — Δ 가 소수 세션/종목에 실렸는지.
+
+    스키마: {metric_name, spec, rows, n_sessions, base{arm_mean, delta_ctl_mean, delta_pool_mean,
+             delta_pool_t, sign_test_p}, leave_out{drop_top1/3/5, drop_bottom*},
+             trimmed{trim10, trim20}, names, by_fold, leave_names_out{drop_top5_names,
+             drop_top10_names}, verdict, verdict_rule}
+
+    ⚠ per_exp 를 만들지 않는다 — 이 실험의 Δ 는 앞선 회차에서 이미 측정된 돈 지표의 강건성 점검이고
+    AUC 폴드 평균이 아니다. per_exp 를 실으면 스코어보드가 이를 'arm 폴드 AUC' 로 오독한다.
+    """
+    if not path:
+        return {"error": "요약 경로 없음(--json-out 미지정)"}
+    if not os.path.exists(path):
+        return {"error": "요약 파일 없음", "path": path}
+    mt = os.path.getmtime(path)
+    if mtime_floor and mt <= mtime_floor:
+        return {"error": "요약 미갱신(mtime <= 실행 시작 시각) — 옛 결과 오독 방지",
+                "summary_mtime": mt, "floor": mtime_floor}
+    with open(path, encoding="utf-8") as f:
+        try:
+            d = json.load(f)
+        except json.JSONDecodeError as e:
+            return {"error": f"요약 JSON 파싱 실패(쓰는 중일 수 있음): {e}", "summary_mtime": mt}
+    return {
+        "metric_name": d.get("metric_name") or "cg496_tail_decomp",
+        "spec": d.get("spec"), "rows": d.get("rows"), "n_sessions": d.get("n_sessions"),
+        "base": d.get("base"), "leave_out": d.get("leave_out"), "trimmed": d.get("trimmed"),
+        "names": d.get("names"), "by_fold": d.get("by_fold"),
+        "leave_names_out": d.get("leave_names_out"),
+        "verdict_script": d.get("verdict"), "verdict_rule": d.get("verdict_rule"),
+        "summary_mtime": mt,
+    }
+
+
+def judge_tail_decomp(item, parsed) -> tuple:
+    """꼬리분해 판정 — 문턱은 **item 에 등록된 값에서만** 읽는다(파서가 문턱을 정하면 사후 합리화).
+
+    item 필드: tail_min_delta(%p) · tail_min_t · tail_drop_sessions · tail_trim(%) · tail_drop_names
+    하나라도 없으면 '판정불가'로 남긴다 — 문턱 없는 판정은 보고가 무효다.
+    delta 는 항상 None: 이 실험은 이미 측정된 Δ 의 꼬리 의존성 점검이므로 무개선 카운터·
+    스코어보드에 넣으면 같은 Δ 를 두 번 세게 된다.
+    """
+    if parsed.get("error"):
+        return "판정불가", str(parsed["error"]), None
+    lo = parsed.get("leave_out") or {}
+    tr = parsed.get("trimmed") or {}
+    ln = parsed.get("leave_names_out") or {}
+    base = parsed.get("base") or {}
+    md = item.get("tail_min_delta")
+    mt_min = item.get("tail_min_t")
+    ds = item.get("tail_drop_sessions")
+    tz = item.get("tail_trim")
+    dn = item.get("tail_drop_names")
+    if not all(isinstance(x, (int, float)) for x in (md, mt_min, ds, tz, dn)):
+        return ("판정불가",
+                "문턱 미등록(tail_min_delta·tail_min_t·tail_drop_sessions·tail_trim·tail_drop_names)", None)
+    s = lo.get(f"drop_top{int(ds)}") or {}
+    n = ln.get(f"drop_top{int(dn)}_names") or {}
+    z = tr.get(f"trim{int(tz)}") or {}
+    sess_keys = [f"drop_top{k}" for k in sorted({1, int(ds), 5}) if isinstance(lo.get(f"drop_top{k}"), dict)]
+
+    def _f(v, spec="+.3f"):
+        return format(v, spec) if isinstance(v, (int, float)) else "?"
+
+    def _sess_ok(key):
+        v = lo.get(key) or {}
+        return (isinstance(v.get("delta_mean"), (int, float)) and v["delta_mean"] >= md
+                and isinstance(v.get("t"), (int, float)) and v["t"] >= mt_min)
+
+    ok_s = bool(sess_keys) and all(_sess_ok(k) for k in sess_keys)
+    ok_z = isinstance(z.get("delta_mean"), (int, float)) and z["delta_mean"] > 0
+    ok_n = (isinstance(n.get("delta_mean"), (int, float)) and n["delta_mean"] >= md
+            and isinstance(n.get("t"), (int, float)) and n["t"] >= mt_min)
+    sess_txt = " · ".join(f"{k} Δ{_f((lo.get(k) or {}).get('delta_mean'))}"
+                          f"(t {_f((lo.get(k) or {}).get('t'), '+.2f')})" for k in sess_keys) or "세션제거 결측"
+    detail = (f"arm Δ{_f(base.get('delta_ctl_mean'))}%p vs 대조(n {parsed.get('n_sessions')}세션) · "
+              f"{sess_txt} · "
+              f"절사{int(tz)}% Δ{_f(z.get('delta_mean'))}(t {_f(z.get('t'), '+.2f')}) · "
+              f"상위{int(dn)}종목 제외 Δ{_f(n.get('delta_mean'))}(t {_f(n.get('t'), '+.2f')}) · "
+              f"널(풀) 대비 Δ{_f(base.get('delta_pool_mean'))}(t {_f(base.get('delta_pool_t'), '+.2f')}) · "
+              f"사전문턱 Δ≥+{md}%p & t≥{mt_min}(세션1/3/5·종목) & 절사>0")
+    if ok_s and ok_z and ok_n:
+        return ("신호있음(꼬리 비의존)", detail + " → 세션·종목 꼬리를 걷어내도 남음(승격 아님)", None)
+    fails = []
+    if not ok_s:
+        fails.append("세션꼬리")
+    if not ok_z:
+        fails.append("절사")
+    if not ok_n:
+        fails.append("종목꼬리")
+    return ("노이즈(꼬리 의존)", detail + f" → 미달: {'/'.join(fails)}", None)
 
 
 def parse_fillable_topk_expectancy(path, mtime_floor) -> dict:
@@ -6207,6 +6310,8 @@ def judge_by_metric(item, parsed, per=None) -> tuple:
         return judge_feature_coverage(item, parsed)
     if kind == "minute_cover":
         return judge_minute_cover(item, parsed)
+    if kind == "tail_decomp":
+        return judge_tail_decomp(item, parsed)
     if kind == "factor_signals":
         return judge_factor_signals(item, parsed)
     if kind == "robust_seed_range":

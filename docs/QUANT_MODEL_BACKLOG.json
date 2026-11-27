@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-28T04:26:00+09:00",
+ "updated_at": "2026-11-28T06:13:10+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28998,7 +28998,7 @@
   {
    "id": "CG534",
    "title": "[돈·복제·격자] 익일시가 라벨 arm 의 10폴드 격자 민감도 — panel_prod200_v6o 10폴드×5시드 (CG535 로 유니버스 복제 완료, 이 항목은 폴드격자 축만 남음)",
-   "status": "pending",
+   "status": "done",
    "kind": "돈 지표",
    "owner": "engineer",
    "priority": 2,
@@ -29021,8 +29021,151 @@
    "expected": "라벨 정합 축이 이 스택에서 24사이클 만에 나온 첫 유의한 돈 신호다. 복제되면 '왜 AUC 는 안 오르는데 돈이 오르는가'의 확인과 함께 배포 후보가 된다.",
    "cost": "2 config × 10폴드 × 5시드(≈25분) + 돈 1회(2분)",
    "created_at": "2026-11-28T03:34:59+09:00",
-   "setup_needed": null
+   "setup_needed": null,
+   "attempts": [
+    {
+     "ts": "2026-11-28T05:19:23+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.21%p · 세션 280 · 풀 중앙값 75 · k=5 arm +0.214%p/세션 · 대조 -0.068 · Δ+0.282(t 2.78) · 양세션 59.6% · 분할 both_positive [+0.333/+0.096] · 참고(체결성 필터 OFF): k=5 arm +0.313%p · Δ+0.348 · 널(풀) 대비 k=5 Δ+0.210%p(t 2.65) pos/neg 173/107 · 널 대비 절반 [+0.20/+0.22] · 부호검정 p=0.000(171/109) · 상위3세션 제거 Δ+0.201(t 2.20) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG534_20261128-050812.log",
+     "elapsed_min": 11.2
+    }
+   ],
+   "result": {
+    "verdict": "신호있음",
+    "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.21%p · 세션 280 · 풀 중앙값 75 · k=5 arm +0.214%p/세션 · 대조 -0.068 · Δ+0.282(t 2.78) · 양세션 59.6% · 분할 both_positive [+0.333/+0.096] · 참고(체결성 필터 OFF): k=5 arm +0.313%p · Δ+0.348 · 널(풀) 대비 k=5 Δ+0.210%p(t 2.65) pos/neg 173/107 · 널 대비 절반 [+0.20/+0.22] · 부호검정 p=0.000(171/109) · 상위3세션 제거 Δ+0.201(t 2.20) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인)",
+    "delta": 0.282,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG536",
+   "title": "[돈·꼬리분해] 익일시가 h1 라벨 arm 의 Δ+0.444%p(t 3.13)가 소수 세션·소수 종목이 만든 값인가 — leave-top-out·절사평균·종목제외·k격자 (CG535 후속)",
+   "status": "done",
+   "kind": "돈 지표",
+   "owner": "engineer",
+   "priority": 1,
+   "affects_model": false,
+   "metric": "tail_decomp",
+   "tail_min_delta": 0.1,
+   "tail_min_t": 2.0,
+   "tail_drop_sessions": 3,
+   "tail_trim": 10,
+   "tail_drop_names": 5,
+   "est_minutes": 12,
+   "arm": "LBL_overnight_h1",
+   "counterfactual": "LS_quant_q30_h5 (같은 런 date 짝) — CG535 150종목 패널: 세션 230 · k=5 arm +0.597%p · 대조 +0.208 · Δ+0.444(t 3.13) · 분할 both_positive [+0.703/+0.492] · 널(풀) 대비 +0.394(t 3.35) · CG534 200종목 10폴드 확증: Δ+0.282(t 2.78) · 폴드승률 10/10 · AUC 0.5538±0.0408 vs 0.5287±0.0396",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app timeout 1200 python -u scripts/cg496_tail_decomp.py --arm-jsonl /app/reports/overnight/cg535_150u_po.jsonl --arm-tag LBL_overnight_h1 --control-jsonl /app/reports/overnight/cg535_150u_po.jsonl --control-tag LS_quant_q30_h5 --k 5 --stride 1 --exit next_open --entry close --horizon 1 --json-out /app/reports/overnight/cg536_tail.json'",
+   "hypothesis": "CG535 로 라벨 정합(익일시가 h1) 신호가 두 유니버스에서 재현됐다(150종목 Δ+0.444 t3.13 · 49종목 Δ+0.221 t2.42). 그러나 CG496·CG404 계열에서 이 스택의 '신호'는 대부분 소수 세션/종목 꼬리에 실려 있었다 → 같은 preds 로 꼬리를 걷어낸 뒤에도 Δ 가 남는지가 실행 근거의 관문이다. 학습 0 · 기존 dump 만 사용.",
+   "success": "사전등록(변경 금지): ① 상위1/3/5 세션 제거 후 모두 Δ ≥ +0.1%p & t ≥ 2 ② 대칭 절사 10%/20% 에서도 Δ > 0 ③ 상위5 기여종목 제외 후 Δ ≥ +0.1%p & t ≥ 2 ④ k=3/10 에서 Δ > 0. 넷 다 충족 → '꼬리 비의존 신호' · ①②중 하나라도 붕괴 → '소수 세션 의존'으로 기록하고 리뷰보드 승인 대상에서 제외(신호 미확정).",
+   "expected": "CG496 사례(상위3 제거 시 t 1.69)처럼 크기가 줄 가능성이 높다. 남으면 라벨 정의 변경 승인 요청의 근거가 된다.",
+   "cost": "분석만(1회 8분, 학습 없음)",
+   "created_at": "2026-11-28T05:09:55+09:00",
+   "setup_needed": null,
+   "attempts": [
+    {
+     "ts": "2026-11-28T06:09:28+09:00",
+     "rc": 0,
+     "verdict": "판정불가",
+     "detail": "parser 없음 (metric='tail_decomp')",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG536_20261128-060926.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-28T06:11:17+09:00",
+     "rc": 0,
+     "verdict": "신호있음(꼬리 비의존)",
+     "detail": "arm Δ+0.436%p vs 대조(n 230세션) · drop_top1 Δ+0.346(t +3.21) · drop_top3 Δ+0.301(t +2.89) · drop_top5 Δ+0.265(t +2.60) · 절사10% Δ+0.314(t +4.14) · 상위5종목 제외 Δ+0.269(t +2.58) · 널(풀) 대비 Δ+0.394(t +3.35) · 사전문턱 Δ≥+0.1%p & t≥2.0(세션1/3/5·종목) & 절사>0 → 세션·종목 꼬리를 걷어내도 남음(승격 아님)",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG536_20261128-061114.log",
+     "elapsed_min": 0.0
+    }
+   ],
+   "retry_note": "2026-11-28T06:09:28+09:00 metric='tail_decomp' 에 구동기 파서가 없다 → 판정불가로 닫았고 완료 처리하지 않았다. 항목 계약(metric/--json-out 스키마 또는 파서 추가)을 고쳐 pending 으로 올려라",
+   "result": {
+    "verdict": "신호있음(꼬리 비의존)",
+    "detail": "arm Δ+0.436%p vs 대조(n 230세션) · drop_top1 Δ+0.346(t +3.21) · drop_top3 Δ+0.301(t +2.89) · drop_top5 Δ+0.265(t +2.60) · 절사10% Δ+0.314(t +4.14) · 상위5종목 제외 Δ+0.269(t +2.58) · 널(풀) 대비 Δ+0.394(t +3.35) · 사전문턱 Δ≥+0.1%p & t≥2.0(세션1/3/5·종목) & 절사>0 → 세션·종목 꼬리를 걷어내도 남음(승격 아님)",
+    "delta": null,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG537",
+   "title": "[돈·비용/유동성] 익일시가 h1 라벨 arm 의 Δ가 수수료 왕복 0.30%p·유동성 하한 50억·k 격자에서도 남는가 — 배포 가정 비용으로 재측정 (CG534 후속)",
+   "status": "done",
+   "kind": "돈 지표",
+   "owner": "engineer",
+   "priority": 2,
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "est_minutes": 12,
+   "arm": "LBL_overnight_h1",
+   "counterfactual": "LS_quant_q30_h5 (같은 런 date 짝) — CG534 200종목 10폴드10시드: 세션 280 · 풀 중앙값 75 · k=5 arm +0.214%p · 대조 −0.068 · Δ+0.282(t 2.78) · 분할 both_positive [+0.333/+0.096] · 널(풀) 대비 +0.210(t 2.65) · 수수료 왕복 0.21%p",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && for k in 3 5 10; do PYTHONPATH=/app timeout 600 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg534_po.jsonl --arm-tag LBL_overnight_h1 --control-jsonl /app/reports/overnight/cg534_po.jsonl --control-tag LS_quant_q30_h5 --k $k --stride 1 --exit next_open --entry close --horizon 1 --fee-buy 0.0005 --fee-sell 0.0005 --tax-sell 0.002 --min-value 5000000000 --json-out /app/reports/overnight/cg537_cost_k$k.json; done; PYTHONPATH=/app timeout 600 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg534_po.jsonl --arm-tag LBL_overnight_h1 --control-jsonl /app/reports/overnight/cg534_po.jsonl --control-tag LS_quant_q30_h5 --k 5 --stride 1 --exit next_open --entry close --horizon 1 --min-value 5000000000 --json-out /app/reports/overnight/cg537_liq_k5.json'",
+   "hypothesis": "CG534 의 Δ+0.282%p(t 2.78)는 왕복 0.21%p·유동성 하한 10억(스크립트 기본)에서 측정됐다. 라이브 설정은 유동성 50억+ 이고, 실제 비용은 수수료 0.03%×2 + 거래세 0.20% ≈ 0.26%, 슬리피지까지 보면 0.30%p 를 넘는다 → 비용·유동성 가정을 배포 쪽으로 올렸을 때 Δ 가 남는지가 '실행 가능한 신호'의 관문이다. 학습 0 · 기존 dump 만 사용.",
+   "success": "사전등록(변경 금지): ① 수수료 왕복 0.30%p·유동성 50억 하한에서 k=3/5/10 모두 Δ ≥ +0.1%p & t ≥ 2 ② 같은 유동성 하한에서 수수료 0.21→0.30%p 로 올릴 때 Δ 감소 ≤ 0.10%p(비용 민감도) ③ k=5 유동성-단독(수수료 기본) Δ ≥ +0.2%p. ①이 붕괴하면 '비용/유동성 의존'으로 기록하고 라벨 정의 승인 요청에서 제외.",
+   "expected": "비용 +0.09%p 만큼 줄어 Δ ≈ +0.19%p. t 가 2 아래로 내려갈 수 있고, 그러면 '엣지가 얇다'를 그대로 기록한다.",
+   "cost": "분석만(4회 실행, 학습 없음, 약 12분)",
+   "result_note": "2026-11-28 06:11 실행(rc=0, 0.2분). ① 집계: Δ k3 +0.293(t2.56)/k5 +0.211(t2.37)/k10 +0.186(t2.90) — Δ≥+0.1 & t≥2 전부 충족. 그러나 분할 절반은 k5/k10 불안정(front +0.297/back −0.124) → 구동기는 마지막 파일(k10)만 보고 '노이즈'로 기록. ② 비용 민감도 Δ 0.282→0.211 = −0.071 ≤ 0.10 → 통과. ③ 유동성 단독 k5 Δ+0.211(t2.37) both_positive → 통과. 해석: 유동성 하한 50억이 풀 중앙값을 75→38 로 줄였고, 절대 순기대는 후반 절반에서 마이너스이나 널(풀) 대비 Δ 는 절반 모두 양(+0.21/+0.10) — 상대 엣지는 유지, 절대 기대는 시장 전체 익일시가 약세 탓. 라벨 축은 '단독 수익원' 아닌 '상대 엣지'로만 남는다.",
+   "created_at": "2026-11-28T06:15:00+09:00",
+   "setup_needed": null,
+   "attempts": [
+    {
+     "ts": "2026-11-28T06:11:42+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.3%p · 세션 280 · 풀 중앙값 38 · k=10 arm +0.086%p/세션 · 대조 -0.100 · Δ+0.186(t 2.9) · 양세션 55.4% · 분할 unstable [+0.297/-0.124] ✗ · 참고(체결성 필터 OFF): k=10 arm +0.254%p · Δ+0.430 · 널(풀) 대비 k=10 Δ+0.154%p(t 2.85) pos/neg 164/116 · 널 대비 절반 [+0.21/+0.10] · 부호검정 p=0.001(167/113) · 상위3세션 제거 Δ+0.148(t 2.43) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족 · ⚠ 다중 산출 루프 — 산출 파일이 루프 변수(/app/reports/overnight/cg537_cost_k$k.json;)로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. 오프셋/조건별 집계를 따로 확인하라",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG537_20261128-061129.log",
+     "elapsed_min": 0.2
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.3%p · 세션 280 · 풀 중앙값 38 · k=10 arm +0.086%p/세션 · 대조 -0.100 · Δ+0.186(t 2.9) · 양세션 55.4% · 분할 unstable [+0.297/-0.124] ✗ · 참고(체결성 필터 OFF): k=10 arm +0.254%p · Δ+0.430 · 널(풀) 대비 k=10 Δ+0.154%p(t 2.85) pos/neg 164/116 · 널 대비 절반 [+0.21/+0.10] · 부호검정 p=0.001(167/113) · 상위3세션 제거 Δ+0.148(t 2.43) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족 · ⚠ 다중 산출 루프 — 산출 파일이 루프 변수(/app/reports/overnight/cg537_cost_k$k.json;)로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. 오프셋/조건별 집계를 따로 확인하라",
+    "delta": 0.1865,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG538",
+   "title": "[돈·복제·비용] CG537 의 비용/유동성 스트레스를 150종목 패널에서 같은 런으로 복제 — 상대 엣지가 유니버스에서 유지되는가 (CG537 후속)",
+   "status": "done",
+   "kind": "돈 지표",
+   "owner": "engineer",
+   "priority": 2,
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "est_minutes": 12,
+   "arm": "LBL_overnight_h1",
+   "counterfactual": "LS_quant_q30_h5 (같은 런 date 짝) — CG535 150종목: 세션 230 · k=5 arm +0.597%p · 대조 +0.208 · Δ+0.444(t 3.13) · 왕복 0.21%p · 유동성 하한 10억. CG537 200종목 비용 스트레스: k3 +0.293(t2.56)/k5 +0.211(t2.37)/k10 +0.186(t2.90), 널 대비 절반 +0.21/+0.10",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && for k in 5 10; do PYTHONPATH=/app timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg535_150u_po.jsonl --arm-tag LBL_overnight_h1 --control-jsonl /app/reports/overnight/cg535_150u_po.jsonl --control-tag LS_quant_q30_h5 --k $k --stride 1 --exit next_open --entry close --horizon 1 --fee-buy 0.0005 --fee-sell 0.0005 --tax-sell 0.002 --min-value 5000000000 --json-out /app/reports/overnight/cg538_cost150_k$k.json; done'",
+   "hypothesis": "CG537 로 200종목 패널에서는 비용 왕복 0.30%p·유동성 50억에서도 Δ가 +0.186~+0.293 로 남았지만 절대 기대의 후반 절반이 마이너스였다(상대 엣지만 유지). 150종목 패널은 Δ가 더 컸으므로(+0.444) 같은 비용 가정에서도 양(+)일 가능성이 높다 — 다만 유니버스가 바뀌면 부호가 뒤집힌 전례가 있어(CG11) 같은 런·같은 프로토콜로 확인해야 한다.",
+   "success": "사전등록(변경 금지): ① 150종목·왕복 0.30%p·유동성 50억에서 k=5/10 Δ ≥ +0.1%p & t ≥ 2 ② 널(풀) 대비 Δ 가 k=5/10 모두 ≥ +0.1%p & t ≥ 2 ③ 상위3세션 제거 후에도 Δ ≥ +0.1%p & t ≥ 2. 셋 다 충족 → '유니버스 강건 상대 엣지', 하나라도 붕괴 → '200종목 특이'로 기록.",
+   "expected": "150종목은 풀이 얇아 변동성이 크다 — k=10 에서 t 가 흔들릴 것. 부호가 뒤집히면 라벨 축은 200종목 한정으로 닫는다.",
+   "cost": "분석만(2회 실행, 학습 없음, 약 12분)",
+   "created_at": "2026-11-28T06:16:00+09:00",
+   "setup_needed": null,
+   "attempts": [
+    {
+     "ts": "2026-11-28T06:13:10+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.3%p · 세션 230 · 풀 중앙값 144 · k=10 arm +0.516%p/세션 · 대조 +0.148 · Δ+0.418(t 4.42) · 양세션 62.6% · 분할 both_positive [+0.571/+0.461] · 참고(체결성 필터 OFF): k=10 arm +0.618%p · Δ+0.490 · 널(풀) 대비 k=10 Δ+0.399%p(t 4.12) pos/neg 142/88 · 널 대비 절반 [+0.47/+0.33] · 부호검정 p=0.002(136/88) · 상위3세션 제거 Δ+0.349(t 4.05) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인) · ⚠ 다중 산출 루프 — 산출 파일이 루프 변수(/app/reports/overnight/cg538_cost150_k$k.json;)로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. 오프셋/조건별 집계를 따로 확인하라",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG538_20261128-061305.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "신호있음",
+    "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.3%p · 세션 230 · 풀 중앙값 144 · k=10 arm +0.516%p/세션 · 대조 +0.148 · Δ+0.418(t 4.42) · 양세션 62.6% · 분할 both_positive [+0.571/+0.461] · 참고(체결성 필터 OFF): k=10 arm +0.618%p · Δ+0.490 · 널(풀) 대비 k=10 Δ+0.399%p(t 4.12) pos/neg 142/88 · 널 대비 절반 [+0.47/+0.33] · 부호검정 p=0.002(136/88) · 상위3세션 제거 Δ+0.349(t 4.05) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인) · ⚠ 다중 산출 루프 — 산출 파일이 루프 변수(/app/reports/overnight/cg538_cost150_k$k.json;)로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. 오프셋/조건별 집계를 따로 확인하라",
+    "delta": 0.4183,
+    "per_exp": null,
+    "rc": 0
+   }
   }
  ],
- "updated": "2026-11-26T23:09:38+09:00"
+ "updated": "2026-11-28T06:16:00+09:00"
 }
