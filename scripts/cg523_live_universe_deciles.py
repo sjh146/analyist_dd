@@ -42,15 +42,21 @@ DECILES = 10
 MAX_DAY_RET = 25.0
 MIN_ROWS_SESSION = 200
 
-SQL = """
+FWD_EXPR = {
+    "close_h": ("(lead(close_price, %(h)s) OVER (PARTITION BY stock_code ORDER BY trade_date)"
+                " / NULLIF(close_price, 0) - 1) * 100"),
+    "next_open": ("(lead(open_price, %(h)s) OVER (PARTITION BY stock_code ORDER BY trade_date)"
+                  " / NULLIF(close_price, 0) - 1) * 100"),
+}
+
+SQL_TMPL = """
 WITH px0 AS (
-  SELECT stock_code, trade_date, close_price, trading_value,
+  SELECT stock_code, trade_date, close_price, open_price, trading_value,
          close_price / NULLIF(lag(close_price) OVER (PARTITION BY stock_code ORDER BY trade_date), 0) - 1 AS ret
   FROM market_data WHERE trade_date >= %(px_from)s
 ), px AS (
-  SELECT stock_code, trade_date, close_price, trading_value, ret,
-         (lead(close_price, %(h)s) OVER (PARTITION BY stock_code ORDER BY trade_date)
-            / NULLIF(close_price, 0) - 1) * 100 AS fwd,
+  SELECT stock_code, trade_date, close_price, open_price, trading_value, ret,
+         __FWD__ AS fwd,
          (close_price / NULLIF(lag(close_price, 5) OVER (PARTITION BY stock_code ORDER BY trade_date), 0) - 1) * 100 AS ret_5d,
          (close_price / NULLIF(lag(close_price, 20) OVER (PARTITION BY stock_code ORDER BY trade_date), 0) - 1) * 100 AS ret_20d,
          stddev_samp(ret) OVER (PARTITION BY stock_code ORDER BY trade_date
@@ -241,6 +247,9 @@ def main():
                     help="최소 거래대금(억원) — 배포 트레이더의 유동성 필터(50억)와 같은 모집단에서 재려면 50")
     ap.add_argument("--baselines", default="",
                     help="쉼표 구분 단순신호 대조군: " + ",".join(BASELINES))
+    ap.add_argument("--horizon", type=int, default=HORIZON)
+    ap.add_argument("--exit", choices=sorted(FWD_EXPR), default="close_h",
+                    help="청산 기준: close_h(기본, h거래일 뒤 종가) | next_open(h거래일 뒤 시가 — 트레이더 09:00~09:10 청산 근사)")
     args = ap.parse_args()
 
     base_keys = [b.strip() for b in (args.baselines or "").split(",") if b.strip()]
@@ -253,7 +262,8 @@ def main():
     d_from = (datetime.fromisoformat(args.since) - timedelta(days=90)).date().isoformat()
     conn = connect()
     cur = conn.cursor()
-    cur.execute(SQL, {"h": HORIZON, "px_from": d_from, "since": args.since})
+    cur.execute(SQL_TMPL.replace("__FWD__", FWD_EXPR[args.exit]),
+                {"h": args.horizon, "px_from": d_from, "since": args.since})
     raw = cur.fetchall()
     cur.close()
     conn.close()
@@ -300,7 +310,7 @@ def main():
     out = {
         "generated_at": datetime.now(timezone(timedelta(hours=9))).isoformat(timespec="seconds"),
         "config": {
-            "source": "ml_predictions ⨝ market_data", "horizon": HORIZON, "exit": "close_h",
+            "source": "ml_predictions ⨝ market_data", "horizon": args.horizon, "exit": args.exit,
             "fee_roundtrip_pct": FEE_ROUNDTRIP, "max_day_ret_pct": MAX_DAY_RET,
             "min_rows_session": args.min_rows_session, "dates": [dates[0], dates[-1]],
             "min_value_eok": args.min_value_eok, "baselines": base_keys,

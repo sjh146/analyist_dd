@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T17:13:49+09:00",
+ "updated_at": "2026-11-27T17:15:46+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28276,6 +28276,26 @@
    "note": "2026-11-27 17:2x 엔지니어 자율(CG523 후속). 스크립트 scripts/_cg524_live_feature_parity.py 신설(읽기 전용). 함정 실측: pg_conn 없이 FeaturePipeline() 을 만들면 가격 피처가 전량 0 이 되어 0 비율 95%·불일치 69% 라는 **거짓 경보**가 나온다(첫 실행이 그랬다). 서비스 배선과 동일하게 pg_conn 을 주입한 뒤에는 0 비율이 패널과 일치했다. 결론: 라이브 ρ −0.103 은 추론 피처 불일치로 설명되지 않는다 → 남은 설명은 \"패널 OOS AUC 가 라이브 엣지의 대리지표가 아니다\"(CG522·CG523) 이며, 다음 레버는 배포 유니버스 기준 재학습/데이터 축이다.",
    "created_at": "2026-11-27T17:13:39+09:00",
    "updated_at": "2026-11-27T17:13:39+09:00"
+  },
+  {
+   "id": "CG526",
+   "status": "pending",
+   "priority": 1,
+   "kind": "돈 지표·청산정합",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": "score_deciles",
+   "model_label": "live",
+   "est_minutes": 5,
+   "title": "[돈 지표·청산정합] 트레이더가 실제로 청산하는 창(익일 09:00~09:10)과 같은 h1·next_open 표본에서 챔피언 랭킹이 유효한가 — 50억 유니버스, 단순신호 대조",
+   "hypothesis": "지금까지 라이브 유니버스 측정(CG523·CG524)은 모두 5거래일 뒤 종가 청산이었는데, 배포 트레이더의 청산 창은 익일 09:00~09:10(≈ 익일 시가)이다. 보유기간이 다르면 순서정보도 다를 수 있다 — h5 에서 무효였던 랭킹이 h1·익일시가에서는 살아날 수 있고, 반대로 h1 에서도 죽어 있으면 \"모델 랭킹이 거래 청산 창과 어긋난다\"가 축 종결 근거가 된다.",
+   "counterfactual": "CG524 같은 표본·같은 프로토콜의 h5·close_h 결과(챔피언 ρ −0.3576·Δ −0.3661%p, 17세션) + 같은 런의 return_5d/volatility_20d 대조군",
+   "success": "사전 등록(변경 금지): 분위 ρ ≥ +0.5 **이고** D10−D1 ≥ +0.3%p 이면 '익일시가 청산 창에서 랭킹 유효' → 그 설정을 다음 실험의 기준선으로 승격. 미달이면 랭킹 축 종결(데이터 축으로 이동).",
+   "command": "cd /home/jhshi/analyist_dd && timeout 1800 python3 scripts/cg523_live_universe_deciles.py --json-out data/reports/overnight/cg526_nextopen_h1.json --min-value-eok 50 --exit next_open --horizon 1 --baselines return_5d,volatility_20d",
+   "expected": "21세션·수 초(읽기 전용 SQL). 판정은 구동기 judge_score_deciles(ρ≥0.5·Δ≥0.3%p).",
+   "created_at": "2026-11-27T17:15:46+09:00",
+   "updated_at": "2026-11-27T17:15:46+09:00",
+   "note": "2026-11-27 17:2x 엔지니어 자율(CG524 판정 후속). 스크립트에 --exit next_open·--horizon 추가(기본 close_h 는 비트 동일 회귀 확인). 사전 실행 1회(판정 아님·낮은 검정력): 21세션·50억 · 챔피언 ρ −0.0424 · Δ −0.1011%p · 풀평균 +0.0150 ↔ return_5d ρ −0.6242·Δ −0.2121(t −0.46) · volatility_20d ρ 0.9273·Δ +0.4670(t 0.97). h1 에서도 챔피언 랭킹은 무작위 수준 — 다만 판정은 구동기 원장 기록으로 남긴다."
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
