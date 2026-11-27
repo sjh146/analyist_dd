@@ -132,6 +132,14 @@ records what happened → risk gates read the journal".
   own port** (`curl --noproxy '*' 127.0.0.1:<port>/<path>` → HTTP 200 plus a byte count), never by process liveness
   or the file's mtime, and make every publish path end with `chmod 644 <artefact>` so the next scheduled run cannot
   re-break it. Symptom to recognise: "the trader stopped getting candidates" with a healthy-looking stack.
+- **A relaxed fallback ladder silently repeals the policy it was meant to soften.** A producer that tries a loose
+  threshold first and only falls back to the strict one on zero results means the stated policy never applies —
+  measured: a "50억 유동성" rule coexisted with a first attempt at 10억, so four candidates at 27–45억 were
+  published and one was bought, while every config/comment and the audit's own threshold said 50억. Order the
+  ladder **strict first**, relax only after zero results, and log the relaxation with its value
+  (`band-50eok` / `band-10eok`) so the next audit can tell which rung produced the payload. Verify from the
+  published artifact, not the script: print the candidate count and the **minimum** traded value, and require
+  0 below the policy floor before reporting the policy as active.
 - **A producer run without its output flag is a no-op, and every gate's input must be published.** Re-running a
   screener in the foreground without its output flag (`--json-out <path>`) writes nothing: the source artifact keeps
   its old mtime and the publisher re-emits *yesterday's* candidates, so a correct patch looks like a patch that did
@@ -235,6 +243,8 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
 
 - 상세: `references/live-path-self-audit.md` — 불변식 자동 감사 루프(브로커↔저널 불일치, 손절 미집행, 미체결 주문제존, 유동성 위반)와 일일 개선 큐 설계
 
+- 상세: `references/cost-audit.md` — 실비용 감사(fees 컬럼 0 알람 → 요율 계상 → 트리거 대비 체결 슬리피지 → 합산 재판정 → 지정가 청산 배선 계약·진입 추격 측정)
+
 ## Editing the live order path itself
 
 - **An algorithm change is not done until it has traded once in the session, as intended.** The owner's standing rule:
@@ -332,6 +342,20 @@ The two inputs every risk gate depends on can lie, and neither failure raises an
   with tests: market up ⇒ wide trail/TP, market down ⇒ base values, and a position that never armed behaves as before.
   Unconditional longer holds already measured negative expectancy on this book; widening must not become the default for
   the days the premise is wrong.
+- **When the owner says the fixed take-profit cut a winner, convert the TP into an armed trailing — do not just raise the
+  line.** Raising `tp_pct` 3 %→5 % buys one percentage point and repeats the complaint at the next level; the shape that
+  answers it is: TP becomes a far backstop (e.g. 10 %), the position arms at roughly where the old TP used to fire
+  (measured setting: arm +2.5 %, trail −1 % from the peak, hold-side stop untouched at −1 %), and the exit leaves on the
+  give-back rather than the level. Three things must move in the same commit: (1) the profile's `tp_pct`,
+  `trailing_arm_pct`, `trailing_stop_pct` (and the `_up` variants), (2) the tests that pin the *old* fixed line — they
+  encode the previous contract and will fail, so rewrite their expectations and name the new contract in the message,
+  (3) the ATR widening **cap for the short-horizon path**: `trail = max(base, 0.35 × ATR%)` is right for multi-day holds
+  but on a 7 %-ATR intraday name it computes ≈2.45 %, wider than that path's entire profit target — pass a cap of
+  ~1.5 × base for the intraday path and keep the 6 % cap only for the others. Before switching, quote the
+  counterfactual from the same trade so the owner sees the trade-off: trigger price, the broker's average fill, the
+  day's high, and the trailing exit that high implies (measured: +2.96 % realised vs ≈+6.3 % under a 2.5 %/1 % trail)
+  — then say plainly that fast reversals will exit lower and that the new rule is a strategy choice needing a live
+  session before it is called an improvement. Changing an exit rule is never validated by a green suite.
 - **A raised scoring weight can be inert against a hardcoded clamp.** Measured: a component's weight was
   raised to 40 in the weights block while the same component's clamp still capped it at 25, so the new
   weight was unreachable and the ranking never changed — while the constant printed as applied. Whenever a
@@ -407,6 +431,11 @@ Four defects that look like "the strategy is bad" but are order-path mechanics, 
   its reason line; keep only the non-resumable halts (daily-loss limit, kill-switch file) as full stops. Verify the
   behaviour from the next cycle's own phase/reason line, not from the state file — an auto-resume that never fires
   looks identical to a cleared halt until you watch one cycle run.
+  **An auto-resume that is coded but not firing is an outage, not a state bug** — the halt flag stays set while the
+  link is already healthy (health 200, `connected:true`) and every cycle logs `cycle done (halted)`. Restart the
+  loop process (stop → start) rather than hand-editing the state file: the restart re-runs the checks and, if the
+  link is back, the very first cycle also drains the backlog — measured, the stuck max-hold position exited inside
+  the first cycle after restart (fill +0.6 %), which is faster and safer than waiting for the watchdog window.
 - **An order-pricing guard must be asymmetric by side: refusing a BUY on a stale quote is cheap, refusing a SELL is a
   stuck position.** A "recent reference quote required" guard re-fetched its own quote, timed out on that second read
   while the cycle's quote was healthy, and refused the same market exit on every cycle for hours. For sells only, fall
@@ -421,7 +450,11 @@ Four defects that look like "the strategy is bad" but are order-path mechanics, 
   trade's own record so the counterfactual is measurable from real quotes, then (2) only if the numbers justify it,
   move to a marketable limit at the best bid **with** a watchdog that cancels and re-sends market if it does not
   fill within a bounded time. Never leave a limit sell working with no fallback, and never report the trigger price
-  as the exit price.
+  as the exit price. **Aggregate it before choosing:** quote count / mean / median / worst / share beyond 0.3%
+  over all closed rows (measured on one book: 28 exits, mean **−0.245%**, worst −1.0%). Add the statutory fee/tax
+  rate (~0.18% round trip) and that sum — not the assumed cost — is what the barrier grid must be re-run with;
+  a +0.16%/건 cell assumed at 0.21% is underwater at a measured 0.42%. When the largest term is exit slippage,
+  the next lever is execution, not the model. Recipe: `references/cost-audit.md`.
 - **Close the trigger-vs-fill gap by correcting the journal, not by explaining it in a report.** When market
   exits keep filling worse than the trigger, run a post-close tool that overwrites **today's closed rows'**
   `entry_price`/`exit_price` with the broker's per-code averages (print before→after per row), then add an audit
@@ -433,6 +466,14 @@ Four defects that look like "the strategy is bad" but are order-path mechanics, 
   (`screener`, profile name, strategy) must be explicitly set when a row is adopted from the broker; leaving it
   empty drops that row out of every per-path statistic while the total still looks right (measured: two adopted
   trades carried `""`). Set a distinct value (`"reconcile"`) and cross-check that the per-path sums equal the total.
+- **A sell with no matching open buy row must be journaled closed in the same call, never left open.** When the
+  exit path finds no open entry it tends to insert the sell as a fresh row, which the journal then reads as an
+  **open short**: the broker is flat, the journal claims a position, and the audit raises broker↔journal mismatch
+  every cycle while the row's P&L stays null (measured: one `tp` exit on a name whose entry was never journaled).
+  Insert the row with `screener="reconcile"` and immediately close it (`exit_ts=ts`, reason naming the missing
+  entry); treat the broker's per-code realised figure as the only P&L source for that trade and say so. Fix
+  existing rows with the same one-off update before the next audit run, then confirm the audit goes green — an
+  unfixed row keeps re-alerting and hides new mismatches behind it.
 - **Closing a thin-book position by hand: cross the spread deliberately and say so.** On an illiquid name a
   market order can sit unfilled for minutes (no bid), and a limit placed far below the last price fills but at a
   self-inflicted loss (measured: 1,840 against a 1,853 last → 15주 ≈ 195원 of pure slippage). Place the limit at
