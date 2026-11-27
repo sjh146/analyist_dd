@@ -1493,6 +1493,12 @@ CONFIGS = [
      "desc": "CG450 대조군 — 패치 패널에서 인트라데이(idc_*) 열을 선별 후보에서 제외(같은 런·같은 행)"},
     {"id": "CG450_intraday_h5", "kind": "quantile", "horizon": 5, "q": 0.30, "select": "top30",
      "desc": "CG450 arm — Naver 전구간 분봉 close-only 피처 포함(같은 패널·같은 폴드·같은 시드)"},
+
+    {"id": "LBL_close_h1", "kind": "quantile", "horizon": 1, "q": 0.30, "select": "top30",
+     "desc": "CG529 대조군 — h1 종가→종가 라벨(현행 청산 규칙과 불일치)"},
+    {"id": "LBL_overnight_h1", "kind": "quantile", "horizon": 1, "q": 0.30, "select": "top30",
+     "exit_at": "next_open",
+     "desc": "CG529 arm — h1 종가→익일 시가 라벨(open(t+1)/close(t)−1) · 실 청산창과 목표 일치"},
 ]
 
 
@@ -2302,6 +2308,7 @@ def main():
                "train_mask_col": cfg.get("train_mask_col"),
                "train_mask_gte": cfg.get("train_mask_gte"),
                "label_mask": cfg.get("label_mask"),
+               "entry": cfg.get("entry"), "exit_at": cfg.get("exit_at"),
                "ts": ml.now_iso(), "status": "failed", "folds": {}}
         ml.log(f"=== {exp_id}: {cfg['desc']} ===")
         try:
@@ -2312,7 +2319,7 @@ def main():
                        f"{_lmd['keep']}/{_lmd['rows']} ({_lmd['keep_frac']:.1%}), 행은 버리지 않음")
             y = W.make_labels(df, cfg["kind"], cfg["horizon"], cfg["q"],
                               thresh=cfg.get("thresh"), label_mask=_lm,
-                              entry=cfg.get("entry"))
+                              entry=cfg.get("entry"), exit_at=cfg.get("exit_at"))
             d = df.copy()
 
 

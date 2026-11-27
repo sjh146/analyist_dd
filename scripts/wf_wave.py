@@ -438,7 +438,8 @@ def _build_panel_locked(cache, limit, days, log=print, end_date=None, universe="
     return df, available
 
 
-def make_labels(df, kind, horizon, q, thresh=None, label_mask=None, entry=None):
+def make_labels(df, kind, horizon, q, thresh=None, label_mask=None, entry=None,
+                exit_at=None):
     """라벨 생성. kind: quantile(기본) / relative(시장상대) / smooth / voladj / voladj_smooth / abs_thresh
     / excess / excess_smooth.
 
@@ -460,6 +461,10 @@ def make_labels(df, kind, horizon, q, thresh=None, label_mask=None, entry=None):
     label_mask(quantile 전용, CG324) = 분위 **기준 모집단**을 지정하는 bool 배열(df 행 정렬).
                  마스크 밖 행도 라벨은 받는다(문턱 계산에서만 빠진다) → 행 도메인이 보존된다.
                  None 이면 기존 경로와 비트 동일(회귀 없음).
+    exit_at(CG529, 2026-11-27) = 'close'(기본, 현행 비트 동일) | 'next_open'.
+                 next_open = **익일 시가 청산** 수익: open(t+h)/close(t) − 1. 실 청산창
+                 (익일 09:00~09:10)과 목표를 일치시키는 arm 전용. entry='next_open' 과
+                 동시 사용 금지. 'open' 열이 없으면 조용히 폴백하지 않고 실패한다.
     """
     price = df.groupby("stock_code", sort=False)["price"]
     # CG430: 진입가(분모) — 기본은 종가(현행 비트 동일). next_open 이면 익일 시가.
@@ -490,6 +495,19 @@ def make_labels(df, kind, horizon, q, thresh=None, label_mask=None, entry=None):
         ret = acc / float(horizon)
     else:
         ret = price.transform(lambda s: s.shift(-horizon) / s - 1.0)
+    _exit = (exit_at or "close").lower()
+    if _exit in ("next_open", "open"):
+        if _entry in ("next_open", "open"):
+            raise RuntimeError("entry='next_open' 과 exit_at='next_open' 을 함께 쓸 수 없다")
+        if "open" not in df.columns:
+            raise RuntimeError(
+                "exit_at='next_open' 라벨에는 패널 'open' 열이 필요하다 "
+                "(scripts/panel_add_open.py 로 만든 패널을 쓰라 — 조용한 폴백 금지)")
+        if kind in ("smooth", "voladj_smooth", "excess_smooth", "excess_smooth_thresh"):
+            raise RuntimeError(f"exit_at='next_open' 은 스무딩 라벨({kind})과 함께 쓸 수 없다")
+        _num = df.groupby("stock_code", sort=False)["open"].shift(-horizon).astype(float)
+        _num = _num.where(_num > 0)
+        ret = _num / df["price"].astype(float) - 1.0
     if kind in ("voladj", "voladj_smooth"):
         vol = price.transform(
             lambda s: s.pct_change().rolling(20, min_periods=10).std())
