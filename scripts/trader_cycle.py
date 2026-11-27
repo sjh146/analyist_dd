@@ -120,7 +120,8 @@ ARCHIVE_JOURNALS = sorted(glob.glob(os.path.join(TRADER_WS_WSL, "journal", "pape
 # 표본 정의(2026-11-19 수리): `unfilled:...` 마커 행은 **포지션이 아니었던 주문**의 종결 기록이라
 # 청산 표본이 아니다. 넣으면 0원 거래가 패배로 세어져 승률·기대값이 왜곡된다(실측 17건 wr 23.5%
 # ↔ 실제 16건 wr 25.0%, 기대값 -2,011 ↔ -2,136원). 계기판(quant_scoreboard.py)과 같은 정의를 쓴다.
-_REAL_CLOSED = "exit_ts is not null and coalesce(exit_reason,'') not like 'unfilled:%'"
+_NOT_UNFILLED = "instr(lower(coalesce(exit_reason,'')),'unfilled') = 0"
+_REAL_CLOSED = "exit_ts is not null and " + _NOT_UNFILLED
 
 
 def screener_attribution(conn) -> list:
@@ -225,11 +226,11 @@ def measure() -> dict:
                     pass
             st["today_closed"] = _scalar(
                 conn,
-                f"select count(*) from trades where exit_ts like '{today}%' and coalesce(exit_reason,'') not like 'unfilled:%'",
+                f"select count(*) from trades where exit_ts like '{today}%' and " + _NOT_UNFILLED,
             )
             st["today_realized_krw"] = _scalar(
                 conn,
-                f"select coalesce(sum(pnl),0) from trades where exit_ts like '{today}%' and coalesce(exit_reason,'') not like 'unfilled:%'",
+                f"select coalesce(sum(pnl),0) from trades where exit_ts like '{today}%' and " + _NOT_UNFILLED,
             )
         finally:
             conn.close()
@@ -777,6 +778,29 @@ def bridge_churn_peak_per_hour(window_h: float = 24.0) -> float | None:
     return float(best)
 
 
+def orphan_positions() -> float | None:
+    """브로커 보유 중 **저널에 open 행이 없는** 종목 수(T55 지표).
+
+    WHY(2026-11-27 09:05 실측): T55 의 check 는 `grep "order failed .*timed out"` 이었다. 그런데
+    (a) 수치를 내지 않고 (b) 오늘 로그 문구는 `order 347700: submit raised (bridge request failed:
+    timed out ...)` 라 grep 이 0건을 냈다 → 실제로는 브로커에 1주가 체결돼 있는데 **충족으로 오판**
+    된다. 판정은 문구가 아니라 산출물(브리지 /positions − 저널 open)의 차집합으로 한다.
+    """
+    ok, payload, err = _win_curl(f"{BRIDGE_URL}/positions", 20)
+    if not ok or not isinstance(payload, dict):
+        return None
+    broker = {str(p.get("code")) for p in (payload.get("positions") or []) if (p.get("qty") or 0) > 0}
+    conn, tmp = _journal_copy()
+    if conn is None:
+        return None
+    try:
+        jr = {r[0] for r in conn.execute("select distinct code from trades where exit_ts is null")}
+    finally:
+        conn.close()
+        shutil.rmtree(tmp if isinstance(tmp, str) and os.path.isdir(tmp) else "", ignore_errors=True)
+    return float(len(broker - jr))
+
+
 # ── 프로브 (백로그 항목의 check 가 읽는 수치) ───────────────────────────────
 def probe(name: str) -> float | None:
     m = measure()
@@ -809,6 +833,8 @@ def probe(name: str) -> float | None:
         return feed_price_dev_pct()
     if name == "bridge_timeouts":
         return bridge_timeouts_intraday()
+    if name == "orphans":
+        return orphan_positions()
     if name == "unmonitored":
         held = m.get("open_positions")
         if held is None:
@@ -832,6 +858,7 @@ PROBES = {
     "feed_price_dev": "피드 close_price 와 최신 종가의 최대 절대편차(%). 1 초과면 지정가가 시장과 벌어짐",
     "bridge_timeouts": "오늘(마지막 day rollover 이후) 브리지 요청 실패 줄 수. 장중 5 초과면 견적·주문 응답 유실 위험",
     "unmonitored": "브리지 단절 상태에서 청산 경로가 없는 보유 종목 수(0 이어야 정상)",
+    "orphans": "브로커에만 있고 저널에 없는 보유 종목 수(유령 포지션, 0 이어야 정상)",
 }
 
 

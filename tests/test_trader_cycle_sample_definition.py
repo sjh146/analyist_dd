@@ -42,6 +42,8 @@ def _fixture_journal(path):
         # 마커: 체결 0 → 포지션 아니었음
         (today + "T09:10:00+09:00", "buy", "333333", 10, 1000.0, today + "T15:30:00+09:00", 1000.0,
          "unfilled: broker order 1 filled_qty=0 at close (expired), never a position - closed at entry, 0 PnL", 0.0, 0.0),
+        (today + "T09:12:00+09:00", "buy", "555555", 1, 25300.0, today + "T09:13:34+09:00", 25300.0,
+         "entry order cancelled unfilled (74s)", 0.0, 0.0),
         # 미청산
         (today + "T10:00:00+09:00", "buy", "444444", 10, 1000.0, None, None, None, None, 0.0),
     ]
@@ -69,6 +71,21 @@ def test_unfilled_marker_excluded_from_closed_sample(tmp_path, monkeypatch):
     assert st["open_positions"] == 1
     assert st["today_closed"] == 2
     assert st["today_realized_krw"] == pytest.approx(600.0)
+
+def test_unprefixed_unfilled_cancel_excluded(tmp_path, monkeypatch):
+    """`entry order cancelled unfilled`(접두어 없음)도 청산 표본이 아니다.
+
+    WHY(2026-11-27 09:25 실측): id 38(476830)이 이 문구로 exit_ts 를 갖고 pnl 0 으로 남아 청산
+    37건·승률 29.7% 로 보고됐다. 실제 포지션은 36건·30.6% 였다 — 접두어 검사만으로는 놓친다.
+    """
+    tc = _load_cycle()
+    jp = tmp_path / "trade_journal.sqlite3"
+    _fixture_journal(str(jp))
+    monkeypatch.setattr(tc, "JOURNAL", str(jp))
+    conn = sqlite3.connect(str(jp))
+    n = conn.execute("select count(*) from trades where " + tc._REAL_CLOSED).fetchone()[0]
+    conn.close()
+    assert n == 2, n
 
 def test_screener_attribution_excludes_unfilled_marker(tmp_path, monkeypatch):
     """스크리너별 집계도 같은 표본 정의를 쓴다 — 마커 행이 swing 건수를 부풀리지 않는다.

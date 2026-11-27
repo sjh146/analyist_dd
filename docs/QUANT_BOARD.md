@@ -733,6 +733,17 @@ cd /home/jhshi/analyist_dd
   고정하고 있어 스킵하면 '차이 없음'과 '포화'가 구분 불가 → 표시만.
 - **증거 파일**: `data/reports/me_cycle/tick_20260928_2210.md`.
 
+### 트레이더 (2026-11-27 09:25 개장 직후 틱 — 🔴 T55 재발(타임아웃 체결이 저널에 없음·347700 유령 1주) · 표본정의 수리 T65 — 실측)
+
+- **북극성(저널 사본, `.sqlite3`+WAL 이름 일치 복사)**: 순손익 **−37,004.5원** / 청산 **36**(정정) / 승률 **30.6%(11/36)** / 기대값 **−1,027.9원/건** / 보유 **저널 0·브로커 1**(347700 스피어) / fees **458.5원**. 스크리너별: daytrading 20건 **+1,631** · close 3건 **−1,446** · swing 10건 **−20,000.5** · unknown 3건 **−17,189**.
+- **표본정의 수리(T65, done)**: id 38(476830)이 `entry order cancelled unfilled (74s)`·pnl 0 으로 exit_ts 를 갖고 있어 **청산 1건으로 집계** → 09:25 사이클이 37건·29.7%·−1,000.1원으로 과소 보고했다. `_REAL_CLOSED` 를 접두어 검사(`unfilled:%`)에서 `instr(lower(exit_reason),'unfilled')=0` 로 교체 → **36건·30.6%·−1,027.9원**. 회귀 `tests/test_trader_cycle_sample_definition.py` 3/3 통과. ⚠ 계기판 `quant_scoreboard.py`·`redeploy_gate.py` 는 아직 접두어 규칙(같은 행이 남아 있으면 동일 왜곡).
+- **T55 재발(3번째 실주문 실측)**: 09:05 `order 347700: submit raised (bridge request failed: timed out [connection_failed]) … not retried` → 루프는 주문 실패로 종료, 브로커는 **347700 1주 @23,303 체결**(09:25 현재가 23,500 = **+0.85%**, 미실현 +197원 추정). 저널 trades 에 347700 행 **0건**, `daily.entries=1`. 신설 프로브 `orphans`(브리지 /positions − 저널 open) = **1.0**. T55 check 를 로그 문구 grep(오늘 문구 변경으로 **0건 오판**)에서 이 산출물 차집합으로 교체.
+- **실행 경로(09:25~09:26)**: halt=false · 실패 **0** · phase **monitor** · 갱신 **0.2분** · `/health` **connected:true** · 포커스창(09:00~09:30) 10초 주기 · 오늘 진입 1 + 유령 1. 오늘 `bridge request failed` **34줄**(09:05 주문 타임아웃 포함) → T62 지속.
+- **피드 계약**: 위반 **0건** · `generated_at` **09:10:07** · 전략별 **20/20/20** · `close_price` 누락 0 · `score_kind` 정상(swing `calibrated_prob` 60.3~69.2 · daytrading `composite` · close `screener`) · `signal_date` close 11-25(2거래일)·swing/daytrading 11-26(1거래일) 문턱 내 · `regime` **risk_off**(KOSDAQ 655.71 < MA20 676.27 · 5일 −4.25%). relay 09:15·github 08:40 발행 성공(head c961fc0). `scoring_summary` 미탑재(켈리 f*≤0 → 근거만 `data/reports/screener_stats_measured.json`, 설계대로).
+- **계약2(엔지니어 검증 성적표)**: 충족 — 폴드 **0.4507 / 0.6086 / 0.5905**(mean **0.5499**·std 0.0706·min **0.4507**)·purge 5거래일·승격 dry-run·champion AUC **0.551318**. ⚠ 1폴드가 0.5 미만.
+- **미해결**: T55(유령 포지션 1) · T62(브리지 타임아웃 — 오늘 34줄) · T64(청산 fees=0, 실현 순손익 낙관) · T5(기대값 음수·표본 36) · T42/T45/T51/T53/T54/T59(needs_approval) · T39(핸드오프 24시간 초과). 핸드오프 **총 34 · 종결 30 · 실질 미채택 1**(raw unfilled 20).
+- **사람 단계**: ③ 직접(대행 불가) **없음**(브리지·Creon connected:true) → ② 승인 필요 T42·T45·T51·T53·T54·T59(파라미터·크론·계약 변경) → ① 진행 중 T55·T62·T64.
+
 ### 트레이더 (2026-11-26 15:25 마감 직전 틱 — quant-trader-tick · 보유 0·브로커/저널 정합, 실측)
 
 - **북극성(저널 사본, .sqlite3+WAL 이름 일치 복사)**: 순손익 **−37,004.5원** / 청산 **37** / 승률 **29.7%(11/37)** / 기대값 **−1,000.1원/건** / 보유 **0** / fees **458.5원**. 스크리너별: daytrading 20건 **+1,631**(기대 +81.6) · close 3건 **−1,446** · swing 11건 **−20,000.5**(기대 −1,818) · unknown 3건 **−17,189**(사람 수동청산 포함).
