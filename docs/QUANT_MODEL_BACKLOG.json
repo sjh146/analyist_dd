@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T16:07:42+09:00",
+ "updated_at": "2026-11-27T17:13:49+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28223,20 +28223,59 @@
   {
    "id": "CG524",
    "title": "[돈 지표·대조] 챔피언 점수가 단순 신호보다 나은가 — 50억 유니버스·같은 17세션에서 5일 반전·20일 모멘텀·변동성 랭킹과 짝 비교",
-   "status": "needs_setup",
+   "status": "done",
    "kind": "experiment",
    "owner": "engineer",
    "affects_model": false,
    "priority": 1,
-   "not_before": "2026-11-27T18:11:46+09:00",
+   "not_before": null,
    "metric": "score_deciles",
-   "est_minutes": 90,
+   "est_minutes": 5,
    "counterfactual": "챔피언 점수 top-5 − 풀평균 (50억 유니버스: -0.3491%p/5d · SE 1.645 · MDE80 4.61%p) — 모델 단독",
    "hypothesis": "CG523 실측(50억 필터)에서 챔피언 점수의 순서 정보는 ρ -0.3576·D10−D1 -0.3661%p 로 점추정이 음(−)이었다. 그런데 같은 프로토콜의 MDE80 이 1.65%p 라 '무정보'와 '역정보'를 구분할 수 없다. 단순 신호를 같은 유니버스·같은 세션에 붙이면 (a) 그것들이 같은 MDE 아래에서도 |Δ| 가 더 크게 나오는지, (b) 챔피언이 최소한 그들과 동급인지 알 수 있다. 동급 미달이면 점수 랭킹 자체를 소비 경로에서 빼는 결정(트레이더/카운슬 소관)의 근거가 된다.",
    "command": "cd /home/jhshi/analyist_dd && timeout 1800 python3 scripts/cg523_live_universe_deciles.py --json-out data/reports/overnight/cg524_baselines.json --min-value-eok 50 --baselines return_5d,momentum_20d,volatility_20d",
    "success": "사전 등록(변경 금지): ① 각 랭킹의 D10−D1 과 세션별 짝 t, 그리고 같은 MDE80 을 한 표로 낸다. ② 챔피언 Δ(-0.3661%p)보다 +0.3%p 이상 큰 단순 신호가 하나라도 있고 그 |t| ≥ 1.0 이면 '대체 랭킹 후보 있음'. ③ 모든 단순 신호가 챔피언과 ±0.3%p 이내면 '랭킹 축 종결 — 어떤 횡단면 랭킹도 이 표본에서 인증 불가'로 닫고, 모델 축은 데이터 축(인트라데이 CG388/CG450)으로만 남긴다. 문턱 하향 금지.",
    "setup_needed": "cg523_live_universe_deciles.py 에 --baselines 모드 추가(같은 SQL 결과에서 종목별 5일 수익률·20일 모멘텀·20일 변동성을 그 시점까지의 값만으로 계산해 랭킹 3종을 만들고, 각각 top5/분위 Δ·t·MDE 를 같은 세션 집합에서 산출). look-ahead 금지: 랭킹 입력은 prediction_date 까지의 market_data 만 사용.",
-   "note": "2026-11-27T16:11+09:00 엔지니어 자율(CG523 후속). 스크립트에 --baselines 모드가 없어 pending 이 아니라 needs_setup."
+   "note": " | 2026-11-27 17:2x 엔지니어 자율 셋업 완료: --baselines 플래그(return_5d·momentum_20d·volatility_20d·reversal_1d)를 scripts/cg523_live_universe_deciles.py 에 구현(단순신호도 같은 표본·같은 10분위 프로토콜로 채점, models.<name> 으로 병기). 회귀: --baselines 없이 재실행한 live 블록이 기존 cg523_summary.json 과 비트 동일(ρ −0.103·D10−D1 +0.1417·pool −1.8812·분위 10개 동일). 사전 실행 1회(17세션·50억 필터, 판정 아님): 챔피언 ρ −0.3576·Δ −0.3661%p ↔ return_5d ρ 0.8545·Δ +0.8487(t 0.54) · momentum_20d ρ 0.1394·Δ +0.4332(t 0.30) · volatility_20d ρ −0.7091·Δ −4.2000(t −3.03). 해석 주의: 세션 17개·짝 SE 큼 → 단순신호 '신호' 판정도 불가(MDE 확인할 것). 다만 챔피언이 50억 유니버스에서 5일 반전보다 나쁘다는 방향은 일관. not_before 해제(셋업 완료) — 다음 틱이 착수해 원장에 자기 판정을 남긴다.",
+   "model_label": "live",
+   "updated_at": "2026-11-27T17:13:39+09:00",
+   "attempts": [
+    {
+     "ts": "2026-11-27T17:13:49+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "분위 ρ -0.3576 · D10−D1 -0.3661%p (D1 -3.7026 / D10 -4.0688) · 세션별 짝Δ -0.3661%p t -0.62 (양 7/음 10, 앞 -0.214/뒤 -0.5013) · 풀평균 -3.9196%p · 17세션/8506행 → 사전문턱(ρ≥0.5·Δ≥0.3%p) 미달: 랭킹 무효",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG524_20261127-171343.log",
+     "elapsed_min": 0.1
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "분위 ρ -0.3576 · D10−D1 -0.3661%p (D1 -3.7026 / D10 -4.0688) · 세션별 짝Δ -0.3661%p t -0.62 (양 7/음 10, 앞 -0.214/뒤 -0.5013) · 풀평균 -3.9196%p · 17세션/8506행 → 사전문턱(ρ≥0.5·Δ≥0.3%p) 미달: 랭킹 무효",
+    "delta": -0.3661,
+    "per_exp": null,
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG525",
+   "status": "done",
+   "priority": 2,
+   "kind": "측정정합성",
+   "owner": "engineer",
+   "affects_model": false,
+   "metric": null,
+   "est_minutes": 15,
+   "title": "[측정정합성] 라이브 순서정보 부재(ρ −0.103)가 추론 경로 피처 불일치 때문인가 — 학습 패널 행 vs 서비스 배선 build_features 직접 비교",
+   "hypothesis": "배포 챔피언은 학습 패널에서 OOS 0.55 를 내는데 라이브 횡단면에서는 ρ −0.103 이다. 가장 싼 설명은 predictor.py L210-213 의 `features.get(f, 0.0)` — 추론이 학습과 다른 피처 벡터를 만들고 없는 피처를 0 으로 채우는 경로다. 같은 (code, date) 에 대해 서비스 배선(main.py L37-38: FeaturePipeline(pg_conn=PostgresStorage()._get_conn()))으로 피처를 다시 만들고 학습 패널 행과 비교하면, 불일치가 크면 버그이고 작으면 모델 자체의 엣지 부재다.",
+   "counterfactual": "같은 (code, date) 의 학습 패널 행(npz) — 정합 기준",
+   "success": "정합 판정: 피처별 횡단면 Spearman 중앙값 ≥ 0.8 **이고** 0 비율 차이 ≤ 0.05 면 \"추론 경로 정상\"(→ 원인은 모델 엣지 부재). 미달이면 \"추론 경로 결함\"(수리 대상).",
+   "command": "cd /home/jhshi/analyist_dd && docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app python -u scripts/_cg524_live_feature_parity.py --n-codes 6 --out /app/reports/overnight/cg524_live_feature_parity_pg.json'",
+   "evidence": "services/xgboost-ml/reports/overnight/cg524_live_feature_parity_pg.json",
+   "result": "정합 정상 — 피처 횡단면 Spearman 중앙값 1.0(≥0.8 비율 89.4%, n=104) · 0 비율 라이브 0.203~0.310 vs 패널 0.222~0.309(차 ≤0.06) · 챔피언 173피처 중 런타임 미산출 6개(rank_ma_position_5·rank_return_5d·rank_return_20d·rank_volatility_20d·rank_volume_ratio_5·rank_volume_ratio_20 → 0.0 대체, 배치 추론 선행 필요·기존 문서화) · 값이 다른 피처 12~25%는 희소/재무/섹터군(sector_momentum·institution_ownership_pct·days_to_cover 등 — 패널은 as-of 패치·ffill, 라이브는 결측 0)",
+   "note": "2026-11-27 17:2x 엔지니어 자율(CG523 후속). 스크립트 scripts/_cg524_live_feature_parity.py 신설(읽기 전용). 함정 실측: pg_conn 없이 FeaturePipeline() 을 만들면 가격 피처가 전량 0 이 되어 0 비율 95%·불일치 69% 라는 **거짓 경보**가 나온다(첫 실행이 그랬다). 서비스 배선과 동일하게 pg_conn 을 주입한 뒤에는 0 비율이 패널과 일치했다. 결론: 라이브 ρ −0.103 은 추론 피처 불일치로 설명되지 않는다 → 남은 설명은 \"패널 OOS AUC 가 라이브 엣지의 대리지표가 아니다\"(CG522·CG523) 이며, 다음 레버는 배포 유니버스 기준 재학습/데이터 축이다.",
+   "created_at": "2026-11-27T17:13:39+09:00",
+   "updated_at": "2026-11-27T17:13:39+09:00"
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"

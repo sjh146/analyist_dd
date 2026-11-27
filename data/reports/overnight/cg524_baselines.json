@@ -1,0 +1,620 @@
+{
+ "generated_at": "2026-11-27T17:13:48+09:00",
+ "config": {
+  "source": "ml_predictions ⨝ market_data",
+  "horizon": 5,
+  "exit": "close_h",
+  "fee_roundtrip_pct": 0.21,
+  "max_day_ret_pct": 25.0,
+  "min_rows_session": 200,
+  "dates": [
+   "2026-09-22",
+   "2026-11-19"
+  ],
+  "min_value_eok": 50.0,
+  "baselines": [
+   "return_5d",
+   "momentum_20d",
+   "volatility_20d"
+  ],
+  "days": 17
+ },
+ "models": {
+  "live": {
+   "n_sessions": 17,
+   "deciles": [
+    {
+     "decile": 1,
+     "mean_pct": -3.7026,
+     "t_stat": -3.07,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 858
+    },
+    {
+     "decile": 2,
+     "mean_pct": -3.8346,
+     "t_stat": -3.27,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 851
+    },
+    {
+     "decile": 3,
+     "mean_pct": -3.8836,
+     "t_stat": -3.34,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 854
+    },
+    {
+     "decile": 4,
+     "mean_pct": -3.9486,
+     "t_stat": -2.93,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 845
+    },
+    {
+     "decile": 5,
+     "mean_pct": -4.156,
+     "t_stat": -2.85,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 850
+    },
+    {
+     "decile": 6,
+     "mean_pct": -3.5354,
+     "t_stat": -2.28,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 854
+    },
+    {
+     "decile": 7,
+     "mean_pct": -3.6508,
+     "t_stat": -2.4,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 847
+    },
+    {
+     "decile": 8,
+     "mean_pct": -3.8458,
+     "t_stat": -2.6,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 852
+    },
+    {
+     "decile": 9,
+     "mean_pct": -4.5714,
+     "t_stat": -3.15,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 853
+    },
+    {
+     "decile": 10,
+     "mean_pct": -4.0688,
+     "t_stat": -2.87,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 842
+    }
+   ],
+   "spearman_rho": -0.3576,
+   "d10_minus_d1_pct": -0.3661,
+   "paired_d10_d1": {
+    "mean_pct": -0.3661,
+    "t_stat": -0.62,
+    "pos": 7,
+    "neg": 10,
+    "front_pct": -0.214,
+    "back_pct": -0.5013
+   },
+   "pool_mean_pct": -3.9196,
+   "pool_t": -2.94,
+   "monotonic": false,
+   "power": {
+    "d10_minus_d1": {
+     "n_sessions": 17,
+     "mean_pct": -0.3661,
+     "sd_daily_pct": 2.4234,
+     "se_pct": 0.5878,
+     "ci95_pct": [
+      -1.5181,
+      0.7859
+     ],
+     "mde80_pct": 1.6469,
+     "required_sessions": {
+      "0.3": 513,
+      "0.2": 1153,
+      "0.1": 4611
+     }
+    },
+    "top5_minus_pool": {
+     "n_sessions": 17,
+     "mean_pct": -0.3491,
+     "sd_daily_pct": 6.7826,
+     "se_pct": 1.645,
+     "ci95_pct": [
+      -3.5733,
+      2.8752
+     ],
+     "mde80_pct": 4.6094,
+     "required_sessions": {
+      "0.3": 4014,
+      "0.2": 9030,
+      "0.1": 36119
+     }
+    },
+    "note": "MDE80 = 2.802·SE (α0.05 양측·검정력 80%). MDE80 이 목표 효과보다 크면 그 결과는 '신호 없음'이 아니라 '판정불가(저검정력)'다."
+   },
+   "session_deltas": {
+    "2026-09-22": 7.4352,
+    "2026-09-23": 0.2511,
+    "2026-09-29": -1.513,
+    "2026-09-30": -2.9885,
+    "2026-10-01": 0.271,
+    "2026-10-02": -3.4994,
+    "2026-10-06": -0.1541,
+    "2026-10-07": -1.5146,
+    "2026-10-08": -0.2491,
+    "2026-11-09": 0.6389,
+    "2026-11-10": -1.2054,
+    "2026-11-12": -2.4414,
+    "2026-11-13": 1.1708,
+    "2026-11-16": -1.9298,
+    "2026-11-17": 0.6296,
+    "2026-11-18": 0.1566,
+    "2026-11-19": -1.2818
+   },
+   "n_rows_scored": 8506,
+   "n_rows_after_filter": 8506,
+   "avg_codes_per_session": 500.4,
+   "topk_reference": {
+    "top5_mean_pct": -4.2687,
+    "top10_mean_pct": -3.4097
+   }
+  },
+  "return_5d": {
+   "n_sessions": 17,
+   "deciles": [
+    {
+     "decile": 1,
+     "mean_pct": -4.8693,
+     "t_stat": -3.41,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 856
+    },
+    {
+     "decile": 2,
+     "mean_pct": -4.3679,
+     "t_stat": -3.39,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 849
+    },
+    {
+     "decile": 3,
+     "mean_pct": -4.0867,
+     "t_stat": -3.19,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 850
+    },
+    {
+     "decile": 4,
+     "mean_pct": -4.0242,
+     "t_stat": -3.65,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 845
+    },
+    {
+     "decile": 5,
+     "mean_pct": -4.026,
+     "t_stat": -3.44,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 846
+    },
+    {
+     "decile": 6,
+     "mean_pct": -3.4373,
+     "t_stat": -2.52,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 854
+    },
+    {
+     "decile": 7,
+     "mean_pct": -3.8992,
+     "t_stat": -2.4,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 845
+    },
+    {
+     "decile": 8,
+     "mean_pct": -2.9919,
+     "t_stat": -1.76,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 850
+    },
+    {
+     "decile": 9,
+     "mean_pct": -2.8026,
+     "t_stat": -1.68,
+     "pos_sessions_pct": 41.2,
+     "n_rows": 849
+    },
+    {
+     "decile": 10,
+     "mean_pct": -4.0206,
+     "t_stat": -2.2,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 839
+    }
+   ],
+   "spearman_rho": 0.8545,
+   "d10_minus_d1_pct": 0.8487,
+   "paired_d10_d1": {
+    "mean_pct": 0.8487,
+    "t_stat": 0.54,
+    "pos": 8,
+    "neg": 9,
+    "front_pct": 3.3751,
+    "back_pct": -1.397
+   },
+   "pool_mean_pct": -3.852,
+   "pool_t": -2.9,
+   "monotonic": false,
+   "power": {
+    "d10_minus_d1": {
+     "n_sessions": 17,
+     "mean_pct": 0.8487,
+     "sd_daily_pct": 6.429,
+     "se_pct": 1.5593,
+     "ci95_pct": [
+      -2.2075,
+      3.9049
+     ],
+     "mde80_pct": 4.3691,
+     "required_sessions": {
+      "0.3": 3606,
+      "0.2": 8113,
+      "0.1": 32451
+     }
+    },
+    "top5_minus_pool": {
+     "n_sessions": 17,
+     "mean_pct": -0.5675,
+     "sd_daily_pct": 8.2761,
+     "se_pct": 2.0072,
+     "ci95_pct": [
+      -4.5017,
+      3.3667
+     ],
+     "mde80_pct": 5.6243,
+     "required_sessions": {
+      "0.3": 5976,
+      "0.2": 13444,
+      "0.1": 53776
+     }
+    },
+    "note": "MDE80 = 2.802·SE (α0.05 양측·검정력 80%). MDE80 이 목표 효과보다 크면 그 결과는 '신호 없음'이 아니라 '판정불가(저검정력)'다."
+   },
+   "session_deltas": {
+    "2026-09-22": 7.8757,
+    "2026-09-23": 7.6644,
+    "2026-09-29": 4.1258,
+    "2026-09-30": 7.1532,
+    "2026-10-01": 2.4484,
+    "2026-10-02": 2.6784,
+    "2026-10-06": -3.1448,
+    "2026-10-07": -1.8003,
+    "2026-10-08": -0.4061,
+    "2026-11-09": -9.6593,
+    "2026-11-10": -0.9736,
+    "2026-11-12": -5.4082,
+    "2026-11-13": -10.8453,
+    "2026-11-16": -3.3993,
+    "2026-11-17": -1.6344,
+    "2026-11-18": 7.9148,
+    "2026-11-19": 11.8383
+   },
+   "n_rows_scored": 8483,
+   "n_rows_after_filter": 8483,
+   "avg_codes_per_session": 499,
+   "topk_reference": {
+    "top5_mean_pct": -4.4195,
+    "top10_mean_pct": -4.6173
+   }
+  },
+  "momentum_20d": {
+   "n_sessions": 17,
+   "deciles": [
+    {
+     "decile": 1,
+     "mean_pct": -3.6552,
+     "t_stat": -2.81,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 852
+    },
+    {
+     "decile": 2,
+     "mean_pct": -3.696,
+     "t_stat": -3.03,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 842
+    },
+    {
+     "decile": 3,
+     "mean_pct": -3.4812,
+     "t_stat": -3.24,
+     "pos_sessions_pct": 23.5,
+     "n_rows": 848
+    },
+    {
+     "decile": 4,
+     "mean_pct": -4.1133,
+     "t_stat": -3.1,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 841
+    },
+    {
+     "decile": 5,
+     "mean_pct": -3.9205,
+     "t_stat": -2.91,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 843
+    },
+    {
+     "decile": 6,
+     "mean_pct": -4.4491,
+     "t_stat": -3.31,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 848
+    },
+    {
+     "decile": 7,
+     "mean_pct": -4.7046,
+     "t_stat": -3.02,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 844
+    },
+    {
+     "decile": 8,
+     "mean_pct": -3.7604,
+     "t_stat": -2.18,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 845
+    },
+    {
+     "decile": 9,
+     "mean_pct": -2.7962,
+     "t_stat": -1.61,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 845
+    },
+    {
+     "decile": 10,
+     "mean_pct": -3.222,
+     "t_stat": -1.87,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 838
+    }
+   ],
+   "spearman_rho": 0.1394,
+   "d10_minus_d1_pct": 0.4332,
+   "paired_d10_d1": {
+    "mean_pct": 0.4332,
+    "t_stat": 0.3,
+    "pos": 9,
+    "neg": 8,
+    "front_pct": 0.0362,
+    "back_pct": 0.786
+   },
+   "pool_mean_pct": -3.7803,
+   "pool_t": -2.85,
+   "monotonic": false,
+   "power": {
+    "d10_minus_d1": {
+     "n_sessions": 17,
+     "mean_pct": 0.4332,
+     "sd_daily_pct": 5.8841,
+     "se_pct": 1.4271,
+     "ci95_pct": [
+      -2.3639,
+      3.2303
+     ],
+     "mde80_pct": 3.9987,
+     "required_sessions": {
+      "0.3": 3021,
+      "0.2": 6796,
+      "0.1": 27183
+     }
+    },
+    "top5_minus_pool": {
+     "n_sessions": 17,
+     "mean_pct": 1.1573,
+     "sd_daily_pct": 5.92,
+     "se_pct": 1.4358,
+     "ci95_pct": [
+      -1.6569,
+      3.9715
+     ],
+     "mde80_pct": 4.0232,
+     "required_sessions": {
+      "0.3": 3058,
+      "0.2": 6879,
+      "0.1": 27516
+     }
+    },
+    "note": "MDE80 = 2.802·SE (α0.05 양측·검정력 80%). MDE80 이 목표 효과보다 크면 그 결과는 '신호 없음'이 아니라 '판정불가(저검정력)'다."
+   },
+   "session_deltas": {
+    "2026-09-22": 2.3961,
+    "2026-09-23": 5.6624,
+    "2026-09-29": 5.655,
+    "2026-09-30": 4.8925,
+    "2026-10-01": -0.3615,
+    "2026-10-02": -2.6891,
+    "2026-10-06": -7.1765,
+    "2026-10-07": -8.0893,
+    "2026-10-08": -5.7332,
+    "2026-11-09": -6.9931,
+    "2026-11-10": -4.7635,
+    "2026-11-12": 2.2052,
+    "2026-11-13": 5.4756,
+    "2026-11-16": 4.4167,
+    "2026-11-17": -5.0858,
+    "2026-11-18": 8.3266,
+    "2026-11-19": 9.2257
+   },
+   "n_rows_scored": 8446,
+   "n_rows_after_filter": 8446,
+   "avg_codes_per_session": 496.8,
+   "topk_reference": {
+    "top5_mean_pct": -2.6231,
+    "top10_mean_pct": -4.47
+   }
+  },
+  "volatility_20d": {
+   "n_sessions": 17,
+   "deciles": [
+    {
+     "decile": 1,
+     "mean_pct": -1.5679,
+     "t_stat": -5.39,
+     "pos_sessions_pct": 0.0,
+     "n_rows": 852
+    },
+    {
+     "decile": 2,
+     "mean_pct": -3.0414,
+     "t_stat": -4.05,
+     "pos_sessions_pct": 17.6,
+     "n_rows": 842
+    },
+    {
+     "decile": 3,
+     "mean_pct": -4.0915,
+     "t_stat": -3.96,
+     "pos_sessions_pct": 17.6,
+     "n_rows": 848
+    },
+    {
+     "decile": 4,
+     "mean_pct": -3.1132,
+     "t_stat": -2.59,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 841
+    },
+    {
+     "decile": 5,
+     "mean_pct": -4.0395,
+     "t_stat": -2.85,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 843
+    },
+    {
+     "decile": 6,
+     "mean_pct": -4.349,
+     "t_stat": -2.52,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 848
+    },
+    {
+     "decile": 7,
+     "mean_pct": -3.9756,
+     "t_stat": -2.09,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 844
+    },
+    {
+     "decile": 8,
+     "mean_pct": -3.5651,
+     "t_stat": -1.86,
+     "pos_sessions_pct": 35.3,
+     "n_rows": 845
+    },
+    {
+     "decile": 9,
+     "mean_pct": -4.3099,
+     "t_stat": -2.1,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 845
+    },
+    {
+     "decile": 10,
+     "mean_pct": -5.7679,
+     "t_stat": -3.66,
+     "pos_sessions_pct": 29.4,
+     "n_rows": 838
+    }
+   ],
+   "spearman_rho": -0.7091,
+   "d10_minus_d1_pct": -4.2,
+   "paired_d10_d1": {
+    "mean_pct": -4.2,
+    "t_stat": -3.03,
+    "pos": 5,
+    "neg": 12,
+    "front_pct": -2.7689,
+    "back_pct": -5.4721
+   },
+   "pool_mean_pct": -3.7803,
+   "pool_t": -2.85,
+   "monotonic": false,
+   "power": {
+    "d10_minus_d1": {
+     "n_sessions": 17,
+     "mean_pct": -4.2,
+     "sd_daily_pct": 5.7162,
+     "se_pct": 1.3864,
+     "ci95_pct": [
+      -6.9173,
+      -1.4827
+     ],
+     "mde80_pct": 3.8846,
+     "required_sessions": {
+      "0.3": 2851,
+      "0.2": 6414,
+      "0.1": 25654
+     }
+    },
+    "top5_minus_pool": {
+     "n_sessions": 17,
+     "mean_pct": -2.7558,
+     "sd_daily_pct": 4.1266,
+     "se_pct": 1.0009,
+     "ci95_pct": [
+      -4.7175,
+      -0.7941
+     ],
+     "mde80_pct": 2.8044,
+     "required_sessions": {
+      "0.3": 1486,
+      "0.2": 3343,
+      "0.1": 13370
+     }
+    },
+    "note": "MDE80 = 2.802·SE (α0.05 양측·검정력 80%). MDE80 이 목표 효과보다 크면 그 결과는 '신호 없음'이 아니라 '판정불가(저검정력)'다."
+   },
+   "session_deltas": {
+    "2026-09-22": 1.082,
+    "2026-09-23": 5.7971,
+    "2026-09-29": 4.7761,
+    "2026-09-30": 1.5133,
+    "2026-10-01": -6.9334,
+    "2026-10-02": -4.6902,
+    "2026-10-06": -11.2312,
+    "2026-10-07": -12.4648,
+    "2026-10-08": -7.5146,
+    "2026-11-09": 3.8236,
+    "2026-11-10": -6.16,
+    "2026-11-12": -5.9718,
+    "2026-11-13": -10.747,
+    "2026-11-16": -5.4828,
+    "2026-11-17": -2.1294,
+    "2026-11-18": -8.7424,
+    "2026-11-19": -6.3243
+   },
+   "n_rows_scored": 8446,
+   "n_rows_after_filter": 8446,
+   "avg_codes_per_session": 496.8,
+   "topk_reference": {
+    "top5_mean_pct": -6.5362,
+    "top10_mean_pct": -6.2178
+   }
+  }
+ }
+}
