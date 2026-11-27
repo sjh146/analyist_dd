@@ -965,9 +965,18 @@ def summary_path(kind, command=None, summary_out=None, quiet=False):
         return SCORECARD
     if kind == "score_deciles":
 
-        out = _arg(command or "", "--out") or _arg(command or "", "--summary-out")
+        out = (_arg(command or "", "--out") or _arg(command or "", "--summary-out")
+               or _arg(command or "", "--json-out"))
         if out:
-            return _container_path_to_host(out.strip("'\""))
+            p = out.strip("'\"")
+            if p.startswith("/app/"):
+                return _container_path_to_host(p)
+            if os.path.isabs(p):
+                return p
+            host_p = os.path.join(PROJ, p)
+            if os.path.exists(host_p):
+                return host_p
+            return _container_path_to_host(p)
         return os.path.join(PROJ, "services/xgboost-ml/reports/overnight/cg190_score_deciles.json")
     if kind == "wf_sweep_summary":
 
