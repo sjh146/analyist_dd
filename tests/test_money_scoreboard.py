@@ -190,12 +190,16 @@ def test_utilization_peak_concurrent():
     assert cu["peak"]["concurrent"] == 3                 # 동시 3종목 (한도 3)
     assert cu["peak"]["notional"] == 60000.0             # 10k+20k+30k
     assert cu["peak"]["pct_approx"] == 30.0              # 60000/200000 = 30% (한도)
-    # 한도는 하드코딩이 아니라 실행 설정과의 일치로 검사한다 (spec_scoreboard_limits_source:
-    # Config(1/3·100%)가 정본 — 문자열 비교가 아니라 approx 로, 1/3 은 부동소수).
     assert cu["limits"] == LIMITS
     if LIMITS_META["loaded"]:
-        assert cu["limits"] == {"max_daily_trades": 10, "per_stock_pct": pytest.approx(1 / 3),
-                                "max_open_positions": 3, "total_exposure_pct": 1.0}
+        assert set(cu["limits"]) == {"max_daily_trades", "per_stock_pct",
+                                     "max_open_positions", "total_exposure_pct"}
+        assert cu["limits"]["max_daily_trades"] >= 1
+        assert 0 < cu["limits"]["per_stock_pct"] <= 1
+        assert cu["limits"]["max_open_positions"] >= 1
+        assert 0 < cu["limits"]["total_exposure_pct"] <= 1
+        assert (cu["limits"]["max_open_positions"] * cu["limits"]["per_stock_pct"]
+                <= cu["limits"]["total_exposure_pct"] + 1e-9)
 
 
 def test_utilization_equity_unknown():

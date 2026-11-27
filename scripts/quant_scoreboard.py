@@ -16,6 +16,10 @@ WHY: 2026-09-25 사용자 지시 — "리서처=양질 데이터가 잘 정제�
   1) 판정은 **산출물**에서 직접 읽는다(자기신고 금지). 출처를 화면에 밝힌다.
   2) 돈은 **%가 아니라 원**으로 본다 — 실측: 평균수익률 +0.32% 인데 총액 -7,839원(포지션 크기 차이).
   3) 무개선이 N사이클 지속되면 **사람 개입 필요**로 올린다(조용한 공전 금지).
+  4) 청산 표본은 **포지션이었던 행만** 센다 — `exit_reason` 에 `unfilled` 가 들어간 행(미체결 진입
+     주문의 종결 기록)은 시장에 존재한 적이 없어 승률·기대값에서 제외한다. 문구는 접두어가 아니라
+     **부분 문자열**로 판정한다(2026-11-27 실측: `entry order cancelled unfilled (74s)` 를 접두어
+     검사가 놓쳐 38건/34.2% 가 39건/33.3% 로 보고됐다 — trader_cycle 의 T65 와 같은 정의).
 
 사용:
   python3 scripts/quant_scoreboard.py                 # 사슬 전체 출력
@@ -145,15 +149,12 @@ def trader_stanza() -> dict:
             conn = sqlite3.connect(f"file:{local}?mode=ro", uri=True, timeout=10)
             try:
                 conn.row_factory = sqlite3.Row
-                # 2026-11-10: 체결되지 않은 진입 주문을 '진입가 청산·0원'으로 정리한 행
-                # (exit_reason `unfilled:`)은 시장에 존재한 적 없는 거래다 — 승률·기대값
-                # 표본에서 빼야 한다. 넣으면 0원 거래가 '패배'로 세어져 기대값이 0 쪽으로
-                # 끌려 올라간다(실측: 7건 wr 14.3% ↔ 실제 6건 wr 16.7%).
-                _real = (" AND COALESCE(exit_reason,'') NOT LIKE 'unfilled:%'")
+                _excludes_unfilled = (
+                    " AND instr(lower(COALESCE(exit_reason,'')),'unfilled') = 0")
                 closed = [dict(r) for r in conn.execute(
-                    "SELECT * FROM trades WHERE exit_price IS NOT NULL AND exit_price > 0" + _real)]
+                    "SELECT * FROM trades WHERE exit_price IS NOT NULL AND exit_price > 0" + _excludes_unfilled)]
                 opens = [dict(r) for r in conn.execute(
-                    "SELECT * FROM trades WHERE (exit_price IS NULL OR exit_price = 0)" + _real)]
+                    "SELECT * FROM trades WHERE (exit_price IS NULL OR exit_price = 0)" + _excludes_unfilled)]
                 last_ts = conn.execute("SELECT MAX(ts) FROM trades").fetchone()[0]
             finally:
                 conn.close()
