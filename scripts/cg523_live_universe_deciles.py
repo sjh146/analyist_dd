@@ -36,12 +36,13 @@ MIN_ROWS_SESSION = 200
 
 SQL = """
 WITH px AS (
-  SELECT stock_code, trade_date, close_price,
+  SELECT stock_code, trade_date, close_price, trading_value,
          (close_price / NULLIF(lag(close_price) OVER (PARTITION BY stock_code ORDER BY trade_date),0) - 1) * 100 AS day_ret,
          (lead(close_price, %(h)s) OVER (PARTITION BY stock_code ORDER BY trade_date) / NULLIF(close_price,0) - 1) * 100 AS fwd
   FROM market_data WHERE trade_date >= %(d_from)s
 )
-SELECT p.prediction_date::text, p.stock_code, p.confidence::float, px.day_ret::float, px.fwd::float
+SELECT p.prediction_date::text, p.stock_code, p.confidence::float, px.day_ret::float, px.fwd::float,
+       px.trading_value::float
 FROM ml_predictions p
 JOIN px ON px.stock_code = p.stock_code AND px.trade_date = p.prediction_date
 WHERE p.prediction_date >= %(d_from)s AND p.confidence IS NOT NULL
@@ -110,6 +111,8 @@ def main():
     ap.add_argument("--json-out", required=True)
     ap.add_argument("--since", default="2026-09-22", help="ml_predictions 시작일(기본 = 테이블 최초일)")
     ap.add_argument("--min-rows-session", type=int, default=MIN_ROWS_SESSION)
+    ap.add_argument("--min-value-eok", type=float, default=0.0,
+                    help="최소 거래대금(억원) — 배포 트레이더의 유동성 필터(50억)와 같은 모집단에서 재려면 50")
     args = ap.parse_args()
 
     d_from = (datetime.fromisoformat(args.since) - timedelta(days=15)).date().isoformat()
@@ -121,13 +124,17 @@ def main():
     conn.close()
 
     per_date = {}
-    skipped = {"no_fwd": 0, "day_ret_gate": 0, "small_session": 0}
-    for d, code, conf, day_ret, fwd in rows:
+    skipped = {"no_fwd": 0, "day_ret_gate": 0, "small_session": 0, "value_gate": 0}
+    vmin = (args.min_value_eok or 0.0) * 1e8
+    for d, code, conf, day_ret, fwd, tval in rows:
         if fwd is None:
             skipped["no_fwd"] += 1
             continue
         if day_ret is not None and day_ret >= MAX_DAY_RET:
             skipped["day_ret_gate"] += 1
+            continue
+        if vmin > 0 and (tval is None or tval < vmin):
+            skipped["value_gate"] += 1
             continue
         per_date.setdefault(d, []).append((conf, fwd - FEE_ROUNDTRIP))
 
@@ -171,6 +178,32 @@ def main():
     pool_means = [sess_pool[d] for d in dates]
     rho = spearman([x["mean_pct"] for x in deciles if x["mean_pct"] is not None],
                    [x["decile"] for x in deciles if x["mean_pct"] is not None])
+
+    def _power(series, target_pcts=(0.3, 0.2, 0.1)):
+        """MDE80(2.802·SE, α0.05 양측·검정력 80%)와 목표 효과별 필요 세션 수.
+
+        t=0.26 짜리 결과를 '랭킹 무효'로 읽으면 안 된다 — 세션 수가 적으면 실효 엣지
+        (0.1~0.3%p)를 원리적으로 검출할 수 없어 '노이즈'가 아니라 '판정불가(저검정력)'다.
+        """
+        n = len(series)
+        if n < 3:
+            return None
+        sd = statistics.stdev(series)
+        se = sd / n ** .5
+        mean = statistics.mean(series)
+        return {
+            "n_sessions": n,
+            "mean_pct": round(mean, 4),
+            "sd_daily_pct": round(sd, 4),
+            "se_pct": round(se, 4),
+            "ci95_pct": [round(mean - 1.96 * se, 4), round(mean + 1.96 * se, 4)],
+            "mde80_pct": round(2.802 * se, 4),
+            "required_sessions": {str(t): int((2.802 * sd / t) ** 2) + 1 for t in target_pcts},
+        }
+
+    p_d10d1 = _power(deltas)
+    top5 = [statistics.mean([f for _, f in sorted(per_date[d], key=lambda x: x[0])[-5:]]) for d in dates]
+    p_top5_pool = _power([top5[i] - pool_means[i] for i in range(len(dates))])
     monotonic = all(deciles[i]["mean_pct"] is not None and deciles[i + 1]["mean_pct"] is not None
                     and deciles[i + 1]["mean_pct"] >= deciles[i]["mean_pct"]
                     for i in range(len(deciles) - 1))
@@ -181,6 +214,7 @@ def main():
             "source": "ml_predictions ⨝ market_data", "horizon": HORIZON, "exit": "close_h",
             "fee_roundtrip_pct": FEE_ROUNDTRIP, "max_day_ret_pct": MAX_DAY_RET,
             "min_rows_session": args.min_rows_session, "dates": [dates[0], dates[-1]],
+            "min_value_eok": args.min_value_eok,
             "days": len(dates),
         },
         "models": {
@@ -199,6 +233,13 @@ def main():
                 "pool_mean_pct": round(statistics.mean(pool_means), 4),
                 "pool_t": tstat(pool_means),
                 "monotonic": monotonic,
+                "power": {
+                    "d10_minus_d1": p_d10d1,
+                    "top5_minus_pool": p_top5_pool,
+                    "note": ("MDE80 = 2.802·SE (α0.05 양측·검정력 80%). MDE80 이 목표 효과보다 "
+                             "크면 그 결과는 '신호 없음'이 아니라 '판정불가(저검정력)'다."),
+                },
+                "session_deltas": {d: round(x, 4) for d, x in zip(common, deltas)},
                 "n_rows_scored": sum(sess_n.values()),
                 "n_rows_after_filter": sum(sess_n.values()),
                 "n_skipped": skipped,
