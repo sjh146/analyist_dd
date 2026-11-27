@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-27T09:36:00+09:00",
+  "updated_at": "2026-11-27T11:36:00+09:00",
   "owner": "quant-trader",
   "purpose": "장외 자율 **트레이더** 백로그. 각 항목은 재현 명령과 수치 check 를 스스로 갖고, scripts/trader_cycle.py 가 앞에서부터 pending 을 집어 실행한다. 이 파일이 없어서 협업 계약 3번(트레이더→리서처 환류)이 사람 손에만 있던 구멍을 메운다.",
   "rules": [
@@ -653,7 +653,7 @@
         "value": 0
       },
       "hypothesis": "진입 주문 POST 가 타임아웃되면 루프는 'order failed' 로 처리하고 저널 행을 쓰지 않는다. 그런데 크레온 COM 쪽에서는 주문이 이미 접수·체결될 수 있어(주문 응답=체결확인 아님) 브로커에만 있는 보유가 남는다. 그 보유는 daily.entries 에도 세지 않고 max_hold(진입시각) 기준도 없어 조기 청산 트리거가 약하다.",
-      "evidence": "2026-11-20 09:0x 실측: runner.log 'order failed 068050: bridge request failed: timed out [connection_failed]' → 브로커 /positions 에 068050 팬엔터테인먼트 74주 @1,111.14(평가 82,407원 = 자본의 33%) 존재, 저널 trades 에 068050 행 0건, loop_state daily.entries=2 인데 브로커 보유 3건. 모니터는 '068050: holding (px 1118.0 vs entry 1111.1351)' 로 추적 중이라 완전 방치는 아니지만 90분 시간청산은 걸리지 않는다. 2026-11-20 11:17 실측(영향 확정): daily.entries 가 2 로 계산돼(068050 저널 행 없음) 4번째 실주문 `ALGO buy 112040 qty 5 @14,880` 이 나갔다. 11:28 현재 filled_qty 0·cancelable 5(현재가 15,010)로 미체결 — 체결되면 오늘 진입 4건 > daily_max_trades 3 이 된다. 즉 T55 는 기록 누락을 넘어 자금 규칙(일일 상한) 우회 경로다. | 2026-11-27 09:05 재발(3번째 실주문 경로 실측): runner.log `order 347700: submit raised (bridge request failed: timed out [connection_failed]); broker state unreadable - not retried` → 브로커 /positions 에 347700 스피어 1주 @23,303 체결, 저널 trades 에 347700 행 0건, daily.entries=1. 09:25 평가 +0.85%(현재가 23,500). 모니터는 `monitor: 347700: holding (px … vs entry 23303.0)` 로 브로커 값을 읽어 추적 중이나 저널행이 없어 청산·손익이 계기판에 남지 않는다. 프로브 orphans=1.0(브로커−저널 차집합).",
+      "evidence": "2026-11-20 09:0x 실측: runner.log 'order failed 068050: bridge request failed: timed out [connection_failed]' → 브로커 /positions 에 068050 팬엔터테인먼트 74주 @1,111.14(평가 82,407원 = 자본의 33%) 존재, 저널 trades 에 068050 행 0건, loop_state daily.entries=2 인데 브로커 보유 3건. 모니터는 '068050: holding (px 1118.0 vs entry 1111.1351)' 로 추적 중이라 완전 방치는 아니지만 90분 시간청산은 걸리지 않는다. 2026-11-20 11:17 실측(영향 확정): daily.entries 가 2 로 계산돼(068050 저널 행 없음) 4번째 실주문 `ALGO buy 112040 qty 5 @14,880` 이 나갔다. 11:28 현재 filled_qty 0·cancelable 5(현재가 15,010)로 미체결 — 체결되면 오늘 진입 4건 > daily_max_trades 3 이 된다. 즉 T55 는 기록 누락을 넘어 자금 규칙(일일 상한) 우회 경로다. | 2026-11-27 09:05 재발(3번째 실주문 경로 실측): runner.log `order 347700: submit raised (bridge request failed: timed out [connection_failed]); broker state unreadable - not retried` → 브로커 /positions 에 347700 스피어 1주 @23,303 체결, 저널 trades 에 347700 행 0건, daily.entries=1. 09:25 평가 +0.85%(현재가 23,500). 모니터는 `monitor: 347700: holding (px … vs entry 23303.0)` 로 브로커 값을 읽어 추적 중이나 저널행이 없어 청산·손익이 계기판에 남지 않는다. 프로브 orphans=1.0(브로커−저널 차집합). | 2026-11-27 11:3x 실측(청산 경로): 09:51:55 `exit 347700 (tp)` 매도 1주 @24,947 체결(브로커 daily_pnl avg_sell 24,947 · +1,644원 gross). 저널 id40 은 `orphan exit: 매수 행 없음(소급 정정)` 으로 exit_price 25,000·**pnl NULL** → 그 +1,644원이 계기판 순손익에서 빠졌다. 오늘 두 진입(347700 09:05 · 117730 09:38) 모두 `FILL NOT CONFIRMED` 경로였다.",
       "success": "타임아웃 난 진입 주문을 '미확인(unconfirmed)' 으로 두고 다음 사이클에 /orders·/positions 로 대조해 체결이면 저널에 브로커 체결가로 기록한다(주문 응답을 실패로 단정하지 않는다). 그날 유령 포지션 0건.",
       "cost": "중간",
       "note": "장중에는 저널을 손대지 않는다(주문 경로 가동 중 이중청산 위험) — 마감 후 대조·정리 대상. 오늘 068050 은 모니터가 보고 청산하므로 우선순위는 '기록 누락' 자체다. | 2026-11-27: check 를 로그 문구 grep 에서 산출물 차집합(probe orphans)으로 교체 — 문구가 바뀌면 0건으로 '충족' 오판되던 구멍.",
@@ -861,11 +861,15 @@
       "metric": "closed_trades_with_zero_fees",
       "title": "[저널정합] 청산 쓰기경로가 fees=0 으로 기록 — T50 은 백필로 충족 판정됐고 라이브 경로는 여전히 0 (33건 미계상·순손익 낙관)",
       "hypothesis": "청산(monitor/exit)이 journal.close_trade(fees=0) 로 끝나고 수수료는 사후 backfill_fees.py 로만 채워진다. T50 은 2026-11-20 백필값(106.6)으로 '충족' 판정됐지만 그 뒤 신규 청산은 다시 0 이다 → 계기판 순손익이 왕복비용만큼 낙관.",
-      "evidence": "2026-11-26 15:33 실측(저널 /tmp 복사·WAL 포함): 청산 37건 · fees>0 마지막 기록 2026-11-18 13:05 · fees=0 청산 33건 · 기록 fees 합 458.5원 vs 왕복 0.21% 가정 시 추정 9,014원(왕복 거래대금 4,292,384원) → 순손익 -37,004.5원은 추정 -45,560원으로 약 8.5천원 낙관.",
-      "command": "python3 tools/backfill_fees.py --help · 저널 fees=0 건수 집계(장 마감 후)",
+      "evidence": "2026-11-26 15:33 실측(저널 /tmp 복사·WAL 포함): 청산 37건 · fees>0 마지막 기록 2026-11-18 13:05 · fees=0 청산 33건 · 기록 fees 합 458.5원 vs 왕복 0.21% 가정 시 추정 9,014원(왕복 거래대금 4,292,384원) → 순손익 -37,004.5원은 추정 -45,560원으로 약 8.5천원 낙관. | 2026-11-27 11:3x 실측(저널 사본 40행): 청산 38건 중 fees=0 **34건** · 오늘 청산 2건(117730·347700) 모두 0 · 기록 fees 합 458.5원. 기존 command 문자열의 괄호가 sh 문법오류를 내 매 틱 '수치 없음'이었다 → 프로브 `fees_zero` 신설로 측정 가능.",
+      "command": "python3 scripts/trader_cycle.py --probe fees_zero",
       "success": "신규 청산의 fees>0 비율 100%(5거래일) · 계기판 순손익과 브로커 실현손익 차이 < 1%",
       "cost": "저",
-      "note": "수수료율·세율은 브로커 값만 쓴다(추정으로 저널 덮어쓰기 금지). 라이브 코드 수정은 터미널 세션 소유 — 여기서는 근거·측정만."
+      "note": "수수료율·세율은 브로커 값만 쓴다(추정으로 저널 덮어쓰기 금지). 라이브 코드 수정은 터미널 세션 소유 — 여기서는 근거·측정만.",
+      "check": {
+        "op": "<=",
+        "value": 0
+      }
     },
     {
       "id": "T65",

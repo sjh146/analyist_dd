@@ -188,6 +188,7 @@ def measure() -> dict:
         "win_rate": None,
         "expectancy_krw": None,
         "fees_sum": None,
+        "fees_zero": None,
         "open_positions": None,
         "last_entry_ts": None,
         "last_entry_age_days": None,
@@ -211,6 +212,10 @@ def measure() -> dict:
                 st["win_rate"] = wins / st["closed"]
                 st["expectancy_krw"] = st["realized_krw"] / st["closed"]
             st["fees_sum"] = _scalar(conn, "select coalesce(sum(fees),0) from trades")
+            st["fees_zero"] = _scalar(
+                conn,
+                "select count(*) from trades where " + _REAL_CLOSED + " and coalesce(fees,0)=0",
+            )
             st["open_positions"] = _scalar(conn, "select count(*) from trades where exit_ts is null")
             row = conn.execute(
                 "select ts from trades order by ts desc limit 1"
@@ -809,6 +814,8 @@ def probe(name: str) -> float | None:
         if (v in (None, 0)) and m.get("archive"):
             return m["archive"].get("fees_sum")      # 출처: 모의 아카이브(아래 report 에 명시)
         return v
+    if name == "fees_zero":
+        return m.get("fees_zero")
     if name == "rotation":
         age = m.get("last_entry_age_days")
         if age is None and m.get("archive"):
@@ -847,6 +854,7 @@ def probe(name: str) -> float | None:
 
 PROBES = {
     "fees": "청산 수수료 합계(원). 0 이면 수수료·세금이 저널에 반영되지 않은 것",
+    "fees_zero": "청산 행 중 수수료가 0/null 인 건수(0 이어야 정상 — 수수료 미기재)",
     "rotation": "마지막 진입 후 경과일. 3일 초과면 회전 정지",
     "feed": "피드 계약 위반 파일 수(0 이어야 정상)",
     "halt": "루프 halt 여부(0=정상)",
