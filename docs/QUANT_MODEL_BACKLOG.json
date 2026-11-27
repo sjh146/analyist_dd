@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-27T21:15:00+09:00",
+ "updated_at": "2026-11-27T23:19:58+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -23365,8 +23365,8 @@
    "expected": "미지 — 유일하게 미측정인 데이터 클래스. 단 h1 반전 신호는 일봉 return_1d 와 부호가 겹쳐 중복 위험 있음(정보있음 판정 시 증분 A/B 필수).",
    "cost": "스크린 10초(쿼리 범위 수리 후)",
    "est_minutes": 5,
-   "not_before": "2026-11-30T16:05:00+09:00",
-   "note": "not_before 는 표본 조건이다 — 21완전일(11-23~11-26 적립)이 되어야 h1 n_dates 20 이 성립한다. 그 전 실행은 같은 16날짜를 다시 재는 무정보 실행(CG129 가 그 사례). h5 는 25완전일 필요 → 이 항목이 h1 로 판정하고, h5 는 별도 후속. | 2026-11-21 19:1x 엔지니어: 스크린 스크립트의 전량 market_data(3.2M행) 적재가 timeout 900s 의 원인이었다 → 분봉 종목·±45일 창으로 쿼리 범위를 자르고 진행률 stderr flush 추가(실측 9.5s). | 2026-11-26 01:08 조기 실행됨(수동 --start, not_before 20:00 무시) → h1 n_dates 18<20 판정불가. '판정불가'는 종결 사유가 아니다(스킬 하드룰 ⑤) — 상태를 pending 으로 되돌려 **20:00 이후 같은 명령으로 재측정**한다. 문턱(|IC|≥0.03 & |t|≥2 & n_dates≥20)은 그대로. | 2026-11-26 02:2x 엔지니어 재산정(자율): 요구 완전일 수를 다시 계산했다 — 이 스크립트의 h1 라벨은 market_data 일봉 '다음 거래일' 종가를 쓰므로 n_dates = 완전일수 − 1(일봉 최신일 == 마지막 완전일 때) 이다. 실측 2026-11-26 01:08: 완전일 19(마지막 11-25)·h1 n_dates 18. 11-26 20:00 시점에는 KIS 분봉 크론이 23:00 이라 11-26 완전일이 아직 없어 완전일 19·일봉만 11-26 → n_dates 19 (여전히 <20, 또 판정불가). 완전일 20(11-26 포함) + 일봉 11-27 이 동시에 성립하는 시점은 11-27 20:00 → 그때 n_dates 20. 따라서 not_before 를 11-27 20:00 으로 하루 미룬다(문턱·명령 불변). | 2026-11-27 21:1x 엔지니어(자율 재산정): h1 n_dates 19 = 완전일 20 − 1. 라벨이 '다음 거래일 일봉 종가'를 요구하는데 이 시각(21:07) market_data max=2026-11-26(당일 11-27 일봉 미적재)·minute_bars max=2026-11-26(11-27 분봉은 23:00 KIS 크론)이었다. 표본 조건은 '완전일 21(11-27 포함) + 일봉 11-27 적재' 동시 성립 시 h1 n_dates=20 → not_before=2026-11-30T16:05(월 16:07 틱). 이번 실측(21:08): h1 n=19 최강 gap IC -0.1152 t -1.70 AUC 0.4507 · l30_ret IC -0.0531 t -1.78 · null AUC 0.4962±0.0271 | h5 n=16 최강 l30_ret IC -0.0633 t -2.04(|t| 문턱은 넘었으나 n<20) · l30_tv_share IC +0.0288 t 0.68 AUC 0.5463 · null 0.4872±0.0378. 날짜별 AUC std 0.039~0.142 → 평균 SE≈0.02 로 +0.02 해상도 경계. 인트라데이 축은 아직 닫지 않는다(표본 미달).",
+   "not_before": "2026-11-28T17:00:00+09:00",
+   "note": "not_before 는 표본 조건이다 — 21완전일(11-23~11-26 적립)이 되어야 h1 n_dates 20 이 성립한다. 그 전 실행은 같은 16날짜를 다시 재는 무정보 실행(CG129 가 그 사례). h5 는 25완전일 필요 → 이 항목이 h1 로 판정하고, h5 는 별도 후속. | 2026-11-21 19:1x 엔지니어: 스크린 스크립트의 전량 market_data(3.2M행) 적재가 timeout 900s 의 원인이었다 → 분봉 종목·±45일 창으로 쿼리 범위를 자르고 진행률 stderr flush 추가(실측 9.5s). | 2026-11-26 01:08 조기 실행됨(수동 --start, not_before 20:00 무시) → h1 n_dates 18<20 판정불가. '판정불가'는 종결 사유가 아니다(스킬 하드룰 ⑤) — 상태를 pending 으로 되돌려 **20:00 이후 같은 명령으로 재측정**한다. 문턱(|IC|≥0.03 & |t|≥2 & n_dates≥20)은 그대로. | 2026-11-26 02:2x 엔지니어 재산정(자율): 요구 완전일 수를 다시 계산했다 — 이 스크립트의 h1 라벨은 market_data 일봉 '다음 거래일' 종가를 쓰므로 n_dates = 완전일수 − 1(일봉 최신일 == 마지막 완전일 때) 이다. 실측 2026-11-26 01:08: 완전일 19(마지막 11-25)·h1 n_dates 18. 11-26 20:00 시점에는 KIS 분봉 크론이 23:00 이라 11-26 완전일이 아직 없어 완전일 19·일봉만 11-26 → n_dates 19 (여전히 <20, 또 판정불가). 완전일 20(11-26 포함) + 일봉 11-27 이 동시에 성립하는 시점은 11-27 20:00 → 그때 n_dates 20. 따라서 not_before 를 11-27 20:00 으로 하루 미룬다(문턱·명령 불변). | 2026-11-27 21:1x 엔지니어(자율 재산정): h1 n_dates 19 = 완전일 20 − 1. 라벨이 '다음 거래일 일봉 종가'를 요구하는데 이 시각(21:07) market_data max=2026-11-26(당일 11-27 일봉 미적재)·minute_bars max=2026-11-26(11-27 분봉은 23:00 KIS 크론)이었다. 표본 조건은 '완전일 21(11-27 포함) + 일봉 11-27 적재' 동시 성립 시 h1 n_dates=20 → not_before=2026-11-30T16:05(월 16:07 틱). 이번 실측(21:08): h1 n=19 최강 gap IC -0.1152 t -1.70 AUC 0.4507 · l30_ret IC -0.0531 t -1.78 · null AUC 0.4962±0.0271 | h5 n=16 최강 l30_ret IC -0.0633 t -2.04(|t| 문턱은 넘었으나 n<20) · l30_tv_share IC +0.0288 t 0.68 AUC 0.5463 · null 0.4872±0.0378. 날짜별 AUC std 0.039~0.142 → 평균 SE≈0.02 로 +0.02 해상도 경계. 인트라데이 축은 아직 닫지 않는다(표본 미달). | [2026-11-27 22:1x 엔지니어 자율] 1회차 판정불가(n_dates 19<20) 원인 규명: h1 의 마지막 전방일 2026-11-27 분봉이 아직 0행(minute_close_bars 최신 11-26 53종목·19,175봉) → KIS 러너가 23:00 시작해 약 05:00 완료(CG515)해야 h1 n_dates 20 이 성립한다. not_before=11-28T06:00 으로 고정해 그 전 5분짜리 재실행이 큐 우선순위 1을 점유하지 않게 했다(ETA 가드는 est 5분을 통과시키므로 큐 굶김 위험). 문턱(|IC|>=0.03 & |t|>=2 & n_dates>=20)은 불변. | 2026-11-27 22:3x 정정: 나베 분봉 백필은 항상 \"어제\"까지만 채운다(원장 5회 실측 span 종료일 = 실행일−1: 11-24→11-23 · 11-25→11-24 · 11-26→11-25 · 11-27→11-26) → 11-28 06:00 재실행도 11-27 봉이 없어 n_dates 19 로 또 판정불가였다. 11-27 봉은 11-28 16시경 CG466 백필이 채운다 → not_before 11-28T17:00.",
    "attempts": [
     {
      "ts": "2026-11-26T01:08:28+09:00",
@@ -26025,7 +26025,7 @@
    "cost": "4~6분/일 · Naver 호출 248회/일(net_guard 간격 0.7s 준수)",
    "est_minutes": 8,
    "created_at": "2026-11-24T20:20:00+09:00",
-   "note": "2026-11-24 20:1x 엔지니어 자율(장외 틱·실행가능 pending 0건·규칙 4). 이 항목은 CG451(크론 수정 승인)의 수동 대체물이다 — 크론이 승인되면 이 항목은 done 으로 닫고 크론이 대신한다. ⚠ 접속 정보는 repo .env 참조(자격증명 하드코딩 금지). ⚠ 이 백필은 추가형 쓰기(ON CONFLICT upsert)이며 모델·피처를 건드리지 않는다. | 2026-11-24 22:1x 구동기 배선: metric 'minute_cover' 가 파서 없는 metric 이라 1회차가 `판정불가(parser 없음)`으로 원장에 남았다 → summary_path/parse_minute_cover/judge_minute_cover 배선(커버 ≥0.75 · 완전일 ≥20). command 끝에 `data_axis_readiness.py --json data/reports/minute_cover_latest.json` 를 붙여 매 실행이 요약을 새로 쓴다. | 22:2x repeat=daily 배선: 1회 실행 후 구동기가 done 으로 닫아 다음 날 수집이 사라지는 구멍을 막았다(재무장 = 다음 날 19:30, 일봉 18:55 적재 뒤). 완 | 2026-11-25 07:08 실행 rc=0 · 완전일 11/20 · 커버 0.99 · 봉/일 330 → not_before 16:10(장 마감 후 적재)으로 옮겨 같은 날 중복 수집을 막았다.",
+   "note": "2026-11-24 20:1x 엔지니어 자율(장외 틱·실행가능 pending 0건·규칙 4). 이 항목은 CG451(크론 수정 승인)의 수동 대체물이다 — 크론이 승인되면 이 항목은 done 으로 닫고 크론이 대신한다. ⚠ 접속 정보는 repo .env 참조(자격증명 하드코딩 금지). ⚠ 이 백필은 추가형 쓰기(ON CONFLICT upsert)이며 모델·피처를 건드리지 않는다. | 2026-11-24 22:1x 구동기 배선: metric 'minute_cover' 가 파서 없는 metric 이라 1회차가 `판정불가(parser 없음)`으로 원장에 남았다 → summary_path/parse_minute_cover/judge_minute_cover 배선(커버 ≥0.75 · 완전일 ≥20). command 끝에 `data_axis_readiness.py --json data/reports/minute_cover_latest.json` 를 붙여 매 실행이 요약을 새로 쓴다. | 22:2x repeat=daily 배선: 1회 실행 후 구동기가 done 으로 닫아 다음 날 수집이 사라지는 구멍을 막았다(재무장 = 다음 날 19:30, 일봉 18:55 적재 뒤). 완 | 2026-11-25 07:08 실행 rc=0 · 완전일 11/20 · 커버 0.99 · 봉/일 330 → not_before 16:10(장 마감 후 적재)으로 옮겨 같은 날 중복 수집을 막았다. | 2026-11-27 22:2x cadence 수리: 나베 원천이 실행일−1 까지만 제공하므로 같은 날 재실행은 신규 0행(원장 11-24·11-25(2회)·11-26·11-27 5회 실행 모두 span 종료=전일, n_dates 10→13). priority 1·est 8분이라 매시간 틱이 이 항목을 집어 CG529·CG512·FAC-03 을 굶겼다 → not_before 로 하루 1회(16시)로 고정.",
    "attempts": [
     {
      "ts": "2026-11-24T22:12:48+09:00",
@@ -26058,23 +26058,31 @@
      "detail": "minute_close_bars 2026-11-10~2026-11-25 · 완전일 12/20 · 커버 0.99(문턱 0.75) · 봉/일 330.0 · 종목 851 · 20일 도달 추정 2026-12-08 · KIS minute_bars 커버 0.135(21일). 남은 완전일 8개.",
      "log": "data/reports/me_cycle/logs/me_cycle_CG466_20261126-210743.log",
      "elapsed_min": 10.7
+    },
+    {
+     "ts": "2026-11-27T22:17:04+09:00",
+     "rc": 0,
+     "verdict": "진행 — 완전일 +1 적재",
+     "detail": "minute_close_bars 2026-11-10~2026-11-26 · 완전일 13/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 867 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 1.0(22일). 남은 완전일 7개.",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG466_20261127-220942.log",
+     "elapsed_min": 7.4
     }
    ],
    "result": {
     "verdict": "진행 — 완전일 +1 적재",
-    "detail": "minute_close_bars 2026-11-10~2026-11-25 · 완전일 12/20 · 커버 0.99(문턱 0.75) · 봉/일 330.0 · 종목 851 · 20일 도달 추정 2026-12-08 · KIS minute_bars 커버 0.135(21일). 남은 완전일 8개.",
+    "detail": "minute_close_bars 2026-11-10~2026-11-26 · 완전일 13/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 867 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 1.0(22일). 남은 완전일 7개.",
     "delta": null,
     "per_exp": null,
     "rc": 0
    },
    "repeat": "daily",
    "repeat_at": "19:30",
-   "not_before": "2026-11-27T19:30:00+09:00",
+   "not_before": "2026-11-28T16:00:00+09:00",
    "outcome": "minute_close_bars 2026-11-10~2026-11-24 · 완전일 11/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 837 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 0.135(20일). 남은 완전일 9개.",
    "finished_at": "2026-11-25T18:07:08+09:00",
    "rearmed": {
-    "ts": "2026-11-26T21:18:25+09:00",
-    "next": "2026-11-27T19:30:00+09:00",
+    "ts": "2026-11-27T22:17:04+09:00",
+    "next": "2026-11-28T19:30:00+09:00",
     "note": "repeat=daily — 다음 날 같은 시각 재실행(완전일 누적용)"
    }
   },
@@ -28379,7 +28387,7 @@
   {
    "id": "CG529",
    "title": "[라벨] 라벨을 실 청산창(당일 종가 → 익일 시가 h1)으로 재정의한 재학습 arm — 지금 모델은 h5 상승을 맞히도록 학습됐지만 실제로는 야간 보유로 청산한다",
-   "status": "pending",
+   "status": "done",
    "priority": 1,
    "kind": "라벨",
    "owner": "engineer",
@@ -28388,15 +28396,127 @@
    "est_minutes": 110,
    "arm": "LBL_overnight_h1",
    "counterfactual": "LBL_close_h1 — 같은 h1·같은 폴드에서 청산 규칙만 종가→익일시가로 바꾼 대조군",
-   "pairs": [["LBL_overnight_h1", "LBL_close_h1"], ["LBL_overnight_h1", "LS_quant_q30_h5"]],
-   "baseline": {"name": "LS_quant_q30_h5(등록 기준선)", "value": 0.5406},
+   "pairs": [
+    [
+     "LBL_overnight_h1",
+     "LBL_close_h1"
+    ],
+    [
+     "LBL_overnight_h1",
+     "LS_quant_q30_h5"
+    ]
+   ],
+   "baseline": {
+    "name": "LS_quant_q30_h5(등록 기준선)",
+    "value": 0.5406
+   },
    "hypothesis": "CG528 실측으로 야간 창(h1 next_open)의 단순 랭킹 엣지 상한이 |0.2|%p(MDE80 0.30%p)임을 확인했다. 그런데 현 챔피언의 학습 라벨은 'h5 뒤 상승'(AUC 0.4742, 기준선 0.5406)이고 청산은 익일 09:00~09:10 이다 — 최적화 대상과 실행 창이 다르다. 라벨을 실행 창과 일치시키면 최소한 '틀린 목표를 잘 맞히는' 상태는 벗어난다.",
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 10800 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 3 --only LBL_overnight_h1,LBL_close_h1,LS_quant_q30_h5 --out /app/reports/overnight/cg529_wf.jsonl --summary-out /app/reports/overnight/cg529_wf_summary.json'",
    "success": "사전 등록(변경 금지): 1단계 AUC — 같은 런·같은 패널 5폴드×3시드 짝 ΔAUC(LBL_overnight_h1 − LBL_close_h1) ≥ +0.02 이고 폴드 짝승률 ≥ 4/5 이면 신호. 미달은 노이즈로 '라벨-청산정합' 축을 닫는다. 2단계(1단계 통과 시에만 별도 실행): 체결성 필터 후 순기대 Δ ≥ +0.3%p/세션(top30·수수료 왕복 0.21%p 차감).",
    "setup_needed": "구현 완료(2026-11-27 20:3x, 자율) — ① scripts/wf_wave.py make_labels 에 exit_at='next_open'(open(t+h)/close(t)−1) 추가, 기본 경로는 비트 동일 ② scripts/wf_label_sweep.py CONFIGS 에 LBL_close_h1·LBL_overnight_h1 등록 + cfg exit_at 배선 ③ 회귀 scripts/_make_labels_exit_at_test.py 8/8 PASS ④ 실패널(panel_prod200_v6o, 61,640행·200종목·314일) 라벨 양성률 0.287·flip 33.2% 확인. 리뷰보드 승인은 '생산 라벨 교체'에만 필요(실험 arm 은 자율 범위).",
    "note": "2026-11-27 19:4x 엔지니어 자율 신설(CG528 판정 후속). 근거: CG528 h1 next_open 344세션 MDE80 0.30~0.35%p(측정 가능) · CG526 챔피언 h1 Δ−0.10(t −0.89) · 현 챔피언 라벨 h5 vs 실제 청산 익일시가. 축 종결이 아니라 '목표-실행 불일치' 수리다. | 2026-11-27 20:3x 구현·검증 완료로 pending 승격(구동기 구동 대기). metric 을 champion_seed_family→wf_sweep_summary 로 정정(전자는 --agg-out 필요·파서 불일치로 판정불가 경고가 났다). 2026-11-27 20:14 착수분은 **수동 중지**(파이프라인 Phase 2 챔피언 재학습과 4코어 경쟁, 실측 10s/cell→150s/cell 15배). est 110분 = 경쟁 실측 2.5분/cell × 45cell. 이 값이면 구동기 파이프라인 가드(est≥60 거부)가 저녁 파이프라인 중 착수를 막고, 파이프라인 종료 후 틱이 자동 착수한다. timeout 10800 은 최악 143s/cell × 45cell ≈ 107분 + 여유.",
    "created_at": "2026-11-27T19:18:12+09:00",
-   "attempts": 0
+   "attempts": [
+    {
+     "ts": "2026-11-27T22:24:53+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "구간 짝 Δ 평균 -0.0039 (n=2구간 · 양(+) 1/2) [-0.0123, +0.0044]",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG529_20261127-221932.log",
+     "elapsed_min": 5.3
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "구간 짝 Δ 평균 -0.0039 (n=2구간 · 양(+) 1/2) [-0.0123, +0.0044]",
+    "delta": -0.0039,
+    "per_exp": {
+     "LS_quant_q30_h5": {
+      "desc": "기준(현 최고 실험과 동일): 분위0.3 h5 top30",
+      "kind": "quantile",
+      "horizon": 5,
+      "folds": [
+       0.5331,
+       0.5457,
+       0.547,
+       0.5441,
+       0.5631
+      ],
+      "mean": 0.5466,
+      "std": 0.0096,
+      "min": 0.5331,
+      "max": 0.5631,
+      "fold_win_rate": 1.0
+     },
+     "LBL_close_h1": {
+      "desc": "CG529 대조군 — h1 종가→종가 라벨(현행 청산 규칙과 불일치)",
+      "kind": "quantile",
+      "horizon": 1,
+      "folds": [
+       0.5478,
+       0.554,
+       0.5768,
+       0.5659,
+       0.572
+      ],
+      "mean": 0.5633,
+      "std": 0.0109,
+      "min": 0.5478,
+      "max": 0.5768,
+      "fold_win_rate": 1.0
+     },
+     "LBL_overnight_h1": {
+      "desc": "CG529 arm — h1 종가→익일 시가 라벨(open(t+1)/close(t)−1) · 실 청산창과 목표 일치",
+      "kind": "quantile",
+      "horizon": 1,
+      "folds": [
+       0.5848,
+       0.5453,
+       0.5902,
+       0.5381,
+       0.4965
+      ],
+      "mean": 0.551,
+      "std": 0.0342,
+      "min": 0.4965,
+      "max": 0.5902,
+      "fold_win_rate": 0.8
+     }
+    },
+    "rc": 0
+   }
+  },
+  {
+   "id": "CG530",
+   "title": "[누수 게이트·배포 패널] 종목상수 피처 군이 선별을 지배하는가 — panel_prod200_v6o 에서 full vs 시간가변-only vs 종목상수-only 3-arm 분해 (panel_420 결과의 배포 패널 재측정)",
+   "status": "pending",
+   "priority": 2,
+   "kind": "피처",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "wf_sweep_summary",
+   "est_minutes": 75,
+   "arm": "PO_const_h5",
+   "counterfactual": "PO_timevary_h5 (시간가변만) + LS_quant_q30_h5 (전체 피처, 같은 런 대조군)",
+   "pairs": [
+    [
+     "PO_const_h5",
+     "LS_quant_q30_h5"
+    ],
+    [
+     "PO_timevary_h5",
+     "LS_quant_q30_h5"
+    ]
+   ],
+   "baseline": {
+    "name": "LS_quant_q30_h5(같은 런)",
+    "value": 0.5466
+   },
+   "hypothesis": "2026-11-27 실측(panel_420, 5폴드×5시드): 종목상수-only 0.5335±0.0225 · 시간가변-only 0.5365±0.0508 · 전체 0.5385±0.0294 → 종목상수 군의 기여가 짝Δ -0.0050 로 사실상 0 이다(즉 단일 피처 AUC 0.55 대의 재무 피처가 앙상블로 전이되지 않는다). 그러나 그 패널은 49종목·2026-09-23 종료라 배포 유니버스(200종목·2026-11-17)와 다르다 — 같은 질문을 배포 패널에서 다시 물어 누수 게이트 근거를 굳힌다.",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && OMP_NUM_THREADS=4 timeout 7200 python -u scripts/wf_label_sweep.py --panel /app/app/models/wf/panel_prod200_v6o.npz --folds 5 --seeds 3 --only LS_quant_q30_h5,PO_timevary_h5,PO_const_h5 --out /app/reports/overnight/cg530_prod200_po.jsonl --summary-out /app/reports/overnight/cg530_prod200_po_summary.json'",
+   "success": "사전 등록(변경 금지): 같은 런·같은 폴드 짝Δ 로만 판정. ① PO_const_h5 짝Δ(full 대비) ≥ +0.02 면 종목상수 지배 = 누수 게이트 위반 → 리서처 반려·축 종결. ② |짝Δ| < 0.02 면 무해 확정(게이트 통과 근거를 배포 패널로 승격). ③ 어느 쪽이든 폴드 std 와 폴드승률을 함께 보고. 판정은 폴드 평균만(단일 분할 금지).",
+   "note": "2026-11-27 첫 시도 실측: 같은 명령이 postgres 병렬워커 경쟁으로 100s/cell 까지 느려져 45셀을 timeout 3600 안에 못 끝냈다(체크포인트 없음 → 전량 소실). timeout 7200 + 경쟁 없는 창(00시 이후)에서 실행하라. 개별 셀 소요는 유휴 5~15s, 경쟁 180s 로 12~36배 차이.",
+   "created_at": "2026-11-27T23:19:58+09:00"
   }
  ],
  "updated": "2026-11-26T23:09:38+09:00"
