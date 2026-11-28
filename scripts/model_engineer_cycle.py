@@ -7118,7 +7118,16 @@ def execute(item, force=False):
 
 
 
-        _mo = _multi_out_warning(item)
+        _agg = None
+        try:
+            _agg = _multi_out_aggregate(item, mtime_floor)
+        except Exception as _e:
+            log(f"경고: 다중 산출 집계 실패({item.get('id')}) — {_e}")
+        _mo = None
+        if _agg:
+            verdict, detail, delta = _agg
+        else:
+            _mo = _multi_out_warning(item)
         if _mo and verdict != "실행실패":
             detail = f"{detail} · ⚠ 다중 산출 루프 — {_mo}"
         if verdict != "실행실패":
@@ -7183,6 +7192,102 @@ def execute(item, force=False):
             f"{item['id']} 상태를 확인하라(반쪽 상태: 원장 O / 백로그 pending)")
     log(f"종료 rc={rc} 경과 {rec['elapsed_min']}분 → 판정: {verdict} {detail}")
     return 0
+
+
+_MULTI_OUT_METRICS = {"fillable_topk_expectancy"}
+
+
+def _loop_out_glob(item) -> str | None:
+    """`for ... done` 루프가 쓰는 --json-out 경로 패턴(호스트 기준)을 돌려준다.
+
+    왜: 파서는 `_arg(command,'--json-out')` 로 **하나**만 집는다. 셸 루프에서는 그 하나가
+    '루프 마지막 조건'이 되어, 조건이 여러 개인 실험(창 분해·k 격자·오프셋)이 한 칸으로 판정된다.
+    """
+    cmd = str((item or {}).get("command") or "")
+    if "for " not in cmd or "do" not in cmd:
+        return None
+    m = re.search(r"--json-out\s+(\S*\$[^\s'\";]+)", cmd)
+    if not m:
+        return None
+    pat = re.sub(r"\$\{?\w+\}?", "*", m.group(1))
+    if pat.startswith("/app/"):
+        pat = os.path.join(PROJ, "services/xgboost-ml", pat[len("/app/"):])
+    return pat
+
+
+def _multi_out_files(item, mtime_floor) -> list:
+    import glob as _glob
+    pat = _loop_out_glob(item)
+    if not pat:
+        return []
+    out = [p for p in _glob.glob(pat) if os.path.isfile(p)]
+    if mtime_floor:
+        out = [p for p in out if os.path.getmtime(p) > mtime_floor]
+    return sorted(out)
+
+
+def _multi_out_label(path) -> str:
+    stem = os.path.basename(path)
+    stem = stem[:-5] if stem.endswith(".json") else stem
+    return re.sub(r"^[a-z]{1,4}\d{2,4}_", "", stem)
+
+
+def _multi_out_aggregate(item, mtime_floor):
+    """루프가 쓴 산출 JSON **전량**을 각각 판정해 합의 판정을 만든다. 대상 아니면 None.
+
+    왜(실측 2026-11-28 07:1x): CG537(비용·유동성 스트레스 k3/k5/k10)은 세 k 모두 사전문턱을
+    넘겼는데 구동기는 **마지막 파일(k10)** 만 읽어 '노이즈'로 닫았다. 하루 뒤 CG539(같은 arm,
+    창을 매칭창/최근 33세션으로 자름)는 마지막 파일이 매칭창이라 '신호있음'으로 닫혔지만 실제로는
+    매칭창 Δ+0.307(t3.29) vs 최근 Δ−0.602(t−1.80) 로 **부호가 뒤집힌** 상태였다. 마지막 파일
+    판정은 어느 쪽이든 거짓말이 된다 → 조건 전량을 각각 판정하고 합의를 낸다.
+
+    합의 규칙(사전등록 원칙): 모든 산출 조건이 신호일 때만 '신호있음', 전부 미달이면 '노이즈',
+    엇갈리면 '조건엇갈림'(= 신호 아님). 하나라도 측정불가면 '측정무효'.
+    """
+    if str((item or {}).get("metric") or "") not in _MULTI_OUT_METRICS:
+        return None
+    if (item or {}).get("summary_out"):
+        return None
+    files = _multi_out_files(item, mtime_floor)
+    if len(files) < 2:
+        return None
+    rows, errs = [], []
+    for p in files:
+        lab = _multi_out_label(p)
+        parsed = parse_fillable_topk_expectancy(p, mtime_floor)
+        if parsed.get("error"):
+            errs.append(lab)
+            rows.append(f"{lab}: 측정불가({parsed['error'][:40]})")
+            continue
+        v, _d, dl = _judge3(judge_fillable_topk_expectancy(item, parsed))
+        if v in ("판정불가", "측정무효"):
+            errs.append(lab)
+        fill = ((parsed.get("conditions") or {}).get("fillable") or {}).get("k") or {}
+        kk = "5" if "5" in fill else (next(iter(fill), None))
+        b = fill.get(kk) or {}
+        pa = b.get("paired") or {}
+        st = (b.get("arm_halves") or {}).get("stable")
+        dm, tt = pa.get("delta_mean"), pa.get("t")
+        if not isinstance(dm, (int, float)):
+            dm, tt = dl, None
+        stat = f"Δ{dm:+.3f}" if isinstance(dm, (int, float)) else "Δ결측"
+        if isinstance(tt, (int, float)):
+            stat += f"(t {tt})"
+        rows.append(f"{lab}: {'신호' if str(v).startswith('신호있음') else v} {stat} {st or ''}"
+                    f" n{parsed.get('n_sessions_fillable')}")
+    head = (f"산출 {len(files)}개 **전량** 집계(마지막 파일 단독 판정 대체) — " + " | ".join(rows))
+    if errs:
+        return ("측정무효", f"{head} → 측정불가 {len(errs)}개: 사전문턱 판정 불가", None)
+    n = len(files)
+    nsig = sum(1 for r in rows if r.split(": ")[1].startswith("신호"))
+    if nsig == n:
+        first = _judge3(judge_fillable_topk_expectancy(
+            item, parse_fillable_topk_expectancy(files[-1], mtime_floor)))[2]
+        return ("신호있음", f"{head} → 전 조건 통과(사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive)", first)
+    if nsig == 0:
+        return ("노이즈", f"{head} → 전 조건 미달", None)
+    return ("조건엇갈림", f"{head} → 신호 {nsig}/{n} 조건만 통과 — 사전문턱은 **모든 조건 동시 충족**을 "
+                          f"요구하므로 신호 아님(창/조건 분해 결과를 그대로 기록)", None)
 
 
 def _multi_out_warning(item) -> str | None:
