@@ -252,6 +252,31 @@ def score_candidates(kf: pd.DataFrame,
     return pd.DataFrame(rows)
 
 
+def compute_atr_pct(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
+    """종목별 ATR%(=ATR14/종가) — 진입 필터용.
+
+    WHY(2026-11-28 실측 8,499 종목·일, 0.75%/5% 기준):
+      ATR 분위별 순기대가 Q1(0.31~4.75%) +0.068% → Q5(9.07%+) +0.611% 로 **단조 증가**.
+      저변동 구간은 목표 도달이 4.2%뿐이라 기대값이 사실상 0이다.
+    """
+    cols = ["stock_code", "atr_pct_pct"]
+    if df.empty or "high_price" not in df.columns:
+        return pd.DataFrame(columns=cols)
+    work = df.sort_values(["stock_code", "trade_date"]).copy()
+    prev_close = work.groupby("stock_code")["close_price"].shift(1)
+    tr = pd.concat([
+        work["high_price"] - work["low_price"],
+        (work["high_price"] - prev_close).abs(),
+        (work["low_price"] - prev_close).abs(),
+    ], axis=1).max(axis=1)
+    work["_tr"] = tr
+    atr = (work.groupby("stock_code")["_tr"]
+           .transform(lambda s: s.rolling(window, min_periods=max(3, window // 2)).mean()))
+    work["atr_pct_pct"] = atr / work["close_price"] * 100.0
+    last = work.groupby("stock_code", as_index=False).tail(1)
+    return last[cols].reset_index(drop=True)
+
+
 def filter_candidates(candidates: pd.DataFrame,
                       min_trading_value: float = 5_000_000_000,
                       min_price: float = 1000) -> pd.DataFrame:

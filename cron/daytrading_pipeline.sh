@@ -98,14 +98,27 @@ run_screener() {  # $1 = 최소 거래대금, $2 = 추가 인자(대역 파일),
 # 2026-11-27: 기본 하한을 50억으로 되돌린다(사용자 지시 '유동성 높은 종목').
 # 기존에는 첫 시도가 10억이라 50억 정책이 사실상 적용되지 않았고, 실제로 27~45억 종목이
 # 후보로 발행돼 매수까지 이어졌다(117730). 50억에서 0건일 때만 10억으로 완화한다.
-n=$(run_screener "$MIN_VALUE_LO" "--rank-band-file $UNIV" "band-50eok")
+# 2026-11-28: ATR% 하한 6.25 (하위 40% 배제). 실측 8,499 종목·일에서 ATR 분위 순기대가
+# Q1 +0.068% → Q5 +0.611% 단조 증가했다. 후보가 0건이면 4.75(Q2)로만 한 단계 완화한다.
+# 2026-11-28 실측(유동성 50억+ 6,128 종목·일): ATR 분위 순기대가 Q1 +0.125% ·
+# Q2 +0.715% · Q3 +0.880% · Q4 +0.762% · Q5 +0.347% 의 **봉우리** 모양이다.
+# 그래서 하한 4.75%(Q1 배제) + 상한 10.3%(Q5 배제)를 함께 건다. 후보가 0건이면 하한을 0으로 푼다.
+MIN_ATR="${DAYTRADING_MIN_ATR_PCT:-4.75}"
+MAX_ATR="${DAYTRADING_MAX_ATR_PCT:-10.3}"
+ATR_ARG="--min-atr-pct $MIN_ATR --max-atr-pct $MAX_ATR"
+n=$(run_screener "$MIN_VALUE_LO" "--rank-band-file $UNIV $ATR_ARG" "band-50eok")
+if [ "${n:-0}" -eq 0 ]; then
+  log "WARN ATR 구간 후보 0건 — 상한만 유지하고 하한 해제 재시도"
+  ATR_ARG="--max-atr-pct $MAX_ATR"
+  n=$(run_screener "$MIN_VALUE_LO" "--rank-band-file $UNIV $ATR_ARG" "band-50eok-atr-relax")
+fi
 if [ "${n:-0}" -eq 0 ]; then
   log "WARN 50억 하한에서 후보 0건 — 10억으로 완화 재시도"
-  n=$(run_screener "$MIN_VALUE_HI" "--rank-band-file $UNIV" "band-10eok")
+  n=$(run_screener "$MIN_VALUE_HI" "--rank-band-file $UNIV $ATR_ARG" "band-10eok")
 fi
 if [ "${n:-0}" -eq 0 ]; then
   log "WARN 대역 적용 후 후보 0건 — 대역 없이 재시도"
-  n=$(run_screener "$MIN_VALUE_LO" "" "fallback")
+  n=$(run_screener "$MIN_VALUE_LO" "$ATR_ARG" "fallback")
 fi
 if [ "${n:-0}" -eq 0 ]; then
   if printf '%s' "$REGIME_ARG" | grep -q ' on$'; then

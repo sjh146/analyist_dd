@@ -366,6 +366,10 @@ def main():
                          "reports/daytrading_latest.json 로 두면 feed_export 가 발행)")
     ap.add_argument("--min-trading-value", type=float, default=5_000_000_000, help="최소 거래대금 (기본 50억)")
     ap.add_argument("--min-price", type=float, default=1000, help="최소 종가 (기본 1000원)")
+    ap.add_argument("--min-atr-pct", type=float, default=0.0,
+                    help="최소 ATR%%(14일/종가, 퍼센트). 4.75 = 하위 20%% 배제 (기본 0=필터 없음)")
+    ap.add_argument("--max-atr-pct", type=float, default=0.0,
+                    help="최대 ATR%%. 10.3 초과는 순기대가 다시 떨어진다(실측). 기본 0=상한 없음")
     ap.add_argument("--lookback", type=int, default=20, help="칼만 평활화 룩백 거래일 (기본 20)")
     ap.add_argument("--rank-band-file", dest="rank_band_file", default=None,
                     help="상승률 대역 파일(scripts/rank_universe.py 산출): "
@@ -434,6 +438,8 @@ def main():
             min_history=20,
             min_trading_value=args.min_trading_value,
             min_price=args.min_price,
+            min_atr_pct=args.min_atr_pct,
+            max_atr_pct=args.max_atr_pct,
             date_str=args.date,
             predictor=predictor,
             allow_codes=allow_codes,

@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from .providers import MarketDataProvider, StockInfo
-from .scoring import (compute_kalman_features, filter_candidates,
+from .scoring import (compute_atr_pct, compute_kalman_features, filter_candidates,
                       prefilter_liquid, rank_candidates, score_candidates)
 
 logger = logging.getLogger("day_trading_engine.pipeline")
@@ -167,6 +167,8 @@ def run_screener(provider: MarketDataProvider,
                  min_history: int = 20,
                  min_trading_value: float = 5_000_000_000,
                  min_price: float = 1000,
+                 min_atr_pct: float = 0.0,
+                 max_atr_pct: float = 0.0,
                  date_str: str | None = None,
                  predictor: Optional[ChampionPredictor] = None,
                  allow_codes: Optional[set] = None,
@@ -226,6 +228,19 @@ def run_screener(provider: MarketDataProvider,
                  .groupby("stock_code", as_index=False).tail(1))
     pre = prefilter_liquid(last_rows, min_trading_value=min_trading_value,
                            min_price=min_price)
+    if (min_atr_pct and min_atr_pct > 0) or (max_atr_pct and max_atr_pct > 0):
+        if "high_price" in lookback_df.columns:
+            atr_tbl = compute_atr_pct(lookback_df)
+            pre = pre.merge(atr_tbl, on="stock_code", how="left")
+            before_atr = len(pre)
+            keep = pre["atr_pct_pct"].notna()
+            if min_atr_pct and min_atr_pct > 0:
+                keep &= pre["atr_pct_pct"] >= min_atr_pct
+            if max_atr_pct and max_atr_pct > 0:
+                keep &= pre["atr_pct_pct"] <= max_atr_pct
+            pre = pre[keep]
+            logger.info("ATR 구간 %.2f~%.2f%% 필터: %d → %d 종목",
+                        min_atr_pct or 0.0, max_atr_pct or 0.0, before_atr, len(pre))
     keep_codes = set(pre["stock_code"].astype(str))
     if keep_codes and len(keep_codes) < lookback_df["stock_code"].nunique():
         logger.info("사전 유동성 필터: %d → %d 종목 (칼만 계산 축소)",
