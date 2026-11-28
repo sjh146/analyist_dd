@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-28T19:10:40+09:00",
+ "updated_at": "2026-11-28T22:14:36+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -27322,7 +27322,7 @@
    "affects_model": false,
    "priority": 3,
    "status": "pending",
-   "not_before": "2026-11-28T19:30:00+09:00",
+   "not_before": "2026-11-29T19:30:00+09:00",
    "metric": "factor_signals",
    "title": "[팩터·상시] 팩터 5전략 신호 경로 일일 점검 — 게이트일 여부를 먼저 판정해 '신호 0' 오알람을 막는다",
    "hypothesis": "신호 0 은 대개 게이트 밖(설계)이고, 진짜 실패는 유니버스 붕괴(<500) 또는 게이트일 신호 0 이다.",
@@ -27341,16 +27341,24 @@
      "detail": "asof 2026-11-26 · 전체 4355종목 중 유니버스 765 · 게이트 열린 전략 0/5 · 신호>0 전략 0(게이트 열림: []) · ⚠ 리밸런싱 간격 불일치(전략 vs 백테스트): lowvol_factor 63≠21, momentum_factor 63≠21, multifactor 21≠63 → 그 전략의 기간수익은 보유기간과 어긋나 돈 지표로 쓸 수 없다. 리밸런싱 게이트(63/21일) 밖이면 analyze()가 빈 리스트를 반환하는 설계다 → 신호 수를 보려면 게이트일로 다시 재라.",
      "log": "data/reports/me_cycle/logs/me_cycle_FAC-03_20261127-010828.log",
      "elapsed_min": 0.1
+    },
+    {
+     "ts": "2026-11-28T20:07:14+09:00",
+     "rc": 0,
+     "verdict": "게이트 밖 — 신호 0은 정상(측정일 오류로 오알람 금지)",
+     "detail": "asof 2026-11-28 · 전체 4355종목 중 유니버스 763 · 게이트 열린 전략 0/5 · 신호>0 전략 0(게이트 열림: []) · ⚠ 리밸런싱 간격 불일치(전략 vs 백테스트): lowvol_factor 63≠21, momentum_factor 63≠21, multifactor 21≠63 → 그 전략의 기간수익은 보유기간과 어긋나 돈 지표로 쓸 수 없다. 리밸런싱 게이트(63/21일) 밖이면 analyze()가 빈 리스트를 반환하는 설계다 → 신호 수를 보려면 게이트일로 다시 재라.",
+     "log": "data/reports/me_cycle/logs/me_cycle_FAC-03_20261128-200709.log",
+     "elapsed_min": 0.1
     }
    ],
    "rearmed": {
-    "ts": "2026-11-27T01:08:34+09:00",
-    "next": "2026-11-28T19:30:00+09:00",
+    "ts": "2026-11-28T20:07:14+09:00",
+    "next": "2026-11-29T19:30:00+09:00",
     "note": "repeat=daily — 다음 날 같은 시각 재실행(완전일 누적용)"
    },
    "result": {
     "verdict": "게이트 밖 — 신호 0은 정상(측정일 오류로 오알람 금지)",
-    "detail": "asof 2026-11-26 · 전체 4355종목 중 유니버스 765 · 게이트 열린 전략 0/5 · 신호>0 전략 0(게이트 열림: []) · ⚠ 리밸런싱 간격 불일치(전략 vs 백테스트): lowvol_factor 63≠21, momentum_factor 63≠21, multifactor 21≠63 → 그 전략의 기간수익은 보유기간과 어긋나 돈 지표로 쓸 수 없다. 리밸런싱 게이트(63/21일) 밖이면 analyze()가 빈 리스트를 반환하는 설계다 → 신호 수를 보려면 게이트일로 다시 재라.",
+    "detail": "asof 2026-11-28 · 전체 4355종목 중 유니버스 763 · 게이트 열린 전략 0/5 · 신호>0 전략 0(게이트 열림: []) · ⚠ 리밸런싱 간격 불일치(전략 vs 백테스트): lowvol_factor 63≠21, momentum_factor 63≠21, multifactor 21≠63 → 그 전략의 기간수익은 보유기간과 어긋나 돈 지표로 쓸 수 없다. 리밸런싱 게이트(63/21일) 밖이면 analyze()가 빈 리스트를 반환하는 설계다 → 신호 수를 보려면 게이트일로 다시 재라.",
     "delta": null,
     "per_exp": null,
     "rc": 0
@@ -29282,13 +29290,85 @@
    "command": "cd /home/jhshi/analyist_dd && docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app timeout 1800 python -u scripts/version_overlap_probe.py --out /app/reports/overnight/cg541_version_overlap.json'",
    "success": "사전등록(변경 금지): ① 두 판본이 함께 있는 날짜 ≥5 에서 날짜별 Spearman ρ 중앙값 ≥ 0.95 이고 top10 겹침 ≥ 8/10 → '판본 결합 이득 없음'으로 축 종결 ② ρ < 0.80 또는 겹침 ≤ 5/10 → 결합(rank-mean) arm 을 pending 으로 등록(사전문턱: 같은 날짜 체결가능 순기대 Δ ≥ +0.1%p/세션 & t ≥ 2, 수수료 0.21%p 차감) ③ rc≠0·덤프 없음 = 실행실패(노이즈로 쓰지 않는다)",
    "hypothesis": "전방 성적표 실측(2026-11-28 07:08, forward_scorecard.json): h1 22날짜 = champ 13d + v1.0 9d, h5 18날짜 = 9d+9d 혼합 → 라이브 피드가 창중에 판본을 바꿨고 pooled 전방수치는 두 모델의 평균이라 '챔피언 성적'이 아니다. 두 판본의 점수가 충분히 다르면(ρ<0.8) 약한 모델 두 개의 결합이 단일 모델 AUC·순기대를 넘을 수 있고, 반대로 ρ≥0.95 면 앙상블 축을 영구히 닫는다 — 둘 중 어느 쪽이든 다음 레버 판단이 닫힌다.",
-   "status": "needs_setup",
+   "status": "done",
    "priority": 2,
    "created_at": "2026-11-28T19:10:40+09:00",
    "note": "선행 구현 필요(내 소유 범위): scripts/version_overlap_probe.py 신설 — ml_predictions(stock_code·prediction_date·model_version·confidence) 를 model_version 필터 없이 읽어 ① 날짜별 판본 교집합 크기 ② 교집합 날짜의 날짜별 Spearman ρ(동점 처리) ③ 상위10 겹침 수 ④ 결합 rank-mean 의 체결가능 순기대(scripts/fillable_expectancy.py 재사용) 를 JSON 으로 낸다. 학습 0 · DB 조회만(≤30분). 선행 조건 없음(v6o/v7 패널 불필요).",
-   "attempts": [],
-   "reported": false
+   "attempts": [
+    {
+     "at": "2026-11-28T22:13:49+09:00",
+     "rc": 0,
+     "note": "version_overlap_probe.py 실행(읽기 전용)"
+    }
+   ],
+   "reported": false,
+   "result": {
+    "verdict": "측정 불가(사전등록 전제 붕괴) — 판본 동일날짜 교집합 0일",
+    "detail": "scripts/version_overlap_probe.py 신설·실행(2026-11-28 22:1x, 읽기 전용, ml_predictions 137,418행). v1.0 = 63,436행·15날짜(2026-09-22~10-08) / champ-20261002T024420-0.5513 = 73,982행·20날짜(2026-10-09~11-27) → **공통 날짜 0일** → 사전등록 ①②(날짜별 ρ·top-k 겹침) 모두 적용 불가. 즉 전방 성적표의 \"판본혼합\"은 같은 날짜 동시혼합이 아니라 **시간상 순차 배포**(09-22~10-08 v1.0 → 10-09~ champ)다. 판본별 체결 순기대(k=10·수수료 왕복 0.21%p·체결성 필터 ON, h1): champ 13세션 topk +1.318% vs 풀 +0.294% Δ+1.024%p(t 1.10, 분할 +1.397/+0.705, 양세션 6/13) · v1.0 9세션 topk -0.627% vs 풀 -0.368% Δ-0.259(t -0.34, +0.453/-0.828, 3/9). h5: champ Δ-0.851(t -0.66) · v1.0 Δ-2.305(t -1.58) — 둘 다 음. ⚠ 판본 간 비교는 시점 교란이다(풀 널 기준선부터 h1 champ +0.294 vs v1.0 -0.368 = 국면 차이) → 모델 우열 근거로 쓰지 않는다. 결합(rank-mean 앙상블) 측정은 같은 날짜에 두 판본 예측이 있어야 가능 → 불가. 게다가 앙상블 축은 CG30 에서 최대 +0.0057 로 이미 종결됐다. → 축 종결: 판본 결합은 재개하지 않는다. 전방 성적표는 pooled 헤드라인 대신 판본별 슬라이스를 1급으로 읽는다(CG543 으로 체결 머니 헤드라인 교체).",
+    "rc": 0,
+    "evidence_file": "/app/reports/overnight/cg541_version_overlap.json"
+   },
+   "notes": " | 2026-11-28T22:13 엔지니어: scripts/version_overlap_probe.py 구현·실행(체결성 필터·수수료·널 기준선은 forward_scorecard.py 함수 재사용 = 단일 진실원). 판본 교집합 0일 실측 → 사전등록 ②(결합 arm)는 요건 미충족, ①(ρ≥0.95 → 종결)도 측정 불가지만 결론은 동일하게 '축 종결'. 판본별 1차 수치를 남겼다.",
+   "updated_at": "2026-11-28T22:13:49+09:00"
+  },
+  {
+   "id": "CG542",
+   "title": "[돈·배포규모] 익일시가 h1 arm 의 Δ가 **하루 1·2·3건**(실배포 규모)에서도 남는가 — k=5/10 이득이 소수 종목 분산의 산물인지 (CG534 후속)",
+   "kind": "experiment",
+   "owner": "engineer",
+   "priority": 1,
+   "affects_model": true,
+   "metric": "fillable_topk_expectancy",
+   "summary_out": "/app/reports/overnight/cg542_kgrid.jsonl",
+   "est_minutes": 25,
+   "arm": "LBL_overnight_h1",
+   "counterfactual": "LS_quant_q30_h5 (같은 패널·같은 폴드·같은 런) — k=5 는 CG534 실측 Δ+0.282(t 2.78)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && export PYTHONPATH=/app && for K in 1 2 3; do timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg534_po.jsonl --arm-tag LBL_overnight_h1 --control-jsonl /app/reports/overnight/cg534_po.jsonl --control-tag LS_quant_q30_h5 --stride 1 --exit next_open --entry close --horizon 1 --k $K --fee-buy 0.0005 --fee-sell 0.0005 --tax-sell 0.002 --json-out /app/reports/overnight/cg542_k${K}.json; done'",
+   "hypothesis": "모든 익일시가 h1 라벨 실측(CG533~CG539)은 k=5·10 바스켓이다. 그런데 실제 배포 설정은 하루 5건(단타 전용)이고 k 가 줄면 선택이 상위 소수 종목에 집중돼 같은 신호라도 Δ·t 가 붕괴할 수 있다(전례 CG496: 상위5종목이 Δ의 51.9%). k=1·2·3 에서 Δ 부호와 t 가 유지되는지가 \"이 라벨 변경이 실거래 규모에서 쓸 수 있는가\"를 가른다.",
+   "success": "사전등록(변경 금지): ① k=1·2·3 **각각** Δ ≥ +0.1%p/세션 & t ≥ 2 & 분할 both_positive → \"배포 규모 강건\" (라벨 변경 승인 요청 근거로 넘긴다) ② k=1 에서만 붕괴(k≥2 유지) → \"k≥2 필요\" 로 기록하고 배포 규칙(하루 5건)과 정합 확인 ③ k≤3 전부 Δ < +0.1%p 또는 t < 2 → \"다건 분산 전용\"으로 라벨 축 종결 ④ rc≠0·요약 없음 = 실행실패(노이즈로 쓰지 않는다)",
+   "expected": "k 감소에 따라 분산↑·t↓ 가 예상. 부호 유지 여부가 핵심.",
+   "cost": "25분(기존 덤프 재사용, 학습 0)",
+   "created_at": "2026-11-28T22:13:49+09:00",
+   "note": "2026-11-28 22:1x 엔지니어 자율(CG541 종결 후속). 기존 cg534_po.jsonl(280세션·10폴드)만 재사용하므로 GPU/CPU 학습 없이 수 분에 끝난다 — 틱이 그대로 실행 가능. 수수료는 CG537(배포 가정 0.3%p)과 같은 값을 쓴다.",
+   "attempts": [
+    {
+     "at": "2026-11-28T22:14:36+09:00",
+     "rc": 0,
+     "note": "k=1·2·3 실행(fillable_topk_expectancy, cg534_po.jsonl)"
+    }
+   ],
+   "reported": false,
+   "status": "done",
+   "result": {
+    "verdict": "사전등록 ③ — 배포 규모(1~3건) 유의성 미달(다건 k≥5 전용)",
+    "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open · entry close · stride 1 · 수수료 왕복 0.30%p · 체결성 필터 ON · 280세션(10폴드) · cg534_po.jsonl 재사용(학습 0, 22:2x 실행 ~1분/arm). k=1: arm +0.066% vs ctl -0.005 → Δ+0.070(t 0.29, 양세션 162/114/4=57.9%, 폴드 양 8/10) · k=2: arm +0.158 vs ctl -0.089 → Δ+0.247(t 1.49, 165/114/1=58.9%, 폴드 9/10) · k=3: arm +0.129 vs ctl -0.113 → Δ+0.243(t 1.80, 162/117/1=57.9%, 폴드 9/10). 사전문턱(각 k 에서 Δ≥+0.1%p & t≥2 & 분할 both_positive) → k=1 탈락(Δ·t 동시 미달), k=2·3 은 **t<2 로 탈락**. 부호는 세 k 모두 양(+)이고 k=2·3 은 방향 일관이나 유의성 미달. 참고(필터 OFF): k=2 Δ+0.395(t 2.36) · k=3 Δ+0.375(t 2.41) — 필터가 t 를 2 아래로 떨어뜨린다(살 수 없는 상한가 종목이 이득의 일부). 대조: 같은 런의 k=5 는 CG534 Δ+0.282(t 2.78) 로 문턱 통과, k=10 은 CG537 Δ+0.186(t 2.90) 이나 분할 unstable [+0.297/-0.124]. → 판정: 이 라벨의 돈 엣지는 **k≥5 바스켓에서만** 문턱을 넘는다. 하루 1~3건 규모(집중 매매)에서는 근거 없음. 배포 규칙이 하루 5건(상한)이라 k=5 는 상한에서만 성립 — 라벨 축은 \"다건 분산 전용\"으로 종결하고, 승격/라벨 변경 논의는 트레이더가 하루 5건 다건 규칙을 유지한다는 전제에서만 성립한다(전략 소유자 결정).",
+    "rc": 0,
+    "evidence_files": [
+     "/app/reports/overnight/cg542_k1.json",
+     "/app/reports/overnight/cg542_k2.json",
+     "/app/reports/overnight/cg542_k3.json"
+    ]
+   },
+   "notes": "2026-11-28 22:1x 엔지니어 자율(CG541 종결 후속). 기존 cg534_po.jsonl(280세션·10폴드)만 재사용하므로 GPU/CPU 학습 없이 수 분에 끝난다 — 틱이 그대로 실행 가능. 수수료는 CG537(배포 가정 0.3%p)과 같은 값을 쓴다. | 2026-11-28T22:14 실행·판정 완료(티크가 아니라 이 세션에서 직접 3-arm 실행, 각 ~1분). 갭: 요약 JSON 에 **paired 분할(front/back) 이 없다**(arm_halves 만 있음) — 사전문턱의 '분할 both_positive' 를 기계 판정하려면 fillable_topk_expectancy 에 paired halves 를 추가해야 한다(수리 후보).",
+   "updated_at": "2026-11-28T22:14:36+09:00"
+  },
+  {
+   "id": "CG543",
+   "title": "[측정정합성 수리] 전방 성적표 헤드라인이 체결성 필터 **전** top10 을 1급으로 보고한다 — 체결 머니로 교체",
+   "kind": "수리",
+   "owner": "engineer",
+   "priority": 2,
+   "affects_model": false,
+   "metric": null,
+   "created_at": "2026-11-28T22:13:49+09:00",
+   "status": "done",
+   "result": {
+    "verdict": "수리 완료(회귀 PASS)",
+    "detail": "scripts/model_engineer_cycle.py `_forward_summary_line`: 헤드라인을 `money` 블록(체결성 필터 + 수수료 왕복 + 풀 널 기준선)으로 교체하고 미필터 top10/all 은 \"미필터(참고)\" 로 격하, kept_ratio 병기. 실측 근거(2026-11-28 22:1x, 같은 파일·같은 창): 미필터 top10 -0.1398% vs 전체 +0.2376% 인데 체결 top10 +0.5225% vs 풀 +0.0231% (Δ+0.4995%p, t 0.79) → **부호가 갈린다**. 원인은 top10_ret_mean 이 체결성 필터 전 순위로 뽑기 때문(kept_ratio 0.2657 = 74%가 살 수 없는 행, 상한가·급등 종목이 당일 최고점수를 차지). 회귀: scripts/_forward_scorecard_money_test.py 36/36 PASS(헤드라인 4건 신설) · scripts/_forward_refresh_test.py 16/16 PASS.",
+    "rc": 0
+   },
+   "note": "최우선 규칙 3(체결성 필터 없이 계산한 기대값은 보고 금지)이 매시간 요약 줄에서 위반되고 있었다. 판정 지표(money.Δ)는 이미 필터 경유였으나, 사용자가 먼저 읽는 헤드라인이 미필터 값이라 \"top10 이 전체보다 나쁘다\"는 반대 방향 인상을 줬다."
   }
  ],
- "updated": "2026-11-28T19:10:40+09:00"
+ "updated": "2026-11-28"
 }

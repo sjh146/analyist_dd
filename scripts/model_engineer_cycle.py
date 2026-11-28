@@ -7988,12 +7988,25 @@ def _forward_summary_line(path) -> str:
                             f", {'n/a' if sp[0] is None else format(float(sp[0]), '+.2f')}"
                             f"/{'n/a' if sp[1] is None else format(float(sp[1]), '+.2f')}"
                             f", {m.get('n_dates')}d)")
+        mny = w.get("money") or {}
+        if mny.get("delta_mean_pct") is not None:
+            mt = mny.get("delta_t")
+            msp = mny.get("split_half_pct") or [None, None]
+            head = (f"체결 top{mny.get('k')} {format(float(mny['topk_net_mean_pct']), '+.3f')}%"
+                    f" vs 풀 {format(float(mny['pool_net_mean_pct']), '+.3f')}%"
+                    f" Δ{format(float(mny['delta_mean_pct']), '+.3f')}%p"
+                    f"(t {'n/a' if mt is None else format(float(mt), '.2f')}"
+                    f", {'n/a' if msp[0] is None else format(float(msp[0]), '+.2f')}"
+                    f"/{'n/a' if msp[1] is None else format(float(msp[1]), '+.2f')}"
+                    f", {mny.get('n_dates')}d·kept {mny.get('kept_ratio')})")
+        else:
+            head = "체결 머니 n/a"
         parts.append(
             f"{h} n_dates {w.get('n_dates')} · pooled {auc if auc is None else round(float(auc), 4)}"
 
 
             f"(daily {w.get('daily_auc_mean') if w.get('daily_auc_mean') is None else round(float(w['daily_auc_mean']), 4)}) · "
-            f"top10 {'n/a' if top is None else format(float(top), '+.4%')}"
+            f"{head} · 미필터(참고) top10 {'n/a' if top is None else format(float(top), '+.4%')}"
             f" vs 전체 {'n/a' if allr is None else format(float(allr), '+.4%')}{vnote}{cur_note}")
     return "전방 성적표: " + " | ".join(parts)
 
