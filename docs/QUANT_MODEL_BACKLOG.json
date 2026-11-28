@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-28T22:14:36+09:00",
+ "updated_at": "2026-11-28T22:16:20+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -29341,7 +29341,7 @@
    "status": "done",
    "result": {
     "verdict": "사전등록 ③ — 배포 규모(1~3건) 유의성 미달(다건 k≥5 전용)",
-    "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open · entry close · stride 1 · 수수료 왕복 0.30%p · 체결성 필터 ON · 280세션(10폴드) · cg534_po.jsonl 재사용(학습 0, 22:2x 실행 ~1분/arm). k=1: arm +0.066% vs ctl -0.005 → Δ+0.070(t 0.29, 양세션 162/114/4=57.9%, 폴드 양 8/10) · k=2: arm +0.158 vs ctl -0.089 → Δ+0.247(t 1.49, 165/114/1=58.9%, 폴드 9/10) · k=3: arm +0.129 vs ctl -0.113 → Δ+0.243(t 1.80, 162/117/1=57.9%, 폴드 9/10). 사전문턱(각 k 에서 Δ≥+0.1%p & t≥2 & 분할 both_positive) → k=1 탈락(Δ·t 동시 미달), k=2·3 은 **t<2 로 탈락**. 부호는 세 k 모두 양(+)이고 k=2·3 은 방향 일관이나 유의성 미달. 참고(필터 OFF): k=2 Δ+0.395(t 2.36) · k=3 Δ+0.375(t 2.41) — 필터가 t 를 2 아래로 떨어뜨린다(살 수 없는 상한가 종목이 이득의 일부). 대조: 같은 런의 k=5 는 CG534 Δ+0.282(t 2.78) 로 문턱 통과, k=10 은 CG537 Δ+0.186(t 2.90) 이나 분할 unstable [+0.297/-0.124]. → 판정: 이 라벨의 돈 엣지는 **k≥5 바스켓에서만** 문턱을 넘는다. 하루 1~3건 규모(집중 매매)에서는 근거 없음. 배포 규칙이 하루 5건(상한)이라 k=5 는 상한에서만 성립 — 라벨 축은 \"다건 분산 전용\"으로 종결하고, 승격/라벨 변경 논의는 트레이더가 하루 5건 다건 규칙을 유지한다는 전제에서만 성립한다(전략 소유자 결정).",
+    "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open · entry close · stride 1 · 수수료 왕복 0.30%p · 체결성 필터 ON · 280세션(10폴드) · cg534_po.jsonl 재사용(학습 0, 22:2x 실행 ~1분/arm). k=1: arm +0.066% vs ctl -0.005 → Δ+0.070(t 0.29, 양세션 162/114/4=57.9%, 폴드 양 8/10) · k=2: arm +0.158 vs ctl -0.089 → Δ+0.247(t 1.49, 165/114/1=58.9%, 폴드 9/10) · k=3: arm +0.129 vs ctl -0.113 → Δ+0.243(t 1.80, 162/117/1=57.9%, 폴드 9/10). 사전문턱(각 k 에서 Δ≥+0.1%p & t≥2 & 분할 both_positive) → k=1 탈락(Δ·t 동시 미달), k=2·3 은 **t<2 로 탈락**. 부호는 세 k 모두 양(+)이고 k=2·3 은 방향 일관이나 유의성 미달. 참고(필터 OFF): k=2 Δ+0.395(t 2.36) · k=3 Δ+0.375(t 2.41) — 필터가 t 를 2 아래로 떨어뜨린다(살 수 없는 상한가 종목이 이득의 일부). 대조: 같은 런의 k=5 는 CG534 Δ+0.282(t 2.78) 로 문턱 통과, k=10 은 CG537 Δ+0.186(t 2.90) 이나 분할 unstable [+0.297/-0.124]. → 판정: 이 라벨의 돈 엣지는 **k≥5 바스켓에서만** 문턱을 넘는다. 하루 1~3건 규모(집중 매매)에서는 근거 없음. 배포 규칙이 하루 5건(상한)이라 k=5 는 상한에서만 성립 — 라벨 축은 \"다건 분산 전용\"으로 종결하고, 승격/라벨 변경 논의는 트레이더가 하루 5건 다건 규칙을 유지한다는 전제에서만 성립한다(전략 소유자 결정). 분할(paired session_deltas 앞/뒤 140세션): k=1 +0.262/-0.122(neither) · k=2 +0.295/+0.199(both+) · k=3 +0.299/+0.186(both+).",
     "rc": 0,
     "evidence_files": [
      "/app/reports/overnight/cg542_k1.json",
@@ -29349,8 +29349,8 @@
      "/app/reports/overnight/cg542_k3.json"
     ]
    },
-   "notes": "2026-11-28 22:1x 엔지니어 자율(CG541 종결 후속). 기존 cg534_po.jsonl(280세션·10폴드)만 재사용하므로 GPU/CPU 학습 없이 수 분에 끝난다 — 틱이 그대로 실행 가능. 수수료는 CG537(배포 가정 0.3%p)과 같은 값을 쓴다. | 2026-11-28T22:14 실행·판정 완료(티크가 아니라 이 세션에서 직접 3-arm 실행, 각 ~1분). 갭: 요약 JSON 에 **paired 분할(front/back) 이 없다**(arm_halves 만 있음) — 사전문턱의 '분할 both_positive' 를 기계 판정하려면 fillable_topk_expectancy 에 paired halves 를 추가해야 한다(수리 후보).",
-   "updated_at": "2026-11-28T22:14:36+09:00"
+   "notes": "2026-11-28 22:1x 엔지니어 자율(CG541 종결 후속). 기존 cg534_po.jsonl(280세션·10폴드)만 재사용하므로 GPU/CPU 학습 없이 수 분에 끝난다 — 틱이 그대로 실행 가능. 수수료는 CG537(배포 가정 0.3%p)과 같은 값을 쓴다. | 2026-11-28T22:14 실행·판정 완료(티크가 아니라 이 세션에서 직접 3-arm 실행, 각 ~1분). 분할은 요약의 paired.session_deltas(세션별 Δ) 앞/뒤 절반으로 계산했다(별도 코드 불필요).",
+   "updated_at": "2026-11-28T22:16:04+09:00"
   },
   {
    "id": "CG543",
@@ -29368,6 +29368,29 @@
     "rc": 0
    },
    "note": "최우선 규칙 3(체결성 필터 없이 계산한 기대값은 보고 금지)이 매시간 요약 줄에서 위반되고 있었다. 판정 지표(money.Δ)는 이미 필터 경유였으나, 사용자가 먼저 읽는 헤드라인이 미필터 값이라 \"top10 이 전체보다 나쁘다\"는 반대 방향 인상을 줬다."
+  },
+  {
+   "id": "CG544",
+   "title": "[돈·배포규모 경계] 익일시가 h1 arm 의 Δ·t 가 문턱(t>=2·분할 both+)을 유지하는 **최소 k** 를 격자로 확정 — 배포 규칙(하루 몇 건) 결정 근거 (CG542 후속)",
+   "kind": "experiment",
+   "owner": "engineer",
+   "priority": 1,
+   "affects_model": true,
+   "metric": "fillable_topk_expectancy",
+   "summary_out": "/app/reports/overnight/cg544_kgrid.jsonl",
+   "est_minutes": 40,
+   "arm": "LBL_overnight_h1",
+   "counterfactual": "LS_quant_q30_h5 (같은 패널·같은 런) — k=5 Δ+0.282(t 2.78, CG534)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && export PYTHONPATH=/app && for K in 4 5 6 7 8 10; do timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg534_po.jsonl --arm-tag LBL_overnight_h1 --control-jsonl /app/reports/overnight/cg534_po.jsonl --control-tag LS_quant_q30_h5 --stride 1 --exit next_open --entry close --horizon 1 --k $K --fee-buy 0.0005 --fee-sell 0.0005 --tax-sell 0.002 --json-out /app/reports/overnight/cg544_k${K}.json; done'",
+   "hypothesis": "CG542 실측: k=1 Δ+0.070(t 0.29·분할 neither) · k=2 +0.247(t 1.49·both+) · k=3 +0.243(t 1.80·both+). CG534 k=5 는 Δ+0.282(t 2.78·both+), CG537 k=10 은 Δ+0.186(t 2.90·분할 unstable). 부호·분할은 k>=2 에서 일관되나 t 가 k=3 까지 2 미만 — t 가 2 를 넘는 최소 k 를 찾으면 \"하루 몇 종목을 담아야 이 라벨이 성립하는가\"에 숫자로 답할 수 있다.",
+   "success": "사전등록(변경 금지): ① k 격자 전체 표를 그대로 보고(최고 k 만 골라 인용 금지 — 다중비교) ② t>=2 & 분할 both_positive & Δ>=+0.1%p 를 동시에 만족하는 최소 k 기록(k*) ③ k* 가 5 이상이면 \"배포 규칙이 하루 >=k* 건일 때만 라벨 변경 근거 있음\"으로 트레이더 결정사항에 올린다 ④ 어떤 k 도 통과 못 하면 라벨 축 완전 종결 ⑤ rc!=0 = 실행실패",
+   "expected": "k 증가에 따라 t 상승(분산 축소). k=5~6 근처에서 t 2 를 넘을 것으로 본다.",
+   "cost": "40분(기존 덤프 재사용, 학습 0)",
+   "created_at": "2026-11-28T22:16:20+09:00",
+   "note": "2026-11-28 22:3x 엔지니어 자율(CG542 후속). 사전문턱은 CG542/CG534 와 동일(0.30%p·체결성 필터 ON·stride 1·280세션). 이 격자는 \"가장 좋은 k 고르기\"가 아니라 **경계 찾기**다 — 결과 표 전체를 원장에 남긴다.",
+   "status": "pending",
+   "attempts": [],
+   "reported": false
   }
  ],
  "updated": "2026-11-28"
