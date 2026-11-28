@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-28T06:13:10+09:00",
+ "updated_at": "2026-11-28T17:10:11+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -26025,7 +26025,7 @@
    "est_minutes": 400,
    "metric": "panel_build",
    "summary_out": "/app/app/models/wf/panel_prod200_v7.npz",
-   "note": "2026-11-24 19:1x 엔지니어 자율(장외 틱·pending 실행가능 0건·규칙 4). 날짜 산술 실측: 마지막 거래일 2026-11-23 → 12-14 까지 평일 14거래일(11/24~12/14, 공휴일 미반영)이라 '새 세션 ≥+15'는 12-14 이후에나 성립한다. 그래서 CG443 의 not_before(12-05)를 그대로 두면 그 자체 기준을 못 채우므로, 빌드를 12-14 23:00 이후로 잡아 평일 20:00 재생성 창(rc=137 원인)을 피하고 3시간 빌드가 02시 전후에 끝나게 했다. 컨테이너 timeout 14400s 는 실측 161분의 1.5배. | 2026-11-24 19:2x 구동기 자기모순 수리: 컨테이너 timeout 14400→18300s(est 200분×91.5). 실측 근거 CG10 161.3분. | 2026-11-26 01:1x 수동 --start 사고 실측: 12-14 이전에 기동됐다(구동기 --start 에 not_before 가드가 없었다). 01:11:12 로그 200/52,155 페어 · **2.32 pair/s · ETA 373분**(=6.2h) — est 200분은 과소였다(같은 형태 CG10 161분은 v6 대비 페어수가 적었다). 01:20 에 중단(부분 체크포인트 733KB 기록됨 · 12-14 재빌드 시 페어수가 달라져 폐기 예정). est_minutes 200→400·컨테이너 timeout 18300→36300s 로 정정. 재발 방지: scripts/model_engineer_cycle.py 의 start_background 에 not_before 가드 추가(_start_not_before_test.py 10/10 PASS)."
+   "note": "설계 확인(2026-11-28): not_before=2026-12-14T23:00 · end_date 핀 2026-12-14 이므로 실행 시점엔 마지막 가용 거래일이 12-14 가 되어 성공조건 ② 가 성립한다(사전등록 문턱 변경 없음). 선행 빌드가 11-25 16:11~16:13 에 processed=500/52155(1%)에서 중단 — 구간 핀이 같아 재개 유효. 명령 timeout 36300(10.1h)은 2.17 pair/s 가정; 실측 0.42 pair/s 면 34h 이므로 첫 200페어 로그의 pair/s 로 est·timeout 재산정."
   },
   {
    "id": "CG465",
@@ -26153,23 +26153,31 @@
      "detail": "minute_close_bars 2026-11-10~2026-11-26 · 완전일 13/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 867 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 1.0(22일). 남은 완전일 7개.",
      "log": "data/reports/me_cycle/logs/me_cycle_CG466_20261127-220942.log",
      "elapsed_min": 7.4
+    },
+    {
+     "ts": "2026-11-28T16:16:04+09:00",
+     "rc": 0,
+     "verdict": "진행 — 완전일 +1 적재",
+     "detail": "minute_close_bars 2026-11-10~2026-11-27 · 완전일 14/20 · 커버 0.99(문턱 0.75) · 봉/일 330.0 · 종목 867 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 1.0(23일). 남은 완전일 6개.",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG466_20261128-160918.log",
+     "elapsed_min": 6.8
     }
    ],
    "result": {
     "verdict": "진행 — 완전일 +1 적재",
-    "detail": "minute_close_bars 2026-11-10~2026-11-26 · 완전일 13/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 867 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 1.0(22일). 남은 완전일 7개.",
+    "detail": "minute_close_bars 2026-11-10~2026-11-27 · 완전일 14/20 · 커버 0.99(문턱 0.75) · 봉/일 330.0 · 종목 867 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 1.0(23일). 남은 완전일 6개.",
     "delta": null,
     "per_exp": null,
     "rc": 0
    },
    "repeat": "daily",
    "repeat_at": "19:30",
-   "not_before": "2026-11-28T16:00:00+09:00",
+   "not_before": "2026-11-29T19:30:00+09:00",
    "outcome": "minute_close_bars 2026-11-10~2026-11-24 · 완전일 11/20 · 커버 0.99(문턱 0.75) · 봉/일 331.0 · 종목 837 · 20일 도달 추정 2026-12-09 · KIS minute_bars 커버 0.135(20일). 남은 완전일 9개.",
    "finished_at": "2026-11-25T18:07:08+09:00",
    "rearmed": {
-    "ts": "2026-11-27T22:17:04+09:00",
-    "next": "2026-11-28T19:30:00+09:00",
+    "ts": "2026-11-28T16:16:04+09:00",
+    "next": "2026-11-29T19:30:00+09:00",
     "note": "repeat=daily — 다음 날 같은 시각 재실행(완전일 누적용)"
    }
   },
@@ -29165,6 +29173,92 @@
     "per_exp": null,
     "rc": 0
    }
+  },
+  {
+   "id": "CG539",
+   "title": "[돈·유니버스/시점 분해] CG537(200종목) 후반 절반 붕괴가 유니버스 탓인가 시점 탓인가 — 같은 창(2025-10-13~2026-09-17)으로 자른 200종목 재측정 + 최근 8주 단독 (CG537·CG538 후속)",
+   "status": "done",
+   "kind": "돈 지표",
+   "owner": "engineer",
+   "priority": 1,
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "summary_out": "/app/reports/overnight/cg539_matched_k5.json",
+   "est_minutes": 8,
+   "arm": "LBL_overnight_h1",
+   "counterfactual": "LS_quant_q30_h5 (같은 런 date 짝) — CG537 200종목 전체창(2025-09-12~2026-11-09, 세션 280): k5 +0.110(t2.37) 전반 +0.278/후반 -0.058 · k10 +0.086(t2.90) 전반 +0.297/후반 -0.124 · 체결가능 필터로 행 78% 탈락(풀 중앙값 38). CG538 150종목(2025-10-13~2026-09-17, 세션 230): k5 +0.522(t2.74)/k10 +0.516(t2.79) · 분할 both_positive · 필터 탈락 3.9%(풀 중앙값 144)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && export PYTHONPATH=/app && B=\"timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg534_po.jsonl --arm-tag LBL_overnight_h1 --control-jsonl /app/reports/overnight/cg534_po.jsonl --control-tag LS_quant_q30_h5 --stride 1 --exit next_open --entry close --horizon 1 --fee-buy 0.0005 --fee-sell 0.0005 --tax-sell 0.002 --min-value 5000000000\"; for k in 5 10; do $B --k $k --date-from 2026-09-18 --date-to 2026-11-09 --json-out /app/reports/overnight/cg539_recent_k$k.json; done; for k in 10 5; do $B --k $k --date-from 2025-10-13 --date-to 2026-09-17 --json-out /app/reports/overnight/cg539_matched_k$k.json; done'",
+   "hypothesis": "두 런은 유니버스(200 vs 150)와 기간(280 vs 230세션)이 함께 달라 귀속이 불가능하다. 200종목을 150종목과 같은 창으로 자르면 ① 시점만 다르다면 Δ·분할이 살아나고 ② 유니버스만 다르다면 잘라도 후반 절반이 계속 음(-)일 것이다. 최근 8주(2026-09-18~11-09) 단독 측정은 그 구간이 신호를 죽였는지를 직접 본다.",
+   "success": "사전등록(변경 금지): ① 매칭창 200종목 k=5/10 이 Δ≥+0.1%p & t≥2 & 분할 both_positive → '유니버스 강건' (CG538 신호 유지, 라벨 정의 승인 요청 근거 가능) ② 매칭창에서도 후반 절반 ≤0 이고 최근창 단독도 Δ≤+0.1%p → '유니버스 특이'(150종목 한정) — 라벨 축 종결, 승격 요청 금지 ③ 매칭창 통과 + 최근창만 음(-) → '최근 8주 국면 붕괴' — 국면 게이트(CG459 계열)로 이관 ④ 부호·유의가 k=5/10 에서 엇갈리면 '표본 잡음'으로 기록.",
+   "expected": "체결가능 풀이 얇은 200종목에서 후반 절반이 계속 음이면 유니버스 특이로 결론. 150종목·최근창이 겹치지 않으므로 '최근 국면' 판단은 200종목 최근 8주로만 한다.",
+   "cost": "분석만(4회 실행, 학습 없음, 약 8분)",
+   "created_at": "2026-11-28T07:09:49+09:00",
+   "setup_needed": null,
+   "attempts": [
+    {
+     "ts": "2026-11-28T07:09:53+09:00",
+     "rc": 127,
+     "verdict": "실행실패",
+     "detail": "측정값 없음 — 종료코드 127",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG539_20261128-070953.log",
+     "elapsed_min": 0.0
+    },
+    {
+     "ts": "2026-11-28T07:10:25+09:00",
+     "rc": 0,
+     "verdict": "신호있음",
+     "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.3%p · 세션 231 · 풀 중앙값 40 · k=5 arm +0.271%p/세션 · 대조 -0.036 · Δ+0.307(t 3.29) · 양세션 59.3% · 분할 both_positive [+0.209/+0.332] · 참고(체결성 필터 OFF): k=5 arm +0.320%p · Δ+0.414 · 널(풀) 대비 k=5 Δ+0.243%p(t 3.11) pos/neg 137/94 · 널 대비 절반 [+0.16/+0.32] · 부호검정 p=0.002(139/92) · 상위3세션 제거 Δ+0.248(t 2.83) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인) · ⚠ 다중 산출 루프 — 산출 파일이 루프 변수(/app/reports/overnight/cg539_recent_k$k.json;)로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. 오프셋/조건별 집계를 따로 확인하라",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG539_20261128-071009.log",
+     "elapsed_min": 0.3
+    }
+   ],
+   "result": {
+    "verdict": "신호있음",
+    "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.3%p · 세션 231 · 풀 중앙값 40 · k=5 arm +0.271%p/세션 · 대조 -0.036 · Δ+0.307(t 3.29) · 양세션 59.3% · 분할 both_positive [+0.209/+0.332] · 참고(체결성 필터 OFF): k=5 arm +0.320%p · Δ+0.414 · 널(풀) 대비 k=5 Δ+0.243%p(t 3.11) pos/neg 137/94 · 널 대비 절반 [+0.16/+0.32] · 부호검정 p=0.002(139/92) · 상위3세션 제거 Δ+0.248(t 2.83) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 돈으로도 실질성 있음(승격 아님 — 라벨 정의 변경은 리뷰보드 승인) · ⚠ 다중 산출 루프 — 산출 파일이 루프 변수(/app/reports/overnight/cg539_recent_k$k.json;)로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. 오프셋/조건별 집계를 따로 확인하라",
+    "delta": 0.307,
+    "per_exp": null,
+    "rc": 0
+   },
+   "notes": "4개 산출 전량 집계(구동기 판정은 summary_out=매칭창 k5 하나): 매칭창(200종목 2025-10-13~2026-09-17, 231세션, 왕복0.30%p·50억) k5 +0.271(t1.75 vs 대조 -0.036, Δ+0.307, 짝 t3.29, 139/92, 분할 +0.209/+0.332) · k10 +0.263(t1.83, Δ+0.270, 짝 t3.97) | 최근 33세션(2026-09-18~11-09) k5 -1.039(t-1.76, Δ-0.602 t-1.80, 13/20) · k10 -1.104(t-2.13, Δ-0.377 t-1.56) · 체결성필터 OFF Δ -0.174/-0.050(유의 아님) → 판정: 유니버스 특이 아님(매칭창 통과) · 최근 8주 부호 반전(표본 33세션, '관측'이지 확정 아님). 라벨 축은 시점 의존으로 종결, 후속은 CG540."
+  },
+  {
+   "id": "CG540",
+   "title": "[돈·국면게이트] 익일시가 h1 arm 의 최근 33세션 부호반전(Δ−0.60, t−1.80)을 진입 시점에 알 수 있는 trailing pool 게이트가 걸러내는가 (CG539 후속)",
+   "status": "done",
+   "kind": "돈 지표",
+   "owner": "engineer",
+   "priority": 1,
+   "affects_model": false,
+   "metric": "fillable_topk_expectancy",
+   "summary_out": "/app/reports/overnight/cg540_full_k5.json",
+   "est_minutes": 8,
+   "arm": "LBL_overnight_h1",
+   "counterfactual": "게이트 OFF 같은 창 — CG539 매칭창(200종목 2025-10-13~2026-09-17) k5 Δ+0.307(t3.29)/k10 Δ+0.270(t3.97) · 최근 33세션 k5 Δ−0.602(t−1.80)/k10 Δ−0.377(t−1.56) · CG537 전체창 k5 Δ+0.211(t2.37)",
+   "command": "docker exec stock_xgboost_ml sh -c 'cd /app && export PYTHONPATH=/app && B=\"timeout 900 python -u scripts/fillable_topk_expectancy.py --arm-jsonl /app/reports/overnight/cg534_po.jsonl --arm-tag LBL_overnight_h1 --control-jsonl /app/reports/overnight/cg534_po.jsonl --control-tag LS_quant_q30_h5 --stride 1 --exit next_open --entry close --horizon 1 --fee-buy 0.0005 --fee-sell 0.0005 --tax-sell 0.002 --min-value 5000000000 --gate-rule trailing_pool --gate-days 5 --gate-min-pct 0\"; for k in 5 10; do $B --k $k --date-from 2026-09-18 --date-to 2026-11-09 --json-out /app/reports/overnight/cg540_recent_k$k.json; done; for k in 10 5; do $B --k $k --date-from 2025-09-12 --date-to 2026-11-09 --json-out /app/reports/overnight/cg540_full_k$k.json; done'",
+   "hypothesis": "최근 8주 부호반전이 '모델 실패'가 아니라 '하락 국면'이라면, 과거 5세션 풀수익 부호(trailing_pool·사후정보 아님)로 켜고 끄는 게이트가 나쁜 세션을 배제하면서 전체창 Δ 를 유지해야 한다. 배제되지 않으면 국면 게이트 가설은 기각이다.",
+   "success": "사전등록(변경 금지): ① 전체창(280세션) 게이트 ON 세션에서 k=5/10 Δ≥+0.1%p & t≥2 & 분할 both_positive ② 최근 33세션 중 ON 세션이 1/3 이하이고 그 ON 세션의 Δ>0 ③ 전체창 ON 세션 비율 ≥40%(폐기가 아니라 선별). ①②③ 동시 충족 → 트레이더 진입규칙 이관 후보(리뷰보드 승인 대상) · ① 또는 ③ 붕괴 → 국면 게이트 기각, 라벨 축은 '시점 의존·배포 불가'로 종결 · ②만 붕괴 → 게이트가 최근 국면을 못 거른 것으로 기록.",
+   "expected": "게이트 ON 비율이 50~65% 로 과거 실측(trailing_pool)과 비슷할 것. 최근 33세션은 대부분 OFF 로 걸릴 가능성.",
+   "cost": "분석만(4회 실행, 학습 없음, 약 8분)",
+   "created_at": "2026-11-28T07:12:47+09:00",
+   "setup_needed": null,
+   "attempts": [
+    {
+     "ts": "2026-11-28T07:13:07+09:00",
+     "rc": 0,
+     "verdict": "노이즈",
+     "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.3%p · 세션 280 · 풀 중앙값 38 · k=5 arm +0.110%p/세션 · 대조 -0.101 · Δ+0.211(t 2.37) · 양세션 56.8% · 분할 unstable [+0.278/-0.058] ✗ · 참고(체결성 필터 OFF): k=5 arm +0.223%p · Δ+0.348 · 널(풀) 대비 k=5 Δ+0.178%p(t 2.42) pos/neg 161/119 · 널 대비 절반 [+0.19/+0.17] · 부호검정 p=0.003(165/115) · 상위3세션 제거 Δ+0.161(t 1.90) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족 · ⚠ 다중 산출 루프 — 산출 파일이 루프 변수(/app/reports/overnight/cg540_recent_k$k.json;)로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. 오프셋/조건별 집계를 따로 확인하라",
+     "log": "data/reports/me_cycle/logs/me_cycle_CG540_20261128-071249.log",
+     "elapsed_min": 0.3
+    }
+   ],
+   "result": {
+    "verdict": "노이즈",
+    "detail": "arm LBL_overnight_h1 vs 대조군 LS_quant_q30_h5 · exit next_open h1 · stride 1 · 수수료 왕복 0.3%p · 세션 280 · 풀 중앙값 38 · k=5 arm +0.110%p/세션 · 대조 -0.101 · Δ+0.211(t 2.37) · 양세션 56.8% · 분할 unstable [+0.278/-0.058] ✗ · 참고(체결성 필터 OFF): k=5 arm +0.223%p · Δ+0.348 · 널(풀) 대비 k=5 Δ+0.178%p(t 2.42) pos/neg 161/119 · 널 대비 절반 [+0.19/+0.17] · 부호검정 p=0.003(165/115) · 상위3세션 제거 Δ+0.161(t 1.90) · 사전문턱: 순기대>0 & Δ≥+0.1%p & t≥2 & 분할 both_positive → 사전등록 미충족 · ⚠ 다중 산출 루프 — 산출 파일이 루프 변수(/app/reports/overnight/cg540_recent_k$k.json;)로 여러 개다 — 판정은 마지막 파일 하나만 반영했다. 오프셋/조건별 집계를 따로 확인하라",
+    "delta": 0.2106,
+    "per_exp": null,
+    "rc": 0
+   },
+   "notes": "구동기 판정 '노이즈'는 최상위 k 블록(게이트 미적용 전체창)을 읽은 것 — 실제 게이트 판정값은 conditions.*.gate.bands: 전체창(280세션) fillable n_scored 230 · ON 168 · OFF 62 → ON k5 +0.172(t1.18, 분할 +0.167/+0.177, vs 풀 Δ+0.212 t2.52) · ON k10 +0.163(t1.25, vs 풀 Δ+0.203 t3.37) · 최근 33세션은 n_scored 23 · ON 6(26%) · ON k5 -2.159(t-3.02, 승률 0.0%) · ON k10 -2.410(t-3.75, vs 풀 Δ-0.565 t-5.68) → 사전등록 ①통과 ③통과 ②붕괴(게이트가 최근 국면을 못 거름) → 국면 게이트 기각·라벨 축 '배포 불가' 종결."
   }
  ],
  "updated": "2026-11-28T06:16:00+09:00"
