@@ -6457,7 +6457,7 @@ def rejudge_parser_gap() -> list:
         if not it or not it.get("command"):
             continue
         parsed = parse_by_metric(it, summary_path(it.get("metric") or "", it.get("command"),
-                                                  it.get("summary_out")), 0.0)
+                                                  it.get("summary_out"), quiet=True), 0.0)
         if parsed.get("error"):
             continue
         verdict, detail, delta = _judge3(judge_by_metric(it, parsed))
