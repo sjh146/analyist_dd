@@ -187,6 +187,34 @@ try:
 except Exception as e:  # noqa: BLE001
     check(f"현행판본 검사 예외({e})", False)
 
+
+
+
+
+try:
+    import model_engineer_cycle as me3
+    mon8 = {"k": 10, "topk_net_mean_pct": 0.5225, "pool_net_mean_pct": 0.0231,
+            "delta_mean_pct": 0.4995, "delta_t": 0.79, "split_half_pct": [0.6693, 0.3296],
+            "n_dates": 22, "kept_ratio": 0.2657}
+    payload3 = {"generated_at": "2026-11-28T07:08:17", "predictions_rows": 10,
+                "model_versions": {"champ-x": 5},
+                "result": {"h1": {"n_dates": 22, "pooled_auc": 0.5498, "daily_auc_mean": 0.5083,
+                                  "top10_ret_mean": -0.001398, "all_ret_mean": 0.002376,
+                                  "money": mon8,
+                                  "date_versions": {"2026-11-19": "champ-x"},
+                                  "by_version": {"champ-x": mon8}}}}
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(payload3, f)
+        p3 = f.name
+    line3 = me3._forward_summary_line(p3)
+    check("헤드라인: 체결 top-k 표기", "체결 top10 +0.522% vs 풀 +0.023% Δ+0.499%p" in line3, line3)
+    check("헤드라인: 미필터는 '참고'로 격하", "미필터(참고)" in line3, line3)
+    check("헤드라인: 체결 머니가 미필터보다 앞", line3.find("체결 top10") < line3.find("미필터(참고)"), line3)
+    check("헤드라인: kept_ratio 병기", "kept 0.2657" in line3, line3)
+    os.unlink(p3)
+except Exception as e:  # noqa: BLE001
+    check(f"헤드라인 검사 예외({e})", False)
+
 print(f"\n=== PASS {len(PASS)} / FAIL {len(FAIL)} ===")
 if FAIL:
     for f in FAIL:
