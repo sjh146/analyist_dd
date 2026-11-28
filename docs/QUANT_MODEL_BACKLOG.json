@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_at": "2026-11-28T18:35:00+09:00",
+ "updated_at": "2026-11-28T19:10:40+09:00",
  "owner": "quant-model-engineer",
  "purpose": "장외시간 자율 연구 백로그. 각 항목은 재현 가능한 명령과 성공 판정 기준을 스스로 갖는다. 사이클 구동기(scripts/model_engineer_cycle.py)가 앞에서부터 pending 을 집어 실행한다.",
  "rules": [
@@ -28049,7 +28049,7 @@
    "counterfactual": "CG404 h5 전방: n_dates 8 · pooled 0.5386(daily 0.5210) · top10 Δ −0.3329(t −0.24) · 분위 top−bottom −0.8726(t −2.69) · 분할 both_negative · 같은 날짜 h1: top−bottom −0.2162(t −0.89) · 단조날짜비율 0.0",
    "command": "docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app timeout 1500 python -u scripts/forward_scorecard.py --model-version champ-20261002T024420-0.5513 --out /app/reports/overnight/cg512_forward_h5.json'",
    "success": "사전 등록(변경 금지): ① h5 n_dates ≥ 15 ② n_dates·판본이 단일(champ-20261002T024420-0.5513)인지 먼저 확인 ③ 분위 top−bottom Δ 의 t ≥ 2 (부호 무관·부호를 그대로 보고) ④ top10−풀 Δ 의 t ≥ 2. ③④ 동시 충족 & 부호 음(−) → 'h5 전방 역전'으로 확정하고 트레이더 h5 경로 경고 보고(승격 아님) · ③ 미달 → 표본 잡음으로 기록하고 축 종결(n_dates 25 재시도 금지).",
-   "note": "2026-11-26 23:2x 엔지니어 자율(CG404 후속). CG404 는 h1 만 표본을 채워 '서빙격차 미검출'(pooled 0.5290·daily 0.5100, 백테스트 0.5107±0.0209 와 정합)로 학습-서빙 결손 축을 닫았고, h5 는 8날짜로 보류였다. 그 8날짜에서 top−bottom t −2.69 는 **우연이면 놓치기 아까운 반대방향 신호**라 표본이 찰 때 한 번만 다시 본다(같은 8날짜 재채점은 다중비교라 금지). 학습 0 · DB 조회만.",
+   "note": "2026-11-26 23:2x 엔지니어 자율(CG404 후속). CG404 는 h1 만 표본을 채워 '서빙격차 미검출'(pooled 0.5290·daily 0.5100, 백테스트 0.5107±0.0209 와 정합)로 학습-서빙 결손 축을 닫았고, h5 는 8날짜로 보류였다. 그 8날짜에서 top−bottom t −2.69 는 **우연이면 놓치기 아까운 반대방향 신호**라 표본이 찰 때 한 번만 다시 본다(같은 8날짜 재채점은 다중비교라 금지). 학습 0 · DB 조회만. | 2026-11-28 19:1x 재스케줄(엔지니어 자율): forward_scorecard.json by_version 실측 — champ-20261002T024420-0.5513 단독 h5 n_dates=9 (v1.0 9d 혼합 18d) → 사전조건 ①(n_dates>=15) 미충족. 지금 돌리면 25분 소모 후 표본 미달이 원장에 남고 CG404 축이 조기 종결될 위험. h5 라벨은 5거래일 지연이라 6거래일 뒤(≈12-07) champ 단독 15 도달 → 12-08 이후 재개.",
    "reported": false,
    "attempts": [],
    "expected": "n_dates 15~18 에서 |t| < 2 면 '8날짜 잡음'으로 축 종결, t ≥ 2 음(−)이면 실매매 h5 경로 경고."
@@ -29267,7 +29267,28 @@
     "rc": 0
    },
    "notes": "구동기 판정 '노이즈'는 최상위 k 블록(게이트 미적용 전체창)을 읽은 것 — 실제 게이트 판정값은 conditions.*.gate.bands: 전체창(280세션) fillable n_scored 230 · ON 168 · OFF 62 → ON k5 +0.172(t1.18, 분할 +0.167/+0.177, vs 풀 Δ+0.212 t2.52) · ON k10 +0.163(t1.25, vs 풀 Δ+0.203 t3.37) · 최근 33세션은 n_scored 23 · ON 6(26%) · ON k5 -2.159(t-3.02, 승률 0.0%) · ON k10 -2.410(t-3.75, vs 풀 Δ-0.565 t-5.68) → 사전등록 ①통과 ③통과 ②붕괴(게이트가 최근 국면을 못 거름) → 국면 게이트 기각·라벨 축 '배포 불가' 종결."
+  },
+  {
+   "id": "CG541",
+   "title": "[모델 축·판본] 배포 피드에 champ 과 v1.0 이 섞여 있다 — 같은 날짜에서 두 판본의 점수 상관·top-k 겹침·결합 이득을 재라",
+   "kind": "모델 축",
+   "owner": "engineer",
+   "affects_model": true,
+   "metric": "fillable_topk_expectancy",
+   "summary_out": "/app/reports/overnight/cg541_version_overlap.json",
+   "est_minutes": 30,
+   "arm": "VX_overlap",
+   "counterfactual": "같은 날짜의 champ-20261002T024420-0.5513 단독(9d) 과 v1.0 단독(9d) top-k — 판본을 섞은 pooled 18d 는 대조로 쓰지 않는다",
+   "command": "cd /home/jhshi/analyist_dd && docker exec stock_xgboost_ml sh -c 'cd /app && PYTHONPATH=/app timeout 1800 python -u scripts/version_overlap_probe.py --out /app/reports/overnight/cg541_version_overlap.json'",
+   "success": "사전등록(변경 금지): ① 두 판본이 함께 있는 날짜 ≥5 에서 날짜별 Spearman ρ 중앙값 ≥ 0.95 이고 top10 겹침 ≥ 8/10 → '판본 결합 이득 없음'으로 축 종결 ② ρ < 0.80 또는 겹침 ≤ 5/10 → 결합(rank-mean) arm 을 pending 으로 등록(사전문턱: 같은 날짜 체결가능 순기대 Δ ≥ +0.1%p/세션 & t ≥ 2, 수수료 0.21%p 차감) ③ rc≠0·덤프 없음 = 실행실패(노이즈로 쓰지 않는다)",
+   "hypothesis": "전방 성적표 실측(2026-11-28 07:08, forward_scorecard.json): h1 22날짜 = champ 13d + v1.0 9d, h5 18날짜 = 9d+9d 혼합 → 라이브 피드가 창중에 판본을 바꿨고 pooled 전방수치는 두 모델의 평균이라 '챔피언 성적'이 아니다. 두 판본의 점수가 충분히 다르면(ρ<0.8) 약한 모델 두 개의 결합이 단일 모델 AUC·순기대를 넘을 수 있고, 반대로 ρ≥0.95 면 앙상블 축을 영구히 닫는다 — 둘 중 어느 쪽이든 다음 레버 판단이 닫힌다.",
+   "status": "needs_setup",
+   "priority": 2,
+   "created_at": "2026-11-28T19:10:40+09:00",
+   "note": "선행 구현 필요(내 소유 범위): scripts/version_overlap_probe.py 신설 — ml_predictions(stock_code·prediction_date·model_version·confidence) 를 model_version 필터 없이 읽어 ① 날짜별 판본 교집합 크기 ② 교집합 날짜의 날짜별 Spearman ρ(동점 처리) ③ 상위10 겹침 수 ④ 결합 rank-mean 의 체결가능 순기대(scripts/fillable_expectancy.py 재사용) 를 JSON 으로 낸다. 학습 0 · DB 조회만(≤30분). 선행 조건 없음(v6o/v7 패널 불필요).",
+   "attempts": [],
+   "reported": false
   }
  ],
- "updated": "2026-11-28T06:16:00+09:00"
+ "updated": "2026-11-28T19:10:40+09:00"
 }
